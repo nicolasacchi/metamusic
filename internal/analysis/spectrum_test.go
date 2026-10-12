@@ -58,4 +58,10 @@ func TestSpectrum_BadParams(t *testing.T) {
 	if _, err := NewSpectrumBuilder(48000, 0); err == nil {
 		t.Fatal("channels")
 	}
+	if _, err := NewSpectrumBuilder(100, 1); err == nil {
+		t.Fatal("implausibly low rate")
+	}
+	if _, err := NewSpectrumBuilder(48000, 1000); err == nil {
+		t.Fatal("too many channels")
+	}
 }

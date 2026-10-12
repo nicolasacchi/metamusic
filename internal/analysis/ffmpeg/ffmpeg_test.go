@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -79,8 +80,8 @@ func TestFFmpeg_NewChecksCapabilities(t *testing.T) {
 	if _, err := ffmpeg.New(context.Background(), mediatool.Tools{FFmpeg: bin}); err == nil {
 		t.Error("garbage version accepted")
 	}
-	if _, err := ffmpeg.New(context.Background(), mediatool.Tools{FFmpeg: "/nonexistent/ffmpeg"}); err == nil {
-		t.Error("missing binary accepted")
+	if _, err := ffmpeg.New(context.Background(), mediatool.Tools{FFmpeg: "/nonexistent/ffmpeg"}); !errors.Is(err, analysis.ErrToolMissing) {
+		t.Errorf("missing binary: err = %v, want ErrToolMissing", err)
 	}
 }
 
@@ -104,8 +105,15 @@ func TestArgv_OnlyWorkPaths(t *testing.T) {
 	if len(runs) != 2 {
 		t.Fatalf("runs = %d", len(runs))
 	}
-	for _, r := range runs {
+	wantLoud := []string{"-nostdin", "-hide_banner", "-nostats", "-v", "error", "-protocol_whitelist", "file,pipe", "-i", "file:" + in, "-map", "0:a:0",
+		"-af", "ebur128=peak=true+sample:framelog=quiet:metadata=1,ametadata=mode=print:file=-", "-f", "null", "-"}
+	wantDec := []string{"-nostdin", "-hide_banner", "-v", "error", "-protocol_whitelist", "file,pipe", "-i", "file:" + in, "-map", "0:a:0",
+		"-f", "f32le", "-acodec", "pcm_f32le", "-"}
+	for ri, r := range runs {
 		args := strings.Split(strings.TrimSpace(strings.TrimSuffix(r, "\n--")), "\n")
+		if want := [][]string{wantLoud, wantDec}[ri]; !slices.Equal(args, want) {
+			t.Errorf("run %d argv = %q, want %q", ri, args, want)
+		}
 		pw, ii := -1, -1
 		for i, a := range args {
 			switch a {
@@ -287,7 +295,7 @@ func TestBandwidth_Upsampled32k(t *testing.T) {
 
 func TestBandwidth_FullBandNoise(t *testing.T) {
 	bw := bandwidthOf(t, synth.Tone{LUFS: -14, Seconds: 4, BandLimitHz: 24000})
-	if bw == nil || *bw < 23000 {
+	if bw == nil || *bw < 23000 || *bw > 24000 {
 		t.Fatalf("bandwidth %v", bw2s(bw))
 	}
 }

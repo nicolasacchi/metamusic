@@ -50,6 +50,10 @@ func New(ctx context.Context, tools mediatool.Tools) (*FFmpeg, error) {
 	}
 	out, err := run("-version")
 	if err != nil {
+		var te *mediatool.ToolError
+		if errors.As(err, &te) && te.ExitCode == -1 && te.Err == nil {
+			return nil, fmt.Errorf("%w: ffmpeg", analysis.ErrToolMissing)
+		}
 		return nil, fmt.Errorf("ffmpeg: version probe: %w", err)
 	}
 	tok, err := parseVersion(out)
@@ -81,7 +85,7 @@ func input(workPath string) ([]string, error) {
 	if !filepath.IsAbs(workPath) {
 		return nil, errors.New("ffmpeg: work path must be absolute")
 	}
-	return []string{"-nostdin", "-hide_banner", "-protocol_whitelist", "file,pipe", "-i", "file:" + workPath, "-map", "0:a:0"}, nil
+	return []string{"-protocol_whitelist", "file,pipe", "-i", "file:" + workPath, "-map", "0:a:0"}, nil
 }
 
 // Loudness runs the C14 ebur128 invocation and parses its metadata stream.
@@ -90,7 +94,7 @@ func (f *FFmpeg) Loudness(ctx context.Context, workPath string) (analysis.Loudne
 	if err != nil {
 		return analysis.Loudness{}, err
 	}
-	args := append([]string{"-nostats", "-v", "error"}, in...)
+	args := append([]string{"-nostdin", "-hide_banner", "-nostats", "-v", "error"}, in...)
 	args = append(args, "-af", "ebur128=peak=true+sample:framelog=quiet:metadata=1,ametadata=mode=print:file=-", "-f", "null", "-")
 	out, err := mediatool.Run(ctx, f.bin, args, mediatool.RunOpts{Timeout: loudnessTimeout, MaxStdout: maxLoudnessOut})
 	if err != nil {
@@ -156,7 +160,7 @@ func (f *FFmpeg) Scan(ctx context.Context, workPath string, sampleRate, channels
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s := &sink{ch: channels, total: totalSamples, pk: pk, sp: sp, cancel: cancel}
-	args := append([]string{"-v", "error"}, in...)
+	args := append([]string{"-nostdin", "-hide_banner", "-v", "error"}, in...)
 	args = append(args, "-f", "f32le", "-acodec", "pcm_f32le", "-")
 	_, runErr := mediatool.Run(ctx, f.bin, args, mediatool.RunOpts{Timeout: decodeTimeout, Stdout: s})
 	if s.err != nil {

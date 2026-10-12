@@ -96,8 +96,8 @@ func TestSynth_Styles(t *testing.T) {
 	if ia.Count(flacmeta.BlockType(1)) == 0 || len(ia.Comments) == 0 {
 		t.Errorf("ffmpeg style should carry padding and an encoder tag: %+v %v", ia.Blocks, ia.Comments)
 	}
-	if ib.Count(1) != 0 || ib.Count(3) != 0 || len(ib.Comments) != 0 {
-		t.Errorf("yue2 style must have no padding, seektable or tags: %+v %v", ib.Blocks, ib.Comments)
+	if ib.Count(1) != 0 || ib.Count(3) != 0 || ib.Count(4) != 1 || ib.Vendor == "" || len(ib.Comments) != 0 {
+		t.Errorf("yue2 style must keep a vendor-only VORBIS_COMMENT and have no padding, seektable or tags: %+v %q %v", ib.Blocks, ib.Vendor, ib.Comments)
 	}
 	if ib.StreamInfo.TotalSamples != 2*48000 || ib.StreamInfo.BitsPerSample != 24 {
 		t.Errorf("%+v", ib.StreamInfo)
@@ -153,6 +153,25 @@ func TestSynth_UsesSwr(t *testing.T) {
 	b, _ := os.ReadFile(log)
 	if !bytes.Contains(b, []byte("resampler=swr")) || bytes.Contains(b, []byte("soxr")) {
 		t.Fatalf("argv:\n%s", b)
+	}
+	// every run starts at -nostdin; the capability probes of ffmpeg.New have none and no -i
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	whitelisted, inputs := false, 0
+	for j, a := range lines {
+		switch a {
+		case "-nostdin":
+			whitelisted = false
+		case "-protocol_whitelist":
+			whitelisted = lines[j+1] == "file,pipe"
+		case "-i", "-filter_complex":
+			inputs++
+			if !whitelisted {
+				t.Errorf("%s at line %d without a preceding -protocol_whitelist file,pipe", a, j)
+			}
+		}
+	}
+	if inputs == 0 {
+		t.Fatal("no ffmpeg run recorded")
 	}
 	for _, line := range strings.Split(string(b), "\n") {
 		if strings.HasPrefix(line, "/") {
@@ -220,6 +239,35 @@ func TestProbeFLAC(t *testing.T) {
 	si := info.StreamInfo
 	if si.BitsPerSample != 24 || si.SampleRate != 48000 || si.Channels != 2 || si.TotalSamples != 3*48000 || info.Duration() != 3.0 {
 		t.Fatalf("%+v", si)
+	}
+	an, err := ffmpeg.New(context.Background(), tools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := an.Loudness(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(l.SamplePeakDBFS+20) > 0.1 {
+		t.Errorf("sample peak %.2f dBFS, want -20", l.SamplePeakDBFS)
+	}
+}
+
+func TestSynth_RejectsBadLUFS(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	tools := testtools.Tools()
+	d := t.TempDir()
+	for _, l := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if err := synth.FLAC(context.Background(), tools, filepath.Join(d, "x.flac"), synth.Tone{LUFS: l, Seconds: 2}, synth.StyleFFmpeg); err == nil {
+			t.Errorf("LUFS %v accepted", l)
+		}
+	}
+	// a target that cannot be met without clipping is an error, not an off-target file
+	if err := synth.FLAC(context.Background(), tools, filepath.Join(d, "loud.flac"), synth.Tone{LUFS: -2, Seconds: 2, BPM: 120}, synth.StyleFFmpeg); err == nil {
+		t.Error("clipping target accepted")
+	}
+	if _, err := os.Stat(filepath.Join(d, "loud.flac")); err == nil {
+		t.Error("failed render left a file")
 	}
 }
 

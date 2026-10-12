@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/nicolasacchi/metamusic/internal/analysis"
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 )
@@ -27,11 +28,15 @@ type FLACStyle int
 const (
 	// StyleFFmpeg is ffmpeg's default output: an encoder tag and PADDING.
 	StyleFFmpeg FLACStyle = iota
-	// StyleYuE2 mirrors the shape YuE2 writes: no tags, no PADDING, no SEEKTABLE.
+	// StyleYuE2 mirrors the shape YuE2 writes: a VORBIS_COMMENT block holding the
+	// libFLAC vendor string and zero comments, no PADDING, no SEEKTABLE.
 	StyleYuE2
 )
 
-const baseGainDB = 0.0
+const (
+	baseGainDB   = 0.0
+	calTolerance = 0.05
+)
 
 // source returns the lavfi graph rendering the tone at unit calibration gain.
 func (t Tone) source(gainDB float64) string {
@@ -77,6 +82,9 @@ func FLAC(ctx context.Context, t mediatool.Tools, dst string, tone Tone, style F
 	if err := needAbs(dst); err != nil {
 		return err
 	}
+	if math.IsNaN(tone.LUFS) || math.IsInf(tone.LUFS, 0) {
+		return errors.New("synth: tone needs a finite target loudness")
+	}
 	if tone.Seconds <= 0 || math.IsNaN(tone.Seconds) || math.IsInf(tone.Seconds, 0) {
 		return errors.New("synth: tone needs a positive duration")
 	}
@@ -111,15 +119,16 @@ func FLAC(ctx context.Context, t mediatool.Tools, dst string, tone Tone, style F
 		}
 		err = run(ctx, t.FLAC, "-s", "-f", "--no-seektable", "--no-padding", "-o", tmp, wav)
 		if err == nil {
-			err = run(ctx, t.Metaflac, "--remove", "--block-type=VORBIS_COMMENT", "--dont-use-padding", tmp)
+			err = run(ctx, t.Metaflac, "--remove-all-tags", "--dont-use-padding", tmp)
 		}
 	default:
 		err = render(ctx, t.FFmpeg, graph, flacOut, tmp)
 	}
+	if err == nil {
+		var m analysis.Loudness
+		if m, err = an.Loudness(ctx, tmp); err == nil && math.Abs(m.IntegratedLUFS-tone.LUFS) > calTolerance {
+			err = fmt.Errorf("synth: calibration missed the target (%.2f LUFS measured, %.2f wanted; the target may clip)", m.IntegratedLUFS, tone.LUFS)
+		}
+	}
 	return publish(tmp, dst, err)
-}
-
-// ProbeFLAC writes the device-probe file: 24-bit, 48 kHz, stereo, 3.0 s.
-func ProbeFLAC(ctx context.Context, t mediatool.Tools, dst string) error {
-	return FLAC(ctx, t, dst, Tone{LUFS: -18, Seconds: 3, Variant: 7}, StyleFFmpeg)
 }

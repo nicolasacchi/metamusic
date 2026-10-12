@@ -1,7 +1,6 @@
 package analysis
 
 import (
-	"errors"
 	"math"
 )
 
@@ -29,8 +28,8 @@ type SpectrumBuilder struct {
 
 // NewSpectrumBuilder prepares a builder for interleaved float32 input.
 func NewSpectrumBuilder(sampleRate, channels int) (*SpectrumBuilder, error) {
-	if sampleRate <= 0 || channels <= 0 {
-		return nil, errors.New("analysis: spectrum needs a positive sample rate and channel count")
+	if err := checkStream(sampleRate, channels); err != nil {
+		return nil, err
 	}
 	return &SpectrumBuilder{sr: sampleRate, ch: channels, win: Hann(specN), buf: make([]float64, 0, specN),
 		re: make([]float64, specN), im: make([]float64, specN), acc: make([]float64, specN/2+1)}, nil
@@ -77,7 +76,9 @@ func (s *SpectrumBuilder) Finish() Spectrum {
 	nb := int(float64(s.sr)/2/bandHz) + 1
 	sum := make([]float64, nb)
 	cnt := make([]int, nb)
-	for k, p := range s.acc {
+	// The Nyquist bin (k == specN/2) is left out: it would form a band above sr/2
+	// and report a bandwidth beyond Nyquist for full-band content.
+	for k, p := range s.acc[:specN/2] {
 		b := int(float64(k) * float64(s.sr) / specN / bandHz)
 		if b >= nb {
 			b = nb - 1

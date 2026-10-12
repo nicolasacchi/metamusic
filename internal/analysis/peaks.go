@@ -33,12 +33,15 @@ func newLevel(total, spp uint64) *level {
 
 // NewPeaksBuilder prepares a builder for a stream of total frames.
 func NewPeaksBuilder(sampleRate, channels int, totalSamples uint64) (*PeaksBuilder, error) {
-	if sampleRate <= 0 || channels <= 0 {
-		return nil, errors.New("analysis: peaks need a positive sample rate and channel count")
+	if err := checkStream(sampleRate, channels); err != nil {
+		return nil, err
 	}
 	detail := uint64(math.Round(float64(sampleRate) / detailPixelsPerSecond))
 	if detail < 1 {
 		detail = 1
+	}
+	if (totalSamples+detail-1)/detail > maxDetailPx {
+		return nil, errors.New("analysis: stream too long for peaks")
 	}
 	ov := (totalSamples + 2047) / 2048
 	if ov < 1 {

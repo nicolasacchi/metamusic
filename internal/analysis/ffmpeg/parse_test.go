@@ -95,9 +95,20 @@ func TestParseLoudness_OtherFraming(t *testing.T) {
 		if i+1 < len(src) {
 			fine = append(fine, next) // 50 ms framing: the half-step frame repeats the values
 		}
-		// irregular: whole-second frames keep their time; others are nudged by an irregular amount
+		// irregular: whole-second frames move slightly early (no frame at exactly k), a decoy
+		// with different values sits just after k and must never be picked; others are nudged
 		g := frame{t: f.t, f: f.f}
-		if math.Abs(f.t-math.Round(f.t)) > 1e-9 && i != len(src)-1 {
+		if i != len(src)-1 {
+			if k := math.Round(f.t); math.Abs(f.t-k) < 1e-9 && k >= 1 {
+				g.t = k - 0.004
+				decoyF := map[string]string{}
+				for kk, v := range f.f {
+					decoyF[kk] = v
+				}
+				decoyF["lavfi.r128.S"] = "-80.000"
+				irregular = append(irregular, g, frame{t: k + 0.003, f: decoyF})
+				continue
+			}
 			g.t = f.t + 0.01*float64(i%3)
 		}
 		irregular = append(irregular, g)
@@ -109,8 +120,8 @@ func TestParseLoudness_OtherFraming(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if !reflect.DeepEqual(l.ShortTerm1Hz, base.ShortTerm1Hz) {
-			t.Errorf("%s curve = %v, want %v", name, l.ShortTerm1Hz, base.ShortTerm1Hz)
+		if want := []float64{-70.0, -70.0, -10.0, -8.4}; !reflect.DeepEqual(l.ShortTerm1Hz, want) {
+			t.Errorf("%s curve = %v, want %v", name, l.ShortTerm1Hz, want)
 		}
 		if l.IntegratedLUFS != base.IntegratedLUFS || l.ShortTermMaxLUFS != base.ShortTermMaxLUFS {
 			t.Errorf("%s scalars differ", name)

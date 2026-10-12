@@ -28,7 +28,7 @@ func run(ctx context.Context, bin string, args ...string) error {
 }
 
 func ffmpegArgs(extra ...string) []string {
-	return append([]string{"-nostdin", "-hide_banner", "-v", "error", "-y"}, extra...)
+	return append([]string{"-nostdin", "-hide_banner", "-v", "error", "-y", "-protocol_whitelist", "file,pipe"}, extra...)
 }
 
 func needAbs(p string) error {

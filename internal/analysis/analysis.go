@@ -64,3 +64,22 @@ type Analyzer interface {
 	Loudness(ctx context.Context, workPath string) (Loudness, error)
 	Scan(ctx context.Context, workPath string, sampleRate, channels int, totalSamples uint64) (Peaks, Spectrum, error)
 }
+
+// Input limits for the builders: STREAMINFO comes from untrusted files, and the
+// peaks buffers are sized from it before any audio is decoded.
+const (
+	minSampleRate = 8000
+	maxSampleRate = 768000
+	maxChannels   = 32
+	maxDetailPx   = 2 << 20 // ~29 h at the 20 px/s detail level
+)
+
+func checkStream(sampleRate, channels int) error {
+	if sampleRate < minSampleRate || sampleRate > maxSampleRate {
+		return errors.New("analysis: sample rate outside 8000-768000 Hz")
+	}
+	if channels <= 0 || channels > maxChannels {
+		return errors.New("analysis: channel count outside 1-32")
+	}
+	return nil
+}

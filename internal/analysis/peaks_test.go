@@ -133,6 +133,12 @@ func TestPeaks_BadParams(t *testing.T) {
 	if _, err := NewPeaksBuilder(48000, 0, 10); err == nil {
 		t.Fatal("channels 0")
 	}
+	if _, err := NewPeaksBuilder(20, 1, 1<<36-1); err == nil {
+		t.Fatal("tiny rate with huge length accepted")
+	}
+	if _, err := NewPeaksBuilder(48000, 2, 48000*3600*48); err == nil {
+		t.Fatal("48 h accepted")
+	}
 }
 
 func TestPeaks_JSONGolden(t *testing.T) {
