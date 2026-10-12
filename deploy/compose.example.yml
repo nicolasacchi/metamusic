@@ -1,0 +1,31 @@
+# Example only. Put a TLS-terminating reverse proxy in front for real use
+# (e.g. https://mm.example.com) and switch to MM_AUTH=proxy there.
+services:
+  metamusic:
+    image: ghcr.io/nicolasacchi/metamusic:latest
+    # or: build: { context: .., dockerfile: Dockerfile }
+    restart: unless-stopped
+    environment:
+      MM_AUTH: local
+      MM_PUBLIC_URL: http://localhost:8080
+      MM_SECRETS_DIR: /run/secrets
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - metamusic-data:/data
+    secrets:
+      - secret_key
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+# Create first: mkdir -p secrets && openssl rand -hex 32 > secrets/secret_key
+secrets:
+  secret_key:
+    file: ./secrets/secret_key
+
+volumes:
+  metamusic-data:

@@ -1,0 +1,16 @@
+.git
+.githooks
+bin
+data
+metrics
+docs/private
+secrets
+.env*
+**/node_modules
+web/dist
+!web/dist/.gitkeep
+**/*.flac
+**/*.db
+**/*.db-*
+songs.jsonl
+varianti
