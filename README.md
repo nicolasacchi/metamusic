@@ -7,7 +7,7 @@ are all derived from that registry.
 
 One Go binary embeds a Svelte 5 SPA. GPU work runs on RunPod Serverless.
 
-Status: milestone M0 (skeleton). See [docs/plans/2026-10-12-roadmap.md](docs/plans/2026-10-12-roadmap.md)
+Status: milestone M1 (import and listen: library, media serving, player, archive import). See [docs/plans/2026-10-12-roadmap.md](docs/plans/2026-10-12-roadmap.md)
 and [docs/architecture.md](docs/architecture.md).
 
 ## Quick start (development)
@@ -37,6 +37,22 @@ Container defaults: `MM_ADDR=0.0.0.0:8080`, `MM_DATA_DIR=/data`, secrets under `
 (`MM_SECRETS_DIR`). Set `MM_PUBLIC_URL` to the externally visible URL (for example
 `https://mm.example.com`). Put a TLS-terminating reverse proxy in front for real use.
 
+## Importing an archive
+
+The inbox is mounted read-only and is never modified. Try it with a synthetic inbox first
+(`metamusic seed-synthetic` generates one under the data dir in dev mode):
+
+```bash
+metamusic import --dry-run                 # inventory only; writes a report under <data>/import/
+# review the report, fill <data>/import/mapping.csv from mapping.todo.csv if needed, then:
+metamusic import --plan <data>/import/reports/<report>.json
+```
+
+In Docker: `docker compose -f deploy/compose.example.yml exec metamusic metamusic import --dry-run`
+(the inbox is bind-mounted read-only at `/data/inbox`; files must be readable by uid 1000).
+Exit codes: 0 success (warnings allowed), 1 per-file errors, 2 usage/fatal, 3 plan changed,
+4 import already running.
+
 ## Configuration
 
 | Variable | Meaning |
@@ -48,6 +64,10 @@ Container defaults: `MM_ADDR=0.0.0.0:8080`, `MM_DATA_DIR=/data`, secrets under `
 | `MM_PUBLIC_URL` | Externally visible base URL. |
 | `MM_TRUSTED_PROXY` | Comma-separated CIDRs allowed to assert `Remote-User` (proxy mode). |
 | `MM_TRUSTED_USERS` | The single allow-listed user for proxy mode. |
+| `MM_INBOX` | Read-only directory scanned by `metamusic import` (default `<MM_DATA_DIR>/inbox`). |
+| `MM_FFMPEG` | ffmpeg binary (default `ffmpeg`, resolved on `PATH`). |
+| `MM_FLAC` | flac binary (default `flac`). |
+| `MM_METAFLAC` | metaflac binary (default `metaflac`). |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
 (`metamusic token create --name N --scopes read,write`).

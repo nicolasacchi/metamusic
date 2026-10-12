@@ -40,6 +40,24 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
 - Secrets never appear in responses, logs, job events, audit rows or OpenAPI; errors from HTTP
   clients pass through a redaction layer.
 
+## Library, import and listening (M1)
+
+- **Library**: tracks, recipes (immutable generation parameters) and masters in SQLite; masters
+  are FLAC files addressed by content hash, tagged once at ingest and then read-only.
+- **Import**: `metamusic import --dry-run` inventories a read-only inbox and writes a report
+  (nothing else is created); `--plan REPORT` applies exactly what the report showed and refuses if
+  the inbox changed. Import runs are recorded, re-runs are idempotent, and one-shot and incremental
+  imports converge to the same library.
+- **Media tools**: ffmpeg, flac and metaflac are external binaries (`MM_FFMPEG`, `MM_FLAC`,
+  `MM_METAFLAC`), invoked with fixed argument vectors; the container image verifies at build time
+  that ffmpeg has the loudness filter and MP3 encoder and that metaflac runs.
+- **Serving**: media is delivered through short-lived signed URLs with Range support; loudness
+  normalisation is baked into served derivatives because iOS ignores `audio.volume`.
+- **Player**: a plain `<audio>` element player with waveform seeking and lock-screen controls,
+  using the same registry operations as agents.
+- **Edge**: the reverse-proxy routing contract (media, agent, bearer-API and UI routers, identity
+  header stripping) is documented in `deploy/labels.example.yml` and tested by `make routing`.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

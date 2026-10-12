@@ -32,6 +32,10 @@ FROM alpine:3.24
 RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
  && adduser -D -u 1000 -h /data metamusic \
  && mkdir -p /data && chown 1000:1000 /data
+# Fail the build if the media tools lack what the import/serve pipeline needs (C-media tooling).
+RUN ffmpeg -hide_banner -filters | grep -q ' ebur128 ' \
+ && ffmpeg -hide_banner -encoders | grep -q libmp3lame \
+ && metaflac --version
 COPY --from=build /out/metamusic /usr/local/bin/metamusic
 # MM_PUBLIC_URL must be set at run time to the externally visible URL (it feeds the MCP
 # WWW-Authenticate metadata URL and the Secure-cookie decision). Secrets: /run/secrets.

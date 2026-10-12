@@ -26,4 +26,12 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] Touch targets comfortable; no hover-only controls
 - [ ] Dark and light themes legible
 
+## M1 (import and listen)
+- [ ] DC-M1-1 install the PWA (iPhone + Android): icon, name, standalone window
+- [ ] DC-M1-2 play a 24-bit/48 kHz FLAC master; seek by waveform; seek by lock-screen scrubber
+- [ ] DC-M1-3 lock-screen controls: play/pause/next/prev work; no +-10 s buttons
+- [ ] DC-M1-4 auto-advance with the screen locked (record result; known WebKit bugs)
+- [ ] DC-M1-5 forward-auth session expiry while playing: audio continues; the "sign in again" banner appears; no automatic reload while playing; tapping the banner reloads into login. Airplane mode toggled while playing: no reload, only the offline notice
+- [ ] DC-M1-6 device probe: the first Play tap runs it; Settings shows `ok` on both phones (an `inconclusive` result is recorded as such and never downgrades); `crossorigin="use-credentials"` manifest variant tried
+
 ## Notes
