@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Download pinned dev/CI tools into ./bin, verifying sha256:
-#   golangci-lint, gitleaks, ffmpeg (LGPL static, linux/amd64 only), metaflac (source build fallback).
+#   golangci-lint, gitleaks, ffmpeg (LGPL static, linux/amd64 only); flac/metaflac only on explicit request
+#   (opt-in source build for hosts without a flac package; never part of the default set, never in CI).
 # Idempotent: skips a tool whose installed version already matches.
-# Usage: tools.sh [--print-urls] [tool ...]   (tools: golangci-lint gitleaks ffmpeg flac; default all)
+# Usage: tools.sh [--print-urls] [tool ...]   (tools: golangci-lint gitleaks ffmpeg flac; default: all but flac)
 set -euo pipefail
 
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
@@ -19,7 +20,7 @@ GITLEAKS_VERSION=8.30.1
 FFMPEG_VERSION=9.0.2
 FFMPEG_BUILD=n9.0.2-27-g7e93014c5b
 FFMPEG_ARCHIVE="ffmpeg-${FFMPEG_BUILD}-linux64-lgpl-9.0.tar.xz"
-# flac: xiph keeps old releases; used only when no metaflac is on PATH (never in CI, which uses apt).
+# flac: xiph keeps old releases; opt-in (`tools.sh flac`) and only when flac/metaflac are missing; CI uses apt.
 FLAC_VERSION=1.5.0
 
 declare -A SHA=(
@@ -88,10 +89,10 @@ fetch() { # name archive-member-name url...   (installs one binary from an archi
   rm -rf "$tmp/$name.x" "$tmp/$name.archive"
 }
 
-have() { # binary substring
-  local out
+have() { # binary substring [version-flag]
+  local out flag=${3:---version}
   [ -x "$bin/$1" ] || return 1
-  out=$("$bin/$1" -version 2>&1 || "$bin/$1" --version 2>&1) || true
+  out=$("$bin/$1" "$flag" 2>&1) || true
   case "$out" in *"$2"*) return 0 ;; *) return 1 ;; esac
 }
 
@@ -109,6 +110,7 @@ urls_ffmpeg() {
 urls_flac() { echo "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz"; }
 
 all_tools="golangci-lint gitleaks ffmpeg flac"
+default_tools="golangci-lint gitleaks ffmpeg"
 
 if [ "${1:-}" = "--print-urls" ]; then
   for t in $all_tools; do
@@ -117,7 +119,7 @@ if [ "${1:-}" = "--print-urls" ]; then
   exit 0
 fi
 
-want_tools=${*:-$all_tools}
+want_tools=${*:-$default_tools}
 for t in $want_tools; do
   case " $all_tools " in *" $t "*) ;; *) echo "tools.sh: unknown tool $t" >&2; exit 1 ;; esac
 done
@@ -144,7 +146,7 @@ fi
 if wanted ffmpeg; then
   if [ "$os-$arch" != linux-amd64 ]; then
     echo "tools.sh: notice: no pinned ffmpeg for $os/$arch; install ffmpeg (libmp3lame, ebur128) on PATH" >&2
-  elif have ffmpeg "$FFMPEG_BUILD"; then
+  elif have ffmpeg "$FFMPEG_BUILD" -version; then
     echo "tools.sh: ffmpeg $FFMPEG_BUILD present"
   else
     mapfile -t u < <(urls_ffmpeg)
@@ -153,12 +155,14 @@ if wanted ffmpeg; then
 fi
 
 if wanted flac; then
-  if have metaflac "$FLAC_VERSION"; then
-    echo "tools.sh: metaflac $FLAC_VERSION present"
-  elif command -v metaflac >/dev/null 2>&1; then
-    echo "tools.sh: metaflac on PATH ($(metaflac --version)), not building"
+  if [ -n "${CI:-}${GITHUB_ACTIONS:-}" ]; then
+    echo "tools.sh: notice: CI detected, not building flac (install the flac package with apt)" >&2
+  elif have metaflac "$FLAC_VERSION" && have flac "$FLAC_VERSION"; then
+    echo "tools.sh: flac/metaflac $FLAC_VERSION present"
+  elif command -v flac >/dev/null 2>&1 && command -v metaflac >/dev/null 2>&1; then
+    echo "tools.sh: flac and metaflac on PATH ($(metaflac --version)), not building"
   else
-    echo "tools.sh: building flac $FLAC_VERSION from source (no system metaflac)"
+    echo "tools.sh: building flac $FLAC_VERSION from source (flac or metaflac missing)"
     mapfile -t u < <(urls_flac)
     download_verified flac-src "$tmp/flac.tar.xz" "${u[@]}"
     mkdir -p "$tmp/flac.x"
@@ -168,6 +172,7 @@ if wanted flac; then
       ./configure --disable-shared --enable-static --disable-ogg --disable-cpplibs --disable-doxygen-docs >/dev/null
       make -j"$(nproc 2>/dev/null || echo 2)" >/dev/null
     )
+    install -m 0755 "$tmp/flac.x/flac-$FLAC_VERSION/src/flac/flac" "$bin/flac"
     install -m 0755 "$tmp/flac.x/flac-$FLAC_VERSION/src/metaflac/metaflac" "$bin/metaflac"
   fi
 fi

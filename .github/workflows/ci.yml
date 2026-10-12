@@ -28,6 +28,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -38,7 +42,8 @@ jobs:
       - name: media tools on PATH
         run: |
           echo "$PWD/bin" >> "$GITHUB_PATH"
-          sudo apt-get install -y --no-install-recommends flac
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
           metaflac --version
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
@@ -144,6 +149,10 @@ jobs:
       - name: install web deps
         working-directory: web
         run: bun install --frozen-lockfile
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -154,15 +163,16 @@ jobs:
       - name: media tools on PATH
         run: |
           echo "$PWD/bin" >> "$GITHUB_PATH"
-          sudo apt-get install -y --no-install-recommends flac
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
           metaflac --version
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: build coverage-instrumented binary
         run: |
-          mkdir -p bin covdata
-          CGO_ENABLED=0 go build -cover -covermode=atomic -o bin/metamusic-e2e ./cmd/metamusic
+          mkdir -p covdata
+          CGO_ENABLED=0 go build -cover -covermode=atomic -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
       - name: playwright version
         id: pw
         working-directory: web
@@ -178,7 +188,7 @@ jobs:
       - name: e2e
         working-directory: web
         env:
-          MM_E2E_BIN: ${{ github.workspace }}/bin/metamusic-e2e
+          MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
           GOCOVERDIR: ${{ github.workspace }}/covdata
         run: bun run e2e
       - name: coverage summary
