@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { matchRoute, parseLocation, type Route } from "./router";
+import { isServerPath, matchRoute, parseLocation, type Route } from "./router";
 
 const routes: Route[] = [
   { pattern: "/", name: "home" },
@@ -45,5 +45,14 @@ describe("matchRoute", () => {
   });
   test("malformed escapes do not throw", () => {
     expect(matchRoute(routes, "/tracks/%E0%A4%A")?.params.id).toBe("%E0%A4%A");
+  });
+});
+
+describe("isServerPath", () => {
+  test("server-owned prefixes are not SPA routes", () => {
+    for (const p of ["/api/docs", "/human/api/x", "/auth/login", "/mcp", "/healthz", "/__e2e/x", "/.well-known/a"]) {
+      expect(isServerPath(p)).toBe(true);
+    }
+    for (const p of ["/", "/settings", "/apix", "/mcpx"]) expect(isServerPath(p)).toBe(false);
   });
 });

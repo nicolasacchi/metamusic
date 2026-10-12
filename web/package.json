@@ -8,7 +8,7 @@
     "build": "vite build",
     "gen:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
     "lint": "eslint .",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.test.json",
     "test": "bun test src",
     "e2e": "playwright test"
   },

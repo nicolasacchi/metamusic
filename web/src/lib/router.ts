@@ -18,6 +18,13 @@ export interface RouterState extends Location {
   params: Record<string, string>;
 }
 
+const SERVER_PREFIXES = ["/api", "/human/api", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known"];
+
+/** Paths owned by the Go server; links to them must be left to the browser. */
+export function isServerPath(path: string): boolean {
+  return SERVER_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+}
+
 function decode(s: string): string {
   try {
     return decodeURIComponent(s);
@@ -70,22 +77,23 @@ export function createRouter(routes: Route[]) {
   function sync() {
     state.set(compute());
   }
-  function navigate(to: string, replace = false) {
-    if (to === window.location.pathname + window.location.search) return;
-    if (replace) history.replaceState(null, "", to);
-    else history.pushState(null, "", to);
+  function navigate(to: string, replace = false, hash = "") {
+    if (to + hash === window.location.pathname + window.location.search + window.location.hash) return;
+    if (replace) history.replaceState(null, "", to + hash);
+    else history.pushState(null, "", to + hash);
     sync();
   }
   function onClick(e: MouseEvent) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = (e.target as Element | null)?.closest?.("a");
-    if (!a || a.target || a.hasAttribute("download") || a.getAttribute("rel") === "external") return;
+    if (!a || a.target || a.hasAttribute("download") || a.relList.contains("external")) return;
     const href = a.getAttribute("href");
     if (!href || href.startsWith("#")) return;
     const url = new URL(a.href, window.location.href);
     if (url.origin !== window.location.origin) return;
+    if (isServerPath(url.pathname)) return;
     e.preventDefault();
-    navigate(url.pathname + url.search);
+    navigate(url.pathname + url.search, false, url.hash);
   }
   window.addEventListener("popstate", sync);
   document.addEventListener("click", onClick);

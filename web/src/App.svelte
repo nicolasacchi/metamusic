@@ -1,6 +1,8 @@
 <script lang="ts">
   import { createRouter, type Route } from "./lib/router";
+  import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
+  import { connectionLost } from "./api/client";
   import Home from "./routes/Home.svelte";
   import Settings from "./routes/Settings.svelte";
   import NotFound from "./routes/NotFound.svelte";
@@ -10,7 +12,7 @@
     { pattern: "/settings", name: "settings" },
   ];
   const router = createRouter(routes);
-  const audioId = crypto.randomUUID();
+  const audioId = randomId();
 
   let audio: HTMLAudioElement;
   $effect(() => {
@@ -32,6 +34,9 @@
   </header>
 
   <main>
+    {#if $connectionLost}
+      <p role="alert" class="banner">Connection lost. Reload the page to retry.</p>
+    {/if}
     {#if $router.route?.name === "home"}
       <Home />
     {:else if $router.route?.name === "settings"}
@@ -79,6 +84,11 @@
   nav a[aria-current="page"] {
     font-weight: 700;
     text-decoration: none;
+  }
+  .banner {
+    margin: 0;
+    padding: 0.5rem 1rem;
+    background: #5a2a1a;
   }
   main {
     padding: 1rem;

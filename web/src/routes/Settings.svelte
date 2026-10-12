@@ -1,25 +1,34 @@
 <script lang="ts">
   import { api } from "../api/client";
+  import type { components } from "../api/schema";
 
-  let info = $state<Record<string, string | number> | null>(null);
+  type System = components["schemas"]["SystemOutBody"];
+
+  let info = $state<System | null>(null);
   let error = $state("");
 
   $effect(() => {
     void (async () => {
-      const r = await api.GET("/api/system");
-      if (r.data) info = r.data as unknown as Record<string, string | number>;
-      else error = "Failed to load system info";
+      try {
+        const r = await api.GET("/api/system");
+        if (r.data) info = r.data;
+        else error = "Failed to load system info";
+      } catch {
+        error = "Failed to load system info";
+      }
     })();
   });
+
+  const fields: (keyof System)[] = ["version", "commit", "auth_mode", "schema_version", "started_at", "uptime_s"];
 </script>
 
 <h1>Settings</h1>
 {#if error}<p role="alert">{error}</p>{/if}
 {#if info}
   <dl data-testid="system-info">
-    {#each Object.entries(info).filter(([k]) => k !== "$schema") as [k, v] (k)}
+    {#each fields as k (k)}
       <dt>{k}</dt>
-      <dd>{v}</dd>
+      <dd>{info[k]}</dd>
     {/each}
   </dl>
 {:else if !error}

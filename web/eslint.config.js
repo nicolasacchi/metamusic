@@ -1,3 +1,4 @@
+import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import ts from "typescript-eslint";
 import svelte from "eslint-plugin-svelte";
@@ -5,7 +6,7 @@ import globals from "globals";
 
 const banned = ["fetch", "XMLHttpRequest", "EventSource"];
 
-export default ts.config(
+export default defineConfig(
   { ignores: ["dist/", "node_modules/", "src/api/schema.d.ts", "playwright-report/", "test-results/"] },
   js.configs.recommended,
   ...ts.configs.recommended,
