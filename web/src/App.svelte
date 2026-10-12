@@ -5,16 +5,24 @@
   import { installMediaSession } from "./lib/mediaSession";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
-  import Home from "./routes/Home.svelte";
+  import Library from "./routes/Library.svelte";
+  import Track from "./routes/Track.svelte";
   import Settings from "./routes/Settings.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const routes: Route[] = [
     { pattern: "/", name: "home" },
+    { pattern: "/tracks/:id", name: "track" },
     { pattern: "/settings", name: "settings" },
   ];
   const router = createRouter(routes);
   const audioId = randomId();
+  // The router's query map collapses repeated keys; the library needs the raw string.
+  // The argument only makes the call re-run on every navigation.
+  function searchOf(_loc: unknown): string {
+    void _loc;
+    return window.location.search;
+  }
 
   let audio: HTMLAudioElement;
   $effect(() => {
@@ -40,7 +48,11 @@
   <main>
     <SessionBanner />
     {#if $router.route?.name === "home"}
-      <Home />
+      <Library search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "track"}
+      {#key $router.params.id}
+        <Track id={$router.params.id ?? ""} t={$router.query.t ?? ""} />
+      {/key}
     {:else if $router.route?.name === "settings"}
       <Settings />
     {:else}
