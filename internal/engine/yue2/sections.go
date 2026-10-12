@@ -16,7 +16,7 @@ type Section struct {
 }
 
 var headerRe = regexp.MustCompile(`^\s*\[([^\]]+)\]\s*$`)
-var letterHyphenRe = regexp.MustCompile(`(\p{L})-(\p{L})`)
+var preChorusRe = regexp.MustCompile(`pre[ -]?chorus`)
 var digitsRe = regexp.MustCompile(`[0-9]+`)
 
 var kindTable = map[string]string{
@@ -29,11 +29,8 @@ var kindTable = map[string]string{
 // false when the text is not in the synonym table (kind is then "other").
 func sectionKind(text string) (kind string, known bool) {
 	s := strings.ToLower(text)
-	s = letterHyphenRe.ReplaceAllString(s, "$1 $2")
-	if i := strings.IndexAny(s, "–—:(+"); i >= 0 {
-		s = s[:i]
-	}
-	if i := strings.Index(s, " -"); i >= 0 {
+	s = preChorusRe.ReplaceAllString(s, "prechorus")
+	if i := strings.IndexAny(s, "-–—:(+"); i >= 0 {
 		s = s[:i]
 	}
 	s = digitsRe.ReplaceAllString(s, "")

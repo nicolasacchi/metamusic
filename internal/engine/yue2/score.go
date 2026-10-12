@@ -31,8 +31,8 @@ var (
 )
 
 type scoreLabel struct {
-	kind, raw string
-	bar       int
+	kind, raw, voice string
+	bar              int // first-voice bar count where the label's voice block starts
 }
 
 // ParseScore reads the header and counts bars of the first voice. Anything it cannot time exactly
@@ -51,17 +51,21 @@ func ParseScore(abc []byte) (Score, error) {
 
 	inBody := false
 	cur, first := "", ""
-	firstSet := false
+	firstSet := false // first = the voice carrying the first music line
 	bars := 0
 	hasNote := false
-	var seq []string // body voice-switch sequence
-	seenVoices := map[string]bool{}
+	voiceMusic := map[string]bool{} // voices that already had a music line
 	interleaved := false
 	var labels []scoreLabel
-	laterLabels := map[string][]string{} // kinds of labels seen in non-first voices
-	var laterOrder []string
-	var firstKinds []string
-	curInFirst := func() bool { return cur == "" || cur == first }
+	var pending []scoreLabel // comments waiting for the next non-comment line
+	curInFirst := func() bool { return !firstSet || cur == first }
+	flushPending := func() {
+		for _, l := range pending {
+			l.voice, l.bar = cur, bars
+			labels = append(labels, l)
+		}
+		pending = pending[:0]
+	}
 
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimRight(line, " \t\r")
@@ -70,16 +74,7 @@ func ParseScore(abc []byte) (Score, error) {
 		}
 		if m := commentRe.FindStringSubmatch(line); m != nil && strings.HasPrefix(line, "%") {
 			if k, ok := sectionKind(m[1]); ok {
-				labels = append(labels, scoreLabel{kind: k, raw: m[1], bar: bars})
-				if curInFirst() {
-					firstKinds = append(firstKinds, k)
-				} else {
-					if _, ok := laterLabels[cur]; !ok {
-						laterOrder = append(laterOrder, cur)
-					}
-					laterLabels[cur] = append(laterLabels[cur], k)
-					labels[len(labels)-1].bar = -1 - bars // marks a later-voice label; decoded below
-				}
+				pending = append(pending, scoreLabel{kind: k, raw: m[1]})
 			}
 			continue
 		}
@@ -127,27 +122,30 @@ func ParseScore(abc []byte) (Score, error) {
 				if i := strings.IndexAny(id, " \t"); i >= 0 {
 					id = id[:i]
 				}
-				if !firstSet {
-					firstSet = true
-					if bars > 0 || hasNote {
-						first = ""
-					} else {
-						first = id
-					}
-				}
 				if id != cur {
-					if seenVoices[id] {
+					if curInFirst() && hasNote { // a trailing partial bar ends with its voice block
+						bars++
+						hasNote = false
+					}
+					if voiceMusic[id] {
 						interleaved = true
 					}
-					seenVoices[id] = true
-					seq = append(seq, id)
 				}
 				cur = id
+				flushPending()
 			}
 			continue
 		}
 		if !inBody {
 			inBody = true
+		}
+		flushPending()
+		if !firstSet {
+			firstSet, first = true, cur
+		}
+		voiceMusic[cur] = true
+		if strings.Contains(line, "[V:") {
+			untimed = true // inline voice switch: not tracked
 		}
 		if !curInFirst() {
 			// still scan for untimed markers only in the first voice, per contract
@@ -163,25 +161,28 @@ func ParseScore(abc []byte) (Score, error) {
 	if hasNote {
 		bars++
 	}
-	_ = seq
+	flushPending()
 	sc.Bars = bars
 
 	// sections
-	if interleaved {
-		for _, l := range labels {
-			bar := l.bar
-			if bar < 0 {
-				bar = -1 - bar
-			}
-			sc.Sections = append(sc.Sections, ScoreSection{Kind: l.kind, Raw: l.raw, StartBar: bar})
-		}
-	} else {
-		for _, l := range labels {
-			if l.bar < 0 {
-				continue
-			}
+	laterLabels := map[string][]string{} // kinds of labels seen in non-first voices
+	var laterOrder, firstKinds []string
+	for _, l := range labels {
+		isFirst := !firstSet || l.voice == first
+		switch {
+		case interleaved || isFirst:
 			sc.Sections = append(sc.Sections, ScoreSection{Kind: l.kind, Raw: l.raw, StartBar: l.bar})
+			if isFirst {
+				firstKinds = append(firstKinds, l.kind)
+			}
+		default:
+			if _, ok := laterLabels[l.voice]; !ok {
+				laterOrder = append(laterOrder, l.voice)
+			}
+			laterLabels[l.voice] = append(laterLabels[l.voice], l.kind)
 		}
+	}
+	if !interleaved {
 		for _, v := range laterOrder {
 			if !equalStrings(laterLabels[v], firstKinds) {
 				sc.Warnings = append(sc.Warnings, "voice_sections_differ")
@@ -200,6 +201,9 @@ func ParseScore(abc []byte) (Score, error) {
 			end = sc.Sections[i+1].StartBar
 		}
 		sc.Sections[i].Bars = end - sc.Sections[i].StartBar
+		if sc.Sections[i].Bars <= 0 {
+			untimed = true // a zero-bar section means the layout was not understood
+		}
 	}
 
 	if !untimed && meterOK && tempoOK && bars > 0 && sc.BPM > 0 {
@@ -309,7 +313,24 @@ func scanBody(line string, hasNote bool) (bars int, note bool, untimed bool) {
 			for i+1 < n && (rs[i+1] == '|' || rs[i+1] == ']') {
 				i++
 			}
-		case (c >= 'A' && c <= 'G') || (c >= 'a' && c <= 'g') || c == 'z' || c == 'Z' || c == 'x' || c == 'X':
+		case c == 'Z' || c == 'X': // multi-measure rest: Z, Z4 = that many complete bars
+			bar() // any partial bar before it ends here
+			j := i + 1
+			for j < n && rs[j] >= '0' && rs[j] <= '9' {
+				j++
+			}
+			cnt := 1
+			if j > i+1 {
+				v, err := strconv.Atoi(string(rs[i+1 : j]))
+				if err != nil || v < 1 || v > 100000 {
+					untimed = true
+				} else {
+					cnt = v
+				}
+			}
+			bars += cnt
+			i = j - 1
+		case (c >= 'A' && c <= 'G') || (c >= 'a' && c <= 'g') || c == 'z' || c == 'x':
 			hasNote = true
 		}
 	}

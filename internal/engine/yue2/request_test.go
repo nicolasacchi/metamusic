@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"flag"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,7 @@ func promptFor(cot, style, lyrics string) string {
 	return Instructions[cot] + "\n[Tags]\n" + style + "\n[Lyrics]\n" + lyrics + "\n"
 }
 
-func TestParseRequest_Errors(t *testing.T) {
+func TestParseRequest(t *testing.T) {
 	longID := strings.Repeat("a", 181)
 	rows := []struct {
 		name string
@@ -90,6 +91,11 @@ func TestParseRequest_Errors(t *testing.T) {
 		{"prompt mismatch", `{"id":"a","style":"s","lyrics":"l","prompt":"hello"}`, ParseOptions{}, "prompt_mismatch"},
 		{"abc_sampling", `{"id":"a","style":"s","lyrics":"l","abc_sampling":{"temperature":1}}`, ParseOptions{}, "sampling_unsupported"},
 		{"semantic_sampling", `{"id":"a","style":"s","lyrics":"l","semantic_sampling":{}}`, ParseOptions{}, "sampling_unsupported"},
+		{"cot null", `{"id":"a","style":"s","lyrics":"l","cot":null}`, ParseOptions{}, "bad_cot"},
+		{"lone high surrogate", `{"id":"a","style":"s\ud800","lyrics":"l"}`, ParseOptions{}, "bad_utf8"},
+		{"lone low surrogate", `{"id":"a","style":"s\udc00","lyrics":"l"}`, ParseOptions{}, "bad_utf8"},
+		{"high then non-low", `{"id":"a","style":"s\ud800\u0041","lyrics":"l"}`, ParseOptions{}, "bad_utf8"},
+		{"prompt other cot", `{"id":"a","style":"s","lyrics":"l","cot":"off","prompt":` + jsonString(promptFor("full", "s", "l")) + `}`, ParseOptions{}, "prompt_mismatch"},
 		{"bad utf8", "{\"id\":\"a\",\"style\":\"s\xff\",\"lyrics\":\"l\"}", ParseOptions{}, "bad_utf8"},
 	}
 	if len(rows) < 30 {
@@ -286,8 +292,12 @@ func TestParseRequest_Prompt(t *testing.T) {
 	}
 	// Prompt for another cot is a mismatch.
 	bad := `{"id":"x","style":"pop","lyrics":"[Verse]\nla","cot":"off","prompt":` + jsonString(prompt) + `}`
-	if _, err := ParseRequest([]byte(bad), ParseOptions{}); err == nil {
-		t.Fatal("want prompt_mismatch")
+	var pe *ParseError
+	if _, err := ParseRequest([]byte(bad), ParseOptions{}); !errors.As(err, &pe) || pe.Code != "prompt_mismatch" {
+		t.Fatalf("want prompt_mismatch, got %v", err)
+	}
+	if !hasDrop(p, "prompt") {
+		t.Fatalf("dropped %v", p.Dropped)
 	}
 	// null prompt is ignored.
 	mustParse(t, `{"id":"x","style":"s","lyrics":"l","prompt":null}`, ParseOptions{})
@@ -335,6 +345,48 @@ func TestParseRequest_BOMAndCRLF(t *testing.T) {
 	p := mustParse(t, raw, ParseOptions{})
 	if !hasWarn(p, "bom") || !hasWarn(p, "crlf") {
 		t.Fatalf("warnings %v", p.Warnings)
+	}
+}
+
+func TestParseRequest_TrailingCRAndSurrogatePair(t *testing.T) {
+	p := mustParse(t, `{"id":"x","style":"s\ud83d\ude00","lyrics":"l"}`+"\r", ParseOptions{})
+	if !hasWarn(p, "crlf") || p.Request.Style != "s\U0001F600" {
+		t.Fatalf("%v %q", p.Warnings, p.Request.Style)
+	}
+}
+
+func TestParseRequest_DroppedKeySanitised(t *testing.T) {
+	long := strings.Repeat("k", 200)
+	p := mustParse(t, `{"id":"x","style":"s","lyrics":"l","a\nb":1,"`+long+`":1}`, ParseOptions{})
+	for _, w := range p.Warnings {
+		if strings.ContainsAny(w, "\n\r") || len(w) > 100 {
+			t.Fatalf("unsafe warning %q", w)
+		}
+	}
+	if !hasDrop(p, "a\nb") || !hasDrop(p, long) {
+		t.Fatalf("raw names kept in Dropped: %v", p.Dropped)
+	}
+	if !hasWarn(p, "dropped_key:a?b") {
+		t.Fatalf("%v", p.Warnings)
+	}
+}
+
+func TestCanonicalJSON_CFGFormat(t *testing.T) {
+	neg0 := math.Copysign(0, -1)
+	for _, c := range []struct {
+		f    float64
+		want string
+	}{{0.00001, `"cfg_scale":0.00001,`}, {1e-7, `"cfg_scale":1e-7,`}, {neg0, `"cfg_scale":0,`}, {3.5, `"cfg_scale":3.5,`}} {
+		f := c.f
+		got := string(CanonicalJSON(Request{ID: "a", Cot: "full", CFGScale: &f}))
+		if !strings.Contains(got, c.want) {
+			t.Errorf("%v: %s", c.f, got)
+		}
+	}
+	a := mustParse(t, `{"id":"x","style":"s","lyrics":"l","cfg_scale":-0}`, ParseOptions{})
+	b := mustParse(t, `{"id":"x","style":"s","lyrics":"l","cfg_scale":0}`, ParseOptions{})
+	if a.Hash != b.Hash {
+		t.Fatal("-0 must hash like 0")
 	}
 }
 

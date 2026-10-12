@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-var bpmRe = regexp.MustCompile(`^(?:(\d{2,3})\s*bpm|bpm\s*(\d{1,4}))$`)
+var bpmRe = regexp.MustCompile(`^(?:(\d{2,3})\s*bpm|bpm\s*(\d+))$`)
 
 // StyleTerms splits a style string into normalised terms (max 20, input order) and a BPM hint
 // (0 when absent or outside 40..250). BPM terms are not returned as terms.

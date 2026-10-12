@@ -45,6 +45,7 @@ func TestLyricsSections_Synonyms(t *testing.T) {
 	cases := map[string]string{
 		"[Pre Chorus]": "pre-chorus", "[Prechorus]": "pre-chorus", "[Pre-Chorus 2]": "pre-chorus",
 		"[Instrumental Break]": "instrumental", "[Intro: soft]": "intro", "[Bridge (quiet)]": "bridge",
+		"[Bridge-Piano]": "bridge", "[Outro-fade]": "outro", "[Verse-2]": "verse", "[Pre-Chorus - lift]": "pre-chorus",
 		"[Solo]": "solo", "[Interlude]": "interlude", "[Whatever]": "other", "[Guitar Solo]": "other",
 	}
 	for h, kind := range cases {

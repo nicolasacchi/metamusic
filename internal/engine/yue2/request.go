@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -92,10 +93,13 @@ func ParseRequest(raw []byte, o ParseOptions) (Parsed, error) {
 		raw = raw[3:]
 		p.Warnings = append(p.Warnings, "bom")
 	}
-	if bytes.Contains(raw, []byte("\r\n")) {
+	if bytes.IndexByte(raw, '\r') >= 0 {
 		p.Warnings = append(p.Warnings, "crlf")
 	}
 	raw = bytes.TrimSpace(raw)
+	if badSurrogate(raw) {
+		return p, perr("bad_utf8", "string contains an unpaired surrogate escape")
+	}
 	if len(raw) == 0 || raw[0] != '{' {
 		return p, perr("not_object", "input is not a JSON object")
 	}
@@ -151,7 +155,7 @@ func ParseRequest(raw []byte, o ParseOptions) (Parsed, error) {
 	}
 
 	// cot
-	if v, ok := present(m, "cot"); ok {
+	if v, ok := m["cot"]; ok { // null is not "absent" for cot: YuE2 rejects it
 		if err := json.Unmarshal(v, &r.Cot); err != nil {
 			return p, perr("bad_cot", "cot must be full, melody or off")
 		}
@@ -219,6 +223,9 @@ func ParseRequest(raw []byte, o ParseOptions) (Parsed, error) {
 		if err := json.Unmarshal(v, &f); err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 || f > 20 {
 			return p, perr("bad_cfg_scale", "cfg_scale must be a number in [0,20]")
 		}
+		if f == 0 {
+			f = 0 // normalise -0
+		}
 		def := 1.0
 		if r.Cot == "off" {
 			def = 1.01
@@ -271,7 +278,7 @@ func ParseRequest(raw []byte, o ParseOptions) (Parsed, error) {
 	sort.Strings(extra)
 	for _, k := range extra {
 		p.Dropped = append(p.Dropped, k)
-		p.Warnings = append(p.Warnings, "dropped_key:"+k)
+		p.Warnings = append(p.Warnings, "dropped_key:"+safeKey(k))
 	}
 
 	p.Request = r
@@ -281,4 +288,55 @@ func ParseRequest(raw []byte, o ParseOptions) (Parsed, error) {
 	core.ABC, core.CFGScale = nil, nil
 	p.CoreHash = hashHex(CanonicalJSON(core))
 	return p, nil
+}
+
+// safeKey bounds and sanitises a key name for use inside a warning code.
+func safeKey(k string) string {
+	var b strings.Builder
+	for _, r := range k {
+		if !unicode.IsPrint(r) {
+			r = '?'
+		}
+		if b.Len()+utf8.RuneLen(r) > 64 {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// badSurrogate reports a \uD800-\uDFFF escape inside a JSON string that is not part of a valid
+// high+low pair (encoding/json would silently turn it into U+FFFD).
+func badSurrogate(raw []byte) bool {
+	hex4 := func(i int) (int, bool) {
+		if i+6 > len(raw) || raw[i] != '\\' || raw[i+1] != 'u' {
+			return 0, false
+		}
+		n, err := strconv.ParseUint(string(raw[i+2:i+6]), 16, 32)
+		return int(n), err == nil
+	}
+	inStr := false
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		switch {
+		case !inStr:
+			inStr = c == '"'
+		case c == '"':
+			inStr = false
+		case c == '\\':
+			if n, ok := hex4(i); ok && n >= 0xD800 && n <= 0xDFFF {
+				if n >= 0xDC00 {
+					return true
+				}
+				lo, ok := hex4(i + 6)
+				if !ok || lo < 0xDC00 || lo > 0xDFFF {
+					return true
+				}
+				i += 11
+				continue
+			}
+			i++
+		}
+	}
+	return false
 }

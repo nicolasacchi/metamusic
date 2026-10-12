@@ -8,11 +8,13 @@ import (
 	"strconv"
 )
 
-func jsonStr(s string) []byte {
+func jsonStr(s string) []byte { return jsonVal(s) }
+
+func jsonVal(v any) []byte {
 	var b bytes.Buffer
 	e := json.NewEncoder(&b)
 	e.SetEscapeHTML(false)
-	_ = e.Encode(s) // strings always encode
+	_ = e.Encode(v) // strings and finite floats always encode
 	return bytes.TrimRight(b.Bytes(), "\n")
 }
 
@@ -28,7 +30,11 @@ func CanonicalJSON(r Request) []byte {
 	}
 	if r.CFGScale != nil {
 		b.WriteString(`"cfg_scale":`)
-		b.WriteString(strconv.FormatFloat(*r.CFGScale, 'g', -1, 64))
+		f := *r.CFGScale
+		if f == 0 {
+			f = 0 // -0 renders as 0
+		}
+		b.Write(jsonVal(f))
 		b.WriteByte(',')
 	}
 	b.WriteString(`"cot":`)

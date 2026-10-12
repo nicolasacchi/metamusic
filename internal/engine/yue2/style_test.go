@@ -22,6 +22,9 @@ func TestStyleTerms(t *testing.T) {
 	if terms, bpm := StyleTerms("pop, 20 bpm"); bpm != 0 || len(terms) != 1 {
 		t.Fatalf("%v %d", terms, bpm)
 	}
+	if terms, bpm := StyleTerms("pop, bpm 12345"); bpm != 0 || len(terms) != 1 {
+		t.Fatalf("%v %d", terms, bpm)
+	}
 	terms, _ = StyleTerms("Pop, pop ,POP|rock\nrock;;  ")
 	if diff := cmp.Diff([]string{"pop", "rock"}, terms); diff != "" {
 		t.Fatal(diff)

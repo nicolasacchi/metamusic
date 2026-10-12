@@ -715,6 +715,10 @@ in the FIRST voice only (first `V:` id seen, or the tune body if there is no `V:
 token (`|`, `||`, `|]`, `[|`) preceded by at least one note or rest since the previous barline; a
 trailing partial bar counts. Text inside `"…"` (chords/annotations) and `!…!` / `+…+` decorations is
 skipped; `%%` directive lines are ignored.
+A multi-measure rest `Z`/`X` with optional count (`Z4`) counts that many bars (`Z` = 1) and its closing
+barline is not counted again; an inline `[V:…]` voice switch, or any section that ends up with zero bars,
+makes the score untimed. A `% label` attaches to the next voice block; a trailing partial bar ends with
+its voice block.
 **Sections** come from comment lines `^%\s*(label)\s*$` whose label maps to a known section kind through
 the lyrics synonym table (other comments are ignored). Two voice layouts are supported and tested:
 - *interleaved* — some voice id re-appears after another voice (V:1 … V:2 … V:1 … per section): every
