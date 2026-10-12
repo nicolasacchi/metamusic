@@ -68,3 +68,14 @@ describe("libraryQuery", () => {
     expect(u.searchParams.getAll("status")).toEqual(["final", "draft"]);
   });
 });
+
+import { defaultSort as defaultSortFn, parseFilters as parse, toSearch as ts } from "./libraryQuery";
+import { expect as ex, test as t2 } from "bun:test";
+
+t2("defaultSort follows q; an explicit non-default sort survives in the URL", () => {
+  ex(defaultSortFn("")).toBe("recorded_desc");
+  ex(defaultSortFn("x")).toBe("relevance");
+  const f = parse("?q=x&sort=recorded_desc");
+  ex(f.sort).toBe("recorded_desc");
+  ex(ts(f)).toBe("?q=x&sort=recorded_desc");
+});

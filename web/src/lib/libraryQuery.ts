@@ -38,7 +38,7 @@ export function defaultFilters(): Filters {
 }
 
 /** The server's default sort: relevance when q is set, else newest first. */
-function defaultSort(q: string): Sort {
+export function defaultSort(q: string): Sort {
   return q ? "relevance" : "recorded_desc";
 }
 

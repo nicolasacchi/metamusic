@@ -51,7 +51,7 @@
       <Library search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "track"}
       {#key $router.params.id}
-        <Track id={$router.params.id ?? ""} t={$router.query.t ?? ""} />
+        <Track id={$router.params.id ?? ""} t={$router.query.t ?? ""} navigate={router.navigate} />
       {/key}
     {:else if $router.route?.name === "settings"}
       <Settings />
@@ -100,6 +100,7 @@
     text-decoration: none;
   }
   main {
+    min-width: 0;
     padding: 1rem;
   }
   .player {

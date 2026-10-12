@@ -12,14 +12,18 @@
     id: string;
     /** `?t=` deep link ("72" or "1:12"). */
     t?: string;
+    navigate?: (to: string, replace?: boolean) => void;
   }
-  let { id, t = "" }: Props = $props();
+  let { id, t = "", navigate }: Props = $props();
 
   let track = $state<Track | null>(null);
   let error = $state("");
-  let overview = $state<number[] | null>(null);
-  let detail = $state<number[] | null>(null);
-  let bits = $state(8);
+  interface Level {
+    data: number[];
+    bits: number;
+  }
+  let overview = $state<Level | null>(null);
+  let detail = $state<Level | null>(null);
   let width = $state(0);
 
   const isCurrent = $derived(player.state.trackId === id);
@@ -27,7 +31,10 @@
   const duration = $derived(isCurrent && player.state.duration > 0 ? player.state.duration : (track?.duration_s ?? 0));
   // The detail level is only worth fetching when the canvas has more device pixels than overview columns.
   const wantDetail = $derived(width * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1) > 2048);
-  const peaks = $derived(wantDetail && detail ? detail : overview);
+  // Detail replaces the overview only when it is actually finer.
+  const level = $derived(wantDetail && detail && (!overview || detail.data.length > overview.data.length) ? detail : overview);
+  const peaks = $derived(level?.data ?? null);
+  const bits = $derived(level?.bits ?? 8);
 
   // Load the track (and its overview peaks) whenever the route id changes.
   $effect(() => {
@@ -48,26 +55,33 @@
           return;
         }
         track = tr.data;
-        overview = pk.data?.peaks.data ?? null;
-        bits = pk.data?.peaks.bits ?? 8;
-        const start = parseT(t);
-        // Deep link: load paused; the player applies the seek in loadedmetadata (or at once if already current).
-        if (start !== null) player.load(mine, [mine], { title: tr.data.title, startAt: start, autoplay: false });
+        overview = pk.data?.peaks.data ? { data: pk.data.peaks.data, bits: pk.data.peaks.bits } : null;
       } catch {
         if (mine === id) error = "Failed to load track";
       }
     })();
   });
 
+  // Deep link: load paused; the player applies the seek in loadedmetadata (or at once if already current).
+  // Re-runs on in-app navigation to the same track with a new ?t=; the param is then dropped
+  // (replace) so a history entry never re-applies it.
   $effect(() => {
-    if (!wantDetail || detail) return;
+    const tr = track;
+    const start = parseT(t);
+    if (!tr || tr.id !== id || start === null) return;
+    player.load(id, [id], { title: tr.title, startAt: start, autoplay: false });
+    navigate?.(`/tracks/${encodeURIComponent(id)}`, true);
+  });
+
+  $effect(() => {
+    // Detail is 20 pairs/s: pointless when the whole track fits in the overview columns.
+    if (!wantDetail || detail || !track || track.duration_s * 20 <= 2048) return;
     const mine = id;
     void (async () => {
       try {
         const r = await api.GET("/api/tracks/{id}/peaks", { params: { path: { id: mine }, query: { level: "detail" } } });
-        if (mine === id && r.data) {
-          detail = r.data.peaks.data;
-          bits = r.data.peaks.bits;
+        if (mine === id && r.data?.peaks.data) {
+          detail = { data: r.data.peaks.data, bits: r.data.peaks.bits };
         }
       } catch {
         /* the overview stays */

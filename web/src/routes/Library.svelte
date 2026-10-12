@@ -37,12 +37,14 @@
   let cursors = $state<(string | undefined)[]>([undefined]);
   let page = $state(0);
   let nextCursor = $state<string | null>(null);
+  // starts[i] is the absolute offset of the first item on page i.
+  let starts = $state<number[]>([0]);
   let seq = 0;
 
   const filters = $derived(parseFilters(search));
 
   function commit(f: Filters) {
-    navigate("/" + toSearch(f), true);
+    navigate("/" + toSearch(f), false);
   }
 
   async function load(f: Filters, cursor: string | undefined) {
@@ -70,7 +72,9 @@
   $effect(() => {
     const f = filters;
     cursors = [undefined];
+    starts = [0];
     page = 0;
+    nextCursor = null;
     void load(f, undefined);
   });
 
@@ -80,6 +84,7 @@
     if (delta > 0) {
       if (!nextCursor) return;
       cursors[target] = nextCursor;
+      starts[target] = (starts[page] ?? 0) + tracks.length;
     }
     page = target;
     void load(filters, cursors[target]);
@@ -131,7 +136,7 @@
 <div aria-busy={loading}>
   <TrackTable {tracks} playingId={player.state.trackId} onplay={play} />
 </div>
-<Pager {page} pageSize={PAGE} {total} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
+<Pager {page} offset={starts[page] ?? 0} count={tracks.length} {total} busy={loading} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
 
 <style>
   .strip {

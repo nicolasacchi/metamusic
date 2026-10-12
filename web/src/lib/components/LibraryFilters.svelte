@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
-  import { MAX_STYLE_TERMS, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
+  import { MAX_STYLE_TERMS, defaultSort, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
 
   type Facets = components["schemas"]["Facets"];
   interface Props {
@@ -22,20 +22,43 @@
   // Free-text input is debounced; every other control commits immediately.
   let qDraft = $state("");
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending = false;
+  let lastQ: string | undefined;
+  // Re-sync the box only when the URL's q itself changed (back/forward, Clear), never on other filters.
   $effect(() => {
-    qDraft = filters.q;
-    return () => clearTimeout(timer);
+    const q = filters.q;
+    if (q !== lastQ) {
+      lastQ = q;
+      qDraft = q;
+      pending = false;
+      clearTimeout(timer);
+    }
   });
+  $effect(() => () => clearTimeout(timer));
 
+  /** The sort follows q only while it is the implicit default for the old q. */
+  function withQ(f: Filters, q: string): Filters {
+    const sort = f.sort === defaultSort(f.q) ? defaultSort(q) : f.sort;
+    return { ...f, q, sort };
+  }
+  function flushQ(base: Filters): Filters {
+    if (!pending) return base;
+    pending = false;
+    clearTimeout(timer);
+    const q = qDraft.trim();
+    return q === base.q ? base : withQ(base, q);
+  }
   function patch(p: Partial<Filters>) {
-    onchange({ ...filters, ...p });
+    onchange({ ...flushQ(filters), ...p });
   }
   function onq() {
+    pending = true;
     clearTimeout(timer);
     timer = setTimeout(() => {
+      pending = false;
       const q = qDraft.trim();
       if (q === filters.q) return;
-      patch({ q, sort: q && filters.sort === "recorded_desc" ? "relevance" : !q && filters.sort === "relevance" ? "recorded_desc" : filters.sort });
+      onchange(withQ(filters, q));
     }, 250);
   }
   function toggleStyle(term: string) {
@@ -115,7 +138,7 @@
       </select>
     </label>
     {#if dirty}
-      <button type="button" onclick={() => onchange({ ...filters, q: "", status: [], style: [], minDuration: null, maxDuration: null, recordedFrom: "", recordedTo: "", hasScore: null, truncated: null, sort: "recorded_desc" })}>Clear</button>
+      <button type="button" onclick={() => { pending = false; clearTimeout(timer); onchange({ ...filters, q: "", status: [], style: [], minDuration: null, maxDuration: null, recordedFrom: "", recordedTo: "", hasScore: null, truncated: null, sort: "recorded_desc" }); }}>Clear</button>
     {/if}
   </div>
 
