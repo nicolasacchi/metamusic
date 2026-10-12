@@ -32,13 +32,13 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 		Description: "Describe an API operation that is not exposed as its own tool: method, path, scope, cost, " +
 			"description and the input/output JSON schemas. Use with call_operation.",
 		InputSchema: describeSchema,
-		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: ptr(false)},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var in struct {
 			OperationID string `json:"operation_id"`
 		}
-		if err := json.Unmarshal(req.Params.Arguments, &in); err != nil || in.OperationID == "" {
-			return problemResult("VALIDATION_FAILED", "operation_id is required"), nil
+		if json.Unmarshal(req.Params.Arguments, &in) != nil || in.OperationID == "" {
+			return problemResult("VALIDATION_FAILED", "operation_id is required"), nil //nolint:nilerr // tool failures are results, not protocol errors
 		}
 		e, ok := g.callable[in.OperationID]
 		if !ok {
@@ -66,13 +66,15 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 		Description: "Call an API operation by id with the arguments described by describe_operation. " +
 			"Operations excluded from MCP are refused.",
 		InputSchema: callSchema,
+		// Cost is per target operation, so the generic caller is open-world.
+		Annotations: &mcp.ToolAnnotations{OpenWorldHint: ptr(true)},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var in struct {
 			OperationID string          `json:"operation_id"`
 			Arguments   json.RawMessage `json:"arguments"`
 		}
-		if err := json.Unmarshal(req.Params.Arguments, &in); err != nil || in.OperationID == "" {
-			return problemResult("VALIDATION_FAILED", "operation_id is required"), nil
+		if json.Unmarshal(req.Params.Arguments, &in) != nil || in.OperationID == "" {
+			return problemResult("VALIDATION_FAILED", "operation_id is required"), nil //nolint:nilerr // tool failures are results, not protocol errors
 		}
 		e, ok := g.callable[in.OperationID]
 		if !ok {
@@ -81,3 +83,5 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 		return dispatch(ctx, g.inner, e.spec, in.Arguments), nil
 	})
 }
+
+func ptr[T any](v T) *T { return &v }

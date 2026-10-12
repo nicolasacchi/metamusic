@@ -72,10 +72,9 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 		if spec.Output != nil {
 			t.OutputSchema = spec.Output
 		}
-		if op.Meta.Cost == "spend" {
-			yes := true
-			t.Annotations.OpenWorldHint = &yes
-		}
+		// Unset openWorldHint means true to clients, so free ops say false.
+		open := op.Meta.Cost == "spend"
+		t.Annotations.OpenWorldHint = &open
 		srv.AddTool(t, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return dispatch(ctx, inner, spec, req.Params.Arguments), nil
 		})
@@ -87,5 +86,11 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 // Handler serves srv over stateless streamable HTTP with JSON responses.
 func Handler(srv *mcp.Server) http.Handler {
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv },
-		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+		&mcp.StreamableHTTPOptions{
+			Stateless: true, JSONResponse: true,
+			// /mcp is bearer-only, so DNS rebinding cannot ride ambient
+			// credentials; the guard would only break reverse-proxied
+			// loopback deployments (Host != loopback).
+			DisableLocalhostProtection: true,
+		})
 }

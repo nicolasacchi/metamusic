@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,18 +64,33 @@ func buildRequest(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (*h
 			}
 			continue
 		}
+		if p.In != "path" && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) && !p.Required {
+			used[p.Arg] = true // null means absent for optional parameters
+			continue
+		}
 		used[p.Arg] = true
 		var list []json.RawMessage
 		if p.In != "path" && json.Unmarshal(raw, &list) == nil && len(bytes.TrimSpace(raw)) > 0 && bytes.TrimSpace(raw)[0] == '[' {
 			if p.In == "header" {
 				return nil, problemResult("VALIDATION_FAILED", "argument "+p.Arg+" must be a scalar")
 			}
+			var vals []string
 			for _, e := range list {
 				v, err := scalar(e)
 				if err != nil {
 					return nil, problemResult("VALIDATION_FAILED", "argument "+p.Arg+": "+err.Error())
 				}
-				q.Add(p.Wire, v)
+				if !p.Explode && strings.Contains(v, ",") {
+					return nil, problemResult("VALIDATION_FAILED", "argument "+p.Arg+": elements must not contain commas")
+				}
+				vals = append(vals, v)
+			}
+			if p.Explode {
+				for _, v := range vals {
+					q.Add(p.Wire, v)
+				}
+			} else if len(vals) > 0 {
+				q.Set(p.Wire, strings.Join(vals, ","))
 			}
 			continue
 		}
@@ -140,10 +156,10 @@ func buildRequest(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (*h
 
 // serve runs the request on inner and converts the response to a tool result.
 func serve(inner http.Handler, req *http.Request) *mcp.CallToolResult {
-	rec := httptest.NewRecorder()
+	rec := &capRecorder{ResponseRecorder: httptest.NewRecorder()}
 	inner.ServeHTTP(rec, req)
 	raw := bytes.TrimSpace(rec.Body.Bytes())
-	if len(raw) > maxBody {
+	if rec.overflow || len(raw) > maxBody {
 		return problemResult("INTERNAL", "response too large")
 	}
 	res := &mcp.CallToolResult{}
@@ -179,3 +195,21 @@ func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.Ra
 	}
 	return serve(inner, req)
 }
+
+// capRecorder stops buffering once the body exceeds maxBody, so a runaway
+// handler cannot exhaust memory. Writes past the cap fail, which also lets
+// well-behaved handlers stop early.
+type capRecorder struct {
+	*httptest.ResponseRecorder
+	overflow bool
+}
+
+func (c *capRecorder) Write(b []byte) (int, error) {
+	if c.overflow || c.Body.Len()+len(b) > maxBody {
+		c.overflow = true
+		return 0, errors.New("response too large")
+	}
+	return c.ResponseRecorder.Write(b)
+}
+
+func (c *capRecorder) WriteString(s string) (int, error) { return c.Write([]byte(s)) }

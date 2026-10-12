@@ -79,8 +79,10 @@ func TestToolListHonoursMCPMetadata(t *testing.T) {
 	if o := got["spend_op"].Annotations.OpenWorldHint; o == nil || !*o {
 		t.Error("spend-cost ops must set openWorldHint")
 	}
-	if got["get_item"].Annotations.OpenWorldHint != nil || got["add_note"].Annotations.OpenWorldHint != nil {
-		t.Error("free ops must not set openWorldHint")
+	for _, n := range []string{"get_item", "add_note", "describe_operation"} {
+		if o := got[n].Annotations.OpenWorldHint; o == nil || *o {
+			t.Errorf("%s: free ops must set openWorldHint=false explicitly", n)
+		}
 	}
 	if !got["get_item"].Annotations.IdempotentHint || got["add_note"].Annotations.IdempotentHint {
 		t.Error("idempotentHint must follow the HTTP method")
@@ -161,5 +163,91 @@ func TestGenericRefusesExcludedAndUnknown(t *testing.T) {
 				t.Errorf("%s leaked exclusion reason: %s", tool, text(res))
 			}
 		}
+	}
+}
+
+func TestArrayQueryParamsReachHandlerIntact(t *testing.T) {
+	s := session(t)
+	for _, tool := range []string{"list_tags", "list_tags_x"} {
+		args := map[string]any{"tags": []string{"a", "b", "c"}}
+		res := call(t, s, tool, args)
+		if res.IsError || res.StructuredContent.(map[string]any)["id"] != "a|b|c" {
+			t.Errorf("%s: %+v %s", tool, res.StructuredContent, text(res))
+		}
+		res = call(t, s, "call_operation", map[string]any{"operation_id": tool, "arguments": args})
+		if res.IsError || res.StructuredContent.(map[string]any)["id"] != "a|b|c" {
+			t.Errorf("call_operation %s: %+v %s", tool, res.StructuredContent, text(res))
+		}
+	}
+	res := call(t, s, "list_tags", map[string]any{"tags": []string{"a,b"}})
+	if !res.IsError || !strings.Contains(text(res), "VALIDATION_FAILED") {
+		t.Errorf("comma element in non-exploded array must be refused: %s", text(res))
+	}
+	res = call(t, s, "list_tags_x", map[string]any{"tags": []string{"a,b"}})
+	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "a,b" {
+		t.Errorf("exploded array keeps commas: %s", text(res))
+	}
+}
+
+func TestNullOptionalParamIsAbsent(t *testing.T) {
+	s := session(t)
+	res := call(t, s, "get_item", map[string]any{"id": "n", "limit": nil, "idempotency_key": nil})
+	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "n|" {
+		t.Fatalf("%+v %s", res.StructuredContent, text(res))
+	}
+	res = call(t, s, "get_item", map[string]any{"id": nil})
+	if !res.IsError {
+		t.Fatal("null required param must be refused")
+	}
+}
+
+func TestOptionalBodyCanBeOmitted(t *testing.T) {
+	s := session(t)
+	res := call(t, s, "opt_body", map[string]any{})
+	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "none" {
+		t.Fatalf("%+v %s", res.StructuredContent, text(res))
+	}
+	res = call(t, s, "opt_body", map[string]any{"body": map[string]any{"text": "hey"}})
+	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "hey" {
+		t.Fatalf("%+v %s", res.StructuredContent, text(res))
+	}
+}
+
+func TestHostHeaderNotRestricted(t *testing.T) {
+	a, mux := testAPI(t)
+	srv, err := NewServer(a, mux, "v0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(Handler(srv))
+	defer ts.Close()
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+	req, _ := http.NewRequest("POST", ts.URL, strings.NewReader(body))
+	req.Host = "mm.example.com"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+}
+
+func TestServeCapsRecorderMemory(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chunk := make([]byte, 1<<20)
+		for i := 0; i < 64; i++ {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+		}
+	})
+	req := httptest.NewRequest("GET", "/", nil)
+	res := serve(h, req)
+	if !res.IsError || !strings.Contains(text(res), "response too large") {
+		t.Fatalf("%s", text(res))
 	}
 }

@@ -91,6 +91,25 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 		})
 	api.Register(a, op("hidden_op", "GET", "/api/hidden"), m("exclude:internal"),
 		func(ctx context.Context, _ *struct{}) (*itemOut, error) { return &itemOut{}, nil })
+	echoTags := func(ctx context.Context, in *tagsIn) (*itemOut, error) {
+		out := &itemOut{}
+		out.Body.ID = strings.Join(in.Tags, "|")
+		return out, nil
+	}
+	api.Register(a, op("list_tags", "GET", "/api/tags"), m("tool"), echoTags)
+	api.Register(a, op("list_tags_x", "GET", "/api/tags-x"), m("tool"),
+		func(ctx context.Context, in *tagsXIn) (*itemOut, error) {
+			return echoTags(ctx, &tagsIn{Tags: in.Tags})
+		})
+	api.Register(a, op("opt_body", "POST", "/api/optbody"), m("tool"),
+		func(ctx context.Context, in *optBodyIn) (*itemOut, error) {
+			out := &itemOut{}
+			out.Body.ID = "none"
+			if in.Body != nil {
+				out.Body.ID = in.Body.Text
+			}
+			return out, nil
+		})
 	return a, mux
 }
 
@@ -229,12 +248,12 @@ func TestSchemaRefsInlined(t *testing.T) {
 }
 
 func TestSchemaNoDuplicateOrUnknownArgs(t *testing.T) {
-	real := specsOf(t, api.New(http.NewServeMux(), api.Deps{}))
-	if len(real) == 0 {
+	registry := specsOf(t, api.New(http.NewServeMux(), api.Deps{}))
+	if len(registry) == 0 {
 		t.Fatal("real registry has no operations")
 	}
 	all := specs(t)
-	for id, s := range real {
+	for id, s := range registry {
 		all["real:"+id] = s
 	}
 	for id, s := range all {
@@ -281,7 +300,7 @@ func TestBuildRequest(t *testing.T) {
 func opDoc(params []any, body map[string]any) map[string]any {
 	op := map[string]any{"parameters": params}
 	if body != nil {
-		op["requestBody"] = map[string]any{"content": map[string]any{
+		op["requestBody"] = map[string]any{"required": true, "content": map[string]any{
 			"application/json": map[string]any{"schema": body}}}
 	}
 	return op
@@ -367,4 +386,16 @@ func TestServeNon2xxIsError(t *testing.T) {
 	if !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "INTERNAL") {
 		t.Fatalf("non-problem body must map to INTERNAL: %+v", res)
 	}
+}
+
+type tagsIn struct {
+	Tags []string `query:"tags" required:"false"`
+}
+type tagsXIn struct {
+	Tags []string `query:"tags,explode" required:"false"`
+}
+type optBodyIn struct {
+	Body *struct {
+		Text string `json:"text"`
+	} `required:"false"`
 }

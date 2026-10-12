@@ -14,6 +14,7 @@ type param struct {
 	Wire     string // name on the wire (path/query/header)
 	In       string // path | query | header
 	Required bool
+	Explode  bool // query arrays: true = repeated keys, false = one comma-joined value
 }
 
 // bodyMode says how the request body is represented in tool arguments.
@@ -157,7 +158,11 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 		if err := add(arg, schema, req, loc+" parameter"); err != nil {
 			return nil, err
 		}
-		spec.Params = append(spec.Params, param{Arg: arg, Wire: name, In: loc, Required: req})
+		explode := true // OpenAPI default for form-style query parameters
+		if e, ok := p["explode"].(bool); ok {
+			explode = e
+		}
+		spec.Params = append(spec.Params, param{Arg: arg, Wire: name, In: loc, Required: req, Explode: explode})
 	}
 
 	// Request body.
@@ -172,7 +177,8 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 					collides = true
 				}
 			}
-			flat := bs["type"] == "object" && len(bprops) > 0 && !collides
+			// An optional body is nested so it can be omitted entirely.
+			flat := bodyReq && bs["type"] == "object" && len(bprops) > 0 && !collides
 			if flat {
 				spec.Body = bodyFlat
 				for n, s := range bprops {

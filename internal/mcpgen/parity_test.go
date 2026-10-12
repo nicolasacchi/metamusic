@@ -293,3 +293,41 @@ func TestToolsListBudgetFires(t *testing.T) {
 		t.Fatal("oversized tools/list must fail the budget")
 	}
 }
+
+func TestWhoamiAcrossProtocolVersions(t *testing.T) {
+	r := newRig(t)
+	tok := r.token(t, "agent-pv", auth.ScopeRead)
+	for _, ver := range []string{"", "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"} {
+		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"whoami","arguments":{}}}`
+		req, _ := http.NewRequest("POST", r.srv.URL+"/mcp", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if ver != "" {
+			req.Header.Set("MCP-Protocol-Version", ver)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Errorf("version %q: status %d %s", ver, resp.StatusCode, b)
+			continue
+		}
+		var out struct {
+			Result struct {
+				StructuredContent map[string]any `json:"structuredContent"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			t.Errorf("version %q: %v: %s", ver, err, b)
+			continue
+		}
+		m := out.Result.StructuredContent
+		if m["kind"] != "agent" || m["name"] != "agent-pv" {
+			t.Errorf("version %q: principal not propagated: %s", ver, b)
+		}
+	}
+}
