@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/nicolasacchi/metamusic/internal/config"
+	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"io"
 	"net/http"
 	"strings"
@@ -21,9 +23,15 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	}
 	tok := strings.TrimSpace(tokOut)
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	var out, errb syncBuf
 	done := make(chan int, 1)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+		}
+	})
 	go func() { done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb) }()
 	var addr string
 	for i := 0; i < 200 && addr == ""; i++ {
@@ -54,6 +62,34 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	r2.Body.Close()
 	if r2.StatusCode != 200 {
 		t.Fatalf("library not wired: %d %s", r2.StatusCode, b2)
+	}
+	// Signed link with an unknown sha: valid signature => 404 NOT_FOUND pins a
+	// non-nil signer built from the secrets key.
+	sec, err := config.LoadSecrets(env["MM_DATA_DIR"]+"/secrets", "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := mediaserve.NewSigner(sec.Key, time.Now).Sign(strings.Repeat("ab", 32), "flac", time.Hour, time.Minute).URL
+	r3, err := http.Get("http://" + addr + link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b3, _ := io.ReadAll(r3.Body)
+	r3.Body.Close()
+	if r3.StatusCode != 404 || !strings.Contains(string(b3), "NOT_FOUND") {
+		t.Fatalf("signer not wired to media handler: %d %s", r3.StatusCode, b3)
+	}
+	// Options.Signer wired: the probe (not the signer) is the missing component.
+	req4, _ := http.NewRequest("GET", "http://"+addr+"/api/device-probe", nil)
+	req4.Header.Set("Authorization", "Bearer "+tok)
+	r4, err := http.DefaultClient.Do(req4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b4, _ := io.ReadAll(r4.Body)
+	r4.Body.Close()
+	if r4.StatusCode != 503 || !strings.Contains(string(b4), `"component":"probe"`) {
+		t.Fatalf("Options.Signer not wired: %d %s", r4.StatusCode, b4)
 	}
 	cancel()
 	select {

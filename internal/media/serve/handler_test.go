@@ -3,6 +3,7 @@ package serve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -314,8 +315,12 @@ func TestHandler_MissingFile500(t *testing.T) {
 	u := r.url(sha, "flac")
 	assertProblem(t, r.do("GET", u, nil), 500, "INTERNAL")
 	log := buf.String()
-	if !strings.Contains(log, sha) || !strings.Contains(log, "flac") {
-		t.Errorf("log lacks sha/ext: %s", log)
+	var rec map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(log)), &rec); err != nil {
+		t.Fatalf("log not one JSON line: %v %s", err, log)
+	}
+	if rec["sha"] != sha || rec["ext"] != "flac" {
+		t.Errorf("log lacks sha/ext attrs: %s", log)
 	}
 	q, _ := url.Parse(u)
 	exp, sig := q.Query().Get("exp"), q.Query().Get("sig")

@@ -192,10 +192,15 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 }
 
 func TestHTTP_ManifestAndIconsPublic(t *testing.T) {
+	orig := mime.TypeByExtension(".webmanifest")
 	if err := mime.AddExtensionType(".webmanifest", "text/plain"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = mime.AddExtensionType(".webmanifest", "application/manifest+json") })
+	t.Cleanup(func() {
+		if orig != "" {
+			_ = mime.AddExtensionType(".webmanifest", orig)
+		}
+	})
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/manifest.webmanifest", nil))
 	if w.Code != 200 || w.Header().Get("Content-Type") != "application/manifest+json" {
@@ -235,6 +240,7 @@ func TestHandler_DotSegmentsNeverServe(t *testing.T) {
 						t.Errorf("%s (token=%v) served: %d", p, withTok, w.Code)
 					}
 					switch w.Code {
+					// Go 1.27 ServeMux cleans paths with 307/308 (not only 301), keeping the query.
 					case 301, 303, 307, 308, 401, 404:
 					default:
 						t.Errorf("%s (token=%v) = %d", p, withTok, w.Code)
