@@ -102,6 +102,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   register();
   el.addEventListener("loadedmetadata", onLoaded);
   el.addEventListener("playing", onPlaying);
+  el.addEventListener("mm:meta", metadata);
   el.addEventListener("seeked", onSeeked);
   el.addEventListener("timeupdate", onTime);
   env.doc.addEventListener("visibilitychange", onVisible);
@@ -109,6 +110,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   return () => {
     el.removeEventListener("loadedmetadata", onLoaded);
     el.removeEventListener("playing", onPlaying);
+    el.removeEventListener("mm:meta", metadata);
     el.removeEventListener("seeked", onSeeked);
     el.removeEventListener("timeupdate", onTime);
     env.doc.removeEventListener("visibilitychange", onVisible);

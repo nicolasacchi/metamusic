@@ -6,6 +6,7 @@ class FakeAudio extends EventTarget {
   currentTime = 0;
   duration = NaN;
   paused = true;
+  readyState = 0;
   error: { code: number } | null = null;
   log: string[] = [];
   setSeekLog: number[] = [];
@@ -17,6 +18,9 @@ class FakeAudio extends EventTarget {
   pause() {
     this.paused = true;
   }
+  load() {
+    this.log.push("load");
+  }
   emit(type: string) {
     this.dispatchEvent(new Event(type));
   }
@@ -26,10 +30,12 @@ class FakeAudio extends EventTarget {
   }
 }
 
+const T0 = Date.parse("2026-01-01T00:00:00Z");
+
 function links(id: string): MediaLinks {
   return {
     track_id: id,
-    expires_at: new Date(Date.now() + 12 * 3600_000).toISOString(),
+    expires_at: new Date(T0 + 12 * 3600_000).toISOString(),
     ttl_s: 12 * 3600,
     flac: { url: `/media/${id}.flac?exp=1`, bytes: 1, content_type: "audio/flac", sample_rate: 44100, bits_per_sample: 16, sha256: "x" },
     mp3: { url: `/media/${id}.mp3?exp=1`, bytes: 1, content_type: "audio/mpeg", bitrate_kbps: 192, sha256: "y" },
@@ -47,7 +53,7 @@ function setup(quality = "lossless") {
     recordFailedProbe: () => void failed.push(1),
     onGesture: () => void gestures.push(1),
   };
-  let now = Date.now();
+  let now = T0;
   const p = new Player({
     fetchLinks: async (id) => {
       fetched.push(id);
@@ -55,6 +61,7 @@ function setup(quality = "lossless") {
     },
     device,
     now: () => now,
+    fetchMeta: async (id) => ({ title: "Song " + id.toUpperCase(), album: "" }),
   });
   p.attach(el as unknown as HTMLAudioElement);
   const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -79,7 +86,7 @@ describe("player store", () => {
     expect(gestures).toHaveLength(1);
     await flush();
     expect(el.src).toBe("/media/a.flac?exp=1");
-    expect(el.log).toEqual(["play"]);
+    expect(el.log).toEqual(["load", "play"]);
     expect(p.state.format).toBe("flac");
   });
 
@@ -179,8 +186,20 @@ describe("player store", () => {
     p.play("a");
     await flush();
     el.duration = 200;
+    el.readyState = 1;
     el.emit("loadedmetadata");
     p.load("a", undefined, { startAt: 30 });
+    expect(el.currentTime).toBe(30);
+  });
+
+  test("load on the current track with no metadata yet defers the seek", async () => {
+    const { p, el, flush } = setup();
+    p.load("a");
+    await flush();
+    p.load("a", undefined, { startAt: 30 });
+    expect(el.currentTime).toBe(0);
+    el.duration = 200;
+    el.emit("loadedmetadata");
     expect(el.currentTime).toBe(30);
   });
 
@@ -218,5 +237,151 @@ describe("player store", () => {
     expect(el.paused).toBe(true);
     p.toggle();
     expect(el.paused).toBe(false);
+  });
+
+  test("ended, next and prev switch the title to the new track", async () => {
+    const { p, el, flush } = setup();
+    p.play("a", ["a", "b", "c"], { title: "Song A" });
+    await flush();
+    expect(p.title).toBe("Song A");
+    el.emit("playing");
+    await flush();
+    el.emit("ended");
+    await flush();
+    expect(p.state.trackId).toBe("b");
+    expect(p.title).toBe("Song B");
+    p.next();
+    await flush();
+    expect(p.title).toBe("Song C");
+    p.state.current = 0;
+    p.prev();
+    await flush();
+    expect(p.title).toBe("Song B");
+  });
+
+  test("stale title is cleared while the next one resolves; a late result for an old track is dropped", async () => {
+    const { p, el, flush } = setup();
+    const waiters = new Map<string, (m: { title: string; album: string }) => void>();
+    p.configure({ fetchMeta: (id) => new Promise((r) => waiters.set(id, r)) });
+    p.play("a", ["a", "b"], { title: "Song A" });
+    await flush();
+    el.emit("ended");
+    expect(p.title).not.toBe("Song A");
+    p.play("a", ["a", "b"], { title: "Song A" });
+    waiters.get("b")?.({ title: "Late B", album: "" });
+    await flush();
+    expect(p.title).toBe("Song A");
+  });
+
+  test("title changes announce themselves on the element", async () => {
+    const { p, el, flush } = setup();
+    let n = 0;
+    el.addEventListener("mm:meta", () => n++);
+    p.play("a", ["a", "b"], { title: "Song A" });
+    await flush();
+    const before = n;
+    el.emit("ended");
+    await flush();
+    expect(n).toBeGreaterThan(before);
+  });
+
+  test("FLAC code 4 on an expired link re-mints and records no failed probe", async () => {
+    const { p, el, fetched, failed, flush, advance } = setup();
+    p.play("a");
+    await flush();
+    advance(13 * 3600_000);
+    el.currentTime = 5;
+    el.fail(4);
+    await flush();
+    expect(fetched).toEqual(["a", "a"]);
+    expect(failed).toHaveLength(0);
+    expect(p.state.format).toBe("flac");
+    expect(el.src).toBe("/media/a.flac?exp=1");
+  });
+
+  test("FLAC code 4 on a valid link falls back to MP3 and records a failed probe", async () => {
+    const { p, el, failed, flush } = setup();
+    p.play("a");
+    await flush();
+    el.fail(4);
+    await flush();
+    expect(failed).toHaveLength(1);
+    expect(p.state.format).toBe("mp3");
+  });
+
+  test("FLAC code 4 after the one re-mint falls back to MP3", async () => {
+    const { p, el, failed, flush, advance } = setup();
+    p.play("a");
+    await flush();
+    advance(13 * 3600_000);
+    el.fail(4);
+    await flush();
+    el.fail(4);
+    await flush();
+    expect(failed).toHaveLength(1);
+    expect(p.state.format).toBe("mp3");
+  });
+
+  test("MEDIA_ERR_DECODE on FLAC falls back to MP3", async () => {
+    const { p, el, failed, flush } = setup();
+    p.play("a");
+    await flush();
+    el.fail(3);
+    await flush();
+    expect(failed).toHaveLength(1);
+    expect(el.src).toBe("/media/a.mp3?exp=1");
+  });
+
+  test("recovery keeps a paused element paused", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    p.toggle();
+    expect(el.paused).toBe(true);
+    el.log.length = 0;
+    el.fail(2);
+    await flush();
+    expect(el.log).not.toContain("play");
+  });
+
+  test("an uncached play unlocks the element synchronously inside the gesture", async () => {
+    const { p, el } = setup();
+    p.play("a");
+    expect(el.log).toEqual(["load"]);
+  });
+
+  test("NotAllowedError surfaces a tap-to-play state", async () => {
+    const { p, el, flush } = setup();
+    el.play = () => Promise.reject(new DOMException("blocked", "NotAllowedError"));
+    p.play("a");
+    await flush();
+    expect(p.state.error).toMatch(/tap/i);
+    expect(p.state.playing).toBe(false);
+  });
+
+  test("toggle on a never-fetched element with expired links re-applies fresh links", async () => {
+    const { p, el, fetched, flush, advance } = setup();
+    p.load("a");
+    await flush();
+    advance(13 * 3600_000);
+    fetched.length = 0;
+    p.toggle();
+    await flush();
+    expect(fetched).toEqual(["a"]);
+    expect(el.log).toContain("play");
+  });
+
+  test("link cache boundary is expires_at minus 10 minutes", async () => {
+    const { p, fetched, flush, advance } = setup();
+    p.play("a");
+    await flush();
+    advance(12 * 3600_000 - 10 * 60_000 - 1);
+    p.play("a");
+    await flush();
+    expect(fetched).toEqual(["a"]);
+    advance(1);
+    p.play("a");
+    await flush();
+    expect(fetched).toEqual(["a", "a"]);
   });
 });

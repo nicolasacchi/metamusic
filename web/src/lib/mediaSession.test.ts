@@ -99,6 +99,17 @@ describe("mediaSession", () => {
     expect(init.artwork[0]!.src).toBe("/icons/icon-512.png");
   });
 
+  test("a track change re-registers handlers and a title change refreshes metadata", () => {
+    const { ms, el, sets } = setup();
+    el.dispatchEvent(new Event("playing"));
+    const n = sets.length;
+    el.dispatchEvent(new Event("loadedmetadata"));
+    expect(sets.length).toBeGreaterThan(n);
+    const before = ms.metadata;
+    el.dispatchEvent(new Event("mm:meta"));
+    expect(ms.metadata).not.toBe(before);
+  });
+
   test("never calls setPositionState with NaN, Infinity or 0 duration", () => {
     for (const d of [NaN, Infinity, 0]) {
       const { el, positions } = setup({ duration: d });

@@ -7,6 +7,7 @@
   let { player }: { player: Player } = $props();
 
   let peaks = $state<number[] | null>(null);
+  let bits = $state(8);
   let peaksFor = "";
 
   $effect(() => {
@@ -19,7 +20,10 @@
         const r = await api.GET("/api/tracks/{id}/peaks", {
           params: { path: { id }, query: { level: "overview" } },
         });
-        if (peaksFor === id) peaks = r.data?.peaks.data ?? null;
+        if (peaksFor === id) {
+          peaks = r.data?.peaks.data ?? null;
+          bits = r.data?.peaks.bits ?? 8;
+        }
       } catch {
         /* the bar works without a waveform */
       }
@@ -50,6 +54,7 @@
     </div>
     <Waveform
       {peaks}
+      {bits}
       duration={player.state.duration}
       current={player.state.current}
       height={32}

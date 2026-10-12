@@ -7,13 +7,19 @@
     duration: number;
     current: number;
     onseek: (seconds: number) => void;
+    /** Sample bit depth from the mm.peaks payload (int8 by default). */
+    bits?: number;
     height?: number;
     label?: string;
   }
-  let { peaks, duration, current, onseek, height = 48, label = "Waveform" }: Props = $props();
+  let { peaks, duration, current, onseek, bits = 8, height = 48, label = "Waveform" }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let cssWidth = $state(0);
+
+  const pxWidth = $derived(Math.max(1, Math.floor(cssWidth * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1))));
+  const cols = $derived(peaks && cssWidth > 0 ? peaksToColumns(peaks, Math.floor(peaks.length / 2), pxWidth) : []);
+  const full = $derived(2 ** (Math.max(2, bits) - 1) - 1);
 
   function draw() {
     if (!canvas || cssWidth <= 0) return;
@@ -25,13 +31,11 @@
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, w, h);
-    const cols = peaks ? peaksToColumns(peaks, Math.floor(peaks.length / 2), w) : [];
     const playedX = duration > 0 ? Math.min(w, (current / duration) * w) : 0;
     const mid = h / 2;
     const scale = (h / 2) * 0.95;
-    // Peak values are normalised int8/int16 in the source; scale by the observed extreme.
-    let ext = 1;
-    for (const c of cols) ext = Math.max(ext, Math.abs(c.min), Math.abs(c.max));
+    // Scale by the format's full range so quiet tracks stay quiet.
+    const ext = full;
     cols.forEach((c, x) => {
       ctx.fillStyle = x < playedX ? "#f2a65a" : "#7a6a5c";
       const top = mid - (c.max / ext) * scale;
@@ -41,7 +45,7 @@
   }
 
   $effect(() => {
-    void peaks;
+    void cols;
     void current;
     void duration;
     void cssWidth;
