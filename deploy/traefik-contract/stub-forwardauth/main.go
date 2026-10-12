@@ -2,8 +2,11 @@
 
 // Command stub-forwardauth imitates the Authelia forward-auth contract the edge relies on:
 // session cookie "mm_stub_session" is "one" or "two" (authentication factors); a missing session
-// is a 401 for XHR and a 302 for a navigation; paths in STUB_TWO_FACTOR (newline separated
-// regexps, from deploy/authelia-rules.example.yml) need two factors, else 403.
+// is refused, and so is a one-factor session on a path in STUB_TWO_FACTOR (newline separated
+// regexps, from deploy/authelia-rules.example.yml). Both refusals use Authelia 4.39's
+// getAuthzRedirectStatusCode: 401 for XHR or when Accept lacks text/html, else 302 for
+// GET/HEAD/OPTIONS and 303 for other methods. 403 is only for a deny policy, which the
+// fixture has none of.
 // GET /__calls returns the number of /verify calls. Test-only.
 package main
 
@@ -40,18 +43,26 @@ func (s *stub) needsTwo(uri string) bool {
 	return false
 }
 
+// refuse mirrors Authelia's redirect status decision for unauthenticated and step-up requests.
+func refuse(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Requested-With") == "XMLHttpRequest" || !strings.Contains(r.Header.Get("Accept"), "text/html") {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	code := http.StatusSeeOther
+	switch r.Header.Get("X-Forwarded-Method") {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		code = http.StatusFound
+	}
+	http.Redirect(w, r, "https://auth.example.com/?rd=login", code)
+}
+
 func (s *stub) verify(w http.ResponseWriter, r *http.Request) {
 	s.calls.Add(1)
 	uri := r.Header.Get("X-Forwarded-Uri")
 	switch sess := s.session(r); {
-	case sess == "":
-		if r.Header.Get("X-Requested-With") == "XMLHttpRequest" || r.Header.Get("X-Forwarded-Method") != http.MethodGet {
-			http.Error(w, "unauthenticated", http.StatusUnauthorized)
-			return
-		}
-		http.Redirect(w, r, "https://auth.example.com/?rd=login", http.StatusFound)
-	case s.needsTwo(uri) && sess != "two":
-		http.Error(w, "second factor required", http.StatusForbidden)
+	case sess == "", s.needsTwo(uri) && sess != "two":
+		refuse(w, r)
 	default:
 		w.Header().Set("Remote-User", s.user)
 		w.Header().Set("Remote-Groups", "admins")

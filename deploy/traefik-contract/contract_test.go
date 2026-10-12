@@ -7,7 +7,9 @@ package contract
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +38,7 @@ type edge struct {
 	baseURL string
 	stubURL string
 	client  *http.Client
+	logs    func() string
 }
 
 type echoReport struct {
@@ -152,6 +155,9 @@ func startEdge(t *testing.T) (*edge, map[string][]string) {
 	order := middlewareOrder(labels)
 	var gen []string
 	for _, l := range labels {
+		if l == "traefik.enable=true" {
+			continue // the fixture must stay invisible to a host Traefik (exposedbydefault=false)
+		}
 		if strings.Contains(l, ".tls.certresolver=") {
 			continue // no ACME in the test; Traefik serves its default certificate
 		}
@@ -164,7 +170,7 @@ func startEdge(t *testing.T) (*edge, map[string][]string) {
 		gen = append(gen, l)
 	}
 	var sb strings.Builder
-	sb.WriteString("services:\n  echo:\n    labels:\n      - mm.contract=1\n")
+	sb.WriteString("services:\n  echo:\n    labels:\n")
 	for _, l := range gen {
 		q, _ := json.Marshal(strings.ReplaceAll(l, "$", "$$"))
 		sb.WriteString("      - " + string(q) + "\n")
@@ -174,22 +180,37 @@ func startEdge(t *testing.T) (*edge, map[string][]string) {
 		t.Fatal(err)
 	}
 
+	rnd := make([]byte, 4)
+	if _, err := rand.Read(rnd); err != nil {
+		t.Fatal(err)
+	}
+	project := "mm-routing-" + hex.EncodeToString(rnd)
 	env := []string{
+		"PROJECT=" + project,
 		"BIN_DIR=" + binDir,
 		"STUB_USER=" + stubUser,
 		"STUB_TWO_FACTOR=" + twoFactorPatterns(t, filepath.Join(deploy, "authelia-rules.example.yml")),
 	}
 	dc := func(args ...string) string {
-		return run(t, ".", env, "docker", append([]string{"compose", "-f", "compose.yml", "-f", override}, args...)...)
+		return run(t, ".", env, "docker", append([]string{"compose", "-p", project, "-f", "compose.yml", "-f", override}, args...)...)
 	}
 	t.Cleanup(func() { dc("down", "--volumes", "--remove-orphans", "--timeout", "2") })
 	dc("up", "-d", "--quiet-pull")
+
+	// guard: no fixture container may be visible to a host Traefik with exposedbydefault=false
+	for _, id := range strings.Fields(dc("ps", "-q")) {
+		lbl := run(t, ".", nil, "docker", "inspect", "--format", `{{json .Config.Labels}}`, id)
+		if strings.Contains(lbl, `"traefik.enable"`) {
+			t.Fatalf("fixture container %s carries a traefik.enable label: %s", id, lbl)
+		}
+	}
 
 	hostPort := func(svc, port string) string {
 		out := dc("port", svc, port) // 127.0.0.1:49153
 		return out[strings.LastIndex(out, ":")+1:]
 	}
 	e := &edge{
+		logs:    func() string { return dc("logs", "--no-color", "traefik") },
 		t:       t,
 		baseURL: "https://127.0.0.1:" + hostPort("traefik", "443"),
 		stubURL: "http://127.0.0.1:" + hostPort("stub", "9091"),
@@ -263,6 +284,8 @@ func (e *edge) stubCalls() int {
 	}
 	return n
 }
+
+func html() http.Header { return http.Header{"Accept": {"text/html"}} }
 
 func session(level string) http.Header {
 	return http.Header{"Cookie": {"mm_stub_session=" + level}}
@@ -409,14 +432,19 @@ func TestRoutingContract(t *testing.T) {
 	})
 
 	t.Run("second factor", func(t *testing.T) {
-		if r := e.do(http.MethodPost, "/human/api/x", session("one")); r.Status != http.StatusForbidden || r.router() != "mm-ui" {
-			t.Errorf("one factor: status %d router %q, want 403 mm-ui", r.Status, r.router())
+		// Authelia 4.39 getAuthzRedirectStatusCode: 401 XHR/non-HTML, 302 GET, 303 other methods
+		xhr := http.Header{"X-Requested-With": {"XMLHttpRequest"}}
+		if r := e.do(http.MethodPost, "/human/api/x", merge(session("one"), html())); r.Status != http.StatusSeeOther || r.router() != "mm-ui" {
+			t.Errorf("one factor POST navigation: status %d router %q, want 303 mm-ui", r.Status, r.router())
+		}
+		if r := e.do(http.MethodPost, "/human/api/x", merge(session("one"), xhr)); r.Status != http.StatusUnauthorized {
+			t.Errorf("one factor XHR: status %d, want 401", r.Status)
 		}
 		if r := e.do(http.MethodPost, "/human/api/x", session("two")); r.Status != http.StatusOK {
 			t.Errorf("two factors: status %d, want 200", r.Status)
 		}
-		if r := e.do(http.MethodGet, "/oauth/authorize?client_id=x", session("one")); r.Status != http.StatusForbidden {
-			t.Errorf("oauth authorize at one factor: status %d, want 403", r.Status)
+		if r := e.do(http.MethodGet, "/oauth/authorize?client_id=x", merge(session("one"), html())); r.Status != http.StatusFound {
+			t.Errorf("oauth authorize at one factor: status %d, want 302", r.Status)
 		}
 		if r := e.do(http.MethodPost, "/api/tracks", session("one")); r.Status != http.StatusOK {
 			t.Errorf("one_factor path at one factor: status %d, want 200", r.Status)
@@ -428,7 +456,7 @@ func TestRoutingContract(t *testing.T) {
 		if r := e.do(http.MethodGet, "/api/tracks", xhr); r.Status != http.StatusUnauthorized || r.router() != "mm-ui" {
 			t.Errorf("XHR without session: status %d router %q, want 401 mm-ui", r.Status, r.router())
 		}
-		r := e.do(http.MethodGet, "/api/tracks", nil)
+		r := e.do(http.MethodGet, "/api/tracks", html())
 		if r.Status != http.StatusFound {
 			t.Errorf("navigation without session: status %d, want 302", r.Status)
 		}
@@ -447,6 +475,25 @@ func TestRoutingContract(t *testing.T) {
 		r = e.do(http.MethodGet, "/restore?size=5000", merge(gz, session("two")))
 		if r.Header.Get("Content-Encoding") != "gzip" {
 			t.Errorf("mm-ui control: Content-Encoding %q, want gzip", r.Header.Get("Content-Encoding"))
+		}
+	})
+
+	t.Run("media access log is off", func(t *testing.T) {
+		e.do(http.MethodGet, "/media/canary-path?sig=canary-sig", nil)
+		e.do(http.MethodGet, "/poscontrol-ui", session("two"))
+		deadline := time.Now().Add(10 * time.Second)
+		var logs string
+		for time.Now().Before(deadline) {
+			if logs = e.logs(); strings.Contains(logs, "poscontrol-ui") {
+				break
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+		if !strings.Contains(logs, "poscontrol-ui") {
+			t.Fatal("positive control: mm-ui request missing from the access log")
+		}
+		if strings.Contains(logs, "canary-sig") || strings.Contains(logs, "canary-path") {
+			t.Error("a /media/ request was access-logged")
 		}
 	})
 }
