@@ -20,6 +20,14 @@ rc=0
 "$root/scripts/loop" bogus -- true >/dev/null 2>&1 || rc=$?
 chk "non-allowlisted target refused" '[ "$rc" = 2 ]'
 
+# M1 targets (C23) are accepted and their rows pass the shared validator
+for t in fixture-db cover routing seed; do
+  "$root/scripts/loop" "$t" -- true >/dev/null
+  chk "target $t accepted" 'jq -e "select(.target==\"$t\")" "$MM_METRICS_FILE" >/dev/null'
+done
+chk "new-target rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+chk "schema enum has new targets" 'jq -e ".properties.target.enum | contains([\"cover\",\"routing\",\"seed\",\"fixture-db\"])" "$root/metrics/loop.schema.json" >/dev/null'
+
 # lint-style findings are not compile errors; tsc-style are; subtests counted once
 : >"$MM_METRICS_FILE"
 "$root/scripts/loop" lint -- sh -c 'echo "foo.go:3:4: type assertion on error (errorlint)"; echo "bar.ts(3,5): error TS2322: bad"; echo "--- FAIL: TestP (0.0s)"; echo "    --- FAIL: TestP/a (0.0s)"; echo "    --- FAIL: TestP/b (0.0s)"' >/dev/null
