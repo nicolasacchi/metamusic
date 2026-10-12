@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -52,8 +53,11 @@ func TestLayout_ApplyWithFakeIngester(t *testing.T) {
 			t.Errorf("%s rule = %q, want %q", k, tr[k].ImportRule, rule)
 		}
 	}
-	if tr["syn-song-01#2001"].Rule != "same_request_id" || tr["syn-song-02-s2002#2002"].Rule != "seed_family" && tr["syn-song-02#1002"].Rule != "seed_family" {
-		t.Errorf("sibling rules: %+v / %+v / %+v", tr["syn-song-01#1001"], tr["syn-song-01#2001"], tr["syn-song-02#1002"])
+	if c, r := tr["syn-song-01#2001"], tr["syn-song-01#1001"]; c.Rule != "same_request_id" || c.Parent != r.ID || c.Root != r.ID || r.Parent != "" {
+		t.Errorf("same_request_id edge: %+v / %+v", r, c)
+	}
+	if c, r := tr["syn-song-02#1002"], tr["syn-song-02-s2002#2002"]; c.Rule != "seed_family" || c.Parent != r.ID || c.Root != r.ID || r.Parent != "" {
+		t.Errorf("seed_family edge: %+v / %+v", r, c)
 	}
 	if tr["syn-song-06#1006"].Title != "Synthetic Six" {
 		t.Errorf("title = %q", tr["syn-song-06#1006"].Title)
@@ -105,7 +109,7 @@ func TestLayout_ApplyWithFakeIngester(t *testing.T) {
 	if after["tracks"] != before["tracks"]+1 || after["mutations"] != before["mutations"]+1 || after["recipe_drafts"] != before["recipe_drafts"] {
 		t.Errorf("run 4: %v -> %v", before, after)
 	}
-	if got := e.tracks()["syn-song-06#1006"]; got.ImportRule != "slug" && got.Rule != "same_request_id" {
+	if got := e.tracks()["syn-song-06#1006"]; got.ImportRule != "slug" || got.Rule != "same_request_id" || got.Parent == "" || got.Parent == got.ID {
 		t.Errorf("syn-song-06 = %+v", got)
 	}
 }
@@ -119,26 +123,11 @@ func inboxFiles(t *testing.T, root string) []string {
 		}
 		fi, _ := d.Info()
 		rel, _ := filepath.Rel(root, p)
-		out = append(out, rel+"|"+fi.Mode().String()+"|"+fi.ModTime().UTC().Format(time.RFC3339Nano)+"|"+itoa(fi.Size()))
+		out = append(out, rel+"|"+fi.Mode().String()+"|"+fi.ModTime().UTC().Format(time.RFC3339Nano)+"|"+strconv.FormatInt(fi.Size(), 10))
 		return nil
 	})
 	sort.Strings(out)
 	return out
-}
-
-func itoa(n int64) string {
-	return strings.TrimSpace(strings.Repeat(" ", 0) + string(appendInt(nil, n)))
-}
-
-func appendInt(b []byte, n int64) []byte {
-	if n == 0 {
-		return append(b, '0')
-	}
-	var d []byte
-	for ; n > 0; n /= 10 {
-		d = append([]byte{byte('0' + n%10)}, d...)
-	}
-	return append(b, d...)
 }
 
 // dryRunImporter builds an importer the way the CLI does for --dry-run.

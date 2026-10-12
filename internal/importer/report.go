@@ -27,35 +27,35 @@ type Issue struct {
 
 // Summary holds the counts of C16.7.
 type Summary struct {
-	Files                 int            `json:"files"`
-	Bytes                 int64          `json:"bytes"`
-	ByKind                map[string]int `json:"by_kind"`
-	RecipesValid          int            `json:"recipes_valid"`
-	RecipesUnique         int            `json:"recipes_unique"`
-	RecipeSources         int            `json:"recipe_sources"`
-	RecipeLinesInvalid    int            `json:"recipe_lines_invalid"`
-	RecipesAlreadyImprted int            `json:"recipes_already_imported"`
-	AudioFiles            int            `json:"audio_files"`
-	AudioIdentities       int            `json:"audio_identities"`
-	AudioMatched          int            `json:"audio_matched"`
-	AudioAmbiguous        int            `json:"audio_ambiguous"`
-	AudioUnmatched        int            `json:"audio_unmatched"`
-	AudioSkipped          int            `json:"audio_skipped"`
-	AudioAlreadyImported  int            `json:"audio_already_imported"`
-	AudioInvalid          int            `json:"audio_invalid"`
-	DuplicateGroups       int            `json:"duplicate_groups"`
-	TracksNew             int            `json:"tracks_new"`
-	DraftsNew             int            `json:"drafts_new"`
-	DraftsFulfilled       int            `json:"drafts_fulfilled"`
-	SiblingsInferred      int            `json:"siblings_inferred"`
-	ScoresAttached        int            `json:"scores_attached"`
-	RefsAttached          int            `json:"refs_attached"`
-	Collections           int            `json:"collections"`
-	Ignored               int            `json:"ignored"`
-	Unsettled             int            `json:"unsettled"`
-	Warnings              int            `json:"warnings"`
-	Errors                int            `json:"errors"`
-	LibraryOrphans        int            `json:"library_orphans"`
+	Files                  int            `json:"files"`
+	Bytes                  int64          `json:"bytes"`
+	ByKind                 map[string]int `json:"by_kind"`
+	RecipesValid           int            `json:"recipes_valid"`
+	RecipesUnique          int            `json:"recipes_unique"`
+	RecipeSources          int            `json:"recipe_sources"`
+	RecipeLinesInvalid     int            `json:"recipe_lines_invalid"`
+	RecipesAlreadyImported int            `json:"recipes_already_imported"`
+	AudioFiles             int            `json:"audio_files"`
+	AudioIdentities        int            `json:"audio_identities"`
+	AudioMatched           int            `json:"audio_matched"`
+	AudioAmbiguous         int            `json:"audio_ambiguous"`
+	AudioUnmatched         int            `json:"audio_unmatched"`
+	AudioSkipped           int            `json:"audio_skipped"`
+	AudioAlreadyImported   int            `json:"audio_already_imported"`
+	AudioInvalid           int            `json:"audio_invalid"`
+	DuplicateGroups        int            `json:"duplicate_groups"`
+	TracksNew              int            `json:"tracks_new"`
+	DraftsNew              int            `json:"drafts_new"`
+	DraftsFulfilled        int            `json:"drafts_fulfilled"`
+	SiblingsInferred       int            `json:"siblings_inferred"`
+	ScoresAttached         int            `json:"scores_attached"`
+	RefsAttached           int            `json:"refs_attached"`
+	Collections            int            `json:"collections"`
+	Ignored                int            `json:"ignored"`
+	Unsettled              int            `json:"unsettled"`
+	Warnings               int            `json:"warnings"`
+	Errors                 int            `json:"errors"`
+	LibraryOrphans         int            `json:"library_orphans"`
 }
 
 // SourceReport describes one recipe source file.
@@ -319,7 +319,7 @@ func (r *Report) FormatText(w io.Writer) {
 		v any
 	}{
 		{"files", s.Files}, {"recipes (unique)", s.RecipesUnique}, {"recipe sources", s.RecipeSources},
-		{"invalid recipe lines", s.RecipeLinesInvalid}, {"recipes already imported", s.RecipesAlreadyImprted},
+		{"invalid recipe lines", s.RecipeLinesInvalid}, {"recipes already imported", s.RecipesAlreadyImported},
 		{"audio files", s.AudioFiles}, {"audio identities", s.AudioIdentities},
 		{"duplicate groups", s.DuplicateGroups}, {"tracks to import", s.TracksNew},
 		{"audio already imported", s.AudioAlreadyImported}, {"audio unmatched", s.AudioUnmatched},

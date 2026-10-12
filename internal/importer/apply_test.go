@@ -320,14 +320,12 @@ func TestApply_ParentFailed(t *testing.T) {
 	if !hasCode(res.Report.Warnings, "parent_failed") {
 		t.Errorf("warnings = %v", issueCodes(res.Report.Warnings))
 	}
-	for k, tr := range e.tracks() {
-		if tr.Parent != "" && k != "pf-1#3" {
-			t.Errorf("%s has a parent", k)
-		}
-	}
 	tr := e.tracks()
-	if tr["pf-1#2"].Parent != "" || tr["pf-1#2"].Gen != 0 {
-		t.Errorf("first surviving take must become the root: %+v", tr["pf-1#2"])
+	// siblings hang under the (failed) root, so each survivor becomes its own root
+	for _, k := range []string{"pf-1#2", "pf-1#3"} {
+		if x := tr[k]; x.Parent != "" || x.Root != x.ID || x.Gen != 0 || x.Rule != "" {
+			t.Errorf("%s must be a root: %+v", k, x)
+		}
 	}
 }
 
@@ -387,10 +385,17 @@ func TestApply_Cancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.ing.fail = func(ingest.Request) error { cancel(); return nil }
 	e.ing.delay = 20 * time.Millisecond
-	im, inv := e.inventory(func(o *Options) { o.Jobs = 1 })
+	im, inv := e.inventory(func(o *Options) { o.Jobs = 2 })
 	_, err := im.Apply(ctx, inv, ApplyOptions{Force: true})
 	if err == nil {
 		t.Fatal("expected a context error")
+	}
+	// ingests that succeeded but were never committed must be discarded
+	e.ing.mu.Lock()
+	nd := len(e.ing.discarded)
+	e.ing.mu.Unlock()
+	if nd == 0 || e.count("tracks") != 0 {
+		t.Errorf("discarded = %d, tracks = %d", nd, e.count("tracks"))
 	}
 	if st := e.scalar(`SELECT state FROM import_runs`); st != "failed" {
 		t.Errorf("run state = %s", st)
@@ -449,5 +454,24 @@ func TestApply_NeedsWriteSide(t *testing.T) {
 	}
 	if _, err := New(nil, nil, e.data, nil, Options{}); err == nil {
 		t.Error("New without an inbox must fail")
+	}
+}
+
+func TestApply_ErrorDetailNotInReport(t *testing.T) {
+	e := newEnv(t)
+	simpleInbox(e)
+	e.ing.fail = func(r ingest.Request) error {
+		if r.RequestID == "ap-2" {
+			return &ingest.Error{Code: ingest.CodeToolFailed, Detail: "flac: cannot open " + e.dataDir + "/incoming/x/in.flac"}
+		}
+		return nil
+	}
+	_, res := e.applyAll()
+	b, _ := json.Marshal(res.Report)
+	if strings.Contains(string(b), e.dataDir) || strings.Contains(e.scalar(`SELECT report_json FROM import_runs`), e.dataDir) {
+		t.Errorf("report leaks an absolute path: %s", b)
+	}
+	if res.TracksFailed != 1 {
+		t.Errorf("result = %+v", res)
 	}
 }

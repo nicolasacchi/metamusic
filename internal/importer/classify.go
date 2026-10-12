@@ -2,12 +2,15 @@ package importer
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"path"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Classification kinds (C16.1).
@@ -97,6 +100,17 @@ func nameKind(p string) string {
 func stemOf(p string) string {
 	b := path.Base(p)
 	return strings.TrimSuffix(b, path.Ext(b))
+}
+
+// storableStem is stemOf for values that get stored: a name that is not valid
+// UTF-8 is never stored (C16.1), a neutral hash key stands in for it.
+func storableStem(p string) string {
+	st := stemOf(p)
+	if utf8.ValidString(st) {
+		return st
+	}
+	h := sha256.Sum256([]byte(st))
+	return "name:" + hex.EncodeToString(h[:6])
 }
 
 // jsonClass is what a *.json file turned out to be.

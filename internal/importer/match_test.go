@@ -198,3 +198,22 @@ func TestMatch_PossibleReencodeWarning(t *testing.T) {
 		t.Errorf("both files must still be processed: identities = %d", inv.Report.Summary.AudioIdentities)
 	}
 }
+
+func TestMatch_FirstUniqueRuleWins(t *testing.T) {
+	e := newEnv(t)
+	e.put("recipes.jsonl", lines(req("dup-a", 1), req("dup-a", 2), req("pickone", 5), req("cmt-x", 3)))
+	e.flac("pickone_s5.flac", "p5", "MM_REQUEST_ID=dup-a") // ambiguous tag, unique slug_seed
+	e.flac("fallback.flac", "fb", "MM_REQUEST_ID=nope", "COMMENT=cmt-x")
+	e.flac("onlyamb.flac", "oa", "MM_REQUEST_ID=dup-a") // nothing resolves
+	_, inv := e.inventory()
+	for _, c := range []struct{ path, status, rule, id string }{
+		{"pickone_s5.flac", "new", "slug_seed", "pickone"},
+		{"fallback.flac", "new", "tag", "cmt-x"},
+		{"onlyamb.flac", "ambiguous", "", ""},
+	} {
+		a := audioByPath(&inv.Report, c.path)
+		if a == nil || a.Status != c.status || (c.rule != "" && (a.Match == nil || a.Match.Rule != c.rule || a.Match.RequestID != c.id)) {
+			t.Errorf("%s: %+v", c.path, a)
+		}
+	}
+}

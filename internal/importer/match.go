@@ -130,7 +130,20 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 			return memberResult{ruleNo: 2, recipes: []*recipe{r}}
 		}
 	}
-	// 3 tag
+	// Rules 2..8: the first rule that yields exactly one recipe wins (C16.3);
+	// an ambiguous rule is remembered and reported only when no later rule
+	// resolves.
+	var amb *memberResult
+	try := func(rule int, c []*recipe) (memberResult, bool) {
+		switch {
+		case len(c) == 1:
+			return memberResult{ruleNo: rule, recipes: c}, true
+		case len(c) > 1 && amb == nil:
+			amb = &memberResult{ruleNo: rule, recipes: c}
+		}
+		return memberResult{}, false
+	}
+	// 3 tag: MM_REQUEST_ID, then MM_RECIPE_ID, then COMMENT/DESCRIPTION
 	if id := af.tag("MM_REQUEST_ID"); id != "" {
 		c := b.byReqID[id]
 		if s := af.tag("MM_SEED"); s != "" && len(c) > 1 {
@@ -146,35 +159,37 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 				}
 			}
 		}
-		if len(c) > 0 {
-			return memberResult{ruleNo: 3, recipes: c}
+		if m, ok := try(3, c); ok {
+			return m
 		}
-	} else if id := af.tag("MM_RECIPE_ID"); id != "" {
+	}
+	if id := af.tag("MM_RECIPE_ID"); id != "" {
 		if r := b.byDBID[id]; r != nil {
-			return memberResult{ruleNo: 3, recipes: []*recipe{r}}
+			if m, ok := try(3, []*recipe{r}); ok {
+				return m
+			}
 		}
-	} else {
-		for _, k := range []string{"COMMENT", "DESCRIPTION"} {
-			for _, v := range af.tags[k] {
-				if c := b.byReqID[strings.TrimSpace(v)]; len(c) > 0 {
-					return memberResult{ruleNo: 3, recipes: c}
-				}
+	}
+	for _, k := range []string{"COMMENT", "DESCRIPTION"} {
+		for _, v := range af.tags[k] {
+			if m, ok := try(3, b.byReqID[strings.TrimSpace(v)]); ok {
+				return m
 			}
 		}
 	}
 	// 4 filename id
-	if c := b.byReqID[af.stem]; len(c) > 0 {
-		return memberResult{ruleNo: 4, recipes: c}
+	if m, ok := try(4, b.byReqID[af.stem]); ok {
+		return m
 	}
 	// 5 sidecar json
-	if c := b.sidecarRecipes(af); len(c) > 0 {
-		return memberResult{ruleNo: 5, recipes: c}
+	if m, ok := try(5, b.sidecarRecipes(af)); ok {
+		return m
 	}
 	// 6 slug
 	stemSlug := yue2.Slug(af.stem)
 	if stemSlug != "" {
-		if c := b.bySlug[stemSlug]; len(c) > 0 {
-			return memberResult{ruleNo: 6, recipes: uniqueRecipes(c)}
+		if m, ok := try(6, uniqueRecipes(b.bySlug[stemSlug])); ok {
+			return m
 		}
 	}
 	// 7 slug + seed hint
@@ -186,8 +201,8 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 					c = append(c, r)
 				}
 			}
-			if len(c) > 0 {
-				return memberResult{ruleNo: 7, recipes: uniqueRecipes(c)}
+			if mr, ok := try(7, uniqueRecipes(c)); ok {
+				return mr
 			}
 		}
 	}
@@ -199,8 +214,11 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 			c = append(c, b.byTitle[ts]...)
 		}
 	}
-	if c = uniqueRecipes(c); len(c) > 0 {
-		return memberResult{ruleNo: 8, recipes: c}
+	if m, ok := try(8, uniqueRecipes(c)); ok {
+		return m
+	}
+	if amb != nil {
+		return *amb
 	}
 	return memberResult{}
 }

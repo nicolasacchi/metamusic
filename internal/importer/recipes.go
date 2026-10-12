@@ -109,6 +109,7 @@ func (b *builder) abcResolver(from *entry) func(string) ([]byte, error) {
 		if data == nil {
 			return nil, errors.New("unresolved")
 		}
+		b.bomWarn(te, data)
 		data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 		if !utf8.Valid(data) {
 			return nil, errors.New("unresolved")
@@ -184,6 +185,7 @@ func (b *builder) parseJSONL(e *entry) {
 	sf := b.newSource(e)
 	if bytes.HasPrefix(data, []byte("\xef\xbb\xbf")) {
 		data = data[3:]
+		e.bomSeen = true
 		b.iss.warn(e.ref(), 0, "bom", "")
 		sf.report.Warnings = append(sf.report.Warnings, "bom")
 	}
@@ -234,6 +236,7 @@ func (b *builder) parseSingle(e *entry) {
 	sf.report.Lines = 1
 	if bytes.HasPrefix(data, []byte("\xef\xbb\xbf")) {
 		data = data[3:]
+		e.bomSeen = true
 		b.iss.warn(e.ref(), 0, "bom", "")
 	}
 	r := b.addLine(sf, 0, data, "json_file", true)
@@ -339,13 +342,14 @@ func (b *builder) resolveABCSources() {
 			continue
 		}
 		e.kind = kScoreABC
+		b.bomWarn(e, data)
 		if !utf8.Valid(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))) {
 			b.iss.warn(e.ref(), 0, "score_unparsable", "not valid UTF-8")
 		}
 	}
 	for _, e := range b.entries {
 		if e.kind == kScoreABC && e.rd != nil && e.data == nil {
-			b.readEntry(e, capABC)
+			b.bomWarn(e, b.readEntry(e, capABC))
 		}
 	}
 }

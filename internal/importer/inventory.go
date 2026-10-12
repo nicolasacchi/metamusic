@@ -259,7 +259,7 @@ func (b *builder) assemble() *Inventory {
 			placement = "draft_varianti"
 		}
 		if r.inDB {
-			s.RecipesAlreadyImprted++
+			s.RecipesAlreadyImported++
 		}
 		rr := RecipeReport{RequestID: r.reqID(), Seed: r.seed(), Hash: r.hash, Placement: placement, GroupKey: r.groupKey,
 			Collections: append([]string{}, r.collections...), HasReference: len(r.refs) > 0, Sources: []string{}}
@@ -287,16 +287,20 @@ func (b *builder) assemble() *Inventory {
 		if d.fulfilled {
 			s.DraftsFulfilled++
 		}
-		if !d.create {
-			continue
-		}
-		s.DraftsNew++
 		var mother *string
 		mkey := ""
 		if !d.mother.zero() {
 			l := d.mother.label(b)
 			mother, mkey = &l, d.mother.key(b)
 		}
+		if !d.create {
+			// apply writes this mother onto the existing draft: part of the plan
+			if mkey != "" {
+				entries = append(entries, canon(map[string]any{"k": "mother", "hash": d.r.hash, "mother": mkey}))
+			}
+			continue
+		}
+		s.DraftsNew++
 		rep.Drafts = append(rep.Drafts, DraftReport{RequestID: d.r.reqID(), Seed: d.r.seed(), Origin: d.origin, GroupKey: d.r.groupKey, Mother: mother})
 		entries = append(entries, canon(map[string]any{"k": "draft", "hash": d.r.hash, "origin": d.origin, "group_key": d.r.groupKey, "label": d.label, "mother": mkey}))
 		if d.origin == "varianti_import" && d.mother.zero() && !d.noMother {

@@ -1,11 +1,13 @@
 package importer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"path"
 	"sort"
@@ -13,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/importer/inbox"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
@@ -260,10 +263,75 @@ func (s *applyState) run(ctx context.Context) error {
 				s.result.MothersLinked += int(n)
 			}
 		}
-		n, err := lib.RelinkVariantiMothers(ctx, tx)
+		n, err := s.relinkMothers(ctx, tx, now)
 		s.result.MothersLinked += n
 		return err
 	})
+}
+
+// relinkMothers fills NULL mothers of varianti drafts with the same rules as
+// planMothers (C16.4): a draft's own recipe's takes never count, and a draft
+// with a "-" mapping row never gets a mother.
+func (s *applyState) relinkMothers(ctx context.Context, tx *sql.Tx, now string) (int, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT t.root_track_id, t.recipe_id, r.request_id FROM tracks t JOIN recipes r ON r.id = t.recipe_id`)
+	if err != nil {
+		return 0, err
+	}
+	type tr struct{ root, recipe, group string }
+	var trs []tr
+	for rows.Next() {
+		var x tr
+		var rid string
+		if err := rows.Scan(&x.root, &x.recipe, &rid); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		x.group = yue2.GroupKey(rid)
+		trs = append(trs, x)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT id, group_key, request_id, COALESCE(source_recipe_id,'') FROM recipe_drafts WHERE origin='varianti_import' AND parent_track_id IS NULL AND group_key IS NOT NULL`)
+	if err != nil {
+		return 0, err
+	}
+	type link struct{ draft, mother string }
+	var links []link
+	for rows.Next() {
+		var id, g, rid, src string
+		if err := rows.Scan(&id, &g, &rid, &src); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		if m := s.b.mapping.Drafts[rid]; m != nil && m.Parent == "-" {
+			continue
+		}
+		roots := map[string]bool{}
+		for _, x := range trs {
+			if x.group == g && (src == "" || x.recipe != src) {
+				roots[x.root] = true
+			}
+		}
+		if len(roots) == 1 {
+			for m := range roots {
+				links = append(links, link{id, m})
+			}
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, l := range links {
+		res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL`, l.mother, now, l.draft)
+		if err != nil {
+			return n, err
+		}
+		c, _ := res.RowsAffected()
+		n += int(c)
+	}
+	return n, nil
 }
 
 // takeOutcome is one finished ingest.
@@ -290,7 +358,22 @@ func (s *applyState) takes(ctx context.Context) error {
 	sem := make(chan struct{}, jobs)
 	launchCtx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
-	defer func() { cancel(); wg.Wait() }()
+	next := 0 // first outcome not yet handled
+	defer func() {
+		cancel()
+		wg.Wait()
+		// outcomes that succeeded but were never committed leave frozen
+		// masters on disk: discard them
+		for ; next < len(results); next++ {
+			select {
+			case out := <-results[next]:
+				if out.err == nil {
+					_ = s.im.ing.Discard(out.res)
+				}
+			default:
+			}
+		}
+	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -320,8 +403,13 @@ func (s *applyState) takes(ctx context.Context) error {
 			return ctx.Err()
 		}
 		if err := ctx.Err(); err != nil {
+			if out.err == nil {
+				_ = s.im.ing.Discard(out.res)
+			}
+			next = i + 1
 			return err
 		}
+		next = i + 1
 		s.commitTake(ctx, t, out)
 	}
 	return nil
@@ -353,7 +441,15 @@ func (s *applyState) ingestOne(ctx context.Context, t *plannedTake) takeOutcome 
 		if err != nil {
 			return takeOutcome{err: sourceChanged(err)}
 		}
-		arts = append(arts, ingest.ArtifactSrc{Name: a.name, File: f, SHA256: a.e.sha})
+		sha := a.e.sha
+		if a.bomStripped {
+			sf, err := stripBOMFile(f)
+			if err != nil {
+				return takeOutcome{err: sourceChanged(err)}
+			}
+			f, sha = sf, a.sha
+		}
+		arts = append(arts, ingest.ArtifactSrc{Name: a.name, File: f, SHA256: sha})
 	}
 	req := ingest.Request{
 		TrackID: t.id, Title: t.title, Slug: t.slug, RecipeID: s.recipeIDs[t.recipe.hash], RequestID: t.recipe.reqID(),
@@ -362,6 +458,36 @@ func (s *applyState) ingestOne(ctx context.Context, t *plannedTake) takeOutcome 
 	res, err := s.im.ing.Ingest(ctx, req)
 	return takeOutcome{res: res, err: err}
 }
+
+// stripBOMFile is the content of f without a leading UTF-8 BOM, in memory
+// (scores are small). The caller still closes f.
+func stripBOMFile(f fs.File) (fs.File, error) {
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(f, 1<<24))
+	if err != nil {
+		return nil, err
+	}
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
+	return &memFile{Reader: bytes.NewReader(data), info: memInfo{FileInfo: st, size: int64(len(data))}}, nil
+}
+
+type memFile struct {
+	*bytes.Reader
+	info memInfo
+}
+
+func (m *memFile) Stat() (fs.FileInfo, error) { return m.info, nil }
+func (m *memFile) Close() error               { return nil }
+
+type memInfo struct {
+	fs.FileInfo
+	size int64
+}
+
+func (m memInfo) Size() int64 { return m.size }
 
 func sourceChanged(err error) error {
 	if errors.Is(err, inbox.ErrChanged) {
@@ -373,7 +499,8 @@ func sourceChanged(err error) error {
 func failCode(err error) (code, msg string) {
 	var ie *ingest.Error
 	if errors.As(err, &ie) {
-		return ie.Code, ie.Error()
+		// Detail may carry tool output with absolute paths (C16.7): code only
+		return ie.Code, "ingest failed: " + ie.Code
 	}
 	return "INGEST_FAILED", "ingest failed"
 }

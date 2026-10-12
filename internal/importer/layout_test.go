@@ -6,7 +6,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 )
 
 // This file builds the C21 `acceptance` inbox layout with header-only FLACs
@@ -131,8 +130,6 @@ func acceptanceLayout(t *testing.T, e *env) {
 	e.put("varianti/syn-song-01-v2.json", line("syn-song-01-v2", 4001, synLyrics("syn-song-01-v2"), "full", ""))
 	e.flac("unmatched/mystery.flac", "mystery")
 	e.mapping("music/flac/syn_song_01.flac,syn-song-01,1001,,\nunmatched/mystery.flac,-,,,\n")
-	// keep temp file old: the rsync temp is ignored regardless
-	_ = time.Now
 }
 
 // acceptanceExpect are the C21 numbers a dry-run of the layout must report.

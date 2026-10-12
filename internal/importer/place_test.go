@@ -391,3 +391,46 @@ func TestPlace_CoreMatchFulfilment(t *testing.T) {
 		t.Errorf("warnings = %+v", inv.Report.Warnings)
 	}
 }
+
+func TestApply_MotherRelinkFollowsPlan(t *testing.T) {
+	// a "-" row beats an existing mother lineage; a draft's own take is never its mother
+	e := newEnv(t)
+	e.put("r.jsonl", lines(req("grp", 1), req("solo-v2", 2)))
+	e.put("varianti/a.json", req("grp-v2", 3))
+	e.put("varianti/b.json", req("solo-v2", 2))
+	e.flac("grp.flac", "g")
+	e.flac("solo.flac", "s")
+	e.mapping("audio,request_id,seed,title,parent\ngrp.flac,grp,1,,\nsolo.flac,solo-v2,2,,\ndraft:grp-v2,,,,-\n")
+	inv, _ := e.applyAll()
+	if hasCode(inv.Report.Warnings, "mother_ambiguous") {
+		t.Errorf("warnings = %v", issueCodes(inv.Report.Warnings))
+	}
+	d := e.drafts()
+	if d["grp-v2#3"].Parent != "" {
+		t.Errorf("'-' draft got mother %q", d["grp-v2#3"].Parent)
+	}
+	if d["solo-v2#2"].Parent != "" {
+		t.Errorf("draft became its own mother: %q", d["solo-v2#2"].Parent)
+	}
+	// a second run changes nothing
+	e.applyAll()
+	if d2 := e.drafts(); d2["grp-v2#3"].Parent != "" || d2["solo-v2#2"].Parent != "" {
+		t.Errorf("second run relinked: %+v", d2)
+	}
+}
+
+func TestInventory_DigestCoversMotherOfExistingDraft(t *testing.T) {
+	e := newEnv(t)
+	e.put("r.jsonl", lines(req("kid", 1), req("other", 1), req("kid-v2", 2)))
+	e.put("varianti/kid-v2.json", req("kid-v2", 2))
+	e.applyAll()
+	e.flac("kid.flac", "k")
+	e.flac("other.flac", "o")
+	e.mapping("audio,request_id,seed,title,parent\nkid.flac,kid,1,,\nother.flac,other,1,,\n")
+	_, inv0 := e.inventory()
+	e.mapping("audio,request_id,seed,title,parent\nkid.flac,kid,1,,\nother.flac,other,1,,\ndraft:kid-v2,,,,other.flac\n")
+	_, inv1 := e.inventory()
+	if inv0.PlanDigest() == inv1.PlanDigest() {
+		t.Error("plan digest ignores the mother written onto an existing draft")
+	}
+}

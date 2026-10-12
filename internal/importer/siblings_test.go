@@ -159,3 +159,42 @@ func TestSiblings_VariantsNoLineage(t *testing.T) {
 		}
 	}
 }
+
+func TestSiblings_SameSecondTieBreak(t *testing.T) {
+	// takes recorded within one stored second are ordered by frames sha, not by nanoseconds
+	for _, swap := range []bool{false, true} {
+		e := newEnv(t)
+		e.put("r.jsonl", lines(req("ss-1", 1), req("ss-1", 2)))
+		e.flac("a.flac", "aa")
+		e.flac("b.flac", "bb")
+		t0 := e.now.Add(-time.Hour).Truncate(time.Second)
+		ta, tb := t0.Add(100*time.Millisecond), t0.Add(900*time.Millisecond)
+		if swap {
+			ta, tb = tb, ta
+		}
+		e.age("a.flac", ta)
+		e.age("b.flac", tb)
+		e.mapping("audio,request_id,seed\na.flac,ss-1,1\nb.flac,ss-1,2\n")
+		e.applyAll()
+		var rootSeed int64
+		var rootFrames, otherFrames string
+		rows := e.query(`SELECT r.seed, t.frames_sha256, t.parent_track_id IS NULL FROM tracks t JOIN recipes r ON r.id=t.recipe_id`)
+		for rows.Next() {
+			var seed int64
+			var fr string
+			var isRoot bool
+			if err := rows.Scan(&seed, &fr, &isRoot); err != nil {
+				t.Fatal(err)
+			}
+			if isRoot {
+				rootSeed, rootFrames = seed, fr
+			} else {
+				otherFrames = fr
+			}
+		}
+		rows.Close()
+		if rootFrames == "" || rootFrames > otherFrames {
+			t.Errorf("swap=%v: root seed %d frames %s > other %s", swap, rootSeed, rootFrames, otherFrames)
+		}
+	}
+}

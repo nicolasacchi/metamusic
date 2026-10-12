@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -36,6 +37,7 @@ type entry struct {
 	flac     bool   // named like a FLAC (audio candidate)
 	arr      []json.RawMessage
 	audio    *audioFile
+	bomSeen  bool // the bom warning was already raised for this file
 }
 
 func hexSHA(b []byte) string {
@@ -362,6 +364,16 @@ func (b *builder) markUnsettled() {
 	}
 }
 
+// bomWarn raises the path-level bom warning once per file whose content
+// starts with a UTF-8 BOM (C16.1).
+func (b *builder) bomWarn(e *entry, data []byte) {
+	if e == nil || e.bomSeen || !bytes.HasPrefix(data, []byte("\xef\xbb\xbf")) {
+		return
+	}
+	e.bomSeen = true
+	b.iss.warn(e.ref(), 0, "bom", "")
+}
+
 // classifyFiles reads the content of candidate files and settles their kinds.
 func (b *builder) classifyFiles() {
 	for _, e := range b.entries {
@@ -377,7 +389,8 @@ func (b *builder) classifyFiles() {
 			if data == nil {
 				continue
 			}
-			jc := classifyJSON(data, stemOf(e.path))
+			b.bomWarn(e, data)
+			jc := classifyJSON(data, storableStem(e.path))
 			e.kind = jc.kind
 			if jc.warning != "" {
 				b.iss.warn(e.ref(), 0, jc.warning, "")
@@ -393,6 +406,7 @@ func (b *builder) classifyFiles() {
 			if data == nil {
 				continue
 			}
+			b.bomWarn(e, data)
 			rows, head, isRef, err := classifyCSV(data)
 			if !isRef {
 				e.kind = kIgnUnknown

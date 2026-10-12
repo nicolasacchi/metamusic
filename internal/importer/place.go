@@ -2,6 +2,8 @@ package importer
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"path"
 	"regexp"
@@ -19,6 +21,10 @@ import (
 type takeArtifact struct {
 	name string
 	e    *entry
+	// bomStripped: the kept bytes are the file without its UTF-8 BOM, so the
+	// artifact and the scores row share one byte form (sha is that form's hash).
+	bomStripped bool
+	sha         string
 }
 
 // plannedTake is one audio identity that becomes a track.
@@ -85,7 +91,7 @@ func (b *builder) takeTitle(g *audioGroup, r *recipe) string {
 		cand = r.title
 	case g.rep.tag("TITLE") != "":
 		cand = g.rep.tag("TITLE")
-	case g.rep.stem == "audio":
+	case g.rep.stem == "audio" || !utf8.ValidString(g.rep.stem):
 		cand = humanize(r.reqID())
 	default:
 		cand = humanize(g.rep.stem)
@@ -119,7 +125,7 @@ func (b *builder) placeTakes() {
 			continue
 		}
 		r := g.recipe
-		t := &plannedTake{g: g, recipe: r, recordedAt: g.rep.e.mtime.UTC()}
+		t := &plannedTake{g: g, recipe: r, recordedAt: g.rep.e.mtime.UTC().Truncate(time.Second)}
 		t.title = b.takeTitle(g, r)
 		if t.slug = yue2.Slug(t.title); t.slug == "" {
 			if t.slug = yue2.Slug(r.reqID()); t.slug == "" {
@@ -213,6 +219,7 @@ func (b *builder) placeScores() {
 		if t.score == nil {
 			continue
 		}
+		b.bomWarn(t.score, t.score.data)
 		data := bytes.TrimPrefix(t.score.data, []byte("\xef\xbb\xbf"))
 		if _, err := yue2.ParseScore(data); err != nil {
 			b.iss.warn(t.score.ref(), 0, "score_unparsable", "")
@@ -220,21 +227,34 @@ func (b *builder) placeScores() {
 			continue
 		}
 		t.scoreABC = t.score.data
-		if len(t.score.data) != len(data) {
+		stripped := len(t.score.data) != len(data)
+		if stripped {
 			t.scoreABC = data
 		}
-		// the score is also kept as takes/<id>/score.abc
+		// the score is also kept as takes/<id>/score.abc, in the same byte form
 		have := false
-		for _, a := range t.artifacts {
-			if a.name == "score.abc" {
+		for i := range t.artifacts {
+			if t.artifacts[i].name == "score.abc" {
 				have = true
+				if stripped && t.artifacts[i].e == t.score {
+					t.artifacts[i].bomStripped, t.artifacts[i].sha = true, shaHex(data)
+				}
 			}
 		}
 		if !have && t.score.sha != "" {
-			t.artifacts = append(t.artifacts, takeArtifact{name: "score.abc", e: t.score})
+			a := takeArtifact{name: "score.abc", e: t.score}
+			if stripped {
+				a.bomStripped, a.sha = true, shaHex(data)
+			}
+			t.artifacts = append(t.artifacts, a)
 			sort.Slice(t.artifacts, func(i, j int) bool { return t.artifacts[i].name < t.artifacts[j].name })
 		}
 	}
+}
+
+func shaHex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
 
 // ---- refs, drafts, collections -------------------------------------------
@@ -494,7 +514,7 @@ func (b *builder) placeCollections() {
 		if coverSets[setKey(ids)] {
 			continue
 		}
-		name := stemOf(sf.e.path)
+		name := storableStem(sf.e.path)
 		c := get(name, sf.e.sourcePath())
 		meta := &MetaReport{Path: sf.e.ref(), Kind: "collection", Rows: len(sf.occ), Matched: len(rs)}
 		b.meta = append(b.meta, meta)

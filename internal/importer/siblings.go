@@ -263,23 +263,12 @@ func (b *builder) groupByKey(v string) *audioGroup {
 	return nil
 }
 
-// generations reads tracks.generation (the snapshot does not carry it).
+// generations maps stored track ids to their generation, from the snapshot
+// (one read transaction, C11).
 func (b *builder) generations() map[string]int {
-	out := map[string]int{}
-	if b.im.st == nil {
-		return out
-	}
-	rows, err := b.im.st.R.QueryContext(b.ctx, `SELECT id, generation FROM tracks`)
-	if err != nil {
-		return out
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		var g int
-		if rows.Scan(&id, &g) == nil {
-			out[id] = g
-		}
+	out := make(map[string]int, len(b.snap.Tracks))
+	for _, t := range b.snap.Tracks {
+		out[t.ID] = t.Generation
 	}
 	return out
 }

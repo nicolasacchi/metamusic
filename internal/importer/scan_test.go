@@ -421,3 +421,73 @@ func TestScan_Unsettled(t *testing.T) {
 		t.Errorf("MinAge 0: %+v", inv2.Report.Summary)
 	}
 }
+
+func TestApply_NonUTF8NamesNotStored(t *testing.T) {
+	e := newEnv(t)
+	e.put("r.jsonl", lines(req("nu-1", 1)))
+	e.put("pilot_secret\xfe.jsonl", lines(req("nu-2", 2)))
+	e.flac("secret_name\xff.flac", "weird")
+	_, inv := e.inventory()
+	a := inv.Report.Audio[0]
+	e.mapping("audio,request_id,seed\n" + a.Path + ",nu-1,1\n")
+	e.applyAll()
+	for _, q := range []string{`SELECT title FROM tracks`, `SELECT slug FROM tracks`, `SELECT name FROM draft_collections`, `SELECT source FROM draft_collections`} {
+		rows := e.query(q)
+		n := 0
+		for rows.Next() {
+			var v string
+			if err := rows.Scan(&v); err != nil {
+				t.Fatal(err)
+			}
+			n++
+			if !utf8.ValidString(v) || strings.Contains(strings.ToLower(v), "secret") || strings.ContainsRune(v, 0xFFFD) {
+				t.Errorf("%s stored %q", q, v)
+			}
+		}
+		rows.Close()
+		if n == 0 && !strings.Contains(q, "draft_collections") {
+			t.Errorf("%s: no rows", q)
+		}
+	}
+}
+
+func TestScan_BOMWarningPerFileType(t *testing.T) {
+	e := newEnv(t)
+	bom := "\xef\xbb\xbf"
+	el := func(id string, seed int) string {
+		return fmt.Sprintf(`{"id":%q,"style":"s","lyrics":"[Verse]\nl","seed":%d}`, id, seed)
+	}
+	e.put("a.jsonl", bom+lines(req("bom-1", 1)))
+	e.put("b.json", bom+smallReq)
+	e.put("arr.json", bom+"["+el("bom-a", 1)+","+el("bom-b", 2)+"]")
+	e.put("coll.json", bom+`{"name":"c","songs":[{"variant_ids":["bom-1"]}]}`)
+	e.put("idx.csv", bom+"variant_id,seed\r\nbom-1,1\r\n")
+	e.put("take.abc", bom+"X:1\nM:4/4\nQ:1/4=120\nK:C\nCDEF|CDEF|]\n")
+	e.flac("take.flac", "take")
+	e.mapping("take.flac,bom-1,1,,\n")
+	_, inv := e.inventory()
+	got := map[string]bool{}
+	for _, w := range inv.Report.Warnings {
+		if w.Code == "bom" {
+			got[w.Path] = true
+		}
+	}
+	for _, p := range []string{"a.jsonl", "b.json", "arr.json", "coll.json", "idx.csv", "take.abc"} {
+		if !got[p] {
+			t.Errorf("no bom warning for %s (%v)", p, got)
+		}
+	}
+}
+
+func TestApply_BOMScoreOneByteForm(t *testing.T) {
+	e := newEnv(t)
+	e.put("r.jsonl", lines(req3("sc-1", 1)))
+	e.put("sc-1.abc", "\xef\xbb\xbf"+abc3)
+	e.flac("sc-1.flac", "x")
+	e.applyAll()
+	sha := e.scalar(`SELECT abc_sha256 FROM scores`)
+	r, ok := e.ing.requestFor("sc-1", 1)
+	if sha == "" || !ok || len(r.Artifacts) != 1 || r.Artifacts[0].SHA256 != sha || sha != shaOf(abc3) {
+		t.Errorf("score sha %q, artifacts %+v", sha, r.Artifacts)
+	}
+}
