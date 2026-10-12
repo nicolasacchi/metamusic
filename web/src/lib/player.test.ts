@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Player, formatFor, type DeviceHooks, type MediaLinks } from "./player.svelte";
+import { Player, formatFor, resolveMeta, type DeviceHooks, type MediaLinks, type TrackRef } from "./player.svelte";
 
 class FakeAudio extends EventTarget {
   src = "";
@@ -27,6 +27,12 @@ class FakeAudio extends EventTarget {
   fail(code: number) {
     this.error = { code };
     this.emit("error");
+  }
+  /** Chromium order: the element pauses itself and fires `pause` before `error`. */
+  failChromium(code: number) {
+    this.paused = true;
+    this.emit("pause");
+    this.fail(code);
   }
 }
 
@@ -157,13 +163,14 @@ describe("player store", () => {
     el.currentTime = 7;
     el.fail(4);
     await flush();
-    expect(failed).toHaveLength(1);
+    expect(failed).toHaveLength(0);
     expect(el.src).toBe("/media/a.mp3?exp=1");
     expect(p.state.format).toBe("mp3");
     el.duration = 30;
     el.currentTime = 0;
     el.emit("loadedmetadata");
     expect(el.currentTime).toBe(7);
+    expect(failed).toHaveLength(1);
     // an error on the mp3 does not record again
     el.fail(4);
     expect(failed).toHaveLength(1);
@@ -305,8 +312,125 @@ describe("player store", () => {
     await flush();
     el.fail(4);
     await flush();
+    el.emit("loadedmetadata");
     expect(failed).toHaveLength(1);
     expect(p.state.format).toBe("mp3");
+  });
+
+  test("FLAC code 4 then MP3 code 4 records nothing and shows an error", async () => {
+    const { p, el, failed, flush } = setup();
+    p.play("a");
+    await flush();
+    el.fail(4);
+    await flush();
+    el.fail(4);
+    await flush();
+    el.emit("loadedmetadata");
+    expect(failed).toHaveLength(0);
+    expect(p.state.error).not.toBe("");
+  });
+
+  test("Chromium event order: re-mint after code 2 still resumes playback", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    el.log.length = 0;
+    el.failChromium(2);
+    await flush();
+    expect(el.log).toContain("play");
+  });
+
+  test("Chromium event order: MP3 fallback after code 4 still resumes playback", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    el.log.length = 0;
+    el.failChromium(4);
+    await flush();
+    expect(el.src).toBe("/media/a.mp3?exp=1");
+    expect(el.log).toContain("play");
+  });
+
+  test("a later network failure after a successful re-mint is recovered again", async () => {
+    const { p, el, fetched, flush } = setup();
+    p.play("a");
+    await flush();
+    el.fail(2);
+    await flush();
+    el.emit("playing");
+    el.fail(2);
+    await flush();
+    expect(fetched).toEqual(["a", "a", "a"]);
+  });
+
+  test("toggle re-mint keeps a queued deep-link seek", async () => {
+    const { p, el, flush, advance } = setup();
+    p.load("a");
+    await flush();
+    advance(13 * 3600_000);
+    p.load("a", undefined, { startAt: 30 });
+    p.toggle();
+    await flush();
+    el.duration = 100;
+    el.emit("loadedmetadata");
+    expect(el.currentTime).toBe(30);
+  });
+
+  test("meta failure falls back to a neutral title and retries on playing", async () => {
+    const el = new FakeAudio();
+    let ok = false;
+    let calls = 0;
+    const p = new Player({
+      fetchLinks: async (id) => links(id),
+      device: { quality: () => "lossless", connection: () => undefined, recordFailedProbe() {} },
+      now: () => T0,
+      fetchMeta: async () => {
+        calls++;
+        return ok ? { title: "Real", album: "" } : null;
+      },
+    });
+    p.attach(el as unknown as HTMLAudioElement);
+    p.play("a");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(p.title).toBe("Untitled track");
+    ok = true;
+    el.emit("playing");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(p.title).toBe("Real");
+    expect(calls).toBeGreaterThan(1);
+  });
+
+  test("loadMeta de-duplicates concurrent requests", async () => {
+    const el = new FakeAudio();
+    let calls = 0;
+    const p = new Player({
+      fetchLinks: async (id) => links(id),
+      device: { quality: () => "lossless", connection: () => undefined, recordFailedProbe() {} },
+      now: () => T0,
+      fetchMeta: async (id) => {
+        calls++;
+        await new Promise((r) => setTimeout(r, 5));
+        return { title: id, album: "" };
+      },
+    });
+    p.attach(el as unknown as HTMLAudioElement);
+    p.play("a", ["a", "b"]);
+    await new Promise((r) => setTimeout(r, 0));
+    el.emit("playing"); // prefetches b
+    p.next(); // syncMeta(b) while prefetch is in flight
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls).toBe(2);
+  });
+
+  test("resolveMeta uses own title as album for a root and the root title for a child", async () => {
+    const db: Record<string, TrackRef> = {
+      r: { title: "Root", rootId: "r" },
+      c: { title: "Child", rootId: "r" },
+    };
+    const get = async (id: string) => db[id] ?? null;
+    expect(await resolveMeta("r", get)).toEqual({ title: "Root", album: "Root" });
+    expect(await resolveMeta("c", get)).toEqual({ title: "Child", album: "Root" });
+    expect(await resolveMeta("zz", get)).toBeNull();
   });
 
   test("FLAC code 4 after the one re-mint falls back to MP3", async () => {
@@ -318,6 +442,7 @@ describe("player store", () => {
     await flush();
     el.fail(4);
     await flush();
+    el.emit("loadedmetadata");
     expect(failed).toHaveLength(1);
     expect(p.state.format).toBe("mp3");
   });
@@ -328,6 +453,7 @@ describe("player store", () => {
     await flush();
     el.fail(3);
     await flush();
+    el.emit("loadedmetadata");
     expect(failed).toHaveLength(1);
     expect(el.src).toBe("/media/a.mp3?exp=1");
   });

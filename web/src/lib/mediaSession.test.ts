@@ -41,6 +41,8 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
     prev: () => void calls.push("prev"),
     next: () => void calls.push("next"),
     seek: (s: number) => void calls.push("seek:" + s),
+    resume: () => void calls.push("resume"),
+    pause: () => void calls.push("pause"),
   };
   class MM {
     constructor(public init: unknown) {}
@@ -70,9 +72,8 @@ describe("mediaSession", () => {
     (handlers.get("seekto") as (d: unknown) => void)({ seekTime: 12 });
     (handlers.get("pause") as () => void)();
     (handlers.get("play") as () => void)();
-    expect(calls).toEqual(["prev", "next", "seek:12"]);
-    expect(el.paused).toBe(true);
-    expect(el.played).toBe(1);
+    expect(calls).toEqual(["prev", "next", "seek:12", "pause", "resume"]);
+    expect(el.played).toBe(0);
   });
 
   test("re-registers on playing, visibility and pageshow", () => {
@@ -144,7 +145,7 @@ describe("mediaSession", () => {
   test("no-op without mediaSession", () => {
     const el = new EventTarget() as unknown as HTMLAudioElement;
     const off = installMediaSession(
-      { title: "", album: "", state: { trackId: "" }, prev() {}, next() {}, seek() {} },
+      { title: "", album: "", state: { trackId: "" }, prev() {}, next() {}, seek() {}, resume() {}, pause() {} },
       el,
       { doc: new EventTarget() as never, win: new EventTarget() as never },
     );

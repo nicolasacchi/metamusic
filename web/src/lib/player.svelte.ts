@@ -76,6 +76,7 @@ const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 // links (agents, tests) are not considered expired the moment they are minted. Equal for the 12 h human TTL.
 const MARGIN_MS = 10 * 60_000;
 const LOADING_TITLE = "Loading…";
+const FALLBACK_TITLE = "Untitled track";
 
 export class Player {
   el = $state<HTMLAudioElement | null>(null);
@@ -100,10 +101,13 @@ export class Player {
   private inflight = new Map<string, Promise<MediaLinks | null>>();
   private pendingSeek: number | null = null;
   private autoplay = true;
+  /** Playback intent: cleared only by a user pause, never by the element's own `pause` event (Chromium pauses before `error`). */
+  private wantPlay = false;
   private reminted = new Set<string>();
   private forceMp3 = new Set<string>();
   private meta = new Map<string, { title: string; album: string }>();
-  private metaInflight = new Set<string>();
+  private metaInflight = new Map<string, Promise<{ title: string; album: string } | null>>();
+  private probePending = new Set<string>();
   /* eslint-enable svelte/prefer-svelte-reactivity */
   private cleanup: (() => void) | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
@@ -137,6 +141,8 @@ export class Player {
       on("playing", () => {
         this.state.playing = true;
         this.state.error = "";
+        this.reminted.delete(this.state.trackId);
+        if (!this.meta.has(this.state.trackId) && this.title === FALLBACK_TITLE) this.syncMeta(this.state.trackId);
         this.prefetchNext();
       }),
       on("pause", () => (this.state.playing = false)),
@@ -174,18 +180,31 @@ export class Player {
   toggle() {
     const el = this.el;
     if (!el || !this.state.trackId) return;
-    if (el.paused) {
-      this.deps.device.onGesture?.();
-      if (el.readyState === 0 && !this.cached(this.state.trackId)) {
-        // Nothing was ever fetched (preload=none) and the links expired meanwhile: mint again.
-        const at = this.state.current;
-        this.pendingSeek = at > 0 ? at : null;
-        this.autoplay = true;
-        this.reminted.delete(this.state.trackId);
-        this.epoch++;
-        this.begin(this.state.trackId);
-      } else void el.play()?.catch?.((e: unknown) => this.fail(e));
-    } else el.pause();
+    if (el.paused) this.resume();
+    else this.pause();
+  }
+
+  /** User pause: the only place playback intent is cleared. */
+  pause() {
+    this.wantPlay = false;
+    this.el?.pause();
+  }
+
+  /** User resume (toggle, Media Session 'play'). */
+  resume() {
+    const el = this.el;
+    if (!el || !this.state.trackId) return;
+    this.deps.device.onGesture?.();
+    this.wantPlay = true;
+    if (el.readyState === 0 && !this.cached(this.state.trackId)) {
+      // Nothing was ever fetched (preload=none) and the links expired meanwhile: mint again.
+      const at = this.state.current;
+      this.pendingSeek ??= at > 0 ? at : null;
+      this.autoplay = true;
+      this.reminted.delete(this.state.trackId);
+      this.epoch++;
+      this.begin(this.state.trackId);
+    } else void el.play()?.catch?.((e: unknown) => this.fail(e));
   }
 
   seek(s: number) {
@@ -236,11 +255,10 @@ export class Player {
     this.album = "";
     this.announce();
     void this.loadMeta(trackId).then((r) => {
-      if (r && this.state.trackId === trackId) {
-        this.title = r.title;
-        this.album = r.album;
-        this.announce();
-      }
+      if (this.state.trackId !== trackId) return;
+      this.title = r ? r.title : FALLBACK_TITLE;
+      this.album = r ? r.album : "";
+      this.announce();
     });
   }
 
@@ -248,13 +266,21 @@ export class Player {
     const m = this.meta.get(trackId);
     if (m) return m;
     if (!this.deps.fetchMeta) return null;
-    try {
-      const r = await this.deps.fetchMeta(trackId);
-      if (r) this.meta.set(trackId, r);
-      return r;
-    } catch {
-      return null;
-    }
+    const f = this.metaInflight.get(trackId);
+    if (f) return f;
+    const p = (async () => {
+      try {
+        const r = await this.deps.fetchMeta!(trackId);
+        if (r) this.meta.set(trackId, r);
+        return r;
+      } catch {
+        return null;
+      }
+    })().finally(() => {
+      this.metaInflight.delete(trackId);
+    });
+    this.metaInflight.set(trackId, p);
+    return p;
   }
 
   private goto(index: number) {
@@ -275,6 +301,8 @@ export class Player {
     s.duration = 0;
     this.pendingSeek = opts.startAt != null && opts.startAt > 0 ? opts.startAt : null;
     this.autoplay = opts.autoplay !== false;
+    this.wantPlay = this.autoplay;
+    this.probePending.delete(trackId);
     this.reminted.delete(trackId);
     if (opts.title) this.meta.set(trackId, { title: opts.title, album: opts.album ?? "" });
     this.syncMeta(trackId);
@@ -307,7 +335,10 @@ export class Player {
     this.appliedExp = Date.parse(links.expires_at);
     this.src = url;
     el.src = url;
-    if (this.autoplay) void el.play()?.catch?.((e: unknown) => this.fail(e));
+    if (this.autoplay) {
+      this.wantPlay = true;
+      void el.play()?.catch?.((e: unknown) => this.fail(e));
+    }
   }
 
   private formatFor(trackId: string): Format {
@@ -318,6 +349,7 @@ export class Player {
   private fail(e: unknown) {
     // Autoplay rejections are routine (user gesture lost); media errors arrive via `error`.
     if (e instanceof DOMException && e.name === "NotAllowedError") {
+      this.wantPlay = false;
       this.state.playing = false;
       this.state.error = "Tap play to start";
       return;
@@ -377,6 +409,9 @@ export class Player {
 
   private onLoadedMetadata() {
     this.syncDuration();
+    const id = this.state.trackId;
+    // The MP3 loaded after a FLAC failure: server and network work, so the FLAC failure was a codec failure.
+    if (this.probePending.delete(id) && this.state.format === "mp3") this.deps.device.recordFailedProbe();
     const el = this.el;
     if (el && this.pendingSeek != null) {
       const t = this.pendingSeek;
@@ -389,7 +424,10 @@ export class Player {
     this.state.playing = false;
     const s = this.state;
     const nextId = s.queue[s.index + 1];
-    if (nextId === undefined) return;
+    if (nextId === undefined) {
+      this.wantPlay = false;
+      return;
+    }
     this.epoch++;
     s.index += 1;
     s.trackId = nextId;
@@ -397,6 +435,8 @@ export class Player {
     s.duration = 0;
     this.pendingSeek = null;
     this.autoplay = true;
+    this.wantPlay = true;
+    this.probePending.delete(nextId);
     this.reminted.delete(nextId);
     this.syncMeta(nextId);
     this.begin(nextId);
@@ -408,7 +448,7 @@ export class Player {
     const id = this.state.trackId;
     if (!el || !id) return;
     const at = el.currentTime || this.state.current || 0;
-    const resume = !el.paused;
+    const resume = this.wantPlay;
     // Chrome/Firefox report a 403 on the media fetch as code 4 (not 2): an expired link is a re-mint, not a codec problem.
     const expired = this.appliedExp > 0 && this.deps.now() >= this.appliedExp;
     const remint =
@@ -436,8 +476,10 @@ export class Player {
       (code === MEDIA_ERR_SRC_NOT_SUPPORTED || code === MEDIA_ERR_DECODE) &&
       this.state.format === "flac"
     ) {
+      // Code 3/4 is also what browsers report for HTTP/network failures on first load, so the failed
+      // probe is recorded only once the MP3 reaches loadedmetadata (see onLoadedMetadata).
       this.forceMp3.add(id);
-      this.deps.device.recordFailedProbe();
+      this.probePending.add(id);
       const links = this.cached(id);
       this.pendingSeek = at > 0 ? at : null;
       this.autoplay = resume;
@@ -449,9 +491,34 @@ export class Player {
         });
       }
     } else {
+      // An MP3 that also fails proves nothing about the codec: record nothing, stop forcing MP3.
+      this.probePending.delete(id);
+      this.forceMp3.delete(id);
       this.state.error = "Playback error";
     }
   }
+}
+
+export interface TrackRef {
+  title: string;
+  rootId: string | null;
+}
+
+/** Display metadata: album is the root track's title (C22.2). */
+export async function resolveMeta(
+  id: string,
+  get: (id: string) => Promise<TrackRef | null>,
+): Promise<{ title: string; album: string } | null> {
+  const t = await get(id);
+  if (!t) return null;
+  if (!t.rootId || t.rootId === id) return { title: t.title, album: t.title };
+  const root = await get(t.rootId).catch(() => null);
+  return { title: t.title, album: root?.title ?? "" };
+}
+
+async function getTrackRef(id: string): Promise<TrackRef | null> {
+  const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
+  return r.data ? { title: r.data.title, rootId: r.data.lineage?.root_track_id ?? null } : null;
 }
 
 export const player = new Player({
@@ -461,10 +528,7 @@ export const player = new Player({
   },
   device: localDevice,
   now: () => Date.now(),
-  fetchMeta: async (id) => {
-    const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
-    return r.data ? { title: r.data.title, album: "" } : null;
-  },
+  fetchMeta: (id) => resolveMeta(id, getTrackRef),
 });
 
 session.configure({ isPlaying: () => player.state.playing });

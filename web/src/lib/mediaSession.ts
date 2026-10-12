@@ -7,6 +7,8 @@ export interface MSPlayer {
   prev(): void;
   next(): void;
   seek(s: number): void;
+  resume(): void;
+  pause(): void;
 }
 
 export interface MSEnv {
@@ -45,8 +47,8 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
         /* action unsupported by this browser */
       }
     };
-    set("play", () => void el.play()?.catch?.(() => {}));
-    set("pause", () => el.pause());
+    set("play", () => player.resume());
+    set("pause", () => player.pause());
     set("previoustrack", () => player.prev());
     set("nexttrack", () => player.next());
     set("seekto", (d) => {
