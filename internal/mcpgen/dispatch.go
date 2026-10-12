@@ -84,6 +84,9 @@ func buildRequest(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (*h
 		}
 		switch p.In {
 		case "path":
+			if v == "" || v == "." || v == ".." {
+				return nil, problemResult("VALIDATION_FAILED", "argument "+p.Arg+": invalid path value")
+			}
 			path = strings.ReplaceAll(path, "{"+p.Wire+"}", url.PathEscape(v))
 		case "query":
 			q.Set(p.Wire, v)
@@ -146,20 +149,23 @@ func serve(inner http.Handler, req *http.Request) *mcp.CallToolResult {
 	res := &mcp.CallToolResult{}
 	if len(raw) == 0 {
 		raw = []byte("{}")
-		if rec.Code >= 400 {
+		if rec.Code < 200 || rec.Code >= 300 {
 			return problemResult("INTERNAL", fmt.Sprintf("upstream status %d", rec.Code))
 		}
 	}
-	res.Content = []mcp.Content{&mcp.TextContent{Text: string(raw)}}
-	if rec.Code >= 400 {
-		res.IsError = true
-		return res
-	}
 	var v any
-	if err := json.Unmarshal(raw, &v); err == nil {
-		if m, ok := v.(map[string]any); ok {
-			res.StructuredContent = m
+	isJSON := json.Unmarshal(raw, &v) == nil
+	if rec.Code < 200 || rec.Code >= 300 {
+		if m, ok := v.(map[string]any); ok && isJSON && rec.Code >= 400 && m["code"] != nil {
+			res.Content = []mcp.Content{&mcp.TextContent{Text: string(raw)}}
+			res.IsError = true
+			return res
 		}
+		return problemResult("INTERNAL", fmt.Sprintf("upstream status %d", rec.Code))
+	}
+	res.Content = []mcp.Content{&mcp.TextContent{Text: string(raw)}}
+	if m, ok := v.(map[string]any); ok && isJSON {
+		res.StructuredContent = m
 	}
 	return res
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -113,7 +114,7 @@ func (r *rig) rest(t *testing.T, tok, path string) any {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
 		t.Fatalf("GET %s: %d %s", path, resp.StatusCode, b)
@@ -136,33 +137,57 @@ func structured(t *testing.T, res *mcp.CallToolResult) any {
 	return v
 }
 
+// parityArgs holds tool arguments (and the matching REST path) for every GET
+// operation that takes parameters. A GET op with parameters and no fixture
+// fails the test, so new ops cannot escape parity unnoticed.
+var parityArgs = map[string]struct {
+	Args map[string]any
+	Path string
+}{}
+
 func TestParityEveryGETTool(t *testing.T) {
 	r := newRig(t)
 	tok := r.token(t, "agent-1", auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin)
 	sess := r.client(t, tok)
+	ctx := context.Background()
 	n := 0
 	for _, op := range api.Operations(r.api) {
-		if op.Method != "GET" || op.Meta.MCP != "tool" || strings.Contains(op.Path, "{") {
+		if op.Method != "GET" || (op.Meta.MCP != "tool" && op.Meta.MCP != "generic") {
+			continue
+		}
+		args, path := map[string]any(nil), op.Path
+		if fx, ok := parityArgs[op.ID]; ok {
+			args, path = fx.Args, fx.Path
+		} else if strings.Contains(op.Path, "{") {
+			t.Errorf("%s: GET op with path parameters needs a parityArgs fixture", op.ID)
 			continue
 		}
 		n++
-		var diff string
-		for attempt := 0; attempt < 3; attempt++ { // uptime_s may tick between the two calls
-			res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: op.ID})
-			if err != nil {
-				t.Fatalf("%s: %v", op.ID, err)
-			}
-			diff = cmp.Diff(r.rest(t, tok, op.Path), structured(t, res))
-			if diff == "" {
-				break
-			}
+		routes := map[string]*mcp.CallToolParams{
+			"call_operation": {Name: "call_operation", Arguments: map[string]any{"operation_id": op.ID, "arguments": args}},
 		}
-		if diff != "" {
-			t.Errorf("%s: REST vs MCP mismatch (-rest +mcp):\n%s", op.ID, diff)
+		if op.Meta.MCP == "tool" {
+			routes["tool"] = &mcp.CallToolParams{Name: op.ID, Arguments: args}
+		}
+		for route, params := range routes {
+			var diff string
+			for attempt := 0; attempt < 3; attempt++ { // uptime_s may tick between the two calls
+				res, err := sess.CallTool(ctx, params)
+				if err != nil {
+					t.Fatalf("%s via %s: %v", op.ID, route, err)
+				}
+				diff = cmp.Diff(r.rest(t, tok, path), structured(t, res))
+				if diff == "" {
+					break
+				}
+			}
+			if diff != "" {
+				t.Errorf("%s via %s: REST vs MCP mismatch (-rest +mcp):\n%s", op.ID, route, diff)
+			}
 		}
 	}
 	if n == 0 {
-		t.Fatal("no GET tools exercised")
+		t.Fatal("no GET operations exercised")
 	}
 }
 
@@ -206,7 +231,7 @@ func TestAnonymousMCPIs401(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		wa := resp.Header.Get("WWW-Authenticate")
 		if resp.StatusCode != 401 || !strings.HasPrefix(wa, "Bearer") {
 			t.Fatalf("auth=%q: %d %q", auth, resp.StatusCode, wa)
@@ -229,6 +254,10 @@ func TestToolsListGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = append(got, '\n')
+	// Budget first, independent of -update: the ceiling is a committed constant.
+	if err := checkToolsListBudget(len(got)); err != nil {
+		t.Error(err)
+	}
 	path := filepath.Join("testdata", "tools_list.golden.json")
 	if *update {
 		if err := os.WriteFile(path, got, 0o644); err != nil {
@@ -239,12 +268,28 @@ func TestToolsListGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v (run with -update)", err)
 	}
-	// Budget: tool descriptions and schemas cost agent context; growth beyond 1.5x
-	// the reviewed golden must be a deliberate decision, not drift.
-	if len(got)*2 > len(want)*3 {
-		t.Errorf("tools/list is %d bytes, over 1.5x golden (%d)", len(got), len(want))
-	}
 	if diff := cmp.Diff(string(want), string(got)); diff != "" {
 		t.Errorf("tools/list differs from golden (-want +got; rerun with -update):\n%s", diff)
+	}
+}
+
+// toolsListBaselineBytes is the M0 tools/list size. Tool descriptions and
+// schemas cost agent context; growth beyond 1.5x this is a deliberate decision
+// (edit this constant in review), never an -update side effect.
+const toolsListBaselineBytes = 4176
+
+func checkToolsListBudget(n int) error {
+	if n*2 > toolsListBaselineBytes*3 {
+		return fmt.Errorf("tools/list is %d bytes, over 1.5x the committed baseline (%d)", n, toolsListBaselineBytes)
+	}
+	return nil
+}
+
+func TestToolsListBudgetFires(t *testing.T) {
+	if checkToolsListBudget(toolsListBaselineBytes) != nil {
+		t.Fatal("baseline size must pass")
+	}
+	if checkToolsListBudget(toolsListBaselineBytes*3/2+10) == nil {
+		t.Fatal("oversized tools/list must fail the budget")
 	}
 }

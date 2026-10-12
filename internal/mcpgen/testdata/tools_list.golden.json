@@ -43,7 +43,7 @@
   },
   {
     "annotations": {
-      "idempotentHint": false,
+      "idempotentHint": true,
       "readOnlyHint": true
     },
     "description": "Get system information\n\nVersion, commit, auth mode, database schema version and uptime.",
@@ -92,7 +92,7 @@
   },
   {
     "annotations": {
-      "idempotentHint": false,
+      "idempotentHint": true,
       "readOnlyHint": true
     },
     "description": "Ping the server\n\nLiveness check that also reports the server version.",
@@ -123,7 +123,7 @@
   },
   {
     "annotations": {
-      "idempotentHint": false,
+      "idempotentHint": true,
       "readOnlyHint": true
     },
     "description": "Show the calling principal\n\nReturns the identity, scopes and authentication path of the caller.",

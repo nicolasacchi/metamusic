@@ -67,7 +67,7 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 			Name:        op.ID,
 			Description: spec.Description,
 			InputSchema: spec.Input,
-			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: op.Method == http.MethodGet},
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: op.Method == http.MethodGet, IdempotentHint: op.Method == http.MethodGet},
 		}
 		if spec.Output != nil {
 			t.OutputSchema = spec.Output

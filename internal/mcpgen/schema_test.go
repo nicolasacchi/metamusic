@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/google/go-cmp/cmp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -55,6 +56,8 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 	m := func(mcp string) api.Meta {
 		return api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: mcp, UI: "none:test"}
 	}
+	spend := m("tool")
+	spend.Cost = "spend"
 	op := func(id, method, path string) huma.Operation {
 		return huma.Operation{OperationID: id, Method: method, Path: path, Summary: "S " + id, Description: "D " + id}
 	}
@@ -78,6 +81,8 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 		})
 	api.Register(a, op("tree", "POST", "/api/tree"), m("tool"),
 		func(ctx context.Context, in *treeIn) (*treeOut, error) { return &treeOut{Body: in.Body}, nil })
+	api.Register(a, op("spend_op", "POST", "/api/spend"), spend,
+		func(ctx context.Context, in *treeIn) (*treeOut, error) { return &treeOut{Body: in.Body}, nil })
 	api.Register(a, op("generic_op", "GET", "/api/generic/{id}"), m("generic"),
 		func(ctx context.Context, in *itemIn) (*itemOut, error) {
 			out := &itemOut{}
@@ -92,6 +97,11 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 func specs(t *testing.T) map[string]*toolSpec {
 	t.Helper()
 	a, _ := testAPI(t)
+	return specsOf(t, a)
+}
+
+func specsOf(t *testing.T, a huma.API) map[string]*toolSpec {
+	t.Helper()
 	raw, _ := json.Marshal(a.OpenAPI())
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -219,7 +229,15 @@ func TestSchemaRefsInlined(t *testing.T) {
 }
 
 func TestSchemaNoDuplicateOrUnknownArgs(t *testing.T) {
-	for id, s := range specs(t) {
+	real := specsOf(t, api.New(http.NewServeMux(), api.Deps{}))
+	if len(real) == 0 {
+		t.Fatal("real registry has no operations")
+	}
+	all := specs(t)
+	for id, s := range real {
+		all["real:"+id] = s
+	}
+	for id, s := range all {
 		seen := map[string]bool{}
 		for _, p := range s.Params {
 			if seen[p.Arg] {
@@ -257,5 +275,96 @@ func TestBuildRequest(t *testing.T) {
 	}
 	if _, bad := buildRequest(context.Background(), sp["get_item"], json.RawMessage(`{}`)); bad == nil {
 		t.Fatal("missing path parameter must be refused")
+	}
+}
+
+func opDoc(params []any, body map[string]any) map[string]any {
+	op := map[string]any{"parameters": params}
+	if body != nil {
+		op["requestBody"] = map[string]any{"content": map[string]any{
+			"application/json": map[string]any{"schema": body}}}
+	}
+	return op
+}
+
+func TestSchemaBodyParamDoesNotForceNesting(t *testing.T) {
+	op := opDoc([]any{map[string]any{"name": "body", "in": "query", "schema": map[string]any{"type": "string"}}},
+		map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}})
+	s, err := buildSpec("x", "POST", "/x", op, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Body != bodyFlat {
+		t.Fatalf("want flat body, got %v", s.Body)
+	}
+	// A real collision plus a parameter named body is an error.
+	op = opDoc([]any{
+		map[string]any{"name": "body", "in": "query", "schema": map[string]any{"type": "string"}},
+		map[string]any{"name": "text", "in": "query", "schema": map[string]any{"type": "string"}},
+	}, map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}})
+	if _, err := buildSpec("x", "POST", "/x", op, nil); err == nil {
+		t.Fatal("expected collision error")
+	}
+}
+
+func TestSchemaParamSnakeCollisionErrors(t *testing.T) {
+	op := opDoc([]any{
+		map[string]any{"name": "idempotency_key", "in": "query", "schema": map[string]any{"type": "string"}},
+		map[string]any{"name": "Idempotency-Key", "in": "header", "schema": map[string]any{"type": "string"}},
+	}, nil)
+	if _, err := buildSpec("x", "GET", "/x", op, nil); err == nil {
+		t.Fatal("expected duplicate-argument error")
+	}
+}
+
+func TestSchemaDanglingRefFails(t *testing.T) {
+	op := opDoc(nil, map[string]any{"$ref": refPrefix + "Missing"})
+	if _, err := buildSpec("x", "POST", "/x", op, map[string]any{}); err == nil {
+		t.Fatal("expected unresolvable $ref error")
+	}
+}
+
+func TestSchemaDefsAttachedPerSide(t *testing.T) {
+	comps := map[string]any{"Node": map[string]any{"type": "object", "properties": map[string]any{
+		"kids": map[string]any{"type": "array", "items": map[string]any{"$ref": refPrefix + "Node"}}}}}
+	op := opDoc(nil, nil)
+	op["responses"] = map[string]any{"200": map[string]any{"content": map[string]any{
+		"application/json": map[string]any{"schema": map[string]any{"$ref": refPrefix + "Node"}}}}}
+	s, err := buildSpec("x", "GET", "/x", op, comps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Input["$defs"]; ok {
+		t.Fatal("input must not receive output-only $defs")
+	}
+	if _, ok := s.Output["$defs"]; !ok {
+		t.Fatal("output lost its $defs")
+	}
+}
+
+func TestBuildRequestRejectsDotPathSegments(t *testing.T) {
+	for _, v := range []string{".", "..", ""} {
+		_, bad := buildRequest(context.Background(), specs(t)["get_item"], json.RawMessage(`{"id":"`+v+`"}`))
+		if bad == nil || !bad.IsError {
+			t.Fatalf("id %q must be refused", v)
+		}
+	}
+}
+
+func TestServeNon2xxIsError(t *testing.T) {
+	redirect := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api", http.StatusTemporaryRedirect)
+	})
+	req, _ := http.NewRequest("GET", "/x", nil)
+	if res := serve(redirect, req); !res.IsError {
+		t.Fatalf("3xx must be an error result: %+v", res)
+	}
+	html := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		_, _ = w.Write([]byte("<html>boom</html>"))
+	})
+	res := serve(html, req)
+	if !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "INTERNAL") {
+		t.Fatalf("non-problem body must map to INTERNAL: %+v", res)
 	}
 }

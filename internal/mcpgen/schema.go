@@ -46,6 +46,7 @@ func snake(s string) string {
 type inliner struct {
 	comps map[string]any
 	defs  map[string]any
+	err   error // first unresolvable $ref
 }
 
 func newInliner(comps map[string]any) *inliner {
@@ -59,6 +60,9 @@ func (in *inliner) resolve(v any, stack []string) any {
 			name := strings.TrimPrefix(ref, refPrefix)
 			target, ok := in.comps[name]
 			if !ok {
+				if in.err == nil {
+					in.err = fmt.Errorf("unresolvable $ref %q", ref)
+				}
 				return t
 			}
 			if slices.Contains(stack, name) {
@@ -104,7 +108,8 @@ func jsonSchemaOf(content any) any {
 
 // buildSpec derives a toolSpec from one OpenAPI operation object.
 func buildSpec(id, method, path string, op map[string]any, comps map[string]any) (*toolSpec, error) {
-	in := newInliner(comps)
+	in := newInliner(comps)  // parameters + request body
+	out := newInliner(comps) // response
 	spec := &toolSpec{ID: id, Method: method, Path: path}
 	summary, _ := op["summary"].(string)
 	desc, _ := op["description"].(string)
@@ -167,7 +172,7 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 					collides = true
 				}
 			}
-			flat := bs["type"] == "object" && len(bprops) > 0 && !collides && owner["body"] == ""
+			flat := bs["type"] == "object" && len(bprops) > 0 && !collides
 			if flat {
 				spec.Body = bodyFlat
 				for n, s := range bprops {
@@ -215,7 +220,7 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 		slices.Sort(codes)
 		for _, c := range codes {
 			if raw := jsonSchemaOf(asMap(resp[c])["content"]); raw != nil {
-				if s := asMap(in.resolve(raw, nil)); s != nil && s["type"] == "object" {
+				if s := asMap(out.resolve(raw, nil)); s != nil && s["type"] == "object" {
 					output = s
 				}
 				break
@@ -225,8 +230,14 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 	if len(in.defs) > 0 {
 		input["$defs"] = in.defs
 	}
-	if output != nil && len(in.defs) > 0 {
-		output["$defs"] = in.defs
+	if output != nil && len(out.defs) > 0 {
+		output["$defs"] = out.defs
+	}
+	if in.err != nil {
+		return nil, fmt.Errorf("%s: %w", id, in.err)
+	}
+	if out.err != nil {
+		return nil, fmt.Errorf("%s: %w", id, out.err)
 	}
 	spec.Input, spec.Output = input, output
 	return spec, nil

@@ -63,7 +63,7 @@ func TestToolListHonoursMCPMetadata(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
 	}
-	for _, want := range []string{"get_item", "add_note", "collide", "tree", "describe_operation", "call_operation"} {
+	for _, want := range []string{"get_item", "add_note", "collide", "tree", "spend_op", "describe_operation", "call_operation"} {
 		if got[want] == nil {
 			t.Errorf("missing tool %q", want)
 		}
@@ -75,6 +75,15 @@ func TestToolListHonoursMCPMetadata(t *testing.T) {
 	}
 	if !got["get_item"].Annotations.ReadOnlyHint || got["add_note"].Annotations.ReadOnlyHint {
 		t.Error("readOnlyHint must follow the HTTP method")
+	}
+	if o := got["spend_op"].Annotations.OpenWorldHint; o == nil || !*o {
+		t.Error("spend-cost ops must set openWorldHint")
+	}
+	if got["get_item"].Annotations.OpenWorldHint != nil || got["add_note"].Annotations.OpenWorldHint != nil {
+		t.Error("free ops must not set openWorldHint")
+	}
+	if !got["get_item"].Annotations.IdempotentHint || got["add_note"].Annotations.IdempotentHint {
+		t.Error("idempotentHint must follow the HTTP method")
 	}
 	if !strings.HasPrefix(got["get_item"].Description, "S get_item\n\nD get_item") {
 		t.Errorf("description %q", got["get_item"].Description)
