@@ -42,7 +42,6 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-        - (*os.File).Close
         - (io.Closer).Close
         - (*database/sql.DB).Close
         - (*database/sql.Rows).Close

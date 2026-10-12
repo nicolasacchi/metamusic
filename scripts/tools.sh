@@ -3,6 +3,11 @@
 # Idempotent: skips a tool whose installed version already matches.
 set -euo pipefail
 
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  echo "tools.sh: bash >= 4 required (found $BASH_VERSION); on macOS: brew install bash" >&2
+  exit 1
+fi
+
 GOLANGCI_VERSION=2.14.0
 GITLEAKS_VERSION=8.30.1
 
@@ -38,7 +43,7 @@ fetch() { # name url archive-binary-name
   want=${SHA[$name-$os-$arch]:-}
   [ -n "$want" ] || { echo "tools.sh: no pinned sha256 for $name-$os-$arch" >&2; exit 1; }
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' RETURN
+  trap 'rm -rf "$tmp"' EXIT
   echo "tools.sh: downloading $name ($os/$arch)"
   curl -fsSL --retry 3 -o "$tmp/a.tgz" "$url"
   got=$(sha256 "$tmp/a.tgz")
@@ -51,6 +56,8 @@ fetch() { # name url archive-binary-name
   src=$(find "$tmp" -type f -name "$name" | head -n1)
   [ -n "$src" ] || { echo "tools.sh: $name binary not found in archive" >&2; exit 1; }
   install -m 0755 "$src" "$bin/$name"
+  rm -rf "$tmp"
+  trap - EXIT
 }
 
 have() { # binary substring

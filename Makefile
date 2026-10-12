@@ -5,7 +5,8 @@ SHELL := /usr/bin/env bash
 LOOP   := scripts/loop
 GOLINT := $(or $(wildcard bin/golangci-lint),golangci-lint)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X main.version=$(VERSION)
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
 .PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean
 
@@ -19,7 +20,7 @@ openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
 
 test:
-	$(LOOP) test -- env CGO_ENABLED=1 go test -shuffle=on ./...
+	$(LOOP) test -- env CGO_ENABLED=1 go test -race -shuffle=on ./...
 
 race:
 	$(LOOP) race -- env CGO_ENABLED=1 go test -race -shuffle=on ./...
@@ -52,14 +53,15 @@ tools:
 	scripts/tools.sh
 
 dev:
-	MM_AUTH=local MM_DATA_DIR=./data/dev go run ./cmd/metamusic serve
+	go run ./cmd/metamusic dev --data-dir ./data/dev
 
 docker:
-	$(LOOP) docker -- docker build -t metamusic:dev --build-arg VERSION=$(VERSION) .
+	$(LOOP) docker -- docker build -t metamusic:dev --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) .
 
 metrics:
 	scripts/metrics-report.sh
 
 clean:
-	rm -rf bin covdata coverage web/test-results web/playwright-report
+	rm -f bin/metamusic bin/metamusic.exe
+	rm -rf covdata coverage web/test-results web/playwright-report
 	find web/dist -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || true

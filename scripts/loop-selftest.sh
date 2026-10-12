@@ -19,4 +19,12 @@ chk "no command text leaked" '! grep -q "secretpath" "$MM_METRICS_FILE"'
 rc=0
 "$root/scripts/loop" bogus -- true >/dev/null 2>&1 || rc=$?
 chk "non-allowlisted target refused" '[ "$rc" = 2 ]'
+
+# lint-style findings are not compile errors; tsc-style are; subtests counted once
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" lint -- sh -c 'echo "foo.go:3:4: type assertion on error (errorlint)"; echo "bar.ts(3,5): error TS2322: bad"; echo "--- FAIL: TestP (0.0s)"; echo "    --- FAIL: TestP/a (0.0s)"; echo "    --- FAIL: TestP/b (0.0s)"' >/dev/null
+chk "lint line not a compile error, tsc line is" 'jq -e ".compile_errors==1 and .failing_tests==2" "$MM_METRICS_FILE" >/dev/null'
+MM_LANE=Upper "$root/scripts/loop" check -- true >/dev/null
+chk "lane lower-cased" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"upper\"" >/dev/null'
+chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 exit $fail

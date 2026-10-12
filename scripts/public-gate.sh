@@ -20,28 +20,34 @@ cfg=.gitleaks.toml
 [ -f "$cfg" ] || cfg="$root/.gitleaks.toml"
 
 problems=()
+tmpfiles=()
 add() { problems+=("$1"); }
 
-# --- path list for this mode ---
+# --- path list for this mode (NUL-separated: git quotes non-ASCII paths otherwise) ---
+paths=()
+readz() { local p; while IFS= read -r -d '' p; do [ -n "$p" ] && paths+=("$p"); done < <(sort -zu); }
 case "$mode" in
-  staged) mapfile -t paths < <(git diff --cached --name-only --diff-filter=ACMR) ;;
-  history) mapfile -t paths < <(git log --all --name-only --pretty=format: | sort -u | sed '/^$/d') ;;
-  *) mapfile -t paths < <(git ls-files) ;;
+  staged) readz < <(git diff --cached --name-only -z --diff-filter=ACMR) ;;
+  history)
+    # -m: merge commits list the paths they add relative to each parent
+    readz < <(git ls-files -z; git log --all -m -z --name-only --pretty=format:) ;;
+  *) readz < <(git ls-files -z) ;;
 esac
 
-# --- 1. forbidden paths ---
+# --- 1. forbidden paths (case-insensitive) ---
 forbidden_path() {
-  local p=$1 b=${1##*/}
+  local p=$1 b=${1##*/} rc=1
+  shopt -s nocasematch
   case "$b" in
-    *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.zip | *.db* | *.sqlite* | *.pdf | *.docx | songs.jsonl | CLAUDE.local.md | .env*) return 0 ;;
+    *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.zip | *.db* | *.sqlite* | *.pdf | *.docx | songs.jsonl | CLAUDE.local.md | .env*) rc=0 ;;
   esac
   case "/$p" in
-    */varianti/* | */docs/private/* | */secrets/*) return 0 ;;
+    */varianti/* | */docs/private/* | */secrets/*) rc=0 ;;
   esac
-  return 1
+  shopt -u nocasematch
+  return $rc
 }
-for p in "${paths[@]}"; do
-  [ -n "$p" ] || continue
+for p in ${paths[@]+"${paths[@]}"}; do
   forbidden_path "$p" && add "forbidden path: $p"
 done
 
@@ -51,72 +57,95 @@ gl=${GITLEAKS:-}
 if [ -z "$gl" ]; then
   add "gitleaks not found (run: make tools)"
 else
-  glargs=(--no-banner --redact -c "$cfg" --exit-code 1 -l error)
+  report=$(mktemp)
+  tmpfiles=("$report")
+  glargs=(--no-banner --redact -c "$cfg" --exit-code 1 -l error --report-format json --report-path "$report")
   if [ "$mode" = staged ]; then
-    "$gl" git "${glargs[@]}" --staged . >/tmp/gate-gl.$$ 2>&1
+    "$gl" git "${glargs[@]}" --staged . >/dev/null 2>&1
   elif [ "$mode" = history ]; then
-    "$gl" git "${glargs[@]}" --log-opts="--all" . >/tmp/gate-gl.$$ 2>&1
+    "$gl" git "${glargs[@]}" --log-opts="--all -m" . >/dev/null 2>&1
   else
-    "$gl" git "${glargs[@]}" . >/tmp/gate-gl.$$ 2>&1
+    "$gl" git "${glargs[@]}" . >/dev/null 2>&1
   fi
   rc=$?
   if [ $rc -ne 0 ]; then
     add "gitleaks reported findings (exit $rc):"
-    while IFS= read -r l; do add "    $l"; done < <(grep -E 'RuleID|File|Commit|Line' /tmp/gate-gl.$$ | sort -u | head -40)
+    if command -v jq >/dev/null 2>&1 && [ -s "$report" ]; then
+      # rule + location only; never the (redacted) secret or its line context
+      while IFS= read -r l; do add "    $l"; done < <(jq -r '.[]? | "\(.RuleID) \(.File):\(.StartLine) \((.Commit // "")[0:8])"' "$report" 2>/dev/null | sort -u | head -40)
+    fi
   fi
-  rm -f /tmp/gate-gl.$$
 fi
 
 # --- 3. private regexes ---
 pf=$(mktemp)
-trap 'rm -f "$pf"' EXIT
+tmpfiles+=("$pf" "$pf.f")
+trap 'rm -f "${tmpfiles[@]}"' EXIT
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
 if [ -n "${PUBLIC_GATE_PATTERNS:-}" ]; then
   printf '%s\n' "$PUBLIC_GATE_PATTERNS" >"$pf"
 elif [ -f .public-gate-patterns ]; then
   cp .public-gate-patterns "$pf"
+elif [ -n "$common" ] && [ -f "$common/../.public-gate-patterns" ]; then
+  cp "$common/../.public-gate-patterns" "$pf"   # worktrees: file lives in the main checkout
 fi
 grep -v -E '^[[:space:]]*(#|$)' "$pf" >"$pf.f" || true
 mv "$pf.f" "$pf"
 if [ -s "$pf" ]; then
+  hits=()
+  gout=$(mktemp)
+  tmpfiles+=("$gout")
   if [ "$mode" = history ]; then
-    mapfile -t revs < <(git rev-list --all)
-    if [ ${#revs[@]} -gt 0 ]; then
-      hits=$(git grep -I -l -E -f "$pf" "${revs[@]}" 2>/dev/null | sed 's/^[0-9a-f]*://' | sort -u)
-    fi
+    revs=()
+    while IFS= read -r r; do revs+=("$r"); done < <(git rev-list --all)
+    git grep -z -I -i -l -E -f "$pf" ${revs[@]+"${revs[@]}"} >"$gout" 2>/dev/null
   else
-    hits=$(git grep --cached -I -l -E -f "$pf" 2>/dev/null)
+    git grep -z --cached -I -i -l -E -f "$pf" >"$gout" 2>/dev/null
   fi
+  grc=$?
+  while IFS= read -r -d '' h; do
+    [ "$mode" = history ] && h=${h#*:}
+    hits+=("$h")
+  done <"$gout"
+  [ "$grc" -ge 2 ] && add "private pattern check failed (invalid regex?)"
   # report file names only: never echo the matched (private) text
-  while IFS= read -r h; do [ -n "$h" ] && add "private pattern match in: $h"; done <<<"${hits:-}"
+  for h in ${hits[@]+"${hits[@]}"}; do add "private pattern match in: $h"; done
+else
+  echo "public-gate: warning: no private patterns configured (PUBLIC_GATE_PATTERNS / .public-gate-patterns)" >&2
 fi
 
 # --- 4. metrics rows ---
-validate_row='
-  def isint: type == "number" and . == floor and . >= 0;
-  type == "object"
-  and (keys | sort) == (["cache","compile_errors","exit","failing_tests","lane","sha","target","ts","wall_ms"])
-  and (.ts | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
-  and (.target | IN("check","test","race","lint","web","e2e","build","openapi","gate","docker"))
-  and (.wall_ms | isint) and (.exit | isint) and (.compile_errors | isint) and (.failing_tests | isint)
-  and (.sha | type == "string" and test("^([0-9a-f]{7,40}|unknown)$"))
-  and (.lane | type == "string" and test("^[a-z0-9][a-z0-9_-]{0,31}$"))
-  and (.cache | IN("warm","cold"))'
-ref=:
-[ "$mode" = history ] && ref=HEAD:
-for p in "${paths[@]}"; do
-  case "$p" in metrics/*.jsonl) ;; *) continue ;; esac
-  git cat-file -e "$ref$p" 2>/dev/null || continue
-  if ! command -v jq >/dev/null 2>&1; then add "jq not found; cannot validate $p"; continue; fi
-  n=0
-  while IFS= read -r line; do
+validate_row="$root/scripts/metrics-row.jq"
+[ -f "$validate_row" ] || validate_row="$(dirname "$0")/metrics-row.jq"
+check_blob() { # label content-ref path
+  local label=$1 ref=$2 p=$3 n=0 line
+  while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
     [ -n "$line" ] || continue
     if [ "$(basename "$p")" = loop.jsonl ]; then
-      printf '%s' "$line" | jq -e "$validate_row" >/dev/null 2>&1 || add "metrics row invalid: $p line $n"
+      printf '%s' "$line" | jq -e -f "$validate_row" >/dev/null 2>&1 || add "metrics row invalid: $label line $n"
     else
-      printf '%s' "$line" | jq -e 'type == "object"' >/dev/null 2>&1 || add "metrics row not a JSON object: $p line $n"
+      printf '%s' "$line" | jq -e 'type == "object"' >/dev/null 2>&1 || add "metrics row not a JSON object: $label line $n"
     fi
-  done < <(git show "$ref$p")
+  done < <(git show "$ref")
+}
+declare -a seenb=()
+for p in ${paths[@]+"${paths[@]}"}; do
+  case "$p" in metrics/*.jsonl) ;; *) continue ;; esac
+  if ! command -v jq >/dev/null 2>&1; then add "jq not found; cannot validate $p"; continue; fi
+  if [ "$mode" = history ]; then
+    refs=()
+    while IFS= read -r c; do refs+=("$c:$p"); done < <(git log --all -m --format=%H -- "$p")
+    refs+=(":$p")
+  else
+    refs=(":$p")
+  fi
+  for r in "${refs[@]}"; do
+    blob=$(git rev-parse -q --verify "$r" 2>/dev/null) || continue
+    case " ${seenb[*]-} " in *" $blob "*) continue ;; esac
+    seenb+=("$blob")
+    check_blob "$p" "$blob" "$p"
+  done
 done
 
 if [ ${#problems[@]} -gt 0 ]; then

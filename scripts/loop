@@ -26,7 +26,7 @@ if [ -z "$metrics" ]; then
   fi
 fi
 
-lane=${MM_LANE:-main}
+lane=$(printf '%s' "${MM_LANE:-main}" | tr '[:upper:]' '[:lower:]')
 case "$lane" in
   [a-z0-9]*) ;; *) lane=main ;;
 esac
@@ -54,8 +54,12 @@ case "$end" in *N* | "") end=$(($(date +%s) * 1000000000)) ;; esac
 wall_ms=$(((end - start) / 1000000))
 
 # counts come from patterns only; no output text is stored
-compile_errors=$(grep -cE '^[^[:space:]:]+\.(go|ts|svelte):[0-9]+(:[0-9]+)?: ' "$log" || true)
-failing_tests=$(grep -cE '^[[:space:]]*--- FAIL: ' "$log" || true)
+# compile errors: go-style file:line:col: msg or tsc-style file(l,c): error, minus linter findings (end in "(name)")
+compile_errors=$({ grep -E '^[^[:space:]:(]+\.(go|ts|svelte)(:[0-9]+(:[0-9]+)?: |\([0-9]+,[0-9]+\): error)' "$log" || true; } | grep -cvE '\([a-z0-9-]+\)$' || true)
+# failing tests: leaf "--- FAIL:" lines only (a parent whose subtests failed is not counted twice)
+failing_tests=$(awk '
+  /^[[:space:]]*--- FAIL: / { match($0, /^[[:space:]]*/); d = RLENGTH; n++; depth[n] = d; line[n] = 1; next }
+  END { c = 0; for (i = 1; i <= n; i++) { leaf = 1; if (i < n && depth[i+1] > depth[i]) leaf = 0; if (leaf) c++ } print c }' "$log")
 
 mkdir -p "$(dirname "$metrics")"
 printf '{"ts":"%s","target":"%s","wall_ms":%d,"exit":%d,"compile_errors":%d,"failing_tests":%d,"sha":"%s","lane":"%s","cache":"%s"}\n' \

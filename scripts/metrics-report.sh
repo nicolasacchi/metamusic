@@ -7,6 +7,8 @@ src=${MM_METRICS_FILE:-${common:+$common/../metrics/loop.jsonl}}
 src=${src:-$root/metrics/loop.jsonl}
 out=$root/metrics/REPORT.md
 [ -s "$src" ] || { echo "metrics: no rows in $src" >&2; exit 1; }
+tmpout=$(mktemp)
+trap 'rm -f "$tmpout"' EXIT
 {
   echo "# Loop metrics report"
   echo
@@ -15,9 +17,11 @@ out=$root/metrics/REPORT.md
   echo "| target | runs | failures | median ms (warm) | p90 ms (warm) | compile errors | failing tests |"
   echo "|---|---:|---:|---:|---:|---:|---:|"
   jq -rs '
+    
     def pct($p): if length==0 then "-" else (sort | .[(((length-1)*$p)|floor)]) end;
     group_by(.target)[] |
     "| \(.[0].target) | \(length) | \(map(select(.exit!=0))|length) | \([.[]|select(.cache=="warm")|.wall_ms]|pct(0.5)) | \([.[]|select(.cache=="warm")|.wall_ms]|pct(0.9)) | \(map(.compile_errors)|add) | \(map(.failing_tests)|add) |"
   ' "$src"
-} >"$out"
+} >"$tmpout"
+mv "$tmpout" "$out"
 echo "wrote metrics/REPORT.md"
