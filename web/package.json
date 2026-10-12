@@ -1,0 +1,32 @@
+{
+  "name": "metamusic-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "gen:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
+    "lint": "eslint .",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "bun test src",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/bun": "^1.4.3",
+    "eslint": "^10.12.0",
+    "eslint-plugin-svelte": "^3.23.1",
+    "globals": "^17.13.0",
+    "openapi-typescript": "^7.13.0",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.4"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  }
+}
