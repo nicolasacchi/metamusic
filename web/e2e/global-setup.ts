@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -58,6 +58,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     MM_DATA_DIR: dataDir,
     MM_SECRETS_DIR: secretsDir,
   };
+  // Seed the synthetic library (C22): synchronous, same env; a failed seed fails the whole setup.
+  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e"], { env, stdio: ["ignore", "ignore", "inherit"] });
+  if (seed.status !== 0) {
+    rmSync(root, { recursive: true, force: true });
+    throw new Error(`seed-synthetic failed (exit ${seed.status ?? seed.signal ?? "unknown"}${seed.error ? `: ${seed.error.message}` : ""})`);
+  }
   const child = spawn(bin, ["serve"], { env, stdio: ["ignore", "ignore", "inherit"] });
   let dead = false;
   let spawnError: Error | undefined;
