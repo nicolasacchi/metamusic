@@ -128,6 +128,12 @@ func TestServeAndHealthcheck(t *testing.T) {
 		t.Fatalf("healthz: %v %v", resp, err)
 	}
 	resp.Body.Close()
+	// /mcp is wired (not 404): anonymous callers get the OAuth challenge.
+	resp, err = http.Post("http://"+addr+"/mcp", "application/json", strings.NewReader("{}"))
+	if err != nil || resp.StatusCode != 401 || !strings.Contains(resp.Header.Get("WWW-Authenticate"), "resource_metadata=") {
+		t.Fatalf("mcp anonymous: %v %v", resp, err)
+	}
+	resp.Body.Close()
 
 	var o, e bytes.Buffer
 	hc := map[string]string{"MM_ADDR": addr}

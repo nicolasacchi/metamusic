@@ -16,9 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/web"
 )
@@ -101,6 +104,13 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: b.cfg, Sec: b.sec, Store: b.st, Tokens: b.tokens, Sessions: b.local,
 		SPA: web.Dist(), Version: version, Commit: commit,
+		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
+			srv, err := mcpgen.NewServer(a, inner, version)
+			if err != nil {
+				return nil, err
+			}
+			return mcpgen.Handler(srv), nil
+		},
 	})
 	if err != nil {
 		return err

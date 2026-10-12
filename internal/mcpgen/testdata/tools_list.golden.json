@@ -1,0 +1,172 @@
+[
+  {
+    "description": "Call an API operation by id with the arguments described by describe_operation. Operations excluded from MCP are refused.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "description": "Arguments as described by describe_operation",
+          "type": "object"
+        },
+        "operation_id": {
+          "description": "Operation id to call",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id"
+      ],
+      "type": "object"
+    },
+    "name": "call_operation"
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Describe an API operation that is not exposed as its own tool: method, path, scope, cost, description and the input/output JSON schemas. Use with call_operation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "operation_id": {
+          "description": "Operation id to describe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id"
+      ],
+      "type": "object"
+    },
+    "name": "describe_operation"
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get system information\n\nVersion, commit, auth mode, database schema version and uptime.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_system_info",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "auth_mode": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "schema_version": {
+          "description": "SQLite migration level",
+          "format": "int64",
+          "type": "integer"
+        },
+        "started_at": {
+          "description": "RFC 3339 UTC",
+          "type": "string"
+        },
+        "uptime_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "commit",
+        "auth_mode",
+        "schema_version",
+        "started_at",
+        "uptime_s"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Ping the server\n\nLiveness check that also reports the server version.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "ping",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "description": "Always true",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Server version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Show the calling principal\n\nReturns the identity, scopes and authentication path of the caller.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "whoami",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Principal kind",
+          "enum": [
+            "human",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Username or token name",
+          "type": "string"
+        },
+        "scopes": {
+          "description": "Granted scopes",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "via": {
+          "description": "How the principal authenticated: proxy, local or token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "scopes",
+        "via"
+      ],
+      "type": "object"
+    }
+  }
+]
