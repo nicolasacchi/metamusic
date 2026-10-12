@@ -1,0 +1,36 @@
+name: routing
+
+# Edge routing contract (C24). Separate from ci.yml because it needs different triggers: GitHub has
+# no per-job path filter, so the workflow itself is path-filtered to the deploy examples.
+on:
+  push:
+    paths:
+      - 'deploy/**'
+      - '.github/workflows/routing.yml'
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - '.github/workflows/routing.yml'
+
+permissions: {}
+
+concurrency:
+  group: routing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  routing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: routing contract
+        run: make routing

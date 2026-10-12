@@ -11,14 +11,15 @@ given in your brief; never copy private content (hostnames, names, balances, lyr
 ## Commands
 
 ```bash
-make check      # gofmt + vet + golangci-lint + go test -race + web lint/check/unit  (target <30s warm)
-make test       # go test -race -shuffle=on ./...
+make check      # gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit  (target <30s warm)
+make test       # go test -race -shuffle=on ./...  (no -short: media-tool + acceptance tiers; CI sets MM_REQUIRE_MEDIA_TOOLS=1)
 make e2e        # build SPA + cover binary, run Playwright (chrome + firefox) in proxy auth mode
 make openapi    # regenerate openapi.json and web/src/api/schema.d.ts (commit both)
 make dev        # run locally: MM_AUTH=local, data in ./data/dev
 make gate       # public-repo privacy gate (same script as git hooks and CI)
 make hooks      # install .githooks (pre-commit, pre-push)
-make tools      # download pinned golangci-lint + gitleaks into ./bin (sha256-verified)
+make tools      # download pinned golangci-lint, gitleaks, ffmpeg (LGPL, linux/amd64) into ./bin (sha256-verified);
+                # metaflac comes from the system flac package, else is built from the pinned xiph source
 ```
 
 Every `make` target runs through `scripts/loop`, which appends a metrics row (no command lines,

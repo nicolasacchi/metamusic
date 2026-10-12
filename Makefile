@@ -8,7 +8,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
-.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db
+.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -31,19 +31,34 @@ lint:
 check:
 	$(LOOP) check -- $(MAKE) --no-print-directory _check
 
-# Internal: steps of `check` (run inside one metrics row).
+# Internal: steps of `check` (run inside one metrics row). -short skips the heavy media-tool/acceptance
+# tiers (testtools.Require, TestAcceptance_*); `make test` and CI run them.
 _check:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	go vet ./...
 	$(GOLINT) run ./...
-	CGO_ENABLED=1 go test -race -shuffle=on ./...
+	CGO_ENABLED=1 go test -race -short -shuffle=on ./...
 	@if [ -d web/node_modules ]; then cd web && bun run lint && bun run check && bun test; else echo "web/node_modules missing: skipping web checks"; fi
 
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh
 
+# Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e` ran;
+# scripts/coverage-gate.sh enforces coverage.thresholds (C23).
+cover:
+	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && CGO_ENABLED=1 go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'
+
+# Seeds the dev data dir with the synthetic archive (needs the seed-synthetic command, M1-B9).
+seed:
+	$(LOOP) seed -- env MM_AUTH=local MM_DATA_DIR=./data/dev go run ./cmd/metamusic seed-synthetic --profile dev --force
+
+# Edge routing contract (C24): real Traefik + stub forward-auth in docker, labels from
+# deploy/labels.example.yml. Needs docker compose; fails (does not skip) without it.
+routing:
+	$(LOOP) routing -- env MM_REQUIRE_ROUTING=1 CGO_ENABLED=0 go test -tags routing -count=1 ./deploy/traefik-contract/
+
 gate:
-	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/public-gate.sh'
+	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/public-gate.sh'
 
 hooks:
 	git config core.hooksPath .githooks

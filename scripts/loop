@@ -12,7 +12,7 @@ target=$1
 shift 2
 
 case "$target" in
-  check | test | race | lint | web | e2e | build | openapi | gate | docker | fixture-db) ;;
+  check | test | race | lint | web | e2e | build | openapi | gate | docker | fixture-db | cover | routing | seed) ;;
   *) echo "loop: target '$target' not in allowlist" >&2; exit 2 ;;
 esac
 

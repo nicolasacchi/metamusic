@@ -1,0 +1,5 @@
+# Enforced by scripts/coverage-gate.sh on merged unit + e2e coverage (C23).
+# <pattern> <min percent>; pattern = internal package path, or path/... for the subtree.
+internal/...            85
+internal/auth           95
+internal/media/serve    95

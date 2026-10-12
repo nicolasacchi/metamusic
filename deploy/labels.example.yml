@@ -1,0 +1,69 @@
+# Example only: Traefik edge routing for metamusic behind Authelia forward-auth (contract C24).
+# Merge these labels into the metamusic service of your own compose file. The host is
+# mm.example.com; replace it with yours. `make routing` proves this file against a real
+# Traefik with a stub forward-auth (deploy/traefik-contract), so keep one label per line.
+#
+# Assumes shared middlewares defined elsewhere in your Traefik setup (docker provider):
+#   authelia@docker       forward-auth to Authelia (authResponseHeaders Remote-User,
+#                         Remote-Groups, Remote-Name, Remote-Email)
+#   sec-headers@docker    security response headers
+#   sec-ratelimit@docker  rate limit for app-authenticated routes
+# Authelia rules for this host: deploy/authelia-rules.example.yml.
+#
+# Every router also gets: entrypoints=websecure, tls=true, tls.certresolver=myresolver,
+# service=metamusic. MM_EDGE_SECRET is the same value as the app's edge_secret.
+services:
+  metamusic:
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.metamusic.loadbalancer.server.port=8080
+      # public static: manifest and icons only (browsers fetch them without credentials)
+      - traefik.http.routers.mm-public.entrypoints=websecure
+      - traefik.http.routers.mm-public.tls=true
+      - traefik.http.routers.mm-public.tls.certresolver=myresolver
+      - traefik.http.routers.mm-public.service=metamusic
+      - traefik.http.routers.mm-public.rule=Host(`mm.example.com`) && (Path(`/manifest.webmanifest`) || PathPrefix(`/icons/`))
+      - traefik.http.routers.mm-public.priority=120
+      - traefik.http.routers.mm-public.middlewares=mm-strip-identity,sec-headers@docker
+      # humans: SPA, cookie /api, /human/ (2FA by Authelia rule); Authelia, then the edge mark
+      - traefik.http.routers.mm-ui.entrypoints=websecure
+      - traefik.http.routers.mm-ui.tls=true
+      - traefik.http.routers.mm-ui.tls.certresolver=myresolver
+      - traefik.http.routers.mm-ui.service=metamusic
+      - traefik.http.routers.mm-ui.rule=Host(`mm.example.com`)
+      - traefik.http.routers.mm-ui.priority=10
+      - traefik.http.routers.mm-ui.middlewares=authelia@docker,mm-edge-mark,sec-headers@docker,mm-compress
+      # agents and OAuth discovery: authenticated by the app
+      - traefik.http.routers.mm-agent.entrypoints=websecure
+      - traefik.http.routers.mm-agent.tls=true
+      - traefik.http.routers.mm-agent.tls.certresolver=myresolver
+      - traefik.http.routers.mm-agent.service=metamusic
+      - traefik.http.routers.mm-agent.rule=Host(`mm.example.com`) && (Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/`) || Path(`/oauth/token`) || Path(`/oauth/register`) || Path(`/oauth/revoke`) || Path(`/api/openapi.json`))
+      - traefik.http.routers.mm-agent.priority=100
+      - traefik.http.routers.mm-agent.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker
+      # Subsonic, signed media, worker uploads: credentials ride in URLs, so no access log, no compress
+      - traefik.http.routers.mm-media.entrypoints=websecure
+      - traefik.http.routers.mm-media.tls=true
+      - traefik.http.routers.mm-media.tls.certresolver=myresolver
+      - traefik.http.routers.mm-media.service=metamusic
+      - traefik.http.routers.mm-media.rule=Host(`mm.example.com`) && (PathPrefix(`/rest/`) || PathPrefix(`/media/`) || PathPrefix(`/worker/`))
+      - traefik.http.routers.mm-media.priority=100
+      - traefik.http.routers.mm-media.middlewares=mm-strip-identity,sec-headers@docker
+      - traefik.http.routers.mm-media.observability.accesslogs=false
+      # REST with a bearer token
+      - traefik.http.routers.mm-api-bearer.entrypoints=websecure
+      - traefik.http.routers.mm-api-bearer.tls=true
+      - traefik.http.routers.mm-api-bearer.tls.certresolver=myresolver
+      - traefik.http.routers.mm-api-bearer.service=metamusic
+      - traefik.http.routers.mm-api-bearer.rule=Host(`mm.example.com`) && PathPrefix(`/api/`) && HeaderRegexp(`Authorization`, `^[Bb]earer .+`)
+      - traefik.http.routers.mm-api-bearer.priority=110
+      - traefik.http.routers.mm-api-bearer.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker
+      # Identity headers: emptied on every router that skips Authelia. Never put this middleware on
+      # mm-ui, where it would run after forward-auth and delete the Remote-User Authelia just set.
+      - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.Remote-User=
+      - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.Remote-Groups=
+      - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.Remote-Name=
+      - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.Remote-Email=
+      - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.X-MM-Edge=
+      - traefik.http.middlewares.mm-edge-mark.headers.customrequestheaders.X-MM-Edge=${MM_EDGE_SECRET:-}
+      - traefik.http.middlewares.mm-compress.compress.includedcontenttypes=text/html,text/css,text/javascript,application/javascript,application/json,application/problem+json,image/svg+xml
