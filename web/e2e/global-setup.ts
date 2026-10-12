@@ -1,12 +1,14 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { BASE_URL, EDGE_SECRET, HEADERS, PORT, STATE_DIR, STATE_FILE } from "./env";
+import { BASE_URL, EDGE_SECRET, HEADERS, PORT } from "./env";
+import { missingOperations, uiOperations } from "./coverage";
 
-async function waitHealthy(timeoutMs: number): Promise<void> {
+async function waitHealthy(timeoutMs: number, dead: () => boolean): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (dead()) throw new Error("e2e server exited during startup (see stderr above)");
     try {
       const res = await fetch(`${BASE_URL}/healthz`);
       if (res.ok) return;
@@ -18,7 +20,16 @@ async function waitHealthy(timeoutMs: number): Promise<void> {
   throw new Error(`e2e server did not become healthy within ${timeoutMs}ms`);
 }
 
-export default async function globalSetup(): Promise<void> {
+async function stop(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise<void>((r) => child.once("exit", () => r()));
+  child.kill("SIGTERM");
+  const timer = setTimeout(() => child.kill("SIGKILL"), 5000);
+  await exited;
+  clearTimeout(timer);
+}
+
+export default async function globalSetup(): Promise<() => Promise<void>> {
   const bin = resolve(process.env.MM_E2E_BIN ?? resolve(import.meta.dirname, "../../bin/metamusic-e2e"));
   if (!existsSync(bin)) throw new Error(`e2e binary not found at ${bin} (set MM_E2E_BIN)`);
 
@@ -28,8 +39,6 @@ export default async function globalSetup(): Promise<void> {
   );
   if (stale) throw new Error(`port ${PORT} already in use (stale e2e server?); stop it or set MM_E2E_PORT`);
 
-  rmSync(STATE_DIR, { recursive: true, force: true });
-  mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
   const root = mkdtempSync(join(tmpdir(), "mm-e2e-data-"));
   const dataDir = join(root, "data");
   const secretsDir = join(root, "secrets");
@@ -50,19 +59,48 @@ export default async function globalSetup(): Promise<void> {
     MM_SECRETS_DIR: secretsDir,
   };
   const child = spawn(bin, ["serve"], { env, stdio: ["ignore", "ignore", "inherit"] });
-  if (!child.pid) throw new Error("failed to start e2e server");
-  child.unref();
-  writeFileSync(STATE_FILE, JSON.stringify({ pid: child.pid, root }));
-
-  let exited = false;
+  let dead = false;
+  let spawnError: Error | undefined;
   child.once("exit", () => {
-    exited = true;
+    dead = true;
   });
+  child.once("error", (e) => {
+    dead = true;
+    spawnError = e;
+  });
+
+  const cleanup = async () => {
+    await stop(child);
+    rmSync(root, { recursive: true, force: true });
+  };
+
   try {
-    await waitHealthy(15_000);
-    if (exited || child.exitCode !== null) throw new Error("e2e server exited during startup (port conflict?)");
+    await waitHealthy(15_000, () => dead);
   } catch (e) {
-    if (exited) throw new Error("e2e server exited during startup (see stderr above)", { cause: e });
+    await cleanup();
+    if (spawnError) throw new Error(`failed to start e2e server: ${spawnError.message}`, { cause: e });
     throw e;
   }
+
+  // Run-scoped teardown: Playwright only calls this when setup succeeded, and it captures this
+  // run's own child and data dir, so concurrent or failed runs can never touch another run's server.
+  return async () => {
+    let failure: Error | undefined;
+    try {
+      if (process.env.MM_E2E_COVERAGE !== "0") {
+        const res = await fetch(`${BASE_URL}/__e2e/served`, { headers: HEADERS });
+        if (!res.ok) throw new Error(`/__e2e/served returned ${res.status}`);
+        const served = (await res.json()) as string[];
+        const missing = missingOperations(uiOperations(), served);
+        if (missing.length > 0) {
+          failure = new Error(`operations with a UI never served to the SPA: ${missing.join(", ")} (filtered run? set MM_E2E_COVERAGE=0 to skip this check)`);
+        }
+      }
+    } catch (e) {
+      failure = e instanceof Error ? e : new Error(String(e));
+    } finally {
+      await cleanup();
+    }
+    if (failure) throw failure;
+  };
 }
