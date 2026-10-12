@@ -2,17 +2,24 @@
   import { createRouter, type Route } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
+  import { installDevice } from "./lib/device.svelte";
   import { installMediaSession } from "./lib/mediaSession";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
+  import Backlog from "./routes/Backlog.svelte";
+  import Draft from "./routes/Draft.svelte";
+  import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const routes: Route[] = [
     { pattern: "/", name: "home" },
     { pattern: "/tracks/:id", name: "track" },
+    { pattern: "/backlog", name: "backlog" },
+    { pattern: "/backlog/:id", name: "draft" },
+    { pattern: "/import", name: "import" },
     { pattern: "/settings", name: "settings" },
   ];
   const router = createRouter(routes);
@@ -27,6 +34,7 @@
   let audio: HTMLAudioElement;
   $effect(() => {
     player.attach(audio);
+    installDevice(player);
     const offMediaSession = installMediaSession(player, audio);
     return () => {
       offMediaSession();
@@ -41,6 +49,8 @@
     <strong>metamusic</strong>
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
+      <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
     </nav>
   </header>
@@ -53,6 +63,14 @@
       {#key $router.params.id}
         <Track id={$router.params.id ?? ""} t={$router.query.t ?? ""} navigate={router.navigate} />
       {/key}
+    {:else if $router.route?.name === "backlog"}
+      <Backlog search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "draft"}
+      {#key $router.params.id}
+        <Draft id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "import"}
+      <Import />
     {:else if $router.route?.name === "settings"}
       <Settings />
     {:else}
