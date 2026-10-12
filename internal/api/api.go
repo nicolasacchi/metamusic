@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -69,7 +70,12 @@ func notFound(mux *http.ServeMux, prefix string) {
 			p = Err(405, "METHOD_NOT_ALLOWED", "method not allowed", map[string]any{"allow": allow})
 		}
 		w.Header().Set("Content-Type", "application/problem+json")
-		w.WriteHeader(p.(*Problem).Status)
+		var pr *Problem
+		if errors.As(p, &pr) {
+			w.WriteHeader(pr.Status)
+		} else {
+			w.WriteHeader(500)
+		}
 		_ = json.NewEncoder(w).Encode(p)
 	})
 }

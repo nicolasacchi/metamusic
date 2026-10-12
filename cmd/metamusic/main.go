@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -74,7 +75,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		return 2
 	}
 	if err != nil {
-		if e, ok := err.(usageError); ok {
+		var e usageError
+		if errors.As(err, &e) {
 			fmt.Fprintf(errw, "metamusic: %s\n", e)
 			return 2
 		}

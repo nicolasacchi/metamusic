@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -85,7 +86,11 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	op.Extensions = exts
 	op.Middlewares = append(huma.Middlewares{func(ctx huma.Context, next func(huma.Context)) {
 		if err := authorize(ctx.Context(), meta); err != nil {
-			writeProblem(ctx, err.(*Problem))
+			var pr *Problem
+			if !errors.As(err, &pr) {
+				pr = &Problem{Status: 500, Code: "INTERNAL", Message: "internal error", Details: map[string]any{}}
+			}
+			writeProblem(ctx, pr)
 			return
 		}
 		next(ctx)

@@ -52,6 +52,8 @@ linters:
         - -QF1001 # De Morgan rewrites hurt readability of validation conditions
   exclusions:
     generated: lax
+    paths:
+      - web/node_modules
     rules:
       # tests use fixed temp paths, ignore setup errors and unchecked cleanups
       - path: _test\.go
