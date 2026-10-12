@@ -13,6 +13,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -33,10 +34,8 @@ type Options struct {
 	Version, Commit string
 }
 
-func problem(w http.ResponseWriter, status int, code, msg string) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"code":"` + code + `","message":"` + msg + `","details":{}}` + "\n"))
+func writeProblem(w http.ResponseWriter, status int, code, msg string) {
+	problem.Write(w, status, code, msg, nil)
 }
 
 // New builds the full handler chain.
@@ -90,7 +89,7 @@ func New(o Options) (http.Handler, error) {
 		mux.Handle("/auth/", o.Sessions.Handler())
 	} else {
 		mux.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
-			problem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 	}
 	mux.Handle("/api/", innerH)
@@ -100,7 +99,7 @@ func New(o Options) (http.Handler, error) {
 		mcp := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if auth.FromContext(r.Context()).Kind != auth.KindAgent {
 				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resource+`"`)
-				problem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
+				writeProblem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
 				return
 			}
 			o.MCP.ServeHTTP(w, r)
@@ -109,7 +108,7 @@ func New(o Options) (http.Handler, error) {
 		mux.Handle("/mcp/", mcp)
 	} else {
 		notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			problem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 		mux.Handle("/mcp", notFound)
 		mux.Handle("/mcp/", notFound)

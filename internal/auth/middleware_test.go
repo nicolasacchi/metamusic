@@ -381,3 +381,48 @@ func TestHostPrefixedCookieOverHTTPS(t *testing.T) {
 		t.Errorf("unprefixed cookie accepted over https: %d", rec.Code)
 	}
 }
+
+type brokenSessions struct{}
+
+func (brokenSessions) VerifySession(context.Context, string) (Principal, error) {
+	return Principal{}, errors.New("db down")
+}
+
+func TestMiddleware_SessionStoreErrorIs500(t *testing.T) {
+	c, s := cfg("local")
+	c.PublicURL = "http://mm.example.com"
+	h := Middleware(c, s, fakeTokens{}, brokenSessions{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler must not run")
+	}))
+	r := httptest.NewRequest("GET", "/api/v1/system/info", nil)
+	r.AddCookie(&http.Cookie{Name: SessionCookie, Value: "x"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) || strings.Contains(rec.Body.String(), "db down") {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestTrustedPeer_Malformed(t *testing.T) {
+	pfx := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
+	for addr, want := range map[string]bool{"": false, "garbage": false, "10.1.2.3": false, "10.1.2.3:80": true, "[::ffff:10.1.2.3]:80": true, "11.0.0.1:80": false} {
+		if got := trustedPeer(addr, pfx); got != want {
+			t.Errorf("%q: got %v", addr, got)
+		}
+	}
+}
+
+func TestTokenStore_ClosedStoreErrors(t *testing.T) {
+	st := newStore(t)
+	ts := NewTokenStore(st, key)
+	_ = st.Close()
+	if _, err := ts.List(context.Background()); err == nil {
+		t.Error("List on closed store")
+	}
+	if err := ts.Revoke(context.Background(), "x"); err == nil {
+		t.Error("Revoke on closed store")
+	}
+	if _, _, err := ts.Create(context.Background(), "n", []Scope{ScopeRead}); err == nil {
+		t.Error("Create on closed store")
+	}
+}

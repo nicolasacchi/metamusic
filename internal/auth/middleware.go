@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
 type TokenVerifier interface {
@@ -23,9 +23,7 @@ type SessionVerifier interface {
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]any{"code": code, "message": msg, "details": map[string]any{}})
+	problem.Write(w, status, code, msg, nil)
 }
 
 func internalError(w http.ResponseWriter, what string, err error) {

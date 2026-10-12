@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -64,19 +64,12 @@ func notFound(mux *http.ServeMux, prefix string) {
 				allow = append(allow, m)
 			}
 		}
-		p := Err(404, "NOT_FOUND", "no such resource", nil)
 		if len(allow) > 0 {
 			w.Header().Set("Allow", strings.Join(allow, ", "))
-			p = Err(405, "METHOD_NOT_ALLOWED", "method not allowed", map[string]any{"allow": allow})
+			problem.Write(w, 405, "METHOD_NOT_ALLOWED", "method not allowed", map[string]any{"allow": allow})
+			return
 		}
-		w.Header().Set("Content-Type", "application/problem+json")
-		var pr *Problem
-		if errors.As(p, &pr) {
-			w.WriteHeader(pr.Status)
-		} else {
-			w.WriteHeader(500)
-		}
-		_ = json.NewEncoder(w).Encode(p)
+		problem.Write(w, 404, "NOT_FOUND", "no such resource", nil)
 	})
 }
 

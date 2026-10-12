@@ -20,6 +20,7 @@ func TestLoadDefaults(t *testing.T) {
 	want := Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://127.0.0.1:8080", AuthMode: "local",
 		DataDir: "./data", SecretsDir: "data/secrets",
+		FFmpeg: "ffmpeg", FLAC: "flac", Metaflac: "metaflac", Inbox: "data/inbox",
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Fatal(diff)
@@ -100,5 +101,25 @@ func TestLoadSecrets(t *testing.T) {
 	_, err = LoadSecrets(dir, "local")
 	if err == nil || strings.Contains(err.Error(), "SUPERSECRET") || !strings.Contains(err.Error(), "secret_key") {
 		t.Fatalf("bad key err: %v", err)
+	}
+}
+
+func TestConfig_MediaTools(t *testing.T) {
+	c, err := Load(env(map[string]string{"MM_AUTH": "local", "MM_DATA_DIR": "/d"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.FFmpeg != "ffmpeg" || c.FLAC != "flac" || c.Metaflac != "metaflac" || c.Inbox != "/d/inbox" {
+		t.Fatalf("defaults: %+v", c)
+	}
+	c, err = Load(env(map[string]string{
+		"MM_AUTH": "local", "MM_DATA_DIR": "/d", "MM_FFMPEG": "/x/ff", "MM_FLAC": "/x/fl",
+		"MM_METAFLAC": "/x/mf", "MM_INBOX": "/in",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.FFmpeg != "/x/ff" || c.FLAC != "/x/fl" || c.Metaflac != "/x/mf" || c.Inbox != "/in" {
+		t.Fatalf("overrides: %+v", c)
 	}
 }

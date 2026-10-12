@@ -72,6 +72,15 @@ linters:
         text: "G703"
         path: internal/httpserver/spa\.go
 
+      # G204: the only exec site; argv carries literals and app-created absolute paths (C10 argv rule).
+      - linters: [gosec]
+        text: "G204"
+        path: internal/mediatool/
+      # test-only helper packages (never linked into the binary, see TestNoTestHelpersInBinary):
+      # fixed temp paths and unchecked setup errors are fine.
+      - linters: [gosec, errcheck]
+        path: internal/(testtools|media/flacmeta/flactest|library/librarytest)/
+
 formatters:
   enable:
     - gofmt
