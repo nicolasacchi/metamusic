@@ -9,7 +9,7 @@
     "gen:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
     "lint": "eslint .",
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.test.json",
-    "test": "bun test src",
+    "test": "bun test src ./e2e/coverage.test.ts",
     "e2e": "playwright test"
   },
   "devDependencies": {

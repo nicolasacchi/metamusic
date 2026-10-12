@@ -22,6 +22,12 @@ export default async function globalSetup(): Promise<void> {
   const bin = resolve(process.env.MM_E2E_BIN ?? resolve(import.meta.dirname, "../../bin/metamusic-e2e"));
   if (!existsSync(bin)) throw new Error(`e2e binary not found at ${bin} (set MM_E2E_BIN)`);
 
+  const stale = await fetch(`${BASE_URL}/healthz`).then(
+    () => true,
+    () => false,
+  );
+  if (stale) throw new Error(`port ${PORT} already in use (stale e2e server?); stop it or set MM_E2E_PORT`);
+
   rmSync(STATE_DIR, { recursive: true, force: true });
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
   const root = mkdtempSync(join(tmpdir(), "mm-e2e-data-"));
@@ -54,6 +60,7 @@ export default async function globalSetup(): Promise<void> {
   });
   try {
     await waitHealthy(15_000);
+    if (exited || child.exitCode !== null) throw new Error("e2e server exited during startup (port conflict?)");
   } catch (e) {
     if (exited) throw new Error("e2e server exited during startup (see stderr above)", { cause: e });
     throw e;
