@@ -50,6 +50,12 @@ func loadMigrations() ([]migration, error) {
 // Migrate applies pending migrations, each in its own transaction, bumping
 // PRAGMA user_version after each. db must be the single-connection writer.
 func Migrate(ctx context.Context, db *sql.DB) error {
+	return migrateTo(ctx, db, -1)
+}
+
+// migrateTo applies pending migrations up to and including migration n
+// (n < 0 means all). A database newer than the binary is always refused.
+func migrateTo(ctx context.Context, db *sql.DB, n int) error {
 	ms, err := loadMigrations()
 	if err != nil {
 		return err
@@ -61,7 +67,13 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	if cur > len(ms) {
 		return fmt.Errorf("store: database schema version %d is newer than this binary (%d)", cur, len(ms))
 	}
-	for _, m := range ms[cur:] {
+	if n < 0 || n > len(ms) {
+		n = len(ms)
+	}
+	if cur >= n {
+		return nil
+	}
+	for _, m := range ms[cur:n] {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return err

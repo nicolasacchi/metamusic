@@ -132,7 +132,7 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	w = e.do(bearer(httptest.NewRequest("GET", "/api/system", nil), tok))
 	m = decode(t, w)
 	if w.Code != 200 || m["version"] != "v-test" || m["commit"] != "abc123" || m["auth_mode"] != "proxy" ||
-		m["schema_version"] != float64(1) || m["started_at"] == "" {
+		m["schema_version"] != float64(2) || m["started_at"] == "" {
 		t.Fatalf("system %d %v", w.Code, m)
 	}
 }
