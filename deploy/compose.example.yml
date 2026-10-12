@@ -2,8 +2,10 @@
 # (e.g. https://mm.example.com) and switch to MM_AUTH=proxy there.
 services:
   metamusic:
-    image: ghcr.io/nicolasacchi/metamusic:latest
-    # or: build: { context: .., dockerfile: Dockerfile }
+    build: { context: .., dockerfile: Dockerfile }
+    image: metamusic:local
+    # Once a registry image is published, replace build/image with:
+    # image: ghcr.io/nicolasacchi/metamusic:latest
     restart: unless-stopped
     environment:
       MM_AUTH: local
@@ -22,7 +24,12 @@ services:
     security_opt:
       - no-new-privileges:true
 
-# Create first: mkdir -p secrets && openssl rand -hex 32 > secrets/secret_key
+# Create first, from the repo root (path is relative to deploy/). Compose file secrets are
+# bind mounts, so the file must be readable by uid 1000 (chown 1000 if your host uid differs):
+#   (umask 077; mkdir -p deploy/secrets && openssl rand -hex 32 > deploy/secrets/secret_key)
+# After "up", create the human account (password read from stdin):
+#   printf '%s\n' "$PW" | docker compose -f deploy/compose.example.yml exec -T metamusic \
+#     metamusic user set-password --username <you>
 secrets:
   secret_key:
     file: ./secrets/secret_key
