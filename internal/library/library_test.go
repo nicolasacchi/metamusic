@@ -575,6 +575,24 @@ func TestGetStats_RealCounts(t *testing.T) {
 	if s.Storage.MastersBytes == 0 || s.Storage.DerivedBytes == 0 {
 		t.Errorf("storage %+v", s.Storage)
 	}
+	// two tracks sharing one content-addressed rendition count it once
+	var sha string
+	var nb int64
+	if err := e.st.W.QueryRow(`SELECT sha256, bytes FROM renditions WHERE kind='peaks' LIMIT 1`).Scan(&sha, &nb); err != nil {
+		t.Fatal(err)
+	}
+	before := s.Storage.DerivedBytes
+	if _, err := e.st.W.Exec(`INSERT INTO renditions(track_id, kind, sha256, bytes, path, params_json, created_at)
+		SELECT id, 'shared_probe', ?, ?, 'derived/shared.bin', '{}', '2026-10-06T12:00:00Z' FROM tracks LIMIT 2`, sha, nb); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := e.svc.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.Storage.DerivedBytes != before {
+		t.Errorf("shared rendition double counted: %d -> %d", before, s2.Storage.DerivedBytes)
+	}
 	if s.Imports.Runs != 1 || s.Imports.LastState == nil || *s.Imports.LastState != "completed" {
 		t.Errorf("imports %+v", s.Imports)
 	}
@@ -734,6 +752,98 @@ func TestImportRun_Sections(t *testing.T) {
 	}
 }
 
+func TestImportRun_EverySectionPagesByCursor(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	const id = "01900000-0000-7000-8000-000000000998"
+	rep := map[string]any{}
+	for _, k := range library.ImportSections {
+		if k == "unmatched" || k == "ambiguous" {
+			continue
+		}
+		items := make([]map[string]any, 3)
+		for i := range items {
+			items[i] = map[string]any{"n": i, "k": k}
+		}
+		rep[k] = items
+	}
+	var audio []map[string]any
+	for i := 0; i < 5; i++ {
+		st := "unmatched"
+		if i >= 3 {
+			st = "ambiguous"
+		}
+		audio = append(audio, map[string]any{"n": i, "status": st})
+	}
+	rep["audio"] = audio
+	insertRun(t, e, id, rep)
+	want := map[string]int{"unmatched": 3, "ambiguous": 2}
+	for _, sec := range library.ImportSections {
+		n, ok := want[sec]
+		if !ok {
+			n = 3
+			if sec == "audio" {
+				n = 5
+			}
+		}
+		cur, got := "", 0
+		for pages := 0; ; pages++ {
+			pg, err := e.svc.ImportRun(ctx, id, sec, cur, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pg.Total != n || len(pg.Items) != 1 {
+				t.Fatalf("%s page %d: total %d items %d", sec, pages, pg.Total, len(pg.Items))
+			}
+			got++
+			if pg.NextCursor == nil {
+				break
+			}
+			cur = *pg.NextCursor
+		}
+		if got != n {
+			t.Errorf("%s: paged %d items, want %d", sec, got, n)
+		}
+	}
+}
+
+func TestImportRun_PageCapBoundary(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	// 150 items of exactly 999 bytes: the item bytes alone fill ~90 000, so the
+	// envelope (total, run summary, cursor) must be budgeted too.
+	items := make([]map[string]any, 150)
+	for i := range items {
+		items[i] = map[string]any{"p": strings.Repeat("x", 999-len(`{"p":""}`))}
+	}
+	if b, _ := json.Marshal(items[0]); len(b) != 999 {
+		t.Fatalf("item is %d bytes", len(b))
+	}
+	const id = "01900000-0000-7000-8000-000000000997"
+	insertRun(t, e, id, map[string]any{"warnings": items})
+	cur, got := "", 0
+	for {
+		pg, err := e.svc.ImportRun(ctx, id, "warnings", cur, 200)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(pg)
+		if len(b) >= 90000 {
+			t.Fatalf("page is %d bytes", len(b))
+		}
+		got += len(pg.Items)
+		if pg.NextCursor == nil {
+			break
+		}
+		cur = *pg.NextCursor
+	}
+	if got != 150 {
+		t.Errorf("got %d items", got)
+	}
+}
+
 func TestRun_BeginHeartbeatFinish(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -820,8 +930,20 @@ func TestLibrary_WritesTwice(t *testing.T) {
 		if err := e.svc.Heartbeat(ctx, lt.RunID); err != nil { // finished run: no row matches, no trigger fires
 			t.Fatalf("round %d heartbeat: %v", round, err)
 		}
-		if err := e.svc.FinishRun(ctx, lt.RunID, "completed", nil, nil, nil); err != nil {
+		rid2, err := e.svc.BeginRun(ctx, "cli", "inbox", "digest")
+		if err != nil {
+			t.Fatalf("round %d begin: %v", round, err)
+		}
+		for hb := 0; hb < 2; hb++ { // a running run: the heartbeat row really updates
+			if err := e.svc.Heartbeat(ctx, rid2); err != nil {
+				t.Fatalf("round %d heartbeat %d: %v", round, hb, err)
+			}
+		}
+		if err := e.svc.FinishRun(ctx, rid2, "completed", nil, nil, nil); err != nil {
 			t.Fatalf("round %d finish: %v", round, err)
+		}
+		if err := e.svc.FinishRun(ctx, lt.RunID, "completed", nil, nil, nil); err != nil {
+			t.Fatalf("round %d finish fixture run: %v", round, err)
 		}
 	}
 	// the title change is visible through FTS

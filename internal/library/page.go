@@ -31,6 +31,15 @@ func decodeCursor(c string) (int, error) {
 	return v.O, nil
 }
 
+// cursorAllowance reserves room for the next_cursor member (key, base64 value).
+const cursorAllowance = 128
+
+// newPager starts a pager whose budget already carries the page envelope
+// (total, run summary, ...): envelope is the page value with no items.
+func newPager(envelope any) pager {
+	return pager{size: sizeOf(envelope) + cursorAllowance}
+}
+
 // pager accumulates items until the page would exceed the byte cap.
 type pager struct {
 	size int

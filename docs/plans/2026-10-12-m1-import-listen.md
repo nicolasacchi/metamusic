@@ -1299,6 +1299,7 @@ func WriteFixtureDB(tb testing.TB, path string) // `make fixture-db` (go test -r
 // lets the web lane run against a fixture library before seed-synthetic exists (M1-B9): `make fixture-db`
 // writes ./data/fixture/metamusic.db (data/ is gitignored) and M0's dev command serves it with
 // `go run ./cmd/metamusic dev --data-dir ./data/fixture` (metadata only; media requests fail: there are no files).
+// NOTE: this needs serve() to construct library.Service and serve.Signer; see the B4 Done line.
 ```
 
 ### C18. Media URLs and handler: `internal/media/serve`
@@ -2050,7 +2051,9 @@ Tests first:
   budget constant `toolsListBaselineBytes` (M0: 4412; the test fails above 1.5× it, independent of
   `-update`) is re-baselined in review with a one-line justification next to it.
 Done: `make check` green; `make openapi` committed; `schema.d.ts` regenerated; parity + golden green;
-`make fixture-db` writes a fixture DB the web lane can serve.
+`make fixture-db` writes a fixture DB. It becomes servable (`dev --data-dir ./data/fixture`) only once
+serve() builds `library.Service` + `serve.Signer`; until then every M1 op answers 503 UNAVAILABLE. That wiring
+(no probe, no seeding) must land in M1-B5 (or earlier) so W1-W3 can start; B9 adds probe and seeding.
 
 ### Task M1-B5 (Media): media handler (Range) and mounting
 **Files:** `internal/media/serve/{handler.go,handler_test.go}`, `internal/httpserver/server.go` (mount

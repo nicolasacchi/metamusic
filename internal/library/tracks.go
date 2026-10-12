@@ -197,7 +197,7 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	}
 	defer rows.Close()
 	page := TrackPage{Items: []TrackSummary{}, Total: total}
-	var pg pager
+	pg := newPager(page)
 	more := false
 	for rows.Next() {
 		sum, err := scanSummary(rows)

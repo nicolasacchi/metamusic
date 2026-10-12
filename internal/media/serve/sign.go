@@ -62,8 +62,9 @@ func (s *Signer) Sign(sha, ext string, ttl, bucket time.Duration) Link {
 	if b < 1 {
 		b = 1
 	}
-	raw := s.now().Add(ttl).Unix()
-	if s.now().Add(ttl).Nanosecond() > 0 {
+	at := s.now().Add(ttl)
+	raw := at.Unix()
+	if at.Nanosecond() > 0 {
 		raw++
 	}
 	exp := (raw + b - 1) / b * b

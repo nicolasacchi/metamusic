@@ -5,12 +5,110 @@
         "additionalProperties": false,
         "properties": {
           "loudness": {
-            "$ref": "#/components/schemas/LoudnessOut",
-            "description": "null when not analysed"
+            "additionalProperties": false,
+            "description": "null when not analysed",
+            "properties": {
+              "integrated_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_high_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_low_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_lu": {
+                "format": "double",
+                "type": "number"
+              },
+              "replaygain_track_gain_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "sample_peak_dbfs": {
+                "format": "double",
+                "type": "number"
+              },
+              "short_term_1hz": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "short_term_max_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "true_peak_dbtp": {
+                "format": "double",
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "replaygain_track_gain_db",
+              "version",
+              "integrated_lufs",
+              "lra_lu",
+              "lra_low_lufs",
+              "lra_high_lufs",
+              "true_peak_dbtp",
+              "sample_peak_dbfs",
+              "short_term_max_lufs",
+              "short_term_1hz"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "spectrum": {
-            "$ref": "#/components/schemas/SpectrumOut",
-            "description": "null when not analysed"
+            "additionalProperties": false,
+            "description": "null when not analysed",
+            "properties": {
+              "bandwidth_hz": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "frames": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "ref_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "threshold_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "bandwidth_hz",
+              "ref_db",
+              "threshold_db",
+              "frames"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
@@ -41,8 +139,30 @@
             "type": "string"
           },
           "mp3": {
-            "$ref": "#/components/schemas/MP3Info",
-            "description": "MP3 rendition; null when missing"
+            "additionalProperties": false,
+            "description": "MP3 rendition; null when missing",
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "gain_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sha256",
+              "bytes",
+              "gain_db"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "sample_rate": {
             "format": "int64",
@@ -372,8 +492,31 @@
             "type": "array"
           },
           "source": {
-            "$ref": "#/components/schemas/DraftSource",
-            "description": "null for drafts without an imported recipe"
+            "additionalProperties": false,
+            "description": "null for drafts without an imported recipe",
+            "properties": {
+              "recipe_hash": {
+                "type": "string"
+              },
+              "recipe_id": {
+                "type": "string"
+              },
+              "sources": {
+                "items": {
+                  "$ref": "#/components/schemas/DraftSourceRef"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "recipe_id",
+              "recipe_hash",
+              "sources"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -493,29 +636,6 @@
           "label",
           "raw",
           "lines"
-        ],
-        "type": "object"
-      },
-      "DraftSource": {
-        "additionalProperties": false,
-        "properties": {
-          "recipe_hash": {
-            "type": "string"
-          },
-          "recipe_id": {
-            "type": "string"
-          },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/DraftSourceRef"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "recipe_id",
-          "recipe_hash",
-          "sources"
         ],
         "type": "object"
       },
@@ -926,69 +1046,6 @@
         ],
         "type": "object"
       },
-      "LoudnessOut": {
-        "additionalProperties": false,
-        "properties": {
-          "integrated_lufs": {
-            "format": "double",
-            "type": "number"
-          },
-          "lra_high_lufs": {
-            "format": "double",
-            "type": "number"
-          },
-          "lra_low_lufs": {
-            "format": "double",
-            "type": "number"
-          },
-          "lra_lu": {
-            "format": "double",
-            "type": "number"
-          },
-          "replaygain_track_gain_db": {
-            "format": "double",
-            "type": "number"
-          },
-          "sample_peak_dbfs": {
-            "format": "double",
-            "type": "number"
-          },
-          "short_term_1hz": {
-            "items": {
-              "format": "double",
-              "type": "number"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "short_term_max_lufs": {
-            "format": "double",
-            "type": "number"
-          },
-          "true_peak_dbtp": {
-            "format": "double",
-            "type": "number"
-          },
-          "version": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "replaygain_track_gain_db",
-          "version",
-          "integrated_lufs",
-          "lra_lu",
-          "lra_low_lufs",
-          "lra_high_lufs",
-          "true_peak_dbtp",
-          "sample_peak_dbfs",
-          "short_term_max_lufs",
-          "short_term_1hz"
-        ],
-        "type": "object"
-      },
       "LoudnessStats": {
         "additionalProperties": false,
         "properties": {
@@ -1028,28 +1085,6 @@
           "integrated_lufs_max",
           "spread_lu",
           "listen_flac_recommended"
-        ],
-        "type": "object"
-      },
-      "MP3Info": {
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "gain_db": {
-            "format": "double",
-            "type": "number"
-          },
-          "sha256": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "sha256",
-          "bytes",
-          "gain_db"
         ],
         "type": "object"
       },
@@ -1341,50 +1376,6 @@
         ],
         "type": "object"
       },
-      "ScoreInfo": {
-        "additionalProperties": false,
-        "properties": {
-          "aligned": {
-            "type": "boolean"
-          },
-          "bars": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "bpm": {
-            "format": "double",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "meter": {
-            "type": "string"
-          },
-          "q": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "seconds_per_bar": {
-            "format": "double",
-            "type": [
-              "number",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "bars",
-          "meter",
-          "q",
-          "bpm",
-          "seconds_per_bar",
-          "aligned"
-        ],
-        "type": "object"
-      },
       "SectionOut": {
         "additionalProperties": false,
         "properties": {
@@ -1468,41 +1459,6 @@
           "title",
           "seed",
           "recorded_at"
-        ],
-        "type": "object"
-      },
-      "SpectrumOut": {
-        "additionalProperties": false,
-        "properties": {
-          "bandwidth_hz": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "frames": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "ref_db": {
-            "format": "double",
-            "type": "number"
-          },
-          "threshold_db": {
-            "format": "double",
-            "type": "number"
-          },
-          "version": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "version",
-          "bandwidth_hz",
-          "ref_db",
-          "threshold_db",
-          "frames"
         ],
         "type": "object"
       },
@@ -1694,8 +1650,52 @@
             "type": "string"
           },
           "score": {
-            "$ref": "#/components/schemas/ScoreInfo",
-            "description": "null when the track has no score"
+            "additionalProperties": false,
+            "description": "null when the track has no score",
+            "properties": {
+              "aligned": {
+                "type": "boolean"
+              },
+              "bars": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "bpm": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "meter": {
+                "type": "string"
+              },
+              "q": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "seconds_per_bar": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "bars",
+              "meter",
+              "q",
+              "bpm",
+              "seconds_per_bar",
+              "aligned"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "sections": {
             "items": {
@@ -1725,8 +1725,30 @@
             "type": "string"
           },
           "truncated": {
-            "$ref": "#/components/schemas/Truncation",
-            "description": "null when result.json was not imported"
+            "additionalProperties": false,
+            "description": "null when result.json was not imported",
+            "properties": {
+              "abc": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "semantic": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "abc",
+              "semantic"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1935,28 +1957,6 @@
           "root_track_id",
           "parent_track_id",
           "children_count"
-        ],
-        "type": "object"
-      },
-      "Truncation": {
-        "additionalProperties": false,
-        "properties": {
-          "abc": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "semantic": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "abc",
-          "semantic"
         ],
         "type": "object"
       },

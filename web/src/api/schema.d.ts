@@ -330,9 +330,38 @@ export interface components {
     schemas: {
         AnalysisInfo: {
             /** @description null when not analysed */
-            loudness: components["schemas"]["LoudnessOut"];
+            loudness: {
+                /** Format: double */
+                integrated_lufs: number;
+                /** Format: double */
+                lra_high_lufs: number;
+                /** Format: double */
+                lra_low_lufs: number;
+                /** Format: double */
+                lra_lu: number;
+                /** Format: double */
+                replaygain_track_gain_db: number;
+                /** Format: double */
+                sample_peak_dbfs: number;
+                short_term_1hz: number[] | null;
+                /** Format: double */
+                short_term_max_lufs: number;
+                /** Format: double */
+                true_peak_dbtp: number;
+                version: string;
+            } | null;
             /** @description null when not analysed */
-            spectrum: components["schemas"]["SpectrumOut"];
+            spectrum: {
+                /** Format: int64 */
+                bandwidth_hz: number | null;
+                /** Format: int64 */
+                frames: number;
+                /** Format: double */
+                ref_db: number;
+                /** Format: double */
+                threshold_db: number;
+                version: string;
+            } | null;
         };
         AudioInfo: {
             audio_md5: string;
@@ -344,7 +373,13 @@ export interface components {
             master_bytes: number;
             master_sha256: string;
             /** @description MP3 rendition; null when missing */
-            mp3: components["schemas"]["MP3Info"];
+            mp3: {
+                /** Format: int64 */
+                bytes: number;
+                /** Format: double */
+                gain_db: number;
+                sha256: string;
+            } | null;
             /** Format: int64 */
             sample_rate: number;
             /** Format: int64 */
@@ -442,7 +477,11 @@ export interface components {
             request_id: string;
             sections: components["schemas"]["DraftSection"][];
             /** @description null for drafts without an imported recipe */
-            source: components["schemas"]["DraftSource"];
+            source: {
+                recipe_hash: string;
+                recipe_id: string;
+                sources: components["schemas"]["DraftSourceRef"][];
+            } | null;
             status: string;
             updated_at: string;
         };
@@ -469,11 +508,6 @@ export interface components {
             label: string;
             lines: string[];
             raw: string;
-        };
-        DraftSource: {
-            recipe_hash: string;
-            recipe_id: string;
-            sources: components["schemas"]["DraftSourceRef"][];
         };
         DraftSourceRef: {
             /** Format: int64 */
@@ -571,26 +605,6 @@ export interface components {
             rule: string | null;
             siblings: components["schemas"]["Sibling"][];
         };
-        LoudnessOut: {
-            /** Format: double */
-            integrated_lufs: number;
-            /** Format: double */
-            lra_high_lufs: number;
-            /** Format: double */
-            lra_low_lufs: number;
-            /** Format: double */
-            lra_lu: number;
-            /** Format: double */
-            replaygain_track_gain_db: number;
-            /** Format: double */
-            sample_peak_dbfs: number;
-            short_term_1hz: number[] | null;
-            /** Format: double */
-            short_term_max_lufs: number;
-            /** Format: double */
-            true_peak_dbtp: number;
-            version: string;
-        };
         LoudnessStats: {
             /** Format: double */
             integrated_lufs_max: number | null;
@@ -602,13 +616,6 @@ export interface components {
             n: number;
             /** Format: double */
             spread_lu: number | null;
-        };
-        MP3Info: {
-            /** Format: int64 */
-            bytes: number;
-            /** Format: double */
-            gain_db: number;
-            sha256: string;
         };
         MP3Link: {
             /** Format: int64 */
@@ -703,17 +710,6 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
-        ScoreInfo: {
-            aligned: boolean;
-            /** Format: int64 */
-            bars: number;
-            /** Format: double */
-            bpm: number | null;
-            meter: string;
-            q: string | null;
-            /** Format: double */
-            seconds_per_bar: number | null;
-        };
         SectionOut: {
             /** Format: double */
             confidence: number | null;
@@ -736,17 +732,6 @@ export interface components {
             /** Format: int64 */
             seed: number;
             title: string;
-        };
-        SpectrumOut: {
-            /** Format: int64 */
-            bandwidth_hz: number | null;
-            /** Format: int64 */
-            frames: number;
-            /** Format: double */
-            ref_db: number;
-            /** Format: double */
-            threshold_db: number;
-            version: string;
         };
         Stats: {
             backlog: components["schemas"]["BacklogStats"];
@@ -806,7 +791,17 @@ export interface components {
             recipe: components["schemas"]["RecipeInfo"];
             recorded_at: string;
             /** @description null when the track has no score */
-            score: components["schemas"]["ScoreInfo"];
+            score: {
+                aligned: boolean;
+                /** Format: int64 */
+                bars: number;
+                /** Format: double */
+                bpm: number | null;
+                meter: string;
+                q: string | null;
+                /** Format: double */
+                seconds_per_bar: number | null;
+            } | null;
             sections: components["schemas"]["SectionOut"][];
             slug: string;
             status: string;
@@ -815,7 +810,10 @@ export interface components {
             timed: boolean;
             title: string;
             /** @description null when result.json was not imported */
-            truncated: components["schemas"]["Truncation"];
+            truncated: {
+                abc: boolean | null;
+                semantic: boolean | null;
+            } | null;
         };
         TrackPage: {
             items: components["schemas"]["TrackSummary"][];
@@ -873,10 +871,6 @@ export interface components {
             title: string;
             /** @description abc or semantic stream truncated; null when unknown */
             truncated: boolean | null;
-        };
-        Truncation: {
-            abc: boolean | null;
-            semantic: boolean | null;
         };
         Waveform: {
             /** Format: int64 */

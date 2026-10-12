@@ -116,7 +116,7 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 		Scan(&st.Tracks.Total, &st.Tracks.DurationS, &st.Tracks.WithScore, &st.Tracks.Timed, &st.Tracks.Truncated, &st.Storage.MastersBytes); err != nil {
 		return st, fmt.Errorf("library: stats tracks: %w", err)
 	}
-	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(bytes),0) FROM renditions`).Scan(&st.Storage.DerivedBytes); err != nil {
+	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(bytes),0) FROM (SELECT DISTINCT sha256, bytes FROM renditions)`).Scan(&st.Storage.DerivedBytes); err != nil {
 		return st, err
 	}
 	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(status='backlog'),0), COALESCE(SUM(status='fulfilled'),0),

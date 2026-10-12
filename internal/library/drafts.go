@@ -139,7 +139,7 @@ func (s *Service) ListDrafts(ctx context.Context, p DraftParams) (DraftPage, err
 	if err := s.fillCollections(ctx, all); err != nil {
 		return page, err
 	}
-	var pg pager
+	pg := newPager(page)
 	more := false
 	for _, d := range all {
 		if !pg.add(sizeOf(d)) {

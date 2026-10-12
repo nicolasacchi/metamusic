@@ -384,10 +384,14 @@ func (s *Service) insertScoreAndSections(ctx context.Context, tx *sql.Tx, t NewT
 
 func (s *Service) fulfil(ctx context.Context, tx *sql.Tx, t NewTake, coreHash, now string) error {
 	var own string
-	err := tx.QueryRowContext(ctx, `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=?
-		WHERE source_recipe_id=? AND status='backlog' RETURNING id`, t.ID, now, t.RecipeID).Scan(&own)
+	err := tx.QueryRowContext(ctx, `SELECT id FROM recipe_drafts WHERE source_recipe_id=? AND status='backlog'`, t.RecipeID).Scan(&own)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("library: fulfil draft: %w", err)
+		return fmt.Errorf("library: find own draft: %w", err)
+	}
+	if own != "" { // C11 form, verbatim
+		if _, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=? WHERE id=? AND status='backlog'`, t.ID, now, own); err != nil {
+			return fmt.Errorf("library: fulfil draft: %w", err)
+		}
 	}
 	if t.Out != nil {
 		t.Out.OwnDraftID = own

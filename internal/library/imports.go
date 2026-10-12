@@ -150,15 +150,16 @@ func (s *Service) ImportRun(ctx context.Context, id, section, cursor string, lim
 		all = kept
 	}
 	page.Total = len(all)
-	var pg pager
+	pg := newPager(page)
 	i := off
 	for ; i < len(all) && len(page.Items) < limit; i++ {
-		if !pg.add(len(all[i])) {
-			break
-		}
 		var v any
 		if err := json.Unmarshal(all[i], &v); err != nil {
 			return page, fmt.Errorf("library: report item: %w", err)
+		}
+		// measure the bytes actually sent (the decoded value), not the stored raw
+		if !pg.add(sizeOf(v)) {
+			break
 		}
 		page.Items = append(page.Items, v)
 	}
