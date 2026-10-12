@@ -49,25 +49,30 @@ expect "clean tree passes (history)" 0 --history
 # forbidden path
 echo x > x.pdf; git add -f x.pdf
 expect "staged pdf blocked" 1 --staged
+contains "staged pdf blocked reason" "forbidden path: x.pdf"
 reset
 
 mkdir -p docs/private; echo x > docs/private/a.md; git add -f docs/private/a.md
 expect "staged docs/private blocked" 1 --staged
+contains "staged docs/private blocked reason" "forbidden path: docs/private/a.md"
 reset
 
 # token-shaped secret (built at runtime so this file holds no valid token)
 body=$(printf 'a%.0s' $(seq 1 52))
 printf 'token = "mmp_%s"\n' "$body" > conf.txt; git add conf.txt
 expect "staged mmp_ token blocked" 1 --staged
+contains "mmp_ reason" "gitleaks reported findings"
 reset
 
 printf 'token = "mmc_%s"\n' "$body" > conf.txt; git add conf.txt
 expect "staged mmc_ token blocked" 1 --staged
+contains "mmc_ reason" "metamusic-confirmation-token"
 reset
 
 # private pattern
 echo "my-secret-hostname.internal" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'nothing-here\nsecret-hostname' expect "private pattern blocked" 1 --staged
+contains "private pattern blocked reason" "private pattern match in: notes.txt"
 reset
 
 # metrics validation (tracked)
@@ -78,6 +83,7 @@ expect "valid metrics row passes" 0 --staged
 echo '{"ts":"2026-01-01T00:00:00Z","target":"check","cmd":"rm -rf /","wall_ms":1,"exit":0,"compile_errors":0,"failing_tests":0,"sha":"abc1234","lane":"main","cache":"warm"}' > metrics/loop.jsonl
 git add -f metrics/loop.jsonl
 expect "metrics row with extra field blocked" 1 --staged
+contains "metrics row with extra field blocked reason" "metrics row invalid"
 reset
 
 # non-ASCII and uppercase paths
@@ -89,20 +95,25 @@ expect "staged non-ASCII varianti dir blocked" 1 --staged
 reset
 echo x > Lyrics.PDF; git add -f Lyrics.PDF
 expect "staged uppercase PDF blocked" 1 --staged
+contains "staged uppercase PDF blocked reason" "forbidden path: Lyrics.PDF"
 reset
 echo x > .env.local; git add -f .env.local
 expect "staged .env blocked" 1 --staged
+contains "staged .env blocked reason" "forbidden path: .env.local"
 reset
 echo x > a.opus; git add -f a.opus
 expect "staged audio ext blocked" 1 --staged
+contains "staged audio ext blocked reason" "forbidden path: a.opus"
 reset
 
 # invalid private regex must block (not silently disable the check)
 echo "hello" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'(unclosed' expect "invalid regex blocked" 1 --staged
+contains "invalid regex blocked reason" "private pattern check failed"
 reset
 echo "My-Secret-Hostname.internal" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS='secret-hostname' expect "private pattern is case-insensitive" 1 --staged
+contains "private pattern is case-insensitive reason" "private pattern match in: notes.txt"
 reset
 
 # gitleaks output names rule and file
@@ -129,6 +140,7 @@ mkdir -p metrics
 printf '%s\n{"cmd":"curl https://private-host/secret"}' "$good" > metrics/loop.jsonl
 git add -f metrics/loop.jsonl
 expect "metrics last row without newline validated" 1 --staged
+contains "metrics last row without newline validated reason" "metrics row invalid"
 reset
 
 # history: secret committed then removed is still caught
@@ -137,11 +149,38 @@ git rm -q old.txt; git commit -qm unleak
 expect "history scan finds removed token" 1 --history
 git reset -q --hard HEAD~2
 
-# history: file added only by a merge commit is caught
+# metrics: two JSON values on one line must not pass; other jsonl files are validated too
+mkdir -p metrics
+printf '{"cmd":"curl https://private-host/x"} %s\n' "$good" > metrics/loop.jsonl
+git add -f metrics/loop.jsonl
+expect "metrics multi-value line blocked" 1 --staged
+contains "multi-value reason" "metrics row invalid"
+reset
+mkdir -p metrics
+echo '{"cmd":"x"}' > metrics/other.jsonl; git add -f metrics/other.jsonl
+expect "metrics/other.jsonl arbitrary object blocked" 1 --staged
+contains "other.jsonl reason" "metrics row invalid"
+reset
+
+# private patterns also apply to file names
+echo x > notes-private-thing.md; git add notes-private-thing.md
+PUBLIC_GATE_PATTERNS=private-thing expect "private pattern in file name blocked" 1 --staged
+contains "path reason" "private pattern match in path: notes-private-thing.md"
+reset
+
+# history: commit message with private pattern
+git commit -q --allow-empty -m "deploy to private-thing.lan"
+PUBLIC_GATE_PATTERNS=private-thing expect "private pattern in commit message blocked" 1 --history
+contains "commit message reason" "private pattern match in commit message"
+git reset -q --hard HEAD~1
+
+# history: file added only by a merge commit (and deleted afterwards) is caught via -m
 git checkout -q -b side; echo s > side.txt; git add side.txt; git commit -qm side
 git checkout -q -; echo m > main.txt; git add main.txt; git commit -qm main
 git merge -q --no-ff --no-commit side
 echo x > evil.pdf; git add -f evil.pdf; git commit -qm merge
-expect "history finds pdf added in merge" 1 --history
+git rm -q evil.pdf; git commit -qm cleanup
+expect "history finds pdf added only in merge" 1 --history
+contains "merge reason" "forbidden path: evil.pdf"
 
 exit $fail

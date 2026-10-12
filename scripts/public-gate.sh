@@ -110,6 +110,16 @@ if [ -s "$pf" ]; then
   [ "$grc" -ge 2 ] && add "private pattern check failed (invalid regex?)"
   # report file names only: never echo the matched (private) text
   for h in ${hits[@]+"${hits[@]}"}; do add "private pattern match in: $h"; done
+  # file names are published too: match patterns against paths (report the path only)
+  for p in ${paths[@]+"${paths[@]}"}; do
+    printf '%s\n' "$p" | grep -qiEf "$pf" 2>/dev/null && add "private pattern match in path: $p"
+  done
+  if [ "$mode" = history ]; then
+    # commit messages are published too (report the short SHA only)
+    while IFS= read -r c; do
+      git log -1 --format=%B "$c" | grep -qiEf "$pf" 2>/dev/null && add "private pattern match in commit message: ${c:0:8}"
+    done < <(git rev-list --all)
+  fi
 else
   echo "public-gate: warning: no private patterns configured (PUBLIC_GATE_PATTERNS / .public-gate-patterns)" >&2
 fi
@@ -117,16 +127,13 @@ fi
 # --- 4. metrics rows ---
 validate_row="$root/scripts/metrics-row.jq"
 [ -f "$validate_row" ] || validate_row="$(dirname "$0")/metrics-row.jq"
+row_prog=$(cat "$validate_row")
 check_blob() { # label content-ref path
   local label=$1 ref=$2 p=$3 n=0 line
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
     [ -n "$line" ] || continue
-    if [ "$(basename "$p")" = loop.jsonl ]; then
-      printf '%s' "$line" | jq -e -f "$validate_row" >/dev/null 2>&1 || add "metrics row invalid: $label line $n"
-    else
-      printf '%s' "$line" | jq -e 'type == "object"' >/dev/null 2>&1 || add "metrics row not a JSON object: $label line $n"
-    fi
+    printf '%s' "$line" | jq -e -s "length == 1 and (.[0] | $row_prog)" >/dev/null 2>&1 || add "metrics row invalid: $label line $n"
   done < <(git show "$ref")
 }
 declare -a seenb=()

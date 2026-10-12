@@ -54,12 +54,18 @@ case "$end" in *N* | "") end=$(($(date +%s) * 1000000000)) ;; esac
 wall_ms=$(((end - start) / 1000000))
 
 # counts come from patterns only; no output text is stored
-# compile errors: go-style file:line:col: msg or tsc-style file(l,c): error, minus linter findings (end in "(name)")
-compile_errors=$({ grep -E '^[^[:space:]:(]+\.(go|ts|svelte)(:[0-9]+(:[0-9]+)?: |\([0-9]+,[0-9]+\): error)' "$log" || true; } | grep -cvE '\([a-z0-9-]+\)$' || true)
-# failing tests: leaf "--- FAIL:" lines only (a parent whose subtests failed is not counted twice)
-failing_tests=$(awk '
-  /^[[:space:]]*--- FAIL: / { match($0, /^[[:space:]]*/); d = RLENGTH; n++; depth[n] = d; line[n] = 1; next }
+# compile errors: go-style file:line:col: msg (optionally prefixed "vet: ") or tsc-style file(l,c): error,
+# minus linter findings (end in "(name)", except "(typecheck)" which is a compile error) and ": # pkg" headers
+compile_errors=$({ grep -E '^(vet: )?[^[:space:]:(]+\.(go|ts|svelte)(:[0-9]+(:[0-9]+)?: |\([0-9]+,[0-9]+\): error)' "$log" || true; } \
+  | sed -E 's/ \(typecheck\)$//' | { grep -vE ': # ' || true; } | grep -cvE '\([a-z0-9-]+\)$' || true)
+# failing tests: leaf Go "--- FAIL:" lines only (a parent whose subtests failed is not counted twice),
+# plus bun "(fail)" lines and the Playwright "N failed" summary
+go_failing=$(awk '
+  /^[[:space:]]*--- FAIL: / { match($0, /^[[:space:]]*/); d = RLENGTH; n++; depth[n] = d; next }
   END { c = 0; for (i = 1; i <= n; i++) { leaf = 1; if (i < n && depth[i+1] > depth[i]) leaf = 0; if (leaf) c++ } print c }' "$log")
+bun_failing=$(grep -cE '^\(fail\) ' "$log" || true)
+pw_failing=$(sed -nE 's/^[[:space:]]+([0-9]+) failed[[:space:]]*$/\1/p' "$log" | awk '{s += $1} END {print s + 0}')
+failing_tests=$((${go_failing:-0} + ${bun_failing:-0} + ${pw_failing:-0}))
 
 mkdir -p "$(dirname "$metrics")"
 printf '{"ts":"%s","target":"%s","wall_ms":%d,"exit":%d,"compile_errors":%d,"failing_tests":%d,"sha":"%s","lane":"%s","cache":"%s"}\n' \

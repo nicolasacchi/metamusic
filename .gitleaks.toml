@@ -11,8 +11,8 @@ regex = '''mmp_[a-z2-7]{52}'''
 keywords = ["mmp_"]
 
 [[rules]]
-id = "metamusic-session-cookie"
-description = "metamusic session credential (mmc_)"
+id = "metamusic-confirmation-token"
+description = "metamusic confirmation token (mmc_)"
 regex = '''mmc_[a-z2-7]{52}'''
 keywords = ["mmc_"]
 

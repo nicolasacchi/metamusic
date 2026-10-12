@@ -24,6 +24,16 @@ chk "non-allowlisted target refused" '[ "$rc" = 2 ]'
 : >"$MM_METRICS_FILE"
 "$root/scripts/loop" lint -- sh -c 'echo "foo.go:3:4: type assertion on error (errorlint)"; echo "bar.ts(3,5): error TS2322: bad"; echo "--- FAIL: TestP (0.0s)"; echo "    --- FAIL: TestP/a (0.0s)"; echo "    --- FAIL: TestP/b (0.0s)"' >/dev/null
 chk "lint line not a compile error, tsc line is" 'jq -e ".compile_errors==1 and .failing_tests==2" "$MM_METRICS_FILE" >/dev/null'
+# real go vet / golangci-lint typecheck / bun / playwright output shapes
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" check -- sh -c 'echo "# example.com/x/internal/p"; echo "vet: internal/p/p.go:3:23: undefined: x"; echo "vet: internal/p/p.go:9:2: undefined: y"' >/dev/null
+chk "vet: prefixed errors counted under check" 'jq -e ".target==\"check\" and .compile_errors==2" "$MM_METRICS_FILE" >/dev/null'
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" lint -- sh -c 'echo "p.go:1: : # example.com/x/internal/p"; echo "p.go:3:23: undefined: x (typecheck)"; echo "p.go:4:1: bad (errorlint)"' >/dev/null
+chk "typecheck counted, header and linters not" 'jq -e ".target==\"lint\" and .compile_errors==1" "$MM_METRICS_FILE" >/dev/null'
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" web -- sh -c 'echo "(fail) a > b [0.1ms]"; echo "(fail) c [0.1ms]"; echo "  3 failed"; echo "  5 passed"' >/dev/null
+chk "bun and playwright failures counted" 'jq -e ".failing_tests==5" "$MM_METRICS_FILE" >/dev/null'
 MM_LANE=Upper "$root/scripts/loop" check -- true >/dev/null
 chk "lane lower-cased" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"upper\"" >/dev/null'
 chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
