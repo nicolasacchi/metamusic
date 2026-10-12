@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"uuid"
@@ -22,8 +23,9 @@ import (
 )
 
 var (
-	ErrBadCredentials = errors.New("invalid credentials")
-	ErrInvalidSession = errors.New("invalid session")
+	ErrBadCredentials  = errors.New("invalid credentials")
+	ErrInvalidSession  = errors.New("invalid session")
+	ErrInvalidPassword = errors.New("username and password must not be blank")
 )
 
 const (
@@ -47,7 +49,8 @@ type LocalAuth struct {
 	secure    bool
 	FailDelay time.Duration // delay applied to failed logins (default 1s)
 	now       func() time.Time
-	dummy     string // hash verified when the user is unknown, to equalise timing
+	dummyOnce sync.Once
+	dummy     string // hash verified when the user is unknown, to equalise timing (lazy)
 	sem       chan struct{}
 	active    atomic.Int32
 	maxActive atomic.Int32 // high-water mark of concurrent hashing (observability/tests)
@@ -61,11 +64,18 @@ func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
 		now:       time.Now,
 		sem:       make(chan struct{}, maxHashers),
 	}
-	// random per-process password: nobody can ever log in with it
-	dummyPW := make([]byte, 24)
-	_, _ = rand.Read(dummyPW)
-	la.dummy, _ = hashPassword(base64.RawStdEncoding.EncodeToString(dummyPW))
 	return la
+}
+
+// dummyHash lazily computes a hash of a random per-process password (nobody can
+// log in with it) used to equalise timing when the user is unknown.
+func (l *LocalAuth) dummyHash() string {
+	l.dummyOnce.Do(func() {
+		pw := make([]byte, 24)
+		_, _ = rand.Read(pw)
+		l.dummy, _ = hashPassword(base64.RawStdEncoding.EncodeToString(pw))
+	})
+	return l.dummy
 }
 
 // withHasher bounds concurrent argon2id work; fails if ctx ends while waiting.
@@ -117,7 +127,7 @@ func checkPassword(phc, pw string) bool {
 	if err1 != nil || err2 != nil || len(want) == 0 {
 		return false
 	}
-	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(want)))
+	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(want))) //nolint:gosec // length of our own decoded hash
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
@@ -126,6 +136,9 @@ func (l *LocalAuth) ts(t time.Time) string { return t.UTC().Format(time.RFC3339)
 // SetPassword creates or replaces the single human account and revokes every
 // existing session.
 func (l *LocalAuth) SetPassword(ctx context.Context, username, pw string) error {
+	if strings.TrimSpace(username) == "" || strings.TrimSpace(pw) == "" {
+		return ErrInvalidPassword
+	}
 	var h string
 	var herr error
 	if err := l.withHasher(ctx, func() { h, herr = hashPassword(pw) }); err != nil {
@@ -138,7 +151,7 @@ func (l *LocalAuth) SetPassword(ctx context.Context, username, pw string) error 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO human_account(id,username,password_hash,updated_at) VALUES(1,?,?,?)
 		 ON CONFLICT(id) DO UPDATE SET username=excluded.username, password_hash=excluded.password_hash, updated_at=excluded.updated_at`,
@@ -160,7 +173,7 @@ func (l *LocalAuth) Login(ctx context.Context, username, pw string) (string, err
 	}
 	known := err == nil
 	if !known {
-		hash = l.dummy
+		hash = l.dummyHash()
 	}
 	var passOK bool
 	if err := l.withHasher(ctx, func() { passOK = checkPassword(hash, pw) }); err != nil {
@@ -260,6 +273,9 @@ func writeLogin(w http.ResponseWriter, status int, msg string) {
 // POSTs are wrapped in CrossOriginProtection (login/logout CSRF).
 func (l *LocalAuth) Handler() http.Handler {
 	cop := http.NewCrossOriginProtection()
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeProblem(w, http.StatusForbidden, "CROSS_ORIGIN", "cross-origin request refused")
+	}))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /auth/login", func(w http.ResponseWriter, r *http.Request) { writeLogin(w, 200, "") })
 	mux.Handle("POST /auth/login", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -282,6 +298,9 @@ func (l *LocalAuth) Handler() http.Handler {
 			slog.Error("login failed", "err", err)
 			writeLogin(w, http.StatusInternalServerError, "Server error.")
 			return
+		}
+		if old, err := r.Cookie(SessionCookie); err == nil && old.Value != "" {
+			_ = l.Logout(r.Context(), old.Value) // rotate: presented session dies
 		}
 		http.SetCookie(w, l.cookie(cv, int(sessionTTL.Seconds())))
 		http.Redirect(w, r, "/", http.StatusSeeOther)

@@ -295,8 +295,8 @@ func TestAuthPostsCrossOriginProtected(t *testing.T) {
 	r.AddCookie(&http.Cookie{Name: SessionCookie, Value: cv})
 	rec := httptest.NewRecorder()
 	la.Handler().ServeHTTP(rec, r)
-	if rec.Code != 403 {
-		t.Fatalf("cross-site logout: %d", rec.Code)
+	if rec.Code != 403 || rec.Header().Get("Content-Type") != "application/problem+json" || !strings.Contains(rec.Body.String(), `"CROSS_ORIGIN"`) {
+		t.Fatalf("cross-site logout: %d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
 	}
 	if _, err := la.VerifySession(ctx, cv); err != nil {
 		t.Fatal("session destroyed by cross-site logout")
@@ -307,8 +307,9 @@ func TestAuthPostsCrossOriginProtected(t *testing.T) {
 	r.Header.Set("Sec-Fetch-Site", "cross-site")
 	rec = httptest.NewRecorder()
 	la.Handler().ServeHTTP(rec, r)
-	if rec.Code != 403 || len(rec.Result().Cookies()) != 0 {
-		t.Fatalf("cross-site login: %d", rec.Code)
+	if rec.Code != 403 || len(rec.Result().Cookies()) != 0 ||
+		rec.Header().Get("Content-Type") != "application/problem+json" || !strings.Contains(rec.Body.String(), `"CROSS_ORIGIN"`) {
+		t.Fatalf("cross-site login: %d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
 	}
 	rec = httptest.NewRecorder()
 	la.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/auth/login", nil))
@@ -337,5 +338,37 @@ func TestSessionSlideThrottled(t *testing.T) {
 	_ = la.st.R.QueryRowContext(ctx, `SELECT expires_at FROM human_sessions`).Scan(&exp)
 	if exp != "2026-01-01T12:11:00Z" {
 		t.Fatalf("did not slide: %s", exp)
+	}
+}
+
+func TestSetPasswordRejectsBlank(t *testing.T) {
+	t.Parallel()
+	la := newLocal(t, "http://x")
+	for _, c := range []struct{ u, p string }{{"", ""}, {"alice", ""}, {"", "pw"}, {"  ", "pw"}, {"alice", "   "}} {
+		if err := la.SetPassword(context.Background(), c.u, c.p); !errors.Is(err, ErrInvalidPassword) {
+			t.Errorf("SetPassword(%q,%q) = %v", c.u, c.p, err)
+		}
+	}
+	if _, err := la.Login(context.Background(), "", ""); err == nil {
+		t.Fatal("empty login succeeded")
+	}
+}
+
+func TestLoginRotatesPresentedSession(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	la := newLocal(t, "http://x")
+	_ = la.SetPassword(ctx, "alice", "pw")
+	old, _ := la.Login(ctx, "alice", "pw")
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.AddCookie(&http.Cookie{Name: SessionCookie, Value: old})
+	rec := httptest.NewRecorder()
+	la.Handler().ServeHTTP(rec, r)
+	if rec.Code != 303 {
+		t.Fatalf("login: %d", rec.Code)
+	}
+	if _, err := la.VerifySession(ctx, old); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("old session still valid: %v", err)
 	}
 }

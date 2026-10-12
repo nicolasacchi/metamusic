@@ -103,21 +103,25 @@ func (t *TokenStore) Verify(ctx context.Context, plaintext string) (Principal, e
 		return Principal{}, ErrInvalidToken
 	}
 	var id, name, scopes string
-	var revoked sql.NullString
+	var revoked, lastUsed sql.NullString
 	err := t.st.R.QueryRowContext(ctx,
-		`SELECT id,name,scopes,revoked_at FROM api_tokens WHERE hmac_hash=?`, mac(t.key, plaintext)).
-		Scan(&id, &name, &scopes, &revoked)
+		`SELECT id,name,scopes,revoked_at,last_used_at FROM api_tokens WHERE hmac_hash=?`, mac(t.key, plaintext)).
+		Scan(&id, &name, &scopes, &revoked, &lastUsed)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && revoked.Valid) {
 		return Principal{}, ErrInvalidToken
 	}
 	if err != nil {
 		return Principal{}, fmt.Errorf("verify token: %w", err)
 	}
-	// best effort; a failed bookkeeping write must not fail authentication
+	// Best effort bookkeeping: decided in Go from the reader-pool value so the
+	// single writer connection is only touched when a write is actually due,
+	// and then only under a short bounded context.
 	n := time.Now().UTC()
-	_, _ = t.st.W.ExecContext(ctx,
-		`UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`,
-		n.Format(time.RFC3339), id, n.Add(-touchInterval).Format(time.RFC3339))
+	if lu, perr := time.Parse(time.RFC3339, lastUsed.String); !lastUsed.Valid || perr != nil || n.Sub(lu) >= touchInterval {
+		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 250*time.Millisecond)
+		_, _ = t.st.W.ExecContext(wctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, n.Format(time.RFC3339), id)
+		cancel()
+	}
 	return Principal{Kind: KindAgent, ID: id, Name: name, Scopes: splitScopes(scopes), Via: "token"}, nil
 }
 

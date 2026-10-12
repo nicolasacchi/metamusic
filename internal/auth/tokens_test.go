@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -154,16 +155,54 @@ func TestTokenLastUsedThrottled(t *testing.T) {
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key)
 	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
+	get := func() string {
+		var lu string
+		_ = ts.st.R.QueryRowContext(ctx, `SELECT COALESCE(last_used_at,'') FROM api_tokens WHERE id=?`, id).Scan(&lu)
+		return lu
+	}
+	set := func(d time.Duration) string {
+		v := time.Now().UTC().Add(-d).Format(time.RFC3339)
+		_, _ = ts.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, v, id)
+		return v
+	}
 	if _, err := ts.Verify(ctx, plain); err != nil {
 		t.Fatal(err)
 	}
-	// pretend it was used 10s ago; a second verify must not rewrite it
-	const stamp = "2999-01-01T00:00:00Z"
-	_, _ = ts.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, stamp, id)
-	_, _ = ts.Verify(ctx, plain)
-	var lu string
-	_ = ts.st.R.QueryRowContext(ctx, `SELECT last_used_at FROM api_tokens WHERE id=?`, id).Scan(&lu)
-	if lu != stamp {
+	if get() == "" {
+		t.Fatal("first use not recorded")
+	}
+	recent := set(10 * time.Second)
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	if lu := get(); lu != recent {
 		t.Fatalf("last_used_at rewritten within throttle window: %s", lu)
+	}
+	stale := set(120 * time.Second)
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	if lu := get(); lu == stale {
+		t.Fatal("stale last_used_at not refreshed")
+	}
+}
+
+func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
+	ctx := context.Background()
+	ts := NewTokenStore(newStore(t), key)
+	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
+	recent := time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339)
+	_, _ = ts.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, recent, id)
+	tx, err := ts.st.W.BeginTx(ctx, nil) // holds the only writer connection
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	start := time.Now()
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 100*time.Millisecond {
+		t.Fatalf("Verify blocked %v on the writer inside the throttle window", d)
 	}
 }
