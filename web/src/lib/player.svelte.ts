@@ -457,6 +457,10 @@ export class Player {
     const code = el?.error?.code;
     const id = this.state.trackId;
     if (!el || !id) return;
+    // Firefox reports a failing audio output (no device, e.g. headless CI) as MEDIA_ERR_DECODE with this message
+    // after decoding already worked, and keeps the media clock running. It says nothing about the codec: do not
+    // fall back to MP3, record a failed probe, or touch playback state.
+    if (/MediaSink/i.test(el.error?.message ?? "")) return;
     const at = el.currentTime || this.state.current || 0;
     const resume = this.wantPlay;
     // Chrome/Firefox report a 403 on the media fetch as code 4 (not 2): an expired link is a re-mint, not a codec problem.

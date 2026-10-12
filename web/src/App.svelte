@@ -100,18 +100,21 @@
   .shell {
     min-height: 100dvh;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr auto;
   }
   header {
     display: flex;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
     align-items: center;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid #3a322b;
   }
   nav {
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
   }
   nav a[aria-current="page"] {
     font-weight: 700;

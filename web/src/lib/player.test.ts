@@ -16,7 +16,7 @@ class FakeAudio extends EventTarget {
   duration = NaN;
   paused = true;
   readyState = 0;
-  error: { code: number } | null = null;
+  error: { code: number; message: string } | null = null;
   log: string[] = [];
   setSeekLog: number[] = [];
   play() {
@@ -35,8 +35,8 @@ class FakeAudio extends EventTarget {
   emit(type: string) {
     this.dispatchEvent(new Event(type));
   }
-  fail(code: number) {
-    this.error = { code };
+  fail(code: number, message = "") {
+    this.error = { code, message };
     this.emit("error");
   }
   /** Chromium order: the element pauses itself and fires `pause` before `error`. */
@@ -339,6 +339,19 @@ describe("player store", () => {
     el.emit("loadedmetadata");
     expect(failed).toHaveLength(0);
     expect(p.state.error).not.toBe("");
+  });
+
+  test("Firefox audio sink error (code 3) is not a codec failure: no MP3 fallback, no failed probe", async () => {
+    const { p, el, failed, flush } = setup();
+    p.play("a");
+    await flush();
+    el.emit("playing");
+    el.fail(3, "OnMediaSinkAudioError");
+    await flush();
+    expect(failed).toHaveLength(0);
+    expect(p.state.format).toBe("flac");
+    expect(p.state.playing).toBe(true);
+    expect(p.state.error).toBe("");
   });
 
   test("Chromium event order: re-mint after code 2 still resumes playback", async () => {
