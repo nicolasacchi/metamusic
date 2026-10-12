@@ -102,10 +102,7 @@
             "items": {
               "type": "string"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "via": {
             "description": "How the principal authenticated: proxy, local or token",

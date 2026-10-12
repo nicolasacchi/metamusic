@@ -67,39 +67,51 @@ func codeFor(status int) string {
 
 func init() {
 	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
-		p := &Problem{Status: status, Code: codeFor(status), Message: msg, Details: map[string]any{}}
-		if status >= 500 {
-			// Never leak internals to clients.
-			for _, e := range errs {
-				if e != nil {
-					slog.Error("handler error", "status", status, "err", e.Error())
-				}
-			}
-			if msg == "" || msg == "unexpected error occurred" {
-				p.Message = "internal error"
-			}
-			return p
-		}
-		var list []any
+		return newProblem(nil, status, msg, errs...)
+	}
+	huma.NewErrorWithContext = func(ctx huma.Context, status int, msg string, errs ...error) huma.StatusError {
+		return newProblem(ctx, status, msg, errs...)
+	}
+}
+
+func newProblem(ctx huma.Context, status int, msg string, errs ...error) huma.StatusError {
+	p := &Problem{Status: status, Code: codeFor(status), Message: msg, Details: map[string]any{}}
+	if status >= 500 {
+		// Never leak internals to clients.
 		for _, e := range errs {
-			if e == nil {
-				continue
-			}
-			if d, ok := e.(huma.ErrorDetailer); ok {
-				list = append(list, d.ErrorDetail())
-			} else {
-				list = append(list, &huma.ErrorDetail{Message: e.Error()})
+			if e != nil {
+				// TODO: route through internal/redact once it exists.
+				attrs := []any{"status", status, "err", e.Error()}
+				if ctx != nil {
+					if op := ctx.Operation(); op != nil {
+						attrs = append(attrs, "operation", op.OperationID)
+					}
+					attrs = append(attrs, "path", ctx.URL().Path)
+				}
+				slog.Error("handler error", attrs...)
 			}
 		}
-		if list != nil {
-			p.Details["errors"] = list
-		}
-		if status == http.StatusUnprocessableEntity {
-			p.Code = "VALIDATION_FAILED"
+		if msg == "" || msg == "unexpected error occurred" {
+			p.Message = "internal error"
 		}
 		return p
 	}
-	huma.NewErrorWithContext = func(_ huma.Context, status int, msg string, errs ...error) huma.StatusError {
-		return huma.NewError(status, msg, errs...)
+	var list []any
+	for _, e := range errs {
+		if e == nil {
+			continue
+		}
+		if d, ok := e.(huma.ErrorDetailer); ok {
+			list = append(list, d.ErrorDetail())
+		} else {
+			list = append(list, &huma.ErrorDetail{Message: e.Error()})
+		}
 	}
+	if list != nil {
+		p.Details["errors"] = list
+	}
+	if status == http.StatusUnprocessableEntity {
+		p.Code = "VALIDATION_FAILED"
+	}
+	return p
 }

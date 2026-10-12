@@ -92,6 +92,8 @@ func cmdToken(ctx context.Context, args []string, getenv func(string) string, s 
 	return nil
 }
 
+const maxPasswordBytes = 4096
+
 func cmdUser(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	if len(args) == 0 || args[0] != "set-password" {
 		return usageError("user: expected set-password")
@@ -112,9 +114,12 @@ func cmdUser(ctx context.Context, args []string, getenv func(string) string, s s
 	if b.cfg.AuthMode != "local" {
 		return errors.New("user set-password only applies to MM_AUTH=local")
 	}
-	raw, err := io.ReadAll(io.LimitReader(s.in, 4096))
+	raw, err := io.ReadAll(io.LimitReader(s.in, maxPasswordBytes+1))
 	if err != nil {
 		return err
+	}
+	if len(raw) > maxPasswordBytes {
+		return fmt.Errorf("password exceeds %d bytes", maxPasswordBytes)
 	}
 	pw := strings.TrimRight(string(raw), "\r\n")
 	if err := b.local.SetPassword(ctx, *username, pw); err != nil {

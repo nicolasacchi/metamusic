@@ -226,20 +226,32 @@ func TestSetPassword(t *testing.T) {
 
 func TestDevBootstrap(t *testing.T) {
 	dir := t.TempDir()
-	env := map[string]string{"MM_DATA_DIR": dir, "MM_ADDR": "127.0.0.1:0", "MM_AUTH": "proxy"} // MM_AUTH overridden
+	// MM_AUTH, MM_DATA_DIR and MM_SECRETS_DIR from the environment are ignored by dev.
+	env := map[string]string{"MM_DATA_DIR": t.TempDir(), "MM_SECRETS_DIR": t.TempDir(), "MM_ADDR": "127.0.0.1:0", "MM_AUTH": "proxy"}
 	ctx, cancel := context.WithCancel(context.Background())
 	var out, errb syncBuf
 	done := make(chan int, 1)
-	go func() { done <- run(ctx, []string{"dev"}, envFn(env), strings.NewReader(""), &out, &errb) }()
-	for i := 0; i < 200 && !strings.Contains(out.String(), "listening on"); i++ {
+	go func() {
+		done <- run(ctx, []string{"dev", "--data-dir", dir}, envFn(env), strings.NewReader(""), &out, &errb)
+	}()
+	for deadline := time.Now().Add(60 * time.Second); !strings.Contains(out.String(), "listening on") && time.Now().Before(deadline); {
 		time.Sleep(25 * time.Millisecond)
 	}
 	cancel()
 	<-done
-	if !strings.Contains(out.String(), "dev login: username=dev password=") || !strings.Contains(out.String(), "auth=local") {
+	if !strings.Contains(out.String(), "dev login: username=dev password=") || !strings.Contains(out.String(), "listening on") ||
+		!strings.Contains(out.String(), "auth=local") {
 		t.Fatalf("out %q err %q", out.String(), errb.String())
 	}
 	if st, err := os.Stat(filepath.Join(dir, "secrets", "secret_key")); err != nil || st.Mode().Perm() != 0o600 {
 		t.Fatalf("secret_key: %v %v", st, err)
+	}
+}
+
+func TestSetPasswordTooLong(t *testing.T) {
+	env := testEnv(t, "local")
+	long := strings.Repeat("a", 4097) + "\n"
+	if code, _, errb := do(t, env, long, "user", "set-password", "--username", "bob"); code != 1 || !strings.Contains(errb, "exceeds") {
+		t.Fatalf("code %d err %q", code, errb)
 	}
 }

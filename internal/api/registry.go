@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -23,6 +24,10 @@ type Meta struct {
 const humanPrefix = "/human/api/"
 
 var opIDRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// ValidateMeta applies the registration rules to one operation; tests use it
+// to check the serialized spec.
+func ValidateMeta(op huma.Operation, m Meta) error { return validate(op, m) }
 
 func validate(op huma.Operation, m Meta) error {
 	switch {
@@ -49,6 +54,12 @@ func validate(op huma.Operation, m Meta) error {
 	if !(strings.HasPrefix(m.UI, "/") || hasReason(m.UI, "none:")) {
 		return fmt.Errorf("%s: invalid ui %q", op.OperationID, m.UI)
 	}
+	if !strings.HasPrefix(op.Path, "/api/") && !strings.HasPrefix(op.Path, humanPrefix) {
+		return fmt.Errorf("%s: path %q must be under /api/ or %s", op.OperationID, op.Path, humanPrefix)
+	}
+	if m.HumanOnly && !hasReason(m.MCP, "exclude:") {
+		return fmt.Errorf("%s: human_only ops must use mcp exclude:<reason>, got %q", op.OperationID, m.MCP)
+	}
 	inHuman := strings.HasPrefix(op.Path, humanPrefix)
 	if m.HumanOnly != inHuman {
 		return fmt.Errorf("%s: human_only=%v inconsistent with path %q", op.OperationID, m.HumanOnly, op.Path)
@@ -72,19 +83,42 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	}
 	exts["x-mm"] = meta
 	op.Extensions = exts
+	op.Middlewares = append(huma.Middlewares{func(ctx huma.Context, next func(huma.Context)) {
+		if err := authorize(ctx.Context(), meta); err != nil {
+			writeProblem(ctx, err.(*Problem))
+			return
+		}
+		next(ctx)
+	}}, op.Middlewares...)
 	huma.Register(a, op, func(ctx context.Context, in *I) (*O, error) {
-		p := auth.FromContext(ctx)
-		if p.Kind == auth.KindAnonymous || p.Kind == "" {
-			return nil, Err(401, "UNAUTHENTICATED", "authentication required", nil)
-		}
-		if meta.HumanOnly && p.Kind != auth.KindHuman {
-			return nil, Err(403, "HUMAN_ONLY", "this operation is restricted to human users", nil)
-		}
-		if !p.Has(meta.Scope) {
-			return nil, Err(403, "FORBIDDEN_SCOPE", "missing required scope", map[string]any{"scope": string(meta.Scope)})
+		// Defense in depth: the middleware already refused unauthorized callers.
+		if err := authorize(ctx, meta); err != nil {
+			return nil, err
 		}
 		return h(ctx, in)
 	})
+}
+
+// authorize checks the principal against the operation metadata.
+func authorize(ctx context.Context, meta Meta) error {
+	p := auth.FromContext(ctx)
+	if p.Kind == auth.KindAnonymous || p.Kind == "" {
+		return Err(401, "UNAUTHENTICATED", "authentication required", nil)
+	}
+	if meta.HumanOnly && p.Kind != auth.KindHuman {
+		return Err(403, "HUMAN_ONLY", "this operation is restricted to human users", nil)
+	}
+	if !p.Has(meta.Scope) {
+		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", map[string]any{"scope": string(meta.Scope)})
+	}
+	return nil
+}
+
+// writeProblem writes p as application/problem+json before any input is read.
+func writeProblem(ctx huma.Context, p *Problem) {
+	ctx.SetHeader("Content-Type", "application/problem+json")
+	ctx.SetStatus(p.Status)
+	_ = json.NewEncoder(ctx.BodyWriter()).Encode(p)
 }
 
 // OpMeta returns the x-mm metadata of a registered operation.

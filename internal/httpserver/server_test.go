@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -95,7 +98,10 @@ var spaFS = fstest.MapFS{
 	"index.html":           {Data: []byte("<html>spa</html>")},
 	"assets/app.js":        {Data: []byte("console.log(1)")},
 	"manifest.webmanifest": {Data: []byte("{}")},
+	"other.html":           {Data: []byte("<html>other</html>")},
 }
+
+const wantCSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 
 func TestHealthz(t *testing.T) {
 	e := newEnv(t, nil, spaFS, nil)
@@ -178,8 +184,7 @@ func TestSPA(t *testing.T) {
 		t.Errorf("index cache %q", w.Header().Get("Cache-Control"))
 	}
 	hd := w.Header()
-	if !strings.Contains(hd.Get("Content-Security-Policy"), "default-src 'self'") ||
-		!strings.Contains(hd.Get("Content-Security-Policy"), "frame-ancestors 'none'") ||
+	if hd.Get("Content-Security-Policy") != wantCSP ||
 		hd.Get("X-Content-Type-Options") != "nosniff" || hd.Get("Referrer-Policy") != "same-origin" {
 		t.Errorf("headers %v", hd)
 	}
@@ -187,6 +192,17 @@ func TestSPA(t *testing.T) {
 	w = e.do(httptest.NewRequest("GET", "/assets/app.js", nil))
 	if w.Code != 200 || !strings.Contains(w.Header().Get("Cache-Control"), "immutable") || w.Body.String() != "console.log(1)" {
 		t.Fatalf("asset %d %v", w.Code, w.Header())
+	}
+	// other HTML files get the same security headers
+	w = e.do(human(httptest.NewRequest("GET", "/other.html", nil)))
+	if w.Code != 200 || w.Header().Get("Content-Security-Policy") != wantCSP || w.Header().Get("Referrer-Policy") != "same-origin" {
+		t.Errorf("other.html %d %v", w.Code, w.Header())
+	}
+	// missing static files 404 instead of falling back to the shell
+	for _, p := range []string{"/assets/gone.js", "/icons/gone.png"} {
+		if w = e.do(human(httptest.NewRequest("GET", p, nil))); w.Code != 404 {
+			t.Errorf("%s = %d", p, w.Code)
+		}
 	}
 	// POST to SPA is refused
 	w = e.do(human(httptest.NewRequest("POST", "/", nil)))
@@ -198,7 +214,7 @@ func TestSPA(t *testing.T) {
 func TestSPANotBuilt(t *testing.T) {
 	e := newEnv(t, nil, fstest.MapFS{".gitkeep": {}}, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/", nil)))
-	if !strings.Contains(w.Body.String(), "UI not built") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "default-src") {
+	if w.Code != 503 || !strings.Contains(w.Body.String(), "UI not built") || w.Header().Get("Content-Security-Policy") != wantCSP {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }
@@ -266,5 +282,58 @@ func TestE2EServed(t *testing.T) {
 	}
 	if strings.Join(ids, ",") != "get_system_info,ping" {
 		t.Fatalf("served = %v", ids)
+	}
+}
+
+func TestMCPFactoryShares(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	key := []byte("0123456789abcdef0123456789abcdef")
+	cfg := config.Config{Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy"}
+	tokens := auth.NewTokenStore(st, key)
+	started := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	var gotAPI huma.API
+	var gotInner http.Handler
+	h, err := httpserver.New(httpserver.Options{
+		Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: edge}, Store: st, Tokens: tokens,
+		Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL), SPA: spaFS, Started: started,
+		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
+			gotAPI, gotInner = a, inner
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(204)
+			}), nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAPI == nil || gotInner == nil {
+		t.Fatal("factory not called")
+	}
+	// the inner handler serves /api/me for a principal in the context
+	p := auth.Principal{Kind: auth.KindAgent, Name: "x", Scopes: []auth.Scope{auth.ScopeRead}, Via: "token"}
+	r := httptest.NewRequest("GET", "/api/me", nil).WithContext(auth.WithPrincipal(ctx, p))
+	w := httptest.NewRecorder()
+	gotInner.ServeHTTP(w, r)
+	if w.Code != 200 || decode(t, w)["name"] != "x" {
+		t.Fatalf("inner /api/me: %d %s", w.Code, w.Body)
+	}
+	// Started is shared with get_system_info
+	r = httptest.NewRequest("GET", "/api/system", nil).WithContext(auth.WithPrincipal(ctx, p))
+	w = httptest.NewRecorder()
+	gotInner.ServeHTTP(w, r)
+	if decode(t, w)["started_at"] != "2026-01-02T03:04:05Z" {
+		t.Fatalf("started_at %s", w.Body)
+	}
+	// and /mcp is routed to the factory-built handler for agents
+	tok, _, _ := tokens.Create(ctx, "a", []auth.Scope{auth.ScopeRead})
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, bearer(httptest.NewRequest("POST", "/mcp", nil), tok))
+	if w.Code != 204 {
+		t.Errorf("/mcp = %d", w.Code)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -96,6 +97,7 @@ func cmdServe(ctx context.Context, getenv func(string) string, s streams) error 
 }
 
 func serve(ctx context.Context, b *booted, s streams) error {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: b.cfg, Sec: b.sec, Store: b.st, Tokens: b.tokens, Sessions: b.local,
 		SPA: web.Dist(), Version: version, Commit: commit,
@@ -127,13 +129,17 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	return nil
 }
 
-func cmdDev(ctx context.Context, getenv func(string) string, s streams) error {
-	over := map[string]string{"MM_AUTH": "local"}
-	dir := getenv("MM_DATA_DIR")
-	if dir == "" {
-		dir = "./data/dev"
+func cmdDev(ctx context.Context, args []string, getenv func(string) string, s streams) error {
+	fs := newFlags("dev", s)
+	dir := fs.String("data-dir", "./data/dev", "dev data directory (MM_DATA_DIR and MM_SECRETS_DIR are ignored)")
+	if err := fs.Parse(args); err != nil {
+		return usageError(err.Error())
 	}
-	over["MM_DATA_DIR"] = dir
+	over := map[string]string{
+		"MM_AUTH":        "local",
+		"MM_DATA_DIR":    *dir,
+		"MM_SECRETS_DIR": filepath.Join(*dir, "secrets"),
+	}
 	env := func(k string) string {
 		if v, ok := over[k]; ok {
 			return v

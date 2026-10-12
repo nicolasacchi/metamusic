@@ -62,7 +62,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 	case "serve":
 		err = cmdServe(ctx, getenv, s)
 	case "dev":
-		err = cmdDev(ctx, getenv, s)
+		err = cmdDev(ctx, rest, getenv, s)
 	case "token":
 		err = cmdToken(ctx, rest, getenv, s)
 	case "user":

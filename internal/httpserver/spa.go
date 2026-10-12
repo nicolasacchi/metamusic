@@ -34,9 +34,17 @@ func spaHandler(fsys fs.FS) http.Handler {
 						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 					}
 					w.Header().Set("X-Content-Type-Options", "nosniff")
+					if strings.HasSuffix(name, ".html") {
+						htmlHeaders(w.Header())
+					}
 					http.ServeFileFS(w, r, fsys, name)
 					return
 				}
+			}
+			if strings.HasPrefix(name, "assets/") || strings.HasPrefix(name, "icons/") {
+				// A missing static file must not fall back to the SPA shell.
+				http.NotFound(w, r)
+				return
 			}
 			if b, err := fs.ReadFile(fsys, "index.html"); err == nil {
 				htmlHeaders(w.Header())

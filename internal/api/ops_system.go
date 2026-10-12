@@ -20,7 +20,7 @@ type whoamiOut struct {
 	Body struct {
 		Kind   string   `json:"kind" enum:"human,agent" doc:"Principal kind"`
 		Name   string   `json:"name" doc:"Username or token name"`
-		Scopes []string `json:"scopes" doc:"Granted scopes"`
+		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
 		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local or token"`
 	}
 }

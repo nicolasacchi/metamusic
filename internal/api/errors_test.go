@@ -53,6 +53,8 @@ func TestProblemShape(t *testing.T) {
 	}{
 		{"validation", `{"n":0}`, "VALIDATION_FAILED", 422},
 		{"custom", `{"n":7}`, "CONFLICT", 409},
+		// malformed JSON is deliberately BAD_REQUEST (400), distinct from schema failures (422).
+		{"malformed", `{`, "BAD_REQUEST", 400},
 	} {
 		w := do(tc.body)
 		if w.Code != tc.status {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -16,12 +18,17 @@ import (
 
 // Options configures New.
 type Options struct {
-	Cfg             config.Config
-	Sec             config.Secrets
-	Store           *store.Store
-	Tokens          *auth.TokenStore
-	Sessions        *auth.LocalAuth
-	MCP             http.Handler // nil => /mcp is 404
+	Cfg      config.Config
+	Sec      config.Secrets
+	Store    *store.Store
+	Tokens   *auth.TokenStore
+	Sessions *auth.LocalAuth
+	MCP      http.Handler // nil => /mcp is 404 (unless MCPFactory is set)
+	// MCPFactory builds the MCP handler from the same huma.API and inner mux
+	// that serve /api, so tools dispatch in-process into one registry. Used
+	// only when MCP is nil.
+	MCPFactory      func(a huma.API, inner http.Handler) (http.Handler, error)
+	Started         time.Time // zero => time.Now() at New
 	SPA             fs.FS
 	Version, Commit string
 }
@@ -37,8 +44,19 @@ func New(o Options) (http.Handler, error) {
 	if o.Tokens == nil || o.Sessions == nil {
 		return nil, errors.New("httpserver: Tokens and Sessions are required")
 	}
+	started := o.Started
+	if started.IsZero() {
+		started = time.Now()
+	}
 	inner := http.NewServeMux()
-	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: time.Now()})
+	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started})
+	if o.MCP == nil && o.MCPFactory != nil {
+		m, err := o.MCPFactory(a, inner)
+		if err != nil {
+			return nil, err
+		}
+		o.MCP = m
+	}
 
 	// pattern ("GET /api/ping") -> operation id, for served-operation recording.
 	opByPattern := map[string]string{}
