@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * List device profiles
-         * @description All known device playback profiles.
+         * @description Known device playback profiles. Pages are capped in size; follow next_cursor.
          */
         get: operations["list_device_profiles"];
         put?: never;
@@ -113,7 +113,7 @@ export interface paths {
         };
         /**
          * List import runs
-         * @description Import runs, newest first, with state, plan digest and error and warning counts.
+         * @description Import runs, newest first, with state, plan digest and error and warning counts. Pages are capped in size; follow next_cursor.
          */
         get: operations["list_import_runs"];
         put?: never;
@@ -455,8 +455,9 @@ export interface components {
             updated_at: string;
             user_agent: string;
         };
-        DeviceProfilesOutBody: {
+        DeviceProfileList: {
             items: components["schemas"]["DeviceProfile"][];
+            next_cursor: string | null;
         };
         DraftDetail: {
             collections: string[];
@@ -562,6 +563,10 @@ export interface components {
             rule: string;
             run_id: string | null;
         };
+        ImportRunList: {
+            items: components["schemas"]["ImportRunSummary"][];
+            next_cursor: string | null;
+        };
         ImportRunPage: {
             items: unknown[];
             next_cursor: string | null;
@@ -585,9 +590,6 @@ export interface components {
             } | null;
             /** Format: int64 */
             warnings: number;
-        };
-        ImportRunsOutBody: {
-            items: components["schemas"]["ImportRunSummary"][];
         };
         ImportStats: {
             last_run_at: string | null;
@@ -940,7 +942,10 @@ export interface operations {
     };
     list_device_profiles: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -953,7 +958,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeviceProfilesOutBody"];
+                    "application/json": components["schemas"]["DeviceProfileList"];
                 };
             };
             /** @description Error */
@@ -1076,6 +1081,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1089,7 +1095,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImportRunsOutBody"];
+                    "application/json": components["schemas"]["ImportRunList"];
                 };
             };
             /** @description Error */

@@ -1,25 +1,17 @@
 package library
 
 import (
-	"path"
 	"reflect"
 
 	"github.com/danielgtaylor/huma/v2"
 )
 
 // nullableObject renders T (a method-less shadow of the real type) as an inline
-// object schema with Nullable=true, i.e. `type: ["object","null"]`. Huma refuses
+// object schema with Nullable=true (SchemaFromType returns a struct inline, never a $ref), i.e. `type: ["object","null"]`. Huma refuses
 // nullable fields that point at a $ref object, so the sub-objects that really
 // can be null (pointer fields) provide their own inline schema.
 func nullableObject[T any](r huma.Registry) *huma.Schema {
-	ref := huma.SchemaFromType(r, reflect.TypeFor[T]())
-	target := ref
-	if ref.Ref != "" {
-		name := path.Base(ref.Ref)
-		target = r.Map()[name]
-		delete(r.Map(), name) // the shadow component is not part of the API
-	}
-	cp := *target
+	cp := *huma.SchemaFromType(r, reflect.TypeFor[T]())
 	cp.Nullable = true
 	return &cp
 }

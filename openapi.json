@@ -403,7 +403,7 @@
         ],
         "type": "object"
       },
-      "DeviceProfilesOutBody": {
+      "DeviceProfileList": {
         "additionalProperties": false,
         "properties": {
           "items": {
@@ -411,10 +411,17 @@
               "$ref": "#/components/schemas/DeviceProfile"
             },
             "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "type": "object"
       },
@@ -862,6 +869,28 @@
         ],
         "type": "object"
       },
+      "ImportRunList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRunSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
       "ImportRunPage": {
         "additionalProperties": false,
         "properties": {
@@ -949,21 +978,6 @@
           "summary",
           "errors",
           "warnings"
-        ],
-        "type": "object"
-      },
-      "ImportRunsOutBody": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ImportRunSummary"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
         ],
         "type": "object"
       },
@@ -2090,14 +2104,36 @@
     },
     "/api/device-profiles": {
       "get": {
-        "description": "All known device playback profiles.",
+        "description": "Known device playback profiles. Pages are capped in size; follow next_cursor.",
         "operationId": "list_device_profiles",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceProfilesOutBody"
+                  "$ref": "#/components/schemas/DeviceProfileList"
                 }
               }
             },
@@ -2338,7 +2374,7 @@
     },
     "/api/imports": {
       "get": {
-        "description": "Import runs, newest first, with state, plan digest and error and warning counts.",
+        "description": "Import runs, newest first, with state, plan digest and error and warning counts. Pages are capped in size; follow next_cursor.",
         "operationId": "list_import_runs",
         "parameters": [
           {
@@ -2352,6 +2388,14 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2359,7 +2403,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportRunsOutBody"
+                  "$ref": "#/components/schemas/ImportRunList"
                 }
               }
             },

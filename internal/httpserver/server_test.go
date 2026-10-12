@@ -392,7 +392,7 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 	w := do(h, "/api/tracks/"+lt.TrackLuna+"/media")
 	m := decode(t, w)
 	if w.Code != 200 || m["expires_at"] != "2026-10-06T12:15:00Z" {
-		t.Fatalf("Signer/Now not wired: %d %s", w.Code, w.Body)
+		t.Fatalf("Signer clock not wired (expires_at is the Signer's own clock, same func as Options.Now): %d %s", w.Code, w.Body)
 	}
 	fl := m["flac"].(map[string]any)
 	u, _ := url.Parse(fl["url"].(string))

@@ -180,14 +180,15 @@ type parityFixture struct {
 // without an entry fails TestParityEveryOperation, so new ops cannot escape
 // parity unnoticed (and -update on the golden cannot hide it).
 var parityArgs = map[string]parityFixture{
-	"search_tracks":    {Args: map[string]any{"q": "luna", "limit": 10}, Path: "/api/tracks?q=luna&limit=10"},
-	"get_track":        {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna},
-	"get_track_peaks":  {Args: map[string]any{"id": lt.TrackLuna, "level": "detail"}, Path: "/api/tracks/" + lt.TrackLuna + "/peaks?level=detail"},
-	"get_media_links":  {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna + "/media"},
-	"list_drafts":      {Args: map[string]any{"limit": 10}, Path: "/api/drafts?limit=10"},
-	"get_draft":        {Args: map[string]any{"id": lt.Draft1}, Path: "/api/drafts/" + lt.Draft1},
-	"list_import_runs": {Args: map[string]any{"limit": 10}, Path: "/api/imports?limit=10"},
-	"get_import_run":   {Args: map[string]any{"id": lt.RunID, "section": "warnings"}, Path: "/api/imports/" + lt.RunID + "?section=warnings"},
+	"search_tracks":        {Args: map[string]any{"q": "luna", "limit": 10}, Path: "/api/tracks?q=luna&limit=10"},
+	"get_track":            {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna},
+	"get_track_peaks":      {Args: map[string]any{"id": lt.TrackLuna, "level": "detail"}, Path: "/api/tracks/" + lt.TrackLuna + "/peaks?level=detail"},
+	"get_media_links":      {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna + "/media"},
+	"list_drafts":          {Args: map[string]any{"limit": 10}, Path: "/api/drafts?limit=10"},
+	"get_draft":            {Args: map[string]any{"id": lt.Draft1}, Path: "/api/drafts/" + lt.Draft1},
+	"list_import_runs":     {Args: map[string]any{"limit": 10}, Path: "/api/imports?limit=10"},
+	"list_device_profiles": {Args: map[string]any{"limit": 10}, Path: "/api/device-profiles?limit=10"},
+	"get_import_run":       {Args: map[string]any{"id": lt.RunID, "section": "warnings"}, Path: "/api/imports/" + lt.RunID + "?section=warnings"},
 	"put_device_profile": {
 		Args: map[string]any{
 			"device_id": "parity-device-1", "label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",

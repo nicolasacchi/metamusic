@@ -34,18 +34,16 @@ func registerDevices(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_device_profiles", Method: "GET", Path: "/api/device-profiles",
 		Summary:     "List device profiles",
-		Description: "All known device playback profiles.",
+		Description: "Known device playback profiles. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings"},
-		func(ctx context.Context, _ *empty) (*deviceProfilesOut, error) {
+		func(ctx context.Context, in *listDeviceProfilesIn) (*deviceProfilesOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
-			items, err := d.Library.DeviceProfiles(ctx)
+			l, err := d.Library.DeviceProfiles(ctx, in.Limit, in.Cursor)
 			if err != nil {
 				return nil, libErr(err)
 			}
-			out := &deviceProfilesOut{}
-			out.Body.Items = items
-			return out, nil
+			return &deviceProfilesOut{Body: l}, nil
 		})
 }

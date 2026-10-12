@@ -63,23 +63,46 @@ func intOf(v any) int {
 	return 0
 }
 
-// ImportRuns lists runs, newest first.
-func (s *Service) ImportRuns(ctx context.Context, limit int) ([]ImportRunSummary, error) {
-	limit = clampLimit(limit, 50, 200)
-	rows, err := s.st.R.QueryContext(ctx, `SELECT `+runCols+` FROM import_runs ORDER BY started_at DESC, id DESC LIMIT ?`, limit)
+// ImportRunList is one page of import runs.
+type ImportRunList struct {
+	Items      []ImportRunSummary `json:"items" nullable:"false"`
+	NextCursor *string            `json:"next_cursor"`
+}
+
+// ImportRuns lists runs, newest first, under the page byte cap.
+func (s *Service) ImportRuns(ctx context.Context, limit int, cursor string) (ImportRunList, error) {
+	off, err := decodeCursor(cursor)
 	if err != nil {
-		return nil, err
+		return ImportRunList{}, err
+	}
+	limit = clampLimit(limit, 50, 200)
+	rows, err := s.st.R.QueryContext(ctx, `SELECT `+runCols+` FROM import_runs ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?`, limit+1, off)
+	if err != nil {
+		return ImportRunList{}, err
 	}
 	defer rows.Close()
-	out := []ImportRunSummary{}
+	out := ImportRunList{Items: []ImportRunSummary{}}
+	pg := newPager(out)
+	more := false
 	for rows.Next() {
 		x, err := scanRun(rows)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
-		out = append(out, x)
+		if len(out.Items) >= limit || !pg.add(sizeOf(x)) {
+			more = true
+			break
+		}
+		out.Items = append(out.Items, x)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	if more {
+		c := encodeCursor(off + len(out.Items))
+		out.NextCursor = &c
+	}
+	return out, nil
 }
 
 // ImportRun pages through one section of a run's report. The section default

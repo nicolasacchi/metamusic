@@ -23,16 +23,13 @@ type statsOut struct{ Body library.Stats }
 type importRunPageOut struct{ Body library.ImportRunPage }
 type deviceProfileOut struct{ Body library.DeviceProfile }
 
-type importRunsOut struct {
-	Body struct {
-		Items []library.ImportRunSummary `json:"items" nullable:"false"`
-	}
-}
+type importRunsOut struct{ Body library.ImportRunList }
 
-type deviceProfilesOut struct {
-	Body struct {
-		Items []library.DeviceProfile `json:"items" nullable:"false"`
-	}
+type deviceProfilesOut struct{ Body library.DeviceProfileList }
+
+type listDeviceProfilesIn struct {
+	Limit  int    `query:"limit" minimum:"1" maximum:"200" default:"50"`
+	Cursor string `query:"cursor"`
 }
 
 // FlacLink is a signed link to the lossless master.
@@ -120,7 +117,8 @@ type draftIDIn struct {
 }
 
 type listImportsIn struct {
-	Limit int `query:"limit" minimum:"1" maximum:"200" default:"50"`
+	Limit  int    `query:"limit" minimum:"1" maximum:"200" default:"50"`
+	Cursor string `query:"cursor"`
 }
 
 type importRunIn struct {

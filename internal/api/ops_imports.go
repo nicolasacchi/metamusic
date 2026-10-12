@@ -12,19 +12,17 @@ func registerImports(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_import_runs", Method: "GET", Path: "/api/imports",
 		Summary:     "List import runs",
-		Description: "Import runs, newest first, with state, plan digest and error and warning counts.",
+		Description: "Import runs, newest first, with state, plan digest and error and warning counts. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/import"},
 		func(ctx context.Context, in *listImportsIn) (*importRunsOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
-			items, err := d.Library.ImportRuns(ctx, in.Limit)
+			l, err := d.Library.ImportRuns(ctx, in.Limit, in.Cursor)
 			if err != nil {
 				return nil, libErr(err)
 			}
-			out := &importRunsOut{}
-			out.Body.Items = items
-			return out, nil
+			return &importRunsOut{Body: l}, nil
 		})
 
 	Register(a, huma.Operation{

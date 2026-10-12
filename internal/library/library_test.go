@@ -638,8 +638,8 @@ func TestDeviceProfile_PutUpsert(t *testing.T) {
 	if d1.EffectiveFormat != "flac" || d2.EffectiveFormat != "mp3" || d2.FlacDecodeOK == nil || *d2.FlacDecodeOK || d2.FlacSeekOK != nil {
 		t.Errorf("d1=%+v d2=%+v", d1, d2)
 	}
-	list, err := e.svc.DeviceProfiles(ctx)
-	if err != nil || len(list) != 2 {
+	list, err := e.svc.DeviceProfiles(ctx, 0, "")
+	if err != nil || len(list.Items) != 2 {
 		t.Fatalf("list %v %v", list, err)
 	}
 	for name, mut := range map[string]func(*library.DeviceProfileIn){
@@ -676,7 +676,8 @@ func TestImportRun_Sections(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
-	runs, err := e.svc.ImportRuns(ctx, 10)
+	rl, err := e.svc.ImportRuns(ctx, 10, "")
+	runs := rl.Items
 	if err != nil || len(runs) != 1 || runs[0].ID != lt.RunID || runs[0].Errors != 1 || runs[0].Warnings != 2 || runs[0].Summary["tracks_new"] != float64(5) {
 		t.Fatalf("runs %+v %v", runs, err)
 	}
@@ -1155,5 +1156,168 @@ func TestFacetsAndSnapshot(t *testing.T) {
 		len(snap.RefKeys) != 1 || len(snap.Collections["pilot-x"]) != 3 || len(snap.MasterPaths) != 5 || len(snap.DerivedPaths) != 8 {
 		t.Errorf("snapshot sizes: recipes=%d tracks=%d audio=%d drafts=%d sources=%d refs=%d coll=%d masters=%d derived=%d",
 			len(snap.Recipes), len(snap.Tracks), len(snap.AudioIDs), len(snap.Drafts), len(snap.SourceKeys), len(snap.RefKeys), len(snap.Collections["pilot-x"]), len(snap.MasterPaths), len(snap.DerivedPaths))
+	}
+}
+
+func fullSummary() string {
+	m := map[string]any{"errors": 0, "warnings": 0, "by_kind": map[string]int{"a": 1, "b": 2, "c": 3}}
+	for i := 0; i < 28; i++ {
+		m[fmt.Sprintf("counter_number_%02d", i)] = 1000000 + i
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
+
+func TestImportRuns_PageCap(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	want := []string{lt.RunID}
+	for i := 0; i < 199; i++ {
+		id := fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xa000+i)
+		want = append(want, id)
+		_, err := e.st.W.Exec(`INSERT INTO import_runs(id, started_at, heartbeat_at, finished_at, state, principal, inbox_label, plan_digest, summary_json)
+			VALUES (?, ?, '2026-10-06T12:30:00Z', '2026-10-06T12:31:00Z', 'completed', 'cli', 'inbox', 'd', ?)`,
+			id, fmt.Sprintf("2026-10-07T12:%02d:%02dZ", i/60, i%60), fullSummary())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var seen []string
+	cur, pages := "", 0
+	for {
+		l, err := e.svc.ImportRuns(ctx, 200, cur)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b, _ := json.Marshal(l); len(b) >= 90000 {
+			t.Fatalf("page %d is %d bytes", pages, len(b))
+		}
+		for _, r := range l.Items {
+			seen = append(seen, r.ID)
+		}
+		pages++
+		if l.NextCursor == nil {
+			break
+		}
+		cur = *l.NextCursor
+	}
+	if pages < 2 {
+		t.Fatalf("expected the cap to split the result, got %d page(s)", pages)
+	}
+	sameSet(t, "runs", seen, want...)
+	if len(seen) != len(want) {
+		t.Errorf("duplicates: %d vs %d", len(seen), len(want))
+	}
+}
+
+func TestDeviceProfiles_PageCap(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	p := auth.Principal{ID: "tok-1", Name: "t"}
+	want := []string{}
+	if l, err := e.svc.DeviceProfiles(ctx, 0, ""); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, d := range l.Items {
+			want = append(want, d.DeviceID)
+		}
+	}
+	for i := 0; i < 199; i++ {
+		id := fmt.Sprintf("dev-%05d", i)
+		want = append(want, id)
+		_, err := e.svc.PutDeviceProfile(ctx, p, library.DeviceProfileIn{DeviceID: id, Label: strings.Repeat("l", 80), UserAgent: strings.Repeat("u", 512),
+			Quality: "auto", QualitySource: "default", ProbeResult: "none"})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var seen []string
+	cur, pages := "", 0
+	for {
+		l, err := e.svc.DeviceProfiles(ctx, 200, cur)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b, _ := json.Marshal(l); len(b) >= 90000 {
+			t.Fatalf("page %d is %d bytes", pages, len(b))
+		}
+		for _, d := range l.Items {
+			seen = append(seen, d.DeviceID)
+		}
+		pages++
+		if l.NextCursor == nil {
+			break
+		}
+		cur = *l.NextCursor
+	}
+	if pages < 2 {
+		t.Fatalf("expected the cap to split the result, got %d page(s)", pages)
+	}
+	sameSet(t, "profiles", seen, want...)
+	if len(seen) != len(want) {
+		t.Errorf("duplicates: %d vs %d", len(seen), len(want))
+	}
+}
+
+func TestListDrafts_PageCap(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	tx, err := e.st.W.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var want []string
+	for i := 0; i < 100; i++ {
+		terms := make([]string, 20)
+		for j := range terms {
+			terms[j] = fmt.Sprintf("t%03d%02d", i, j) + strings.Repeat("x", 40-6)
+		}
+		raw := fmt.Sprintf(`{"id":"cap-%03d","style":%q,"lyrics":"[Verse]\nline","cot":"full","seed":%d}`, i, strings.Join(terms, ", "), 7000+i)
+		p, err := yue2.ParseRequest([]byte(raw), yue2.ParseOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rid, _, err := e.svc.InsertRecipe(ctx, tx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _, err := e.svc.InsertDraft(ctx, tx, library.NewDraft{Origin: "varianti_import", SourceRecipeID: rid, GroupKey: "capgrp"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, id)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	var seen []string
+	cur, pages := "", 0
+	for {
+		pg, err := e.svc.ListDrafts(ctx, library.DraftParams{GroupKey: "capgrp", Limit: 100, Cursor: cur})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b, _ := json.Marshal(pg); len(b) >= 90000 {
+			t.Fatalf("page %d is %d bytes", pages, len(b))
+		}
+		for _, d := range pg.Items {
+			seen = append(seen, d.ID)
+		}
+		pages++
+		if pg.NextCursor == nil {
+			break
+		}
+		cur = *pg.NextCursor
+	}
+	if pages < 2 {
+		t.Fatalf("expected the cap to split the result, got %d page(s)", pages)
+	}
+	sameSet(t, "drafts", seen, want...)
+	if len(seen) != len(want) {
+		t.Errorf("duplicates: %d vs %d", len(seen), len(want))
 	}
 }

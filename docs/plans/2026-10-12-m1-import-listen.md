@@ -1260,6 +1260,11 @@ func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) // one 
 
 // Reads (ops)
 func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, error)
+// ImportRuns and DeviceProfiles are paged like every list (limit, opaque cursor, 90 000-byte cap):
+func (s *Service) ImportRuns(ctx context.Context, limit int, cursor string) (ImportRunList, error)
+func (s *Service) DeviceProfiles(ctx context.Context, limit int, cursor string) (DeviceProfileList, error)
+// Import edge: library also imports huma/v2 (schema.go: inline nullable sub-object schemas for
+// Truncation, ScoreInfo, MP3Info, LoudnessOut, SpectrumOut, DraftSource); no other web framework code.
 func (s *Service) Facets(ctx context.Context) (Facets, error)
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error)
 func (s *Service) Peaks(ctx context.Context, id, level string) (PeaksLevel, error)
@@ -1355,11 +1360,11 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
 | `list_drafts` | GET `/api/drafts` | read | tool | `/backlog` | `{items: DraftSummary[], total, groups_total, next_cursor}` |
 | `get_draft` | GET `/api/drafts/{id}` | read | tool | `/backlog/:id` | `DraftDetail` (`reference` human-only, C16.9) |
 | `get_stats` | GET `/api/stats` | read | tool | `/` | `Stats` |
-| `list_import_runs` | GET `/api/imports` | read | generic | `/import` | `{items: ImportRunSummary[]}` |
+| `list_import_runs` | GET `/api/imports` | read | generic | `/import` | `{items: ImportRunSummary[], next_cursor}` (query `limit`, `cursor`; page-capped, C17) |
 | `get_import_run` | GET `/api/imports/{id}` | read | generic | `/import` | `{run: ImportRunSummary, section, items[], total, next_cursor}` |
 | `get_device_probe` | GET `/api/device-probe` | read | generic | `/` | `{version:1, url, content_type:"audio/flac", sample_rate:48000, bits_per_sample:24, channels:2, duration_s:3.0, seek_to_s:1.5, expires_at}` |
 | `put_device_profile` | PUT `/api/device-profiles/{device_id}` | write | generic | `/settings` | `DeviceProfile` (upsert; idempotent) |
-| `list_device_profiles` | GET `/api/device-profiles` | read | generic | `/settings` | `{items: DeviceProfile[]}` |
+| `list_device_profiles` | GET `/api/device-profiles` | read | generic | `/settings` | `{items: DeviceProfile[], next_cursor}` (query `limit`, `cursor`; page-capped, C17) |
 
 (`/api/device-profiles` instead of `/api/devices`: M2a device pairing owns the "devices" name.)
 
@@ -1430,8 +1435,9 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
 
 `api.Deps` (M0: `Store`, `Tokens`, `Cfg`, `Version`, `Commit`, `Started`) gains
 `Library *library.Service`, `Signer *serve.Signer`, `Probe *serve.Object` and `Now func() time.Time`
-(nil ⇒ `time.Now`; used for `updated_at`, link expiry and anything time-based in
-ops, so tests can fix the clock). **Registration never dereferences `Library`, `Signer` or `Probe`**:
+(nil ⇒ `time.Now`; `Deps.Now` itself only drives `get_system_info` uptime. `updated_at` comes from
+`library.Service`'s clock and link expiry from `serve.Signer`'s clock; both are authoritative and wiring
+(C20 "same now") must pass them the same func as `Options.Now`, so tests fix one clock). **Registration never dereferences `Library`, `Signer` or `Probe`**:
 `metamusic openapi` calls `api.New` with no database; handlers check for nil at call time and answer 503.
 
 ### C20. HTTP server and CLI additions
@@ -2053,10 +2059,12 @@ Tests first:
 Done: `make check` green; `make openapi` committed; `schema.d.ts` regenerated; parity + golden green;
 `make fixture-db` writes a fixture DB. It becomes servable (`dev --data-dir ./data/fixture`) only once
 serve() builds `library.Service` + `serve.Signer`; until then every M1 op answers 503 UNAVAILABLE. That wiring
-(no probe, no seeding) must land in M1-B5 (or earlier) so W1-W3 can start; B9 adds probe and seeding.
+(no probe, no seeding) is owned by M1-B5 (`cmd/metamusic/cmd_serve.go`) so W1-W3 can start; B9 adds probe and seeding.
 
 ### Task M1-B5 (Media): media handler (Range) and mounting
-**Files:** `internal/media/serve/{handler.go,handler_test.go}`, `internal/httpserver/server.go` (mount
+**Files:** `cmd/metamusic/cmd_serve.go` (serve()/dev build the DataDir root, `library.Service` and
+`serve.Signer` with one shared `now`, pass them through `httpserver.Options`; no probe, no seeding),
+`internal/media/serve/{handler.go,handler_test.go}`, `internal/httpserver/server.go` (mount
 `/media/`), `internal/httpserver/spa.go` (manifest content type, C20) + tests.
 Tests first:
 - `TestAcceptance_M1_MediaRangeMatrix` against a 10 000-byte deterministic object (resolver stub):

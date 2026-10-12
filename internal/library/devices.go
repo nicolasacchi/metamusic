@@ -132,20 +132,44 @@ func scanDevice(r rowScanner) (DeviceProfile, error) {
 	return d, nil
 }
 
-// DeviceProfiles lists all profiles by device id.
-func (s *Service) DeviceProfiles(ctx context.Context) ([]DeviceProfile, error) {
-	rows, err := s.st.R.QueryContext(ctx, deviceSelect+` ORDER BY device_id`)
+// DeviceProfileList is one page of device profiles.
+type DeviceProfileList struct {
+	Items      []DeviceProfile `json:"items" nullable:"false"`
+	NextCursor *string         `json:"next_cursor"`
+}
+
+// DeviceProfiles lists profiles by device id under the page byte cap.
+func (s *Service) DeviceProfiles(ctx context.Context, limit int, cursor string) (DeviceProfileList, error) {
+	off, err := decodeCursor(cursor)
 	if err != nil {
-		return nil, err
+		return DeviceProfileList{}, err
+	}
+	limit = clampLimit(limit, 50, 200)
+	rows, err := s.st.R.QueryContext(ctx, deviceSelect+` ORDER BY device_id LIMIT ? OFFSET ?`, limit+1, off)
+	if err != nil {
+		return DeviceProfileList{}, err
 	}
 	defer rows.Close()
-	out := []DeviceProfile{}
+	out := DeviceProfileList{Items: []DeviceProfile{}}
+	pg := newPager(out)
+	more := false
 	for rows.Next() {
 		d, err := scanDevice(rows)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
-		out = append(out, d)
+		if len(out.Items) >= limit || !pg.add(sizeOf(d)) {
+			more = true
+			break
+		}
+		out.Items = append(out.Items, d)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	if more {
+		c := encodeCursor(off + len(out.Items))
+		out.NextCursor = &c
+	}
+	return out, nil
 }
