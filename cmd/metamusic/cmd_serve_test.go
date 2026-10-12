@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"github.com/nicolasacchi/metamusic/internal/config"
-	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nicolasacchi/metamusic/internal/config"
+	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 )
 
 // TestServe_MediaAndLibraryWired pins that serve() mounts the media handler and
@@ -32,7 +33,11 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 		case <-time.After(15 * time.Second):
 		}
 	})
-	go func() { done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb) }()
+	go func() {
+		done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb)
+		close(done)
+	}()
+	client := &http.Client{Timeout: 10 * time.Second}
 	var addr string
 	for i := 0; i < 200 && addr == ""; i++ {
 		time.Sleep(25 * time.Millisecond)
@@ -43,7 +48,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	if addr == "" {
 		t.Fatalf("server did not start: %s %s", out.String(), errb.String())
 	}
-	resp, err := http.Get("http://" + addr + "/media/" + strings.Repeat("ab", 32) + ".flac")
+	resp, err := client.Get("http://" + addr + "/media/" + strings.Repeat("ab", 32) + ".flac")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +59,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	}
 	req, _ := http.NewRequest("GET", "http://"+addr+"/api/stats", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
-	r2, err := http.DefaultClient.Do(req)
+	r2, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +75,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 		t.Fatal(err)
 	}
 	link := mediaserve.NewSigner(sec.Key, time.Now).Sign(strings.Repeat("ab", 32), "flac", time.Hour, time.Minute).URL
-	r3, err := http.Get("http://" + addr + link)
+	r3, err := client.Get("http://" + addr + link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +87,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	// Options.Signer wired: the probe (not the signer) is the missing component.
 	req4, _ := http.NewRequest("GET", "http://"+addr+"/api/device-probe", nil)
 	req4.Header.Set("Authorization", "Bearer "+tok)
-	r4, err := http.DefaultClient.Do(req4)
+	r4, err := client.Do(req4)
 	if err != nil {
 		t.Fatal(err)
 	}

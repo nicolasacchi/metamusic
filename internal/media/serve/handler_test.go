@@ -89,6 +89,9 @@ func (r *rig) do(method, target string, hdr map[string]string) *httptest.Respons
 }
 
 func TestAcceptance_M1_MediaRangeMatrix(t *testing.T) {
+	if testing.Short() {
+		t.Skip("acceptance test (C23 tier)")
+	}
 	r := newRig(t, nil)
 	u := r.url(r.sha, "flac")
 	etag := `"` + r.sha + `"`
@@ -267,9 +270,12 @@ func TestHandler_Signatures(t *testing.T) {
 	far := NewSigner(testKey, fixedClock(handlerNow.Add(20*time.Hour))).Sign(r.sha, "flac", time.Hour, time.Minute).URL
 	flip := []byte(sig)
 	flip[0] ^= 1
+	pad := []byte(sig)
+	pad[len(pad)-1] ^= 1 // low bits of the last char are base64 padding
 	cases := []struct {
 		name, target, code string
 	}{
+		{"non-canonical-sig", base + "?exp=" + exp + "&sig=" + string(pad), "MEDIA_LINK_INVALID"},
 		{"no-query", base, "MEDIA_LINK_INVALID"},
 		{"no-sig", base + "?exp=" + exp, "MEDIA_LINK_INVALID"},
 		{"no-exp", base + "?sig=" + sig, "MEDIA_LINK_INVALID"},

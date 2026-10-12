@@ -105,6 +105,9 @@ func (m *mediaEnv) url() string {
 }
 
 func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
+	if testing.Short() {
+		t.Skip("acceptance test (C23 tier)")
+	}
 	for _, tc := range []struct{ name, mode, pub string }{
 		{"proxy", "proxy", "http://mm.example.com"},
 		{"local-http", "local", "http://mm.example.com"},
@@ -192,15 +195,12 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 }
 
 func TestHTTP_ManifestAndIconsPublic(t *testing.T) {
-	orig := mime.TypeByExtension(".webmanifest")
+	// mime cannot unregister a type, so the override leaks for the rest of this
+	// test binary; acceptable because spa.go sets the header explicitly and no
+	// other test depends on the .webmanifest mapping.
 	if err := mime.AddExtensionType(".webmanifest", "text/plain"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if orig != "" {
-			_ = mime.AddExtensionType(".webmanifest", orig)
-		}
-	})
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/manifest.webmanifest", nil))
 	if w.Code != 200 || w.Header().Get("Content-Type") != "application/manifest+json" {
