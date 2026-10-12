@@ -1,0 +1,6 @@
+# metamusic import mapping template: set request_id (and seed), '-' to skip an audio, or parent for a draft row.
+audio,request_id,seed,title,parent,candidates
+near_on.flac,,,,,near-one#3
+tpl_1.flac,,,,,tpl-1#1; tpl-1#2
+zzz-unrelated.flac,,,,,
+draft:kid-v2,,,,,

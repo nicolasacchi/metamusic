@@ -53,6 +53,639 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group and recipe sources. Private reference metadata is returned to human users only; agents see has_reference.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Draft id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_draft",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "fulfilled_by_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "label",
+              "status"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "group_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "has_reference": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "parent_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Private reference metadata; humans only, null for agents",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "request": {
+          "additionalProperties": false,
+          "properties": {
+            "cot": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lyrics": {
+              "type": "string"
+            },
+            "seed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "style": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "style",
+            "lyrics",
+            "cot",
+            "seed"
+          ],
+          "type": "object"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "sections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "idx": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "lines": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "raw": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "idx",
+              "kind",
+              "label",
+              "raw",
+              "lines"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "source": {
+          "additionalProperties": false,
+          "description": "null for drafts without an imported recipe",
+          "properties": {
+            "recipe_hash": {
+              "type": "string"
+            },
+            "recipe_id": {
+              "type": "string"
+            },
+            "sources": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "raw_kind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "line",
+                  "raw_kind"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "recipe_id",
+            "recipe_hash",
+            "sources"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "origin",
+        "status",
+        "request_id",
+        "group_key",
+        "label",
+        "request",
+        "sections",
+        "collections",
+        "has_reference",
+        "reference",
+        "source",
+        "parent_track_id",
+        "fulfilled_by_track_id",
+        "group",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get signed media links\n\nSigned, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_media_links",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "description": "RFC 3339 UTC",
+          "type": "string"
+        },
+        "flac": {
+          "additionalProperties": false,
+          "properties": {
+            "bits_per_sample": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "content_type": {
+              "examples": [
+                "audio/flac"
+              ],
+              "type": "string"
+            },
+            "sample_rate": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "url": {
+              "description": "Signed, relative URL; valid until expires_at",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url",
+            "content_type",
+            "bytes",
+            "sha256",
+            "sample_rate",
+            "bits_per_sample"
+          ],
+          "type": "object"
+        },
+        "mp3": {
+          "additionalProperties": false,
+          "properties": {
+            "bitrate_kbps": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "content_type": {
+              "examples": [
+                "audio/mpeg"
+              ],
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "url": {
+              "description": "Signed, relative URL; valid until expires_at",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url",
+            "content_type",
+            "bytes",
+            "sha256",
+            "bitrate_kbps"
+          ],
+          "type": "object"
+        },
+        "track_id": {
+          "type": "string"
+        },
+        "ttl_s": {
+          "description": "Link lifetime granted to the caller, seconds",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "track_id",
+        "expires_at",
+        "ttl_s",
+        "flac",
+        "mp3"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get library statistics\n\nCounts of tracks, drafts and recipes, loudness spread (listen_flac_recommended when above 2 LU), bandwidth, storage and import runs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_stats",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "backlog": {
+          "additionalProperties": false,
+          "properties": {
+            "collections": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "drafts": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "drafts"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "drafts": {
+              "description": "Drafts still in the backlog",
+              "format": "int64",
+              "type": "integer"
+            },
+            "fulfilled": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "groups": {
+              "description": "Distinct groups among backlog drafts",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "drafts",
+            "fulfilled",
+            "groups",
+            "collections"
+          ],
+          "type": "object"
+        },
+        "bandwidth": {
+          "additionalProperties": false,
+          "properties": {
+            "max_hz": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "median_hz": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "min_hz": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "n": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "n",
+            "min_hz",
+            "median_hz",
+            "max_hz"
+          ],
+          "type": "object"
+        },
+        "imports": {
+          "additionalProperties": false,
+          "properties": {
+            "last_run_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "runs": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "runs",
+            "last_run_at",
+            "last_state"
+          ],
+          "type": "object"
+        },
+        "loudness": {
+          "additionalProperties": false,
+          "properties": {
+            "integrated_lufs_max": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "integrated_lufs_min": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "listen_flac_recommended": {
+              "description": "Spread above 2 LU",
+              "type": "boolean"
+            },
+            "n": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "spread_lu": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "n",
+            "integrated_lufs_min",
+            "integrated_lufs_max",
+            "spread_lu",
+            "listen_flac_recommended"
+          ],
+          "type": "object"
+        },
+        "recipes": {
+          "additionalProperties": false,
+          "properties": {
+            "sources": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "total": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total",
+            "sources"
+          ],
+          "type": "object"
+        },
+        "storage": {
+          "additionalProperties": false,
+          "properties": {
+            "derived_bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "masters_bytes": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "masters_bytes",
+            "derived_bytes"
+          ],
+          "type": "object"
+        },
+        "tracks": {
+          "additionalProperties": false,
+          "properties": {
+            "by_origin": {
+              "additionalProperties": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "by_status": {
+              "additionalProperties": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "duration_s_total": {
+              "format": "double",
+              "type": "number"
+            },
+            "timed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "total": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "truncated": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "with_score": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total",
+            "by_status",
+            "by_origin",
+            "duration_s_total",
+            "with_score",
+            "timed",
+            "truncated"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "tracks",
+        "backlog",
+        "recipes",
+        "loudness",
+        "bandwidth",
+        "storage",
+        "imports"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Get system information\n\nVersion, commit, auth mode, database schema version and uptime.",
     "inputSchema": {
       "additionalProperties": false,
@@ -103,6 +736,724 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Get a track\n\nFull track detail: audio, recipe, lineage, score, lyric sections (timed only when a score aligns with them) and analyses.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_track",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis": {
+          "additionalProperties": false,
+          "properties": {
+            "loudness": {
+              "additionalProperties": false,
+              "description": "null when not analysed",
+              "properties": {
+                "integrated_lufs": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "lra_high_lufs": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "lra_low_lufs": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "lra_lu": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "replaygain_track_gain_db": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "sample_peak_dbfs": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "short_term_1hz": {
+                  "items": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "short_term_max_lufs": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "true_peak_dbtp": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "replaygain_track_gain_db",
+                "version",
+                "integrated_lufs",
+                "lra_lu",
+                "lra_low_lufs",
+                "lra_high_lufs",
+                "true_peak_dbtp",
+                "sample_peak_dbfs",
+                "short_term_max_lufs",
+                "short_term_1hz"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "spectrum": {
+              "additionalProperties": false,
+              "description": "null when not analysed",
+              "properties": {
+                "bandwidth_hz": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "frames": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "ref_db": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "threshold_db": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "bandwidth_hz",
+                "ref_db",
+                "threshold_db",
+                "frames"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "loudness",
+            "spectrum"
+          ],
+          "type": "object"
+        },
+        "audio": {
+          "additionalProperties": false,
+          "properties": {
+            "audio_md5": {
+              "type": "string"
+            },
+            "bits_per_sample": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "channels": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "master_bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "master_sha256": {
+              "type": "string"
+            },
+            "mp3": {
+              "additionalProperties": false,
+              "description": "MP3 rendition; null when missing",
+              "properties": {
+                "bytes": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "gain_db": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sha256",
+                "bytes",
+                "gain_db"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "sample_rate": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "total_samples": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "sample_rate",
+            "bits_per_sample",
+            "channels",
+            "total_samples",
+            "master_sha256",
+            "master_bytes",
+            "audio_md5",
+            "mp3"
+          ],
+          "type": "object"
+        },
+        "bpm_declared": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "duration_s": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "import": {
+          "additionalProperties": false,
+          "properties": {
+            "rule": {
+              "type": "string"
+            },
+            "run_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "rule",
+            "run_id"
+          ],
+          "type": "object"
+        },
+        "lineage": {
+          "additionalProperties": false,
+          "properties": {
+            "generation": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "inferred": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "operator": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_track_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "root_track_id": {
+              "type": "string"
+            },
+            "rule": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "siblings": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "recorded_at": {
+                    "type": "string"
+                  },
+                  "seed": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "seed",
+                  "recorded_at"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "root_track_id",
+            "parent_track_id",
+            "generation",
+            "operator",
+            "inferred",
+            "rule",
+            "siblings"
+          ],
+          "type": "object"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "recipe": {
+          "additionalProperties": false,
+          "properties": {
+            "cot": {
+              "type": "string"
+            },
+            "engine": {
+              "type": "string"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lyrics": {
+              "type": "string"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "seed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sources_count": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "style": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "engine",
+            "request_id",
+            "style",
+            "lyrics",
+            "cot",
+            "seed",
+            "hash",
+            "sources_count"
+          ],
+          "type": "object"
+        },
+        "recorded_at": {
+          "type": "string"
+        },
+        "score": {
+          "additionalProperties": false,
+          "description": "null when the track has no score",
+          "properties": {
+            "aligned": {
+              "type": "boolean"
+            },
+            "bars": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "bpm": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "meter": {
+              "type": "string"
+            },
+            "q": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seconds_per_bar": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "bars",
+            "meter",
+            "q",
+            "bpm",
+            "seconds_per_bar",
+            "aligned"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "end_s": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "idx": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "lines": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "raw": {
+                "type": "string"
+              },
+              "source": {
+                "description": "lyrics | plan | measured | manual",
+                "type": "string"
+              },
+              "start_s": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "idx",
+              "kind",
+              "label",
+              "raw",
+              "lines",
+              "start_s",
+              "end_s",
+              "source",
+              "confidence"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "status_set_by": {
+          "type": "string"
+        },
+        "style_terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timed": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "truncated": {
+          "additionalProperties": false,
+          "description": "null when result.json was not imported",
+          "properties": {
+            "abc": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "semantic": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "abc",
+            "semantic"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "slug",
+        "status",
+        "status_set_by",
+        "origin",
+        "recorded_at",
+        "created_at",
+        "duration_s",
+        "audio",
+        "recipe",
+        "style_terms",
+        "bpm_declared",
+        "lineage",
+        "truncated",
+        "score",
+        "sections",
+        "timed",
+        "analysis",
+        "import"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List backlog drafts\n\nRecipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "group_key": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "format": "int64",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "default": "backlog",
+          "enum": [
+            "backlog",
+            "fulfilled",
+            "archived"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_drafts",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "groups_total": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "collections": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "cot": {
+                "type": "string"
+              },
+              "fulfilled_by_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "group_key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "origin": {
+                "type": "string"
+              },
+              "parent_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "section_kinds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "style_excerpt": {
+                "description": "First 120 runes of the style",
+                "type": "string"
+              },
+              "style_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "group_key",
+              "label",
+              "origin",
+              "status",
+              "seed",
+              "cot",
+              "style_excerpt",
+              "style_terms",
+              "section_kinds",
+              "collections",
+              "parent_track_id",
+              "fulfilled_by_track_id"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "groups_total",
+        "next_cursor"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Ping the server\n\nLiveness check that also reports the server version.",
     "inputSchema": {
       "additionalProperties": false,
@@ -125,6 +1476,230 @@
       "required": [
         "ok",
         "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor from next_cursor",
+          "type": "string"
+        },
+        "has_score": {
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 50,
+          "format": "int64",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_duration_s": {
+          "format": "double",
+          "minimum": 0,
+          "type": "number"
+        },
+        "min_duration_s": {
+          "format": "double",
+          "minimum": 0,
+          "type": "number"
+        },
+        "q": {
+          "description": "Free text over title, request id, style and lyrics (prefix match)",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "recorded_from": {
+          "description": "RFC 3339 date or date-time (inclusive)",
+          "type": "string"
+        },
+        "recorded_to": {
+          "description": "RFC 3339 date (whole day, inclusive) or date-time",
+          "type": "string"
+        },
+        "root_track_id": {
+          "type": "string"
+        },
+        "sort": {
+          "description": "Default recorded_desc, or relevance when q is set",
+          "enum": [
+            "recorded_desc",
+            "recorded_asc",
+            "duration_desc",
+            "duration_asc",
+            "title_asc",
+            "relevance"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Repeatable status filter",
+          "items": {
+            "enum": [
+              "draft",
+              "to_relisten",
+              "final",
+              "discarded"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "style": {
+          "description": "Repeatable style term; all must match",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "type": "array"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "name": "search_tracks",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bandwidth_hz": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "bpm_declared": {
+                "description": "BPM declared in the style text; null when absent",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "children_count": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "created_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "has_score": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "integrated_lufs": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "parent_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "recorded_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "root_track_id": {
+                "type": "string"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "style_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "timed": {
+                "description": "Section times are known (aligned score)",
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              },
+              "truncated": {
+                "description": "abc or semantic stream truncated; null when unknown",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status",
+              "duration_s",
+              "recorded_at",
+              "created_at",
+              "request_id",
+              "seed",
+              "style_terms",
+              "bpm_declared",
+              "has_score",
+              "timed",
+              "truncated",
+              "integrated_lufs",
+              "bandwidth_hz",
+              "root_track_id",
+              "parent_track_id",
+              "children_count"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "next_cursor"
       ],
       "type": "object"
     }

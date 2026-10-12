@@ -34,6 +34,10 @@ func spaHandler(fsys fs.FS) http.Handler {
 						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 					}
 					w.Header().Set("X-Content-Type-Options", "nosniff")
+					if name == "manifest.webmanifest" {
+						// The host MIME table decides otherwise (C20).
+						w.Header().Set("Content-Type", "application/manifest+json")
+					}
 					if strings.HasSuffix(name, ".html") {
 						htmlHeaders(w.Header())
 					}

@@ -28,6 +28,26 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
+          metaflac --version
+          v=$(metaflac --version | awk '{print $2}')
+          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: gofmt
         run: |
           out=$(gofmt -l $(git ls-files '*.go'))
@@ -35,9 +55,17 @@ jobs:
       - name: vet
         run: go vet ./...
       - name: test
-        run: go test -race -shuffle=on ./...
+        # no -short: runs the media-tool and acceptance tiers (MM_REQUIRE_MEDIA_TOOLS=1 makes a missing tool fail)
+        run: |
+          mkdir -p covdata/unit
+          go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$PWD/covdata/unit"
       - name: openapi drift
         run: CGO_ENABLED=0 go run ./cmd/metamusic openapi | diff - openapi.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: covdata-unit
+          path: covdata/unit
+          retention-days: 1
 
   lint:
     runs-on: ubuntu-24.04
@@ -128,10 +156,30 @@ jobs:
       - name: install web deps
         working-directory: web
         run: bun install --frozen-lockfile
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
+          metaflac --version
+          v=$(metaflac --version | awk '{print $2}')
+          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: build coverage-instrumented binary
         run: |
-          mkdir -p bin covdata
-          CGO_ENABLED=0 go build -cover -covermode=atomic -o bin/metamusic-e2e ./cmd/metamusic
+          mkdir -p covdata/e2e
+          CGO_ENABLED=0 go build -cover -covermode=atomic -coverpkg=./... -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
       - name: playwright version
         id: pw
         working-directory: web
@@ -147,12 +195,17 @@ jobs:
       - name: e2e
         working-directory: web
         env:
-          MM_E2E_BIN: ${{ github.workspace }}/bin/metamusic-e2e
-          GOCOVERDIR: ${{ github.workspace }}/covdata
+          MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
+          GOCOVERDIR: ${{ github.workspace }}/covdata/e2e
         run: bun run e2e
       - name: coverage summary
         if: always()
-        run: go tool covdata percent -i=covdata || true
+        run: go tool covdata percent -i=covdata/e2e || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: covdata-e2e
+          path: covdata/e2e
+          retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
@@ -161,3 +214,30 @@ jobs:
             web/playwright-report
             web/test-results
           retention-days: 7
+
+  coverage:
+    needs: [go, e2e]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: covdata-unit
+          path: covdata/unit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: covdata-e2e
+          path: covdata/e2e
+      - name: coverage gate selftest
+        run: scripts/coverage-gate-selftest.sh
+      - name: enforce coverage.thresholds on merged unit + e2e data
+        run: scripts/coverage-gate.sh covdata/unit covdata/e2e

@@ -1,11 +1,11 @@
 package mcpgen
 
 import (
-	"encoding/json"
 	"mime"
 	"net/http"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
 // problemWriter rewrites non-JSON error responses of the SDK transport (405,
@@ -32,12 +32,8 @@ func (w *problemWriter) WriteHeader(code int) {
 	if code >= 400 && !isJSON(w.Header().Get("Content-Type")) {
 		w.discard = true
 		h := w.Header()
-		h.Set("Content-Type", "application/problem+json")
 		h.Del("Content-Length")
-		w.ResponseWriter.WriteHeader(code)
-		_ = json.NewEncoder(w.ResponseWriter).Encode(map[string]any{
-			"code": api.CodeFor(code), "message": http.StatusText(code), "details": map[string]any{},
-		})
+		problem.Write(w.ResponseWriter, code, api.CodeFor(code), http.StatusText(code), nil)
 		return
 	}
 	w.ResponseWriter.WriteHeader(code)

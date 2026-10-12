@@ -20,8 +20,13 @@ func open(t *testing.T) (*Store, string) {
 
 func TestOpenMigratesAndReopens(t *testing.T) {
 	ctx := context.Background()
+	ms, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := len(ms)
 	s, p := open(t)
-	if v, err := s.UserVersion(ctx); err != nil || v != 1 {
+	if v, err := s.UserVersion(ctx); err != nil || v != want {
 		t.Fatalf("version=%d err=%v", v, err)
 	}
 	for _, tbl := range []string{"settings", "api_tokens", "human_account", "human_sessions"} {
@@ -39,7 +44,7 @@ func TestOpenMigratesAndReopens(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s2.Close()
-	if v, _ := s2.UserVersion(ctx); v != 1 {
+	if v, _ := s2.UserVersion(ctx); v != want {
 		t.Fatalf("version after reopen=%d", v)
 	}
 	var val string
@@ -86,7 +91,7 @@ func TestConcurrentReadsWhileWriting(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 200; i++ {
-			if _, err := s.W.ExecContext(ctx, `INSERT OR REPLACE INTO settings(key,value) VALUES('k', ?)`, i); err != nil {
+			if _, err := s.W.ExecContext(ctx, `INSERT INTO settings(key,value) VALUES('k', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, i); err != nil {
 				errs <- err
 				return
 			}

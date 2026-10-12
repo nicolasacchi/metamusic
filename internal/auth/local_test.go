@@ -451,3 +451,127 @@ func TestFailureBackoffGrowsAndResets(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckPassword_MalformedPHC(t *testing.T) {
+	t.Parallel()
+	good, err := hashPassword("correct horse battery")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !checkPassword(good, "correct horse battery") || checkPassword(good, "other") {
+		t.Fatal("round trip")
+	}
+	parts := strings.Split(good, "$")
+	with := func(i int, v string) string {
+		p := append([]string(nil), parts...)
+		p[i] = v
+		return strings.Join(p, "$")
+	}
+	for name, phc := range map[string]string{
+		"empty":         "",
+		"too few parts": "$argon2id$v=19$m=1,t=1,p=1$c2FsdA",
+		"wrong alg":     with(1, "argon2i"),
+		"bad version":   with(2, "v=x"),
+		"old version":   with(2, "v=16"),
+		"bad params":    with(3, "m=abc"),
+		"bad salt":      with(4, "!!!"),
+		"bad hash":      with(5, "!!!"),
+		"empty hash":    with(5, ""),
+	} {
+		if checkPassword(phc, "correct horse battery") {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestSetPassword_Errors(t *testing.T) {
+	t.Parallel()
+	la := newLocal(t, "http://x")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// hasher slots full + cancelled context => ErrBusy
+	for range cap(la.sem) {
+		la.sem <- struct{}{}
+	}
+	if err := la.SetPassword(ctx, "alice", "long enough password"); !errors.Is(err, ErrBusy) {
+		t.Fatalf("busy: %v", err)
+	}
+	for range cap(la.sem) {
+		<-la.sem
+	}
+	// closed store => the transaction cannot begin
+	la2 := newLocal(t, "http://x")
+	_ = la2.st.Close()
+	if err := la2.SetPassword(context.Background(), "alice", "long enough password"); err == nil {
+		t.Fatal("closed store accepted")
+	}
+	// a failing statement inside the transaction
+	la3 := newLocal(t, "http://x")
+	if _, err := la3.st.W.Exec(`DROP TABLE human_sessions`); err != nil {
+		t.Fatal(err)
+	}
+	if err := la3.SetPassword(context.Background(), "alice", "long enough password"); err == nil {
+		t.Fatal("missing table accepted")
+	}
+	if _, err := la3.st.W.Exec(`DROP TABLE human_account`); err != nil {
+		t.Fatal(err)
+	}
+	if err := la3.SetPassword(context.Background(), "alice", "long enough password"); err == nil {
+		t.Fatal("missing account table accepted")
+	}
+}
+
+func TestVerifySession_ErrorPaths(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	la := newLocal(t, "http://x")
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	la.now = func() time.Time { return now }
+	if _, err := la.VerifySession(ctx, ""); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("empty: %v", err)
+	}
+	if _, err := la.VerifySession(ctx, "unknown"); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("unknown: %v", err)
+	}
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// unparseable expiry
+	if _, err := la.st.W.Exec(`UPDATE human_sessions SET expires_at='garbage'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("garbage expiry: %v", err)
+	}
+	// exactly expired
+	if _, err := la.st.W.Exec(`UPDATE human_sessions SET expires_at=?`, now.Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("expired: %v", err)
+	}
+	// valid session but the account row is gone
+	if _, err := la.st.W.Exec(`UPDATE human_sessions SET expires_at=?`, now.Add(time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.st.W.Exec(`PRAGMA foreign_keys=OFF`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.st.W.Exec(`DELETE FROM human_account`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("no account: %v", err)
+	}
+	// store failures are plain errors, not ErrInvalidSession
+	_, _ = la.st.W.Exec(`DROP TABLE human_account`)
+	if _, err := la.VerifySession(ctx, cv); err == nil || errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("account table error: %v", err)
+	}
+	_, _ = la.st.W.Exec(`DROP TABLE human_sessions`)
+	if _, err := la.VerifySession(ctx, cv); err == nil || errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("sessions table error: %v", err)
+	}
+}

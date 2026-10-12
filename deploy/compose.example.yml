@@ -13,8 +13,13 @@ services:
       MM_SECRETS_DIR: /run/secrets
     ports:
       - "127.0.0.1:8080:8080"
+    user: "1000:1000"
     volumes:
       - metamusic-data:/data
+      # Read-only inbox for "metamusic import". Host side is relative to deploy/ and under the
+      # gitignored data/ dir; container side is the MM_INBOX default (<DataDir>/inbox). The files
+      # must be readable by uid 1000 on the host.
+      - ./data/inbox:/data/inbox:ro
     secrets:
       - secret_key
     read_only: true

@@ -21,6 +21,10 @@ type Config struct {
 	TrustedProxies []netip.Prefix
 	TrustedUsers   []string
 	E2E            bool
+	FFmpeg         string // MM_FFMPEG, default "ffmpeg"
+	FLAC           string // MM_FLAC, default "flac"
+	Metaflac       string // MM_METAFLAC, default "metaflac"
+	Inbox          string // MM_INBOX, default DataDir/inbox
 }
 
 // Load builds a Config from getenv. MM_AUTH must be "proxy" or "local".
@@ -30,10 +34,14 @@ func Load(getenv func(string) string) (Config, error) {
 		AuthMode: getenv("MM_AUTH"),
 		DataDir:  orDefault(getenv("MM_DATA_DIR"), "./data"),
 		E2E:      getenv("MM_E2E") == "1",
+		FFmpeg:   orDefault(getenv("MM_FFMPEG"), "ffmpeg"),
+		FLAC:     orDefault(getenv("MM_FLAC"), "flac"),
+		Metaflac: orDefault(getenv("MM_METAFLAC"), "metaflac"),
 	}
 	if c.AuthMode != "proxy" && c.AuthMode != "local" {
 		return Config{}, fmt.Errorf("config: MM_AUTH must be %q or %q (got %q)", "proxy", "local", c.AuthMode)
 	}
+	c.Inbox = orDefault(getenv("MM_INBOX"), filepath.Join(c.DataDir, "inbox"))
 	c.PublicURL = orDefault(getenv("MM_PUBLIC_URL"), "http://"+c.Addr)
 	c.SecretsDir = orDefault(getenv("MM_SECRETS_DIR"), filepath.Join(c.DataDir, "secrets"))
 	for _, p := range splitList(getenv("MM_TRUSTED_PROXY")) {

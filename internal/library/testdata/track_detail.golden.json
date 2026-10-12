@@ -1,0 +1,130 @@
+{
+  "id": "01900000-0000-7000-8000-000000000101",
+  "title": "Luna Park",
+  "slug": "luna_park",
+  "status": "draft",
+  "status_set_by": "import",
+  "origin": "import",
+  "recorded_at": "2026-10-01T12:00:00Z",
+  "created_at": "2026-10-06T12:00:00Z",
+  "duration_s": 12,
+  "audio": {
+    "sample_rate": 48000,
+    "bits_per_sample": 24,
+    "channels": 2,
+    "total_samples": 576000,
+    "master_sha256": "51c2c6e87704306d7de7e059dd398245309d73053ee14e81590e0211bc21a5b8",
+    "master_bytes": 16,
+    "audio_md5": "00000000000000000000000000000001",
+    "mp3": {
+      "sha256": "b15f44a2a0d3f53694175385397a7dc800a25f9498e38744c1b59ee22d11e53e",
+      "bytes": 13,
+      "gain_db": -0.6
+    }
+  },
+  "recipe": {
+    "id": "01900000-0000-7000-8000-000000000201",
+    "engine": "yue2",
+    "request_id": "fx-luna",
+    "style": "Dream pop, 120 bpm, warm synth, female vocal",
+    "lyrics": "[Verse 1]\nla la luna\n[Chorus]\nsing it loud\n[Outro]\nfade away",
+    "cot": "full",
+    "seed": 101,
+    "hash": "31d27c5ce74c6e779c39e36f5bf2297068dd3a4c7b5142ec4027244bf71bc917",
+    "sources_count": 1
+  },
+  "style_terms": [
+    "dream pop",
+    "warm synth",
+    "female vocal"
+  ],
+  "bpm_declared": 120,
+  "lineage": {
+    "root_track_id": "01900000-0000-7000-8000-000000000101",
+    "parent_track_id": null,
+    "generation": 0,
+    "operator": null,
+    "inferred": null,
+    "rule": null,
+    "siblings": []
+  },
+  "truncated": null,
+  "score": {
+    "bars": 6,
+    "meter": "4/4",
+    "q": "1/4=120",
+    "bpm": 120,
+    "seconds_per_bar": 2,
+    "aligned": true
+  },
+  "sections": [
+    {
+      "idx": 0,
+      "kind": "verse",
+      "label": "verse",
+      "raw": "[Verse 1]",
+      "lines": [
+        "la la luna"
+      ],
+      "start_s": 0,
+      "end_s": 4,
+      "source": "plan",
+      "confidence": 0.7
+    },
+    {
+      "idx": 1,
+      "kind": "chorus",
+      "label": "chorus",
+      "raw": "[Chorus]",
+      "lines": [
+        "sing it loud"
+      ],
+      "start_s": 4,
+      "end_s": 8,
+      "source": "plan",
+      "confidence": 0.7
+    },
+    {
+      "idx": 2,
+      "kind": "outro",
+      "label": "outro",
+      "raw": "[Outro]",
+      "lines": [
+        "fade away"
+      ],
+      "start_s": 8,
+      "end_s": 12,
+      "source": "plan",
+      "confidence": 0.7
+    }
+  ],
+  "timed": true,
+  "analysis": {
+    "loudness": {
+      "integrated_lufs": -14,
+      "lra_lu": 5.5,
+      "lra_low_lufs": -19,
+      "lra_high_lufs": -13,
+      "true_peak_dbtp": -1.2,
+      "sample_peak_dbfs": -1.5,
+      "short_term_max_lufs": -12,
+      "short_term_1hz": [
+        -14,
+        -13.5
+      ],
+      "replaygain_track_gain_db": -4,
+      "version": "mm-loudness/1 ffmpeg n9.0.1"
+    },
+    "spectrum": {
+      "bandwidth_hz": 16000,
+      "ref_db": -40,
+      "threshold_db": -110,
+      "frames": 30,
+      "version": "mm-spectrum/1 ffmpeg n9.0.1"
+    }
+  },
+  "import": {
+    "rule": "slug",
+    "run_id": "01900000-0000-7000-8000-000000000301"
+  }
+}

@@ -13,6 +13,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -31,12 +34,19 @@ type Options struct {
 	Started         time.Time // zero => time.Now() at New
 	SPA             fs.FS
 	Version, Commit string
+
+	// M1 (C20). Library, Signer and Probe reach api.Deps; nil values make the
+	// matching operations answer 503 UNAVAILABLE. Media serves /media/ (nil =>
+	// 404 problem NOT_FOUND). Now fixes the clock of api.Deps (nil => time.Now).
+	Library *library.Service
+	Signer  *serve.Signer
+	Probe   *serve.Object
+	Media   http.Handler
+	Now     func() time.Time
 }
 
-func problem(w http.ResponseWriter, status int, code, msg string) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"code":"` + code + `","message":"` + msg + `","details":{}}` + "\n"))
+func writeProblem(w http.ResponseWriter, status int, code, msg string) {
+	problem.Write(w, status, code, msg, nil)
 }
 
 // New builds the full handler chain.
@@ -49,7 +59,8 @@ func New(o Options) (http.Handler, error) {
 		started = time.Now()
 	}
 	inner := http.NewServeMux()
-	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started})
+	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
+		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now})
 	if o.MCP == nil && o.MCPFactory != nil {
 		m, err := o.MCPFactory(a, inner)
 		if err != nil {
@@ -90,7 +101,7 @@ func New(o Options) (http.Handler, error) {
 		mux.Handle("/auth/", o.Sessions.Handler())
 	} else {
 		mux.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
-			problem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 	}
 	mux.Handle("/api/", innerH)
@@ -100,7 +111,7 @@ func New(o Options) (http.Handler, error) {
 		mcp := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if auth.FromContext(r.Context()).Kind != auth.KindAgent {
 				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resource+`"`)
-				problem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
+				writeProblem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
 				return
 			}
 			o.MCP.ServeHTTP(w, r)
@@ -109,10 +120,17 @@ func New(o Options) (http.Handler, error) {
 		mux.Handle("/mcp/", mcp)
 	} else {
 		notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			problem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 		mux.Handle("/mcp", notFound)
 		mux.Handle("/mcp/", notFound)
+	}
+	if o.Media != nil {
+		mux.Handle("/media/", o.Media)
+	} else {
+		mux.HandleFunc("/media/", func(w http.ResponseWriter, r *http.Request) {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+		})
 	}
 	if o.Cfg.E2E {
 		mux.Handle("GET /__e2e/served", rec.handler())

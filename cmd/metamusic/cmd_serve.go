@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,8 +23,11 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
+	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/synth"
 	"github.com/nicolasacchi/metamusic/web"
 )
 
@@ -101,9 +106,20 @@ func cmdServe(ctx context.Context, getenv func(string) string, s streams) error 
 
 func serve(ctx context.Context, b *booted, s streams) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
+	root, err := os.OpenRoot(b.cfg.DataDir)
+	if err != nil {
+		return fmt.Errorf("opening data dir: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	// One clock for the library, the signer and the API deps.
+	now := time.Now
+	lib := library.New(b.st, root, now)
+	signer := mediaserve.NewSigner(b.sec.Key, now)
+	probe := ensureProbe(ctx, b.cfg, root, s)
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: b.cfg, Sec: b.sec, Store: b.st, Tokens: b.tokens, Sessions: b.local,
 		SPA: web.Dist(), Version: version, Commit: commit,
+		Library: lib, Signer: signer, Probe: probe, Media: mediaserve.Handler(signer, root, lib, probe), Now: now,
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
 			srv, err := mcpgen.NewServer(a, inner, version)
 			if err != nil {
@@ -139,9 +155,52 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	return nil
 }
 
+// ensureProbe makes sure the device-probe FLAC exists under derived/probe and
+// returns the object the media handler serves for it. Without ffmpeg (or when
+// generating fails) it returns nil and get_device_probe answers 503.
+func ensureProbe(ctx context.Context, cfg config.Config, root *os.Root, s streams) *mediaserve.Object {
+	const rel = "derived/probe/probe-v1.flac"
+	tools := toolsOf(cfg)
+	if _, err := exec.LookPath(tools.FFmpeg); err != nil {
+		fmt.Fprintf(s.err, "metamusic: warning: ffmpeg not found; the device probe is unavailable\n")
+		return nil
+	}
+	if _, err := root.Stat(rel); err != nil {
+		if err := root.MkdirAll("derived/probe", 0o750); err != nil {
+			slog.Error("probe: creating directory failed", "err", err)
+			return nil
+		}
+		abs, err := filepath.Abs(cfg.DataDir)
+		if err == nil {
+			err = synth.ProbeFLAC(ctx, tools, filepath.Join(abs, filepath.FromSlash(rel)))
+		}
+		if err != nil {
+			slog.Error("probe: generating failed", "err", err)
+			return nil
+		}
+	}
+	f, err := root.Open(rel)
+	if err != nil {
+		slog.Error("probe: opening failed", "err", err)
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		slog.Error("probe: hashing failed", "err", err)
+		return nil
+	}
+	st, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+	return &mediaserve.Object{RelPath: rel, ContentType: "audio/flac", ETag: hex.EncodeToString(h.Sum(nil)), ModTime: st.ModTime()}
+}
+
 func cmdDev(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("dev", s)
 	dir := fs.String("data-dir", "./data/dev", "dev data directory (MM_DATA_DIR and MM_SECRETS_DIR are ignored)")
+	seed := fs.Bool("seed-synthetic", false, "generate and import a synthetic library when the library has no tracks")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -161,6 +220,23 @@ func cmdDev(ctx context.Context, args []string, getenv func(string) string, s st
 		return err
 	}
 	defer b.close()
+
+	if *seed {
+		var tracks int
+		if err := b.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks`).Scan(&tracks); err != nil {
+			return err
+		}
+		switch {
+		case tracks > 0:
+		case missingTools(b.cfg) != nil:
+			fmt.Fprintf(s.err, "metamusic: warning: %v; continuing without a library\n", missingTools(b.cfg))
+		default:
+			fmt.Fprintln(s.out, "seeding a synthetic library (this renders audio and takes a few seconds) ...")
+			if err := seedSynthetic(ctx, b.cfg, b.st, seedOpts{profile: synth.ProfileDev, seed: 1, viaDev: true}, s); err != nil {
+				return err
+			}
+		}
+	}
 
 	var n int
 	if err := b.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM human_account`).Scan(&n); err != nil {

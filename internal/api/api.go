@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -14,6 +13,9 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -28,6 +30,12 @@ type Deps struct {
 	Cfg             config.Config
 	Version, Commit string
 	Started         time.Time
+
+	// M1 (nil-safe: registration never dereferences them; handlers answer 503).
+	Library *library.Service
+	Signer  *serve.Signer
+	Probe   *serve.Object
+	Now     func() time.Time // nil => time.Now; fixes the clock in tests
 }
 
 func sortOps(ops []OpInfo) {
@@ -39,15 +47,27 @@ func sortOps(ops []OpInfo) {
 	})
 }
 
-// New builds the Huma API on mux and registers every operation.
-func New(mux *http.ServeMux, d Deps) huma.API {
+// HumaConfig is the production Huma configuration, shared with tests that must
+// exercise the same response shapes.
+func HumaConfig() huma.Config {
 	cfg := huma.DefaultConfig("metamusic", SpecVersion)
 	cfg.OpenAPIPath = "/api/openapi"
 	cfg.DocsPath = "/api/docs"
 	cfg.SchemasPath = ""
 	cfg.CreateHooks = nil
-	a := humago.New(mux, cfg)
+	return cfg
+}
+
+// New builds the Huma API on mux and registers every operation.
+func New(mux *http.ServeMux, d Deps) huma.API {
+	a := humago.New(mux, HumaConfig())
 	registerSystem(a, d)
+	registerLibrary(a, d)
+	registerMedia(a, d)
+	registerDrafts(a, d)
+	registerStats(a, d)
+	registerImports(a, d)
+	registerDevices(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	return a
@@ -64,19 +84,12 @@ func notFound(mux *http.ServeMux, prefix string) {
 				allow = append(allow, m)
 			}
 		}
-		p := Err(404, "NOT_FOUND", "no such resource", nil)
 		if len(allow) > 0 {
 			w.Header().Set("Allow", strings.Join(allow, ", "))
-			p = Err(405, "METHOD_NOT_ALLOWED", "method not allowed", map[string]any{"allow": allow})
+			problem.Write(w, 405, "METHOD_NOT_ALLOWED", "method not allowed", map[string]any{"allow": allow})
+			return
 		}
-		w.Header().Set("Content-Type", "application/problem+json")
-		var pr *Problem
-		if errors.As(p, &pr) {
-			w.WriteHeader(pr.Status)
-		} else {
-			w.WriteHeader(500)
-		}
-		_ = json.NewEncoder(w).Encode(p)
+		problem.Write(w, 404, "NOT_FOUND", "no such resource", nil)
 	})
 }
 

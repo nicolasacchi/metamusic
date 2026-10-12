@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -16,6 +17,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -99,6 +103,7 @@ var spaFS = fstest.MapFS{
 	"assets/app.js":        {Data: []byte("console.log(1)")},
 	"manifest.webmanifest": {Data: []byte("{}")},
 	"other.html":           {Data: []byte("<html>other</html>")},
+	"icons/icon-192.png":   {Data: []byte("png")},
 }
 
 const wantCSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
@@ -132,7 +137,7 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	w = e.do(bearer(httptest.NewRequest("GET", "/api/system", nil), tok))
 	m = decode(t, w)
 	if w.Code != 200 || m["version"] != "v-test" || m["commit"] != "abc123" || m["auth_mode"] != "proxy" ||
-		m["schema_version"] != float64(1) || m["started_at"] == "" {
+		m["schema_version"] != float64(2) || m["started_at"] == "" {
 		t.Fatalf("system %d %v", w.Code, m)
 	}
 }
@@ -335,5 +340,79 @@ func TestMCPFactoryShares(t *testing.T) {
 	h.ServeHTTP(w, bearer(httptest.NewRequest("POST", "/mcp", nil), tok))
 	if w.Code != 204 {
 		t.Errorf("/mcp = %d", w.Code)
+	}
+}
+
+func TestHTTPServer_OptionsWired(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	lt.Fixture(t, st, lt.FixedNow)
+	now := func() time.Time { return lt.FixedNow }
+	key := []byte("0123456789abcdef0123456789abcdef")
+	signer := serve.NewSigner(key, now)
+	probe := &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("cd", 32)}
+	cfg := config.Config{
+		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+	}
+	tokens := auth.NewTokenStore(st, key)
+	build := func(media http.Handler) http.Handler {
+		h, err := httpserver.New(httpserver.Options{
+			Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: edge}, Store: st, Tokens: tokens,
+			Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL), SPA: spaFS, Version: "v-test", Commit: "abc123",
+			Started: lt.FixedNow.Add(-2 * time.Minute),
+			Library: library.New(st, nil, now), Signer: signer, Probe: probe, Media: media, Now: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	tok, _, err := tokens.Create(ctx, "agent-1", []auth.Scope{auth.ScopeRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	do := func(h http.Handler, path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, bearer(httptest.NewRequest("GET", path, nil), tok))
+		return w
+	}
+	mounted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Mounted", r.URL.Path)
+		w.WriteHeader(204)
+	})
+	h := build(mounted)
+
+	if w := do(h, "/api/tracks"); w.Code != 200 || decode(t, w)["total"] != float64(5) {
+		t.Errorf("Library not wired: %d %s", w.Code, w.Body)
+	}
+	w := do(h, "/api/tracks/"+lt.TrackLuna+"/media")
+	m := decode(t, w)
+	if w.Code != 200 || m["expires_at"] != "2026-10-06T12:15:00Z" {
+		t.Fatalf("Signer clock not wired (expires_at is the Signer's own clock, same func as Options.Now): %d %s", w.Code, w.Body)
+	}
+	fl := m["flac"].(map[string]any)
+	u, _ := url.Parse(fl["url"].(string))
+	if err := signer.Verify(fl["sha256"].(string), "flac", u.Query().Get("exp"), u.Query().Get("sig")); err != nil {
+		t.Errorf("link not signed by the given Signer: %v", err)
+	}
+	if w := do(h, "/api/device-probe"); w.Code != 200 || !strings.Contains(decode(t, w)["url"].(string), "/media/"+probe.ETag+".flac?") {
+		t.Errorf("Probe not wired: %d %s", w.Code, w.Body)
+	}
+	if w := do(h, "/api/system"); w.Code != 200 || decode(t, w)["uptime_s"] != float64(120) {
+		t.Errorf("Now not wired into Deps: %d %s", w.Code, w.Body)
+	}
+	if w := do(h, "/media/x.flac"); w.Code != 204 || w.Header().Get("X-Mounted") != "/media/x.flac" {
+		t.Errorf("Media not mounted: %d", w.Code)
+	}
+
+	// Media nil: /media/ answers a 404 problem, not the SPA fallback
+	w = do(build(nil), "/media/x")
+	if w.Code != 404 || w.Header().Get("Content-Type") != "application/problem+json" || decode(t, w)["code"] != "NOT_FOUND" {
+		t.Errorf("nil Media: %d %q %s", w.Code, w.Header().Get("Content-Type"), w.Body)
 	}
 }
