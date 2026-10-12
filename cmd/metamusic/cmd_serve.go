@@ -63,7 +63,7 @@ func boot(ctx context.Context, getenv func(string) string, ensureSecrets bool) (
 	if err != nil {
 		return nil, err
 	}
-	return &booted{cfg, sec, st, auth.NewTokenStore(st, sec.Key), auth.NewLocalAuth(st, sec.Key, cfg.PublicURL)}, nil
+	return &booted{cfg, sec, st, auth.NewTokenStore(st, sec.Key, time.Now), auth.NewLocalAuth(st, sec.Key, cfg.PublicURL)}, nil
 }
 
 func randHex(n int) (string, error) {

@@ -69,7 +69,7 @@ func insertTrack(t *testing.T, s *Store, id, recipeID, title, frames string, tot
 func TestMigration0002_Applies(t *testing.T) {
 	ctx := context.Background()
 	s, _ := open(t)
-	if v, err := s.UserVersion(ctx); err != nil || v != 2 {
+	if v, err := s.UserVersion(ctx); err != nil || v < 2 {
 		t.Fatalf("version=%d err=%v", v, err)
 	}
 	want := map[string][]string{

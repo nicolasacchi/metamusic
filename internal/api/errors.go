@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/nicolasacchi/metamusic/internal/redact"
 )
 
 // Problem is the single error body: application/problem+json {"code","message","details"}.
@@ -80,8 +82,7 @@ func newProblem(ctx huma.Context, status int, msg string, errs ...error) huma.St
 		// Never leak internals to clients.
 		for _, e := range errs {
 			if e != nil {
-				// TODO: route through internal/redact once it exists.
-				attrs := []any{"status", status, "err", e.Error()}
+				attrs := []any{"status", status, "err", redact.Error(e)}
 				if ctx != nil {
 					if op := ctx.Operation(); op != nil {
 						attrs = append(attrs, "operation", op.OperationID)

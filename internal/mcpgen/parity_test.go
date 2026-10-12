@@ -52,7 +52,7 @@ func newRig(t *testing.T) *rig {
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 		TrustedUsers:   []string{"alice"},
 	}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	r := &rig{tokens: tokens}
 	// Every rig holds the same fixture library under a fixed clock, so the REST
 	// face and the MCP face (and the two rigs of a mutating op) agree exactly.

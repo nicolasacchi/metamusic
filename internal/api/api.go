@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
@@ -36,6 +37,17 @@ type Deps struct {
 	Signer  *serve.Signer
 	Probe   *serve.Object
 	Now     func() time.Time // nil => time.Now; fixes the clock in tests
+
+	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
+	NewID func() string
+}
+
+// NewIDFunc returns d.NewID, or the UUIDv7 generator when unset.
+func (d Deps) NewIDFunc() func() string {
+	if d.NewID != nil {
+		return d.NewID
+	}
+	return func() string { return uuid.NewV7().String() }
 }
 
 func sortOps(ops []OpInfo) {

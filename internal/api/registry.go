@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -20,11 +21,18 @@ type Meta struct {
 	MCP       string     `json:"mcp"`
 	UI        string     `json:"ui"`
 	HumanOnly bool       `json:"human_only"`
+
+	Idempotency  string   `json:"idempotency,omitempty"`   // "" | "create" (D-M2a-3)
+	Rate         string   `json:"rate,omitempty"`          // "" (default bucket) | "heavy"
+	SecretFields []string `json:"secret_fields,omitempty"` // top-level response keys that carry a secret (D-M2a-14)
 }
 
 const humanPrefix = "/human/api/"
 
-var opIDRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var (
+	opIDRe        = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	secretFieldRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+)
 
 // ValidateMeta applies the registration rules to one operation; tests use it
 // to check the serialized spec.
@@ -65,6 +73,28 @@ func validate(op huma.Operation, m Meta) error {
 	if m.HumanOnly != inHuman {
 		return fmt.Errorf("%s: human_only=%v inconsistent with path %q", op.OperationID, m.HumanOnly, op.Path)
 	}
+	switch m.Idempotency {
+	case "":
+	case "create":
+		if op.Method != http.MethodPost {
+			return fmt.Errorf("%s: idempotency create requires POST, got %s", op.OperationID, op.Method)
+		}
+	default:
+		return fmt.Errorf("%s: invalid idempotency %q", op.OperationID, m.Idempotency)
+	}
+	switch m.Rate {
+	case "", "heavy":
+	default:
+		return fmt.Errorf("%s: invalid rate %q", op.OperationID, m.Rate)
+	}
+	if len(m.SecretFields) > 0 && !(m.HumanOnly && m.Idempotency == "create") {
+		return fmt.Errorf("%s: secret_fields require a human-only create op", op.OperationID)
+	}
+	for _, f := range m.SecretFields {
+		if !secretFieldRe.MatchString(f) {
+			return fmt.Errorf("%s: secret field %q must match %s", op.OperationID, f, secretFieldRe)
+		}
+	}
 	return nil
 }
 
@@ -85,7 +115,7 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	exts["x-mm"] = meta
 	op.Extensions = exts
 	op.Middlewares = append(huma.Middlewares{func(ctx huma.Context, next func(huma.Context)) {
-		if err := authorize(ctx.Context(), meta); err != nil {
+		if err := Authorize(ctx.Context(), meta); err != nil {
 			var pr *Problem
 			if !errors.As(err, &pr) {
 				pr = &Problem{Status: 500, Code: "INTERNAL", Message: "internal error", Details: map[string]any{}}
@@ -97,15 +127,16 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	}}, op.Middlewares...)
 	huma.Register(a, op, func(ctx context.Context, in *I) (*O, error) {
 		// Defense in depth: the middleware already refused unauthorized callers.
-		if err := authorize(ctx, meta); err != nil {
+		if err := Authorize(ctx, meta); err != nil {
 			return nil, err
 		}
 		return h(ctx, in)
 	})
 }
 
-// authorize checks the principal against the operation metadata.
-func authorize(ctx context.Context, meta Meta) error {
+// Authorize checks the principal in ctx against the operation metadata. The
+// registration wrapper and the request gate share it.
+func Authorize(ctx context.Context, meta Meta) error {
 	p := auth.FromContext(ctx)
 	if p.Kind == auth.KindAnonymous || p.Kind == "" {
 		return Err(401, "UNAUTHENTICATED", "authentication required", nil)

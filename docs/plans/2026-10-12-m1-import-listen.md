@@ -218,7 +218,8 @@ cycles and to keep test code out of the binary):
 
 ### C11. Migration `internal/store/migrations/0002_library.sql` (full DDL) and store additions
 
-After M1, `PRAGMA user_version == 2`. M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
+After M1, `PRAGMA user_version == 2` (M2a-B1: migration `0003_judge.sql` makes it 3; the M1 tests that pinned `== 2` now
+assert "at least 2" or migrate explicitly with `MigrateTo(…, 2)`; `librarytest.FixtureV2` is the M1 fixture body). M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
 package `store`) asserts `user_version == 1` twice; both change to the number of embedded migrations
 (`loadMigrations()`). M0's runner is `store.Migrate(ctx, db)` (exported, applies every pending file in
 its own tx, and already refuses a database newer than the binary with a plain error); it has no partial

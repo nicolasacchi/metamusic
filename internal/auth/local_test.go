@@ -575,3 +575,22 @@ func TestVerifySession_ErrorPaths(t *testing.T) {
 		t.Fatalf("sessions table error: %v", err)
 	}
 }
+
+func TestLocalAuth_UseClock(t *testing.T) {
+	ctx := context.Background()
+	la := newLocal(t, "http://x")
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	la.UseClock(func() time.Time { return now })
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := la.VerifySession(ctx, cv); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(30 * 24 * time.Hour)
+	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("session must expire by the injected clock: %v", err)
+	}
+}

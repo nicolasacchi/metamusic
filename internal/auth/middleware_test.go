@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
 )
@@ -414,7 +415,7 @@ func TestTrustedPeer_Malformed(t *testing.T) {
 
 func TestTokenStore_ClosedStoreErrors(t *testing.T) {
 	st := newStore(t)
-	ts := NewTokenStore(st, key)
+	ts := NewTokenStore(st, key, time.Now)
 	_ = st.Close()
 	if _, err := ts.List(context.Background()); err == nil {
 		t.Error("List on closed store")

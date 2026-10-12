@@ -2,7 +2,10 @@
 // local password auth and the authentication middleware.
 package auth
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Scope string
 
@@ -21,15 +24,36 @@ const (
 	KindAnonymous Kind = "anonymous"
 	KindHuman     Kind = "human"
 	KindAgent     Kind = "agent"
+	KindDevice    Kind = "device"
+	// KindSystem marks CLI actions in audit rows only; the middleware never produces it.
+	KindSystem Kind = "system"
 )
 
 type Principal struct {
-	Kind   Kind
-	ID     string  // human: username; agent: token id
-	Name   string  // human: username; agent: token name
-	Scopes []Scope // human: all four
-	Via    string  // "proxy" | "local" | "token"
+	Kind     Kind
+	ID       string    // human: username; agent: token id; device: device id; system: "cli"
+	Name     string    // human: username; agent: token name; device: device name
+	Scopes   []Scope   // human: all four; device: read, write; agent: token scopes
+	Via      string    // "proxy" | "local" | "token" | "device" | "cli"
+	StepUpAt time.Time // local sessions only (zero otherwise)
 }
+
+// CLI is the principal of command-line actions (audit rows only).
+var CLI = Principal{Kind: KindSystem, ID: "cli", Name: "cli", Via: "cli"}
+
+// Key is the stable identity stored in principal_id columns, rate-limit keys
+// and idempotency keys: "human:<id>", "device:<id>", "agent:<id>", "system:cli";
+// "" for anonymous.
+func (p Principal) Key() string {
+	switch p.Kind {
+	case KindHuman, KindDevice, KindAgent, KindSystem:
+		return string(p.Kind) + ":" + p.ID
+	}
+	return ""
+}
+
+// ActsAsHuman reports whether judgments from p count as the operator's own.
+func (p Principal) ActsAsHuman() bool { return p.Kind == KindHuman || p.Kind == KindDevice }
 
 func (p Principal) Has(s Scope) bool {
 	for _, have := range p.Scopes {

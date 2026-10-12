@@ -114,6 +114,9 @@ func (l *LocalAuth) succeeded() {
 	<-l.failSem
 }
 
+// UseClock replaces the clock (app.Build hands it the rig clock; tests inject fakes).
+func (l *LocalAuth) UseClock(now func() time.Time) { l.now = now }
+
 func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
 	la := &LocalAuth{
 		st: st, key: key,

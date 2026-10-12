@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,17 @@ func TestRegisterPanics(t *testing.T) {
 		{"human only wrong path", nil, func(m *api.Meta) { m.HumanOnly = true }},
 		{"path outside api", func(o *huma.Operation) { o.Path = "/outside" }, nil},
 		{"human only with tool", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) { m.HumanOnly = true; m.UI = "none:x" }},
+		{"idempotency unknown", nil, func(m *api.Meta) { m.Idempotency = "always" }},
+		{"idempotency create on GET", nil, func(m *api.Meta) { m.Idempotency = "create" }},
+		{"idempotency create on PATCH", func(o *huma.Operation) { o.Method = "PATCH" }, func(m *api.Meta) { m.Idempotency = "create" }},
+		{"rate unknown", nil, func(m *api.Meta) { m.Rate = "turbo" }},
+		{"secret fields without human-only", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Idempotency = "create"; m.SecretFields = []string{"token"} }},
+		{"secret fields human-only but not create", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.SecretFields = true, "none:x", "exclude:human-only", []string{"token"}
+		}},
+		{"secret field bad name", func(o *huma.Operation) { o.Method, o.Path = "POST", "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.Idempotency, m.SecretFields = true, "none:x", "exclude:human-only", "create", []string{"Token"}
+		}},
 		{"human path not human only", func(o *huma.Operation) { o.Path = "/human/api/x" }, nil},
 	}
 	for _, tc := range tests {
@@ -242,5 +254,51 @@ func TestAuthBeforeInput(t *testing.T) {
 	wr := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeWrite}}
 	if w := call(wr, "POST", "/api/wr", `{"n":0}`); w.Code != 422 {
 		t.Errorf("authorized invalid: %d", w.Code)
+	}
+}
+
+func TestRegisterOK_M2aMeta(t *testing.T) {
+	a := newAPI()
+	op := goodOp()
+	op.OperationID, op.Method, op.Path = "mint_thing", "POST", "/human/api/mint"
+	api.Register(a, op, api.Meta{
+		Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "none:test", HumanOnly: true,
+		Idempotency: "create", Rate: "heavy", SecretFields: []string{"token"},
+	}, h)
+	m, ok := api.OpMeta(a.OpenAPI().Paths["/human/api/mint"].Post)
+	if !ok || m.Idempotency != "create" || m.Rate != "heavy" || len(m.SecretFields) != 1 {
+		t.Fatalf("meta = %+v", m)
+	}
+}
+
+func TestAuthorize_Exported(t *testing.T) {
+	read := api.Meta{Scope: auth.ScopeRead}
+	humanOnly := api.Meta{Scope: auth.ScopeRead, HumanOnly: true}
+	for _, tc := range []struct {
+		name string
+		p    auth.Principal
+		m    api.Meta
+		code string // "" => allowed
+	}{
+		{"anonymous", auth.Principal{Kind: auth.KindAnonymous}, read, "UNAUTHENTICATED"},
+		{"zero", auth.Principal{}, read, "UNAUTHENTICATED"},
+		{"agent ok", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}, read, ""},
+		{"agent missing scope", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeWrite}}, read, "FORBIDDEN_SCOPE"},
+		{"agent on human op", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}, humanOnly, "HUMAN_ONLY"},
+		{"human on human op", auth.Principal{Kind: auth.KindHuman, Scopes: []auth.Scope{auth.ScopeRead}}, humanOnly, ""},
+		{"device on human op", auth.Principal{Kind: auth.KindDevice, Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, humanOnly, "HUMAN_ONLY"},
+		{"device read", auth.Principal{Kind: auth.KindDevice, Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, read, ""},
+	} {
+		err := api.Authorize(auth.WithPrincipal(context.Background(), tc.p), tc.m)
+		if tc.code == "" {
+			if err != nil {
+				t.Errorf("%s: %v", tc.name, err)
+			}
+			continue
+		}
+		var pr *api.Problem
+		if !errors.As(err, &pr) || pr.Code != tc.code {
+			t.Errorf("%s: err = %v, want code %s", tc.name, err, tc.code)
+		}
 	}
 }

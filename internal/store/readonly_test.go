@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -116,7 +117,11 @@ func TestOpenReadOnly_SchemaMismatch(t *testing.T) {
 	if !errors.Is(err, ErrSchemaMismatch) {
 		t.Fatalf("err=%v", err)
 	}
-	if !strings.Contains(err.Error(), "version 1") || !strings.Contains(err.Error(), "expects 2") {
+	ms, lerr := loadMigrations()
+	if lerr != nil {
+		t.Fatal(lerr)
+	}
+	if !strings.Contains(err.Error(), "version 1") || !strings.Contains(err.Error(), fmt.Sprintf("expects %d", len(ms))) {
 		t.Fatalf("message must name both versions: %v", err)
 	}
 }

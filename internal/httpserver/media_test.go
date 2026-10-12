@@ -65,7 +65,7 @@ func newMediaEnv(t *testing.T, mode, publicURL string) *mediaEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	local := auth.NewLocalAuth(st, key, publicURL)
 	spa := fstest.MapFS{
 		"index.html":           {Data: []byte("<html>spa</html>")},

@@ -96,7 +96,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
 	}
-	tokens := auth.NewTokenStore(e.st, key)
+	tokens := auth.NewTokenStore(e.st, key, time.Now)
 	r := &privacyRig{drafts: map[string]string{}}
 	now := func() time.Time { return e.now }
 	h, err := httpserver.New(httpserver.Options{

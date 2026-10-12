@@ -48,7 +48,7 @@ func newEnv(t *testing.T, mutate func(*config.Config), spa fstestFS, mcp http.Ha
 	}
 	key := []byte("0123456789abcdef0123456789abcdef")
 	sec := config.Secrets{Key: key, EdgeSecret: edge}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens,
 		Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL), MCP: mcp, SPA: spa,
@@ -137,7 +137,7 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	w = e.do(bearer(httptest.NewRequest("GET", "/api/system", nil), tok))
 	m = decode(t, w)
 	if w.Code != 200 || m["version"] != "v-test" || m["commit"] != "abc123" || m["auth_mode"] != "proxy" ||
-		m["schema_version"] != float64(2) || m["started_at"] == "" {
+		m["schema_version"] != float64(3) || m["started_at"] == "" {
 		t.Fatalf("system %d %v", w.Code, m)
 	}
 }
@@ -299,7 +299,7 @@ func TestMCPFactoryShares(t *testing.T) {
 	t.Cleanup(func() { st.Close() })
 	key := []byte("0123456789abcdef0123456789abcdef")
 	cfg := config.Config{Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy"}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	started := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	var gotAPI huma.API
 	var gotInner http.Handler
@@ -359,7 +359,7 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
 	}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	build := func(media http.Handler) http.Handler {
 		h, err := httpserver.New(httpserver.Options{
 			Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: edge}, Store: st, Tokens: tokens,

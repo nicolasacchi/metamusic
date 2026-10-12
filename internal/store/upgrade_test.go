@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -21,7 +22,7 @@ func TestMigration0002_UpgradeFromM0(t *testing.T) {
 	}
 	v1 := &store.Store{W: raw, R: raw}
 	key := []byte("0123456789abcdef0123456789abcdef")
-	plain, _, err := auth.NewTokenStore(v1, key).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
+	plain, _, err := auth.NewTokenStore(v1, key, time.Now).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,13 +56,13 @@ func TestMigration0002_UpgradeFromM0(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v != 2 {
+	if v, _ := s.UserVersion(ctx); v < 2 {
 		t.Fatalf("version=%d", v)
 	}
 	if after := snap(s); after != before {
 		t.Fatalf("rows changed by upgrade: %v -> %v", before, after)
 	}
-	pr, err := auth.NewTokenStore(s, key).Verify(ctx, plain)
+	pr, err := auth.NewTokenStore(s, key, time.Now).Verify(ctx, plain)
 	if err != nil {
 		t.Fatalf("token no longer verifies: %v", err)
 	}
