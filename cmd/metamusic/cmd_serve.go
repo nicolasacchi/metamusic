@@ -21,7 +21,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
+	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/web"
 )
@@ -101,9 +103,20 @@ func cmdServe(ctx context.Context, getenv func(string) string, s streams) error 
 
 func serve(ctx context.Context, b *booted, s streams) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
+	root, err := os.OpenRoot(b.cfg.DataDir)
+	if err != nil {
+		return fmt.Errorf("opening data dir: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	// One clock for the library, the signer and the API deps. No probe and no
+	// seeding here (B9 adds them).
+	now := time.Now
+	lib := library.New(b.st, root, now)
+	signer := mediaserve.NewSigner(b.sec.Key, now)
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: b.cfg, Sec: b.sec, Store: b.st, Tokens: b.tokens, Sessions: b.local,
 		SPA: web.Dist(), Version: version, Commit: commit,
+		Library: lib, Signer: signer, Media: mediaserve.Handler(signer, root, lib, nil), Now: now,
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
 			srv, err := mcpgen.NewServer(a, inner, version)
 			if err != nil {

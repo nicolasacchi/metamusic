@@ -82,7 +82,7 @@ func (s *Signer) Verify(sha, ext, exp, sig string) error {
 	if err != nil || e < 0 || strconv.FormatInt(e, 10) != exp {
 		return ErrLinkInvalid
 	}
-	got, err := base64.RawURLEncoding.DecodeString(sig)
+	got, err := base64.RawURLEncoding.Strict().DecodeString(sig)
 	if err != nil || len(got) != sha256.Size {
 		return ErrLinkInvalid
 	}

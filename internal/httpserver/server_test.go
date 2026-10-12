@@ -103,6 +103,7 @@ var spaFS = fstest.MapFS{
 	"assets/app.js":        {Data: []byte("console.log(1)")},
 	"manifest.webmanifest": {Data: []byte("{}")},
 	"other.html":           {Data: []byte("<html>other</html>")},
+	"icons/icon-192.png":   {Data: []byte("png")},
 }
 
 const wantCSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
