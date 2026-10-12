@@ -1,6 +1,1148 @@
 {
   "components": {
     "schemas": {
+      "AnalysisInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "loudness": {
+            "$ref": "#/components/schemas/LoudnessOut",
+            "description": "null when not analysed"
+          },
+          "spectrum": {
+            "$ref": "#/components/schemas/SpectrumOut",
+            "description": "null when not analysed"
+          }
+        },
+        "required": [
+          "loudness",
+          "spectrum"
+        ],
+        "type": "object"
+      },
+      "AudioInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_md5": {
+            "type": "string"
+          },
+          "bits_per_sample": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "master_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "master_sha256": {
+            "type": "string"
+          },
+          "mp3": {
+            "$ref": "#/components/schemas/MP3Info",
+            "description": "MP3 rendition; null when missing"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total_samples": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sample_rate",
+          "bits_per_sample",
+          "channels",
+          "total_samples",
+          "master_sha256",
+          "master_bytes",
+          "audio_md5",
+          "mp3"
+        ],
+        "type": "object"
+      },
+      "BacklogStats": {
+        "additionalProperties": false,
+        "properties": {
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionCount"
+            },
+            "type": "array"
+          },
+          "drafts": {
+            "description": "Drafts still in the backlog",
+            "format": "int64",
+            "type": "integer"
+          },
+          "fulfilled": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "groups": {
+            "description": "Distinct groups among backlog drafts",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "drafts",
+          "fulfilled",
+          "groups",
+          "collections"
+        ],
+        "type": "object"
+      },
+      "BandwidthStats": {
+        "additionalProperties": false,
+        "properties": {
+          "max_hz": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "median_hz": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "min_hz": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "n",
+          "min_hz",
+          "median_hz",
+          "max_hz"
+        ],
+        "type": "object"
+      },
+      "CollectionCount": {
+        "additionalProperties": false,
+        "properties": {
+          "drafts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "drafts"
+        ],
+        "type": "object"
+      },
+      "DeviceProbeOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "bits_per_sample": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "audio/flac"
+            ],
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "seek_to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "url": {
+            "description": "Signed, relative URL of the probe file",
+            "type": "string"
+          },
+          "version": {
+            "examples": [
+              1
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "url",
+          "content_type",
+          "sample_rate",
+          "bits_per_sample",
+          "channels",
+          "duration_s",
+          "seek_to_s",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "DeviceProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "type": "string"
+          },
+          "effective_format": {
+            "enum": [
+              "flac",
+              "mp3"
+            ],
+            "type": "string"
+          },
+          "flac_can_play": {
+            "type": "string"
+          },
+          "flac_decode_ok": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "flac_seek_ok": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "probe_result": {
+            "type": "string"
+          },
+          "probe_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "probed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quality": {
+            "type": "string"
+          },
+          "quality_source": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "user_agent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "label",
+          "user_agent",
+          "quality",
+          "quality_source",
+          "probe_result",
+          "flac_can_play",
+          "flac_decode_ok",
+          "flac_seek_ok",
+          "probe_version",
+          "probed_at",
+          "effective_format",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "DeviceProfilesOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceProfile"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "DraftDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "fulfilled_by_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group": {
+            "items": {
+              "$ref": "#/components/schemas/GroupMember"
+            },
+            "type": "array"
+          },
+          "group_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_reference": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Private reference metadata; humans only, null for agents",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "request": {
+            "$ref": "#/components/schemas/DraftRequest"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/DraftSection"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DraftSource",
+            "description": "null for drafts without an imported recipe"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "status",
+          "request_id",
+          "group_key",
+          "label",
+          "request",
+          "sections",
+          "collections",
+          "has_reference",
+          "reference",
+          "source",
+          "parent_track_id",
+          "fulfilled_by_track_id",
+          "group",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "DraftPage": {
+        "additionalProperties": false,
+        "properties": {
+          "groups_total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "groups_total",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "DraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "cot": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lyrics": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "style": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "style",
+          "lyrics",
+          "cot",
+          "seed"
+        ],
+        "type": "object"
+      },
+      "DraftSection": {
+        "additionalProperties": false,
+        "properties": {
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "raw": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idx",
+          "kind",
+          "label",
+          "raw",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "DraftSource": {
+        "additionalProperties": false,
+        "properties": {
+          "recipe_hash": {
+            "type": "string"
+          },
+          "recipe_id": {
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/DraftSourceRef"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "recipe_hash",
+          "sources"
+        ],
+        "type": "object"
+      },
+      "DraftSourceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "raw_kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "line",
+          "raw_kind"
+        ],
+        "type": "object"
+      },
+      "DraftSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cot": {
+            "type": "string"
+          },
+          "fulfilled_by_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "section_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "style_excerpt": {
+            "description": "First 120 runes of the style",
+            "type": "string"
+          },
+          "style_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "request_id",
+          "group_key",
+          "label",
+          "origin",
+          "status",
+          "seed",
+          "cot",
+          "style_excerpt",
+          "style_terms",
+          "section_kinds",
+          "collections",
+          "parent_track_id",
+          "fulfilled_by_track_id"
+        ],
+        "type": "object"
+      },
+      "Facets": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "$ref": "#/components/schemas/Range"
+          },
+          "recorded_at": {
+            "$ref": "#/components/schemas/TimeRange"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/StatusCount"
+            },
+            "type": "array"
+          },
+          "style_terms": {
+            "items": {
+              "$ref": "#/components/schemas/TermCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "style_terms",
+          "statuses",
+          "duration_s",
+          "recorded_at"
+        ],
+        "type": "object"
+      },
+      "FlacLink": {
+        "additionalProperties": false,
+        "properties": {
+          "bits_per_sample": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "audio/flac"
+            ],
+            "type": "string"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Signed, relative URL; valid until expires_at",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "content_type",
+          "bytes",
+          "sha256",
+          "sample_rate",
+          "bits_per_sample"
+        ],
+        "type": "object"
+      },
+      "GroupMember": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "request_id",
+          "label",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ImportInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "rule": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rule",
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "ImportRunPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run": {
+            "$ref": "#/components/schemas/ImportRunSummary"
+          },
+          "section": {
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run",
+          "section",
+          "items",
+          "total",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "ImportRunSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heartbeat_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inbox_label": {
+            "type": "string"
+          },
+          "plan_digest": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {},
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "warnings": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "heartbeat_at",
+          "finished_at",
+          "state",
+          "inbox_label",
+          "plan_digest",
+          "summary",
+          "errors",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "ImportRunsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRunSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ImportStats": {
+        "additionalProperties": false,
+        "properties": {
+          "last_run_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runs",
+          "last_run_at",
+          "last_state"
+        ],
+        "type": "object"
+      },
+      "Lineage": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inferred": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "operator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "root_track_id": {
+            "type": "string"
+          },
+          "rule": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "items": {
+              "$ref": "#/components/schemas/Sibling"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "root_track_id",
+          "parent_track_id",
+          "generation",
+          "operator",
+          "inferred",
+          "rule",
+          "siblings"
+        ],
+        "type": "object"
+      },
+      "LoudnessOut": {
+        "additionalProperties": false,
+        "properties": {
+          "integrated_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "lra_high_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "lra_low_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "lra_lu": {
+            "format": "double",
+            "type": "number"
+          },
+          "replaygain_track_gain_db": {
+            "format": "double",
+            "type": "number"
+          },
+          "sample_peak_dbfs": {
+            "format": "double",
+            "type": "number"
+          },
+          "short_term_1hz": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "short_term_max_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "true_peak_dbtp": {
+            "format": "double",
+            "type": "number"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "replaygain_track_gain_db",
+          "version",
+          "integrated_lufs",
+          "lra_lu",
+          "lra_low_lufs",
+          "lra_high_lufs",
+          "true_peak_dbtp",
+          "sample_peak_dbfs",
+          "short_term_max_lufs",
+          "short_term_1hz"
+        ],
+        "type": "object"
+      },
+      "LoudnessStats": {
+        "additionalProperties": false,
+        "properties": {
+          "integrated_lufs_max": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "integrated_lufs_min": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "listen_flac_recommended": {
+            "description": "Spread above 2 LU",
+            "type": "boolean"
+          },
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "spread_lu": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "n",
+          "integrated_lufs_min",
+          "integrated_lufs_max",
+          "spread_lu",
+          "listen_flac_recommended"
+        ],
+        "type": "object"
+      },
+      "MP3Info": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "gain_db": {
+            "format": "double",
+            "type": "number"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "bytes",
+          "gain_db"
+        ],
+        "type": "object"
+      },
+      "MP3Link": {
+        "additionalProperties": false,
+        "properties": {
+          "bitrate_kbps": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "audio/mpeg"
+            ],
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Signed, relative URL; valid until expires_at",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "content_type",
+          "bytes",
+          "sha256",
+          "bitrate_kbps"
+        ],
+        "type": "object"
+      },
+      "MediaLinksOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "flac": {
+            "$ref": "#/components/schemas/FlacLink"
+          },
+          "mp3": {
+            "$ref": "#/components/schemas/MP3Link"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "ttl_s": {
+            "description": "Link lifetime granted to the caller, seconds",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "expires_at",
+          "ttl_s",
+          "flac",
+          "mp3"
+        ],
+        "type": "object"
+      },
+      "PeaksLevel": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "level": {
+            "type": "string"
+          },
+          "peaks": {
+            "$ref": "#/components/schemas/Waveform"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "level",
+          "duration_s",
+          "peaks"
+        ],
+        "type": "object"
+      },
       "PingOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -46,6 +1188,395 @@
         ],
         "type": "object"
       },
+      "PutDeviceProfileInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "flac_can_play": {
+            "description": "canPlayType('audio/flac') result: probably, maybe or empty",
+            "type": "string"
+          },
+          "flac_decode_ok": {
+            "description": "Absent when the probe was inconclusive",
+            "type": "boolean"
+          },
+          "flac_seek_ok": {
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "probe_result": {
+            "enum": [
+              "none",
+              "ok",
+              "failed",
+              "inconclusive"
+            ],
+            "type": "string"
+          },
+          "probe_version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "probed_at": {
+            "description": "RFC 3339",
+            "type": "string"
+          },
+          "quality": {
+            "description": "lossless | high | auto",
+            "type": "string"
+          },
+          "quality_source": {
+            "enum": [
+              "default",
+              "user",
+              "probe"
+            ],
+            "type": "string"
+          },
+          "user_agent": {
+            "maxLength": 512,
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "user_agent",
+          "quality",
+          "quality_source",
+          "probe_result",
+          "flac_can_play",
+          "probe_version"
+        ],
+        "type": "object"
+      },
+      "Range": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "min": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "type": "object"
+      },
+      "RecipeInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "cot": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lyrics": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sources_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "style": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "engine",
+          "request_id",
+          "style",
+          "lyrics",
+          "cot",
+          "seed",
+          "hash",
+          "sources_count"
+        ],
+        "type": "object"
+      },
+      "RecipeStats": {
+        "additionalProperties": false,
+        "properties": {
+          "sources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "sources"
+        ],
+        "type": "object"
+      },
+      "ScoreInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "aligned": {
+            "type": "boolean"
+          },
+          "bars": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "meter": {
+            "type": "string"
+          },
+          "q": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seconds_per_bar": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bars",
+          "meter",
+          "q",
+          "bpm",
+          "seconds_per_bar",
+          "aligned"
+        ],
+        "type": "object"
+      },
+      "SectionOut": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "end_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "raw": {
+            "type": "string"
+          },
+          "source": {
+            "description": "lyrics | plan | measured | manual",
+            "type": "string"
+          },
+          "start_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "idx",
+          "kind",
+          "label",
+          "raw",
+          "lines",
+          "start_s",
+          "end_s",
+          "source",
+          "confidence"
+        ],
+        "type": "object"
+      },
+      "Sibling": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "seed",
+          "recorded_at"
+        ],
+        "type": "object"
+      },
+      "SpectrumOut": {
+        "additionalProperties": false,
+        "properties": {
+          "bandwidth_hz": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "frames": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ref_db": {
+            "format": "double",
+            "type": "number"
+          },
+          "threshold_db": {
+            "format": "double",
+            "type": "number"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "bandwidth_hz",
+          "ref_db",
+          "threshold_db",
+          "frames"
+        ],
+        "type": "object"
+      },
+      "Stats": {
+        "additionalProperties": false,
+        "properties": {
+          "backlog": {
+            "$ref": "#/components/schemas/BacklogStats"
+          },
+          "bandwidth": {
+            "$ref": "#/components/schemas/BandwidthStats"
+          },
+          "imports": {
+            "$ref": "#/components/schemas/ImportStats"
+          },
+          "loudness": {
+            "$ref": "#/components/schemas/LoudnessStats"
+          },
+          "recipes": {
+            "$ref": "#/components/schemas/RecipeStats"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageStats"
+          },
+          "tracks": {
+            "$ref": "#/components/schemas/TrackStats"
+          }
+        },
+        "required": [
+          "tracks",
+          "backlog",
+          "recipes",
+          "loudness",
+          "bandwidth",
+          "storage",
+          "imports"
+        ],
+        "type": "object"
+      },
+      "StatusCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "count"
+        ],
+        "type": "object"
+      },
+      "StorageStats": {
+        "additionalProperties": false,
+        "properties": {
+          "derived_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "masters_bytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "masters_bytes",
+          "derived_bytes"
+        ],
+        "type": "object"
+      },
       "SystemOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -79,6 +1610,402 @@
           "schema_version",
           "started_at",
           "uptime_s"
+        ],
+        "type": "object"
+      },
+      "TermCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "count"
+        ],
+        "type": "object"
+      },
+      "TimeRange": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "min": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "type": "object"
+      },
+      "TrackDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisInfo"
+          },
+          "audio": {
+            "$ref": "#/components/schemas/AudioInfo"
+          },
+          "bpm_declared": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "import": {
+            "$ref": "#/components/schemas/ImportInfo"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/Lineage"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeInfo"
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "score": {
+            "$ref": "#/components/schemas/ScoreInfo",
+            "description": "null when the track has no score"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SectionOut"
+            },
+            "type": "array"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "status_set_by": {
+            "type": "string"
+          },
+          "style_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "timed": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "truncated": {
+            "$ref": "#/components/schemas/Truncation",
+            "description": "null when result.json was not imported"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "status_set_by",
+          "origin",
+          "recorded_at",
+          "created_at",
+          "duration_s",
+          "audio",
+          "recipe",
+          "style_terms",
+          "bpm_declared",
+          "lineage",
+          "truncated",
+          "score",
+          "sections",
+          "timed",
+          "analysis",
+          "import"
+        ],
+        "type": "object"
+      },
+      "TrackPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrackSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "TrackStats": {
+        "additionalProperties": false,
+        "properties": {
+          "by_origin": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "duration_s_total": {
+            "format": "double",
+            "type": "number"
+          },
+          "timed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "with_score": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "by_status",
+          "by_origin",
+          "duration_s_total",
+          "with_score",
+          "timed",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "TrackSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "bandwidth_hz": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bpm_declared": {
+            "description": "BPM declared in the style text; null when absent",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "children_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "has_score": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "integrated_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "root_track_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "style_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "timed": {
+            "description": "Section times are known (aligned score)",
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "truncated": {
+            "description": "abc or semantic stream truncated; null when unknown",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "duration_s",
+          "recorded_at",
+          "created_at",
+          "request_id",
+          "seed",
+          "style_terms",
+          "bpm_declared",
+          "has_score",
+          "timed",
+          "truncated",
+          "integrated_lufs",
+          "bandwidth_hz",
+          "root_track_id",
+          "parent_track_id",
+          "children_count"
+        ],
+        "type": "object"
+      },
+      "Truncation": {
+        "additionalProperties": false,
+        "properties": {
+          "abc": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "semantic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "abc",
+          "semantic"
+        ],
+        "type": "object"
+      },
+      "Waveform": {
+        "additionalProperties": false,
+        "properties": {
+          "bits": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "length": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "samples_per_pixel": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "channels",
+          "sample_rate",
+          "samples_per_pixel",
+          "bits",
+          "length",
+          "data"
         ],
         "type": "object"
       },
@@ -125,6 +2052,464 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/device-probe": {
+      "get": {
+        "description": "A signed link to a 3 s 24-bit/48 kHz FLAC test file and the expectations a client checks to learn whether the device decodes and seeks FLAC.",
+        "operationId": "get_device_probe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceProbeOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the device FLAC probe",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/device-profiles": {
+      "get": {
+        "description": "All known device playback profiles.",
+        "operationId": "list_device_profiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceProfilesOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List device profiles",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
+    "/api/device-profiles/{device_id}": {
+      "put": {
+        "description": "Upserts the playback profile of one client device (preferred quality and the FLAC probe result). Idempotent.",
+        "operationId": "put_device_profile",
+        "parameters": [
+          {
+            "description": "Client-generated device id",
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "description": "Client-generated device id",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutDeviceProfileInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceProfile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create or update a device profile",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
+    "/api/drafts": {
+      "get": {
+        "description": "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin.",
+        "operationId": "list_drafts",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "default": "backlog",
+              "enum": [
+                "backlog",
+                "fulfilled",
+                "archived"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "collection",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "group_key",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "origin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List backlog drafts",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/backlog",
+          "human_only": false
+        }
+      }
+    },
+    "/api/drafts/{id}": {
+      "get": {
+        "description": "One draft with its request, lyric structure, collections, group and recipe sources. Private reference metadata is returned to human users only; agents see has_reference.",
+        "operationId": "get_draft",
+        "parameters": [
+          {
+            "description": "Draft id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Draft id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a draft",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/backlog/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/imports": {
+      "get": {
+        "description": "Import runs, newest first, with state, plan digest and error and warning counts.",
+        "operationId": "list_import_runs",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRunsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List import runs",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/import",
+          "human_only": false
+        }
+      }
+    },
+    "/api/imports/{id}": {
+      "get": {
+        "description": "One run and a page of one report section (errors by default). The whole inventory is never returned at once; follow next_cursor.",
+        "operationId": "get_import_run",
+        "parameters": [
+          {
+            "description": "Import run id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Import run id",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "section",
+            "schema": {
+              "default": "errors",
+              "enum": [
+                "errors",
+                "warnings",
+                "unmatched",
+                "ambiguous",
+                "audio",
+                "recipes",
+                "drafts",
+                "duplicates",
+                "ignored"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRunPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get one section of an import report",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/import",
+          "human_only": false
+        }
+      }
+    },
+    "/api/library/facets": {
+      "get": {
+        "description": "Top style terms, status counts and duration and recording-date ranges, for building filters.",
+        "operationId": "get_library_facets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Facets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get library facets",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "description": "Returns the identity, scopes and authentication path of the caller.",
@@ -197,6 +2582,42 @@
         }
       }
     },
+    "/api/stats": {
+      "get": {
+        "description": "Counts of tracks, drafts and recipes, loudness spread (listen_flac_recommended when above 2 LU), bandwidth, storage and import runs.",
+        "operationId": "get_stats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get library statistics",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
     "/api/system": {
       "get": {
         "description": "Version, commit, auth mode, database schema version and uptime.",
@@ -229,6 +2650,349 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks": {
+      "get": {
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.",
+        "operationId": "search_tracks",
+        "parameters": [
+          {
+            "description": "Free text over title, request id, style and lyrics (prefix match)",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Free text over title, request id, style and lyrics (prefix match)",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Repeatable status filter",
+            "explode": true,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Repeatable status filter",
+              "items": {
+                "enum": [
+                  "draft",
+                  "to_relisten",
+                  "final",
+                  "discarded"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Repeatable style term; all must match",
+            "explode": true,
+            "in": "query",
+            "name": "style",
+            "schema": {
+              "description": "Repeatable style term; all must match",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 5,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "min_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "max_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "description": "RFC 3339 date or date-time (inclusive)",
+            "explode": false,
+            "in": "query",
+            "name": "recorded_from",
+            "schema": {
+              "description": "RFC 3339 date or date-time (inclusive)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339 date (whole day, inclusive) or date-time",
+            "explode": false,
+            "in": "query",
+            "name": "recorded_to",
+            "schema": {
+              "description": "RFC 3339 date (whole day, inclusive) or date-time",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_score",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "truncated",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "root_track_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default recorded_desc, or relevance when q is set",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Default recorded_desc, or relevance when q is set",
+              "enum": [
+                "recorded_desc",
+                "recorded_asc",
+                "duration_desc",
+                "duration_asc",
+                "title_asc",
+                "relevance"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from next_cursor",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from next_cursor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Search tracks",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}": {
+      "get": {
+        "description": "Full track detail: audio, recipe, lineage, score, lyric sections (timed only when a score aligns with them) and analyses.",
+        "operationId": "get_track",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/media": {
+      "get": {
+        "description": "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.",
+        "operationId": "get_media_links",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaLinksOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get signed media links",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/peaks": {
+      "get": {
+        "description": "Waveform peaks of a track (audiowaveform JSON v2 levels): overview (about 2048 columns) or detail (20 per second).",
+        "operationId": "get_track_peaks",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "level",
+            "schema": {
+              "default": "overview",
+              "enum": [
+                "overview",
+                "detail"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeaksLevel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get waveform peaks",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
           "human_only": false
         }
       }

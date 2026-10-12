@@ -79,12 +79,13 @@ func registerSystem(a huma.API, d Deps) {
 				}
 				b.SchemaVersion = v
 			}
+			now := d.clock()
 			started := d.Started
 			if started.IsZero() {
-				started = time.Now()
+				started = now
 			}
 			b.StartedAt = started.UTC().Format(time.RFC3339)
-			b.UptimeS = int64(time.Since(started).Seconds())
+			b.UptimeS = int64(now.Sub(started).Seconds())
 			return out, nil
 		})
 }

@@ -4,6 +4,166 @@
  */
 
 export interface paths {
+    "/api/device-probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the device FLAC probe
+         * @description A signed link to a 3 s 24-bit/48 kHz FLAC test file and the expectations a client checks to learn whether the device decodes and seeks FLAC.
+         */
+        get: operations["get_device_probe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/device-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List device profiles
+         * @description All known device playback profiles.
+         */
+        get: operations["list_device_profiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/device-profiles/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Create or update a device profile
+         * @description Upserts the playback profile of one client device (preferred quality and the FLAC probe result). Idempotent.
+         */
+        put: operations["put_device_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List backlog drafts
+         * @description Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin.
+         */
+        get: operations["list_drafts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a draft
+         * @description One draft with its request, lyric structure, collections, group and recipe sources. Private reference metadata is returned to human users only; agents see has_reference.
+         */
+        get: operations["get_draft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List import runs
+         * @description Import runs, newest first, with state, plan digest and error and warning counts.
+         */
+        get: operations["list_import_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one section of an import report
+         * @description One run and a page of one report section (errors by default). The whole inventory is never returned at once; follow next_cursor.
+         */
+        get: operations["get_import_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get library facets
+         * @description Top style terms, status counts and duration and recording-date ranges, for building filters.
+         */
+        get: operations["get_library_facets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -44,6 +204,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get library statistics
+         * @description Counts of tracks, drafts and recipes, loudness spread (listen_flac_recommended when above 2 LU), bandwidth, storage and import runs.
+         */
+        get: operations["get_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system": {
         parameters: {
             query?: never;
@@ -64,10 +244,402 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search tracks
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.
+         */
+        get: operations["search_tracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a track
+         * @description Full track detail: audio, recipe, lineage, score, lyric sections (timed only when a score aligns with them) and analyses.
+         */
+        get: operations["get_track"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get signed media links
+         * @description Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.
+         */
+        get: operations["get_media_links"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/peaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get waveform peaks
+         * @description Waveform peaks of a track (audiowaveform JSON v2 levels): overview (about 2048 columns) or detail (20 per second).
+         */
+        get: operations["get_track_peaks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AnalysisInfo: {
+            /** @description null when not analysed */
+            loudness: components["schemas"]["LoudnessOut"];
+            /** @description null when not analysed */
+            spectrum: components["schemas"]["SpectrumOut"];
+        };
+        AudioInfo: {
+            audio_md5: string;
+            /** Format: int64 */
+            bits_per_sample: number;
+            /** Format: int64 */
+            channels: number;
+            /** Format: int64 */
+            master_bytes: number;
+            master_sha256: string;
+            /** @description MP3 rendition; null when missing */
+            mp3: components["schemas"]["MP3Info"];
+            /** Format: int64 */
+            sample_rate: number;
+            /** Format: int64 */
+            total_samples: number;
+        };
+        BacklogStats: {
+            collections: components["schemas"]["CollectionCount"][];
+            /**
+             * Format: int64
+             * @description Drafts still in the backlog
+             */
+            drafts: number;
+            /** Format: int64 */
+            fulfilled: number;
+            /**
+             * Format: int64
+             * @description Distinct groups among backlog drafts
+             */
+            groups: number;
+        };
+        BandwidthStats: {
+            /** Format: int64 */
+            max_hz: number | null;
+            /** Format: int64 */
+            median_hz: number | null;
+            /** Format: int64 */
+            min_hz: number | null;
+            /** Format: int64 */
+            n: number;
+        };
+        CollectionCount: {
+            /** Format: int64 */
+            drafts: number;
+            name: string;
+        };
+        DeviceProbeOutBody: {
+            /** Format: int64 */
+            bits_per_sample: number;
+            /** Format: int64 */
+            channels: number;
+            /** @example audio/flac */
+            content_type: string;
+            /** Format: double */
+            duration_s: number;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            /** Format: int64 */
+            sample_rate: number;
+            /** Format: double */
+            seek_to_s: number;
+            /** @description Signed, relative URL of the probe file */
+            url: string;
+            /**
+             * Format: int64
+             * @example 1
+             */
+            version: number;
+        };
+        DeviceProfile: {
+            device_id: string;
+            /** @enum {string} */
+            effective_format: "flac" | "mp3";
+            flac_can_play: string;
+            flac_decode_ok: boolean | null;
+            flac_seek_ok: boolean | null;
+            label: string;
+            probe_result: string;
+            /** Format: int64 */
+            probe_version: number;
+            probed_at: string | null;
+            quality: string;
+            quality_source: string;
+            updated_at: string;
+            user_agent: string;
+        };
+        DeviceProfilesOutBody: {
+            items: components["schemas"]["DeviceProfile"][];
+        };
+        DraftDetail: {
+            collections: string[];
+            created_at: string;
+            fulfilled_by_track_id: string | null;
+            group: components["schemas"]["GroupMember"][];
+            group_key: string | null;
+            has_reference: boolean;
+            id: string;
+            label: string | null;
+            origin: string;
+            parent_track_id: string | null;
+            /** @description Private reference metadata; humans only, null for agents */
+            reference: {
+                [key: string]: string;
+            } | null;
+            request: components["schemas"]["DraftRequest"];
+            request_id: string;
+            sections: components["schemas"]["DraftSection"][];
+            /** @description null for drafts without an imported recipe */
+            source: components["schemas"]["DraftSource"];
+            status: string;
+            updated_at: string;
+        };
+        DraftPage: {
+            /** Format: int64 */
+            groups_total: number;
+            items: components["schemas"]["DraftSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        DraftRequest: {
+            cot: string;
+            id: string;
+            lyrics: string;
+            /** Format: int64 */
+            seed: number;
+            style: string;
+        };
+        DraftSection: {
+            /** Format: int64 */
+            idx: number;
+            kind: string;
+            label: string;
+            lines: string[];
+            raw: string;
+        };
+        DraftSource: {
+            recipe_hash: string;
+            recipe_id: string;
+            sources: components["schemas"]["DraftSourceRef"][];
+        };
+        DraftSourceRef: {
+            /** Format: int64 */
+            line: number;
+            path: string;
+            raw_kind: string;
+        };
+        DraftSummary: {
+            collections: string[];
+            cot: string;
+            fulfilled_by_track_id: string | null;
+            group_key: string | null;
+            id: string;
+            label: string | null;
+            origin: string;
+            parent_track_id: string | null;
+            request_id: string;
+            section_kinds: string[];
+            /** Format: int64 */
+            seed: number;
+            status: string;
+            /** @description First 120 runes of the style */
+            style_excerpt: string;
+            style_terms: string[];
+        };
+        Facets: {
+            duration_s: components["schemas"]["Range"];
+            recorded_at: components["schemas"]["TimeRange"];
+            statuses: components["schemas"]["StatusCount"][];
+            style_terms: components["schemas"]["TermCount"][];
+        };
+        FlacLink: {
+            /** Format: int64 */
+            bits_per_sample: number;
+            /** Format: int64 */
+            bytes: number;
+            /** @example audio/flac */
+            content_type: string;
+            /** Format: int64 */
+            sample_rate: number;
+            sha256: string;
+            /** @description Signed, relative URL; valid until expires_at */
+            url: string;
+        };
+        GroupMember: {
+            id: string;
+            label: string | null;
+            request_id: string;
+            status: string;
+        };
+        ImportInfo: {
+            rule: string;
+            run_id: string | null;
+        };
+        ImportRunPage: {
+            items: unknown[];
+            next_cursor: string | null;
+            run: components["schemas"]["ImportRunSummary"];
+            section: string;
+            /** Format: int64 */
+            total: number;
+        };
+        ImportRunSummary: {
+            /** Format: int64 */
+            errors: number;
+            finished_at: string | null;
+            heartbeat_at: string;
+            id: string;
+            inbox_label: string;
+            plan_digest: string;
+            started_at: string;
+            state: string;
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: int64 */
+            warnings: number;
+        };
+        ImportRunsOutBody: {
+            items: components["schemas"]["ImportRunSummary"][];
+        };
+        ImportStats: {
+            last_run_at: string | null;
+            last_state: string | null;
+            /** Format: int64 */
+            runs: number;
+        };
+        Lineage: {
+            /** Format: int64 */
+            generation: number;
+            inferred: boolean | null;
+            operator: string | null;
+            parent_track_id: string | null;
+            root_track_id: string;
+            rule: string | null;
+            siblings: components["schemas"]["Sibling"][];
+        };
+        LoudnessOut: {
+            /** Format: double */
+            integrated_lufs: number;
+            /** Format: double */
+            lra_high_lufs: number;
+            /** Format: double */
+            lra_low_lufs: number;
+            /** Format: double */
+            lra_lu: number;
+            /** Format: double */
+            replaygain_track_gain_db: number;
+            /** Format: double */
+            sample_peak_dbfs: number;
+            short_term_1hz: number[] | null;
+            /** Format: double */
+            short_term_max_lufs: number;
+            /** Format: double */
+            true_peak_dbtp: number;
+            version: string;
+        };
+        LoudnessStats: {
+            /** Format: double */
+            integrated_lufs_max: number | null;
+            /** Format: double */
+            integrated_lufs_min: number | null;
+            /** @description Spread above 2 LU */
+            listen_flac_recommended: boolean;
+            /** Format: int64 */
+            n: number;
+            /** Format: double */
+            spread_lu: number | null;
+        };
+        MP3Info: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: double */
+            gain_db: number;
+            sha256: string;
+        };
+        MP3Link: {
+            /** Format: int64 */
+            bitrate_kbps: number;
+            /** Format: int64 */
+            bytes: number;
+            /** @example audio/mpeg */
+            content_type: string;
+            sha256: string;
+            /** @description Signed, relative URL; valid until expires_at */
+            url: string;
+        };
+        MediaLinksOutBody: {
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            flac: components["schemas"]["FlacLink"];
+            mp3: components["schemas"]["MP3Link"];
+            track_id: string;
+            /**
+             * Format: int64
+             * @description Link lifetime granted to the caller, seconds
+             */
+            ttl_s: number;
+        };
+        PeaksLevel: {
+            /** Format: double */
+            duration_s: number;
+            level: string;
+            peaks: components["schemas"]["Waveform"];
+            track_id: string;
+        };
         PingOutBody: {
             /** @description Always true */
             ok: boolean;
@@ -87,6 +659,115 @@ export interface components {
             /** @description Human-readable message */
             message: string;
         };
+        PutDeviceProfileInBody: {
+            /** @description canPlayType('audio/flac') result: probably, maybe or empty */
+            flac_can_play: string;
+            /** @description Absent when the probe was inconclusive */
+            flac_decode_ok?: boolean;
+            flac_seek_ok?: boolean;
+            label: string;
+            /** @enum {string} */
+            probe_result: "none" | "ok" | "failed" | "inconclusive";
+            /** Format: int64 */
+            probe_version: number;
+            /** @description RFC 3339 */
+            probed_at?: string;
+            /** @description lossless | high | auto */
+            quality: string;
+            /** @enum {string} */
+            quality_source: "default" | "user" | "probe";
+            user_agent: string;
+        };
+        Range: {
+            /** Format: double */
+            max: number | null;
+            /** Format: double */
+            min: number | null;
+        };
+        RecipeInfo: {
+            cot: string;
+            engine: string;
+            hash: string;
+            id: string;
+            lyrics: string;
+            request_id: string;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            sources_count: number;
+            style: string;
+        };
+        RecipeStats: {
+            /** Format: int64 */
+            sources: number;
+            /** Format: int64 */
+            total: number;
+        };
+        ScoreInfo: {
+            aligned: boolean;
+            /** Format: int64 */
+            bars: number;
+            /** Format: double */
+            bpm: number | null;
+            meter: string;
+            q: string | null;
+            /** Format: double */
+            seconds_per_bar: number | null;
+        };
+        SectionOut: {
+            /** Format: double */
+            confidence: number | null;
+            /** Format: double */
+            end_s: number | null;
+            /** Format: int64 */
+            idx: number;
+            kind: string;
+            label: string;
+            lines: string[];
+            raw: string;
+            /** @description lyrics | plan | measured | manual */
+            source: string;
+            /** Format: double */
+            start_s: number | null;
+        };
+        Sibling: {
+            id: string;
+            recorded_at: string;
+            /** Format: int64 */
+            seed: number;
+            title: string;
+        };
+        SpectrumOut: {
+            /** Format: int64 */
+            bandwidth_hz: number | null;
+            /** Format: int64 */
+            frames: number;
+            /** Format: double */
+            ref_db: number;
+            /** Format: double */
+            threshold_db: number;
+            version: string;
+        };
+        Stats: {
+            backlog: components["schemas"]["BacklogStats"];
+            bandwidth: components["schemas"]["BandwidthStats"];
+            imports: components["schemas"]["ImportStats"];
+            loudness: components["schemas"]["LoudnessStats"];
+            recipes: components["schemas"]["RecipeStats"];
+            storage: components["schemas"]["StorageStats"];
+            tracks: components["schemas"]["TrackStats"];
+        };
+        StatusCount: {
+            /** Format: int64 */
+            count: number;
+            status: string;
+        };
+        StorageStats: {
+            /** Format: int64 */
+            derived_bytes: number;
+            /** Format: int64 */
+            masters_bytes: number;
+        };
         SystemOutBody: {
             auth_mode: string;
             commit: string;
@@ -100,6 +781,117 @@ export interface components {
             /** Format: int64 */
             uptime_s: number;
             version: string;
+        };
+        TermCount: {
+            /** Format: int64 */
+            count: number;
+            term: string;
+        };
+        TimeRange: {
+            max: string | null;
+            min: string | null;
+        };
+        TrackDetail: {
+            analysis: components["schemas"]["AnalysisInfo"];
+            audio: components["schemas"]["AudioInfo"];
+            /** Format: int64 */
+            bpm_declared: number | null;
+            created_at: string;
+            /** Format: double */
+            duration_s: number;
+            id: string;
+            import: components["schemas"]["ImportInfo"];
+            lineage: components["schemas"]["Lineage"];
+            origin: string;
+            recipe: components["schemas"]["RecipeInfo"];
+            recorded_at: string;
+            /** @description null when the track has no score */
+            score: components["schemas"]["ScoreInfo"];
+            sections: components["schemas"]["SectionOut"][];
+            slug: string;
+            status: string;
+            status_set_by: string;
+            style_terms: string[];
+            timed: boolean;
+            title: string;
+            /** @description null when result.json was not imported */
+            truncated: components["schemas"]["Truncation"];
+        };
+        TrackPage: {
+            items: components["schemas"]["TrackSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        TrackStats: {
+            by_origin: {
+                [key: string]: number;
+            };
+            by_status: {
+                [key: string]: number;
+            };
+            /** Format: double */
+            duration_s_total: number;
+            /** Format: int64 */
+            timed: number;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            truncated: number;
+            /** Format: int64 */
+            with_score: number;
+        };
+        TrackSummary: {
+            /** Format: int64 */
+            bandwidth_hz: number | null;
+            /**
+             * Format: int64
+             * @description BPM declared in the style text; null when absent
+             */
+            bpm_declared: number | null;
+            /** Format: int64 */
+            children_count: number;
+            /** @description RFC 3339 UTC */
+            created_at: string;
+            /** Format: double */
+            duration_s: number;
+            has_score: boolean;
+            id: string;
+            /** Format: double */
+            integrated_lufs: number | null;
+            parent_track_id: string | null;
+            /** @description RFC 3339 UTC */
+            recorded_at: string;
+            request_id: string;
+            root_track_id: string;
+            /** Format: int64 */
+            seed: number;
+            status: string;
+            style_terms: string[];
+            /** @description Section times are known (aligned score) */
+            timed: boolean;
+            title: string;
+            /** @description abc or semantic stream truncated; null when unknown */
+            truncated: boolean | null;
+        };
+        Truncation: {
+            abc: boolean | null;
+            semantic: boolean | null;
+        };
+        Waveform: {
+            /** Format: int64 */
+            bits: number;
+            /** Format: int64 */
+            channels: number;
+            data: number[] | null;
+            /** Format: int64 */
+            length: number;
+            /** Format: int64 */
+            sample_rate: number;
+            /** Format: int64 */
+            samples_per_pixel: number;
+            /** Format: int64 */
+            version: number;
         };
         WhoamiOutBody: {
             /**
@@ -123,6 +915,265 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_device_probe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceProbeOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_device_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceProfilesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_device_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Client-generated device id */
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutDeviceProfileInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceProfile"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_drafts: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: "backlog" | "fulfilled" | "archived";
+                collection?: string;
+                group_key?: string;
+                origin?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Draft id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_import_runs: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRunsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_import_run: {
+        parameters: {
+            query?: {
+                section?: "errors" | "warnings" | "unmatched" | "ambiguous" | "audio" | "recipes" | "drafts" | "duplicates" | "ignored";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Import run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRunPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_library_facets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Facets"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     whoami: {
         parameters: {
             query?: never;
@@ -181,6 +1232,35 @@ export interface operations {
             };
         };
     };
+    get_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stats"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_system_info: {
         parameters: {
             query?: never;
@@ -197,6 +1277,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    search_tracks: {
+        parameters: {
+            query?: {
+                /** @description Free text over title, request id, style and lyrics (prefix match) */
+                q?: string;
+                /** @description Repeatable status filter */
+                status?: ("draft" | "to_relisten" | "final" | "discarded")[];
+                /** @description Repeatable style term; all must match */
+                style?: string[];
+                min_duration_s?: number;
+                max_duration_s?: number;
+                /** @description RFC 3339 date or date-time (inclusive) */
+                recorded_from?: string;
+                /** @description RFC 3339 date (whole day, inclusive) or date-time */
+                recorded_to?: string;
+                has_score?: boolean;
+                truncated?: boolean;
+                root_track_id?: string;
+                /** @description Default recorded_desc, or relevance when q is set */
+                sort?: "recorded_desc" | "recorded_asc" | "duration_desc" | "duration_asc" | "title_asc" | "relevance";
+                limit?: number;
+                /** @description Opaque cursor from next_cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_track: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_media_links: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaLinksOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_track_peaks: {
+        parameters: {
+            query?: {
+                level?: "overview" | "detail";
+            };
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeaksLevel"];
                 };
             };
             /** @description Error */

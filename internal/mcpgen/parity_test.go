@@ -24,7 +24,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
+	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -51,12 +54,25 @@ func newRig(t *testing.T) *rig {
 	}
 	tokens := auth.NewTokenStore(st, key)
 	r := &rig{tokens: tokens}
+	// Every rig holds the same fixture library under a fixed clock, so the REST
+	// face and the MCP face (and the two rigs of a mutating op) agree exactly.
+	lt.Fixture(t, st, lt.FixedNow)
+	dataDir := t.TempDir()
+	lt.WriteFiles(t, dataDir)
+	root, err := os.OpenRoot(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	now := func() time.Time { return lt.FixedNow }
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: "edge"}, Store: st, Tokens: tokens,
 		Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL),
 		SPA:      fstest.MapFS{"index.html": {Data: []byte("x")}},
 		Version:  "v-test", Commit: "abc123",
-		Started: time.Now().Add(-time.Hour),
+		Started: lt.FixedNow.Add(-time.Hour),
+		Library: library.New(st, root, now), Signer: serve.NewSigner(key, now), Now: now,
+		Probe: &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
 			r.api = a
 			s, err := mcpgen.NewServer(a, inner, "v-test")
@@ -163,7 +179,27 @@ type parityFixture struct {
 // parameterless GET. needsFixture decides which operations those are; one
 // without an entry fails TestParityEveryOperation, so new ops cannot escape
 // parity unnoticed (and -update on the golden cannot hide it).
-var parityArgs = map[string]parityFixture{}
+var parityArgs = map[string]parityFixture{
+	"search_tracks":    {Args: map[string]any{"q": "luna", "limit": 10}, Path: "/api/tracks?q=luna&limit=10"},
+	"get_track":        {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna},
+	"get_track_peaks":  {Args: map[string]any{"id": lt.TrackLuna, "level": "detail"}, Path: "/api/tracks/" + lt.TrackLuna + "/peaks?level=detail"},
+	"get_media_links":  {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna + "/media"},
+	"list_drafts":      {Args: map[string]any{"limit": 10}, Path: "/api/drafts?limit=10"},
+	"get_draft":        {Args: map[string]any{"id": lt.Draft1}, Path: "/api/drafts/" + lt.Draft1},
+	"list_import_runs": {Args: map[string]any{"limit": 10}, Path: "/api/imports?limit=10"},
+	"get_import_run":   {Args: map[string]any{"id": lt.RunID, "section": "warnings"}, Path: "/api/imports/" + lt.RunID + "?section=warnings"},
+	"put_device_profile": {
+		Args: map[string]any{
+			"device_id": "parity-device-1", "label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",
+			"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
+		},
+		Method: "PUT", Path: "/api/device-profiles/parity-device-1",
+		Body: map[string]any{
+			"label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",
+			"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
+		},
+	},
+}
 
 // needsFixture reports whether an operation must carry a parity fixture: any
 // non-GET method, or any path/query/header parameter, or a request body.
@@ -357,7 +393,11 @@ func TestToolsListGolden(t *testing.T) {
 // budget was last reviewed. Tool descriptions and schemas cost agent context;
 // growth beyond 1.5x this is a deliberate decision (edit this constant in
 // review), never an -update side effect.
-const toolsListBaselineBytes = 4412
+//
+// M1-B4 re-baseline 4412 -> 42997: six new tools (search_tracks, get_track, get_media_links, list_drafts,
+// get_draft, get_stats) carry full output schemas (TrackDetail alone is ~15 KB); the 13 M1 operations
+// are the milestone's whole read surface.
+const toolsListBaselineBytes = 42997
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {
@@ -446,5 +486,59 @@ func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
 			json.Unmarshal(b, &p) != nil || p.Code != tc.code || p.Message == "" || p.Details == nil {
 			t.Errorf("%s: %d %q %s", tc.name, resp.StatusCode, resp.Header.Get("Content-Type"), b)
 		}
+	}
+}
+
+// search_tracks?style=a&style=b over REST (repeated keys) equals the MCP call
+// {"style":["a","b"]}: array parameters are exploded on both faces.
+func TestParity_MultiValueQuery(t *testing.T) {
+	r := newRig(t)
+	tok := r.token(t, "agent-mv", auth.ScopeRead)
+	sess := r.client(t, tok)
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		path string
+		want int
+	}{
+		{"style AND", map[string]any{"style": []string{"ambient", "drone"}}, "/api/tracks?style=ambient&style=drone", 1},
+		{"style single", map[string]any{"style": []string{"ambient"}}, "/api/tracks?style=ambient", 2},
+		{"status OR", map[string]any{"status": []string{"final", "draft"}}, "/api/tracks?status=final&status=draft", 5},
+		{"both", map[string]any{"status": []string{"draft"}, "style": []string{"rock", "guitar"}}, "/api/tracks?status=draft&style=rock&style=guitar", 2},
+	} {
+		viaREST := r.rest(t, tok, "GET", tc.path, nil)
+		res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "search_tracks", Arguments: tc.args})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		viaMCP := structured(t, res)
+		if diff := cmp.Diff(viaREST, viaMCP); diff != "" {
+			t.Errorf("%s: REST vs MCP (-rest +mcp):\n%s", tc.name, diff)
+		}
+		if got := viaREST.(map[string]any)["total"]; got != float64(tc.want) {
+			t.Errorf("%s: total = %v, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+// MCP output ends up in third-party transcripts: an agent never sees the
+// private reference metadata, only has_reference.
+func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+	r := newRig(t)
+	tok := r.token(t, "agent-ref", auth.ScopeRead)
+	viaREST := r.rest(t, tok, "GET", "/api/drafts/"+lt.Draft1, nil).(map[string]any)
+	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "get_draft", Arguments: map[string]any{"id": lt.Draft1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	viaMCP := structured(t, res).(map[string]any)
+	for name, m := range map[string]map[string]any{"rest": viaREST, "mcp": viaMCP} {
+		if m["has_reference"] != true || m["reference"] != nil {
+			t.Errorf("%s: has_reference=%v reference=%v", name, m["has_reference"], m["reference"])
+		}
+	}
+	b, _ := json.Marshal(viaMCP)
+	if strings.Contains(string(b), "Synthetic Reference Title") {
+		t.Errorf("reference leaked over MCP: %s", b)
 	}
 }

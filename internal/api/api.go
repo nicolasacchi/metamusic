@@ -13,6 +13,8 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -28,6 +30,12 @@ type Deps struct {
 	Cfg             config.Config
 	Version, Commit string
 	Started         time.Time
+
+	// M1 (nil-safe: registration never dereferences them; handlers answer 503).
+	Library *library.Service
+	Signer  *serve.Signer
+	Probe   *serve.Object
+	Now     func() time.Time // nil => time.Now; fixes the clock in tests
 }
 
 func sortOps(ops []OpInfo) {
@@ -54,6 +62,12 @@ func HumaConfig() huma.Config {
 func New(mux *http.ServeMux, d Deps) huma.API {
 	a := humago.New(mux, HumaConfig())
 	registerSystem(a, d)
+	registerLibrary(a, d)
+	registerMedia(a, d)
+	registerDrafts(a, d)
+	registerStats(a, d)
+	registerImports(a, d)
+	registerDevices(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	return a

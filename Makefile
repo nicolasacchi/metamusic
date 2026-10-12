@@ -8,7 +8,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
-.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean
+.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -51,6 +51,11 @@ hooks:
 
 tools:
 	scripts/tools.sh
+
+# Writes a fixture library (metadata + peaks files) the web lane can serve:
+#   go run ./cmd/metamusic dev --data-dir ./data/fixture
+fixture-db:
+	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1'
 
 dev:
 	go run ./cmd/metamusic dev --data-dir ./data/dev
