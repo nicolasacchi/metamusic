@@ -35,7 +35,7 @@ RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
 COPY --from=build /out/metamusic /usr/local/bin/metamusic
 # MM_PUBLIC_URL must be set at run time to the externally visible URL (it feeds the MCP
 # WWW-Authenticate metadata URL and the Secure-cookie decision). Secrets: /run/secrets.
-ENV MM_ADDR=0.0.0.0:8080 MM_DATA_DIR=/data
+ENV MM_ADDR=0.0.0.0:8080 MM_DATA_DIR=/data MM_SECRETS_DIR=/run/secrets
 USER 1000:1000
 WORKDIR /data
 VOLUME /data

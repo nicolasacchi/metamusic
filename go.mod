@@ -2,6 +2,10 @@ module github.com/nicolasacchi/metamusic
 
 go 1.27.0
 
+toolchain go1.27.2
+
+ignore ./web/node_modules
+
 require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/google/go-cmp v0.7.0

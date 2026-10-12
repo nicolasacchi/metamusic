@@ -26,13 +26,13 @@ skipped=$((total - kept))
   echo
   echo "Generated $(date -u +%Y-%m-%dT%H:%M:%SZ) from $kept rows ($skipped malformed skipped)."
   echo
-  echo "| target | runs | failures | median ms (warm) | p90 ms (warm) | compile errors | failing tests |"
+  echo "| target | runs | failures | median ms (warm, ok) | p90 ms (warm, ok) | compile errors | failing tests |"
   echo "|---|---:|---:|---:|---:|---:|---:|"
   jq -rs '
     
     def pct($p): if length==0 then "-" else (sort | .[(((length-1)*$p)|floor)]) end;
     group_by(.target)[] |
-    "| \(.[0].target) | \(length) | \(map(select(.exit!=0))|length) | \([.[]|select(.cache=="warm")|.wall_ms]|pct(0.5)) | \([.[]|select(.cache=="warm")|.wall_ms]|pct(0.9)) | \(map(.compile_errors)|add) | \(map(.failing_tests)|add) |"
+    "| \(.[0].target) | \(length) | \(map(select(.exit!=0))|length) | \([.[]|select(.cache=="warm" and .exit==0)|.wall_ms]|pct(0.5)) | \([.[]|select(.cache=="warm" and .exit==0)|.wall_ms]|pct(0.9)) | \(map(.compile_errors)|add) | \(map(.failing_tests)|add) |"
   ' "$rows"
 } >"$tmpout"
 mv "$tmpout" "$out"
