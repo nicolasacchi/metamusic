@@ -18,6 +18,7 @@ type SnapTrack struct {
 	FramesSHA256, MasterSHA256, SourceSHA  string
 	TotalSamples                           int64
 	RecordedAt                             string
+	Generation                             int
 }
 
 // SnapDraft is a stored draft as the importer needs it.
@@ -78,10 +79,10 @@ func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) {
 	}); err != nil {
 		return snap, err
 	}
-	if err := each(`SELECT id, recipe_id, root_track_id, slug, title, frames_sha256, master_sha256, source_sha256, total_samples, recorded_at, master_path FROM tracks ORDER BY recorded_at, id`, func(r *sql.Rows) error {
+	if err := each(`SELECT id, recipe_id, root_track_id, slug, title, frames_sha256, master_sha256, source_sha256, total_samples, recorded_at, master_path, generation FROM tracks ORDER BY recorded_at, id`, func(r *sql.Rows) error {
 		var x SnapTrack
 		var mp string
-		if err := r.Scan(&x.ID, &x.RecipeID, &x.RootTrackID, &x.Slug, &x.Title, &x.FramesSHA256, &x.MasterSHA256, &x.SourceSHA, &x.TotalSamples, &x.RecordedAt, &mp); err != nil {
+		if err := r.Scan(&x.ID, &x.RecipeID, &x.RootTrackID, &x.Slug, &x.Title, &x.FramesSHA256, &x.MasterSHA256, &x.SourceSHA, &x.TotalSamples, &x.RecordedAt, &mp, &x.Generation); err != nil {
 			return err
 		}
 		snap.Tracks = append(snap.Tracks, x)
