@@ -1,0 +1,129 @@
+package auth
+
+import (
+	"context"
+	"crypto/subtle"
+	"encoding/json"
+	"net/http"
+	"net/netip"
+	"slices"
+	"strings"
+
+	"github.com/nicolasacchi/metamusic/internal/config"
+)
+
+type TokenVerifier interface {
+	Verify(ctx context.Context, plaintext string) (Principal, error)
+}
+
+type SessionVerifier interface {
+	VerifySession(ctx context.Context, cookieValue string) (Principal, error)
+}
+
+func writeProblem(w http.ResponseWriter, status int, code, msg string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{"code": code, "message": msg, "details": map[string]any{}})
+}
+
+func unauthenticated(w http.ResponseWriter, withChallenge bool) {
+	if withChallenge {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+	}
+	writeProblem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
+}
+
+func trustedPeer(remoteAddr string, prefixes []netip.Prefix) bool {
+	ap, err := netip.ParseAddrPort(remoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := ap.Addr().Unmap()
+	for _, p := range prefixes {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func proxyPrincipal(r *http.Request, cfg config.Config, sec config.Secrets) (Principal, bool) {
+	if sec.EdgeSecret == "" || !trustedPeer(r.RemoteAddr, cfg.TrustedProxies) {
+		return Principal{}, false
+	}
+	edge := r.Header.Values("X-MM-Edge")
+	if len(edge) != 1 || subtle.ConstantTimeCompare([]byte(edge[0]), []byte(sec.EdgeSecret)) != 1 {
+		return Principal{}, false
+	}
+	user := r.Header.Values("Remote-User")
+	if len(user) != 1 || user[0] == "" || strings.Contains(user[0], ",") || !slices.Contains(cfg.TrustedUsers, user[0]) {
+		return Principal{}, false
+	}
+	return humanPrincipal(user[0], "proxy"), true
+}
+
+// Middleware resolves the request principal per the C3 table.
+func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, sessions SessionVerifier) func(http.Handler) http.Handler {
+	cop := http.NewCrossOriginProtection()
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+			class := Classify(path)
+
+			// 1. Authorization header present: bearer only.
+			if hdr := r.Header.Values("Authorization"); len(hdr) > 0 {
+				tok, ok := "", false
+				if len(hdr) == 1 {
+					tok, ok = strings.CutPrefix(hdr[0], "Bearer ")
+				}
+				if ok && strings.HasPrefix(tok, "mmp_") {
+					if p, err := tokens.Verify(r.Context(), tok); err == nil {
+						next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
+						return
+					}
+				}
+				unauthenticated(w, true)
+				return
+			}
+
+			// 2./3. Public and machine paths: anonymous.
+			if class != ClassUI {
+				next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), Principal{Kind: KindAnonymous})))
+				return
+			}
+
+			// 4./5. UI class.
+			var p Principal
+			var ok bool
+			switch cfg.AuthMode {
+			case "proxy":
+				p, ok = proxyPrincipal(r, cfg, sec)
+			case "local":
+				if c, err := r.Cookie(SessionCookie); err == nil {
+					if sp, err := sessions.VerifySession(r.Context(), c.Value); err == nil {
+						p, ok = sp, true
+					}
+				}
+			}
+			if !ok {
+				isAPI := strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/human/api/")
+				switch {
+				case isAPI:
+					unauthenticated(w, false)
+				case cfg.AuthMode == "local":
+					http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+				default:
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte("Not authenticated"))
+				}
+				return
+			}
+			if err := cop.Check(r); err != nil {
+				writeProblem(w, http.StatusForbidden, "CROSS_ORIGIN", "cross-origin request refused")
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
+		})
+	}
+}
