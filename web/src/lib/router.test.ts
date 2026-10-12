@@ -50,9 +50,9 @@ describe("matchRoute", () => {
 
 describe("isServerPath", () => {
   test("server-owned prefixes are not SPA routes", () => {
-    for (const p of ["/api/docs", "/human/api/x", "/auth/login", "/mcp", "/healthz", "/__e2e/x", "/.well-known/a"]) {
+    for (const p of ["/api/docs", "/human/api/x", "/auth/login", "/mcp", "/healthz", "/__e2e/x", "/.well-known/a", "/media/x", "/icons/a.png", "/manifest.webmanifest"]) {
       expect(isServerPath(p)).toBe(true);
     }
-    for (const p of ["/", "/settings", "/apix", "/mcpx"]) expect(isServerPath(p)).toBe(false);
+    for (const p of ["/", "/settings", "/apix", "/mcpx", "/mediax", "/manifest.webmanifestx"]) expect(isServerPath(p)).toBe(false);
   });
 });

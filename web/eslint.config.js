@@ -19,6 +19,11 @@ export default defineConfig(
     languageOptions: { parserOptions: { parser: ts.parser } },
   },
   {
+    // Lyrics, titles and styles render as text; never raw HTML (set explicitly so a config change cannot drop it).
+    files: ["**/*.svelte"],
+    rules: { "svelte/no-at-html-tags": "error" },
+  },
+  {
     // Network access only through src/api/ (architecture rule 2).
     rules: {
       "no-restricted-globals": [
@@ -46,7 +51,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["src/api/**", "e2e/**", "playwright.config.ts", "vite.config.ts", "eslint.config.js"],
+    files: ["src/api/**", "e2e/**", "playwright.config.ts", "vite.config.ts", "eslint.config.js", "svelte-bun.ts"],
     languageOptions: { globals: { ...globals.node } },
     rules: {
       "no-restricted-globals": "off",

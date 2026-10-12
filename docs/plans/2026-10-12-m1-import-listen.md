@@ -2283,6 +2283,7 @@ Done: `make check` < 30 s warm (recorded in metrics); `metamusic dev --seed-synt
 
 ### Task M1-W1 (Web): player store, PlayerBar, Waveform, Media Session, session loss
 **Files:** `web/src/lib/{player.svelte.ts,mediaSession.ts,peaks.ts,time.ts,sections.ts}` + `*.test.ts`,
+`web/svelte-bun.ts` + `web/bunfig.toml` (bun test preload compiling `*.svelte.ts` runes modules; W3's device test relies on it),
 `web/src/lib/components/{PlayerBar.svelte,Waveform.svelte,SessionBanner.svelte}`,
 `web/src/api/{session.ts,session.test.ts,client.ts,client.test.ts}` (remove M0's `connectionLost` /
 `mm:last-reload` throttle, C22.4), `web/src/App.svelte` (mount PlayerBar and SessionBanner in place of

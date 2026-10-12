@@ -2,22 +2,42 @@
   import { createRouter, type Route } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
-  import { connectionLost } from "./api/client";
-  import Home from "./routes/Home.svelte";
+  import { installDevice } from "./lib/device.svelte";
+  import { installMediaSession } from "./lib/mediaSession";
+  import PlayerBar from "./lib/components/PlayerBar.svelte";
+  import SessionBanner from "./lib/components/SessionBanner.svelte";
+  import Library from "./routes/Library.svelte";
+  import Track from "./routes/Track.svelte";
+  import Backlog from "./routes/Backlog.svelte";
+  import Draft from "./routes/Draft.svelte";
+  import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const routes: Route[] = [
     { pattern: "/", name: "home" },
+    { pattern: "/tracks/:id", name: "track" },
+    { pattern: "/backlog", name: "backlog" },
+    { pattern: "/backlog/:id", name: "draft" },
+    { pattern: "/import", name: "import" },
     { pattern: "/settings", name: "settings" },
   ];
   const router = createRouter(routes);
   const audioId = randomId();
+  // The router's query map collapses repeated keys; the library needs the raw string.
+  // The argument only makes the call re-run on every navigation.
+  function searchOf(_loc: unknown): string {
+    void _loc;
+    return window.location.search;
+  }
 
   let audio: HTMLAudioElement;
   $effect(() => {
     player.attach(audio);
+    installDevice(player);
+    const offMediaSession = installMediaSession(player, audio);
     return () => {
+      offMediaSession();
       player.attach(null);
       router.destroy();
     };
@@ -29,16 +49,28 @@
     <strong>metamusic</strong>
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
+      <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
     </nav>
   </header>
 
   <main>
-    {#if $connectionLost}
-      <p role="alert" class="banner">Connection lost. Reload the page to retry.</p>
-    {/if}
+    <SessionBanner />
     {#if $router.route?.name === "home"}
-      <Home />
+      <Library search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "track"}
+      {#key $router.params.id}
+        <Track id={$router.params.id ?? ""} t={$router.query.t ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "backlog"}
+      <Backlog search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "draft"}
+      {#key $router.params.id}
+        <Draft id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "import"}
+      <Import />
     {:else if $router.route?.name === "settings"}
       <Settings />
     {:else}
@@ -47,8 +79,8 @@
   </main>
 
   <footer class="player" aria-label="Player">
-    <span class="title">{player.title}</span>
-    <audio bind:this={audio} data-audio-id={audioId} controls preload="none"></audio>
+    <PlayerBar {player} />
+    <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
 </div>
 
@@ -85,12 +117,8 @@
     font-weight: 700;
     text-decoration: none;
   }
-  .banner {
-    margin: 0;
-    padding: 0.5rem 1rem;
-    background: #5a2a1a;
-  }
   main {
+    min-width: 0;
     padding: 1rem;
   }
   .player {
@@ -104,7 +132,6 @@
     background: #1d1814;
   }
   .player audio {
-    flex: 1;
-    min-width: 0;
+    display: none;
   }
 </style>
