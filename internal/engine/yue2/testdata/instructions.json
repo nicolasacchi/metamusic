@@ -1,0 +1,5 @@
+{
+ "full": "Generate a chord-annotated ABC transcription, then generate music with codec tokens from the given conditions.",
+ "melody": "Generate a melody-only ABC transcription without chord symbols, then generate music with codec tokens from the given conditions.",
+ "off": "Generate music with codec tokens from the given conditions."
+}
