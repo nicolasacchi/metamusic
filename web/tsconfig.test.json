@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["bun", "svelte"] },
-  "include": ["src/**/*.test.ts", "src/**/*.ts"],
+  "include": ["src/**/*.test.ts", "src/**/*.ts", "e2e/**/*.ts", "playwright.config.ts"],
   "exclude": []
 }
