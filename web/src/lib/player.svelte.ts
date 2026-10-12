@@ -146,6 +146,9 @@ export class Player {
         this.prefetchNext();
       }),
       on("pause", () => (this.state.playing = false)),
+      // The media load algorithm (src change, load()) pauses the element without a `pause` event.
+      on("emptied", () => (this.state.playing = !el.paused)),
+      on("abort", () => (this.state.playing = !el.paused)),
       on("ended", () => this.onEnded()),
       on("error", () => this.onError()),
     ];
@@ -166,10 +169,10 @@ export class Player {
 
   /** Load a track paused; if it is already current, just seek. */
   load(trackId: string, queue?: string[], opts: PlayOptions = {}) {
-    if (this.state.trackId === trackId && this.el?.src) {
+    if (this.state.trackId === trackId && (this.el?.src || this.inflight.has(trackId))) {
       if (opts.startAt != null) {
         // iOS ignores currentTime writes before metadata is known.
-        if (this.el.readyState < 1) this.pendingSeek = opts.startAt;
+        if (!this.el || this.el.readyState < 1 || !this.el.src) this.pendingSeek = opts.startAt;
         else this.seek(opts.startAt);
       }
       return;
@@ -187,6 +190,7 @@ export class Player {
   /** User pause: the only place playback intent is cleared. */
   pause() {
     this.wantPlay = false;
+    this.autoplay = false;
     this.el?.pause();
   }
 
@@ -196,11 +200,12 @@ export class Player {
     if (!el || !this.state.trackId) return;
     this.deps.device.onGesture?.();
     this.wantPlay = true;
-    if (el.readyState === 0 && !this.cached(this.state.trackId)) {
-      // Nothing was ever fetched (preload=none) and the links expired meanwhile: mint again.
+    this.autoplay = true;
+    if (el.error || (el.readyState === 0 && !this.cached(this.state.trackId))) {
+      // Errored element (failed FLAC and MP3), or nothing was ever fetched (preload=none) and the
+      // links expired meanwhile: apply/mint a source again instead of play()ing a dead element.
       const at = this.state.current;
       this.pendingSeek ??= at > 0 ? at : null;
-      this.autoplay = true;
       this.reminted.delete(this.state.trackId);
       this.epoch++;
       this.begin(this.state.trackId);
@@ -243,7 +248,7 @@ export class Player {
   }
 
   /** Make title/album follow the current track: cached value now, else clear the stale one and fetch. */
-  private syncMeta(trackId: string) {
+  private syncMeta(trackId: string, hint?: string) {
     const m = this.meta.get(trackId);
     if (m) {
       this.title = m.title;
@@ -251,12 +256,12 @@ export class Player {
       this.announce();
       return;
     }
-    this.title = LOADING_TITLE;
+    this.title = hint ?? LOADING_TITLE;
     this.album = "";
     this.announce();
     void this.loadMeta(trackId).then((r) => {
       if (this.state.trackId !== trackId) return;
-      this.title = r ? r.title : FALLBACK_TITLE;
+      this.title = hint ?? (r ? r.title : FALLBACK_TITLE);
       this.album = r ? r.album : "";
       this.announce();
     });
@@ -304,8 +309,9 @@ export class Player {
     this.wantPlay = this.autoplay;
     this.probePending.delete(trackId);
     this.reminted.delete(trackId);
-    if (opts.title) this.meta.set(trackId, { title: opts.title, album: opts.album ?? "" });
-    this.syncMeta(trackId);
+    // Cache only a complete pair; a title alone is shown at once while the album still resolves.
+    if (opts.title && opts.album !== undefined) this.meta.set(trackId, { title: opts.title, album: opts.album });
+    this.syncMeta(trackId, opts.title);
     this.begin(trackId);
   }
 
@@ -317,7 +323,10 @@ export class Player {
       return;
     }
     // Unlock the element inside the user gesture (iOS/WebKit) before the async fetch.
-    if (this.autoplay) this.el?.load?.();
+    if (this.autoplay && this.el?.load) {
+      this.el.load();
+      this.state.playing = !this.el.paused;
+    }
     const epoch = this.epoch;
     void this.links(trackId).then((l) => {
       if (epoch !== this.epoch) return;
@@ -335,6 +344,7 @@ export class Player {
     this.appliedExp = Date.parse(links.expires_at);
     this.src = url;
     el.src = url;
+    this.state.playing = !el.paused;
     if (this.autoplay) {
       this.wantPlay = true;
       void el.play()?.catch?.((e: unknown) => this.fail(e));

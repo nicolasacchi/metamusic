@@ -2,7 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { Player, formatFor, resolveMeta, type DeviceHooks, type MediaLinks, type TrackRef } from "./player.svelte";
 
 class FakeAudio extends EventTarget {
-  src = "";
+  private _src = "";
+  /** Models the media load algorithm: a src change pauses without `pause`, then fires emptied. */
+  get src() {
+    return this._src;
+  }
+  set src(v: string) {
+    this._src = v;
+    this.paused = true;
+    queueMicrotask(() => this.emit("emptied"));
+  }
   currentTime = 0;
   duration = NaN;
   paused = true;
@@ -20,6 +29,8 @@ class FakeAudio extends EventTarget {
   }
   load() {
     this.log.push("load");
+    this.paused = true;
+    queueMicrotask(() => this.emit("emptied"));
   }
   emit(type: string) {
     this.dispatchEvent(new Event(type));
@@ -509,5 +520,77 @@ describe("player store", () => {
     p.play("a");
     await flush();
     expect(fetched).toEqual(["a", "a"]);
+  });
+});
+
+describe("player store review fixes", () => {
+  test("loading another track while playing leaves playing false", async () => {
+    const { p, el, flush } = setup();
+    p.play("a", ["a", "b"]);
+    await flush();
+    el.emit("playing");
+    expect(p.state.playing).toBe(true);
+    p.load("b", ["a", "b"], { startAt: 5 });
+    await flush();
+    expect(p.state.playing).toBe(false);
+  });
+
+  test("links failure after play(uncached) over a playing track leaves playing false", async () => {
+    const { p, el, flush } = setup();
+    p.play("a", ["a", "b"]);
+    await flush();
+    el.emit("playing");
+    p.configure({ fetchLinks: async () => null });
+    p.play("c", ["a", "c"]);
+    await flush();
+    expect(p.state.playing).toBe(false);
+    expect(p.state.error).toBe("Could not load media links");
+  });
+
+  test("title-only play still resolves the album", async () => {
+    const { p, flush } = setup();
+    p.configure({ fetchMeta: async () => ({ title: "Other", album: "Root" }) });
+    p.play("a", ["a"], { title: "Song A" });
+    expect(p.title).toBe("Song A");
+    await flush();
+    expect(p.title).toBe("Song A");
+    expect(p.album).toBe("Root");
+  });
+
+  test("user pause during an in-flight link fetch is honoured", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    p.pause();
+    await flush();
+    expect(el.paused).toBe(true);
+    expect(el.log).not.toContain("play");
+  });
+
+  test("load of the same track while its links are in flight keeps play intent and queues the seek", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    p.load("a", undefined, { startAt: 9 });
+    await flush();
+    expect(el.log).toContain("play");
+    el.readyState = 1;
+    el.duration = 100;
+    el.emit("loadedmetadata");
+    expect(el.currentTime).toBe(9);
+  });
+
+  test("toggle after a failed FLAC and MP3 re-applies the source", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    el.fail(4);
+    await flush();
+    el.fail(4);
+    expect(p.state.error).toBe("Playback error");
+    el.log.length = 0;
+    el.paused = true;
+    p.toggle();
+    await flush();
+    expect(el.src).toContain("/media/a.");
+    expect(el.log).toContain("play");
   });
 });
