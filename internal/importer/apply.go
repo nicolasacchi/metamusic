@@ -572,8 +572,13 @@ func (s *applyState) newTake(t *plannedTake, res ingest.Result, parentID, rootID
 		Loudness: res.Loudness, Spectrum: res.Spectrum, ToolVersion: res.ToolVersion, ReplayGainDB: res.ReplayGainDB,
 		ScoreABC: t.scoreABC,
 	}
-	for _, r := range []ingest.Rendition{res.MP3, res.Peaks} {
-		nt.Renditions = append(nt.Renditions, library.NewRendition{Kind: r.Kind, SHA256: r.SHA256, Bytes: r.Bytes, Path: r.RelPath, Params: r.Params})
+	// ingest names the MP3 "mp3"; the library's rendition kind is "mp3_320" (C11)
+	for _, r := range []struct {
+		kind string
+		r    ingest.Rendition
+	}{{"mp3_320", res.MP3}, {"peaks", res.Peaks}} {
+		r, kind := r.r, r.kind
+		nt.Renditions = append(nt.Renditions, library.NewRendition{Kind: kind, SHA256: r.SHA256, Bytes: r.Bytes, Path: r.RelPath, Params: r.Params})
 	}
 	for _, a := range res.Artifacts {
 		nt.Artifacts = append(nt.Artifacts, library.NewArtifact{Name: path.Base(a.RelPath), SHA256: a.SHA256, Path: a.RelPath, Bytes: a.Bytes})

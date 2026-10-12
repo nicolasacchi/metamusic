@@ -29,6 +29,14 @@ commands:
   token list
   token revoke ID
   user set-password --username U (password read from stdin)
+  import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
+         [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]
+                                 inventory the inbox (--dry-run), then apply the reviewed plan (--plan)
+  seed-synthetic [--profile dev|e2e] [--seed 1] [--force]
+                                 fill a dev or e2e data directory with a generated library
+dev flags: --data-dir DIR  --seed-synthetic
+
+import exit codes: 0 ok, 1 per-file errors, 2 usage or fatal, 3 PLAN_CHANGED, 4 IMPORT_IN_PROGRESS
 `
 
 func main() {
@@ -68,6 +76,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdToken(ctx, rest, getenv, s)
 	case "user":
 		err = cmdUser(ctx, rest, getenv, s)
+	case "import":
+		err = cmdImport(ctx, rest, getenv, s)
+	case "seed-synthetic":
+		err = cmdSeedSynthetic(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 	default:
@@ -75,6 +87,13 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		return 2
 	}
 	if err != nil {
+		var x exitError
+		if errors.As(err, &x) {
+			if x.err != nil {
+				fmt.Fprintf(errw, "metamusic: %v\n", x.err)
+			}
+			return x.code
+		}
 		var e usageError
 		if errors.As(err, &e) {
 			fmt.Fprintf(errw, "metamusic: %s\n", e)
@@ -89,3 +108,23 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 type usageError string
 
 func (e usageError) Error() string { return string(e) }
+
+// exitError carries a specific process exit code (import: 1 per-file errors,
+// 2 fatal, 3 PLAN_CHANGED, 4 IMPORT_IN_PROGRESS). A nil err prints nothing:
+// the command has already reported on stdout.
+type exitError struct {
+	code int
+	err  error
+}
+
+func (e exitError) Error() string {
+	if e.err == nil {
+		return fmt.Sprintf("exit %d", e.code)
+	}
+	return e.err.Error()
+}
+
+func (e exitError) Unwrap() error { return e.err }
+
+// fatal wraps err as a fatal (exit 2) error.
+func fatal(err error) error { return exitError{2, err} }

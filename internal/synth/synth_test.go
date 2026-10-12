@@ -7,8 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta"
@@ -277,3 +280,137 @@ func TestEBU3341_BadCase(t *testing.T) {
 		t.Fatal("case 0 accepted")
 	}
 }
+
+func walkInbox(t *testing.T, root string) (files []string, modes map[string]os.FileMode) {
+	t.Helper()
+	modes = map[string]os.FileMode{}
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(root, p)
+		rel = filepath.ToSlash(rel)
+		files = append(files, rel)
+		st, err := os.Lstat(p)
+		if err != nil {
+			return err
+		}
+		modes[rel] = st.Mode()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files, modes
+}
+
+func TestSynthArchive_MatchesC21(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	dir := t.TempDir()
+	m, err := synth.Archive(context.Background(), testtools.Tools(), dir, synth.ProfileAcceptance, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, modes := walkInbox(t, dir)
+	var listed []string
+	for _, f := range m.Files {
+		listed = append(listed, f.Path)
+	}
+	sortStrings(files)
+	sortStrings(listed)
+	if strings.Join(files, "\n") != strings.Join(listed, "\n") {
+		t.Fatalf("manifest differs from disk:\ndisk:     %v\nmanifest: %v", files, listed)
+	}
+	want := []string{
+		"music/songs.jsonl", "music/abc/syn-song-08.abc", "music/requests/syn-song-06.json",
+		"music/flac/syn_song_01.flac", "music/flac/syn_song_01_s2001.flac", "music/flac/syn_song_02.flac",
+		"music/flac/syn_song_02_s2002.flac", "music/flac/syn_song_03.flac", "music/flac/syn_song_04.flac",
+		"music/flac/take_final.flac", "music/flac/synthetic_six.flac", "music/flac/syn_song_05.flac",
+		"music/flac/syn_song_04.mp3", "music/flac/.syn_song_06.flac.Xy12Ab", "music/flac/link_to_02.flac", "music/flac/pipe.flac",
+		"music/audio/syn_song_04.flac", "music/player-export/Syn Song 04.flac",
+		"music/mp3/syn_song_02.mp3", "music/mp3/syn_song_03.mp3", "music/mp3/take_final.mp3", "music/mp3/orphan_take.mp3",
+		"music/results/syn-song-05/audio.flac", "music/results/syn-song-05/request.json", "music/results/syn-song-05/result.json",
+		"music/results/syn-song-05/config.json", "music/results/syn-song-05/plan.json", "music/results/syn-song-05/score.abc",
+		"music/results/syn-song-05/semantic.npy", "music/results/syn-song-05/latent.npy",
+		"music/scores/syn_song_03.abc", "music/backlog-variants.jsonl", "music/pilot.jsonl", "music/pilot.json",
+		"music/index.csv", "music/playlist.json", "music/review.json", "music/old-batch.zip",
+		"varianti/syn-song-01-v2.json", "unmatched/mystery.flac",
+	}
+	sortStrings(want)
+	if strings.Join(listed, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("file list != C21:\n got %v\nwant %v", listed, want)
+	}
+	if modes["music/flac/link_to_02.flac"]&os.ModeSymlink == 0 || modes["music/flac/pipe.flac"]&os.ModeNamedPipe == 0 {
+		t.Errorf("symlink/FIFO missing: %v %v", modes["music/flac/link_to_02.flac"], modes["music/flac/pipe.flac"])
+	}
+	if !strings.Contains(m.Mapping, "music/flac/syn_song_01.flac,syn-song-01,1001,,") || !strings.Contains(m.Mapping, "unmatched/mystery.flac,-,,,") {
+		t.Errorf("mapping = %q", m.Mapping)
+	}
+	e := m.Expect
+	got := map[string]int{"recipes": e.Recipes, "recipe_sources": e.RecipeSources, "tracks": e.Tracks, "drafts": e.Drafts,
+		"backlog": e.DraftsBacklog, "fulfilled": e.DraftsFulfilled, "collections": e.Collections, "collection_drafts": e.CollectionDrafts,
+		"refs": e.Refs, "siblings": e.SiblingEdges, "scores": e.Scores, "audio_files": e.AudioFiles, "audio_identities": e.AudioIdentities,
+		"duplicate_groups": e.DuplicateGroups, "ignored": e.Ignored, "line_errors": e.RecipeLineErrors, "skipped": e.AudioSkipped, "exit": e.ExitCode}
+	wantN := map[string]int{"recipes": 23, "recipe_sources": 28, "tracks": 9, "drafts": 23, "backlog": 14, "fulfilled": 9, "collections": 1,
+		"collection_drafts": 3, "refs": 11, "siblings": 2, "scores": 2, "audio_files": 13, "audio_identities": 10, "duplicate_groups": 2,
+		"ignored": 12, "line_errors": 1, "skipped": 1, "exit": 1}
+	if d := cmp.Diff(wantN, got); d != "" {
+		t.Errorf("expect (-want +got):\n%s", d)
+	}
+	if e.LoudnessSpreadLU != 10.0 {
+		t.Errorf("spread = %v", e.LoudnessSpreadLU)
+	}
+	// the syn-song-04 copies share one audio identity; the retagged one has different bytes
+	a, b := framesSHA(t, filepath.Join(dir, "music/flac/syn_song_04.flac")), framesSHA(t, filepath.Join(dir, "music/player-export/Syn Song 04.flac"))
+	if a != b {
+		t.Error("retagged copy changed the frames")
+	}
+	ba, _ := os.ReadFile(filepath.Join(dir, "music/flac/syn_song_04.flac"))
+	bb, _ := os.ReadFile(filepath.Join(dir, "music/player-export/Syn Song 04.flac"))
+	if bytes.Equal(ba, bb) {
+		t.Error("retagged copy is byte identical")
+	}
+	// the lyrics edge strings survive verbatim in songs.jsonl
+	songs, _ := os.ReadFile(filepath.Join(dir, "music/songs.jsonl"))
+	for _, s := range []string{"è à ì", "<b>&", "< > &"} {
+		if !bytes.Contains(songs, []byte(s)) {
+			t.Errorf("songs.jsonl lacks %q", s)
+		}
+	}
+	if bytes.Count(songs, []byte("\n")) != 11 || !bytes.HasSuffix(songs, []byte("\n")) {
+		t.Errorf("songs.jsonl lines = %d", bytes.Count(songs, []byte("\n")))
+	}
+}
+
+func TestSynthArchive_E2EProfile(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	dir := t.TempDir()
+	m, err := synth.Archive(context.Background(), testtools.Tools(), dir, synth.ProfileE2E, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, modes := walkInbox(t, dir)
+	if len(files) != len(m.Files) {
+		t.Errorf("disk %d files, manifest %d", len(files), len(m.Files))
+	}
+	for p, md := range modes {
+		if md&(os.ModeSymlink|os.ModeNamedPipe) != 0 || strings.HasSuffix(p, ".zip") {
+			t.Errorf("e2e profile has %s (%v)", p, md)
+		}
+	}
+	e := m.Expect
+	if e.Recipes != 19 || e.Tracks != 6 || e.Drafts != 19 || e.DraftsBacklog != 13 || e.DraftsFulfilled != 6 || e.SiblingEdges != 1 || e.ExitCode != 0 || m.Mapping != "" {
+		t.Errorf("expect = %+v mapping=%q", e, m.Mapping)
+	}
+	if len(m.Audio) != 6 {
+		t.Errorf("audio specs = %d", len(m.Audio))
+	}
+	if _, err := synth.Archive(context.Background(), testtools.Tools(), t.TempDir(), "nope", 1); err == nil {
+		t.Error("unknown profile accepted")
+	}
+}
+
+func sortStrings(s []string) { sort.Strings(s) }

@@ -84,7 +84,8 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	if r3.StatusCode != 404 || !strings.Contains(string(b3), "NOT_FOUND") {
 		t.Fatalf("signer not wired to media handler: %d %s", r3.StatusCode, b3)
 	}
-	// Options.Signer wired: the probe (not the signer) is the missing component.
+	// Options.Signer wired: the link is signed (probe present, B9) or the probe
+	// (not the signer) is the missing component (no ffmpeg on the host).
 	req4, _ := http.NewRequest("GET", "http://"+addr+"/api/device-probe", nil)
 	req4.Header.Set("Authorization", "Bearer "+tok)
 	r4, err := client.Do(req4)
@@ -93,7 +94,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	}
 	b4, _ := io.ReadAll(r4.Body)
 	r4.Body.Close()
-	if r4.StatusCode != 503 || !strings.Contains(string(b4), `"component":"probe"`) {
+	if !(r4.StatusCode == 200 && strings.Contains(string(b4), "/media/")) && !(r4.StatusCode == 503 && strings.Contains(string(b4), `"component":"probe"`)) {
 		t.Fatalf("Options.Signer not wired: %d %s", r4.StatusCode, b4)
 	}
 	cancel()
