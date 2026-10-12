@@ -39,7 +39,7 @@ forbidden_path() {
   local p=$1 b=${1##*/} rc=1
   shopt -s nocasematch
   case "$b" in
-    *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.zip | *.db* | *.sqlite* | *.pdf | *.docx | songs.jsonl | CLAUDE.local.md | .env*) rc=0 ;;
+    *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.zip | *.db* | *.sqlite* | *.pdf | *.docx | songs.jsonl | CLAUDE.local.md | .env* | .public-gate-patterns) rc=0 ;;
   esac
   case "/$p" in
     */varianti/* | */docs/private/* | */secrets/*) rc=0 ;;
@@ -92,33 +92,33 @@ fi
 grep -v -E '^[[:space:]]*(#|$)' "$pf" >"$pf.f" || true
 mv "$pf.f" "$pf"
 if [ -s "$pf" ]; then
-  hits=()
   gout=$(mktemp)
   tmpfiles+=("$gout")
   if [ "$mode" = history ]; then
     revs=()
     while IFS= read -r r; do revs+=("$r"); done < <(git rev-list --all)
-    git grep -z -I -i -l -E -f "$pf" ${revs[@]+"${revs[@]}"} >"$gout" 2>/dev/null
+    git grep -z -i -l -E -f "$pf" ${revs[@]+"${revs[@]}"} >"$gout" 2>/dev/null
   else
-    git grep -z --cached -I -i -l -E -f "$pf" >"$gout" 2>/dev/null
+    git grep -z --cached -i -l -E -f "$pf" >"$gout" 2>/dev/null
   fi
   grc=$?
+  [ "$grc" -ge 2 ] && add "private pattern check failed (invalid regex?)"
+  # report file names only (never the matched private text), once per path across all commits
   while IFS= read -r -d '' h; do
     [ "$mode" = history ] && h=${h#*:}
-    hits+=("$h")
-  done <"$gout"
-  [ "$grc" -ge 2 ] && add "private pattern check failed (invalid regex?)"
-  # report file names only: never echo the matched (private) text
-  for h in ${hits[@]+"${hits[@]}"}; do add "private pattern match in: $h"; done
-  # file names are published too: match patterns against paths (report the path only)
-  for p in ${paths[@]+"${paths[@]}"}; do
-    printf '%s\n' "$p" | grep -qiEf "$pf" 2>/dev/null && add "private pattern match in path: $p"
-  done
+    printf '%s\0' "$h"
+  done <"$gout" | sort -zu >"$gout.u"
+  tmpfiles+=("$gout.u")
+  while IFS= read -r -d '' h; do add "private pattern match in: $h"; done <"$gout.u"
+  # file names are published too: one grep over all paths (report the path only)
+  if [ ${#paths[@]} -gt 0 ]; then
+    while IFS= read -r -d '' p; do add "private pattern match in path: $p"; done \
+      < <(printf '%s\0' "${paths[@]}" | grep -z -a -iEf "$pf" 2>/dev/null || true)
+  fi
   if [ "$mode" = history ]; then
-    # commit messages are published too (report the short SHA only)
-    while IFS= read -r c; do
-      git log -1 --format=%B "$c" | grep -qiEf "$pf" 2>/dev/null && add "private pattern match in commit message: ${c:0:8}"
-    done < <(git rev-list --all)
+    # commit messages are published too (report the short SHA only); one git log, one grep
+    while IFS= read -r -d '' r; do add "private pattern match in commit message: ${r:0:8}"; done \
+      < <(git log --all -z --format='%H %B' | grep -z -a -iEf "$pf" 2>/dev/null || true)
   fi
 else
   echo "public-gate: warning: no private patterns configured (PUBLIC_GATE_PATTERNS / .public-gate-patterns)" >&2
@@ -133,6 +133,8 @@ check_blob() { # label content-ref path
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
     [ -n "$line" ] || continue
+    # canonical form only: rejects duplicate keys / odd spacing that jq would normalise away
+    [ "$line" = "$(printf '%s' "$line" | jq -c . 2>/dev/null)" ] || { add "metrics row invalid: $label line $n"; continue; }
     printf '%s' "$line" | jq -e -s "length == 1 and (.[0] | $row_prog)" >/dev/null 2>&1 || add "metrics row invalid: $label line $n"
   done < <(git show "$ref")
 }

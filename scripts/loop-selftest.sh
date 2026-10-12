@@ -34,6 +34,13 @@ chk "typecheck counted, header and linters not" 'jq -e ".target==\"lint\" and .c
 : >"$MM_METRICS_FILE"
 "$root/scripts/loop" web -- sh -c 'echo "(fail) a > b [0.1ms]"; echo "(fail) c [0.1ms]"; echo "  3 failed"; echo "  5 passed"' >/dev/null
 chk "bun and playwright failures counted" 'jq -e ".failing_tests==5" "$MM_METRICS_FILE" >/dev/null'
+# svelte-check machine format and human format (stops svelte-check && tsc chain, so must count here)
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" web -- sh -c 'echo "1700000000 START \"/w\""; echo "1700000001 ERROR \"src/lib/router.ts\" 110:7 \"Type x is not assignable\""; echo "1700000001 ERROR \"src/App.svelte\" 3:1 \"bad\""; echo "1700000002 COMPLETED 10 FILES 2 ERRORS 0 WARNINGS"' >/dev/null
+chk "svelte-check machine errors counted" 'jq -e ".compile_errors==2" "$MM_METRICS_FILE" >/dev/null'
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" web -- sh -c 'echo "/w/src/lib/router.ts:110:7"; echo "Error: Type x is not assignable"; echo "/w/src/lib/a.ts:1:1"; echo "Warn: unused"; echo "svelte-check found 1 error and 1 warning"' >/dev/null
+chk "svelte-check human errors counted, warnings not" 'jq -e ".compile_errors==1" "$MM_METRICS_FILE" >/dev/null'
 MM_LANE=Upper "$root/scripts/loop" check -- true >/dev/null
 chk "lane lower-cased" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"upper\"" >/dev/null'
 chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'

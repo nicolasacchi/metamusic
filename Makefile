@@ -62,6 +62,6 @@ metrics:
 	scripts/metrics-report.sh
 
 clean:
-	rm -f bin/metamusic bin/metamusic.exe
+	rm -f bin/metamusic bin/metamusic.exe bin/metamusic-e2e openapi.json.tmp
 	rm -rf covdata coverage web/test-results web/playwright-report
 	find web/dist -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || true

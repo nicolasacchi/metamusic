@@ -86,6 +86,32 @@ expect "metrics row with extra field blocked" 1 --staged
 contains "metrics row with extra field blocked reason" "metrics row invalid"
 reset
 
+# the private pattern list itself must never be published (any directory, any case)
+echo 'secret-host\.lan' > .public-gate-patterns; git add -f .public-gate-patterns
+expect "staged .public-gate-patterns blocked" 1 --staged
+contains "staged .public-gate-patterns reason" "forbidden path: .public-gate-patterns"
+reset
+mkdir -p sub; echo x > sub/.Public-Gate-Patterns; git add -f sub/.Public-Gate-Patterns
+expect "nested mixed-case pattern list blocked" 1 --staged
+contains "nested pattern list reason" "forbidden path: sub/.Public-Gate-Patterns"
+reset
+echo x > .public-gate-patterns.example; git add .public-gate-patterns.example
+expect ".public-gate-patterns.example allowed" 0 --staged
+reset
+echo 'secret-host\.lan' > .public-gate-patterns; git add -f .public-gate-patterns; git commit -qm patterns
+git rm -q .public-gate-patterns; git commit -qm unpatterns
+expect "history finds committed pattern list" 1 --history
+contains "history pattern list reason" "forbidden path: .public-gate-patterns"
+git reset -q --hard HEAD~2
+
+# metrics: duplicate keys must not smuggle text (row must equal its canonical form)
+mkdir -p metrics
+echo '{"ts":"2026-01-01T00:00:00Z","target":"check","wall_ms":1,"exit":0,"compile_errors":0,"failing_tests":0,"sha":"abc1234","lane":"private-host-name","lane":"main","cache":"warm"}' > metrics/loop.jsonl
+git add -f metrics/loop.jsonl
+expect "metrics duplicate key blocked" 1 --staged
+contains "duplicate key reason" "metrics row invalid"
+reset
+
 # non-ASCII and uppercase paths
 echo x > "canzone perché.flac"; git add -f "canzone perché.flac"
 expect "staged non-ASCII flac blocked" 1 --staged

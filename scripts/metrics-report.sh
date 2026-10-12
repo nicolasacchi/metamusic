@@ -12,7 +12,11 @@ rows=$(mktemp)
 trap 'rm -f "$tmpout" "$rows"' EXIT
 # keep only well-formed rows; torn or foreign lines are skipped and counted
 total=$(grep -c '' "$src" || true)
-jq -R -c --from-file <(printf '%s\n' 'fromjson? // empty | select(. as $r | $r | type == "object" and (.target|type)=="string" and (.exit|type)=="number" and (.wall_ms|type)=="number" and (.compile_errors|type)=="number" and (.failing_tests|type)=="number" and (.cache|type)=="string")') "$src" >"$rows"
+# same schema as the privacy gate (scripts/metrics-row.jq)
+prog="def valid: $(cat "$root/scripts/metrics-row.jq")
+;
+fromjson? // empty | select(valid)"
+jq -R -c "$prog" "$src" >"$rows"
 kept=$(grep -c '' "$rows" || true)
 skipped=$((total - kept))
 [ "$kept" -gt 0 ] || { echo "metrics: no valid rows in $src" >&2; exit 1; }

@@ -58,6 +58,10 @@ wall_ms=$(((end - start) / 1000000))
 # minus linter findings (end in "(name)", except "(typecheck)" which is a compile error) and ": # pkg" headers
 compile_errors=$({ grep -E '^(vet: )?[^[:space:]:(]+\.(go|ts|svelte)(:[0-9]+(:[0-9]+)?: |\([0-9]+,[0-9]+\): error)' "$log" || true; } \
   | sed -E 's/ \(typecheck\)$//' | { grep -vE ': # ' || true; } | grep -cvE '\([a-z0-9-]+\)$' || true)
+# svelte-check: machine format ("<ts> ERROR ...") and human format (location line followed by "Error:")
+sv_errors=$({ grep -cE '^[0-9]+ ERROR "' "$log" || true; })
+sv_human=$(awk '/^[^[:space:]]+\.(svelte|ts|js):[0-9]+:[0-9]+$/ { loc = 1; next } /^Error: / && loc { c++ } { loc = 0 } END { print c + 0 }' "$log")
+compile_errors=$((${compile_errors:-0} + ${sv_errors:-0} + ${sv_human:-0}))
 # failing tests: leaf Go "--- FAIL:" lines only (a parent whose subtests failed is not counted twice),
 # plus bun "(fail)" lines and the Playwright "N failed" summary
 go_failing=$(awk '
