@@ -115,3 +115,6 @@ func newProblem(ctx huma.Context, status int, msg string, errs ...error) huma.St
 	}
 	return p
 }
+
+// CodeFor returns the stable UPPER_SNAKE problem code for an HTTP status.
+func CodeFor(status int) string { return codeFor(status) }

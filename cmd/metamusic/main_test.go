@@ -210,7 +210,7 @@ func TestTokenCreateAuthenticates(t *testing.T) {
 
 func TestSetPassword(t *testing.T) {
 	env := testEnv(t, "local")
-	if code, _, errs := do(t, env, "s3cret-pw\n", "user", "set-password", "--username", "bob"); code != 0 {
+	if code, _, errs := do(t, env, "s3cret-pw-long\n", "user", "set-password", "--username", "bob"); code != 0 {
 		t.Fatalf("exit %d %s", code, errs)
 	}
 	b, err := boot(context.Background(), envFn(env), false)
@@ -218,14 +218,14 @@ func TestSetPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.close()
-	if _, err := b.local.Login(context.Background(), "bob", "s3cret-pw"); err != nil {
+	if _, err := b.local.Login(context.Background(), "bob", "s3cret-pw-long"); err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	if code, _, _ := do(t, env, "\n", "user", "set-password", "--username", "bob"); code != 1 {
 		t.Fatalf("blank password accepted: %d", code)
 	}
 	proxy := testEnv(t, "proxy")
-	if code, _, _ := do(t, proxy, "pw\n", "user", "set-password", "--username", "bob"); code != 1 {
+	if code, _, _ := do(t, proxy, "pw-pw-pw-pw-pw\n", "user", "set-password", "--username", "bob"); code != 1 {
 		t.Fatalf("proxy mode accepted: %d", code)
 	}
 }

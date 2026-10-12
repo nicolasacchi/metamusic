@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 	"uuid"
 
 	"golang.org/x/crypto/argon2"
@@ -26,6 +27,7 @@ var (
 	ErrBadCredentials  = errors.New("invalid credentials")
 	ErrInvalidSession  = errors.New("invalid session")
 	ErrInvalidPassword = errors.New("username and password must not be blank")
+	ErrWeakPassword    = errors.New("password must be at least 12 characters")
 )
 
 const (
@@ -34,10 +36,15 @@ const (
 	argonThreads = 2
 	argonKeyLen  = 32
 
-	SessionCookie = "mm_session"
-	sessionTTL    = 12 * time.Hour
-	slideAfter    = 5 * time.Minute // slide/re-issue only when this much of the TTL has elapsed
-	maxHashers    = 2               // concurrent argon2id computations (64 MiB each)
+	SessionCookie     = "mm_session"
+	HostSessionCookie = "__Host-mm_session" // used when PublicURL is https: sibling hosts cannot plant or shadow it
+	maxSessionCookies = 4                   // duplicate session cookies examined per request
+	minPasswordRunes  = 12
+	maxPendingLogins  = 16 // login attempts in flight (hasher queue + failure delay); more get 503 at once
+	maxFailBackoff    = 32 // cap on the failure-delay multiplier
+	sessionTTL        = 12 * time.Hour
+	slideAfter        = 5 * time.Minute // slide/re-issue only when this much of the TTL has elapsed
+	maxHashers        = 2               // concurrent argon2id computations (64 MiB each)
 )
 
 // ErrBusy is returned when the caller's context ends while waiting for a hashing slot.
@@ -54,6 +61,57 @@ type LocalAuth struct {
 	sem       chan struct{}
 	active    atomic.Int32
 	maxActive atomic.Int32 // high-water mark of concurrent hashing (observability/tests)
+	pending   atomic.Int32 // login attempts admitted and not yet answered
+
+	failSem     chan struct{} // held during the failure delay: failed logins are answered one at a time
+	consecFails int           // consecutive failures since the last success (guarded by failSem)
+}
+
+// CookieName is the session cookie name for a deployment: __Host- prefixed over https.
+func CookieName(secure bool) string {
+	if secure {
+		return HostSessionCookie
+	}
+	return SessionCookie
+}
+
+// CookieName returns the session cookie name this instance issues.
+func (l *LocalAuth) CookieName() string { return CookieName(l.secure) }
+
+// admit reserves a login slot; false means too many attempts are in flight.
+func (l *LocalAuth) admit() bool {
+	if l.pending.Add(1) > maxPendingLogins {
+		l.pending.Add(-1)
+		return false
+	}
+	return true
+}
+
+func (l *LocalAuth) release() { l.pending.Add(-1) }
+
+// penalize makes a failed login cost wall-clock time that parallelism cannot
+// avoid: failures are serialised on failMu and the delay grows with the
+// consecutive failure count.
+func (l *LocalAuth) penalize(ctx context.Context) {
+	l.failSem <- struct{}{} // a channel, not a mutex, so waiters stay synctest-visible
+	defer func() { <-l.failSem }()
+	mult := 1 << min(l.consecFails/4, 5) // 1,1,1,1,2,2,2,2,4 ... capped at maxFailBackoff
+	mult = min(mult, maxFailBackoff)
+	l.consecFails++
+	if d := l.FailDelay * time.Duration(mult); d > 0 {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+		}
+	}
+}
+
+func (l *LocalAuth) succeeded() {
+	l.failSem <- struct{}{}
+	l.consecFails = 0
+	<-l.failSem
 }
 
 func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
@@ -63,6 +121,7 @@ func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
 		FailDelay: time.Second,
 		now:       time.Now,
 		sem:       make(chan struct{}, maxHashers),
+		failSem:   make(chan struct{}, 1),
 	}
 	return la
 }
@@ -138,6 +197,9 @@ func (l *LocalAuth) ts(t time.Time) string { return t.UTC().Format(time.RFC3339)
 func (l *LocalAuth) SetPassword(ctx context.Context, username, pw string) error {
 	if strings.TrimSpace(username) == "" || strings.TrimSpace(pw) == "" {
 		return ErrInvalidPassword
+	}
+	if utf8.RuneCountInString(pw) < minPasswordRunes {
+		return ErrWeakPassword
 	}
 	var h string
 	var herr error
@@ -244,7 +306,7 @@ func (l *LocalAuth) cookie(value string, maxAge int) *http.Cookie {
 }
 
 func sessionCookie(value string, maxAge int, secure bool) *http.Cookie {
-	return &http.Cookie{Name: SessionCookie, Value: value, Path: "/", HttpOnly: true,
+	return &http.Cookie{Name: CookieName(secure), Value: value, Path: "/", HttpOnly: true,
 		Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
 }
 
@@ -284,10 +346,16 @@ func (l *LocalAuth) Handler() http.Handler {
 			writeLogin(w, http.StatusBadRequest, "Bad request.")
 			return
 		}
+		if !l.admit() {
+			w.Header().Set("Retry-After", "1")
+			writeLogin(w, http.StatusServiceUnavailable, "Server busy, try again.")
+			return
+		}
+		defer l.release()
 		cv, err := l.Login(r.Context(), r.PostForm.Get("username"), r.PostForm.Get("password"))
 		switch {
 		case errors.Is(err, ErrBadCredentials):
-			time.Sleep(l.FailDelay)
+			l.penalize(r.Context())
 			writeLogin(w, http.StatusUnauthorized, "Invalid username or password.")
 			return
 		case errors.Is(err, ErrBusy), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
@@ -299,14 +367,23 @@ func (l *LocalAuth) Handler() http.Handler {
 			writeLogin(w, http.StatusInternalServerError, "Server error.")
 			return
 		}
-		if old, err := r.Cookie(SessionCookie); err == nil && old.Value != "" {
-			_ = l.Logout(r.Context(), old.Value) // rotate: presented session dies
+		l.succeeded()
+		for i, old := range r.CookiesNamed(l.CookieName()) {
+			if i >= maxSessionCookies {
+				break
+			}
+			if old.Value != "" {
+				_ = l.Logout(r.Context(), old.Value) // rotate: presented sessions die
+			}
 		}
 		http.SetCookie(w, l.cookie(cv, int(sessionTTL.Seconds())))
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})))
 	mux.Handle("POST /auth/logout", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if c, err := r.Cookie(SessionCookie); err == nil {
+		for i, c := range r.CookiesNamed(l.CookieName()) {
+			if i >= maxSessionCookies {
+				break
+			}
 			_ = l.Logout(r.Context(), c.Value)
 		}
 		http.SetCookie(w, l.cookie("", -1))

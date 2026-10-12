@@ -126,6 +126,9 @@ func cmdUser(ctx context.Context, args []string, getenv func(string) string, s s
 		if errors.Is(err, auth.ErrInvalidPassword) {
 			return errors.New("username and password must be non-blank")
 		}
+		if errors.Is(err, auth.ErrWeakPassword) {
+			return errors.New("password must be at least 12 characters")
+		}
 		return err
 	}
 	fmt.Fprintln(s.out, "password set; existing sessions invalidated")

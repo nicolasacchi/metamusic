@@ -114,12 +114,17 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 			case "proxy":
 				p, ok = proxyPrincipal(r, cfg, sec)
 			case "local":
-				if c, err := r.Cookie(SessionCookie); err == nil {
+				// a planted duplicate must not shadow the real cookie: first valid one wins
+				for i, c := range r.CookiesNamed(CookieName(strings.HasPrefix(cfg.PublicURL, "https://"))) {
+					if i >= maxSessionCookies {
+						break
+					}
 					sp, err := sessions.VerifySession(r.Context(), c.Value)
-					switch {
-					case err == nil:
+					if err == nil {
 						p, ok, refresh = sp, true, c.Value
-					case !errors.Is(err, ErrInvalidSession):
+						break
+					}
+					if !errors.Is(err, ErrInvalidSession) {
 						internalError(w, "session verification failed", err)
 						return
 					}

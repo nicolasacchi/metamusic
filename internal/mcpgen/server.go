@@ -83,14 +83,15 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 	return srv, nil
 }
 
-// Handler serves srv over stateless streamable HTTP with JSON responses.
+// Handler serves srv over stateless streamable HTTP with JSON responses;
+// transport-level errors are rewritten to application/problem+json.
 func Handler(srv *mcp.Server) http.Handler {
-	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv },
+	return problemJSON(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv },
 		&mcp.StreamableHTTPOptions{
 			Stateless: true, JSONResponse: true,
 			// /mcp is bearer-only, so DNS rebinding cannot ride ambient
 			// credentials; the guard would only break reverse-proxied
 			// loopback deployments (Host != loopback).
 			DisableLocalhostProtection: true,
-		})
+		}))
 }

@@ -95,8 +95,21 @@ mkdir -p sub; echo x > sub/.Public-Gate-Patterns; git add -f sub/.Public-Gate-Pa
 expect "nested mixed-case pattern list blocked" 1 --staged
 contains "nested pattern list reason" "forbidden path: sub/.Public-Gate-Patterns"
 reset
-echo x > .public-gate-patterns.example; git add .public-gate-patterns.example
+echo 'my-private-hostname\.example\.invalid' > .public-gate-patterns.example; git add .public-gate-patterns.example
 expect ".public-gate-patterns.example allowed" 0 --staged
+reset
+printf 'real-host\\.lan\n' > .public-gate-patterns.example; git add .public-gate-patterns.example
+expect "pattern example with extra lines blocked" 1 --staged
+contains "example reason" "pattern list example holds more than the placeholder"
+reset
+# a copy of the (escaped) pattern list under another name or inside a file matches itself as fixed strings
+printf 'secret-host\\.lan\n' > copy.txt; git add copy.txt
+PUBLIC_GATE_PATTERNS='secret-host\.lan' expect "verbatim copy of escaped pattern list blocked" 1 --staged
+contains "copy reason" "private pattern match in: copy.txt"
+reset
+echo x > my.public-gate-patterns.bak; git add my.public-gate-patterns.bak
+expect "renamed pattern list blocked" 1 --staged
+contains "renamed pattern list reason" "forbidden path: my.public-gate-patterns.bak"
 reset
 echo 'secret-host\.lan' > .public-gate-patterns; git add -f .public-gate-patterns; git commit -qm patterns
 git rm -q .public-gate-patterns; git commit -qm unpatterns
@@ -208,5 +221,133 @@ echo x > evil.pdf; git add -f evil.pdf; git commit -qm merge
 git rm -q evil.pdf; git commit -qm cleanup
 expect "history finds pdf added only in merge" 1 --history
 contains "merge reason" "forbidden path: evil.pdf"
+
+# ---- hardening regressions ----------------------------------------------------
+reset
+# restart from the first commit: earlier history cases leave blocked paths behind
+git reset -q --hard "$(git rev-list --max-parents=0 HEAD | tail -1)"
+git branch -D side >/dev/null 2>&1 || true
+git tag -l | xargs -r git tag -d >/dev/null
+base=$(git rev-parse HEAD)
+
+# commit identity (history and staged)
+git -c user.email=x@private-thing.lan commit -q --allow-empty -m ident
+PUBLIC_GATE_PATTERNS=private-thing expect "private identity in history blocked" 1 --history
+contains "identity reason" "private pattern match in commit identity"
+git reset -q --hard "$base"
+echo y > id.txt; git add id.txt
+GIT_AUTHOR_EMAIL=x@private-thing.lan PUBLIC_GATE_PATTERNS=private-thing expect "private identity staged blocked" 1 --staged
+contains "staged identity reason" "git author/committer identity"
+reset
+# the real pre-commit hook refuses the commit before it exists
+mkdir -p .githooks
+printf '#!/usr/bin/env bash\nPUBLIC_GATE_PATTERNS=private-thing exec scripts/public-gate.sh --staged\n' > .githooks/pre-commit
+chmod +x .githooks/pre-commit
+git add .githooks; git commit -qm hook
+git config core.hooksPath .githooks
+echo z > z.txt; git add z.txt
+if git -c user.email=x@private-thing.lan commit -qm blocked >/dev/null 2>&1; then echo "FAIL: hook let private identity commit through"; fail=1; else echo "ok:   hook refuses private identity"; fi
+git config --unset core.hooksPath
+reset
+base=$(git rev-parse HEAD)
+
+# gitleaks bypasses: the built-in token scan must still catch them
+tok="mmp_$body"
+printf '* -diff\n' > .gitattributes; printf 'token = "%s"\n' "$tok" > conf.txt; git add .gitattributes conf.txt
+expect "token behind '* -diff' blocked (staged)" 1 --staged
+contains "token pattern reason" "metamusic token pattern in: conf.txt"
+contains "gitattributes reason" "gitattributes disables diff/text handling"
+git commit -qm attrs
+expect "token behind '* -diff' blocked (history)" 1 --history
+git reset -q --hard "$base"
+printf 'token = "%s" // gitleaks:allow\n' "$tok" > conf.txt; git add conf.txt
+expect "gitleaks:allow comment ignored" 1 --staged
+reset
+for f in icon.svg docs/x.png blob.bin vendor/modules.txt node_modules/x/a.js go.sum my.gitleaks.toml.md; do
+  mkdir -p "$(dirname "$f")"; printf 'token = "%s"\n' "$tok" > "$f"; git add -f "$f"
+  expect "token in allowlisted path $f blocked" 1 --staged
+  reset
+done
+printf 'token = "%s"\n\0nul\n' "$tok" > nul.txt; git add nul.txt
+expect "token in NUL-containing file blocked" 1 --staged
+reset
+printf '.gitleaksignore\n' > /dev/null; echo "x" > .gitleaksignore; git add -f .gitleaksignore
+expect ".gitleaksignore blocked" 1 --staged
+reset
+
+# renamed forbidden types and encodings
+printf '%%PDF-1.4\nhello\n' > lyrics.txt; git add lyrics.txt
+expect "renamed pdf blocked" 1 --staged
+contains "renamed pdf reason" "binary/archive/audio/db/pdf content in: lyrics.txt"
+reset
+printf 'SQLite format 3\0rest' > data.dat; git add data.dat
+expect "renamed sqlite blocked" 1 --staged
+reset
+printf 'fLaC\0\0\0\042' > take1.bin; git add take1.bin
+expect "renamed flac blocked" 1 --staged
+reset
+echo 'secret-hostname.internal' | gzip > notes.txt.gz; git add notes.txt.gz
+PUBLIC_GATE_PATTERNS=secret-hostname expect "gzip blocked" 1 --staged
+reset
+echo 'secret-hostname.internal' | gzip > notes.txt; git add notes.txt
+PUBLIC_GATE_PATTERNS=secret-hostname expect "renamed gzip blocked by magic" 1 --staged
+contains "gzip magic reason" "binary/archive/audio/db/pdf content in: notes.txt"
+reset
+printf 'secret-hostname\n' | iconv -f UTF-8 -t UTF-16LE > u16.txt; git add u16.txt
+PUBLIC_GATE_PATTERNS=secret-hostname expect "UTF-16 text blocked" 1 --staged
+reset
+for f in a.aac a.aif a.aiff a.webm a.mp4 a.mka a.wma a.7z a.tar a.tar.gz a.rar a.s3db songs.json songs.jsonl.bak prod.env a.xz a.zst a.tgz; do
+  echo x > "$f"; git add -f "$f"
+  expect "forbidden name $f blocked" 1 --staged
+  reset
+done
+# an allow-listed icon is a real PNG; a fake one is not
+mkdir -p web/public/icons
+printf '\211PNG\r\n\032\n\0\0\0\rIHDR' > web/public/icons/ok.png; git add web/public/icons/ok.png
+expect "real png icon allowed" 0 --staged
+reset
+mkdir -p web/public/icons; printf '%%PDF-1.4\n\0' > web/public/icons/fake.png; git add -f web/public/icons/fake.png
+expect "fake png icon blocked" 1 --staged
+reset
+
+# refs: tag messages, ref names, and tags pointing at blobs/trees
+git tag -a v-priv -m "deploy at private-thing.lan"
+PUBLIC_GATE_PATTERNS=private-thing expect "private tag message blocked" 1 --history
+contains "tag message reason" "ref name or tag metadata"
+git tag -d v-priv >/dev/null
+git tag release-private-thing
+PUBLIC_GATE_PATTERNS=private-thing expect "private tag name blocked" 1 --history
+git tag -d release-private-thing >/dev/null
+git branch feature-private-thing
+PUBLIC_GATE_PATTERNS=private-thing expect "private branch name blocked" 1 --history
+git branch -qD feature-private-thing
+blobsha=$(printf 'token = "%s"\n' "$tok" | git hash-object -w --stdin)
+git tag blobtag "$blobsha"
+expect "tag pointing at a blob blocked" 1 --history
+contains "blob tag reason" "ref points directly at a blob"
+git tag -d blobtag >/dev/null
+treesha=$(git rev-parse HEAD^{tree})
+git tag treetag "$treesha"
+expect "tag pointing at a tree blocked" 1 --history
+git tag -d treetag >/dev/null
+# annotated tag whose target is a blob holding a token
+git tag -a -m t blobann "$blobsha"
+expect "annotated tag at a blob blocked" 1 --history
+git tag -d blobann >/dev/null
+# private content reachable only through a tag-pointed tree
+mkdir -p tt/docs/private; echo hi > tt/docs/private/design.md
+tsha=$(cd tt && GIT_INDEX_FILE=$tmp/idx git add -A . 2>/dev/null; GIT_INDEX_FILE=$tmp/idx git write-tree)
+rm -rf tt "$tmp/idx"
+git tag -a -m t treeann "$tsha"
+expect "annotated tag at a tree blocked" 1 --history
+git tag -d treeann >/dev/null
+expect "history clean again after tag cleanup" 0 --history
+
+# --require-patterns fails closed when no patterns are configured
+expect "no patterns: warn only by default" 0 --staged
+expect "no patterns: --require-patterns fails" 1 --staged --require-patterns
+contains "require reason" "--require-patterns"
+PUBLIC_GATE_PATTERNS=nothing-here expect "patterns present: --require-patterns passes" 0 --staged --require-patterns
+
 
 exit $fail

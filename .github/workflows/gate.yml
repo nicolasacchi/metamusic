@@ -1,0 +1,50 @@
+name: gate
+
+# Privacy gate on every push (any branch, any tag) and every pull request, so a
+# leak pushed to a non-main branch or a tag is still reported. It runs after the
+# push; the pre-push hook (make hooks) is what prevents one.
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: public gate (history)
+        env:
+          PUBLIC_GATE_PATTERNS: ${{ secrets.PUBLIC_GATE_PATTERNS }}
+          FORK_PR: ${{ github.event.pull_request.head.repo.fork }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The private pattern list must be configured, or the gate fails: otherwise a
+          # missing secret silently turns the strongest check off. Fork PRs, Dependabot
+          # and forks of the repo never receive the secret, so they run without it.
+          require=--require-patterns
+          if [ "$FORK_PR" = true ] || [ "$ACTOR" = 'dependabot[bot]' ] || [ "$REPO" != 'nicolasacchi/metamusic' ]; then
+            require=
+          fi
+          scripts/public-gate.sh --history $require

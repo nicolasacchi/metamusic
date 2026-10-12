@@ -161,26 +161,3 @@ jobs:
             web/playwright-report
             web/test-results
           retention-days: 7
-
-  gate:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: cache tools
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
-      - name: install tools
-        run: scripts/tools.sh
-      - name: public gate (history)
-        env:
-          # Optional extra deny-patterns; empty on forks and fork PRs.
-          PUBLIC_GATE_PATTERNS: ${{ secrets.PUBLIC_GATE_PATTERNS }}
-        run: scripts/public-gate.sh --history

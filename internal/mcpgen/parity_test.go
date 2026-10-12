@@ -106,22 +106,35 @@ func (r *rig) client(t *testing.T, tok string) *mcp.ClientSession {
 	return sess
 }
 
-func (r *rig) rest(t *testing.T, tok, path string) any {
+func (r *rig) rest(t *testing.T, tok, method, path string, body any) any {
 	t.Helper()
-	req, _ := http.NewRequest("GET", r.srv.URL+path, nil)
+	var rd io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rd = strings.NewReader(string(b))
+	}
+	req, _ := http.NewRequest(method, r.srv.URL+path, rd)
 	req.Header.Set("Authorization", "Bearer "+tok)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		t.Fatalf("GET %s: %d %s", path, resp.StatusCode, b)
+	if resp.StatusCode/100 != 2 {
+		t.Fatalf("%s %s: %d %s", method, path, resp.StatusCode, b)
 	}
 	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
-		t.Fatal(err)
+	if len(b) > 0 {
+		if err := json.Unmarshal(b, &v); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return v
 }
@@ -137,49 +150,116 @@ func structured(t *testing.T, res *mcp.CallToolResult) any {
 	return v
 }
 
-// parityArgs holds tool arguments (and the matching REST path) for every GET
-// operation that takes parameters. A GET op with parameters and no fixture
-// fails the test, so new ops cannot escape parity unnoticed.
-var parityArgs = map[string]struct {
-	Args map[string]any
-	Path string
-}{}
+// parityFixture is the REST rendering of one MCP call: tool arguments plus the
+// method, path (with query string) and JSON body the same call uses over REST.
+type parityFixture struct {
+	Args   map[string]any
+	Method string // "" means GET
+	Path   string
+	Body   any
+}
 
-func TestParityEveryGETTool(t *testing.T) {
-	r := newRig(t)
-	tok := r.token(t, "agent-1", auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin)
-	sess := r.client(t, tok)
+// parityArgs holds a fixture for every tool or generic operation that is not a
+// parameterless GET. needsFixture decides which operations those are; one
+// without an entry fails TestParityEveryOperation, so new ops cannot escape
+// parity unnoticed (and -update on the golden cannot hide it).
+var parityArgs = map[string]parityFixture{}
+
+// needsFixture reports whether an operation must carry a parity fixture: any
+// non-GET method, or any path/query/header parameter, or a request body.
+func needsFixture(method string, o *huma.Operation) bool {
+	return method != http.MethodGet || len(o.Parameters) > 0 || o.RequestBody != nil
+}
+
+func pathOperation(a huma.API, op api.OpInfo) *huma.Operation {
+	item := a.OpenAPI().Paths[op.Path]
+	if item == nil {
+		return nil
+	}
+	return map[string]*huma.Operation{
+		"GET": item.Get, "PUT": item.Put, "POST": item.Post, "DELETE": item.Delete, "PATCH": item.Patch,
+	}[op.Method]
+}
+
+func TestNeedsFixture(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		op     *huma.Operation
+		want   bool
+	}{
+		{"bare GET", "GET", &huma.Operation{}, false},
+		{"GET with optional query", "GET", &huma.Operation{Parameters: []*huma.Param{{Name: "limit", In: "query"}}}, true},
+		{"GET with path param", "GET", &huma.Operation{Parameters: []*huma.Param{{Name: "id", In: "path"}}}, true},
+		{"bare POST", "POST", &huma.Operation{}, true},
+		{"GET with body", "GET", &huma.Operation{RequestBody: &huma.RequestBody{}}, true},
+		{"DELETE", "DELETE", &huma.Operation{}, true},
+	}
+	for _, tc := range tests {
+		if got := needsFixture(tc.method, tc.op); got != tc.want {
+			t.Errorf("%s: needsFixture = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestParityEveryOperation(t *testing.T) {
+	shared := newRig(t)
+	sharedTok := shared.token(t, "agent-1", auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin)
+	sharedSess := shared.client(t, sharedTok)
 	ctx := context.Background()
 	n := 0
-	for _, op := range api.Operations(r.api) {
-		if op.Method != "GET" || (op.Meta.MCP != "tool" && op.Meta.MCP != "generic") {
+	for _, op := range api.Operations(shared.api) {
+		if op.Meta.MCP != "tool" && op.Meta.MCP != "generic" {
 			continue
 		}
-		args, path := map[string]any(nil), op.Path
-		if fx, ok := parityArgs[op.ID]; ok {
-			args, path = fx.Args, fx.Path
-		} else if strings.Contains(op.Path, "{") {
-			t.Errorf("%s: GET op with path parameters needs a parityArgs fixture", op.ID)
+		o := pathOperation(shared.api, op)
+		if o == nil {
+			t.Errorf("%s: not found in the OpenAPI document", op.ID)
 			continue
+		}
+		fx, haveFx := parityArgs[op.ID]
+		if needsFixture(op.Method, o) && !haveFx {
+			t.Errorf("%s: %s %s has inputs or side effects and needs a parityArgs fixture", op.ID, op.Method, op.Path)
+			continue
+		}
+		method, path := op.Method, op.Path
+		if haveFx {
+			path = fx.Path
+			if fx.Method != "" {
+				method = fx.Method
+			}
 		}
 		n++
 		routes := map[string]*mcp.CallToolParams{
-			"call_operation": {Name: "call_operation", Arguments: map[string]any{"operation_id": op.ID, "arguments": args}},
+			"call_operation": {Name: "call_operation", Arguments: map[string]any{"operation_id": op.ID, "arguments": fx.Args}},
 		}
 		if op.Meta.MCP == "tool" {
-			routes["tool"] = &mcp.CallToolParams{Name: op.ID, Arguments: args}
+			routes["tool"] = &mcp.CallToolParams{Name: op.ID, Arguments: fx.Args}
 		}
 		for route, params := range routes {
 			var diff string
-			for attempt := 0; attempt < 3; attempt++ { // uptime_s may tick between the two calls
-				res, err := sess.CallTool(ctx, params)
+			if method == http.MethodGet {
+				for attempt := 0; attempt < 3; attempt++ { // uptime_s may tick between the two calls
+					res, err := sharedSess.CallTool(ctx, params)
+					if err != nil {
+						t.Fatalf("%s via %s: %v", op.ID, route, err)
+					}
+					diff = cmp.Diff(shared.rest(t, sharedTok, method, path, fx.Body), structured(t, res))
+					if diff == "" {
+						break
+					}
+				}
+			} else {
+				// mutating op: each face runs against its own fresh rig, so one
+				// call cannot change the other face's result
+				ra, rb := newRig(t), newRig(t)
+				scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
+				ta, tb := ra.token(t, "agent-1", scopes...), rb.token(t, "agent-1", scopes...)
+				res, err := rb.client(t, tb).CallTool(ctx, params)
 				if err != nil {
 					t.Fatalf("%s via %s: %v", op.ID, route, err)
 				}
-				diff = cmp.Diff(r.rest(t, tok, path), structured(t, res))
-				if diff == "" {
-					break
-				}
+				diff = cmp.Diff(ra.rest(t, ta, method, path, fx.Body), structured(t, res))
 			}
 			if diff != "" {
 				t.Errorf("%s via %s: REST vs MCP mismatch (-rest +mcp):\n%s", op.ID, route, diff)
@@ -187,7 +267,7 @@ func TestParityEveryGETTool(t *testing.T) {
 		}
 	}
 	if n == 0 {
-		t.Fatal("no GET operations exercised")
+		t.Fatal("no operations exercised")
 	}
 }
 
@@ -273,10 +353,11 @@ func TestToolsListGolden(t *testing.T) {
 	}
 }
 
-// toolsListBaselineBytes is the M0 tools/list size. Tool descriptions and
-// schemas cost agent context; growth beyond 1.5x this is a deliberate decision
-// (edit this constant in review), never an -update side effect.
-const toolsListBaselineBytes = 4176
+// toolsListBaselineBytes is the size of testdata/tools_list.golden.json when the
+// budget was last reviewed. Tool descriptions and schemas cost agent context;
+// growth beyond 1.5x this is a deliberate decision (edit this constant in
+// review), never an -update side effect.
+const toolsListBaselineBytes = 4412
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {
@@ -328,6 +409,42 @@ func TestWhoamiAcrossProtocolVersions(t *testing.T) {
 		m := out.Result.StructuredContent
 		if m["kind"] != "agent" || m["name"] != "agent-pv" {
 			t.Errorf("version %q: principal not propagated: %s", ver, b)
+		}
+	}
+}
+
+func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
+	r := newRig(t)
+	tok := r.token(t, "agent-1", auth.ScopeRead)
+	tests := []struct {
+		name, method, body string
+		status             int
+		code               string
+	}{
+		{"GET not allowed", "GET", "", 405, "METHOD_NOT_ALLOWED"},
+		{"DELETE not allowed", "DELETE", "", 405, "METHOD_NOT_ALLOWED"},
+		{"malformed payload", "POST", `{not json`, 400, "BAD_REQUEST"},
+		{"unsupported rpc method", "POST", `{"jsonrpc":"2.0","id":1,"method":"nope/nothing"}`, 400, "BAD_REQUEST"},
+	}
+	for _, tc := range tests {
+		req, _ := http.NewRequest(tc.method, r.srv.URL+"/mcp", strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		var p struct {
+			Code    string         `json:"code"`
+			Message string         `json:"message"`
+			Details map[string]any `json:"details"`
+		}
+		if resp.StatusCode != tc.status || resp.Header.Get("Content-Type") != "application/problem+json" ||
+			json.Unmarshal(b, &p) != nil || p.Code != tc.code || p.Message == "" || p.Details == nil {
+			t.Errorf("%s: %d %q %s", tc.name, resp.StatusCode, resp.Header.Get("Content-Type"), b)
 		}
 	}
 }

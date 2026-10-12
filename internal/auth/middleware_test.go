@@ -86,7 +86,7 @@ func TestTrustMatrix(t *testing.T) {
 									r.Header.Add("Remote-User", v)
 								}
 								if cookie {
-									r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
+									r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "goodsess"})
 								}
 								rec, seen := run(mode, r)
 
@@ -190,7 +190,7 @@ func TestCrossOriginProtection(t *testing.T) {
 		if origin != "" {
 			r.Header.Set("Origin", origin)
 		}
-		r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
+		r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "goodsess"})
 		r.Header.Set("Remote-User", "alice")
 		r.Header.Set("X-MM-Edge", edge)
 		return r
@@ -286,11 +286,11 @@ func TestIPv4MappedPeerTrusted(t *testing.T) {
 func TestSessionCookieRefreshed(t *testing.T) {
 	c, s := cfg("local")
 	r := httptest.NewRequest("GET", "/api/x", nil)
-	r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
+	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "goodsess"})
 	rec, _ := runP(c, s, r)
 	var got *http.Cookie
 	for _, ck := range rec.Result().Cookies() {
-		if ck.Name == "mm_session" {
+		if ck.Name == "__Host-mm_session" {
 			got = ck
 		}
 	}
@@ -327,7 +327,7 @@ func TestInfrastructureErrorsAre500(t *testing.T) {
 		t.Fatalf("token infra error: %d %s", rec.Code, rec.Body.String())
 	}
 	r = httptest.NewRequest("GET", "/api/x", nil)
-	r.AddCookie(&http.Cookie{Name: "mm_session", Value: "x"})
+	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "x"})
 	rec = httptest.NewRecorder()
 	Middleware(c, s, fakeTokens{}, errSessions{})(http.NotFoundHandler()).ServeHTTP(rec, r)
 	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) {
@@ -349,5 +349,35 @@ func TestBearerSchemeCaseInsensitive(t *testing.T) {
 		if rec, _ := run("proxy", r); rec.Code != 401 {
 			t.Errorf("%q: %d", h, rec.Code)
 		}
+	}
+}
+
+func TestPlantedDuplicateSessionCookieDoesNotShadow(t *testing.T) {
+	c, s := cfg("local")
+	for _, order := range [][]string{{"bad", "goodsess"}, {"goodsess", "bad"}, {"bad", "bad2", "goodsess"}} {
+		r := httptest.NewRequest("GET", "/api/x", nil)
+		for _, v := range order {
+			r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: v})
+		}
+		if rec, p := runP(c, s, r); rec.Code != 200 || p.Kind != KindHuman {
+			t.Errorf("cookies %v: %d %+v", order, rec.Code, p)
+		}
+	}
+	// only bad cookies: still 401
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "bad"})
+	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "bad2"})
+	if rec, _ := runP(c, s, r); rec.Code != 401 {
+		t.Errorf("all-bad: %d", rec.Code)
+	}
+}
+
+func TestHostPrefixedCookieOverHTTPS(t *testing.T) {
+	c, s := cfg("local")
+	// the unprefixed name (which a sibling host could plant) is not accepted over https
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
+	if rec, _ := runP(c, s, r); rec.Code != 401 {
+		t.Errorf("unprefixed cookie accepted over https: %d", rec.Code)
 	}
 }

@@ -44,7 +44,7 @@ func TestPasswordRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	// changing the password replaces the single account
-	if err := la.SetPassword(ctx, "alice", "new"); err != nil {
+	if err := la.SetPassword(ctx, "alice", "new-password-123"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := la.Login(ctx, "alice", "correct horse"); err == nil {
@@ -58,8 +58,8 @@ func TestSessionLifecycle(t *testing.T) {
 	la := newLocal(t, "http://x")
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	la.now = func() time.Time { return now }
-	_ = la.SetPassword(ctx, "alice", "pw")
-	cv, err := la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,8 +95,8 @@ func TestLogoutDeletesSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(ctx, "alice", "pw")
-	cv, _ := la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, _ := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	if err := la.Logout(ctx, cv); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestLoginHandlers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "https://mm.example.com")
-	_ = la.SetPassword(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
 	h := la.Handler()
 
 	rec := httptest.NewRecorder()
@@ -129,7 +129,7 @@ func TestLoginHandlers(t *testing.T) {
 	if bad.Code != 401 || len(bad.Result().Cookies()) != 0 {
 		t.Fatalf("bad login: %d", bad.Code)
 	}
-	good := post("alice", "pw")
+	good := post("alice", "pw-pw-pw-pw-pw")
 	if good.Code != 303 || good.Header().Get("Location") != "/" {
 		t.Fatalf("good login: %d %s", good.Code, good.Header().Get("Location"))
 	}
@@ -138,7 +138,7 @@ func TestLoginHandlers(t *testing.T) {
 		t.Fatal("no cookie")
 	}
 	c := cs[0]
-	if c.Name != "mm_session" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.MaxAge != 12*3600 {
+	if c.Name != "__Host-mm_session" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" || c.MaxAge != 12*3600 {
 		t.Fatalf("cookie = %+v", c)
 	}
 	if _, err := la.VerifySession(ctx, c.Value); err != nil {
@@ -147,8 +147,8 @@ func TestLoginHandlers(t *testing.T) {
 
 	// Secure only when https
 	la2 := newLocal(t, "http://localhost:8080")
-	_ = la2.SetPassword(ctx, "alice", "pw")
-	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw"))
+	_ = la2.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw-pw-pw-pw-pw"))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec = httptest.NewRecorder()
 	la2.Handler().ServeHTTP(rec, r)
@@ -172,7 +172,7 @@ func TestLoginHandlers(t *testing.T) {
 func TestFailureDelay(t *testing.T) {
 	la := newLocal(t, "http://x")
 	la.FailDelay = 50 * time.Millisecond
-	_ = la.SetPassword(context.Background(), "a", "b")
+	_ = la.SetPassword(context.Background(), "a", "bbbbbbbbbbbb")
 	synctest.Test(t, func(t *testing.T) {
 		r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=a&password=x"))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -192,12 +192,12 @@ func TestSetPasswordRevokesSessions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(ctx, "alice", "pw")
-	cv, err := la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := la.SetPassword(ctx, "alice2", "pw2"); err != nil {
+	if err := la.SetPassword(ctx, "alice2", "pw-two-pw-two-pw"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
@@ -211,10 +211,10 @@ func TestExpiredSessionsPurgedOnLogin(t *testing.T) {
 	la := newLocal(t, "http://x")
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	la.now = func() time.Time { return now }
-	_ = la.SetPassword(ctx, "alice", "pw")
-	_, _ = la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	_, _ = la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	now = now.Add(48 * time.Hour)
-	_, _ = la.Login(ctx, "alice", "pw")
+	_, _ = la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	var n int
 	_ = la.st.R.QueryRowContext(ctx, `SELECT count(*) FROM human_sessions`).Scan(&n)
 	if n != 1 {
@@ -247,7 +247,7 @@ func TestLoginConcurrencyBounded(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
 	la.maxActive.Store(0)
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
@@ -266,16 +266,16 @@ func TestLoginConcurrencyBounded(t *testing.T) {
 func TestLoginBusyWhenContextDone(t *testing.T) {
 	t.Parallel()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(context.Background(), "alice", "pw")
+	_ = la.SetPassword(context.Background(), "alice", "pw-pw-pw-pw-pw")
 	for i := 0; i < maxHashers; i++ {
 		la.sem <- struct{}{} // saturate
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := la.Login(ctx, "alice", "pw"); !errors.Is(err, ErrBusy) {
+	if _, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw"); !errors.Is(err, ErrBusy) {
 		t.Fatalf("err = %v", err)
 	}
-	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw")).WithContext(ctx)
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw-pw-pw-pw-pw")).WithContext(ctx)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	la.Handler().ServeHTTP(rec, r)
@@ -288,8 +288,8 @@ func TestAuthPostsCrossOriginProtected(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(ctx, "alice", "pw")
-	cv, _ := la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, _ := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	r := httptest.NewRequest("POST", "/auth/logout", nil)
 	r.Header.Set("Sec-Fetch-Site", "cross-site")
 	r.AddCookie(&http.Cookie{Name: SessionCookie, Value: cv})
@@ -301,7 +301,7 @@ func TestAuthPostsCrossOriginProtected(t *testing.T) {
 	if _, err := la.VerifySession(ctx, cv); err != nil {
 		t.Fatal("session destroyed by cross-site logout")
 	}
-	body := strings.NewReader("username=alice&password=pw")
+	body := strings.NewReader("username=alice&password=pw-pw-pw-pw-pw")
 	r = httptest.NewRequest("POST", "/auth/login", body)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.Header.Set("Sec-Fetch-Site", "cross-site")
@@ -324,8 +324,8 @@ func TestSessionSlideThrottled(t *testing.T) {
 	la := newLocal(t, "http://x")
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	la.now = func() time.Time { return now }
-	_ = la.SetPassword(ctx, "alice", "pw")
-	cv, _ := la.Login(ctx, "alice", "pw")
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	cv, _ := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
 	now = now.Add(time.Minute)
 	_, _ = la.VerifySession(ctx, cv)
 	var exp string
@@ -344,7 +344,7 @@ func TestSessionSlideThrottled(t *testing.T) {
 func TestSetPasswordRejectsBlank(t *testing.T) {
 	t.Parallel()
 	la := newLocal(t, "http://x")
-	for _, c := range []struct{ u, p string }{{"", ""}, {"alice", ""}, {"", "pw"}, {"  ", "pw"}, {"alice", "   "}} {
+	for _, c := range []struct{ u, p string }{{"", ""}, {"alice", ""}, {"", "pw-pw-pw-pw-pw"}, {"  ", "pw-pw-pw-pw-pw"}, {"alice", "   "}} {
 		if err := la.SetPassword(context.Background(), c.u, c.p); !errors.Is(err, ErrInvalidPassword) {
 			t.Errorf("SetPassword(%q,%q) = %v", c.u, c.p, err)
 		}
@@ -358,9 +358,9 @@ func TestLoginRotatesPresentedSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
-	_ = la.SetPassword(ctx, "alice", "pw")
-	old, _ := la.Login(ctx, "alice", "pw")
-	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw"))
+	_ = la.SetPassword(ctx, "alice", "pw-pw-pw-pw-pw")
+	old, _ := la.Login(ctx, "alice", "pw-pw-pw-pw-pw")
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw-pw-pw-pw-pw"))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.AddCookie(&http.Cookie{Name: SessionCookie, Value: old})
 	rec := httptest.NewRecorder()
@@ -371,4 +371,83 @@ func TestLoginRotatesPresentedSession(t *testing.T) {
 	if _, err := la.VerifySession(ctx, old); !errors.Is(err, ErrInvalidSession) {
 		t.Fatalf("old session still valid: %v", err)
 	}
+}
+
+func TestSetPasswordRejectsShort(t *testing.T) {
+	t.Parallel()
+	la := newLocal(t, "http://x")
+	for _, pw := range []string{"x", "elevenchars", "short"} {
+		if err := la.SetPassword(context.Background(), "alice", pw); !errors.Is(err, ErrWeakPassword) {
+			t.Errorf("SetPassword(%q) = %v, want ErrWeakPassword", pw, err)
+		}
+	}
+	if err := la.SetPassword(context.Background(), "alice", "twelve-chars"); err != nil {
+		t.Errorf("12-char password rejected: %v", err)
+	}
+}
+
+// Parallel bad logins must not beat the failure budget: failures are answered
+// one at a time (FailDelay each) and excess attempts are refused with 503.
+func TestParallelBadLoginsAreThrottled(t *testing.T) {
+	la := newLocal(t, "http://x")
+	la.FailDelay = 100 * time.Millisecond
+	_ = la.SetPassword(context.Background(), "alice", "pw-pw-pw-pw-pw")
+	synctest.Test(t, func(t *testing.T) {
+		// channels must belong to the bubble for waiters to count as durably blocked
+		la.sem = make(chan struct{}, maxHashers)
+		la.failSem = make(chan struct{}, 1)
+		const n = 64
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		codes := map[int]int{}
+		start := time.Now()
+		for range n {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=wrong-guess"))
+				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				rec := httptest.NewRecorder()
+				la.Handler().ServeHTTP(rec, r)
+				mu.Lock()
+				codes[rec.Code]++
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+		elapsed := time.Since(start)
+		if codes[401] > maxPendingLogins {
+			t.Errorf("%d guesses answered, want <= %d: %v", codes[401], maxPendingLogins, codes)
+		}
+		if codes[503] < n-maxPendingLogins {
+			t.Errorf("only %d refused with 503: %v", codes[503], codes)
+		}
+		// answered failures are serialised: at least FailDelay each
+		if floor := time.Duration(codes[401]) * la.FailDelay; elapsed < floor {
+			t.Errorf("elapsed %v < serial budget %v", elapsed, floor)
+		}
+	})
+}
+
+func TestFailureBackoffGrowsAndResets(t *testing.T) {
+	la := newLocal(t, "http://x")
+	la.FailDelay = 10 * time.Millisecond
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		var total time.Duration
+		for range 8 {
+			s := time.Now()
+			la.penalize(ctx)
+			total += time.Since(s)
+		}
+		if total <= 8*la.FailDelay {
+			t.Errorf("no backoff: %v", total)
+		}
+		la.succeeded()
+		s := time.Now()
+		la.penalize(ctx)
+		if d := time.Since(s); d != la.FailDelay {
+			t.Errorf("after success delay = %v", d)
+		}
+	})
 }

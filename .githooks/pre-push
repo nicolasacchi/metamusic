@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec "$(git rev-parse --show-toplevel)/scripts/public-gate.sh" --history
+exec "$(git rev-parse --show-toplevel)/scripts/public-gate.sh" --history --require-patterns
