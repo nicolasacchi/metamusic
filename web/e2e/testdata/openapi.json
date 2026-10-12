@@ -1,0 +1,5 @@
+{"paths":{
+ "/a":{"get":{"operationId":"routeOp","x-mm":{"ui":"/a"}}},
+ "/b":{"get":{"operationId":"noneOp","x-mm":{"ui":"none:binary"}}},
+ "/c":{"get":{"operationId":"noMeta"},"post":{"operationId":"postOp","x-mm":{"ui":"/c"}}}
+}}

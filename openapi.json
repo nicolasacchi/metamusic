@@ -1,0 +1,237 @@
+{
+  "components": {
+    "schemas": {
+      "PingOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "description": "Always true",
+            "type": "boolean"
+          },
+          "version": {
+            "description": "Server version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Problem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "Stable UPPER_SNAKE error code",
+            "examples": [
+              "NOT_FOUND"
+            ],
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {},
+            "description": "Structured error details",
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "details"
+        ],
+        "type": "object"
+      },
+      "SystemOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "auth_mode": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "schema_version": {
+            "description": "SQLite migration level",
+            "format": "int64",
+            "type": "integer"
+          },
+          "started_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "uptime_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "commit",
+          "auth_mode",
+          "schema_version",
+          "started_at",
+          "uptime_s"
+        ],
+        "type": "object"
+      },
+      "WhoamiOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "Principal kind",
+            "enum": [
+              "human",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Username or token name",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Granted scopes",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "via": {
+            "description": "How the principal authenticated: proxy, local or token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "scopes",
+          "via"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "metamusic",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/me": {
+      "get": {
+        "description": "Returns the identity, scopes and authentication path of the caller.",
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhoamiOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Show the calling principal",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "description": "Liveness check that also reports the server version.",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ping the server",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/system": {
+      "get": {
+        "description": "Version, commit, auth mode, database schema version and uptime.",
+        "operationId": "get_system_info",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get system information",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/settings",
+          "human_only": false
+        }
+      }
+    }
+  }
+}
