@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // Tools holds tool paths; shared by ingest, analysis and synth.
@@ -24,7 +25,7 @@ type Tools struct{ FFmpeg, FLAC, Metaflac string }
 type RunOpts struct {
 	Timeout   time.Duration // required, > 0
 	Stdout    io.Writer     // streaming consumer; nil => captured and returned
-	MaxStdout int64         // cap for captured stdout; exceeded => process killed, ErrOutputLimit
+	MaxStdout int64         // required (> 0) when Stdout is nil: cap for captured stdout; exceeded => process killed, ErrOutputLimit
 	MaxStderr int           // ring buffer size (default 64 KiB); errors carry its last 2 KiB
 }
 
@@ -42,7 +43,12 @@ type ToolError struct {
 	Tool       string
 	ExitCode   int
 	StderrTail string
+	// Err is the context error when the run was cancelled or timed out; it never carries argv.
+	Err error
 }
+
+// Unwrap exposes the context error so errors.Is(err, context.DeadlineExceeded) works.
+func (e *ToolError) Unwrap() error { return e.Err }
 
 func (e *ToolError) Error() string {
 	if e.StderrTail == "" {
@@ -68,6 +74,7 @@ func (r *ring) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// tail returns the last <= n bytes (valid UTF-8, cut on a rune boundary).
 func (r *ring) tail(n int) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -75,7 +82,14 @@ func (r *ring) tail(n int) string {
 	if len(b) > n {
 		b = b[len(b)-n:]
 	}
-	return strings.ToValidUTF8(strings.TrimSpace(string(b)), "�")
+	s := strings.ToValidUTF8(strings.TrimSpace(string(b)), "\uFFFD")
+	if len(s) > n {
+		s = s[len(s)-n:]
+		for len(s) > 0 && !utf8.RuneStart(s[0]) {
+			s = s[1:]
+		}
+	}
+	return s
 }
 
 // limitWriter fails once more than max bytes have been written.
@@ -101,6 +115,10 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 	if o.Timeout <= 0 {
 		return nil, errors.New("mediatool: Timeout is required")
 	}
+	if o.Stdout == nil && o.MaxStdout <= 0 {
+		return nil, errors.New("mediatool: MaxStdout is required when stdout is captured")
+	}
+	parent := ctx
 	ctx, cancel := context.WithTimeout(ctx, o.Timeout)
 	defer cancel()
 	name := bin
@@ -128,13 +146,20 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 	if lw != nil && lw.hit {
 		return nil, ErrOutputLimit
 	}
+	if err != nil && errors.Is(err, exec.ErrWaitDelay) {
+		// The tool exited successfully; only an orphan kept the pipes open. Keep the output.
+		err = nil
+	}
 	if err != nil {
 		var ee *exec.ExitError
 		switch {
+		case parent.Err() != nil:
+			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: "cancelled", Err: parent.Err()}
+		case errors.Is(ctx.Err(), context.DeadlineExceeded):
+			const prefix = "timeout: "
+			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: prefix + errRing.tail(stderrTailSize-len(prefix)), Err: context.DeadlineExceeded}
 		case errors.As(err, &ee):
 			return nil, &ToolError{Tool: name, ExitCode: ee.ExitCode(), StderrTail: errRing.tail(stderrTailSize)}
-		case ctx.Err() != nil:
-			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: "timeout or cancelled: " + errRing.tail(stderrTailSize)}
 		default:
 			// start failures (*exec.Error / *fs.PathError) carry the path, not argv; keep only the tool name.
 			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: "cannot run tool"}

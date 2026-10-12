@@ -53,8 +53,15 @@ func TestRead_BlocksAndFramesOffset(t *testing.T) {
 	if diff := cmp.Diff(want, types); diff != "" {
 		t.Fatal(diff)
 	}
-	if info.Blocks[0].Offset != 4 || info.Blocks[0].Length != 34 || info.Blocks[1].Offset != 4+4+34 || info.Blocks[1].Length != 54 {
-		t.Fatalf("%+v", info.Blocks)
+	vorbisLen := uint32(4 + len("mm test") + 4 + 3*4 + len("TITLE=a") + len("ARTIST=b") + len("TITLE=c"))
+	wantBlocks := []flacmeta.Block{
+		{Type: flacmeta.BlockStreamInfo, Offset: 4, Length: 34},
+		{Type: flacmeta.BlockSeekTable, Offset: 4 + 4 + 34, Length: 54},
+		{Type: flacmeta.BlockVorbisComment, Offset: 4 + 4 + 34 + 4 + 54, Length: vorbisLen},
+		{Type: flacmeta.BlockPadding, Offset: 4 + 4 + 34 + 4 + 54 + 4 + int64(vorbisLen), Length: 100},
+	}
+	if diff := cmp.Diff(wantBlocks, info.Blocks); diff != "" {
+		t.Fatal(diff)
 	}
 	if info.FramesOffset != int64(len(b)-len(frames)) {
 		t.Fatalf("frames offset %d, want %d", info.FramesOffset, len(b)-len(frames))
@@ -123,13 +130,27 @@ func TestRead_HostileLengths(t *testing.T) {
 		"short vorbis":     withBlock(4, make([]byte, 3), 3),
 		"invalid type 127": withBlock(127, nil, 0),
 	}
-	var tiny []byte
-	tiny = flactest.Build(flactest.Spec{TotalSamples: 1})
+	// Well-formed (last flag set on the final block) so only the block-count limit rejects it.
+	tiny := flactest.Build(flactest.Spec{TotalSamples: 1})
 	tiny[4] &^= 0x80
 	for i := 0; i < 2000; i++ {
-		tiny = append(tiny, 1, 0, 0, 0)
+		h := byte(1)
+		if i == 1999 {
+			h |= 0x80
+		}
+		tiny = append(tiny, h, 0, 0, 0)
 	}
 	cases["2000 tiny blocks"] = tiny
+	// A fully present VORBIS_COMMENT one byte over the 1 MiB cap.
+	cases["comment too big, present"] = withBlock(4, make([]byte, 1<<20+1), 1<<20+1)
+	oneBigComment := make([]byte, 12) // vendor 0, count 1, comment length 100 with no data
+	le.PutUint32(oneBigComment[4:], 1)
+	le.PutUint32(oneBigComment[8:], 100)
+	cases["comment length past block"] = withBlock(4, oneBigComment, 12)
+	truncated := make([]byte, 16) // vendor 0, count 2, first comment eats the rest
+	le.PutUint32(truncated[4:], 2)
+	le.PutUint32(truncated[8:], 4)
+	cases["truncated second comment"] = withBlock(4, truncated, 16)
 	notFirst := flactest.Build(flactest.Spec{TotalSamples: 1})
 	notFirst[4] = 1 | 0x80
 	cases["streaminfo not first"] = notFirst
@@ -145,6 +166,27 @@ func TestRead_HostileLengths(t *testing.T) {
 		if g := after.TotalAlloc - before.TotalAlloc; g > 1<<20 {
 			t.Errorf("%s: allocated %d bytes", name, g)
 		}
+	}
+}
+
+func TestRead_SeekTableAllocationBounded(t *testing.T) {
+	const length = 16<<20 - 16*18 // multiple of 18 below the 24-bit block limit
+	n := length - length%18
+	data := make([]byte, n)
+	for i := 0; i+18 <= n; i += 18 {
+		binary.BigEndian.PutUint64(data[i:], uint64(i))
+	}
+	b := withBlock(3, data, n)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	info, err := read(t, b)
+	runtime.ReadMemStats(&after)
+	if err != nil || len(info.SeekPoints) != n/18 {
+		t.Fatalf("err=%v points=%d", err, len(info.SeekPoints))
+	}
+	// Entitled: the parsed points (24 B per 18 B on disk) plus a small fixed chunk.
+	if g := after.TotalAlloc - before.TotalAlloc; g > uint64(n)*3/2+(1<<20) {
+		t.Fatalf("allocated %d bytes for a %d byte seek table", g, n)
 	}
 }
 

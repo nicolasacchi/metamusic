@@ -20,9 +20,7 @@ import (
 func TestProblem_ShapesAgree(t *testing.T) {
 	details := map[string]any{"n": float64(7), "s": "x"}
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("t", "1")
-	cfg.CreateHooks = nil
-	a := humago.New(mux, cfg)
+	a := humago.New(mux, api.HumaConfig())
 	api.Register(a, huma.Operation{OperationID: "shape", Method: "POST", Path: "/api/shape", Summary: "s", Description: "d"},
 		api.Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "none:test"},
 		func(ctx context.Context, in *echoIn) (*outT, error) {

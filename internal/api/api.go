@@ -39,14 +39,20 @@ func sortOps(ops []OpInfo) {
 	})
 }
 
-// New builds the Huma API on mux and registers every operation.
-func New(mux *http.ServeMux, d Deps) huma.API {
+// HumaConfig is the production Huma configuration, shared with tests that must
+// exercise the same response shapes.
+func HumaConfig() huma.Config {
 	cfg := huma.DefaultConfig("metamusic", SpecVersion)
 	cfg.OpenAPIPath = "/api/openapi"
 	cfg.DocsPath = "/api/docs"
 	cfg.SchemasPath = ""
 	cfg.CreateHooks = nil
-	a := humago.New(mux, cfg)
+	return cfg
+}
+
+// New builds the Huma API on mux and registers every operation.
+func New(mux *http.ServeMux, d Deps) huma.API {
+	a := humago.New(mux, HumaConfig())
 	registerSystem(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")

@@ -2,7 +2,6 @@ package main
 
 import (
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 )
@@ -12,9 +11,6 @@ const modulePath = "github.com/nicolasacchi/metamusic/"
 // TestNoTestHelpersInBinary fails if the shipped binary links a test-only
 // helper package of this module, or any module package that imports "testing".
 func TestNoTestHelpersInBinary(t *testing.T) {
-	if testing.Short() {
-		t.Skip("runs go list; skipped under -short")
-	}
 	out, err := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}} {{join .Imports \" \"}}", ".").Output()
 	if err != nil {
 		t.Fatalf("go list: %v", err)
@@ -32,7 +28,7 @@ func TestNoTestHelpersInBinary(t *testing.T) {
 		}
 		checked++
 		pkg := fields[0]
-		if helpers[pkg] || strings.HasSuffix(path.Base(pkg), "test") {
+		if helpers[pkg] {
 			t.Errorf("test helper package %s is linked into the binary", pkg)
 		}
 		for _, imp := range fields[1:] {

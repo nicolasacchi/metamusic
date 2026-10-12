@@ -163,20 +163,11 @@ func Read(r io.ReaderAt, size int64) (Info, error) {
 			if length%seekPointLen != 0 {
 				return Info{}, fmt.Errorf("%w: SEEKTABLE length", ErrCorrupt)
 			}
-			b, err := readAt(r, size, off+4, length)
+			pts, err := readSeekPoints(r, off+4, length)
 			if err != nil {
 				return Info{}, wrapEOF(err)
 			}
-			for i := 0; i+seekPointLen <= len(b); i += seekPointLen {
-				sp := SeekPoint{
-					Sample:       binary.BigEndian.Uint64(b[i:]),
-					Offset:       binary.BigEndian.Uint64(b[i+8:]),
-					FrameSamples: binary.BigEndian.Uint16(b[i+16:]),
-				}
-				if sp.Sample != placeholderSample {
-					info.SeekPoints = append(info.SeekPoints, sp)
-				}
-			}
+			info.SeekPoints = pts
 		case typ == BlockVorbisComment && !sawComment:
 			sawComment = true
 			if length > maxVorbisComment {
@@ -196,6 +187,34 @@ func Read(r io.ReaderAt, size int64) (Info, error) {
 			return info, nil
 		}
 	}
+}
+
+// readSeekPoints parses a SEEKTABLE of length bytes at off in fixed-size chunks,
+// preallocating only what the declared (file-bounded) length entitles.
+func readSeekPoints(r io.ReaderAt, off int64, length uint32) ([]SeekPoint, error) {
+	pts := make([]SeekPoint, 0, length/seekPointLen)
+	var chunk [seekPointLen * 512]byte
+	for done := int64(0); done < int64(length); {
+		n := min(int64(len(chunk)), int64(length)-done)
+		if m, err := r.ReadAt(chunk[:n], off+done); int64(m) < n {
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			return nil, err
+		}
+		for i := int64(0); i+seekPointLen <= n; i += seekPointLen {
+			sp := SeekPoint{
+				Sample:       binary.BigEndian.Uint64(chunk[i:]),
+				Offset:       binary.BigEndian.Uint64(chunk[i+8:]),
+				FrameSamples: binary.BigEndian.Uint16(chunk[i+16:]),
+			}
+			if sp.Sample != placeholderSample {
+				pts = append(pts, sp)
+			}
+		}
+		done += n
+	}
+	return pts, nil
 }
 
 func wrapEOF(err error) error {

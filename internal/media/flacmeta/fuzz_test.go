@@ -2,6 +2,7 @@ package flacmeta_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta"
@@ -13,6 +14,17 @@ func FuzzRead(f *testing.F) {
 	f.Add(flactest.Build(flactest.Spec{TotalSamples: 288000}))
 	f.Add(flactest.Build(flactest.Spec{TotalSamples: 1, SeekPoints: 3, SeekPlaceholders: 1, Vendor: "v", Comments: []string{"A=b", "C=d"}, PaddingBytes: 40, Frames: []byte("xyz")}))
 	f.Add(flactest.Build(flactest.Spec{PictureBytes: 100}))
+	hostile := func(count, first uint32, rest int) []byte {
+		b := make([]byte, 12+rest)
+		binary.LittleEndian.PutUint32(b[4:], count)
+		binary.LittleEndian.PutUint32(b[8:], first)
+		out := flactest.Build(flactest.Spec{TotalSamples: 1})
+		out[4] &^= 0x80
+		out = append(out, 4|0x80, 0, 0, byte(len(b)))
+		return append(out, b...)
+	}
+	f.Add(hostile(1, 100, 0))
+	f.Add(hostile(2, 4, 4))
 	f.Add([]byte("fLaC"))
 	f.Add([]byte("OggS"))
 	f.Fuzz(func(t *testing.T, b []byte) {
