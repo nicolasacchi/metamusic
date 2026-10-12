@@ -28,6 +28,21 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y --no-install-recommends flac
+          metaflac --version
+          v=$(metaflac --version | awk '{print $2}')
+          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: gofmt
         run: |
           out=$(gofmt -l $(git ls-files '*.go'))
@@ -35,6 +50,7 @@ jobs:
       - name: vet
         run: go vet ./...
       - name: test
+        # no -short: runs the media-tool and acceptance tiers (MM_REQUIRE_MEDIA_TOOLS=1 makes a missing tool fail)
         run: go test -race -shuffle=on ./...
       - name: openapi drift
         run: CGO_ENABLED=0 go run ./cmd/metamusic openapi | diff - openapi.json
@@ -128,6 +144,21 @@ jobs:
       - name: install web deps
         working-directory: web
         run: bun install --frozen-lockfile
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y --no-install-recommends flac
+          metaflac --version
+          v=$(metaflac --version | awk '{print $2}')
+          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: build coverage-instrumented binary
         run: |
           mkdir -p bin covdata
