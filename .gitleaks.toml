@@ -1,0 +1,23 @@
+# gitleaks config: default rules plus metamusic credential formats.
+title = "metamusic"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "metamusic-personal-access-token"
+description = "metamusic personal access token (mmp_)"
+regex = '''mmp_[a-z2-7]{52}'''
+keywords = ["mmp_"]
+
+[[rules]]
+id = "metamusic-confirmation-token"
+description = "metamusic confirmation token (mmc_)"
+regex = '''mmc_[a-z2-7]{52}'''
+keywords = ["mmc_"]
+
+[[rules]]
+id = "metamusic-device-token"
+description = "metamusic device credential (mmd_)"
+regex = '''mmd_[a-z2-7]{52}'''
+keywords = ["mmd_"]

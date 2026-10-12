@@ -1,0 +1,5 @@
+# Copy to .public-gate-patterns (untracked, gitignored) and list private regexes,
+# one extended regex per line (real hostnames, personal names, emails, ...).
+# Lines starting with # and blank lines are ignored. CI reads the same list from
+# the PUBLIC_GATE_PATTERNS secret (newline-separated).
+my-private-hostname\.example\.invalid

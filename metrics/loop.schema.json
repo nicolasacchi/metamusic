@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metamusic/metrics/loop.schema.json",
+  "title": "metamusic loop metrics row",
+  "description": "One row of metrics/loop.jsonl. Never holds command lines, paths, titles or tokens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ts", "target", "wall_ms", "exit", "compile_errors", "failing_tests", "sha", "lane", "cache"],
+  "properties": {
+    "ts": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "target": { "enum": ["check", "test", "race", "lint", "web", "e2e", "build", "openapi", "gate", "docker"] },
+    "wall_ms": { "type": "integer", "minimum": 0 },
+    "exit": { "type": "integer", "minimum": 0 },
+    "compile_errors": { "type": "integer", "minimum": 0 },
+    "failing_tests": { "type": "integer", "minimum": 0 },
+    "sha": { "type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$" },
+    "lane": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" },
+    "cache": { "enum": ["warm", "cold"] }
+  }
+}
