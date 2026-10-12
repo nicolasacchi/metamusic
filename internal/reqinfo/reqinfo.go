@@ -3,6 +3,7 @@ package reqinfo
 
 import (
 	"context"
+	"net/http"
 	"strings"
 )
 
@@ -60,4 +61,12 @@ func SanitizeClient(s string) string {
 		}
 	}
 	return ""
+}
+
+// IsSPARequest reports whether r carries the SPA client label: the
+// X-MM-Client: spa header or the (undeclared) mm_client=spa query flag used
+// by plain links such as downloads. Callers decide whether the principal may
+// claim it (an agent never can).
+func IsSPARequest(r *http.Request) bool {
+	return r.Header.Get("X-MM-Client") == "spa" || r.URL.Query().Get("mm_client") == "spa"
 }

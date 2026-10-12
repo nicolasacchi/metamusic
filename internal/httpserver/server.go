@@ -11,11 +11,15 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/gate"
+	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -43,6 +47,14 @@ type Options struct {
 	Probe   *serve.Object
 	Media   http.Handler
 	Now     func() time.Time
+
+	// M2a (C39). The gate (audit, authorize, rate limit, idempotency) wraps the
+	// inner mux. app.Build supplies one shared set; a nil value is replaced by a
+	// default built from Store, Now and NewID so the gate is never skipped.
+	Audit   *audit.Store
+	Idem    *idem.Store
+	Limiter *ratelimit.Limiter
+	NewID   func() string // nil => UUIDv7
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -58,11 +70,29 @@ func New(o Options) (http.Handler, error) {
 	if started.IsZero() {
 		started = time.Now()
 	}
+	now := o.Now
+	if now == nil {
+		now = time.Now
+	}
 	inner := http.NewServeMux()
 	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
-		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now})
+		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID})
+	gated := http.Handler(inner)
+	if o.Store != nil {
+		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
+		if o.Audit == nil {
+			o.Audit = audit.NewStore(o.Store, newID)
+		}
+		if o.Idem == nil {
+			o.Idem = idem.NewStore(o.Store, now)
+		}
+		if o.Limiter == nil {
+			o.Limiter = ratelimit.New(ratelimit.Default.Scaled(max(o.Cfg.RateScale, 1)), now)
+		}
+		gated = gate.New(gate.Options{API: a, Inner: inner, Audit: o.Audit, Idem: o.Idem, Limiter: o.Limiter, Now: now})
+	}
 	if o.MCP == nil && o.MCPFactory != nil {
-		m, err := o.MCPFactory(a, inner)
+		m, err := o.MCPFactory(a, gated)
 		if err != nil {
 			return nil, err
 		}
@@ -75,16 +105,16 @@ func New(o Options) (http.Handler, error) {
 		opByPattern[op.Method+" "+op.Path] = op.ID
 	}
 	rec := &servedRecorder{}
-	var innerH http.Handler = inner
+	innerH := gated
 	if o.Cfg.E2E {
 		innerH = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !isSPARequest(r) {
-				inner.ServeHTTP(w, r)
+				gated.ServeHTTP(w, r)
 				return
 			}
 			_, pat := inner.Handler(r)
 			sw := &statusWriter{ResponseWriter: w}
-			inner.ServeHTTP(sw, r)
+			gated.ServeHTTP(sw, r)
 			if id, ok := opByPattern[pat]; ok && sw.status > 0 && sw.status < 400 {
 				rec.add(id)
 			}
@@ -132,10 +162,21 @@ func New(o Options) (http.Handler, error) {
 			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 	}
+	var leaks *leakScanner
 	if o.Cfg.E2E {
+		leaks = newLeakScanner(o.Sec)
 		mux.Handle("GET /__e2e/served", rec.handler())
+		mux.Handle("GET /__e2e/leaks", leaks.handler())
+	} else {
+		mux.HandleFunc("/__e2e/", func(w http.ResponseWriter, r *http.Request) {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+		})
 	}
 	mux.Handle("/", spaHandler(o.SPA))
 
-	return auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions)(mux), nil
+	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions)(mux)
+	if leaks != nil {
+		outer = leaks.wrap(outer)
+	}
+	return outer, nil
 }

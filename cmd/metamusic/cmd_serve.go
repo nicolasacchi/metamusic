@@ -16,16 +16,19 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
-	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
 	"github.com/nicolasacchi/metamusic/web"
@@ -104,6 +107,24 @@ func cmdServe(ctx context.Context, getenv func(string) string, s streams) error 
 	return serve(ctx, b, s)
 }
 
+// pruneIdempotency removes expired idempotency rows now and then every interval until ctx ends.
+func pruneIdempotency(ctx context.Context, s *idem.Store, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		if n, err := s.Prune(ctx); err != nil && ctx.Err() == nil {
+			slog.Error("idempotency prune failed", "err", redact.Error(err))
+		} else if n > 0 {
+			slog.Info("idempotency prune", "deleted", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
 func serve(ctx context.Context, b *booted, s streams) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	root, err := os.OpenRoot(b.cfg.DataDir)
@@ -111,26 +132,38 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		return fmt.Errorf("opening data dir: %w", err)
 	}
 	defer func() { _ = root.Close() }()
-	// One clock for the library, the signer and the API deps.
-	now := time.Now
-	lib := library.New(b.st, root, now)
-	signer := mediaserve.NewSigner(b.sec.Key, now)
-	probe := ensureProbe(ctx, b.cfg, root, s)
-	h, err := httpserver.New(httpserver.Options{
-		Cfg: b.cfg, Sec: b.sec, Store: b.st, Tokens: b.tokens, Sessions: b.local,
-		SPA: web.Dist(), Version: version, Commit: commit,
-		Library: lib, Signer: signer, Probe: probe, Media: mediaserve.Handler(signer, root, lib, probe), Now: now,
-		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
-			srv, err := mcpgen.NewServer(a, inner, version)
-			if err != nil {
-				return nil, err
-			}
-			return mcpgen.Handler(srv), nil
-		},
+	// Every service, the gate and api.Deps come from one constructor (C39).
+	svc, err := app.Build(ctx, b.cfg, b.sec, b.st, root, app.Options{
+		Probe: ensureProbe(ctx, b.cfg, root, s), Version: version, Commit: commit,
 	})
 	if err != nil {
 		return err
 	}
+	defer func() {
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
+		defer cancel()
+		if err := svc.Close(cctx); err != nil {
+			slog.Error("closing services failed", "err", redact.Error(err))
+		}
+	}()
+	opts := svc.Server
+	opts.SPA = web.Dist()
+	opts.MCPFactory = func(a huma.API, inner http.Handler) (http.Handler, error) {
+		srv, err := mcpgen.NewServer(a, inner, version)
+		if err != nil {
+			return nil, err
+		}
+		return mcpgen.Handler(srv), nil
+	}
+	h, err := httpserver.New(opts)
+	if err != nil {
+		return err
+	}
+	pruneCtx, stopPrune := context.WithCancel(ctx)
+	var pruned sync.WaitGroup
+	pruned.Add(1)
+	go func() { defer pruned.Done(); pruneIdempotency(pruneCtx, svc.Idem, time.Hour) }()
+	defer func() { stopPrune(); pruned.Wait() }()
 	ln, err := net.Listen("tcp", b.cfg.Addr)
 	if err != nil {
 		return err
