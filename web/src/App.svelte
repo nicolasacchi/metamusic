@@ -2,7 +2,9 @@
   import { createRouter, type Route } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
-  import { connectionLost } from "./api/client";
+  import { installMediaSession } from "./lib/mediaSession";
+  import PlayerBar from "./lib/components/PlayerBar.svelte";
+  import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Home from "./routes/Home.svelte";
   import Settings from "./routes/Settings.svelte";
   import NotFound from "./routes/NotFound.svelte";
@@ -17,7 +19,9 @@
   let audio: HTMLAudioElement;
   $effect(() => {
     player.attach(audio);
+    const offMediaSession = installMediaSession(player, audio);
     return () => {
+      offMediaSession();
       player.attach(null);
       router.destroy();
     };
@@ -34,9 +38,7 @@
   </header>
 
   <main>
-    {#if $connectionLost}
-      <p role="alert" class="banner">Connection lost. Reload the page to retry.</p>
-    {/if}
+    <SessionBanner />
     {#if $router.route?.name === "home"}
       <Home />
     {:else if $router.route?.name === "settings"}
@@ -47,8 +49,8 @@
   </main>
 
   <footer class="player" aria-label="Player">
-    <span class="title">{player.title}</span>
-    <audio bind:this={audio} data-audio-id={audioId} controls preload="none"></audio>
+    <PlayerBar {player} />
+    <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
 </div>
 
@@ -85,11 +87,6 @@
     font-weight: 700;
     text-decoration: none;
   }
-  .banner {
-    margin: 0;
-    padding: 0.5rem 1rem;
-    background: #5a2a1a;
-  }
   main {
     padding: 1rem;
   }
@@ -104,7 +101,6 @@
     background: #1d1814;
   }
   .player audio {
-    flex: 1;
-    min-width: 0;
+    display: none;
   }
 </style>

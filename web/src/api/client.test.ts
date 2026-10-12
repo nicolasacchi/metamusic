@@ -1,31 +1,28 @@
 import { describe, expect, test } from "bun:test";
 import { get } from "svelte/store";
-import { connectionLost, createApi } from "./client";
+import { createApi } from "./client";
+import { createSession } from "./session";
 
-function memStorage() {
-  const m = new Map<string, string>();
-  return {
-    getItem: (k: string) => m.get(k) ?? null,
-    setItem: (k: string, v: string) => void m.set(k, v),
-  };
-}
-
-function setup(respond: (req: Request) => Response | Promise<Response>, now = () => 1_000_000) {
+function setup(respond: (req: Request) => Response | Promise<Response>, playing = false) {
   const seen: Request[] = [];
   let reloads = 0;
+  const session = createSession({
+    reload: () => void reloads++,
+    isPlaying: () => playing,
+    storage: { getItem: () => null, setItem: () => {} },
+    sleep: async () => {},
+    onLine: () => true,
+    fetch: async () => new Response("{}"),
+  });
   const api = createApi({
-    storage: memStorage(),
-    now,
+    session,
     baseUrl: "http://localhost",
     fetch: async (req) => {
       seen.push(req);
       return respond(req);
     },
-    reload: () => {
-      reloads++;
-    },
   });
-  return { api, seen, reloads: () => reloads };
+  return { api, seen, session, reloads: () => reloads };
 }
 
 const ok = () =>
@@ -43,10 +40,17 @@ describe("client middleware", () => {
     expect(new URL(seen[0]!.url, "http://x").pathname).toBe("/api/ping");
   });
 
-  test("reloads on 401", async () => {
+  test("a 401 is a confirmed loss: reload when paused", async () => {
     const { api, reloads } = setup(() => new Response("{}", { status: 401 }));
     await api.GET("/api/ping");
     expect(reloads()).toBe(1);
+  });
+
+  test("a 401 while playing shows the banner instead of reloading", async () => {
+    const { api, reloads, session } = setup(() => new Response("{}", { status: 401 }), true);
+    await api.GET("/api/ping");
+    expect(reloads()).toBe(0);
+    expect(get(session.banner)).toBe("expired");
   });
 
   test("does not reload on success or 403", async () => {
@@ -58,43 +62,24 @@ describe("client middleware", () => {
     expect(b.reloads()).toBe(0);
   });
 
-  test("reloads on network TypeError", async () => {
-    const { api, reloads } = setup(() => {
+  test("a single network TypeError is retried once and does not reload", async () => {
+    let n = 0;
+    const { api, reloads, seen } = setup(() => {
+      if (++n === 1) throw new TypeError("Failed to fetch");
+      return ok();
+    });
+    const r = await api.GET("/api/ping");
+    expect(r.data?.ok).toBe(true);
+    expect(seen).toHaveLength(2);
+    expect(reloads()).toBe(0);
+  });
+
+  test("repeated TypeErrors with a healthy probe show a connection notice, no reload", async () => {
+    const { api, reloads, session } = setup(() => {
       throw new TypeError("Failed to fetch");
     });
     await expect(api.GET("/api/ping")).rejects.toBeInstanceOf(TypeError);
-    expect(reloads()).toBe(1);
-  });
-
-  test("reloads on TypeError for /human/api but not for non-API URLs", async () => {
-    const boom = () => {
-      throw new TypeError("Failed to fetch");
-    };
-    const h = setup(boom);
-    await expect(h.api.GET("/human/api/x" as never)).rejects.toBeInstanceOf(TypeError);
-    expect(h.reloads()).toBe(1);
-    const n = setup(boom);
-    await expect(n.api.GET("/healthz" as never)).rejects.toBeInstanceOf(TypeError);
-    expect(n.reloads()).toBe(0);
-  });
-
-  test("throttles automatic reloads to one per window", async () => {
-    let t = 1_000_000;
-    const { api, reloads } = setup(() => new Response("{}", { status: 401 }), () => t);
-    await api.GET("/api/ping");
-    await api.GET("/api/ping");
-    expect(reloads()).toBe(1);
-    t += 11_000;
-    await api.GET("/api/ping");
-    expect(reloads()).toBe(2);
-  });
-
-  test("flags connection lost when a reload is throttled", async () => {
-    connectionLost.set(false);
-    const { api } = setup(() => new Response("{}", { status: 401 }));
-    await api.GET("/api/ping");
-    expect(get(connectionLost)).toBe(false);
-    await api.GET("/api/ping");
-    expect(get(connectionLost)).toBe(true);
+    expect(reloads()).toBe(0);
+    expect(get(session.banner)).toBe("connection");
   });
 });

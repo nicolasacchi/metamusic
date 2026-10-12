@@ -18,7 +18,7 @@ export interface RouterState extends Location {
   params: Record<string, string>;
 }
 
-const SERVER_PREFIXES = ["/api", "/human/api", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known"];
+const SERVER_PREFIXES = ["/api", "/human/api", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest"];
 
 /** Paths owned by the Go server; links to them must be left to the browser. */
 export function isServerPath(path: string): boolean {
