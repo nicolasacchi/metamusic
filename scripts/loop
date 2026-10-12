@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Usage: scripts/loop <target> -- <command...>
+# Runs the command (output streams through), then appends one metrics row to
+# $MM_METRICS_FILE (default: <git-common-dir>/../metrics/loop.jsonl, shared by
+# all worktrees). The row never contains the command line, paths or secrets.
+set -uo pipefail
+
+usage() { echo "usage: $0 <target> -- <command...>" >&2; exit 2; }
+[ $# -ge 3 ] || usage
+target=$1
+[ "$2" = "--" ] || usage
+shift 2
+
+case "$target" in
+  check | test | race | lint | web | e2e | build | openapi | gate | docker) ;;
+  *) echo "loop: target '$target' not in allowlist" >&2; exit 2 ;;
+esac
+
+metrics=${MM_METRICS_FILE:-}
+if [ -z "$metrics" ]; then
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+  if [ -n "$common" ]; then
+    metrics="$common/../metrics/loop.jsonl"
+  else
+    metrics="$(cd "$(dirname "$0")/.." && pwd)/metrics/loop.jsonl"
+  fi
+fi
+
+lane=${MM_LANE:-main}
+case "$lane" in
+  [a-z0-9]*) ;; *) lane=main ;;
+esac
+lane=$(printf '%s' "$lane" | tr -c 'a-z0-9_-' '_' | cut -c1-32)
+
+sha=$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+
+cache=cold
+if command -v go >/dev/null 2>&1; then
+  gc=$(go env GOCACHE 2>/dev/null || true)
+  if [ -n "$gc" ] && [ -d "$gc" ] && [ -n "$(ls -A "$gc" 2>/dev/null | head -n1)" ]; then cache=warm; fi
+fi
+
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+
+start=$(date +%s%N 2>/dev/null || true)
+case "$start" in *N* | "") start=$(($(date +%s) * 1000000000)) ;; esac
+
+"$@" 2>&1 | tee "$log"
+rc=${PIPESTATUS[0]}
+
+end=$(date +%s%N 2>/dev/null || true)
+case "$end" in *N* | "") end=$(($(date +%s) * 1000000000)) ;; esac
+wall_ms=$(((end - start) / 1000000))
+
+# counts come from patterns only; no output text is stored
+compile_errors=$(grep -cE '^[^[:space:]:]+\.(go|ts|svelte):[0-9]+(:[0-9]+)?: ' "$log" || true)
+failing_tests=$(grep -cE '^[[:space:]]*--- FAIL: ' "$log" || true)
+
+mkdir -p "$(dirname "$metrics")"
+printf '{"ts":"%s","target":"%s","wall_ms":%d,"exit":%d,"compile_errors":%d,"failing_tests":%d,"sha":"%s","lane":"%s","cache":"%s"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$target" "$wall_ms" "$rc" "${compile_errors:-0}" "${failing_tests:-0}" \
+  "$sha" "$lane" "$cache" >>"$metrics"
+
+exit "$rc"

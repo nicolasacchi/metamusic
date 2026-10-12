@@ -1,0 +1,76 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - gosec
+    - revive
+    - misspell
+    - bodyclose
+    - errorlint
+    - nilerr
+  settings:
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck owns this
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: increment-decrement
+        - name: var-declaration
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*os.File).Close
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (net/http.ResponseWriter).Write
+    staticcheck:
+      checks:
+        - all
+        - -QF1001 # De Morgan rewrites hurt readability of validation conditions
+  exclusions:
+    generated: lax
+    rules:
+      # tests use fixed temp paths, ignore setup errors and unchecked cleanups
+      - path: _test\.go
+        linters: [gosec, errcheck]
+      # G124: Secure is deliberately configurable (plain-http dev); HttpOnly+SameSite are always set.
+      - linters: [gosec]
+        text: "G124"
+        path: internal/auth/local\.go
+      # G304: the path is operator configuration (MM_SECRETS_DIR) joined with a fixed file name.
+      - linters: [gosec]
+        text: "G304"
+        path: internal/config/
+      # G703: name is path.Clean'd and resolved inside the embedded fs.FS, which cannot escape.
+      - linters: [gosec]
+        text: "G703"
+        path: internal/httpserver/spa\.go
+
+formatters:
+  enable:
+    - gofmt
