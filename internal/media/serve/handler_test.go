@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -299,6 +300,7 @@ func TestHandler_Signatures(t *testing.T) {
 		if w.Header().Get("ETag") != `"`+psha+`"` {
 			t.Errorf("ETag %q", w.Header().Get("ETag"))
 		}
+		assertProblem(t, p.do("GET", p.url(psha, "mp3"), nil), 404, "NOT_FOUND")
 	})
 }
 
@@ -315,7 +317,9 @@ func TestHandler_MissingFile500(t *testing.T) {
 	if !strings.Contains(log, sha) || !strings.Contains(log, "flac") {
 		t.Errorf("log lacks sha/ext: %s", log)
 	}
-	if strings.Contains(log, "exp=") || strings.Contains(log, "sig=") {
+	q, _ := url.Parse(u)
+	exp, sig := q.Query().Get("exp"), q.Query().Get("sig")
+	if strings.Contains(log, "exp=") || strings.Contains(log, "sig=") || (sig != "" && strings.Contains(log, sig)) || (exp != "" && strings.Contains(log, exp)) {
 		t.Errorf("log leaks the query: %s", log)
 	}
 	if strings.Count(strings.TrimSpace(log), "\n") != 0 {

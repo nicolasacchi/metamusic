@@ -15,7 +15,13 @@ import (
 // library-backed API answers for an authenticated caller.
 func TestServe_MediaAndLibraryWired(t *testing.T) {
 	env := testEnv(t, "local")
+	code, tokOut, errs := do(t, env, "", "token", "create", "--name", "x", "--scopes", "read")
+	if code != 0 {
+		t.Fatalf("token create: %d %s", code, errs)
+	}
+	tok := strings.TrimSpace(tokOut)
 	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	var out, errb syncBuf
 	done := make(chan int, 1)
 	go func() { done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb) }()
@@ -37,6 +43,17 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 403 || !strings.Contains(string(body), "MEDIA_LINK_INVALID") {
 		t.Fatalf("media not wired: %d %s", resp.StatusCode, body)
+	}
+	req, _ := http.NewRequest("GET", "http://"+addr+"/api/stats", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b2, _ := io.ReadAll(r2.Body)
+	r2.Body.Close()
+	if r2.StatusCode != 200 {
+		t.Fatalf("library not wired: %d %s", r2.StatusCode, b2)
 	}
 	cancel()
 	select {

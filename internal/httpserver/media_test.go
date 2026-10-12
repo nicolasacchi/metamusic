@@ -3,6 +3,7 @@ package httpserver_test
 import (
 	"bytes"
 	"context"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -29,6 +30,7 @@ type mediaEnv struct {
 	cfg    config.Config
 	sha    string
 	master []byte
+	kind   *auth.Kind // principal kind seen by the media handler on the last request
 }
 
 func newMediaEnv(t *testing.T, mode, publicURL string) *mediaEnv {
@@ -70,15 +72,21 @@ func newMediaEnv(t *testing.T, mode, publicURL string) *mediaEnv {
 		"manifest.webmanifest": {Data: []byte("{}")},
 		"icons/icon-192.png":   {Data: []byte("png")},
 	}
+	seen := new(auth.Kind)
+	inner := serve.Handler(signer, root, lib, nil)
+	rec := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*seen = auth.FromContext(r.Context()).Kind
+		inner.ServeHTTP(w, r)
+	})
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: edge}, Store: st, Tokens: tokens, Sessions: local,
 		SPA: spa, Version: "v-test", Commit: "abc123",
-		Library: lib, Signer: signer, Media: serve.Handler(signer, root, lib, nil), Now: now,
+		Library: lib, Signer: signer, Media: rec, Now: now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &mediaEnv{h, signer, tokens, local, cfg, sha, master}
+	return &mediaEnv{h, signer, tokens, local, cfg, sha, master, seen}
 }
 
 func (m *mediaEnv) get(path string, mut func(*http.Request)) *httptest.ResponseRecorder {
@@ -115,8 +123,12 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 				r.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: "bogus"})
 				r.AddCookie(&http.Cookie{Name: auth.HostSessionCookie, Value: "bogus"})
 			}
+			*m.kind = ""
 			if w := m.get(u, spoof); w.Code != 200 {
 				t.Errorf("spoofed identity = %d", w.Code)
+			}
+			if *m.kind != auth.KindAnonymous {
+				t.Errorf("spoofed identity used principal %q", *m.kind)
 			}
 			if w := m.get(u[:strings.Index(u, "?")], spoof); w.Code != 403 {
 				t.Errorf("unsigned with spoofed identity = %d", w.Code)
@@ -130,8 +142,16 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 					t.Fatal(err)
 				}
 				name := auth.CookieName(strings.HasPrefix(tc.pub, "https://"))
-				if w := m.get(u, func(r *http.Request) { r.AddCookie(&http.Cookie{Name: name, Value: cookie}) }); w.Code != 200 {
+				*m.kind = ""
+				if w := m.get(u, func(r *http.Request) {
+					r.AddCookie(&http.Cookie{Name: name, Value: cookie})
+					r.Header.Set("Remote-User", "mallory")
+					r.Header.Set("X-MM-Edge", edge)
+				}); w.Code != 200 {
 					t.Errorf("valid session + sig = %d", w.Code)
+				}
+				if *m.kind != auth.KindAnonymous {
+					t.Errorf("valid session + spoofed proxy headers used principal %q", *m.kind)
 				}
 				if w := m.get(u[:strings.Index(u, "?")], func(r *http.Request) { r.AddCookie(&http.Cookie{Name: name, Value: cookie}) }); w.Code != 403 {
 					t.Errorf("valid session, unsigned = %d", w.Code)
@@ -172,10 +192,17 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 }
 
 func TestHTTP_ManifestAndIconsPublic(t *testing.T) {
+	if err := mime.AddExtensionType(".webmanifest", "text/plain"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mime.AddExtensionType(".webmanifest", "application/manifest+json") })
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/manifest.webmanifest", nil))
 	if w.Code != 200 || w.Header().Get("Content-Type") != "application/manifest+json" {
 		t.Errorf("manifest = %d %q", w.Code, w.Header().Get("Content-Type"))
+	}
+	if w := e.do(httptest.NewRequest("GET", "/icons/icon-192.png", nil)); w.Code != 200 {
+		t.Errorf("icon = %d", w.Code)
 	}
 }
 
@@ -184,10 +211,9 @@ func TestHandler_DotSegmentsNeverServe(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			m := newMediaEnv(t, mode, "http://mm.example.com")
 			q := m.url()[strings.Index(m.url(), "?"):]
-			file := "/media/" + m.sha + ".flac"
 			paths := []string{
 				"/media/x/../y",
-				file + "/../" + m.sha + ".flac",
+				"/media/%2e%2e%2fmedia/" + m.sha + ".flac",
 				"/media/" + m.sha + ".flac/../" + m.sha + ".flac",
 				"/media/%2e%2e/media/" + m.sha + ".flac",
 				"/media/%2E%2E/" + m.sha + ".flac",
