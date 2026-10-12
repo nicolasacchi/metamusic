@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -20,6 +22,7 @@ import (
 var (
 	ErrInvalidToken = errors.New("invalid token")
 	ErrNotFound     = errors.New("not found")
+	ErrInvalidScope = errors.New("invalid token name or scopes")
 )
 
 var tokenRE = regexp.MustCompile(`^mmp_[a-z2-7]{52}$`)
@@ -51,31 +54,32 @@ func mac(key []byte, s string) string {
 	return hex.EncodeToString(m.Sum(nil))
 }
 
-func randomHex(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
-}
+const touchInterval = time.Minute // minimum gap between last_used_at writes per token
 
 func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 func (t *TokenStore) Create(ctx context.Context, name string, scopes []Scope) (string, string, error) {
+	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
+		return "", "", ErrInvalidScope
+	}
+	seen := map[Scope]bool{}
+	for _, s := range scopes {
+		if !slices.Contains(allScopes, s) || seen[s] {
+			return "", "", ErrInvalidScope
+		}
+		seen[s] = true
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", "", err
 	}
 	plain := "mmp_" + strings.ToLower(b32.EncodeToString(raw))
-	id, err := randomHex(8)
-	if err != nil {
-		return "", "", err
-	}
+	id := uuid.NewV7().String()
 	ss := make([]string, len(scopes))
 	for i, s := range scopes {
 		ss[i] = string(s)
 	}
-	_, err = t.st.W.ExecContext(ctx,
+	_, err := t.st.W.ExecContext(ctx,
 		`INSERT INTO api_tokens(id,name,prefix,hmac_hash,scopes,created_at) VALUES(?,?,?,?,?,?)`,
 		id, name, plain[4:12], mac(t.key, plain), strings.Join(ss, ","), now())
 	if err != nil {
@@ -110,7 +114,10 @@ func (t *TokenStore) Verify(ctx context.Context, plaintext string) (Principal, e
 		return Principal{}, fmt.Errorf("verify token: %w", err)
 	}
 	// best effort; a failed bookkeeping write must not fail authentication
-	_, _ = t.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, now(), id)
+	n := time.Now().UTC()
+	_, _ = t.st.W.ExecContext(ctx,
+		`UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`,
+		n.Format(time.RFC3339), id, n.Add(-touchInterval).Format(time.RFC3339))
 	return Principal{Kind: KindAgent, ID: id, Name: name, Scopes: splitScopes(scopes), Via: "token"}, nil
 }
 

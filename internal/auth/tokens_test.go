@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -75,6 +76,94 @@ func TestTokenVerifyRejects(t *testing.T) {
 }
 
 func TestTokenInfoHasNoHash(t *testing.T) {
-	// compile-time/shape check: TokenInfo exposes no hash field
-	var _ = TokenInfo{ID: "", Name: "", Prefix: "", Scopes: nil, CreatedAt: "", LastUsedAt: "", RevokedAt: ""}
+	typ := reflect.TypeOf(TokenInfo{})
+	for i := 0; i < typ.NumField(); i++ {
+		if strings.Contains(strings.ToLower(typ.Field(i).Name), "hash") {
+			t.Fatalf("TokenInfo has hash-like field %q", typ.Field(i).Name)
+		}
+	}
+	ctx := context.Background()
+	ts := NewTokenStore(newStore(t), key)
+	plain, _, err := ts.Create(ctx, "a", []Scope{ScopeRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hash string
+	if err := ts.st.R.QueryRowContext(ctx, `SELECT hmac_hash FROM api_tokens`).Scan(&hash); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := ts.List(ctx)
+	v := reflect.ValueOf(list[0])
+	for i := 0; i < v.NumField(); i++ {
+		if v.Field(i).Kind() != reflect.String {
+			continue
+		}
+		s := v.Field(i).String()
+		if s == hash || (s != "" && strings.Contains(plain, s) && len(s) > 8) {
+			t.Fatalf("field %s leaks secret material: %q", typ.Field(i).Name, s)
+		}
+	}
+}
+
+func TestTokenCreateValidation(t *testing.T) {
+	ts := NewTokenStore(newStore(t), key)
+	tests := []struct {
+		name   string
+		tname  string
+		scopes []Scope
+	}{
+		{"empty name", "", []Scope{ScopeRead}},
+		{"blank name", "  ", []Scope{ScopeRead}},
+		{"no scopes", "n", nil},
+		{"unknown scope", "n", []Scope{"root"}},
+		{"comma scope", "n", []Scope{"read,admin"}},
+		{"duplicate", "n", []Scope{ScopeRead, ScopeRead}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := ts.Create(context.Background(), tc.tname, tc.scopes); !errors.Is(err, ErrInvalidScope) {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestTokenIDIsUUIDv7AndOrdered(t *testing.T) {
+	ctx := context.Background()
+	ts := NewTokenStore(newStore(t), key)
+	var ids []string
+	for i := 0; i < 5; i++ {
+		_, id, err := ts.Create(ctx, "n", []Scope{ScopeRead})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(id) != 36 || id[14] != '7' {
+			t.Fatalf("id %q is not a uuid v7", id)
+		}
+		ids = append(ids, id)
+	}
+	list, _ := ts.List(ctx)
+	for i := range ids {
+		if list[i].ID != ids[i] {
+			t.Fatalf("list not in creation order at %d", i)
+		}
+	}
+}
+
+func TestTokenLastUsedThrottled(t *testing.T) {
+	ctx := context.Background()
+	ts := NewTokenStore(newStore(t), key)
+	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	// pretend it was used 10s ago; a second verify must not rewrite it
+	const stamp = "2999-01-01T00:00:00Z"
+	_, _ = ts.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, stamp, id)
+	_, _ = ts.Verify(ctx, plain)
+	var lu string
+	_ = ts.st.R.QueryRowContext(ctx, `SELECT last_used_at FROM api_tokens WHERE id=?`, id).Scan(&lu)
+	if lu != stamp {
+		t.Fatalf("last_used_at rewritten within throttle window: %s", lu)
+	}
 }

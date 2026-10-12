@@ -22,6 +22,9 @@ func TestClassify(t *testing.T) {
 		{"/.well-known", ClassUI}, {"/oauth/authorize", ClassUI},
 		{"/", ClassUI}, {"/tracks/1", ClassUI}, {"/api/tracks", ClassUI}, {"/human/api/x", ClassUI},
 		{"/human/x", ClassUI}, {"", ClassUI},
+		// dot-segment near-misses are never public/machine
+		{"/assets/../api/x", ClassUI}, {"/mcp/../api/x", ClassUI}, {"/icons/../../x", ClassUI},
+		{"/media/..", ClassUI}, {"/assets/a..b", ClassPublic},
 	}
 	for _, tc := range tests {
 		if got := Classify(tc.path); got != tc.want {

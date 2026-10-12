@@ -28,7 +28,7 @@ func (fakeSessions) VerifySession(_ context.Context, v string) (Principal, error
 	if v == "goodsess" {
 		return Principal{Kind: KindHuman, ID: "alice", Name: "alice", Scopes: allScopes, Via: "local"}, nil
 	}
-	return Principal{}, errors.New("no")
+	return Principal{}, ErrInvalidSession
 }
 
 const edge = "edgesecret"
@@ -181,21 +181,45 @@ func TestRemoteHeadersIgnoredWithBearerAndLocal(t *testing.T) {
 }
 
 func TestCrossOriginProtection(t *testing.T) {
-	for _, mode := range []string{"proxy", "local"} {
-		r := httptest.NewRequest("POST", "https://mm.example.com/api/x", nil)
+	mk := func(method, site, origin string) *http.Request {
+		r := httptest.NewRequest(method, "https://mm.example.com/api/x", nil)
 		r.RemoteAddr = "10.0.0.1:1"
-		r.Header.Set("Sec-Fetch-Site", "cross-site")
+		if site != "" {
+			r.Header.Set("Sec-Fetch-Site", site)
+		}
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
 		r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
 		r.Header.Set("Remote-User", "alice")
 		r.Header.Set("X-MM-Edge", edge)
-		rec, seen := run(mode, r)
-		if rec.Code != 403 || seen != "" || !strings.Contains(rec.Body.String(), "CROSS_ORIGIN") {
-			t.Fatalf("%s cross-site POST: %d %q %s", mode, rec.Code, seen, rec.Body.String())
-		}
-		// same-origin POST passes
-		r.Header.Set("Sec-Fetch-Site", "same-origin")
-		if rec, seen := run(mode, r); rec.Code != 200 || seen != KindHuman {
-			t.Fatalf("%s same-origin POST: %d %q", mode, rec.Code, seen)
+		return r
+	}
+	tests := []struct {
+		name                 string
+		method, site, origin string
+		want                 int
+	}{
+		{"cross-site POST", "POST", "cross-site", "", 403},
+		{"same-site POST", "POST", "same-site", "", 403},
+		{"foreign Origin only", "POST", "", "https://evil.example.org", 403},
+		{"same-origin POST", "POST", "same-origin", "", 200},
+		{"none POST", "POST", "none", "", 200},
+		{"cross-site GET", "GET", "cross-site", "", 200},
+		{"same-site GET", "GET", "same-site", "", 200},
+	}
+	for _, mode := range []string{"proxy", "local"} {
+		for _, tc := range tests {
+			rec, seen := run(mode, mk(tc.method, tc.site, tc.origin))
+			if rec.Code != tc.want {
+				t.Errorf("%s/%s: %d, want %d", mode, tc.name, rec.Code, tc.want)
+			}
+			if tc.want == 403 && (seen != "" || !strings.Contains(rec.Body.String(), "CROSS_ORIGIN")) {
+				t.Errorf("%s/%s: handler reached or wrong body: %q %s", mode, tc.name, seen, rec.Body.String())
+			}
+			if tc.want == 200 && seen != KindHuman {
+				t.Errorf("%s/%s: kind %q", mode, tc.name, seen)
+			}
 		}
 	}
 	// bearer POST is not subject to it
@@ -204,5 +228,126 @@ func TestCrossOriginProtection(t *testing.T) {
 	r.Header.Set("Sec-Fetch-Site", "cross-site")
 	if rec, _ := run("proxy", r); rec.Code != 200 {
 		t.Fatalf("bearer cross-site POST: %d", rec.Code)
+	}
+}
+
+// runP is like run but returns the principal seen by the handler.
+func runP(c config.Config, s config.Secrets, r *http.Request) (*httptest.ResponseRecorder, Principal) {
+	var seen Principal
+	h := Middleware(c, s, fakeTokens{}, fakeSessions{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = FromContext(r.Context())
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	return rec, seen
+}
+
+func proxyReq(peer string) *http.Request {
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.RemoteAddr = peer
+	r.Header.Set("Remote-User", "alice")
+	r.Header.Set("X-MM-Edge", edge)
+	return r
+}
+
+func TestResolvedPrincipals(t *testing.T) {
+	c, s := cfg("proxy")
+	_, p := runP(c, s, proxyReq("10.0.0.1:1"))
+	if p.Kind != KindHuman || p.Name != "alice" || p.ID != "alice" || p.Via != "proxy" || len(p.Scopes) != 4 {
+		t.Fatalf("proxy principal = %+v", p)
+	}
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.Header.Set("Authorization", "Bearer mmp_good")
+	_, p = runP(c, s, r)
+	if p.Kind != KindAgent || p.Via != "token" || p.ID != "t1" || p.Name != "t" {
+		t.Fatalf("agent principal = %+v", p)
+	}
+}
+
+func TestProxyEmptyEdgeSecret(t *testing.T) {
+	c, s := cfg("proxy")
+	s.EdgeSecret = ""
+	r := proxyReq("10.0.0.1:1")
+	r.Header.Set("X-MM-Edge", "")
+	rec, p := runP(c, s, r)
+	if p.Kind == KindHuman || rec.Code != 401 {
+		t.Fatalf("empty edge secret accepted: %d %+v", rec.Code, p)
+	}
+}
+
+func TestIPv4MappedPeerTrusted(t *testing.T) {
+	c, s := cfg("proxy")
+	rec, p := runP(c, s, proxyReq("[::ffff:10.0.0.1]:1"))
+	if rec.Code != 200 || p.Kind != KindHuman {
+		t.Fatalf("mapped peer: %d %+v", rec.Code, p)
+	}
+}
+
+func TestSessionCookieRefreshed(t *testing.T) {
+	c, s := cfg("local")
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.AddCookie(&http.Cookie{Name: "mm_session", Value: "goodsess"})
+	rec, _ := runP(c, s, r)
+	var got *http.Cookie
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == "mm_session" {
+			got = ck
+		}
+	}
+	if got == nil || got.Value != "goodsess" || got.MaxAge != 43200 || !got.HttpOnly || !got.Secure ||
+		got.SameSite != http.SameSiteLaxMode || got.Path != "/" {
+		t.Fatalf("refreshed cookie = %+v", got)
+	}
+	// anonymous requests get no cookie
+	rec, _ = runP(c, s, httptest.NewRequest("GET", "/api/x", nil))
+	if len(rec.Result().Cookies()) != 0 {
+		t.Fatal("cookie set for anonymous")
+	}
+}
+
+type errTokens struct{}
+
+func (errTokens) Verify(context.Context, string) (Principal, error) {
+	return Principal{}, errors.New("db down")
+}
+
+type errSessions struct{}
+
+func (errSessions) VerifySession(context.Context, string) (Principal, error) {
+	return Principal{}, errors.New("db down")
+}
+
+func TestInfrastructureErrorsAre500(t *testing.T) {
+	c, s := cfg("local")
+	r := httptest.NewRequest("GET", "/api/x", nil)
+	r.Header.Set("Authorization", "Bearer mmp_whatever")
+	rec := httptest.NewRecorder()
+	Middleware(c, s, errTokens{}, fakeSessions{})(http.NotFoundHandler()).ServeHTTP(rec, r)
+	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) || strings.Contains(rec.Body.String(), "db down") {
+		t.Fatalf("token infra error: %d %s", rec.Code, rec.Body.String())
+	}
+	r = httptest.NewRequest("GET", "/api/x", nil)
+	r.AddCookie(&http.Cookie{Name: "mm_session", Value: "x"})
+	rec = httptest.NewRecorder()
+	Middleware(c, s, fakeTokens{}, errSessions{})(http.NotFoundHandler()).ServeHTTP(rec, r)
+	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) {
+		t.Fatalf("session infra error: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBearerSchemeCaseInsensitive(t *testing.T) {
+	for _, h := range []string{"bearer mmp_good", "BEARER mmp_good", "Bearer mmp_good"} {
+		r := httptest.NewRequest("GET", "/api/x", nil)
+		r.Header.Set("Authorization", h)
+		if rec, k := run("proxy", r); rec.Code != 200 || k != KindAgent {
+			t.Errorf("%q: %d %q", h, rec.Code, k)
+		}
+	}
+	for _, h := range []string{"Bearermmp_good", "Bearer  mmp_good", "Bearer"} {
+		r := httptest.NewRequest("GET", "/api/x", nil)
+		r.Header.Set("Authorization", h)
+		if rec, _ := run("proxy", r); rec.Code != 401 {
+			t.Errorf("%q: %d", h, rec.Code)
+		}
 	}
 }

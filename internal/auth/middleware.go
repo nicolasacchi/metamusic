@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"slices"
@@ -24,6 +26,11 @@ func writeProblem(w http.ResponseWriter, status int, code, msg string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"code": code, "message": msg, "details": map[string]any{}})
+}
+
+func internalError(w http.ResponseWriter, what string, err error) {
+	slog.Error(what, "err", err)
+	writeProblem(w, http.StatusInternalServerError, "INTERNAL", "internal error")
 }
 
 func unauthenticated(w http.ResponseWriter, withChallenge bool) {
@@ -72,13 +79,20 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 
 			// 1. Authorization header present: bearer only.
 			if hdr := r.Header.Values("Authorization"); len(hdr) > 0 {
-				tok, ok := "", false
+				tok := ""
 				if len(hdr) == 1 {
-					tok, ok = strings.CutPrefix(hdr[0], "Bearer ")
+					if scheme, rest, found := strings.Cut(hdr[0], " "); found && strings.EqualFold(scheme, "Bearer") {
+						tok = rest
+					}
 				}
-				if ok && strings.HasPrefix(tok, "mmp_") {
-					if p, err := tokens.Verify(r.Context(), tok); err == nil {
+				if strings.HasPrefix(tok, "mmp_") {
+					p, err := tokens.Verify(r.Context(), tok)
+					if err == nil {
 						next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
+						return
+					}
+					if !errors.Is(err, ErrInvalidToken) {
+						internalError(w, "token verification failed", err)
 						return
 					}
 				}
@@ -95,13 +109,19 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 			// 4./5. UI class.
 			var p Principal
 			var ok bool
+			var refresh string // session cookie value to re-issue (sliding expiry)
 			switch cfg.AuthMode {
 			case "proxy":
 				p, ok = proxyPrincipal(r, cfg, sec)
 			case "local":
 				if c, err := r.Cookie(SessionCookie); err == nil {
-					if sp, err := sessions.VerifySession(r.Context(), c.Value); err == nil {
-						p, ok = sp, true
+					sp, err := sessions.VerifySession(r.Context(), c.Value)
+					switch {
+					case err == nil:
+						p, ok, refresh = sp, true, c.Value
+					case !errors.Is(err, ErrInvalidSession):
+						internalError(w, "session verification failed", err)
+						return
 					}
 				}
 			}
@@ -122,6 +142,9 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 			if err := cop.Check(r); err != nil {
 				writeProblem(w, http.StatusForbidden, "CROSS_ORIGIN", "cross-origin request refused")
 				return
+			}
+			if refresh != "" {
+				http.SetCookie(w, sessionCookie(refresh, int(sessionTTL.Seconds()), strings.HasPrefix(cfg.PublicURL, "https://")))
 			}
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 		})

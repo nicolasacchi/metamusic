@@ -9,9 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
+	"uuid"
 
 	"golang.org/x/crypto/argon2"
 
@@ -31,7 +34,12 @@ const (
 
 	SessionCookie = "mm_session"
 	sessionTTL    = 12 * time.Hour
+	slideAfter    = 5 * time.Minute // slide/re-issue only when this much of the TTL has elapsed
+	maxHashers    = 2               // concurrent argon2id computations (64 MiB each)
 )
+
+// ErrBusy is returned when the caller's context ends while waiting for a hashing slot.
+var ErrBusy = errors.New("auth busy")
 
 type LocalAuth struct {
 	st        *store.Store
@@ -40,6 +48,9 @@ type LocalAuth struct {
 	FailDelay time.Duration // delay applied to failed logins (default 1s)
 	now       func() time.Time
 	dummy     string // hash verified when the user is unknown, to equalise timing
+	sem       chan struct{}
+	active    atomic.Int32
+	maxActive atomic.Int32 // high-water mark of concurrent hashing (observability/tests)
 }
 
 func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
@@ -48,9 +59,33 @@ func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
 		secure:    strings.HasPrefix(publicURL, "https://"),
 		FailDelay: time.Second,
 		now:       time.Now,
+		sem:       make(chan struct{}, maxHashers),
 	}
-	la.dummy, _ = hashPassword("dummy-password-for-timing")
+	// random per-process password: nobody can ever log in with it
+	dummyPW := make([]byte, 24)
+	_, _ = rand.Read(dummyPW)
+	la.dummy, _ = hashPassword(base64.RawStdEncoding.EncodeToString(dummyPW))
 	return la
+}
+
+// withHasher bounds concurrent argon2id work; fails if ctx ends while waiting.
+func (l *LocalAuth) withHasher(ctx context.Context, f func()) error {
+	select {
+	case l.sem <- struct{}{}:
+	case <-ctx.Done():
+		return ErrBusy
+	}
+	defer func() { <-l.sem }()
+	n := l.active.Add(1)
+	for {
+		m := l.maxActive.Load()
+		if n <= m || l.maxActive.CompareAndSwap(m, n) {
+			break
+		}
+	}
+	defer l.active.Add(-1)
+	f()
+	return nil
 }
 
 func hashPassword(pw string) (string, error) {
@@ -88,17 +123,32 @@ func checkPassword(phc, pw string) bool {
 
 func (l *LocalAuth) ts(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
-// SetPassword creates or replaces the single human account.
+// SetPassword creates or replaces the single human account and revokes every
+// existing session.
 func (l *LocalAuth) SetPassword(ctx context.Context, username, pw string) error {
-	h, err := hashPassword(pw)
+	var h string
+	var herr error
+	if err := l.withHasher(ctx, func() { h, herr = hashPassword(pw) }); err != nil {
+		return err
+	}
+	if herr != nil {
+		return herr
+	}
+	tx, err := l.st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	_, err = l.st.W.ExecContext(ctx,
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO human_account(id,username,password_hash,updated_at) VALUES(1,?,?,?)
 		 ON CONFLICT(id) DO UPDATE SET username=excluded.username, password_hash=excluded.password_hash, updated_at=excluded.updated_at`,
-		username, h, l.ts(l.now()))
-	return err
+		username, h, l.ts(l.now())); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM human_sessions`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Login validates credentials and returns the opaque session cookie value.
@@ -112,7 +162,10 @@ func (l *LocalAuth) Login(ctx context.Context, username, pw string) (string, err
 	if !known {
 		hash = l.dummy
 	}
-	passOK := checkPassword(hash, pw)
+	var passOK bool
+	if err := l.withHasher(ctx, func() { passOK = checkPassword(hash, pw) }); err != nil {
+		return "", err
+	}
 	userOK := subtle.ConstantTimeCompare([]byte(username), []byte(dbUser)) == 1
 	if !known || !passOK || !userOK {
 		return "", ErrBadCredentials
@@ -122,11 +175,10 @@ func (l *LocalAuth) Login(ctx context.Context, username, pw string) (string, err
 		return "", err
 	}
 	cv := b32.EncodeToString(raw)
-	id, err := randomHex(8)
-	if err != nil {
-		return "", err
-	}
+	id := uuid.NewV7().String()
 	n := l.now()
+	// opportunistic purge of expired sessions
+	_, _ = l.st.W.ExecContext(ctx, `DELETE FROM human_sessions WHERE expires_at < ?`, l.ts(n))
 	_, err = l.st.W.ExecContext(ctx,
 		`INSERT INTO human_sessions(id,hmac_hash,created_at,expires_at) VALUES(?,?,?,?)`,
 		id, mac(l.key, cv), l.ts(n), l.ts(n.Add(sessionTTL)))
@@ -144,8 +196,11 @@ func (l *LocalAuth) VerifySession(ctx context.Context, cookieValue string) (Prin
 	h := mac(l.key, cookieValue)
 	var id, exp string
 	err := l.st.R.QueryRowContext(ctx, `SELECT id,expires_at FROM human_sessions WHERE hmac_hash=?`, h).Scan(&id, &exp)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, ErrInvalidSession
+	}
+	if err != nil {
+		return Principal{}, fmt.Errorf("verify session: %w", err)
 	}
 	n := l.now()
 	expires, err := time.Parse(time.RFC3339, exp)
@@ -154,9 +209,15 @@ func (l *LocalAuth) VerifySession(ctx context.Context, cookieValue string) (Prin
 	}
 	var user string
 	if err := l.st.R.QueryRowContext(ctx, `SELECT username FROM human_account WHERE id=1`).Scan(&user); err != nil {
-		return Principal{}, ErrInvalidSession
+		if errors.Is(err, sql.ErrNoRows) {
+			return Principal{}, ErrInvalidSession
+		}
+		return Principal{}, fmt.Errorf("verify session: %w", err)
 	}
-	_, _ = l.st.W.ExecContext(ctx, `UPDATE human_sessions SET expires_at=? WHERE id=?`, l.ts(n.Add(sessionTTL)), id)
+	// slide only once slideAfter of the TTL has elapsed: avoids a write per request
+	if expires.Sub(n) < sessionTTL-slideAfter {
+		_, _ = l.st.W.ExecContext(ctx, `UPDATE human_sessions SET expires_at=? WHERE id=?`, l.ts(n.Add(sessionTTL)), id)
+	}
 	return humanPrincipal(user, "local"), nil
 }
 
@@ -166,8 +227,12 @@ func (l *LocalAuth) Logout(ctx context.Context, cookieValue string) error {
 }
 
 func (l *LocalAuth) cookie(value string, maxAge int) *http.Cookie {
+	return sessionCookie(value, maxAge, l.secure)
+}
+
+func sessionCookie(value string, maxAge int, secure bool) *http.Cookie {
 	return &http.Cookie{Name: SessionCookie, Value: value, Path: "/", HttpOnly: true,
-		Secure: l.secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
+		Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
 }
 
 const loginPage = `<!doctype html>
@@ -185,35 +250,48 @@ func writeLogin(w http.ResponseWriter, status int, msg string) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	w.Header().Set("X-Frame-Options", "DENY")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, loginPage, msg)
 }
 
 // Handler serves /auth/login (GET form, POST submit) and /auth/logout (POST).
+// POSTs are wrapped in CrossOriginProtection (login/logout CSRF).
 func (l *LocalAuth) Handler() http.Handler {
+	cop := http.NewCrossOriginProtection()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /auth/login", func(w http.ResponseWriter, r *http.Request) { writeLogin(w, 200, "") })
-	mux.HandleFunc("POST /auth/login", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /auth/login", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if err := r.ParseForm(); err != nil {
 			writeLogin(w, http.StatusBadRequest, "Bad request.")
 			return
 		}
 		cv, err := l.Login(r.Context(), r.PostForm.Get("username"), r.PostForm.Get("password"))
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrBadCredentials):
 			time.Sleep(l.FailDelay)
 			writeLogin(w, http.StatusUnauthorized, "Invalid username or password.")
+			return
+		case errors.Is(err, ErrBusy), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			w.Header().Set("Retry-After", "1")
+			writeLogin(w, http.StatusServiceUnavailable, "Server busy, try again.")
+			return
+		case err != nil:
+			slog.Error("login failed", "err", err)
+			writeLogin(w, http.StatusInternalServerError, "Server error.")
 			return
 		}
 		http.SetCookie(w, l.cookie(cv, int(sessionTTL.Seconds())))
 		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
-	mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
+	})))
+	mux.Handle("POST /auth/logout", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(SessionCookie); err == nil {
 			_ = l.Logout(r.Context(), c.Value)
 		}
 		http.SetCookie(w, l.cookie("", -1))
 		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
-	})
+	})))
 	return mux
 }
