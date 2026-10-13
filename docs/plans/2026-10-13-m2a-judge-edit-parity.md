@@ -701,6 +701,10 @@ BEGIN SELECT RAISE(ABORT, 'backup_runs: frozen column'); END;
 
 ### C28. Registry amendments (amends M0 C4, M1 C19)
 
+> M2b-B2 addendum: `Meta` gains `MCPImage` (after `SecretFields`); `Deps` gains `Duels`, `Ears` and `Clips` (concrete pointers; a nil one
+> makes its operations answer 503 `UNAVAILABLE {component}`). The M2b operations are registered by `registerDuels`, `registerClips`
+> and `registerEars`; `internal/api/errors_m2b.go` holds `m2bErr`.
+
 ```go
 type Meta struct {
     Scope        auth.Scope `json:"scope"`
@@ -1748,6 +1752,10 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
 
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
 
+> M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
+> and `DuelClips func(duels.ClipRenderer) duels.ClipRenderer`; `app.Services` gains `Clips`, `Duels` and `Ears`. `Build` calls
+> `app.NewMedia` (`internal/app/media.go`), builds `duels.New`, calls `ears.UseJudgments` and appends the clips resolver to the media chain.
+
 - **One constructor** (`internal/app`; created by M2a-B2a, M2a services filled in by M2a-B4a). `serve`,
   `dev`, `mcp-stdio` and `servertest` all build their services through it — no other code constructs
   an M2a service, a gate, a limiter or `api.Deps`:
@@ -1975,6 +1983,10 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
 - `scripts/loop` allowlist and `metrics/loop.schema.json`: no new targets.
 
 ### C42. Test harness and fixtures
+
+> M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
+> `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:
+> `media/clip/cliptest`, `duels/duelstest`, `ears/earstest` (asserted absent from the binary by `TestNoTestHelpersInBinary`).
 
 - **Clock rules (binding).** `testing/synctest` is used **only** for code driven through
   `httptest.NewRecorder` or in-memory transports with no real socket, because network I/O is not

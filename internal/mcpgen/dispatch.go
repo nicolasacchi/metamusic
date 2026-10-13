@@ -160,6 +160,11 @@ func buildRequest(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (*h
 
 // serve runs the request on inner and converts the response to a tool result.
 func serve(inner http.Handler, req *http.Request) *mcp.CallToolResult {
+	return serveResult(inner, req, false)
+}
+
+// serveResult is serve for an operation that may be x-mm.mcp_image: image makes a body with an inline image an ImageContent result (C52).
+func serveResult(inner http.Handler, req *http.Request, image bool) *mcp.CallToolResult {
 	rec := &capRecorder{ResponseRecorder: httptest.NewRecorder()}
 	inner.ServeHTTP(rec, req)
 	raw := bytes.TrimSpace(rec.Body.Bytes())
@@ -186,6 +191,11 @@ func serve(inner http.Handler, req *http.Request) *mcp.CallToolResult {
 	res.Content = []mcp.Content{&mcp.TextContent{Text: string(raw)}}
 	if m, ok := v.(map[string]any); ok && isJSON {
 		res.StructuredContent = m
+		if image {
+			if r := imageResult(m); r != nil {
+				return r
+			}
+		}
 	}
 	return res
 }
@@ -269,7 +279,7 @@ func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.Ra
 	if bad != nil {
 		return bad
 	}
-	return serve(inner, req)
+	return serveResult(inner, req, s.Image)
 }
 
 // capRecorder stops buffering once the body exceeds maxBody, so a runaway

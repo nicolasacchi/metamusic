@@ -1788,6 +1788,18 @@ Done: `make check` green; `make openapi` committed; `schema.d.ts` regenerated; w
 `make fixture-db` writes duels and Tier A rows; the only `STUB(M2b-` markers are the listed service stubs
 and `cmd_analyze.go`.
 
+**B2 outcome (recorded at implementation).** D-M2b-22 measured: the seven M2b tools were 28 198 compact bytes (66 881 in
+total), so `get_ladder`, `compare_tracks` and `create_duel` became `mcp: generic`; `tools/list` is 25 tools / 55 308 bytes,
+`toolsCeilingBytes` = 55 500, `toolsListBaselineBytes` = 130 984. Deviations from the file list, all additive: the
+nullable-object `…OrNull` types and the `ImageData` struct live beside the service types (`internal/duels/schema.go`,
+`internal/ears/schema.go`; `api.ImageData` is an alias of `ears.ImageData`) so services return wire shapes directly;
+`duelstest.Fixture` takes the DataDir (`Fixture(tb, st, dataDir, fx, now, newID)`) because the real clip service links the
+fixture masters; `app.Options` also carries `SlotCoin` and `DuelClips` (spy/fake renderer hook); `*ffmpeg.FFmpeg` implements
+`clip.WindowAnalyzer` and `ears.TierA` through three stub files (`window_stub.go` STUB(M2b-M1), `signal_stub.go` STUB(M2b-E1),
+`spectrum_stub.go` STUB(M2b-E2)) that their lanes delete; `internal/importer/privacy_test.go` wires the stub M2b services so
+the privacy sweep keeps covering every GET; component names of generic Go types are fixed in `wireNames`
+(`DuelPage`, `NextDuel`, `ClipWindow`, `TimeSpan`, `TokenStream`, ...).
+
 ### Task M2b-J1 (Judge): ladder math
 **Files:** `internal/ladder/{fit.go,laplace.go,prob.go,race_on.go,race_off.go}` + `fit_test.go`,
 `laplace_test.go`, `sim_test.go`, `acceptance_test.go` (replacing the stub).

@@ -38,6 +38,8 @@ type toolSpec struct {
 	// IdemCreate marks x-mm.idempotency == "create" operations: the
 	// idempotency_key argument is optional and dispatch derives a key (C30).
 	IdemCreate bool
+	// Image marks x-mm.mcp_image operations: serve() turns image {mime_type, data_base64} into ImageContent (C52).
+	Image bool
 }
 
 const (

@@ -63,6 +63,9 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 		if len(e.meta.SecretFields) > 0 {
 			doc["secret_fields"] = e.meta.SecretFields
 		}
+		if e.spec.Image {
+			doc["image_result"] = true
+		}
 		if e.spec.Output != nil {
 			doc["output_schema"] = e.spec.Output
 		}

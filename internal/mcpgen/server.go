@@ -108,6 +108,7 @@ func newServer(a huma.API, inner http.Handler, version string, tr reqinfo.Transp
 				return nil, err
 			}
 		}
+		spec.Image = op.Meta.MCPImage
 		g.callable[op.ID] = entry{spec, op.Meta}
 		if op.Meta.MCP != "tool" {
 			continue

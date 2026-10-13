@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -25,6 +26,7 @@ type Meta struct {
 	Idempotency  string   `json:"idempotency,omitempty"`   // "" | "create" (D-M2a-3)
 	Rate         string   `json:"rate,omitempty"`          // "" (default bucket) | "heavy"
 	SecretFields []string `json:"secret_fields,omitempty"` // top-level response keys that carry a secret (D-M2a-14)
+	MCPImage     bool     `json:"mcp_image,omitempty"`     // the 2xx body has image {mime_type, data_base64 (optional)}; MCP returns ImageContent (C52)
 }
 
 const humanPrefix = "/human/api/"
@@ -95,7 +97,48 @@ func validate(op huma.Operation, m Meta) error {
 			return fmt.Errorf("%s: secret field %q must match %s", op.OperationID, f, secretFieldRe)
 		}
 	}
+	if m.MCPImage {
+		if op.Method != http.MethodGet {
+			return fmt.Errorf("%s: mcp_image requires GET, got %s", op.OperationID, op.Method)
+		}
+		if hasReason(m.MCP, "exclude:") {
+			return fmt.Errorf("%s: mcp_image is meaningless on an op excluded from MCP", op.OperationID)
+		}
+	}
 	return nil
+}
+
+// imageType is the type of an mcp_image body's `image` field.
+var imageType = reflect.TypeFor[*ImageData]()
+
+// checkImageShape verifies by reflection that O has a Body whose struct carries
+// a field with JSON name `image` of type *ImageData (C52).
+func checkImageShape(id string, out reflect.Type) error {
+	for out.Kind() == reflect.Pointer {
+		out = out.Elem()
+	}
+	if out.Kind() != reflect.Struct {
+		return fmt.Errorf("%s: mcp_image output must be a struct with a Body", id)
+	}
+	bf, ok := out.FieldByName("Body")
+	if !ok {
+		return fmt.Errorf("%s: mcp_image output has no Body field", id)
+	}
+	body := bf.Type
+	for body.Kind() == reflect.Pointer {
+		body = body.Elem()
+	}
+	if body.Kind() != reflect.Struct {
+		return fmt.Errorf("%s: mcp_image Body must be a struct", id)
+	}
+	for i := range body.NumField() {
+		f := body.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name == "image" && f.Type == imageType {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s: mcp_image Body needs a field with JSON name image of type *api.ImageData", id)
 }
 
 func hasReason(s, prefix string) bool {
@@ -107,6 +150,11 @@ func hasReason(s, prefix string) bool {
 func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context.Context, *I) (*O, error)) {
 	if err := validate(op, meta); err != nil {
 		panic("api.Register: " + err.Error())
+	}
+	if meta.MCPImage {
+		if err := checkImageShape(op.OperationID, reflect.TypeFor[O]()); err != nil {
+			panic("api.Register: " + err.Error())
+		}
 	}
 	exts := make(map[string]any, len(op.Extensions)+1)
 	for k, v := range op.Extensions {

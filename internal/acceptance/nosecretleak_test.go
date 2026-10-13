@@ -330,7 +330,7 @@ func dumpTables(t *testing.T, db *sql.DB, tables ...string) map[string]string {
 	return out
 }
 
-var leakTables = []string{"audit_log", "idempotency", "exports", "listen_events", "backup_runs", "comments", "devices", "pairing_codes"}
+var leakTables = []string{"audit_log", "idempotency", "exports", "listen_events", "backup_runs", "comments", "devices", "pairing_codes", "duels", "duel_verdicts"}
 
 // scanDir scans every small non-media file under dir (backup manifests, snapshot
 // listings, exported JSONL) and the raw bytes of database copies.
@@ -681,7 +681,7 @@ func TestNoSecretLeak(t *testing.T) {
 	trackID, timedID := track(t, human, false), track(t, human, true)
 	state := func() *uiState {
 		d := obj(obj(human.OK(t, "GET", "/api/drafts?limit=1", nil))["items"].([]any)[0])["id"].(string)
-		return &uiState{track: trackID, timed: timedID, draft: d}
+		return &uiState{track: trackID, timed: timedID, draft: d, duel: "01900000-0000-7000-8000-000000000b01"}
 	}
 
 	agentTok, _, err := r.Services.Tokens.Create(context.Background(), "leak-agent", all4)
@@ -811,6 +811,7 @@ func TestNoSecretLeak(t *testing.T) {
 	c.run("", "validate-batch", filepath.Join(exportDir, "songs.jsonl"))
 	c.run("", "backup")
 	c.run("", "backup", "list")
+	c.run("", "analyze", "--dry-run") // M2b: the Tier A command's output is scanned too
 	blocker := filepath.Join(t.TempDir(), "blocker")
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)

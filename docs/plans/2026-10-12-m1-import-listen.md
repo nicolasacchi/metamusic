@@ -797,6 +797,10 @@ func WriteFile(tb testing.TB, path string, s Spec) // mode 0644
 
 ### C14. Analyzer: `internal/analysis` + `internal/analysis/ffmpeg`
 
+> M2b-B2 addendum: `ffmpeg.New` keeps its signature and requirements (`ebur128`, `libmp3lame`) but retains the `-filters` and
+> `-encoders` listings it reads; `(*FFmpeg).RequireClips()` and `RequireTierA()` (`capabilities.go`) check the M2b filters and
+> encoders against them and return `analysis.ErrToolMissing` naming the first missing item (M2b C51.7).
+
 ```go
 type Loudness struct {
     IntegratedLUFS   float64   `json:"integrated_lufs"`
@@ -1462,6 +1466,9 @@ fields (zero values until M2a-B4b/B5 fill them); `list_drafts` and `get_draft` m
 reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`.
 
 ### C20. HTTP server and CLI additions
+
+> M2b-B2 addendum: `httpserver.Options` gains `Duels`, `Ears` and `Clips` (see M0 C6); the CLI gains `analyze` (M2b C51.7, a stub
+> until M2b-E3) and the media chain becomes `serve.Chain(lib, exp, clips)` with `clips` appended only when the service exists.
 
 - `httpserver.Options` (M0: `Cfg`, `Sec`, `Store`, `Tokens`, `Sessions`, `MCP`, `MCPFactory`, `Started`,
   `SPA`, `Version`, `Commit`) gains (M1-B4 amends M0 C6): `Library *library.Service`,

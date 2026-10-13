@@ -18,12 +18,15 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/gate"
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
@@ -77,6 +80,10 @@ type Options struct {
 	Backups   *backup.Service
 	Context   *trackctx.Builder
 	Listening *listening.Service
+	// M2b services (C53); nil makes the matching operations answer 503 UNAVAILABLE.
+	Duels *duels.Service
+	Ears  *ears.Service
+	Clips *clip.Service
 	// Devices verifies the device cookie; a nil interface disables device auth.
 	// DeviceStore backs the pairing pages and the device operations.
 	Devices     auth.DeviceVerifier
@@ -105,7 +112,8 @@ func New(o Options) (http.Handler, error) {
 	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
 		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
-		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify})
+		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
+		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()

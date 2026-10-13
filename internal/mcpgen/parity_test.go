@@ -19,6 +19,8 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/duels/duelstest"
+	"github.com/nicolasacchi/metamusic/internal/ears/earstest"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
@@ -122,9 +124,10 @@ type ParityCase struct {
 	Op          string
 	Args        func(*servertest.Rig) map[string]any
 	Masks       []string
-	SkipGeneric bool // do not repeat the call through call_operation (non-replayable mutations)
-	Last        bool // runs after every other case (ops that end a principal)
-	Status      int  // expected HTTP status (0 => any 2xx); M2a stubs expect 501 on every face
+	SkipGeneric bool   // do not repeat the call through call_operation (non-replayable mutations)
+	Last        bool   // runs after every other case (ops that end a principal)
+	Status      int    // expected HTTP status (0 => any 2xx); stubs expect 501 on every face
+	Variant     string // distinguishes several cases of one operation (e.g. inline and not)
 }
 
 func fixedArgs(m map[string]any) func(*servertest.Rig) map[string]any {
@@ -151,10 +154,24 @@ var parityCases = []ParityCase{
 	})},
 }
 
-// stubCases are the M2a operations whose handlers are still STUB(M2a-Bn): all
-// three faces must answer the same 501 NOT_IMPLEMENTED. Each owning task
-// replaces its entries with real cases.
-var stubCases = []ParityCase{}
+// stubCases are the operations whose service is still a STUB(M2b-...): all three
+// faces must answer the same 501 NOT_IMPLEMENTED. Each lane replaces its entries
+// with real cases (m2bCases) when its service lands. Ids come from duelstest and
+// librarytest (fixed), so every rig agrees.
+var stubCases = []ParityCase{
+	{Op: "get_clip", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "from_s": 1.0, "to_s": 7.0, "match_lufs": -20.0}), Status: 501},
+	{Op: "create_duel", Variant: "explicit", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta, "blind": false, "match_loudness": false}), Status: 501},
+	{Op: "create_duel", Variant: "defaults", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta}), Status: 501},
+	{Op: "next_duel", Args: fixedArgs(map[string]any{"exclude": []string{duelstest.DuelDecided}}), Status: 501},
+	{Op: "get_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen}), Status: 501},
+	{Op: "list_duels", Args: fixedArgs(map[string]any{"state": []string{"open", "decided"}, "mode": "blind", "limit": 10}), Status: 501},
+	{Op: "submit_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen, "verdict": "a", "note": "parity", "latency_ms": 4000, "switches": 3}), SkipGeneric: true, Status: 501},
+	{Op: "get_ladder", Args: fixedArgs(map[string]any{"scope": "lineage", "root_track_id": duelstest.TrackAlpha}), Status: 501},
+	{Op: "get_track_analysis", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack}), Status: 501},
+	{Op: "get_track_spectrogram", Variant: "inline", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack}), Status: 501},
+	{Op: "get_track_spectrogram", Variant: "link", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack, "inline": false}), Status: 501},
+	{Op: "compare_tracks", Args: fixedArgs(map[string]any{"a": duelstest.TrackAlpha, "b": duelstest.TrackBeta}), Status: 501},
+}
 
 // judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn
 // from the rig's id sequence (which the audit rows of the extra call_operation
@@ -313,9 +330,11 @@ func parityScript(t *testing.T, a huma.API) paritySteps {
 	ps := paritySteps{ops: map[string]api.OpInfo{}}
 	have := map[string]bool{}
 	for _, c := range parityCases {
-		if have[c.Op] {
-			t.Errorf("duplicate parity case for %s", c.Op)
+		key := c.Op + "/" + c.Variant
+		if have[key] {
+			t.Errorf("duplicate parity case for %s", key)
 		}
+		have[key] = true
 		have[c.Op] = true
 	}
 	for _, op := range api.Operations(a) {
@@ -356,6 +375,13 @@ func parityScript(t *testing.T, a huma.API) paritySteps {
 // call_operation when generic) and returns the normalised structured result.
 func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[string]any, viaGeneric bool, masks []string, wantErr bool) any {
 	t.Helper()
+	res, name := mcpRaw(t, sess, op, args, viaGeneric)
+	return normalizeResult(t, res, op, name, masks, wantErr)
+}
+
+// mcpRaw performs the call and returns the result and the tool name used.
+func mcpRaw(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[string]any, viaGeneric bool) (*mcp.CallToolResult, string) {
+	t.Helper()
 	name, params := op.ID, any(args)
 	if viaGeneric || op.Meta.MCP != "tool" {
 		name, params = "call_operation", map[string]any{"operation_id": op.ID, "arguments": args}
@@ -364,6 +390,11 @@ func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[stri
 	if err != nil {
 		t.Fatalf("%s via %s: %v", op.ID, name, err)
 	}
+	return res, name
+}
+
+func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name string, masks []string, wantErr bool) any {
+	t.Helper()
 	if wantErr {
 		if !res.IsError || len(res.Content) == 0 {
 			t.Fatalf("%s via %s: expected a tool error, got %+v", op.ID, name, res)
@@ -388,7 +419,7 @@ func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[stri
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true}
+	opts := servertest.Options{Fixture: true, Files: true, M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
@@ -415,12 +446,21 @@ func runParity(t *testing.T, stdio bool) {
 		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
 		}
-		want := servertest.Normalize(resp.JSON(t), c.Masks...)
+		restJSON := resp.JSON(t)
+		isImage := op.Meta.MCPImage && c.Status == 0
+		if isImage {
+			restJSON = withoutImageData(restJSON) // MCP never carries data_base64 in structured content
+		}
+		want := servertest.Normalize(restJSON, c.Masks...)
 		sessions := map[string]*mcp.ClientSession{"mcp": mcpSess}
 		if stdio {
 			sessions["stdio"] = stdioSess
 		}
 		for face, sess := range sessions {
+			if isImage {
+				res, _ := mcpRaw(t, sess, op, args, false)
+				checkImageParity(t, op.ID+"/"+face, resp.JSON(t), res)
+			}
 			if diff := cmp.Diff(want, mcpCall(t, sess, op, args, false, c.Masks, c.Status != 0)); diff != "" {
 				t.Errorf("%s: REST vs %s mismatch (-rest +%s):\n%s", op.ID, face, face, diff)
 			}
@@ -541,7 +581,10 @@ func TestToolsListGolden(t *testing.T) {
 // M1-B4 re-baseline 4412 -> 42997: six new tools (search_tracks, get_track, get_media_links, list_drafts,
 // get_draft, get_stats) carry full output schemas (TrackDetail alone is ~15 KB); the 13 M1 operations
 // are the milestone's whole read surface.
-const toolsListBaselineBytes = 85917
+//
+// M2b-B2 re-baseline 85917 -> 130984: four first-class M2b tools (next_duel, submit_duel, get_track_analysis,
+// get_track_spectrogram) with full output schemas; create_duel, get_ladder and compare_tracks are generic (D-M2b-22).
+const toolsListBaselineBytes = 130984
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {

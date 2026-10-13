@@ -3,6 +3,8 @@ package acceptance_test
 import (
 	"context"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -39,7 +41,7 @@ func mcpWithToken(t *testing.T, r *servertest.Rig, tok string) *mcp.ClientSessio
 
 // uiState carries ids between the steps of the scripted agent session.
 type uiState struct {
-	track, timed, draft, playlist, comment, export, run string
+	track, timed, draft, playlist, comment, export, run, duel string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -119,6 +121,23 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	},
 	"create_backup": func(*uiState) map[string]any { return nil },
 	"get_audit":     func(*uiState) map[string]any { return nil }, // arguments built by the test
+
+	// M2b (C53): duels, ladder and Ears.
+	"create_duel": func(s *uiState) map[string]any {
+		return map[string]any{"a_track_id": s.track, "b_track_id": s.timed, "blind": true}
+	},
+	"next_duel":  func(*uiState) map[string]any { return nil },
+	"get_duel":   func(s *uiState) map[string]any { return map[string]any{"id": s.duel} },
+	"list_duels": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"submit_duel": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.duel, "verdict": "tie", "note": "scripted", "latency_ms": 1200, "switches": 2}
+	},
+	"get_ladder":         func(*uiState) map[string]any { return nil },
+	"get_track_analysis": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
+	"get_track_spectrogram": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.track, "inline": false}
+	},
+	"compare_tracks": func(s *uiState) map[string]any { return map[string]any{"a": s.track, "b": s.timed} },
 }
 
 // uiOrder is the order of the scripted session: reads of the archive first, then writes, then reads of
@@ -131,6 +150,51 @@ var uiOrder = []string{
 	"create_playlist", "list_playlists", "get_playlist", "update_playlist", "export_playlist_zip", "get_export",
 	"list_export_sources", "export_jsonl", "list_import_runs", "get_import_run",
 	"list_device_profiles", "put_device_profile", "get_device_probe", "list_tokens", "list_backups", "create_backup",
+	"create_duel", "next_duel", "get_duel", "list_duels", "submit_duel", "get_ladder",
+	"get_track_analysis", "get_track_spectrogram", "compare_tracks",
+}
+
+// stubbedPackage maps an M2b operation to the package whose service may still be a STUB(M2b-...).
+var stubbedPackage = map[string]string{
+	"create_duel": "duels", "next_duel": "duels", "get_duel": "duels", "list_duels": "duels", "submit_duel": "duels", "get_ladder": "duels",
+	"get_track_analysis": "ears", "get_track_spectrogram": "ears", "compare_tracks": "ears",
+}
+
+// stubbed reports whether the service behind op still carries a STUB(M2b- marker. Until the lane lands, the
+// scripted call may answer 501 NOT_IMPLEMENTED and the audit trail may hold its 501 row; M2b-B3 removes this
+// allowance (no markers are left by then, so it would never trigger anyway).
+func stubbed(t *testing.T, op string) bool {
+	t.Helper()
+	pkg, ok := stubbedPackage[op]
+	if !ok {
+		return false
+	}
+	dir := filepath.Join("..", pkg)
+	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no sources in %s: %v", dir, err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f) //nolint:gosec // repository source
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "STUB(M2b-") {
+			return true
+		}
+	}
+	return false
+}
+
+func isNotImplemented(res *mcp.CallToolResult) bool {
+	if !res.IsError || len(res.Content) == 0 {
+		return false
+	}
+	tc, ok := res.Content[0].(*mcp.TextContent)
+	return ok && strings.Contains(tc.Text, `"NOT_IMPLEMENTED"`)
 }
 
 // afterStep records the ids later steps need.
@@ -145,6 +209,10 @@ func (s *uiState) afterStep(op string, res any) {
 		s.export, _ = m["id"].(string)
 	case "create_draft":
 		s.draft, _ = m["id"].(string)
+	case "create_duel":
+		if id, _ := m["id"].(string); id != "" {
+			s.duel = id
+		}
 	case "list_import_runs":
 		if items, _ := m["items"].([]any); len(items) > 0 {
 			s.run, _ = items[0].(map[string]any)["id"].(string)
@@ -189,7 +257,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		t.Fatal(err)
 	}
 	sess := mcpWithToken(t, r, tok)
-	st := &uiState{}
+	st := &uiState{duel: "01900000-0000-7000-8000-000000000b01"}
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
 	st.draft = obj(obj(h.OK(t, "GET", "/api/drafts?limit=1", nil))["items"].([]any)[0])["id"].(string)
@@ -200,12 +268,21 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 	}
 	var called []string
+	stubs := map[string]bool{} // ops that answered 501 while their service is still a stub
 	for _, id := range uiOrder {
 		op := have[id]
 		args := uiScript[id](st)
 		generic := op.Meta.MCP != "tool"
-		res := callTool(t, sess, id, args, generic)
-		st.afterStep(id, res)
+		raw := rawTool(t, sess, id, args, generic)
+		if raw.IsError && isNotImplemented(raw) && stubbed(t, id) {
+			stubs[id] = true
+			called = append(called, id)
+			continue
+		}
+		if raw.IsError {
+			t.Fatalf("%s: tool error: %+v", id, raw.Content)
+		}
+		st.afterStep(id, decodeStructured(t, raw))
 		called = append(called, id)
 	}
 
@@ -233,7 +310,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}
-		if s, _ := row["status"].(float64); int(s)/100 != 2 {
+		if s, _ := row["status"].(float64); int(s)/100 != 2 && !(int(s) == 501 && stubs[row["op"].(string)]) {
 			t.Errorf("audit row %v has status %v", row["op"], row["status"])
 		}
 		gotOps = append(gotOps, row["op"].(string))
