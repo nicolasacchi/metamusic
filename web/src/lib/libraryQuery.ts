@@ -5,7 +5,7 @@ export type SearchQuery = NonNullable<operations["search_tracks"]["parameters"][
 export type Sort = NonNullable<SearchQuery["sort"]>;
 export type Status = NonNullable<SearchQuery["status"]>[number];
 
-export const SORTS: readonly Sort[] = ["recorded_desc", "recorded_asc", "duration_desc", "duration_asc", "title_asc", "relevance"];
+export const SORTS: readonly Sort[] = ["recorded_desc", "recorded_asc", "duration_desc", "duration_asc", "title_asc", "relevance", "stars_desc"];
 export const STATUSES: readonly Status[] = ["draft", "to_relisten", "final", "discarded"];
 export const MAX_STYLE_TERMS = 5;
 
@@ -19,6 +19,10 @@ export interface Filters {
   recordedTo: string;
   hasScore: boolean | null;
   truncated: boolean | null;
+  /** Human stars at least (1-5); null = no filter. Exclusive with `unrated`. */
+  minStars: number | null;
+  unrated: boolean;
+  tag: string[];
   sort: Sort;
 }
 
@@ -33,6 +37,9 @@ export function defaultFilters(): Filters {
     recordedTo: "",
     hasScore: null,
     truncated: null,
+    minStars: null,
+    unrated: false,
+    tag: [],
     sort: "recorded_desc",
   };
 }
@@ -64,6 +71,10 @@ export function parseFilters(search: string | URLSearchParams): Filters {
   f.recordedTo = p.get("recorded_to") ?? "";
   f.hasScore = bool(p.get("has_score"));
   f.truncated = bool(p.get("truncated"));
+  f.unrated = p.get("unrated") === "true";
+  const ms = num(p.get("min_stars"));
+  f.minStars = !f.unrated && ms !== null && Number.isInteger(ms) && ms >= 1 && ms <= 5 ? ms : null;
+  f.tag = [...new Set(p.getAll("tag").filter(Boolean))];
   const sort = p.get("sort");
   f.sort = sort && (SORTS as readonly string[]).includes(sort) ? (sort as Sort) : defaultSort(f.q);
   return f;
@@ -80,6 +91,9 @@ function pairs(f: Filters): [string, string][] {
   if (f.recordedTo) out.push(["recorded_to", f.recordedTo]);
   if (f.hasScore !== null) out.push(["has_score", String(f.hasScore)]);
   if (f.truncated !== null) out.push(["truncated", String(f.truncated)]);
+  if (f.unrated) out.push(["unrated", "true"]);
+  else if (f.minStars !== null) out.push(["min_stars", String(f.minStars)]);
+  for (const t of f.tag) out.push(["tag", t]);
   if (f.sort !== defaultSort(f.q)) out.push(["sort", f.sort]);
   return out;
 }
@@ -103,6 +117,9 @@ export function toApiQuery(f: Filters): SearchQuery {
   if (f.recordedTo) q.recorded_to = f.recordedTo;
   if (f.hasScore !== null) q.has_score = f.hasScore;
   if (f.truncated !== null) q.truncated = f.truncated;
+  if (f.unrated) q.unrated = true;
+  else if (f.minStars !== null) q.min_stars = f.minStars;
+  if (f.tag.length) q.tag = f.tag;
   if (f.sort !== defaultSort(f.q)) q.sort = f.sort;
   return q;
 }

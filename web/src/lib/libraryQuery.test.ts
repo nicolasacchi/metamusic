@@ -79,3 +79,29 @@ t2("defaultSort follows q; an explicit non-default sort survives in the URL", ()
   ex(f.sort).toBe("recorded_desc");
   ex(ts(f)).toBe("?q=x&sort=recorded_desc");
 });
+
+describe("libraryQuery judging filters", () => {
+  test("min_stars, unrated, repeated status and tag round-trip", () => {
+    const f = { ...defaultFilters(), minStars: 4, status: ["final"] as Status[], tag: ["a", "b"] };
+    const s = toSearch(f);
+    expect(s).toBe("?status=final&min_stars=4&tag=a&tag=b");
+    expect(parseFilters(s)).toEqual(f);
+    expect(toApiQuery(f)).toEqual({ status: ["final"], min_stars: 4, tag: ["a", "b"] });
+  });
+  test("unrated is exclusive with min_stars (unrated wins)", () => {
+    const f = parseFilters("?min_stars=3&unrated=true");
+    expect(f.unrated).toBe(true);
+    expect(f.minStars).toBeNull();
+    expect(toSearch(f)).toBe("?unrated=true");
+    expect(toApiQuery(f)).toEqual({ unrated: true });
+  });
+  test("bad stars are ignored; stars_desc is a sort", () => {
+    expect(parseFilters("?min_stars=9").minStars).toBeNull();
+    expect(parseFilters("?min_stars=0").minStars).toBeNull();
+    expect(parseFilters("?min_stars=2.5").minStars).toBeNull();
+    expect(parseFilters("?sort=stars_desc").sort).toBe("stars_desc");
+  });
+  test("tags are deduplicated", () => {
+    expect(parseFilters("?tag=a&tag=a&tag=b").tag).toEqual(["a", "b"]);
+  });
+});

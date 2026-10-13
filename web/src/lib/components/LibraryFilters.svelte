@@ -88,8 +88,21 @@
       filters.recordedFrom !== "" ||
       filters.recordedTo !== "" ||
       filters.hasScore !== null ||
-      filters.truncated !== null,
+      filters.truncated !== null ||
+      filters.minStars !== null ||
+      filters.unrated ||
+      filters.tag.length > 0,
   );
+
+  /** "" = any, "unrated", or "1".."5" (at least). */
+  const starsValue = $derived(filters.unrated ? "unrated" : filters.minStars === null ? "" : String(filters.minStars));
+  function onstars(e: Event) {
+    const v = (e.currentTarget as HTMLSelectElement).value;
+    patch(v === "unrated" ? { unrated: true, minStars: null } : v === "" ? { unrated: false, minStars: null } : { unrated: false, minStars: Number(v) });
+  }
+  function toggleTag(tag: string) {
+    patch({ tag: filters.tag.includes(tag) ? filters.tag.filter((x) => x !== tag) : [...filters.tag, tag] });
+  }
 </script>
 
 <form class="filters" role="search" aria-label="Filter tracks" onsubmit={(e) => e.preventDefault()}>
@@ -138,8 +151,16 @@
         <option value="false">complete</option>
       </select>
     </label>
+    <label>
+      Stars
+      <select name="min_stars" value={starsValue} onchange={onstars} data-testid="filter-stars">
+        <option value="">any</option>
+        <option value="unrated">unrated{facets ? ` (${facets.unrated})` : ""}</option>
+        {#each [5, 4, 3, 2, 1] as n (n)}<option value={String(n)}>{n}+ ★</option>{/each}
+      </select>
+    </label>
     {#if dirty}
-      <button type="button" onclick={() => { pending = false; clearTimeout(timer); onchange({ ...filters, q: "", status: [], style: [], minDuration: null, maxDuration: null, recordedFrom: "", recordedTo: "", hasScore: null, truncated: null, sort: "recorded_desc" }); }}>Clear</button>
+      <button type="button" onclick={() => { pending = false; clearTimeout(timer); onchange({ ...filters, q: "", status: [], style: [], minDuration: null, maxDuration: null, recordedFrom: "", recordedTo: "", hasScore: null, truncated: null, minStars: null, unrated: false, tag: [], sort: "recorded_desc" }); }}>Clear</button>
     {/if}
   </div>
 
@@ -149,6 +170,23 @@
       <label class="check"><input type="checkbox" checked={filters.status.includes(s)} onchange={() => toggleStatus(s)} /> {s}</label>
     {/each}
   </fieldset>
+
+  {#if facets && (facets.tags.length > 0 || filters.tag.length > 0)}
+    <fieldset>
+      <legend>Tags (all selected must match)</legend>
+      <div class="terms" data-testid="tag-facets">
+        {#each filters.tag.filter((s) => !facets.tags.some((t) => t.tag === s)) as tag (tag)}
+          <button type="button" class="term on" aria-pressed="true" onclick={() => toggleTag(tag)}>{tag}</button>
+        {/each}
+        {#each facets.tags as t (t.tag)}
+          {@const on = filters.tag.includes(t.tag)}
+          <button type="button" class="term" class:on aria-pressed={on} onclick={() => toggleTag(t.tag)}>
+            {t.tag} <span class="muted">{t.count}</span>
+          </button>
+        {/each}
+      </div>
+    </fieldset>
+  {/if}
 
   {#if facets && (facets.style_terms.length > 0 || filters.style.length > 0)}
     <fieldset>

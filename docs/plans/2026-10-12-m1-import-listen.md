@@ -1617,7 +1617,7 @@ web/src/
   lib/device.svelte.ts               device id, quality, probe (C22.3)
   lib/peaks.ts                       pure: peaksToColumns(data, pairs, width) → {min,max}[]
   lib/sections.ts                    pure: sectionAt(sections, t) → idx | -1 (−1 when untimed)
-  lib/time.ts                        fmt(seconds) "m:ss"; parseT("72"|"1:12") → seconds
+  lib/time.ts                        fmt(seconds) "m:ss"; parseT("72"|"72.0"|"1:12"|"1:12.5") → seconds (decimals added by M2a-W1)
   lib/libraryQuery.ts                filters ⇄ URL query string (back/forward restores filters)
   api/session.ts                     session-loss detection + confirmation probe (C22.4; inside web/src/api/)
 ```
