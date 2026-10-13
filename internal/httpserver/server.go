@@ -13,14 +13,22 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/gate"
 	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
 // Options configures New.
@@ -55,6 +63,21 @@ type Options struct {
 	Idem    *idem.Store
 	Limiter *ratelimit.Limiter
 	NewID   func() string // nil => UUIDv7
+
+	// M2a services (C39); they reach api.Deps. A nil value makes the matching
+	// operations answer 503 UNAVAILABLE (once their handlers exist).
+	Judgments *judgments.Service
+	Drafts    *drafts.Service
+	Playlists *playlists.Service
+	Exports   *exports.Service
+	Backups   *backup.Service
+	Context   *trackctx.Builder
+	Listening *listening.Service
+	// Devices verifies the device cookie; a nil interface disables device auth.
+	// DeviceStore backs the pairing pages and the device operations.
+	Devices     auth.DeviceVerifier
+	DeviceStore *auth.DeviceStore
+	Notify      notify.Notifier
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -76,7 +99,9 @@ func New(o Options) (http.Handler, error) {
 	}
 	inner := http.NewServeMux()
 	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
-		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID})
+		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
+		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
+		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
@@ -174,7 +199,12 @@ func New(o Options) (http.Handler, error) {
 	}
 	mux.Handle("/", spaHandler(o.SPA))
 
-	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions)(mux)
+	// A nil *DeviceStore must reach the middleware as a nil interface.
+	devices := o.Devices
+	if devices == nil && o.DeviceStore != nil {
+		devices = o.DeviceStore
+	}
+	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions, devices)(mux)
 	if leaks != nil {
 		outer = leaks.wrap(outer)
 	}

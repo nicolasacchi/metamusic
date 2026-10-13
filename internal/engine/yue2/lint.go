@@ -25,8 +25,8 @@ type LintResult struct {
 	Index              int      `json:"index"`
 	RequestID          string   `json:"request_id"`
 	Hash               string   `json:"hash"`
-	Errors             []Issue  `json:"errors"`
-	Warnings           []Issue  `json:"warnings"`
+	Errors             []Issue  `json:"errors" nullable:"false"`
+	Warnings           []Issue  `json:"warnings" nullable:"false"`
 	EstimatedDurationS float64  `json:"estimated_duration_s"`
 	DurationBasis      string   `json:"duration_basis"` // abc | lyrics_style_bpm | lyrics_default_bpm
 	Language           Language `json:"language"`
@@ -47,8 +47,8 @@ type LintCounts struct {
 // LintReport is the outcome of linting a list of items.
 type LintReport struct {
 	OK          bool         `json:"ok"`
-	Items       []LintResult `json:"items"`
-	BatchErrors []Issue      `json:"batch_errors"`
+	Items       []LintResult `json:"items" nullable:"false"`
+	BatchErrors []Issue      `json:"batch_errors" nullable:"false"`
 }
 
 // Lint runs protocol and songwriting checks.

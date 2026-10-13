@@ -119,7 +119,7 @@ func newServer(a huma.API, inner http.Handler, version string, tr reqinfo.Transp
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: op.Method == http.MethodGet, IdempotentHint: op.Method == http.MethodGet},
 		}
 		if spec.Output != nil {
-			t.OutputSchema = spec.Output
+			t.OutputSchema = slimOutputSchema(spec.Output)
 		}
 		// Unset openWorldHint means true to clients, so free ops say false.
 		open := op.Meta.Cost == "spend"

@@ -289,3 +289,54 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 	spec.Input, spec.Output = input, output
 	return spec, nil
 }
+
+// slimOutputSchema is the outputSchema advertised in tools/list: the shape of
+// the result without descriptions, additionalProperties and required lists.
+// The server produced the result itself, so the strict parts add no safety,
+// and prose costs context on every tools/list (C41 ceiling). The full schema
+// stays available through describe_operation.
+func slimOutputSchema(s map[string]any) map[string]any {
+	out, _ := slimSchema(s).(map[string]any)
+	return out
+}
+
+func slimSchema(v any) any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	out := make(map[string]any, len(m))
+	for k, x := range m {
+		switch k {
+		case "description", "additionalProperties", "required", "examples", "default":
+			continue
+		case "properties", "$defs", "definitions", "patternProperties":
+			named, ok := x.(map[string]any)
+			if !ok {
+				out[k] = x
+				continue
+			}
+			cp := make(map[string]any, len(named))
+			for name, sub := range named {
+				cp[name] = slimSchema(sub)
+			}
+			out[k] = cp
+		case "items", "not", "if", "then", "else":
+			out[k] = slimSchema(x)
+		case "anyOf", "oneOf", "allOf", "prefixItems":
+			list, ok := x.([]any)
+			if !ok {
+				out[k] = x
+				continue
+			}
+			cp := make([]any, len(list))
+			for i, sub := range list {
+				cp[i] = slimSchema(sub)
+			}
+			out[k] = cp
+		default:
+			out[k] = x
+		}
+	}
+	return out
+}

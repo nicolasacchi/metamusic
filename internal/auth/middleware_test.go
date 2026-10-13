@@ -49,7 +49,7 @@ func cfg(mode string) (config.Config, config.Secrets) {
 func run(mode string, r *http.Request) (*httptest.ResponseRecorder, Kind) {
 	c, s := cfg(mode)
 	var seen Kind
-	h := Middleware(c, s, fakeTokens{}, fakeSessions{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = FromContext(r.Context()).Kind
 		w.WriteHeader(200)
 	}))
@@ -235,7 +235,7 @@ func TestCrossOriginProtection(t *testing.T) {
 // runP is like run but returns the principal seen by the handler.
 func runP(c config.Config, s config.Secrets, r *http.Request) (*httptest.ResponseRecorder, Principal) {
 	var seen Principal
-	h := Middleware(c, s, fakeTokens{}, fakeSessions{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = FromContext(r.Context())
 	}))
 	rec := httptest.NewRecorder()
@@ -323,14 +323,14 @@ func TestInfrastructureErrorsAre500(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/x", nil)
 	r.Header.Set("Authorization", "Bearer mmp_whatever")
 	rec := httptest.NewRecorder()
-	Middleware(c, s, errTokens{}, fakeSessions{})(http.NotFoundHandler()).ServeHTTP(rec, r)
+	Middleware(c, s, errTokens{}, fakeSessions{}, nil)(http.NotFoundHandler()).ServeHTTP(rec, r)
 	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) || strings.Contains(rec.Body.String(), "db down") {
 		t.Fatalf("token infra error: %d %s", rec.Code, rec.Body.String())
 	}
 	r = httptest.NewRequest("GET", "/api/x", nil)
 	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "x"})
 	rec = httptest.NewRecorder()
-	Middleware(c, s, fakeTokens{}, errSessions{})(http.NotFoundHandler()).ServeHTTP(rec, r)
+	Middleware(c, s, fakeTokens{}, errSessions{}, nil)(http.NotFoundHandler()).ServeHTTP(rec, r)
 	if rec.Code != 500 || !strings.Contains(rec.Body.String(), `"code":"INTERNAL"`) {
 		t.Fatalf("session infra error: %d %s", rec.Code, rec.Body.String())
 	}
@@ -392,7 +392,7 @@ func (brokenSessions) VerifySession(context.Context, string) (Principal, error) 
 func TestMiddleware_SessionStoreErrorIs500(t *testing.T) {
 	c, s := cfg("local")
 	c.PublicURL = "http://mm.example.com"
-	h := Middleware(c, s, fakeTokens{}, brokenSessions{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(c, s, fakeTokens{}, brokenSessions{}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler must not run")
 	}))
 	r := httptest.NewRequest("GET", "/api/v1/system/info", nil)

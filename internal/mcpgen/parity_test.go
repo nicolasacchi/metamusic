@@ -124,6 +124,7 @@ type ParityCase struct {
 	Masks       []string
 	SkipGeneric bool // do not repeat the call through call_operation (non-replayable mutations)
 	Last        bool // runs after every other case (ops that end a principal)
+	Status      int  // expected HTTP status (0 => any 2xx); M2a stubs expect 501 on every face
 }
 
 func fixedArgs(m map[string]any) func(*servertest.Rig) map[string]any {
@@ -149,6 +150,41 @@ var parityCases = []ParityCase{
 		"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
 	})},
 }
+
+// stubCases are the M2a operations whose handlers are still STUB(M2a-Bn): all
+// three faces must answer the same 501 NOT_IMPLEMENTED. Each owning task
+// replaces its entries with real cases.
+var stubCases = []ParityCase{
+	{Op: "rate_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "stars": 4}), Status: 501},
+	{Op: "update_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "status": "final"}), Status: 501},
+	{Op: "set_tags", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "add": []string{"ballad"}}), Status: 501},
+	{Op: "list_tags", Status: 501},
+	{Op: "add_comment", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "body": "second chorus drags", "kind": "fix"}), Status: 501},
+	{Op: "update_comment", Args: fixedArgs(map[string]any{"id": "c1", "state": "resolved"}), Status: 501},
+	{Op: "list_comments", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "limit": 10}), Status: 501},
+	{Op: "get_track_context", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 501},
+	{Op: "log_listen_events", Args: fixedArgs(map[string]any{"events": []map[string]any{{
+		"id": "01900000-0000-7000-8000-0000000000a1", "track_id": lt.TrackLuna, "session_id": "s1", "kind": "start", "client_at": "2026-10-06T11:59:00Z"}}}), Status: 501},
+	{Op: "lint_recipe", Args: fixedArgs(map[string]any{"items": []map[string]any{{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}}}), Status: 501},
+	{Op: "create_draft", Args: fixedArgs(map[string]any{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}), Status: 501},
+	{Op: "update_draft", Args: fixedArgs(map[string]any{"id": lt.Draft1, "revision": 1, "status": "archived"}), Status: 501},
+	{Op: "upload_batch_jsonl", Args: fixedArgs(map[string]any{"jsonl": "{}\n"}), Status: 501},
+	{Op: "list_playlists", Status: 501},
+	{Op: "get_playlist", Args: fixedArgs(map[string]any{"id": "p1"}), Status: 501},
+	{Op: "create_playlist", Args: fixedArgs(map[string]any{"name": "Night"}), Status: 501},
+	{Op: "update_playlist", Args: fixedArgs(map[string]any{"id": "p1", "revision": 1, "name": "Day"}), Status: 501},
+	{Op: "export_playlist_zip", Args: fixedArgs(map[string]any{"id": "p1"}), Status: 501},
+	{Op: "list_export_sources", Status: 501},
+	{Op: "export_jsonl", Args: fixedArgs(map[string]any{"selection": "tracks"}), Status: 501},
+	{Op: "get_export", Args: fixedArgs(map[string]any{"id": "e1"}), Status: 501},
+	{Op: "create_backup", Status: 501},
+	{Op: "list_backups", Status: 501},
+	{Op: "get_audit", Args: fixedArgs(map[string]any{"limit": 10}), Status: 501},
+	{Op: "list_tokens", Status: 501},
+	{Op: "revoke_own_token", Status: 501},
+}
+
+func init() { parityCases = append(parityCases, stubCases...) }
 
 // needsFixture reports whether an operation must carry a parity fixture: any
 // non-GET method, or any path/query/header parameter, or a request body.
@@ -292,7 +328,7 @@ func parityScript(t *testing.T, a huma.API) paritySteps {
 
 // faceCall runs one case on an MCP session through the first-class tool (or
 // call_operation when generic) and returns the normalised structured result.
-func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[string]any, viaGeneric bool, masks []string) any {
+func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[string]any, viaGeneric bool, masks []string, wantErr bool) any {
 	t.Helper()
 	name, params := op.ID, any(args)
 	if viaGeneric || op.Meta.MCP != "tool" {
@@ -301,6 +337,20 @@ func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[stri
 	res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: params})
 	if err != nil {
 		t.Fatalf("%s via %s: %v", op.ID, name, err)
+	}
+	if wantErr {
+		if !res.IsError || len(res.Content) == 0 {
+			t.Fatalf("%s via %s: expected a tool error, got %+v", op.ID, name, res)
+		}
+		tc, ok := res.Content[0].(*mcp.TextContent)
+		if !ok {
+			t.Fatalf("%s via %s: error content %T", op.ID, name, res.Content[0])
+		}
+		var v any
+		if err := json.Unmarshal([]byte(tc.Text), &v); err != nil {
+			t.Fatalf("%s via %s: error text is not JSON: %v", op.ID, name, err)
+		}
+		return servertest.Normalize(v, masks...)
 	}
 	return servertest.Normalize(structured(t, res), masks...)
 }
@@ -336,7 +386,7 @@ func runParity(t *testing.T, stdio bool) {
 			headers = append(headers, "Idempotency-Key", fmt.Sprintf("parity-%d", i))
 		}
 		resp := restClient.Do(t, op.Method, path, body, headers...)
-		if resp.Status/100 != 2 {
+		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
 		}
 		want := servertest.Normalize(resp.JSON(t), c.Masks...)
@@ -345,12 +395,12 @@ func runParity(t *testing.T, stdio bool) {
 			sessions["stdio"] = stdioSess
 		}
 		for face, sess := range sessions {
-			if diff := cmp.Diff(want, mcpCall(t, sess, op, args, false, c.Masks)); diff != "" {
+			if diff := cmp.Diff(want, mcpCall(t, sess, op, args, false, c.Masks, c.Status != 0)); diff != "" {
 				t.Errorf("%s: REST vs %s mismatch (-rest +%s):\n%s", op.ID, face, face, diff)
 			}
 			if op.Meta.MCP == "tool" && !c.SkipGeneric {
 				// Replays (derived key) or idempotent writes: the generic route must agree too.
-				if diff := cmp.Diff(want, mcpCall(t, sess, op, args, true, c.Masks)); diff != "" {
+				if diff := cmp.Diff(want, mcpCall(t, sess, op, args, true, c.Masks, c.Status != 0)); diff != "" {
 					t.Errorf("%s: REST vs %s call_operation mismatch:\n%s", op.ID, face, diff)
 				}
 			}
@@ -459,7 +509,7 @@ func TestToolsListGolden(t *testing.T) {
 // M1-B4 re-baseline 4412 -> 42997: six new tools (search_tracks, get_track, get_media_links, list_drafts,
 // get_draft, get_stats) carry full output schemas (TrackDetail alone is ~15 KB); the 13 M1 operations
 // are the milestone's whole read surface.
-const toolsListBaselineBytes = 42997
+const toolsListBaselineBytes = 85917
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {

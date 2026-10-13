@@ -107,7 +107,7 @@ type opWant struct {
 }
 
 var m1Ops = []opWant{
-	{"search_tracks", "GET", "/api/tracks", "tool", "/", auth.ScopeRead, []string{"status", "style"}},
+	{"search_tracks", "GET", "/api/tracks", "tool", "/", auth.ScopeRead, []string{"status", "style", "tag"}},
 	{"get_library_facets", "GET", "/api/library/facets", "generic", "/", auth.ScopeRead, nil},
 	{"get_track", "GET", "/api/tracks/{id}", "tool", "/tracks/:id", auth.ScopeRead, nil},
 	{"get_track_peaks", "GET", "/api/tracks/{id}/peaks", "generic", "/tracks/:id", auth.ScopeRead, nil},
@@ -359,6 +359,29 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 		t.Errorf("reference inside request")
 	}
 	r.problem(t, human, "GET", "/api/drafts/nope", "", 404, "NOT_FOUND")
+
+	// a paired device counts as the operator (D-M2a-1)
+	dev := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
+	if d := r.get(t, dev, "/api/drafts/"+id); d["reference"] == nil {
+		t.Errorf("device must see the reference like the operator: %v", d)
+	}
+}
+
+func TestWhoami_Device(t *testing.T) {
+	r := newRig(t)
+	dev := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
+	m := r.get(t, dev, "/api/me")
+	if m["kind"] != "device" || m["via"] != "device" || m["name"] != "Phone" {
+		t.Errorf("whoami = %v", m)
+	}
+	if sc := m["scopes"].([]any); len(sc) != 2 || sc[0] != "read" || sc[1] != "write" {
+		t.Errorf("device scopes = %v", sc)
+	}
+	// and the contract says so
+	b, _ := api.OpenAPIJSON(api.New(http.NewServeMux(), api.Deps{}))
+	if !strings.Contains(string(b), `"human",`) || !strings.Contains(string(b), `"device"`) {
+		t.Error("whoami kind enum must list device")
+	}
 }
 
 func TestListDrafts_REST(t *testing.T) {
@@ -460,4 +483,24 @@ func TestSystemInfoUsesDepsNow(t *testing.T) {
 	if m["uptime_s"] != float64(90) || m["started_at"] != "2026-10-06T11:58:30Z" {
 		t.Errorf("system: %v", m)
 	}
+}
+
+func (r *rig) callWith(p auth.Principal, method, path, body string, hdr ...string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(auth.WithPrincipal(context.Background(), p))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for i := 0; i+1 < len(hdr); i += 2 {
+		req.Header.Set(hdr[i], hdr[i+1])
+	}
+	w := httptest.NewRecorder()
+	r.mux.ServeHTTP(w, req)
+	return w
+}
+
+func decodeProblem(t *testing.T, b []byte) map[string]any {
+	t.Helper()
+	var m map[string]any
+	_ = json.Unmarshal(b, &m)
+	return m
 }

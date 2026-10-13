@@ -30,6 +30,13 @@ commands:
   token revoke ID
   user set-password --username U (password read from stdin)
   mcp-stdio                      serve MCP on stdin/stdout as the agent owning MM_TOKEN (no MM_AUTH needed)
+  export (--source PATH | --tracks | --drafts) [--for-batch] [--out DIR]
+                                 write songs.jsonl for a selection (exit 1 when the validator reports issues)
+  validate-batch FILE            check a songs.jsonl like yue2 batch (exit 0 ok, 1 issues, 2 usage)
+  backup [--to DIR] | backup list
+                                 take a snapshot now, or list snapshots
+  restore --from SNAPSHOT --into DIR
+                                 rebuild a data directory from a snapshot
   import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
          [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]
                                  inventory the inbox (--dry-run), then apply the reviewed plan (--plan)
@@ -79,6 +86,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdUser(ctx, rest, getenv, s)
 	case "mcp-stdio":
 		err = cmdMCPStdio(ctx, rest, getenv, s)
+	case "export":
+		err = cmdExport(ctx, rest, getenv, s)
+	case "validate-batch":
+		err = cmdValidateBatch(ctx, rest, s)
+	case "backup":
+		err = cmdBackup(ctx, rest, getenv, s)
+	case "restore":
+		err = cmdRestore(ctx, rest, getenv, s)
 	case "import":
 		err = cmdImport(ctx, rest, getenv, s)
 	case "seed-synthetic":

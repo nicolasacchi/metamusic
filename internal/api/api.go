@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -12,12 +13,20 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
 // SpecVersion is the OpenAPI document version. It is fixed (not the build
@@ -37,6 +46,18 @@ type Deps struct {
 	Signer  *serve.Signer
 	Probe   *serve.Object
 	Now     func() time.Time // nil => time.Now; fixes the clock in tests
+
+	// M2a (C28). Nil dependencies make the matching operations answer 503 UNAVAILABLE
+	// once their handlers exist; registration never dereferences them.
+	Judgments *judgments.Service
+	Drafts    *drafts.Service
+	Playlists *playlists.Service
+	Exports   *exports.Service
+	Backups   *backup.Service
+	Context   *trackctx.Builder
+	Listening *listening.Service
+	Audit     *audit.Store
+	Devices   *auth.DeviceStore
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -67,8 +88,50 @@ func HumaConfig() huma.Config {
 	cfg.DocsPath = "/api/docs"
 	cfg.SchemasPath = ""
 	cfg.CreateHooks = nil
+	cfg.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", schemaNamer)
 	return cfg
 }
+
+// wireNames gives schema components of package-local Go names a name that is
+// unambiguous in the one OpenAPI namespace (Go type -> component name).
+var wireNames = map[string]string{
+	"internal/backup.Run":               "BackupRun",
+	"internal/backup.RunStats":          "BackupRunStats",
+	"internal/backup.Listing":           "BackupListing",
+	"internal/backup.Snapshot":          "BackupSnapshot",
+	"internal/backup.Schedule":          "BackupSchedule",
+	"internal/exports.Link":             "DownloadLink",
+	"internal/exports.Rename":           "ExportRename",
+	"internal/exports.ABCFile":          "ExportABCFile",
+	"internal/exports.Validation":       "ExportValidation",
+	"internal/exports.StyleInfo":        "ExportStyle",
+	"internal/exports.JSONLInfo":        "ExportJSONLInfo",
+	"internal/exports.ZIPInfo":          "ExportZIPInfo",
+	"internal/exports.ZIPEntry":         "ExportZIPEntry",
+	"internal/export.Note":              "ExportNote",
+	"internal/playlists.Item":           "PlaylistItem",
+	"internal/trackctx.Bundle":          "ContextBundle",
+	"internal/trackctx.Budget":          "ContextBudget",
+	"internal/engine/yue2.Language":     "LintLanguage",
+	"internal/judgments.SectionRef":     "CommentSection",
+	"internal/judgments.TagSourceCount": "TagSourceCounts",
+	"internal/library.BackupStats":      "BackupStatus",
+	"internal/library.JudgmentStats":    "JudgmentCounters",
+	"internal/drafts.UploadDraft":       "UploadedDraft",
+	"internal/drafts.UploadIssue":       "UploadLineIssue",
+}
+
+func schemaNamer(t reflect.Type, hint string) string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if n, ok := wireNames[strings.TrimPrefix(t.PkgPath(), modulePath+"/")+"."+t.Name()]; ok {
+		return n
+	}
+	return huma.DefaultSchemaNamer(t, hint)
+}
+
+const modulePath = "github.com/nicolasacchi/metamusic"
 
 // New builds the Huma API on mux and registers every operation.
 func New(mux *http.ServeMux, d Deps) huma.API {
@@ -76,10 +139,19 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerSystem(a, d)
 	registerLibrary(a, d)
 	registerMedia(a, d)
-	registerDrafts(a, d)
+	registerDraftsM2a(a, d)
 	registerStats(a, d)
 	registerImports(a, d)
 	registerDevices(a, d)
+	registerJudgments(a, d)
+	registerContext(a, d)
+	registerListen(a, d)
+	registerPlaylists(a, d)
+	registerExports(a, d)
+	registerBackups(a, d)
+	registerAudit(a, d)
+	registerTokens(a, d)
+	registerPairedDevices(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	return a

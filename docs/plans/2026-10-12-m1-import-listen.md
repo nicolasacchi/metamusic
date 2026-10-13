@@ -1346,6 +1346,10 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
   `..` segment in ClassUI (anonymous ⇒ proxy mode 401 plain text "Not authenticated", local mode 303 to
   `/auth/login`), and with a principal (e.g. a bearer, C3 row 1) ServeMux answers 301 to the cleaned
   path; tests assert "never 200, never file bytes".
+- **M2a-B4a addendum:** `serve.Object` gains `DownloadName string` (empty for library objects; the handler
+  sends `Content-Disposition: attachment` when set, M2a-B6), `serve.Chain(resolvers ...Resolver) Resolver` tries
+  resolvers in order (library, then exports; `ErrNotFound` falls through), and `serve.TTLFor` gives the 12 h /
+  1 h-bucket lifetime to `Principal.ActsAsHuman()` (human and paired device).
 - Resolution: `flac` ⇒ `tracks.master_sha256`; `mp3` ⇒ `renditions(kind='mp3_320').sha256`; the probe
   object (registered at startup) by its sha.
 
@@ -1441,6 +1445,12 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
 (C20 "same now") must pass them the same func as `Options.Now`, so tests fix one clock). **Registration never dereferences `Library`, `Signer` or `Probe`**:
 `metamusic openapi` calls `api.New` with no database; handlers check for nil at call time and answer 503.
 
+**M2a-B4a addendum (C19):** `search_tracks` gains `min_stars`, `unrated`, `tag`, `has_open_comments` and the
+`stars_desc` sort; `TrackSummary`, `TrackDetail`, `Facets`, `Stats`, `DraftSummary`, `DraftDetail` gain the M2a
+fields (zero values until M2a-B4b/B5 fill them); `list_drafts` and `get_draft` moved to
+`internal/api/ops_drafts_m2a.go` (same ids, paths, metadata) and call `drafts.Decorate`/`DecorateDetail`; the
+reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`.
+
 ### C20. HTTP server and CLI additions
 
 - `httpserver.Options` (M0: `Cfg`, `Sec`, `Store`, `Tokens`, `Sessions`, `MCP`, `MCPFactory`, `Started`,
@@ -1470,6 +1480,8 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
   command call `config.Load` directly, not M0's `boot()`, which loads secrets, creates `DataDir` and
   opens (creates and migrates) the database: the dry-run must create nothing, and apply/seed open the
   store themselves with `store.Open`. (`dev --seed-synthetic` keeps using `boot()`.)
+- **M2a-B4a addendum:** `run` also dispatches `export`, `validate-batch` (real), `backup` and `restore` (stubs until
+  M2a-B6/B7); `serve` starts the backup `Scheduler` (unless `MM_BACKUP_AT=off`) and a daily export sweep.
 - New subcommands (stdlib `flag`, testable through `run`):
   - `import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
     [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]`

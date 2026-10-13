@@ -1592,7 +1592,7 @@ Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP deri
 | OperationID | Method + path | Scope | MCP | UI | Flags | Output |
 |---|---|---|---|---|---|---|
 | `rate_track` | PUT `/api/tracks/{id}/rating` | write | tool | `/tracks/:id` | | `TrackRating` |
-| `update_track` | PATCH `/api/tracks/{id}` | write | tool | `/tracks/:id` | | `TrackDetail` |
+| `update_track` | PATCH `/api/tracks/{id}` | write | generic | `/tracks/:id` | | `TrackDetail` |
 | `set_tags` | PATCH `/api/tracks/{id}/tags` | write | tool | `/tracks/:id` | | `TrackTags` |
 | `list_tags` | GET `/api/tags` | read | generic | `/` | | `{items: TagCount[]}` |
 | `add_comment` | POST `/api/tracks/{id}/comments` | write | tool | `/tracks/:id` | C | 201 `Comment` |
@@ -1602,19 +1602,19 @@ Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP deri
 | `log_listen_events` | POST `/api/listen-events` | write | generic | `/tracks/:id` | | `{accepted, duplicates, rejected: [{id, code}]}` |
 | `lint_recipe` | POST `/api/recipes/lint` | read | tool | `/backlog/:id` | | `LintReport` |
 | `create_draft` | POST `/api/drafts` | write | tool | `/backlog/new` | C | 201 `DraftDetail` |
-| `update_draft` | PATCH `/api/drafts/{id}` | write | tool | `/backlog/:id` | | `DraftDetail` |
-| `upload_batch_jsonl` | POST `/api/drafts/batch` | write | tool | `/backlog/upload` | C, H | 201 `UploadResult` |
+| `update_draft` | PATCH `/api/drafts/{id}` | write | generic | `/backlog/:id` | | `DraftDetail` |
+| `upload_batch_jsonl` | POST `/api/drafts/batch` | write | generic | `/backlog/upload` | C, H | 201 `UploadResult` |
 | `list_playlists` | GET `/api/playlists` | read | tool | `/playlists` | | `{items: PlaylistSummary[]}` |
 | `get_playlist` | GET `/api/playlists/{id}` | read | generic | `/playlists/:id` | | `Playlist` |
 | `create_playlist` | POST `/api/playlists` | write | tool | `/playlists` | C | 201 `Playlist` |
-| `update_playlist` | PATCH `/api/playlists/{id}` | write | tool | `/playlists/:id` | | `Playlist` |
+| `update_playlist` | PATCH `/api/playlists/{id}` | write | generic | `/playlists/:id` | | `Playlist` |
 | `export_playlist_zip` | POST `/api/playlists/{id}/exports` | write | generic | `/playlists/:id` | C, H | 201 `Export` |
 | `list_export_sources` | GET `/api/exports/sources` | read | generic | `/export` | | `{items: ExportSource[]}` |
 | `export_jsonl` | POST `/api/exports/jsonl` | write | tool | `/export` | C, H | 201 `Export` |
 | `get_export` | GET `/api/exports/{id}` | read | generic | `/export` | | `Export` |
 | `create_backup` | POST `/api/backups` | write | generic | `/settings/backups` | C, H | 202 `BackupRun` |
 | `list_backups` | GET `/api/backups` | read | generic | `/settings/backups` | | `BackupListing` |
-| `get_audit` | GET `/api/audit` | read | tool | `/settings/audit` | | `{items: AuditEntry[], next_cursor}` |
+| `get_audit` | GET `/api/audit` | read | generic | `/settings/audit` | | `{items: AuditEntry[], next_cursor}` |
 | `list_tokens` | GET `/api/tokens` | read | generic | `/human/tokens` | | `{items: TokenInfo[]}` |
 | `revoke_own_token` | POST `/api/tokens/self/revoke` | read | generic | `none:agent-self-service` | | `TokenInfo` |
 | `create_token` | POST `/human/api/tokens` | admin | exclude:human-only | `/human/tokens` | C, S[`token`] | 201 `CreatedToken` |
@@ -1624,7 +1624,9 @@ Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP deri
 | `revoke_device` | POST `/human/api/devices/{id}/revoke` | admin | exclude:human-only | `/human/devices` | | `Device` |
 | `revoke_own_device` | POST `/api/devices/self/revoke` | write | exclude:device-self-service | `/settings` | | `DeviceSelf` (+ `Set-Cookie` clearing `mm_dev`) |
 
-15 new first-class tools, 11 generic, 6 excluded (5 human-only + `revoke_own_device`). `revoke_own_token`
+10 new first-class tools, 16 generic, 6 excluded (5 human-only + `revoke_own_device`). (rev 3, M2a-B4a: the
+C41 ceiling forced five demotions to generic: `get_audit`, `update_playlist`, `upload_batch_jsonl`,
+`update_draft` (the planned order) and `update_track`; `tools/list` also advertises slim output schemas, see C41.) `revoke_own_token`
 uses scope `read` so a read-only token can always revoke itself; human callers get 403 `NOT_A_TOKEN`.
 `revoke_own_device` is `exclude:device-self-service` (D-M2a-22): no agent can be a device, so it has no
 parity case; its REST tests cover a device (200, cookie cleared), a human (403 `NOT_A_DEVICE`) and an
@@ -1947,6 +1949,11 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
   in this order until it holds — `get_audit`, `update_playlist`, `upload_batch_jsonl`, `update_draft` —
   and the demotion is recorded in C38 (and in `next_actions` texts, which then say
   `call_operation <op>`). The relative 1.5× budget stays as the drift alarm between re-baselines.
+  **Measured at M2a-B4a (rev 3):** with all 32 registrations the compact `tools` array was 74 701 bytes; the four
+  planned demotions alone left 62 386, so B4a (1) advertises **slim output schemas** in `tools/list` (no
+  `description`, `additionalProperties` or `required`; the full schema stays in `describe_operation`) and
+  (2) also demoted `update_track`. Result: 21 tools, **38 676 compact bytes** (golden 85 917 indented; the relative
+  budget baseline is now 85 917).
 - **CI e2e job:** the E2E leak scanner (C39) is checked in the Playwright teardown (`GET /__e2e/leaks`
   must be `[]`; rev 3: the teardown is the closure `globalSetup` returns in `web/e2e/global-setup.ts`, which
   already performs the served-operation check — there is no separate teardown file); no HAR recording, no HAR upload. The e2e global setup sets `MM_RATE_SCALE=100` (one

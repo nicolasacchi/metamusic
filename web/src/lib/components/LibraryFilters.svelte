@@ -17,6 +17,7 @@
     duration_asc: "Shortest first",
     title_asc: "Title A–Z",
     relevance: "Relevance",
+    stars_desc: "Top rated",
   };
 
   // Free-text input is debounced; every other control commits immediately.

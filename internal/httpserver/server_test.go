@@ -416,3 +416,39 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 		t.Errorf("nil Media: %d %q %s", w.Code, w.Header().Get("Content-Type"), w.Body)
 	}
 }
+
+// TestHTTPServer_NilDevicesNoPanic: neither a nil verifier nor a nil
+// *DeviceStore may reach the middleware as a typed nil interface.
+func TestHTTPServer_NilDevicesNoPanic(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	key := []byte("0123456789abcdef0123456789abcdef")
+	cfg := config.Config{
+		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+	}
+	var typedNil *auth.DeviceStore
+	for name, o := range map[string]httpserver.Options{
+		"unset":      {},
+		"typed nil":  {DeviceStore: typedNil},
+		"real store": {DeviceStore: auth.NewDeviceStore(st, key, nil, func() string { return "id" })},
+	} {
+		o.Cfg, o.Sec, o.Store = cfg, config.Secrets{Key: key, EdgeSecret: edge}, st
+		o.Tokens, o.Sessions, o.SPA = auth.NewTokenStore(st, key, time.Now), auth.NewLocalAuth(st, key, cfg.PublicURL), spaFS
+		h, err := httpserver.New(o)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		req := httptest.NewRequest("GET", "/api/ping", nil)
+		req.Header.Set("Cookie", auth.DeviceCookie+"=mmd_whatever")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req) // must not panic
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s: unauthenticated /api/ping = %d, want 401", name, w.Code)
+		}
+	}
+}

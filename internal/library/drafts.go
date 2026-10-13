@@ -27,6 +27,13 @@ type DraftSummary struct {
 	Collections        []string `json:"collections" nullable:"false"`
 	ParentTrackID      *string  `json:"parent_track_id"`
 	FulfilledByTrackID *string  `json:"fulfilled_by_track_id"`
+
+	// M2a (C32)
+	Revision  int             `json:"revision"`
+	Editable  bool            `json:"editable" doc:"false once fulfilled"`
+	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
+	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
+	Lint      yue2.LintCounts `json:"lint" doc:"Full lint (protocol and songwriting) of the stored request"`
 }
 
 // DraftPage is one page of drafts.
@@ -195,6 +202,10 @@ type DraftRequest struct {
 	Lyrics string `json:"lyrics"`
 	Cot    string `json:"cot"`
 	Seed   int64  `json:"seed"`
+
+	// M2a (C32): present when set
+	ABC      *string  `json:"abc,omitempty"`
+	CfgScale *float64 `json:"cfg_scale,omitempty"`
 }
 
 // DraftSection is one lyric section of a draft.
@@ -247,12 +258,19 @@ type DraftDetail struct {
 	Group              []GroupMember     `json:"group" nullable:"false"`
 	CreatedAt          string            `json:"created_at"`
 	UpdatedAt          string            `json:"updated_at"`
+
+	// M2a (C32)
+	Revision  int             `json:"revision"`
+	Editable  bool            `json:"editable" doc:"false once fulfilled"`
+	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
+	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
+	Lint      yue2.LintResult `json:"lint" doc:"Full lint of the stored request"`
 }
 
 // Draft returns one draft. The reference map is filled only withReference
 // (human principals); has_reference is always reported.
 func (s *Service) Draft(ctx context.Context, id string, withReference bool) (DraftDetail, error) {
-	var d DraftDetail
+	d := DraftDetail{Lint: yue2.LintResult{Errors: []yue2.Issue{}, Warnings: []yue2.Issue{}}}
 	var gk, lb, src, par, ful sql.NullString
 	var reqJSON string
 	err := s.st.R.QueryRowContext(ctx, `SELECT id, origin, status, request_id, group_key, label, request_json, source_recipe_id, parent_track_id,

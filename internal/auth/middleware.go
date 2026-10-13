@@ -67,8 +67,12 @@ func proxyPrincipal(r *http.Request, cfg config.Config, sec config.Secrets) (Pri
 	return humanPrincipal(user[0], "proxy"), true
 }
 
-// Middleware resolves the request principal per the C3 table.
-func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, sessions SessionVerifier) func(http.Handler) http.Handler {
+// Middleware resolves the request principal per the C3 table. devices may be
+// nil (device auth disabled); callers pass a nil interface, never a typed-nil
+// *DeviceStore. Rows 6 and 7 of the C26 table (the device cookie) belong to
+// M2a-B9; until then devices is accepted and unused.
+func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, sessions SessionVerifier, devices DeviceVerifier) func(http.Handler) http.Handler {
+	_ = devices // STUB(M2a-B9): rows 6-7
 	cop := http.NewCrossOriginProtection()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

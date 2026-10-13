@@ -23,7 +23,9 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
@@ -125,6 +127,25 @@ func pruneIdempotency(ctx context.Context, s *idem.Store, every time.Duration) {
 	}
 }
 
+// sweepExports removes export files older than 7 days now and then every interval until ctx ends.
+// It has its own ticker, independent of the backup schedule.
+func sweepExports(ctx context.Context, e *exports.Service, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		if n, err := e.Sweep(ctx, 7*24*time.Hour); err != nil && ctx.Err() == nil {
+			slog.Error("export sweep failed", "err", redact.Error(err))
+		} else if n > 0 {
+			slog.Info("export sweep", "deleted", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
 func serve(ctx context.Context, b *booted, s streams) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	root, err := os.OpenRoot(b.cfg.DataDir)
@@ -161,8 +182,18 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	}
 	pruneCtx, stopPrune := context.WithCancel(ctx)
 	var pruned sync.WaitGroup
-	pruned.Add(1)
+	pruned.Add(2)
 	go func() { defer pruned.Done(); pruneIdempotency(pruneCtx, svc.Idem, time.Hour) }()
+	go func() { defer pruned.Done(); sweepExports(pruneCtx, svc.Exports, 24*time.Hour) }()
+	if b.cfg.BackupAt != "off" {
+		sch := &backup.Scheduler{At: b.cfg.BackupAt, Loc: time.Local, Run: func(c context.Context) {
+			if _, err := svc.Backups.Start(c, "scheduled", auth.CLI); err != nil {
+				slog.Error("scheduled backup not started", "err", redact.Error(err))
+			}
+		}}
+		pruned.Add(1)
+		go func() { defer pruned.Done(); sch.Loop(pruneCtx) }()
+	}
 	defer func() { stopPrune(); pruned.Wait() }()
 	ln, err := net.Listen("tcp", b.cfg.Addr)
 	if err != nil {

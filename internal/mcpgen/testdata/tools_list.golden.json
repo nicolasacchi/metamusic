@@ -2,6 +2,172 @@
   {
     "annotations": {
       "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Comment on a track\n\nAdds a comment, optionally at a second of the track (kind note, fix, keep or marker). The section label is computed from timed sections only.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "at_second": {
+          "description": "Position in the track, rounded to 0.1 s",
+          "format": "double",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Default note",
+          "enum": [
+            "note",
+            "fix",
+            "keep",
+            "marker"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "add_comment",
+    "outputSchema": {
+      "properties": {
+        "at_second": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "author": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "body": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "edited_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "note",
+            "fix",
+            "keep",
+            "marker"
+          ],
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        },
+        "section": {
+          "properties": {
+            "confidence": {
+              "format": "double",
+              "type": "number"
+            },
+            "label": {
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "manual",
+                "measured",
+                "plan"
+              ],
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "web",
+            "api",
+            "mcp",
+            "stdio"
+          ],
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "addressed",
+            "resolved",
+            "regressed"
+          ],
+          "type": "string"
+        },
+        "state_changed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "track_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
       "openWorldHint": true,
       "readOnlyHint": false
     },
@@ -29,47 +195,43 @@
     "annotations": {
       "idempotentHint": false,
       "openWorldHint": false,
-      "readOnlyHint": true
+      "readOnlyHint": false
     },
-    "description": "Describe an API operation that is not exposed as its own tool: method, path, scope, cost, description and the input/output JSON schemas. Use with call_operation.",
+    "description": "Create a draft\n\nStores a new backlog draft from a song request. Drafts are always protocol-valid; songwriting warnings are returned, not blocking.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "operation_id": {
-          "description": "Operation id to describe",
+        "collection": {
+          "maxLength": 80,
+          "minLength": 1,
           "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "parent_track_id": {
+          "type": "string"
+        },
+        "request": {
+          "description": "Song request object (id, style or tags, lyrics, cot, seed, abc, cfg_scale)",
+          "type": "object"
         }
       },
       "required": [
-        "operation_id"
+        "request"
       ],
       "type": "object"
     },
-    "name": "describe_operation"
-  },
-  {
-    "annotations": {
-      "idempotentHint": true,
-      "openWorldHint": false,
-      "readOnlyHint": true
-    },
-    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group and recipe sources. Private reference metadata is returned to human users only; agents see has_reference.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "description": "Draft id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "type": "object"
-    },
-    "name": "get_draft",
+    "name": "create_draft",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "collections": {
           "items": {
@@ -80,6 +242,12 @@
         "created_at": {
           "type": "string"
         },
+        "created_by": {
+          "type": "string"
+        },
+        "editable": {
+          "type": "boolean"
+        },
         "fulfilled_by_track_id": {
           "type": [
             "string",
@@ -88,7 +256,6 @@
         },
         "group": {
           "items": {
-            "additionalProperties": false,
             "properties": {
               "id": {
                 "type": "string"
@@ -106,12 +273,6 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id",
-              "request_id",
-              "label",
-              "status"
-            ],
             "type": "object"
           },
           "type": "array"
@@ -134,6 +295,99 @@
             "null"
           ]
         },
+        "lint": {
+          "properties": {
+            "duration_basis": {
+              "type": "string"
+            },
+            "errors": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "fatal": {
+                    "type": "boolean"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "estimated_duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "index": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "language": {
+              "properties": {
+                "detected": {
+                  "type": "string"
+                },
+                "tagged": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "warnings": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "fatal": {
+                    "type": "boolean"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "origin": {
           "type": "string"
         },
@@ -144,18 +398,20 @@
           ]
         },
         "reference": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Private reference metadata; humans only, null for agents",
           "type": [
             "object",
             "null"
           ]
         },
         "request": {
-          "additionalProperties": false,
           "properties": {
+            "abc": {
+              "type": "string"
+            },
+            "cfg_scale": {
+              "format": "double",
+              "type": "number"
+            },
             "cot": {
               "type": "string"
             },
@@ -173,21 +429,17 @@
               "type": "string"
             }
           },
-          "required": [
-            "id",
-            "style",
-            "lyrics",
-            "cot",
-            "seed"
-          ],
           "type": "object"
         },
         "request_id": {
           "type": "string"
         },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
         "sections": {
           "items": {
-            "additionalProperties": false,
             "properties": {
               "idx": {
                 "format": "int64",
@@ -209,20 +461,11 @@
                 "type": "string"
               }
             },
-            "required": [
-              "idx",
-              "kind",
-              "label",
-              "raw",
-              "lines"
-            ],
             "type": "object"
           },
           "type": "array"
         },
         "source": {
-          "additionalProperties": false,
-          "description": "null for drafts without an imported recipe",
           "properties": {
             "recipe_hash": {
               "type": "string"
@@ -232,7 +475,6 @@
             },
             "sources": {
               "items": {
-                "additionalProperties": false,
                 "properties": {
                   "line": {
                     "format": "int64",
@@ -245,21 +487,11 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "path",
-                  "line",
-                  "raw_kind"
-                ],
                 "type": "object"
               },
               "type": "array"
             }
           },
-          "required": [
-            "recipe_id",
-            "recipe_hash",
-            "sources"
-          ],
           "type": [
             "object",
             "null"
@@ -270,27 +502,853 @@
         },
         "updated_at": {
           "type": "string"
+        },
+        "updated_by": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Create a playlist\n\nCreates a playlist, optionally with an ordered list of track ids (at most 1000).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "track_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
-        "id",
-        "origin",
-        "status",
-        "request_id",
-        "group_key",
-        "label",
-        "request",
-        "sections",
-        "collections",
-        "has_reference",
-        "reference",
-        "source",
-        "parent_track_id",
-        "fulfilled_by_track_id",
-        "group",
-        "created_at",
-        "updated_at"
+        "name"
       ],
+      "type": "object"
+    },
+    "name": "create_playlist",
+    "outputSchema": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "properties": {
+              "position": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "track": {
+                "properties": {
+                  "bandwidth_hz": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "bpm_declared": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "children_count": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "comments": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "critic_stars": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "duration_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "has_score": {
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "integrated_lufs": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "open_comments": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "parent_track_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "recorded_at": {
+                    "type": "string"
+                  },
+                  "request_id": {
+                    "type": "string"
+                  },
+                  "root_track_id": {
+                    "type": "string"
+                  },
+                  "seed": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "stars": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "style_terms": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "timed": {
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "truncated": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "updated_by": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Describe an API operation that is not exposed as its own tool: method, path, scope, cost, description and the input/output JSON schemas. Use with call_operation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "operation_id": {
+          "description": "Operation id to describe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id"
+      ],
+      "type": "object"
+    },
+    "name": "describe_operation"
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Export songs.jsonl\n\nExports an imported source file, a track selection or drafts as a songs.jsonl that yue2 batch accepts, with the validator result and a signed download link. Small files are also returned inline.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "drafts": {
+          "additionalProperties": false,
+          "properties": {
+            "collection": {
+              "type": "string"
+            },
+            "draft_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "group_key": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "status": {
+              "items": {
+                "enum": [
+                  "backlog",
+                  "fulfilled",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "filename": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "for_batch": {
+          "description": "Selection source only: make ids unique so yue2 batch accepts the file",
+          "type": "boolean"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "selection": {
+          "enum": [
+            "source",
+            "tracks",
+            "drafts"
+          ],
+          "type": "string"
+        },
+        "source_path": {
+          "description": "Selection source: a path from list_export_sources",
+          "type": "string"
+        },
+        "tracks": {
+          "additionalProperties": false,
+          "properties": {
+            "min_stars": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "playlist_id": {
+              "type": "string"
+            },
+            "status": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "to_relisten",
+                  "final",
+                  "discarded"
+                ],
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "selection"
+      ],
+      "type": "object"
+    },
+    "name": "export_jsonl",
+    "outputSchema": {
+      "properties": {
+        "bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "download": {
+          "properties": {
+            "expires_at": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "jsonl": {
+          "properties": {
+            "abc_files": {
+              "items": {
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "generated_rows": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "raw_rows": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "renamed": {
+              "items": {
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "rows": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "style": {
+              "properties": {
+                "ensure_ascii": {
+                  "type": "boolean"
+                },
+                "item_sep": {
+                  "type": "string"
+                },
+                "key_order": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "key_sep": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "validation": {
+              "properties": {
+                "fatal": {
+                  "type": "boolean"
+                },
+                "issues": {
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "fatal": {
+                        "type": "boolean"
+                      },
+                      "field": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "format": "int64",
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "ok": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
+            "warnings": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "details": {
+                    "type": "object"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "kind": {
+          "enum": [
+            "songs_jsonl",
+            "songs_bundle",
+            "playlist_zip"
+          ],
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "zip": {
+          "properties": {
+            "entries": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "missing_mp3": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tracks": {
+              "items": {
+                "properties": {
+                  "entry": {
+                    "type": "string"
+                  },
+                  "track_id": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Draft id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_draft",
+    "outputSchema": {
+      "properties": {
+        "collections": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "editable": {
+          "type": "boolean"
+        },
+        "fulfilled_by_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "group_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "has_reference": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lint": {
+          "properties": {
+            "duration_basis": {
+              "type": "string"
+            },
+            "errors": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "fatal": {
+                    "type": "boolean"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "estimated_duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "index": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "language": {
+              "properties": {
+                "detected": {
+                  "type": "string"
+                },
+                "tagged": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "warnings": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "fatal": {
+                    "type": "boolean"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "parent_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "request": {
+          "properties": {
+            "abc": {
+              "type": "string"
+            },
+            "cfg_scale": {
+              "format": "double",
+              "type": "number"
+            },
+            "cot": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lyrics": {
+              "type": "string"
+            },
+            "seed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "style": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "sections": {
+          "items": {
+            "properties": {
+              "idx": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "lines": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "raw": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "source": {
+          "properties": {
+            "recipe_hash": {
+              "type": "string"
+            },
+            "recipe_id": {
+              "type": "string"
+            },
+            "sources": {
+              "items": {
+                "properties": {
+                  "line": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "raw_kind": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "updated_by": {
+          "type": "string"
+        }
+      },
       "type": "object"
     }
   },
@@ -316,14 +1374,11 @@
     },
     "name": "get_media_links",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "expires_at": {
-          "description": "RFC 3339 UTC",
           "type": "string"
         },
         "flac": {
-          "additionalProperties": false,
           "properties": {
             "bits_per_sample": {
               "format": "int64",
@@ -334,9 +1389,6 @@
               "type": "integer"
             },
             "content_type": {
-              "examples": [
-                "audio/flac"
-              ],
               "type": "string"
             },
             "sample_rate": {
@@ -347,22 +1399,12 @@
               "type": "string"
             },
             "url": {
-              "description": "Signed, relative URL; valid until expires_at",
               "type": "string"
             }
           },
-          "required": [
-            "url",
-            "content_type",
-            "bytes",
-            "sha256",
-            "sample_rate",
-            "bits_per_sample"
-          ],
           "type": "object"
         },
         "mp3": {
-          "additionalProperties": false,
           "properties": {
             "bitrate_kbps": {
               "format": "int64",
@@ -373,44 +1415,25 @@
               "type": "integer"
             },
             "content_type": {
-              "examples": [
-                "audio/mpeg"
-              ],
               "type": "string"
             },
             "sha256": {
               "type": "string"
             },
             "url": {
-              "description": "Signed, relative URL; valid until expires_at",
               "type": "string"
             }
           },
-          "required": [
-            "url",
-            "content_type",
-            "bytes",
-            "sha256",
-            "bitrate_kbps"
-          ],
           "type": "object"
         },
         "track_id": {
           "type": "string"
         },
         "ttl_s": {
-          "description": "Link lifetime granted to the caller, seconds",
           "format": "int64",
           "type": "integer"
         }
       },
-      "required": [
-        "track_id",
-        "expires_at",
-        "ttl_s",
-        "flac",
-        "mp3"
-      ],
       "type": "object"
     }
   },
@@ -428,14 +1451,11 @@
     },
     "name": "get_stats",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "backlog": {
-          "additionalProperties": false,
           "properties": {
             "collections": {
               "items": {
-                "additionalProperties": false,
                 "properties": {
                   "drafts": {
                     "format": "int64",
@@ -445,16 +1465,11 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name",
-                  "drafts"
-                ],
                 "type": "object"
               },
               "type": "array"
             },
             "drafts": {
-              "description": "Drafts still in the backlog",
               "format": "int64",
               "type": "integer"
             },
@@ -463,21 +1478,30 @@
               "type": "integer"
             },
             "groups": {
-              "description": "Distinct groups among backlog drafts",
               "format": "int64",
               "type": "integer"
             }
           },
-          "required": [
-            "drafts",
-            "fulfilled",
-            "groups",
-            "collections"
-          ],
+          "type": "object"
+        },
+        "backups": {
+          "properties": {
+            "last_completed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "type": "object"
         },
         "bandwidth": {
-          "additionalProperties": false,
           "properties": {
             "max_hz": {
               "format": "int64",
@@ -505,16 +1529,12 @@
               "type": "integer"
             }
           },
-          "required": [
-            "n",
-            "min_hz",
-            "median_hz",
-            "max_hz"
-          ],
+          "type": "object"
+        },
+        "drafts_by_origin": {
           "type": "object"
         },
         "imports": {
-          "additionalProperties": false,
           "properties": {
             "last_run_at": {
               "type": [
@@ -533,15 +1553,37 @@
               "type": "integer"
             }
           },
-          "required": [
-            "runs",
-            "last_run_at",
-            "last_state"
-          ],
+          "type": "object"
+        },
+        "judgments": {
+          "properties": {
+            "comments": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "open_fix": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "rated_critic": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "rated_human": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "stars_hist": {
+              "type": "object"
+            },
+            "tags": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
           "type": "object"
         },
         "loudness": {
-          "additionalProperties": false,
           "properties": {
             "integrated_lufs_max": {
               "format": "double",
@@ -558,7 +1600,6 @@
               ]
             },
             "listen_flac_recommended": {
-              "description": "Spread above 2 LU",
               "type": "boolean"
             },
             "n": {
@@ -573,17 +1614,13 @@
               ]
             }
           },
-          "required": [
-            "n",
-            "integrated_lufs_min",
-            "integrated_lufs_max",
-            "spread_lu",
-            "listen_flac_recommended"
-          ],
           "type": "object"
         },
+        "playlists": {
+          "format": "int64",
+          "type": "integer"
+        },
         "recipes": {
-          "additionalProperties": false,
           "properties": {
             "sources": {
               "format": "int64",
@@ -594,14 +1631,9 @@
               "type": "integer"
             }
           },
-          "required": [
-            "total",
-            "sources"
-          ],
           "type": "object"
         },
         "storage": {
-          "additionalProperties": false,
           "properties": {
             "derived_bytes": {
               "format": "int64",
@@ -612,27 +1644,14 @@
               "type": "integer"
             }
           },
-          "required": [
-            "masters_bytes",
-            "derived_bytes"
-          ],
           "type": "object"
         },
         "tracks": {
-          "additionalProperties": false,
           "properties": {
             "by_origin": {
-              "additionalProperties": {
-                "format": "int64",
-                "type": "integer"
-              },
               "type": "object"
             },
             "by_status": {
-              "additionalProperties": {
-                "format": "int64",
-                "type": "integer"
-              },
               "type": "object"
             },
             "duration_s_total": {
@@ -656,27 +1675,9 @@
               "type": "integer"
             }
           },
-          "required": [
-            "total",
-            "by_status",
-            "by_origin",
-            "duration_s_total",
-            "with_score",
-            "timed",
-            "truncated"
-          ],
           "type": "object"
         }
       },
-      "required": [
-        "tracks",
-        "backlog",
-        "recipes",
-        "loudness",
-        "bandwidth",
-        "storage",
-        "imports"
-      ],
       "type": "object"
     }
   },
@@ -694,7 +1695,6 @@
     },
     "name": "get_system_info",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "auth_mode": {
           "type": "string"
@@ -703,12 +1703,10 @@
           "type": "string"
         },
         "schema_version": {
-          "description": "SQLite migration level",
           "format": "int64",
           "type": "integer"
         },
         "started_at": {
-          "description": "RFC 3339 UTC",
           "type": "string"
         },
         "uptime_s": {
@@ -719,14 +1717,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "version",
-        "commit",
-        "auth_mode",
-        "schema_version",
-        "started_at",
-        "uptime_s"
-      ],
       "type": "object"
     }
   },
@@ -752,14 +1742,10 @@
     },
     "name": "get_track",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "analysis": {
-          "additionalProperties": false,
           "properties": {
             "loudness": {
-              "additionalProperties": false,
-              "description": "null when not analysed",
               "properties": {
                 "integrated_lufs": {
                   "format": "double",
@@ -807,26 +1793,12 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "replaygain_track_gain_db",
-                "version",
-                "integrated_lufs",
-                "lra_lu",
-                "lra_low_lufs",
-                "lra_high_lufs",
-                "true_peak_dbtp",
-                "sample_peak_dbfs",
-                "short_term_max_lufs",
-                "short_term_1hz"
-              ],
               "type": [
                 "object",
                 "null"
               ]
             },
             "spectrum": {
-              "additionalProperties": false,
-              "description": "null when not analysed",
               "properties": {
                 "bandwidth_hz": {
                   "format": "int64",
@@ -851,27 +1823,15 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "version",
-                "bandwidth_hz",
-                "ref_db",
-                "threshold_db",
-                "frames"
-              ],
               "type": [
                 "object",
                 "null"
               ]
             }
           },
-          "required": [
-            "loudness",
-            "spectrum"
-          ],
           "type": "object"
         },
         "audio": {
-          "additionalProperties": false,
           "properties": {
             "audio_md5": {
               "type": "string"
@@ -892,8 +1852,6 @@
               "type": "string"
             },
             "mp3": {
-              "additionalProperties": false,
-              "description": "MP3 rendition; null when missing",
               "properties": {
                 "bytes": {
                   "format": "int64",
@@ -907,11 +1865,6 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "sha256",
-                "bytes",
-                "gain_db"
-              ],
               "type": [
                 "object",
                 "null"
@@ -926,16 +1879,6 @@
               "type": "integer"
             }
           },
-          "required": [
-            "sample_rate",
-            "bits_per_sample",
-            "channels",
-            "total_samples",
-            "master_sha256",
-            "master_bytes",
-            "audio_md5",
-            "mp3"
-          ],
           "type": "object"
         },
         "bpm_declared": {
@@ -944,6 +1887,10 @@
             "integer",
             "null"
           ]
+        },
+        "comments": {
+          "format": "int64",
+          "type": "integer"
         },
         "created_at": {
           "type": "string"
@@ -956,7 +1903,6 @@
           "type": "string"
         },
         "import": {
-          "additionalProperties": false,
           "properties": {
             "rule": {
               "type": "string"
@@ -968,14 +1914,9 @@
               ]
             }
           },
-          "required": [
-            "rule",
-            "run_id"
-          ],
           "type": "object"
         },
         "lineage": {
-          "additionalProperties": false,
           "properties": {
             "generation": {
               "format": "int64",
@@ -1010,7 +1951,6 @@
             },
             "siblings": {
               "items": {
-                "additionalProperties": false,
                 "properties": {
                   "id": {
                     "type": "string"
@@ -1026,33 +1966,147 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "id",
-                  "title",
-                  "seed",
-                  "recorded_at"
-                ],
                 "type": "object"
               },
               "type": "array"
             }
           },
-          "required": [
-            "root_track_id",
-            "parent_track_id",
-            "generation",
-            "operator",
-            "inferred",
-            "rule",
-            "siblings"
-          ],
           "type": "object"
+        },
+        "listening": {
+          "properties": {
+            "completion_rate": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "last_played_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "plays": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "open_comments": {
+          "format": "int64",
+          "type": "integer"
         },
         "origin": {
           "type": "string"
         },
+        "playlists": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rating": {
+          "properties": {
+            "critic": {
+              "properties": {
+                "by": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "stars": {
+                  "format": "int64",
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "maxLength": 280,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "human": {
+              "properties": {
+                "by": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "stars": {
+                  "format": "int64",
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "maxLength": 280,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
         "recipe": {
-          "additionalProperties": false,
           "properties": {
             "cot": {
               "type": "string"
@@ -1084,25 +2138,12 @@
               "type": "string"
             }
           },
-          "required": [
-            "id",
-            "engine",
-            "request_id",
-            "style",
-            "lyrics",
-            "cot",
-            "seed",
-            "hash",
-            "sources_count"
-          ],
           "type": "object"
         },
         "recorded_at": {
           "type": "string"
         },
         "score": {
-          "additionalProperties": false,
-          "description": "null when the track has no score",
           "properties": {
             "aligned": {
               "type": "boolean"
@@ -1135,14 +2176,6 @@
               ]
             }
           },
-          "required": [
-            "bars",
-            "meter",
-            "q",
-            "bpm",
-            "seconds_per_bar",
-            "aligned"
-          ],
           "type": [
             "object",
             "null"
@@ -1150,7 +2183,6 @@
         },
         "sections": {
           "items": {
-            "additionalProperties": false,
             "properties": {
               "confidence": {
                 "format": "double",
@@ -1186,7 +2218,6 @@
                 "type": "string"
               },
               "source": {
-                "description": "lyrics | plan | measured | manual",
                 "type": "string"
               },
               "start_s": {
@@ -1197,17 +2228,6 @@
                 ]
               }
             },
-            "required": [
-              "idx",
-              "kind",
-              "label",
-              "raw",
-              "lines",
-              "start_s",
-              "end_s",
-              "source",
-              "confidence"
-            ],
             "type": "object"
           },
           "type": "array"
@@ -1227,6 +2247,28 @@
           },
           "type": "array"
         },
+        "tags": {
+          "items": {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "sources": {
+                "items": {
+                  "enum": [
+                    "human",
+                    "agent",
+                    "inherited"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
         "timed": {
           "type": "boolean"
         },
@@ -1234,8 +2276,6 @@
           "type": "string"
         },
         "truncated": {
-          "additionalProperties": false,
-          "description": "null when result.json was not imported",
           "properties": {
             "abc": {
               "type": [
@@ -1250,38 +2290,12 @@
               ]
             }
           },
-          "required": [
-            "abc",
-            "semantic"
-          ],
           "type": [
             "object",
             "null"
           ]
         }
       },
-      "required": [
-        "id",
-        "title",
-        "slug",
-        "status",
-        "status_set_by",
-        "origin",
-        "recorded_at",
-        "created_at",
-        "duration_s",
-        "audio",
-        "recipe",
-        "style_terms",
-        "bpm_declared",
-        "lineage",
-        "truncated",
-        "score",
-        "sections",
-        "timed",
-        "analysis",
-        "import"
-      ],
       "type": "object"
     }
   },
@@ -1291,7 +2305,284 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "List backlog drafts\n\nRecipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin.",
+    "description": "Get a track's context bundle\n\nEverything needed to critique and regenerate one take in a single size-bounded document: recipe, score, lineage, comments, perception and next actions. The _budget key reports the size.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        },
+        "include": {
+          "description": "Parts to add and protect from trimming",
+          "items": {
+            "enum": [
+              "score",
+              "lyrics",
+              "comments"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_track_context",
+    "outputSchema": {
+      "properties": {
+        "_budget": {
+          "properties": {
+            "chars": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "limit": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "truncated": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "_links": {
+          "type": "object"
+        },
+        "format": {
+          "type": "string"
+        },
+        "judgments": {
+          "type": "object"
+        },
+        "lineage": {
+          "type": "object"
+        },
+        "listening": {
+          "type": "object"
+        },
+        "next_actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "perception": {
+          "type": "object"
+        },
+        "provenance": {
+          "type": "object"
+        },
+        "recipe": {
+          "type": "object"
+        },
+        "score": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "track": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Lint song requests\n\nChecks up to 200 requests against the protocol rules and the songwriting rules (sections, line counts, repeat markers, language, estimated duration, duplicates). Read-only; nothing is stored.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "batch": {
+          "description": "Also check ids for duplicates across items (default true)",
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "draft_id": {
+                "type": "string"
+              },
+              "request": {
+                "description": "The request object to lint, as sent",
+                "type": "object"
+              }
+            },
+            "required": [
+              "request"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "name": "lint_recipe",
+    "outputSchema": {
+      "properties": {
+        "batch_errors": {
+          "items": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "fatal": {
+                "type": "boolean"
+              },
+              "field": {
+                "type": "string"
+              },
+              "line": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "items": {
+          "items": {
+            "properties": {
+              "duration_basis": {
+                "type": "string"
+              },
+              "errors": {
+                "items": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "fatal": {
+                      "type": "boolean"
+                    },
+                    "field": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "estimated_duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "hash": {
+                "type": "string"
+              },
+              "index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "language": {
+                "properties": {
+                  "detected": {
+                    "type": "string"
+                  },
+                  "tagged": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "warnings": {
+                "items": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "fatal": {
+                      "type": "boolean"
+                    },
+                    "field": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List backlog drafts\n\nRecipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1332,7 +2623,6 @@
     },
     "name": "list_drafts",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "groups_total": {
           "format": "int64",
@@ -1340,7 +2630,6 @@
         },
         "items": {
           "items": {
-            "additionalProperties": false,
             "properties": {
               "collections": {
                 "items": {
@@ -1350,6 +2639,12 @@
               },
               "cot": {
                 "type": "string"
+              },
+              "created_by": {
+                "type": "string"
+              },
+              "editable": {
+                "type": "boolean"
               },
               "fulfilled_by_track_id": {
                 "type": [
@@ -1372,6 +2667,19 @@
                   "null"
                 ]
               },
+              "lint": {
+                "properties": {
+                  "errors": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "warnings": {
+                    "format": "int64",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
               "origin": {
                 "type": "string"
               },
@@ -1383,6 +2691,10 @@
               },
               "request_id": {
                 "type": "string"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
               },
               "section_kinds": {
                 "items": {
@@ -1398,7 +2710,6 @@
                 "type": "string"
               },
               "style_excerpt": {
-                "description": "First 120 runes of the style",
                 "type": "string"
               },
               "style_terms": {
@@ -1406,24 +2717,11 @@
                   "type": "string"
                 },
                 "type": "array"
+              },
+              "updated_by": {
+                "type": "string"
               }
             },
-            "required": [
-              "id",
-              "request_id",
-              "group_key",
-              "label",
-              "origin",
-              "status",
-              "seed",
-              "cot",
-              "style_excerpt",
-              "style_terms",
-              "section_kinds",
-              "collections",
-              "parent_track_id",
-              "fulfilled_by_track_id"
-            ],
             "type": "object"
           },
           "type": "array"
@@ -1439,12 +2737,61 @@
           "type": "integer"
         }
       },
-      "required": [
-        "items",
-        "total",
-        "groups_total",
-        "next_cursor"
-      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List playlists\n\nPlaylists with their track counts and total duration; hidden ones only with include_hidden.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "include_hidden": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_playlists",
+    "outputSchema": {
+      "properties": {
+        "items": {
+          "items": {
+            "properties": {
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "items_count": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     }
   },
@@ -1462,21 +2809,145 @@
     },
     "name": "ping",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "ok": {
-          "description": "Always true",
           "type": "boolean"
         },
         "version": {
-          "description": "Server version",
           "type": "string"
         }
       },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Rate a track\n\nSets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        },
+        "stars": {
+          "description": "1..5, or null to clear your rating",
+          "format": "int64",
+          "maximum": 5,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "verdict": {
+          "description": "Short free-text verdict, or null",
+          "maxLength": 280,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
       "required": [
-        "ok",
-        "version"
+        "id",
+        "stars"
       ],
+      "type": "object"
+    },
+    "name": "rate_track",
+    "outputSchema": {
+      "properties": {
+        "critic": {
+          "properties": {
+            "by": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "stars": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "updated_at": {
+              "type": "string"
+            },
+            "verdict": {
+              "maxLength": 280,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "human": {
+          "properties": {
+            "by": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "stars": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "updated_at": {
+              "type": "string"
+            },
+            "verdict": {
+              "maxLength": 280,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "track_id": {
+          "type": "string"
+        }
+      },
       "type": "object"
     }
   },
@@ -1486,13 +2957,16 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "cursor": {
           "description": "Opaque cursor from next_cursor",
           "type": "string"
+        },
+        "has_open_comments": {
+          "type": "boolean"
         },
         "has_score": {
           "type": "boolean"
@@ -1514,6 +2988,13 @@
           "minimum": 0,
           "type": "number"
         },
+        "min_stars": {
+          "description": "Human stars at least; exclusive with unrated",
+          "format": "int64",
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
         "q": {
           "description": "Free text over title, request id, style and lyrics (prefix match)",
           "maxLength": 200,
@@ -1531,14 +3012,15 @@
           "type": "string"
         },
         "sort": {
-          "description": "Default recorded_desc, or relevance when q is set",
+          "description": "Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last",
           "enum": [
             "recorded_desc",
             "recorded_asc",
             "duration_desc",
             "duration_asc",
             "title_asc",
-            "relevance"
+            "relevance",
+            "stars_desc"
           ],
           "type": "string"
         },
@@ -1563,7 +3045,19 @@
           "maxItems": 5,
           "type": "array"
         },
+        "tag": {
+          "description": "Repeatable tag; all must match",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "type": "array"
+        },
         "truncated": {
+          "type": "boolean"
+        },
+        "unrated": {
+          "description": "No human rating (or a cleared one); exclusive with min_stars",
           "type": "boolean"
         }
       },
@@ -1571,11 +3065,9 @@
     },
     "name": "search_tracks",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "items": {
           "items": {
-            "additionalProperties": false,
             "properties": {
               "bandwidth_hz": {
                 "format": "int64",
@@ -1585,7 +3077,6 @@
                 ]
               },
               "bpm_declared": {
-                "description": "BPM declared in the style text; null when absent",
                 "format": "int64",
                 "type": [
                   "integer",
@@ -1596,9 +3087,19 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "comments": {
+                "format": "int64",
+                "type": "integer"
+              },
               "created_at": {
-                "description": "RFC 3339 UTC",
                 "type": "string"
+              },
+              "critic_stars": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "duration_s": {
                 "format": "double",
@@ -1617,6 +3118,10 @@
                   "null"
                 ]
               },
+              "open_comments": {
+                "format": "int64",
+                "type": "integer"
+              },
               "parent_track_id": {
                 "type": [
                   "string",
@@ -1624,7 +3129,6 @@
                 ]
               },
               "recorded_at": {
-                "description": "RFC 3339 UTC",
                 "type": "string"
               },
               "request_id": {
@@ -1637,6 +3141,13 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "stars": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
               "status": {
                 "type": "string"
               },
@@ -1646,41 +3157,25 @@
                 },
                 "type": "array"
               },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "timed": {
-                "description": "Section times are known (aligned score)",
                 "type": "boolean"
               },
               "title": {
                 "type": "string"
               },
               "truncated": {
-                "description": "abc or semantic stream truncated; null when unknown",
                 "type": [
                   "boolean",
                   "null"
                 ]
               }
             },
-            "required": [
-              "id",
-              "title",
-              "status",
-              "duration_s",
-              "recorded_at",
-              "created_at",
-              "request_id",
-              "seed",
-              "style_terms",
-              "bpm_declared",
-              "has_score",
-              "timed",
-              "truncated",
-              "integrated_lufs",
-              "bandwidth_hz",
-              "root_track_id",
-              "parent_track_id",
-              "children_count"
-            ],
             "type": "object"
           },
           "type": "array"
@@ -1696,11 +3191,239 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Add or remove tags\n\nAdds and removes free-form tags. Tags normalise to lower case; a human removal wins over agent tags.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "add": {
+          "description": "Tags to add (normalised: lower case, single spaces)",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        },
+        "remove": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "required": [
-        "items",
-        "total",
-        "next_cursor"
+        "id"
       ],
+      "type": "object"
+    },
+    "name": "set_tags",
+    "outputSchema": {
+      "properties": {
+        "tags": {
+          "items": {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "sources": {
+                "items": {
+                  "enum": [
+                    "human",
+                    "agent",
+                    "inherited"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "track_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Update a comment\n\nEdits the body or kind, hides it, or changes its state (open, resolved; reopen). Authors and the operator may edit; agents only their own.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Comment id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "note",
+            "fix",
+            "keep",
+            "marker"
+          ],
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "resolved",
+            "addressed",
+            "regressed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_comment",
+    "outputSchema": {
+      "properties": {
+        "at_second": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "author": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "body": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "edited_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "note",
+            "fix",
+            "keep",
+            "marker"
+          ],
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        },
+        "section": {
+          "properties": {
+            "confidence": {
+              "format": "double",
+              "type": "number"
+            },
+            "label": {
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "manual",
+                "measured",
+                "plan"
+              ],
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "web",
+            "api",
+            "mcp",
+            "stdio"
+          ],
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "addressed",
+            "resolved",
+            "regressed"
+          ],
+          "type": "string"
+        },
+        "state_changed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "track_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
       "type": "object"
     }
   },
@@ -1718,38 +3441,28 @@
     },
     "name": "whoami",
     "outputSchema": {
-      "additionalProperties": false,
       "properties": {
         "kind": {
-          "description": "Principal kind",
           "enum": [
             "human",
-            "agent"
+            "agent",
+            "device"
           ],
           "type": "string"
         },
         "name": {
-          "description": "Username or token name",
           "type": "string"
         },
         "scopes": {
-          "description": "Granted scopes",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "via": {
-          "description": "How the principal authenticated: proxy, local or token",
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name",
-        "scopes",
-        "via"
-      ],
       "type": "object"
     }
   }

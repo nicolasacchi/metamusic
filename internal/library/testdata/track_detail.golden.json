@@ -126,5 +126,19 @@
   "import": {
     "rule": "slug",
     "run_id": "01900000-0000-7000-8000-000000000301"
+  },
+  "rating": {
+    "track_id": "01900000-0000-7000-8000-000000000101",
+    "human": null,
+    "critic": null
+  },
+  "tags": [],
+  "comments": 0,
+  "open_comments": 0,
+  "playlists": [],
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
   }
 }

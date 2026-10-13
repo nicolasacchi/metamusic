@@ -34,6 +34,13 @@ type TrackSummary struct {
 	RootTrackID    string   `json:"root_track_id"`
 	ParentTrackID  *string  `json:"parent_track_id"`
 	ChildrenCount  int      `json:"children_count"`
+
+	// M2a (C38)
+	Stars        *int     `json:"stars" doc:"Human stars; null when unrated"`
+	CriticStars  *int     `json:"critic_stars" doc:"The agent's stars"`
+	Tags         []string `json:"tags" nullable:"false" doc:"Effective tag names"`
+	Comments     int      `json:"comments"`
+	OpenComments int      `json:"open_comments"`
 }
 
 // TrackPage is one page of search results.
@@ -52,6 +59,10 @@ type SearchParams struct {
 	RecordedFrom, RecordedTo   string
 	HasScore, Truncated        *bool
 	RootTrackID                string
+	MinStars                   *int     // human stars at least (M2a); exclusive with Unrated
+	Unrated                    bool     // no human rating row, or one with stars NULL
+	Tags                       []string // AND, normalised names
+	HasOpenComments            *bool
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -260,6 +271,7 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		terms = []string{}
 	}
 	t.StyleTerms = terms
+	t.Tags = []string{}
 	if bpm.Valid {
 		v := int(bpm.Int64)
 		t.BPMDeclared = &v
@@ -311,11 +323,16 @@ type Facets struct {
 	Statuses   []StatusCount `json:"statuses" nullable:"false"`
 	DurationS  Range         `json:"duration_s"`
 	RecordedAt TimeRange     `json:"recorded_at"`
+
+	// M2a (C38)
+	Tags    []TagFacet  `json:"tags" nullable:"false" doc:"Top 50 effective tags"`
+	Stars   []StarFacet `json:"stars" nullable:"false" doc:"Human star histogram"`
+	Unrated int         `json:"unrated" doc:"Tracks without a human star rating"`
 }
 
 // Facets returns the top 50 style terms, status counts and ranges.
 func (s *Service) Facets(ctx context.Context) (Facets, error) {
-	f := Facets{StyleTerms: []TermCount{}, Statuses: []StatusCount{}}
+	f := Facets{StyleTerms: []TermCount{}, Statuses: []StatusCount{}, Tags: []TagFacet{}, Stars: []StarFacet{}}
 	rows, err := s.st.R.QueryContext(ctx, `SELECT term, COUNT(*) c FROM track_style_terms GROUP BY term ORDER BY c DESC, term ASC LIMIT 50`)
 	if err != nil {
 		return f, err
@@ -487,6 +504,14 @@ type TrackDetail struct {
 	Timed       bool         `json:"timed"`
 	Analysis    AnalysisInfo `json:"analysis"`
 	Import      ImportInfo   `json:"import"`
+
+	// M2a (C38)
+	Rating       TrackRating    `json:"rating"`
+	Tags         []TagRef       `json:"tags" nullable:"false"`
+	Comments     int            `json:"comments"`
+	OpenComments int            `json:"open_comments"`
+	Playlists    []PlaylistRef  `json:"playlists" nullable:"false"`
+	Listening    ListeningStats `json:"listening"`
 }
 
 func nb(n sql.NullInt64) *bool {
@@ -502,7 +527,8 @@ var sectionRank = map[string]int{"manual": 4, "measured": 3, "plan": 2, "lyrics"
 
 // Track returns the full detail of one track.
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
-	var d TrackDetail
+	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}}
+	d.Rating.TrackID = id
 	var (
 		parent, runID sql.NullString
 		bpm           sql.NullInt64
