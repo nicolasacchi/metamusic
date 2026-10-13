@@ -2681,6 +2681,11 @@ export interface components {
             verdict: components["schemas"]["Verdict"];
         };
         SystemOutBody: {
+            /**
+             * Format: int64
+             * @description Audit rows lost since start after retries; non-zero means a gap in the audit trail
+             */
+            audit_failures: number;
             auth_mode: string;
             commit: string;
             /**

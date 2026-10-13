@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -240,3 +241,11 @@ func Created(ctx context.Context) []string {
 	defer c.mu.Unlock()
 	return append([]string(nil), c.ids...)
 }
+
+var failures atomic.Int64
+
+// NoteFailure counts an audit row that could not be written after every retry.
+func NoteFailure() { failures.Add(1) }
+
+// Failures reports audit rows lost since process start; non-zero means the audit trail has a gap.
+func Failures() int64 { return failures.Load() }

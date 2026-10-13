@@ -1708,6 +1708,10 @@
     "name": "get_system_info",
     "outputSchema": {
       "properties": {
+        "audit_failures": {
+          "format": "int64",
+          "type": "integer"
+        },
         "auth_mode": {
           "type": "string"
         },

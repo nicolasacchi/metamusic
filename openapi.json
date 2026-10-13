@@ -5898,6 +5898,11 @@
       "SystemOutBody": {
         "additionalProperties": false,
         "properties": {
+          "audit_failures": {
+            "description": "Audit rows lost since start after retries; non-zero means a gap in the audit trail",
+            "format": "int64",
+            "type": "integer"
+          },
           "auth_mode": {
             "type": "string"
           },
@@ -5927,7 +5932,8 @@
           "auth_mode",
           "schema_version",
           "started_at",
-          "uptime_s"
+          "uptime_s",
+          "audit_failures"
         ],
         "type": "object"
       },

@@ -4,6 +4,7 @@ package httpserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -162,7 +163,11 @@ func New(o Options) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
+		body := `{"status":"ok"}`
+		if n := audit.Failures(); n > 0 { // still 200: a restart would not repair the gap
+			body = fmt.Sprintf(`{"status":"degraded","audit_failures":%d}`, n)
+		}
+		_, _ = w.Write([]byte(body + "\n"))
 	})
 	if o.DeviceStore != nil {
 		pairing := auth.PairingHandler(auth.PairingOptions{

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -29,7 +30,7 @@ import (
 type Options struct {
 	API     huma.API
 	Inner   http.Handler // must be the *http.ServeMux the API was registered on (pattern lookup)
-	Audit   *audit.Store
+	Audit   Auditor      // *audit.Store in production; tests inject blocking or failing stores
 	Idem    *idem.Store
 	Limiter *ratelimit.Limiter
 	Now     func() time.Time
@@ -37,13 +38,29 @@ type Options struct {
 	Ticker func(d time.Duration) (c <-chan time.Time, stop func())
 	// MaxBody bounds what the gate buffers (default 8 MiB).
 	MaxBody int64
+	// AuditBudget bounds the total time (all retries) spent inserting one audit row (default 15 s).
+	AuditBudget time.Duration
+	// AuditBackoff is the first retry delay, doubling up to 500 ms (default 25 ms).
+	AuditBackoff time.Duration
+}
+
+// Auditor is the audit sink; *audit.Store implements it.
+type Auditor interface {
+	Insert(ctx context.Context, e audit.Entry) error
 }
 
 const (
 	defaultMaxBody = 8 << 20
 	maxStoredBody  = 1 << 20
 	headBytes      = 4 << 10
-	auditTimeout   = 2 * time.Second
+	// maxHeldBody caps what an audited registry response may buffer while its audit row is
+	// inserted. Past it, the gate inserts the audit row at that moment (status and headers are
+	// known), then flushes and streams the rest unbuffered, so the row is still visible before
+	// the first byte reaches the client.
+	maxHeldBody        = 4 << 20
+	defaultAuditBudget = 15 * time.Second
+	defaultAuditRetry  = 25 * time.Millisecond
+	maxAuditRetry      = 500 * time.Millisecond
 )
 
 type patternLookup interface {
@@ -63,11 +80,20 @@ func New(o Options) http.Handler {
 	if !ok {
 		panic("gate: Inner must be an *http.ServeMux")
 	}
+	if st, ok := o.Audit.(*audit.Store); ok && st == nil {
+		o.Audit = nil // a nil *audit.Store must not become a non-nil interface
+	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}
 	if o.MaxBody <= 0 {
 		o.MaxBody = defaultMaxBody
+	}
+	if o.AuditBudget <= 0 {
+		o.AuditBudget = defaultAuditBudget
+	}
+	if o.AuditBackoff <= 0 {
+		o.AuditBackoff = defaultAuditRetry
 	}
 	if o.Ticker == nil {
 		o.Ticker = func(d time.Duration) (<-chan time.Time, func()) {
@@ -92,6 +118,14 @@ type recorder struct {
 	capture     bool
 	body        bytes.Buffer
 	overflow    bool
+
+	// hold buffers status and body (headers stay in the underlying header map) until
+	// release; commit runs once, just before the first byte is passed to the client.
+	hold     bool
+	held     bytes.Buffer
+	sent     bool // underlying WriteHeader called
+	commit   func()
+	released bool
 }
 
 func (w *recorder) WriteHeader(code int) {
@@ -99,7 +133,35 @@ func (w *recorder) WriteHeader(code int) {
 		w.status = code
 		w.contentType = w.Header().Get("Content-Type")
 	}
-	w.ResponseWriter.WriteHeader(code)
+	if w.hold && !w.released {
+		return
+	}
+	w.sendHeader()
+}
+
+func (w *recorder) sendHeader() {
+	if !w.sent {
+		w.sent = true
+		w.ResponseWriter.WriteHeader(w.status)
+	}
+}
+
+// release runs commit (the audit insert) and passes held status and body to the client.
+func (w *recorder) release() {
+	if w.released {
+		return
+	}
+	w.released = true
+	if w.commit != nil {
+		w.commit()
+	}
+	if w.status != 0 {
+		w.sendHeader()
+	}
+	if w.held.Len() > 0 {
+		_, _ = w.ResponseWriter.Write(w.held.Bytes())
+		w.held.Reset()
+	}
 }
 
 func (w *recorder) Write(b []byte) (int, error) {
@@ -117,10 +179,19 @@ func (w *recorder) Write(b []byte) (int, error) {
 			w.body.Write(b)
 		}
 	}
+	if w.hold && !w.released {
+		if w.held.Len()+len(b) <= maxHeldBody {
+			return w.held.Write(b)
+		}
+		w.release() // over the cap: audit now, then stream unbuffered
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w *recorder) Flush() {
+	if w.hold && !w.released {
+		w.release() // a handler that flushes is streaming; audit before the first byte
+	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -161,8 +232,15 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	entry := audit.Entry{At: start, Principal: p, Transport: tr, Client: client, Op: opID, Method: r.Method,
 		Idempotency: audit.IdemNone}
 
-	defer func() {
-		rv := recover()
+	rec.hold = matched && (audited || create) && info.Meta.MCP != "exclude:binary"
+	var rv any
+	audited = audited && g.Audit != nil
+	committed := false
+	commit := func() {
+		if committed {
+			return
+		}
+		committed = true
 		status := rec.status
 		if rv != nil && status == 0 {
 			status = http.StatusInternalServerError
@@ -176,14 +254,19 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			entry.ErrorCode = problemCode(rec.head.Bytes())
 		}
 		entry.CreatedIDs = audit.Created(ctx)
-		if audited && g.Audit != nil {
-			actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), auditTimeout)
-			if err := g.Audit.Insert(actx, entry); err != nil {
-				slog.Error("audit insert failed", "op", opID, "err", redact.Error(err))
-			}
-			cancel()
+		if audited {
+			g.insertAudit(ctx, entry)
 		}
-		slog.Info("request", "method", r.Method, "path", r.URL.Path, "op", opID, "status", status,
+	}
+	rec.commit = commit
+
+	defer func() {
+		rv = recover()
+		if rv == nil {
+			rec.release() // audit row first, then the held response
+		}
+		commit()
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "op", opID, "status", entry.Status,
 			"principal", string(p.Kind), "duration_ms", entry.Duration.Milliseconds())
 		if rv != nil {
 			panic(rv)
@@ -255,6 +338,42 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.serveIdempotent(rec, r, info, p, &entry, body)
+}
+
+// insertAudit writes the row, retrying with backoff inside AuditBudget, detached from request
+// cancellation. A persistent failure cannot be allowed to change a response whose effect has
+// already committed: it is logged at error level and counted (audit.Failures, surfaced by
+// get_system_info and /healthz) and the original response goes out.
+func (g *gate) insertAudit(ctx context.Context, e audit.Entry) {
+	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), g.AuditBudget)
+	defer cancel()
+	delay := g.AuditBackoff
+	var err error
+	for {
+		if err = g.Audit.Insert(actx, e); err == nil {
+			return
+		}
+		if permanent(err) {
+			audit.NoteFailure()
+			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
+			return
+		}
+		t := time.NewTimer(delay)
+		select {
+		case <-actx.Done():
+			t.Stop()
+			audit.NoteFailure()
+			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
+			return
+		case <-t.C:
+		}
+		delay = min(delay*2, maxAuditRetry)
+	}
+}
+
+// permanent reports errors a retry cannot cure (a constraint violation such as a duplicate id).
+func permanent(err error) bool {
+	return strings.Contains(err.Error(), "constraint failed")
 }
 
 func (g *gate) serveIdempotent(rec *recorder, r *http.Request, info api.OpInfo, p auth.Principal, entry *audit.Entry, body []byte) {

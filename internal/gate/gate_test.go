@@ -96,6 +96,8 @@ type rig struct {
 type rigOpts struct {
 	limits  ratelimit.Config
 	maxBody int64
+	wrap    func(gate.Auditor) gate.Auditor // injectable audit sink
+	budget  time.Duration
 }
 
 func newRig(t *testing.T, o rigOpts) *rig {
@@ -158,6 +160,24 @@ func newRig(t *testing.T, o rigOpts) *rig {
 			o.Body.ID, o.Body.Token = "tok-1", "canary-secret-value"
 			return o, nil
 		})
+	api.Register(a, reg("t_big", "GET", "/api/t/big", api.Meta{}), api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "none:test"},
+		func(ctx context.Context, _ *struct{}) (*okOut, error) {
+			o := &okOut{}
+			o.Body.OK, o.Body.Name = true, strings.Repeat("x", 5<<20)
+			return o, nil
+		})
+	api.Register(a, reg("t_stream", "GET", "/api/t/stream", api.Meta{}), api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:test", UI: "none:test"},
+		func(ctx context.Context, _ *struct{}) (*huma.StreamResponse, error) {
+			return &huma.StreamResponse{Body: func(hc huma.Context) {
+				hc.SetHeader("Content-Type", "text/plain")
+				w := hc.BodyWriter()
+				_, _ = w.Write([]byte("one"))
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+				_, _ = w.Write([]byte("two"))
+			}}, nil
+		})
 	consumeOp := reg("t_consume", "POST", "/api/t/consume", api.Meta{})
 	consumeOp.DefaultStatus = 201
 	api.Register(a, consumeOp, api.Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "none:test", Idempotency: "create"},
@@ -170,7 +190,11 @@ func newRig(t *testing.T, o rigOpts) *rig {
 			return o, nil
 		})
 
-	r.h = gate.New(gate.Options{API: a, Inner: mux, Audit: r.audit, Idem: r.idem, Limiter: r.limiter, Now: r.clk.Now, MaxBody: o.maxBody,
+	var sink gate.Auditor = r.audit
+	if o.wrap != nil {
+		sink = o.wrap(r.audit)
+	}
+	r.h = gate.New(gate.Options{API: a, Inner: mux, Audit: sink, AuditBudget: o.budget, AuditBackoff: 2 * time.Millisecond, Idem: r.idem, Limiter: r.limiter, Now: r.clk.Now, MaxBody: o.maxBody,
 		Ticker: func(time.Duration) (<-chan time.Time, func()) { return r.ticks, func() {} }})
 	return r
 }
@@ -836,5 +860,185 @@ func TestSec_RefusedAgentCallsAreRateLimited(t *testing.T) {
 	}
 	if !got429 {
 		t.Fatal("scope-refused agent calls were never rate limited")
+	}
+}
+
+type auditFunc func(context.Context, audit.Entry) error
+
+func (f auditFunc) Insert(ctx context.Context, e audit.Entry) error { return f(ctx, e) }
+
+func TestAudit_ResponseWaitsForInsert(t *testing.T) {
+	t.Parallel()
+	entered, release := make(chan struct{}), make(chan struct{})
+	r := newRig(t, rigOpts{wrap: func(inner gate.Auditor) gate.Auditor {
+		return auditFunc(func(ctx context.Context, e audit.Entry) error {
+			close(entered)
+			<-release
+			return inner.Insert(ctx, e)
+		})
+	}})
+	rw := &flushSpy{ResponseRecorder: httptest.NewRecorder()}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		hr := httptest.NewRequest("PATCH", "/api/t/write", strings.NewReader(`{}`))
+		hr.Header.Set("Content-Type", "application/json")
+		r.h.ServeHTTP(rw, hr.WithContext(auth.WithPrincipal(hr.Context(), agent("t1"))))
+	}()
+	<-entered
+	select {
+	case <-done:
+		t.Fatal("handler returned before the audit insert finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if n := rw.writes.Load(); n != 0 {
+		t.Fatalf("%d writes reached the client before the audit row existed", n)
+	}
+	close(release)
+	<-done
+	if rw.Code != 200 || len(r.rows()) != 1 {
+		t.Fatalf("%d rows=%d", rw.Code, len(r.rows()))
+	}
+}
+
+// flushSpy counts calls that reach the client side of the gate.
+type flushSpy struct {
+	*httptest.ResponseRecorder
+	writes atomic.Int64
+}
+
+func (f *flushSpy) WriteHeader(c int)           { f.writes.Add(1); f.ResponseRecorder.WriteHeader(c) }
+func (f *flushSpy) Write(b []byte) (int, error) { f.writes.Add(1); return f.ResponseRecorder.Write(b) }
+
+func TestAudit_ReadYourWrites(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{wrap: func(inner gate.Auditor) gate.Auditor {
+		return auditFunc(func(ctx context.Context, e audit.Entry) error {
+			time.Sleep(5 * time.Millisecond)
+			return inner.Insert(ctx, e)
+		})
+	}})
+	for i := 0; i < 20; i++ {
+		r.do(req{p: agent("t1"), method: "PATCH", path: "/api/t/write", body: `{}`})
+		if got := len(r.rows()); got != i+1 {
+			t.Fatalf("after call %d the audit trail has %d rows", i+1, got)
+		}
+	}
+}
+
+func TestAudit_TransientFailuresRetried(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int64
+	r := newRig(t, rigOpts{wrap: func(inner gate.Auditor) gate.Auditor {
+		return auditFunc(func(ctx context.Context, e audit.Entry) error {
+			if attempts.Add(1) <= 3 {
+				return fmt.Errorf("database is locked")
+			}
+			return inner.Insert(ctx, e)
+		})
+	}})
+	w := r.do(req{p: agent("t1"), method: "PATCH", path: "/api/t/write", body: `{}`})
+	if w.Code != 200 || len(r.rows()) != 1 || attempts.Load() != 4 {
+		t.Fatalf("status=%d rows=%d attempts=%d", w.Code, len(r.rows()), attempts.Load())
+	}
+}
+
+func TestAudit_WriterBusyBeyondTwoSeconds(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{})
+	conn, err := r.st.W.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { time.Sleep(2300 * time.Millisecond); conn.Close() }()
+	w := r.do(req{p: agent("t1"), method: "PATCH", path: "/api/t/write", body: `{}`})
+	if w.Code != 200 || len(r.rows()) != 1 {
+		t.Fatalf("status=%d rows=%d: the audit row was lost under a busy writer", w.Code, len(r.rows()))
+	}
+}
+
+func TestAudit_PersistentFailureKeepsResponse(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{budget: 60 * time.Millisecond, wrap: func(gate.Auditor) gate.Auditor {
+		return auditFunc(func(context.Context, audit.Entry) error { return fmt.Errorf("disk gone") })
+	}})
+	before := audit.Failures()
+	w := r.do(req{p: agent("t1"), method: "PATCH", path: "/api/t/write", body: `{}`})
+	if w.Code != 200 {
+		t.Fatalf("the committed op's response must survive: %d", w.Code)
+	}
+	if audit.Failures() != before+1 {
+		t.Fatalf("failure counter %d -> %d", before, audit.Failures())
+	}
+}
+
+func TestAudit_OversizedResponseAuditedBeforeFirstByte(t *testing.T) {
+	t.Parallel()
+	var rowsAtFirstWrite atomic.Int64
+	rowsAtFirstWrite.Store(-1)
+	r := newRig(t, rigOpts{})
+	rw := &hookRecorder{ResponseRecorder: httptest.NewRecorder(), onFirst: func() {
+		rowsAtFirstWrite.Store(int64(len(r.rows())))
+	}}
+	hr := httptest.NewRequest("GET", "/api/t/big", nil)
+	r.h.ServeHTTP(rw, hr.WithContext(auth.WithPrincipal(hr.Context(), agent("t1"))))
+	if rw.Code != 200 || rw.Body.Len() < 5<<20 {
+		t.Fatalf("%d %d", rw.Code, rw.Body.Len())
+	}
+	if rowsAtFirstWrite.Load() != 1 {
+		t.Fatalf("audit rows when the first byte was written: %d", rowsAtFirstWrite.Load())
+	}
+}
+
+func TestAudit_FlushingHandlerAuditedFirst(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{})
+	var rows atomic.Int64
+	rw := &hookRecorder{ResponseRecorder: httptest.NewRecorder(), onFirst: func() { rows.Store(int64(len(r.rows()))) }}
+	hr := httptest.NewRequest("GET", "/api/t/stream", nil)
+	r.h.ServeHTTP(rw, hr.WithContext(auth.WithPrincipal(hr.Context(), agent("t1"))))
+	if rw.Body.String() != "onetwo" || rows.Load() != 1 {
+		t.Fatalf("body=%q rows at first write=%d", rw.Body, rows.Load())
+	}
+}
+
+type hookRecorder struct {
+	*httptest.ResponseRecorder
+	onFirst func()
+	once    sync.Once
+}
+
+func (h *hookRecorder) WriteHeader(c int) { h.once.Do(h.onFirst); h.ResponseRecorder.WriteHeader(c) }
+func (h *hookRecorder) Write(b []byte) (int, error) {
+	h.once.Do(h.onFirst)
+	return h.ResponseRecorder.Write(b)
+}
+
+func TestAudit_PermanentErrorNotRetried(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int64
+	r := newRig(t, rigOpts{budget: 5 * time.Second, wrap: func(gate.Auditor) gate.Auditor {
+		return auditFunc(func(context.Context, audit.Entry) error {
+			attempts.Add(1)
+			return fmt.Errorf("constraint failed: UNIQUE constraint failed: audit_log.id")
+		})
+	}})
+	w := r.do(req{p: agent("t1"), method: "PATCH", path: "/api/t/write", body: `{}`})
+	if w.Code != 200 || attempts.Load() != 1 {
+		t.Fatalf("status=%d attempts=%d", w.Code, attempts.Load())
+	}
+}
+
+func TestAudit_NilStoreIsDisabled(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	a := humago.New(mux, api.HumaConfig())
+	var nilStore *audit.Store
+	h := gate.New(gate.Options{API: a, Inner: mux, Audit: nilStore})
+	hr := httptest.NewRequest("GET", "/api/nope", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, hr.WithContext(auth.WithPrincipal(hr.Context(), agent("t1"))))
+	if w.Code != 404 {
+		t.Fatal(w.Code)
 	}
 }
