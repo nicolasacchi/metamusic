@@ -159,7 +159,7 @@ func (s *applyState) run(ctx context.Context) error {
 				id, ok := s.recipeIDs[r.hash]
 				if !ok {
 					var err error
-					if id, _, err = lib.InsertRecipe(ctx, tx, r.parsed); err != nil {
+					if id, _, err = lib.InsertRecipe(ctx, tx, r.parsed, "import"); err != nil {
 						return err
 					}
 					s.recipeIDs[r.hash] = id

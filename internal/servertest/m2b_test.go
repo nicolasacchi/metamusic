@@ -111,3 +111,32 @@ func TestWriteFixtureDB_M2b(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestWriteFixtureDB_M3 is the third half of `make fixture-db`: with MM_FIXTURE_DB=<path> it adds the M3 rows
+// (one completed, one awaiting and one failed batch, the ledger, the job take and its files) to the fixture
+// database; otherwise it builds the whole fixture in a temp dir and checks the rows.
+func TestWriteFixtureDB_M3(t *testing.T) {
+	t.Parallel()
+	path := os.Getenv("MM_FIXTURE_DB")
+	if path == "" {
+		path = filepath.Join(t.TempDir(), "fixture", "metamusic.db")
+		lt.WriteFixtureDB(t, path)
+	}
+	st, err := store.Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
+	lt.ApplyM3(t, st, lt.FixedNow)
+	var n int
+	if err := st.R.QueryRow(`SELECT COUNT(*) FROM tracks WHERE origin = 'job' AND id = ?`, lt.TrackJobChild).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("job track rows = %d (%v)", n, err)
+	}
+	var sha string
+	if err := st.R.QueryRow(`SELECT master_path FROM tracks WHERE id = ?`, lt.TrackJobChild).Scan(&sha); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(path), sha)); err != nil {
+		t.Fatalf("the job take's master file: %v", err)
+	}
+}

@@ -132,3 +132,37 @@ func FLAC(ctx context.Context, t mediatool.Tools, dst string, tone Tone, style F
 	}
 	return publish(tmp, dst, err)
 }
+
+// FLACUncalibrated renders the tone to dst (absolute path) in ONE render pass, without loudness
+// calibration (Tone.LUFS is ignored): the fake worker and the E2E rigs need distinct audio quickly,
+// not a measured level (M3 C78.3). The output has the requested metadata style and the exact length
+// of Tone.Seconds at 48 kHz/24 bit stereo; distinct Variants give distinct frames.
+func FLACUncalibrated(ctx context.Context, t mediatool.Tools, dst string, tone Tone, style FLACStyle) error {
+	if err := needAbs(dst); err != nil {
+		return err
+	}
+	if tone.Seconds <= 0 || math.IsNaN(tone.Seconds) || math.IsInf(tone.Seconds, 0) {
+		return errors.New("synth: tone needs a positive duration")
+	}
+	if tone.BandLimitHz < 0 || tone.BandLimitHz > sampleRate/2 {
+		return errors.New("synth: band limit out of range")
+	}
+	graph := tone.source(baseGainDB)
+	tmp := dst + ".tmp"
+	var err error
+	switch style {
+	case StyleYuE2:
+		wav := dst + ".wav.tmp"
+		defer func() { _ = os.Remove(wav) }()
+		if err = render(ctx, t.FFmpeg, graph, wavOut, wav); err != nil {
+			return err
+		}
+		err = run(ctx, t.FLAC, "-s", "-f", "--no-seektable", "--no-padding", "-o", tmp, wav)
+		if err == nil {
+			err = run(ctx, t.Metaflac, "--remove-all-tags", "--dont-use-padding", tmp)
+		}
+	default:
+		err = render(ctx, t.FFmpeg, graph, flacOut, tmp)
+	}
+	return publish(tmp, dst, err)
+}

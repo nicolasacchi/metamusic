@@ -22,9 +22,12 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/gate"
+	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
@@ -33,8 +36,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
+	"github.com/nicolasacchi/metamusic/internal/upload"
 )
 
 // Options configures New.
@@ -90,6 +95,19 @@ type Options struct {
 	Devices     auth.DeviceVerifier
 	DeviceStore *auth.DeviceStore
 	Notify      notify.Notifier
+
+	// M3 services (C81); nil makes the matching operations answer 503 UNAVAILABLE {component}.
+	Generation *generation.Service
+	Spend      *spend.Service
+	Jobs       *jobs.Service
+	Provider   *jobs.ProviderAdmin
+	Lineage    *lineage.Service
+	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
+	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
+	Uploads *upload.Service
+	// BaseContext is the server's base context: when it ends (shutdown starts) every request context's
+	// reqinfo.ShutdownDone fires, so long-polls return and the 30 s drain does not wait on them (C75.8).
+	BaseContext context.Context
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -114,7 +132,8 @@ func New(o Options) (http.Handler, error) {
 		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
-		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips})
+		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips,
+		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
@@ -231,6 +250,16 @@ func New(o Options) (http.Handler, error) {
 		mux.Handle("/mcp", notFound)
 		mux.Handle("/mcp/", notFound)
 	}
+	if o.Uploads != nil {
+		mux.Handle("/worker/v1/uploads/", o.Uploads.Handler())
+		mux.Handle("/worker/v1/attempts/", o.Uploads.StartHandler())
+	} else {
+		for _, p := range []string{"/worker/v1/uploads/", "/worker/v1/attempts/"} {
+			mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
+				writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			})
+		}
+	}
 	if o.Media != nil {
 		mux.Handle("/media/", o.Media)
 	} else {
@@ -256,6 +285,13 @@ func New(o Options) (http.Handler, error) {
 		devices = o.DeviceStore
 	}
 	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions, devices)(mux)
+	if o.BaseContext != nil {
+		inner := outer
+		done := o.BaseContext.Done()
+		outer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			inner.ServeHTTP(w, r.WithContext(reqinfo.WithShutdown(r.Context(), done)))
+		})
+	}
 	if leaks != nil {
 		outer = leaks.wrap(outer)
 	}

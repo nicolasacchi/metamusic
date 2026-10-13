@@ -86,3 +86,42 @@ func TestSyntheticArchive_ImportedOnce(t *testing.T) {
 		t.Errorf("e2e imported without being asked: %d", n)
 	}
 }
+
+// TestGenerateArchive_SevenMothers (heavy): 7 backlog drafts whose mothers are 7 distinct lineage roots.
+func TestGenerateArchive_SevenMothers(t *testing.T) {
+	t.Parallel()
+	a := archivetest.GenerateArchive(t)
+	if b := archivetest.GenerateArchive(t); a != b {
+		t.Errorf("two calls returned different templates")
+	}
+	d1, d2 := a.Copy(t), a.Copy(t)
+	if d1 == d2 {
+		t.Fatal("copies share a directory")
+	}
+	if n := count(t, d1, `SELECT COUNT(*) FROM recipe_drafts WHERE status = 'backlog' AND parent_track_id IS NOT NULL`); n != 7 {
+		t.Errorf("backlog drafts with a mother = %d, want 7", n)
+	}
+	if n := count(t, d1, `SELECT COUNT(DISTINCT parent_track_id) FROM recipe_drafts WHERE status = 'backlog' AND parent_track_id IS NOT NULL`); n != 7 {
+		t.Errorf("distinct mothers = %d, want 7", n)
+	}
+	if n := count(t, d1, `SELECT COUNT(*) FROM recipe_drafts d JOIN tracks t ON t.id = d.parent_track_id WHERE d.status = 'backlog' AND t.id = t.root_track_id`); n != 7 {
+		t.Errorf("mothers that are lineage roots = %d, want 7", n)
+	}
+	// the base acceptance template is untouched
+	base := archivetest.SyntheticArchive(t, "acceptance").Copy(t)
+	if n := count(t, base, `SELECT COUNT(*) FROM recipe_drafts WHERE parent_track_id IS NOT NULL`); n != 1 {
+		t.Errorf("acceptance template drafts with a mother = %d, want 1 (the varianti draft)", n)
+	}
+	// a copy is private
+	st, err := store.Open(context.Background(), filepath.Join(d1, "metamusic.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.W.Exec(`UPDATE recipe_drafts SET status = 'archived' WHERE status = 'backlog'`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	if n := count(t, d2, `SELECT COUNT(*) FROM recipe_drafts WHERE status = 'backlog'`); n < 7 {
+		t.Errorf("a copy changed another copy: %d backlog drafts", n)
+	}
+}

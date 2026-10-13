@@ -142,6 +142,10 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				MCP       string     `json:"mcp"`
 				UI        string     `json:"ui"`
 				HumanOnly bool       `json:"human_only"`
+				// M3 (C80): the spend and alias rules read these.
+				Idempotency string `json:"idempotency"`
+				Rate        string `json:"rate"`
+				AliasOf     string `json:"alias_of"`
 			} `json:"x-mm"`
 		} `json:"paths"`
 	}
@@ -156,8 +160,9 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				t.Errorf("%s %s: x-mm missing", method, path)
 				continue
 			}
-			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly}
-			hop := huma.Operation{OperationID: op.OperationID, Path: path, Summary: op.Summary, Description: op.Description}
+			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly,
+				Idempotency: op.XMM.Idempotency, Rate: op.XMM.Rate, AliasOf: op.XMM.AliasOf}
+			hop := huma.Operation{OperationID: op.OperationID, Method: strings.ToUpper(method), Path: path, Summary: op.Summary, Description: op.Description}
 			if err := api.ValidateMeta(hop, m); err != nil {
 				t.Errorf("%s %s: %v", method, path, err)
 			}

@@ -13,3 +13,9 @@ func created(op huma.Operation) huma.Operation {
 	op.DefaultStatus = 201
 	return op
 }
+
+// notImplemented is the body of every STUB(M3-Bn) handler: the contract (path, types, metadata, nil-dependency
+// check) is frozen in M3-B2, the owning lane replaces the body. lane names the task, for example "M3-B4".
+func notImplemented(lane string) error {
+	return Err(501, "NOT_IMPLEMENTED", "this operation is not implemented yet", map[string]any{"stub": lane})
+}

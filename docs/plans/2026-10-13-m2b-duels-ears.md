@@ -1484,6 +1484,10 @@ as a delta table (sign-coloured), flag diff, recipe diff, head-to-head and ladde
 
 No raw HTML (`svelte/no-at-html-tags`, M1): titles, verdict notes and lyric lines render as text.
 
+**C54 addendum (M3-B2):** the lineage page (`/lineage/:id`) is fed by `get_lineage` and reuses the "A/B with parent" and "Compare" actions;
+`LineageNode.cost`, `operator`, `inferred`, `rationale` and the `recipe_known`/`lossy` flags are in the frozen schema (M3 C81).
+
+
 ### C55. Synthetic data and fixtures
 
 `internal/synth` additions (production code, `mediatool.Tools`):

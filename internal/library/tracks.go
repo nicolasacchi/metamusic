@@ -48,6 +48,11 @@ type TrackSummary struct {
 	// M2c (C59)
 	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother"`
 	Lossy       bool `json:"lossy" doc:"The master is an MP3; there is no lossless file"`
+
+	// M3 (C81.1)
+	Origin              string  `json:"origin" doc:"import or job"`
+	CostDisplayMicroUSD *int64  `json:"cost_display_micro_usd" doc:"Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes"`
+	CostDisplayUSD      *string `json:"cost_display_usd"`
 }
 
 // TrackPage is one page of search results.
@@ -416,6 +421,7 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
+	t.Origin = "import" // STUB(M3-B6): the query selects t.origin and the cost fields once job takes exist
 	terms, _ := yue2.StyleTerms(style)
 	if terms == nil {
 		terms = []string{}
@@ -709,6 +715,9 @@ type TrackDetail struct {
 	// M2c (C59)
 	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub"`
 	Lossy       bool `json:"lossy" doc:"The master is an MP3; bits_per_sample is nominal and there is no lossless file"`
+
+	// M3 (C81.1)
+	Generation *GenerationInfo `json:"generation" doc:"How the take was generated; null for imported takes"`
 }
 
 func nb(n sql.NullInt64) *bool {

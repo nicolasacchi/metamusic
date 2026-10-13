@@ -72,3 +72,17 @@ func SanitizeClient(s string) string {
 func IsSPARequest(r *http.Request) bool {
 	return r.Header.Get("X-MM-Client") == "spa" || r.URL.Query().Get("mm_client") == "spa"
 }
+
+type shutdownKey struct{}
+
+// WithShutdown attaches the server's shutdown signal (the Done channel of its base context) to a
+// request context, so long-polling handlers return as soon as shutdown starts (M3 C75.8).
+func WithShutdown(ctx context.Context, done <-chan struct{}) context.Context {
+	return context.WithValue(ctx, shutdownKey{}, done)
+}
+
+// ShutdownDone returns the shutdown channel of ctx; nil (which never fires) when none is attached.
+func ShutdownDone(ctx context.Context) <-chan struct{} {
+	d, _ := ctx.Value(shutdownKey{}).(<-chan struct{})
+	return d
+}

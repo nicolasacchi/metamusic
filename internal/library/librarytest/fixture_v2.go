@@ -25,3 +25,14 @@ func FixtureM2c(tb testing.TB, st *store.Store, now time.Time) Fixtures {
 	tb.Helper()
 	return addM2c(tb, st, now, Fixture(tb, st, now))
 }
+
+// FixtureM3 is FixtureM2c plus the M3 rows of fixture_m3.go (schema version 6, C86.2): a finished and
+// reconciled batch with one completed reroll_seed job (TrackJobChild, child of TrackLuna, with its
+// mutations row, environment fingerprint, ledger rows and a reconciled billing window), an agent batch
+// awaiting confirmation (two jobs), a finished batch whose only job failed with NO_CAPACITY, and
+// provider_state 'fake' armed. recipe_keys exist for every yue2 recipe (InsertRecipe writes them) and
+// for no stub; caps are the migration defaults.
+func FixtureM3(tb testing.TB, st *store.Store, now time.Time) Fixtures {
+	tb.Helper()
+	return addM3(tb, st, now, FixtureM2c(tb, st, now))
+}

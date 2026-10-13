@@ -34,6 +34,10 @@ type DraftSummary struct {
 	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
 	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
 	Lint      yue2.LintCounts `json:"lint" doc:"Full lint (protocol and songwriting) of the stored request"`
+
+	// M3 (C81.1)
+	InFlight       bool `json:"in_flight" doc:"A non-terminal job renders this draft; it cannot be edited or estimated again"`
+	GeneratedTakes int  `json:"generated_takes" doc:"Takes generated from this draft"`
 }
 
 // DraftPage is one page of drafts.
@@ -266,6 +270,10 @@ type DraftDetail struct {
 	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
 	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
 	Lint      yue2.LintResult `json:"lint" doc:"Full lint of the stored request"`
+
+	// M3 (C81.1)
+	InFlight       bool `json:"in_flight" doc:"A non-terminal job renders this draft; it cannot be edited or estimated again"`
+	GeneratedTakes int  `json:"generated_takes" doc:"Takes generated from this draft"`
 }
 
 // Draft returns one draft. The reference map is filled only withReference

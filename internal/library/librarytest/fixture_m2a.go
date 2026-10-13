@@ -129,7 +129,7 @@ func addM2a(tb testing.TB, st *store.Store, now time.Time, fx Fixtures) Fixtures
 	svc.UseIDFunc(func() string { n++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", n) })
 	tx := begin(tb, st)
 	p := mustParse(tb, reqJSON("fxv_001_v1", "synth pop, 100 bpm", "[Verse 1]\nline one\n[Chorus]\nline two", 207))
-	rid, _, err := svc.InsertRecipe(ctx, tx, p)
+	rid, _, err := svc.InsertRecipe(ctx, tx, p, "import")
 	check(tb, err)
 	fx.Recipes = append(fx.Recipes, rid)
 	_, err = svc.InsertRecipeSource(ctx, tx, rid, library.SourceRef{Path: "varianti/fxv.jsonl", Line: 1, Raw: p.Canonical, RawKind: "jsonl_line"}, RunID)

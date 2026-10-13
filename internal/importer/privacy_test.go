@@ -28,9 +28,12 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
@@ -38,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
@@ -124,10 +128,12 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Sessions: auth.NewLocalAuth(e.st, key, cfg.PublicURL), SPA: fstest.MapFS{"index.html": {Data: []byte("x")}},
 		Version: "v-test", Commit: "abc", Started: e.now.Add(-time.Hour),
 		Library: lib, Judgments: judg, Signer: signer, Now: now, Playlists: pls, Backups: bak,
-		Exports:   exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
-		Clips:     clip.New(e.data, e.dataDir, mediatool.Tools{}, cliptest.NewAnalyzer(), lib, signer, clip.Options{CacheBytes: 1 << 20, Now: now}),
-		Duels:     duels.New(duels.Options{Store: e.st, Library: lib, Clips: cliptest.NewRenderer(), Signer: signer, Now: now}),
-		Ears:      ears.New(ears.Options{Store: e.st, Library: lib, Signer: signer, Now: now}),
+		Exports:    exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
+		Clips:      clip.New(e.data, e.dataDir, mediatool.Tools{}, cliptest.NewAnalyzer(), lib, signer, clip.Options{CacheBytes: 1 << 20, Now: now}),
+		Duels:      duels.New(duels.Options{Store: e.st, Library: lib, Clips: cliptest.NewRenderer(), Signer: signer, Now: now}),
+		Ears:       ears.New(ears.Options{Store: e.st, Library: lib, Signer: signer, Now: now}),
+		Generation: generation.New(generation.Options{}), Spend: spend.New(spend.Options{}), Jobs: jobs.New(jobs.Options{}),
+		Provider: jobs.NewProviderAdmin(jobs.ProviderOptions{}), Lineage: lineage.New(lineage.Options{}), // M3 stubs answer 501
 		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return uuid.NewV7().String() }),
 		DeviceStore: auth.NewDeviceStore(e.st, key, now, func() string { return "privacy-device" }),
 		Probe:       &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
@@ -196,6 +202,8 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// M2a operations: their privacy is covered by the M2a acceptance tests (B10)
 		case strings.HasPrefix(p, "/api/duels/{"):
 			// M2b: duels hold track ids and verdicts only, never recipe reference metadata
+		case strings.HasPrefix(p, "/api/batches/{") || strings.HasPrefix(p, "/api/jobs/{"):
+			// M3: batches and jobs hold ids, states and money, never recipe reference metadata
 		case p == "/api/compare":
 			// M2b compare_tracks needs two distinct takes and reads recipes, never reference metadata
 		case strings.Contains(p, "{"):

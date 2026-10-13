@@ -1594,6 +1594,11 @@ state=open kind=fix)" (`list_comments` is a generic op, so the hint names the ge
   a comment (add_comment) — you cannot hear: see perception.blind_spots".
 - Links: signed with `TTLFor(principal)` (15 min for agents), absolute with `PublicURL`.
 
+**C35 addendum (M3-B2):** the `provenance` block of the bundle will carry `cost` (`{micro_usd, usd, basis}|null`, replacing `cost_usd`),
+`env` and `job_id`, and `next_actions` gains a lowest-priority generation hint under a cap of five entries; the shapes are frozen
+in M3-B2 and the bundle code and goldens change in M3-B6. See the M3 plan, C81.1.
+
+
 ### C36. Listen events (`internal/listening`)
 
 ```go
@@ -1793,6 +1798,11 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
   `internal/api/ops_drafts.go` into `ops_drafts_m2a.go` (same operationIds, paths and meta), so the
   Stage-2 Drafts lane owns every draft op file and never edits an M1 file.
 
+**C38 addendum (M3-B2):** the registry holds 81 operations after M3 (58 + the 23 of M3 C81; `TestRegistry_OpCount`).
+`TestOps_CreateOpsDeclareIdempotencyKey` now also covers the three spend operations; the M3 operations live in
+`ops_generation_m3.go`, `ops_budget_m3.go`, `ops_jobs_m3.go` and `ops_provider_m3.go` with types in `types_m3.go`.
+
+
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
 
 > M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
@@ -1860,6 +1870,15 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
   - `restore --from SNAPSHOT --into DIR` (C34; exit 0 / 1 verification failure / 2 usage or non-empty target).
 - `token create`, `token revoke` and `user set-password` (M0) write audit rows and switch to
   `config.LoadOffline`; output unchanged.
+
+**C39 addendum (M3-B2):** `app.Options` gains `Rand` (confirmation tokens and runner instance ids) and `M3 M3Options` (clock, backend,
+fake and RunPod overrides, ingester, shutdown context); `app.Services` gains `Lineage`, `Spend`, `Generation`, `Jobs`, `Provider`,
+`Uploads`, `Backend`, `Fake`, `Gate`, `Runner`, `Reconciler`; `api.Deps` and `httpserver.Options` gain `Generation`, `Spend`, `Jobs`,
+`Provider`, `Lineage` (and `Uploads`, `BaseContext` for the server). `Build` selects the backend from `MM_BACKEND`, writes the
+`provider_state` default row once (the fake armed, the serverless backend disarmed, by `system:default`) and builds, never starts,
+the runner and the reconciler; the generation-enabled state is `provider.Gate.State`, computed from local facts only. The worker
+routes `/worker/v1/uploads/` and `/worker/v1/attempts/` are mounted by `httpserver` (ClassMachine). See the M3 plan, C68 and C74.
+
 
 ### C40. Web (`web/`; amends M1 C22)
 
@@ -1984,6 +2003,11 @@ and an `mcp-stdio` example reading `MM_TOKEN` from the environment), `revoke_tok
 **Lint and tests.** ESLint bans (M0) unchanged; `sendBeacon`, `fetch` and `indexedDB` appear only under
 `src/api/` (`no-restricted-globals` gains `indexedDB` outside `src/api/**`). `svelte/no-at-html-tags`
 stays an error; comment bodies, tags, titles and verdicts render as text.
+
+**C40 addendum (M3-B2):** `web/src/api/schema.d.ts` is regenerated with the 23 M3 operations and the amended shapes; the M3 routes
+(`/human/generate`, `/human/confirm/:batch`, `/human/spend`, `/jobs`, `/jobs/:id`, `/batches/:id`, `/lineage/:id`) are built by the
+Web lane (M3-W1..W3).
+
 
 ### C41. Tooling, CI, routing, coverage (amends M1 C23/C24)
 
@@ -2118,6 +2142,13 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
   own DB copy plus hardlinked files. Every M2a acceptance test that needs an imported archive uses it
   instead of importing again.
 - `make fixture-db` (M1) keeps working and now includes the M2a rows.
+
+**C42 addendum (M3-B2):** `servertest.Options` gains `Backend` (`none`|`fake`), `Runner`, `FakeSpeed`, `Fake`, `Caps`, `M3`
+(`librarytest.FixtureM3`), `Rand` and `Ingest`; `Rig` gains `Fake`, `Backend`, `Runner`, `Reconciler`; `servertest.SeededReader(seed)`
+gives every rig the same token sequence. `ParityCase.Args` is now `func(r *servertest.Rig, prev map[string]any) map[string]any` (`prev` is
+the raw response of the previous case on the same rig; `fixedArgs` ignores it) and the parity rigs run `Backend: "fake"` with the
+runner idle. New helpers: `librarytest.FixtureM3`/`ApplyM3`/`SeedJob`, `archivetest.GenerateArchive`, `providertest`, `synth.FLACUncalibrated`.
+
 
 ---
 

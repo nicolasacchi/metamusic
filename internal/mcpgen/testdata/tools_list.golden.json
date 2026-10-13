@@ -197,6 +197,362 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
+    "description": "Cancel a generation job\n\nRecords a cancel intent; the runner cancels the provider job and settles what ran. Terminal jobs are unchanged. An agent can cancel only its own batches' jobs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Job or batch id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "cancel_job",
+    "outputSchema": {
+      "properties": {
+        "artifacts": {
+          "items": {
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "verified": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "attempts": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "audio_s": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": "string"
+        },
+        "batch_id": {
+          "type": "string"
+        },
+        "cancel_requested_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cost": {
+          "properties": {
+            "basis": {
+              "enum": [
+                "estimate",
+                "provisional",
+                "reconciled"
+              ],
+              "type": "string"
+            },
+            "display_micro_usd": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "display_usd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "deadline_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draft_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "engine": {
+          "type": "string"
+        },
+        "env": {
+          "properties": {
+            "backend": {
+              "type": "string"
+            },
+            "code_commit": {
+              "type": "string"
+            },
+            "decoder": {
+              "type": "string"
+            },
+            "detail": {
+              "properties": {
+                "cuda": {
+                  "type": "string"
+                },
+                "gpu_name": {
+                  "type": "string"
+                },
+                "python": {
+                  "type": "string"
+                },
+                "torch": {
+                  "type": "string"
+                },
+                "worker_build": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "engine": {
+              "type": "string"
+            },
+            "env_id": {
+              "type": "string"
+            },
+            "gpu_class": {
+              "type": "string"
+            },
+            "image_digest": {
+              "type": "string"
+            },
+            "pkg_version": {
+              "type": "string"
+            },
+            "weights": {
+              "type": "object"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "events": {
+          "items": {
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "event": {
+                "type": "string"
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "expected_audio_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "clean",
+            "truncated"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "resubmits": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "seed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "awaiting_confirmation",
+            "queued",
+            "submitting",
+            "starting",
+            "generating",
+            "transferring",
+            "ingesting",
+            "cancelling",
+            "failing",
+            "completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "take_index": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "timeout_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "timings": {
+          "properties": {
+            "cold_start_s": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "execution_ms": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "queue_delay_ms": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "title": {
+          "type": "string"
+        },
+        "track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "truncated": {
+          "properties": {
+            "abc": {
+              "type": "boolean"
+            },
+            "semantic": {
+              "type": "boolean"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
     "description": "Create a draft\n\nStores a new backlog draft from a song request. Drafts are always protocol-valid; songwriting warnings are returned, not blocking.",
     "inputSchema": {
       "additionalProperties": false,
@@ -254,6 +610,10 @@
             "null"
           ]
         },
+        "generated_takes": {
+          "format": "int64",
+          "type": "integer"
+        },
         "group": {
           "items": {
             "properties": {
@@ -288,6 +648,9 @@
         },
         "id": {
           "type": "string"
+        },
+        "in_flight": {
+          "type": "boolean"
         },
         "label": {
           "type": [
@@ -513,6 +876,392 @@
   {
     "annotations": {
       "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "description": "Create a generation batch\n\nSpends money: needs the confirmation_token of a fresh estimate. Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_token": {
+          "description": "From the estimate; single use",
+          "pattern": "^mmc_[a-z2-7]{52}$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why; stored on the batch and the Operator Ledger",
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmation_token"
+      ],
+      "type": "object"
+    },
+    "name": "create_generation",
+    "outputSchema": {
+      "properties": {
+        "approval": {
+          "properties": {
+            "batch_id": {
+              "type": "string"
+            },
+            "decided_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "decided_by": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "expires_at": {
+              "type": "string"
+            },
+            "last_requested_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "next_request_allowed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notified": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reasons": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "auto"
+              ],
+              "type": "string"
+            },
+            "via": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "ceiling_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "ceiling_usd": {
+              "type": "string"
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            },
+            "max_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "max_usd": {
+              "type": "string"
+            },
+            "outstanding_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "outstanding_usd": {
+              "type": "string"
+            },
+            "reconciled": {
+              "type": "boolean"
+            },
+            "reserved_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "reserved_usd": {
+              "type": "string"
+            },
+            "settled_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "settled_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "counts": {
+          "properties": {
+            "awaiting": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "cancelled": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "completed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expired": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "failed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "queued": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "running": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "truncated": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "created_by": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "estimate_id": {
+          "type": "string"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "jobs": {
+          "items": {
+            "properties": {
+              "batch_id": {
+                "type": "string"
+              },
+              "cost": {
+                "properties": {
+                  "basis": {
+                    "enum": [
+                      "estimate",
+                      "provisional",
+                      "reconciled"
+                    ],
+                    "type": "string"
+                  },
+                  "display_micro_usd": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "display_usd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "expected_micro_usd": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "expected_usd": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "created_at": {
+                "type": "string"
+              },
+              "draft_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string"
+              },
+              "outcome": {
+                "enum": [
+                  "clean",
+                  "truncated"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parent_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "awaiting_confirmation",
+                  "queued",
+                  "submitting",
+                  "starting",
+                  "generating",
+                  "transferring",
+                  "ingesting",
+                  "cancelling",
+                  "failing",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "take_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "awaiting_confirmation",
+            "active",
+            "finished",
+            "rejected",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "takes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "via": {
+          "enum": [
+            "api",
+            "human_create"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
       "openWorldHint": false,
       "readOnlyHint": false
     },
@@ -601,6 +1350,19 @@
                     "format": "int64",
                     "type": "integer"
                   },
+                  "cost_display_micro_usd": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "cost_display_usd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "created_at": {
                     "type": "string"
                   },
@@ -634,6 +1396,9 @@
                   "open_comments": {
                     "format": "int64",
                     "type": "integer"
+                  },
+                  "origin": {
+                    "type": "string"
                   },
                   "parent_track_id": {
                     "type": [
@@ -719,6 +1484,397 @@
   {
     "annotations": {
       "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "description": "Create variants of a track\n\nSpends money: needs the confirmation_token of a fresh estimate. Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_token": {
+          "description": "From the estimate; single use",
+          "pattern": "^mmc_[a-z2-7]{52}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "The mother track of the estimate",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why; stored on the batch and the Operator Ledger",
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmation_token",
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "create_variant",
+    "outputSchema": {
+      "properties": {
+        "approval": {
+          "properties": {
+            "batch_id": {
+              "type": "string"
+            },
+            "decided_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "decided_by": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "expires_at": {
+              "type": "string"
+            },
+            "last_requested_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "next_request_allowed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notified": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reasons": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "auto"
+              ],
+              "type": "string"
+            },
+            "via": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "ceiling_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "ceiling_usd": {
+              "type": "string"
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            },
+            "max_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "max_usd": {
+              "type": "string"
+            },
+            "outstanding_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "outstanding_usd": {
+              "type": "string"
+            },
+            "reconciled": {
+              "type": "boolean"
+            },
+            "reserved_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "reserved_usd": {
+              "type": "string"
+            },
+            "settled_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "settled_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "counts": {
+          "properties": {
+            "awaiting": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "cancelled": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "completed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expired": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "failed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "queued": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "running": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "truncated": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "created_by": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "estimate_id": {
+          "type": "string"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "jobs": {
+          "items": {
+            "properties": {
+              "batch_id": {
+                "type": "string"
+              },
+              "cost": {
+                "properties": {
+                  "basis": {
+                    "enum": [
+                      "estimate",
+                      "provisional",
+                      "reconciled"
+                    ],
+                    "type": "string"
+                  },
+                  "display_micro_usd": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "display_usd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "expected_micro_usd": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "expected_usd": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "created_at": {
+                "type": "string"
+              },
+              "draft_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string"
+              },
+              "outcome": {
+                "enum": [
+                  "clean",
+                  "truncated"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parent_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "awaiting_confirmation",
+                  "queued",
+                  "submitting",
+                  "starting",
+                  "generating",
+                  "transferring",
+                  "ingesting",
+                  "cancelling",
+                  "failing",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "take_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "awaiting_confirmation",
+            "active",
+            "finished",
+            "rejected",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "takes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "via": {
+          "enum": [
+            "api",
+            "human_create"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
       "openWorldHint": false,
       "readOnlyHint": true
     },
@@ -737,6 +1893,832 @@
       "type": "object"
     },
     "name": "describe_operation"
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Estimate a generation batch\n\nPlans 1-20 items (new seeds, edits, drafts, templates, new songs) into at most 50 takes and prices them. Free. Returns the worst-case cost, warnings and the confirmation_token create_generation needs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "description": "Default yue2",
+          "enum": [
+            "yue2"
+          ],
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "draft_ids": {
+                "description": "from_draft: the drafts to render",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              },
+              "mode": {
+                "description": "How the take list is built; see the modes table",
+                "enum": [
+                  "new_seed",
+                  "same_seed_edit",
+                  "lyric_edit",
+                  "style_edit",
+                  "from_draft",
+                  "compose_new",
+                  "from_template"
+                ],
+                "type": "string"
+              },
+              "n_seeds": {
+                "description": "Seeds per base recipe (default 1)",
+                "format": "int64",
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "parent_track_id": {
+                "description": "Variants: the mother (required). from_draft: optional mother override",
+                "type": "string"
+              },
+              "parent_track_ids": {
+                "description": "from_template: the mothers",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 2,
+                "type": "array"
+              },
+              "patch": {
+                "additionalProperties": false,
+                "properties": {
+                  "abc": {
+                    "description": "A string sets the score, null removes it, absent keeps it",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cfg_scale": {
+                    "description": "A number sets it, null removes it, absent keeps it",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "cot": {
+                    "enum": [
+                      "full",
+                      "melody",
+                      "off"
+                    ],
+                    "type": "string"
+                  },
+                  "lyrics": {
+                    "maxLength": 20000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "style": {
+                    "maxLength": 4000,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "recipe": {
+                "description": "compose_new: the song request, as sent",
+                "type": "object"
+              },
+              "seeds": {
+                "description": "Explicit seeds (unique, 0..2^53-1); override n_seeds",
+                "items": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "template_mode": {
+                "description": "from_template: the mode applied to every mother",
+                "enum": [
+                  "new_seed",
+                  "same_seed_edit",
+                  "lyric_edit",
+                  "style_edit"
+                ],
+                "type": "string"
+              },
+              "title": {
+                "description": "compose_new, single-take items",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "name": "estimate_generation",
+    "outputSchema": {
+      "properties": {
+        "approval_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "budget": {
+          "properties": {
+            "batch_cap_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "batch_cap_usd": {
+              "type": "string"
+            },
+            "day": {
+              "properties": {
+                "cap_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "cap_usd": {
+                  "type": "string"
+                },
+                "left_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "left_usd": {
+                  "type": "string"
+                },
+                "used_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "used_usd": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "fits": {
+              "type": "boolean"
+            },
+            "month": {
+              "properties": {
+                "cap_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "cap_usd": {
+                  "type": "string"
+                },
+                "left_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "left_usd": {
+                  "type": "string"
+                },
+                "used_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "used_usd": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "would_exceed": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "confirmation_token": {
+          "type": "string"
+        },
+        "cost": {
+          "properties": {
+            "attempt_overhead_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "attempt_overhead_usd": {
+              "type": "string"
+            },
+            "ceiling_display": {
+              "type": "string"
+            },
+            "ceiling_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "ceiling_usd": {
+              "type": "string"
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            },
+            "max_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "max_usd": {
+              "type": "string"
+            },
+            "retry_allowance_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "retry_allowance_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "estimate_id": {
+          "type": "string"
+        },
+        "eta_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "expires_at": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "properties": {
+              "index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "takes": {
+                "items": {
+                  "properties": {
+                    "draft_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expected_audio_s": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "max_micro_usd": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "max_usd": {
+                      "type": "string"
+                    },
+                    "operator": {
+                      "type": "string"
+                    },
+                    "parent_track_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "seed": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "take_index": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "timeout_s": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "price": {
+          "properties": {
+            "gpu_pools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "observed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "per_hour_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "per_hour_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "provider": {
+          "properties": {
+            "armed": {
+              "type": "boolean"
+            },
+            "disabled_reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "generation_enabled": {
+              "type": "boolean"
+            },
+            "tripped": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "requires_human_approval": {
+          "type": "boolean"
+        },
+        "takes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "warning",
+                  "error"
+                ],
+                "type": "string"
+              },
+              "take_index": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Estimate variants of a track\n\nPrices new-seed, same-seed edit, lyric edit or style edit takes of one mother track. Free; returns the confirmation_token create_variant needs. Reference tracks cannot be mothers.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The mother track",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "new_seed",
+            "same_seed_edit",
+            "lyric_edit",
+            "style_edit"
+          ],
+          "type": "string"
+        },
+        "n_seeds": {
+          "format": "int64",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "patch": {
+          "additionalProperties": false,
+          "properties": {
+            "abc": {
+              "description": "A string sets the score, null removes it, absent keeps it",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cfg_scale": {
+              "description": "A number sets it, null removes it, absent keeps it",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cot": {
+              "enum": [
+                "full",
+                "melody",
+                "off"
+              ],
+              "type": "string"
+            },
+            "lyrics": {
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "style": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "seeds": {
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "mode"
+      ],
+      "type": "object"
+    },
+    "name": "estimate_variant",
+    "outputSchema": {
+      "properties": {
+        "approval_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "budget": {
+          "properties": {
+            "batch_cap_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "batch_cap_usd": {
+              "type": "string"
+            },
+            "day": {
+              "properties": {
+                "cap_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "cap_usd": {
+                  "type": "string"
+                },
+                "left_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "left_usd": {
+                  "type": "string"
+                },
+                "used_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "used_usd": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "fits": {
+              "type": "boolean"
+            },
+            "month": {
+              "properties": {
+                "cap_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "cap_usd": {
+                  "type": "string"
+                },
+                "left_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "left_usd": {
+                  "type": "string"
+                },
+                "used_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "used_usd": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "would_exceed": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "confirmation_token": {
+          "type": "string"
+        },
+        "cost": {
+          "properties": {
+            "attempt_overhead_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "attempt_overhead_usd": {
+              "type": "string"
+            },
+            "ceiling_display": {
+              "type": "string"
+            },
+            "ceiling_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "ceiling_usd": {
+              "type": "string"
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            },
+            "max_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "max_usd": {
+              "type": "string"
+            },
+            "retry_allowance_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "retry_allowance_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "estimate_id": {
+          "type": "string"
+        },
+        "eta_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "expires_at": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "properties": {
+              "index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "takes": {
+                "items": {
+                  "properties": {
+                    "draft_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expected_audio_s": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "max_micro_usd": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "max_usd": {
+                      "type": "string"
+                    },
+                    "operator": {
+                      "type": "string"
+                    },
+                    "parent_track_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "seed": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "take_index": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "timeout_s": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "price": {
+          "properties": {
+            "gpu_pools": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "observed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "per_hour_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "per_hour_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "provider": {
+          "properties": {
+            "armed": {
+              "type": "boolean"
+            },
+            "disabled_reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "generation_enabled": {
+              "type": "boolean"
+            },
+            "tripped": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "requires_human_approval": {
+          "type": "boolean"
+        },
+        "takes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "warning",
+                  "error"
+                ],
+                "type": "string"
+              },
+              "take_index": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
   },
   {
     "annotations": {
@@ -1102,6 +3084,10 @@
             "null"
           ]
         },
+        "generated_takes": {
+          "format": "int64",
+          "type": "integer"
+        },
         "group": {
           "items": {
             "properties": {
@@ -1136,6 +3122,9 @@
         },
         "id": {
           "type": "string"
+        },
+        "in_flight": {
+          "type": "boolean"
         },
         "label": {
           "type": [
@@ -1364,6 +3353,357 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Get a generation job\n\nOne job: state, outcome, cost, timings, environment, artifacts and its newest events. The job id is the take id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Job id (= the take id)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job",
+    "outputSchema": {
+      "properties": {
+        "artifacts": {
+          "items": {
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "verified": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "attempts": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "audio_s": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": "string"
+        },
+        "batch_id": {
+          "type": "string"
+        },
+        "cancel_requested_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cost": {
+          "properties": {
+            "basis": {
+              "enum": [
+                "estimate",
+                "provisional",
+                "reconciled"
+              ],
+              "type": "string"
+            },
+            "display_micro_usd": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "display_usd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "expected_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "expected_usd": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "deadline_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draft_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "engine": {
+          "type": "string"
+        },
+        "env": {
+          "properties": {
+            "backend": {
+              "type": "string"
+            },
+            "code_commit": {
+              "type": "string"
+            },
+            "decoder": {
+              "type": "string"
+            },
+            "detail": {
+              "properties": {
+                "cuda": {
+                  "type": "string"
+                },
+                "gpu_name": {
+                  "type": "string"
+                },
+                "python": {
+                  "type": "string"
+                },
+                "torch": {
+                  "type": "string"
+                },
+                "worker_build": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "engine": {
+              "type": "string"
+            },
+            "env_id": {
+              "type": "string"
+            },
+            "gpu_class": {
+              "type": "string"
+            },
+            "image_digest": {
+              "type": "string"
+            },
+            "pkg_version": {
+              "type": "string"
+            },
+            "weights": {
+              "type": "object"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "events": {
+          "items": {
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "event": {
+                "type": "string"
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "expected_audio_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "clean",
+            "truncated"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "resubmits": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "seed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "awaiting_confirmation",
+            "queued",
+            "submitting",
+            "starting",
+            "generating",
+            "transferring",
+            "ingesting",
+            "cancelling",
+            "failing",
+            "completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "take_index": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "timeout_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "timings": {
+          "properties": {
+            "cold_start_s": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "execution_ms": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "queue_delay_ms": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "title": {
+          "type": "string"
+        },
+        "track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "truncated": {
+          "properties": {
+            "abc": {
+              "type": "boolean"
+            },
+            "semantic": {
+              "type": "boolean"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Get signed media links\n\nSigned, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
     "inputSchema": {
       "additionalProperties": false,
@@ -1543,7 +3883,91 @@
           },
           "type": "object"
         },
+        "breakdown": {
+          "properties": {
+            "by_seed": {
+              "items": {
+                "properties": {
+                  "mean_stars": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "rated": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "seed": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "tracks": {
+                    "format": "int64",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "by_style_term": {
+              "items": {
+                "properties": {
+                  "mean_stars": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "rated": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "term": {
+                    "type": "string"
+                  },
+                  "tracks": {
+                    "format": "int64",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "drafts_by_origin": {
+          "type": "object"
+        },
+        "generation": {
+          "properties": {
+            "jobs_by_state": {
+              "type": "object"
+            },
+            "outstanding_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "outstanding_usd": {
+              "type": "string"
+            },
+            "spend_month_micro_usd": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "spend_month_usd": {
+              "type": "string"
+            },
+            "takes_month": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
           "type": "object"
         },
         "imports": {
@@ -1914,6 +4338,107 @@
         "duration_s": {
           "format": "double",
           "type": "number"
+        },
+        "generation": {
+          "properties": {
+            "batch_id": {
+              "type": "string"
+            },
+            "cost": {
+              "properties": {
+                "basis": {
+                  "enum": [
+                    "estimate",
+                    "provisional",
+                    "reconciled"
+                  ],
+                  "type": "string"
+                },
+                "display_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "display_usd": {
+                  "type": "string"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "env": {
+              "properties": {
+                "backend": {
+                  "type": "string"
+                },
+                "code_commit": {
+                  "type": "string"
+                },
+                "decoder": {
+                  "type": "string"
+                },
+                "detail": {
+                  "properties": {
+                    "cuda": {
+                      "type": "string"
+                    },
+                    "gpu_name": {
+                      "type": "string"
+                    },
+                    "python": {
+                      "type": "string"
+                    },
+                    "torch": {
+                      "type": "string"
+                    },
+                    "worker_build": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "engine": {
+                  "type": "string"
+                },
+                "env_id": {
+                  "type": "string"
+                },
+                "gpu_class": {
+                  "type": "string"
+                },
+                "image_digest": {
+                  "type": "string"
+                },
+                "pkg_version": {
+                  "type": "string"
+                },
+                "weights": {
+                  "type": "object"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "job_id": {
+              "type": "string"
+            },
+            "operator": {
+              "type": "string"
+            },
+            "rationale": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "id": {
           "type": "string"
@@ -3323,6 +5848,10 @@
                   "null"
                 ]
               },
+              "generated_takes": {
+                "format": "int64",
+                "type": "integer"
+              },
               "group_key": {
                 "type": [
                   "string",
@@ -3331,6 +5860,9 @@
               },
               "id": {
                 "type": "string"
+              },
+              "in_flight": {
+                "type": "boolean"
               },
               "label": {
                 "type": [
@@ -4225,6 +6757,19 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "cost_display_micro_usd": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "cost_display_usd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -4258,6 +6803,9 @@
               "open_comments": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "origin": {
+                "type": "string"
               },
               "parent_track_id": {
                 "type": [
@@ -5104,6 +7652,394 @@
         },
         "url": {
           "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Wait for a job to change\n\nLong-poll: returns as soon as the job's state differs from since_state (default: now) or is terminal, else after timeout_s (0-55, default 25) with timed_out true.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Job id",
+          "type": "string"
+        },
+        "since_state": {
+          "description": "Return as soon as the state differs; default the state at call time",
+          "enum": [
+            "awaiting_confirmation",
+            "queued",
+            "submitting",
+            "starting",
+            "generating",
+            "transferring",
+            "ingesting",
+            "cancelling",
+            "failing",
+            "completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "timeout_s": {
+          "default": 25,
+          "format": "int64",
+          "maximum": 55,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "wait_for_job",
+    "outputSchema": {
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "job": {
+          "properties": {
+            "artifacts": {
+              "items": {
+                "properties": {
+                  "bytes": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  },
+                  "verified": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "attempts": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "audio_s": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "backend": {
+              "type": "string"
+            },
+            "batch_id": {
+              "type": "string"
+            },
+            "cancel_requested_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cost": {
+              "properties": {
+                "basis": {
+                  "enum": [
+                    "estimate",
+                    "provisional",
+                    "reconciled"
+                  ],
+                  "type": "string"
+                },
+                "display_micro_usd": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "display_usd": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "expected_micro_usd": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "expected_usd": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "deadline_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "draft_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "engine": {
+              "type": "string"
+            },
+            "env": {
+              "properties": {
+                "backend": {
+                  "type": "string"
+                },
+                "code_commit": {
+                  "type": "string"
+                },
+                "decoder": {
+                  "type": "string"
+                },
+                "detail": {
+                  "properties": {
+                    "cuda": {
+                      "type": "string"
+                    },
+                    "gpu_name": {
+                      "type": "string"
+                    },
+                    "python": {
+                      "type": "string"
+                    },
+                    "torch": {
+                      "type": "string"
+                    },
+                    "worker_build": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "engine": {
+                  "type": "string"
+                },
+                "env_id": {
+                  "type": "string"
+                },
+                "gpu_class": {
+                  "type": "string"
+                },
+                "image_digest": {
+                  "type": "string"
+                },
+                "pkg_version": {
+                  "type": "string"
+                },
+                "weights": {
+                  "type": "object"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "error_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "error_message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "events": {
+              "items": {
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "event": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "to": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "expected_audio_s": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "finished_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "operator": {
+              "type": "string"
+            },
+            "outcome": {
+              "enum": [
+                "clean",
+                "truncated"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_track_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "resubmits": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "seed": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "started_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "enum": [
+                "awaiting_confirmation",
+                "queued",
+                "submitting",
+                "starting",
+                "generating",
+                "transferring",
+                "ingesting",
+                "cancelling",
+                "failing",
+                "completed",
+                "failed",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            },
+            "take_index": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "timeout_s": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "timings": {
+              "properties": {
+                "cold_start_s": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "execution_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "queue_delay_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "title": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "truncated": {
+              "properties": {
+                "abc": {
+                  "type": "boolean"
+                },
+                "semantic": {
+                  "type": "boolean"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "updated_at": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "timed_out": {
+          "type": "boolean"
         }
       },
       "type": "object"

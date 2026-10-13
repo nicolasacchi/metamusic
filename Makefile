@@ -85,7 +85,7 @@ tools:
 # Writes a fixture library (metadata + peaks files) the web lane can serve:
 #   go run ./cmd/metamusic dev --data-dir ./data/fixture
 fixture-db:
-	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M2b -count=1'
+	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M2b -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M3 -count=1'
 
 dev:
 	go run ./cmd/metamusic dev --data-dir ./data/dev

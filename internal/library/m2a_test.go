@@ -339,7 +339,7 @@ func TestInsertTake_EditedDraftNotFulfilled(t *testing.T) {
 	t1.Out = &f1
 	t2 := newTake(lt.TrackIDForTest(2), draftRecipe(t, e, sibling), 2)
 	t2.Out = &f2
-	rid, _, err := e.svc.InsertRecipe(ctx, tx, pc)
+	rid, _, err := e.svc.InsertRecipe(ctx, tx, pc, "import")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestRelink_SkipsEditedDrafts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rid, _, err := e.svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 		if err != nil {
 			t.Fatal(err)
 		}

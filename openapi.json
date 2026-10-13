@@ -190,6 +190,111 @@
         ],
         "type": "object"
       },
+      "ApprovalStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decided_by": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "Principal key (kind:id); \"human\" for the operator as seen by an agent",
+                "type": "string"
+              },
+              "kind": {
+                "description": "human, device, agent or system",
+                "type": "string"
+              },
+              "name": {
+                "description": "Display name; \"human\" or \"device\" for agents",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "last_requested_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_request_allowed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notified": {
+            "description": "request_approval only: whether a push was sent now",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "expired",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "via": {
+            "description": "auto, human_create, web or expiry; null while pending",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "batch_id",
+          "state",
+          "reasons",
+          "via",
+          "decided_by",
+          "decided_at",
+          "reason",
+          "expires_at",
+          "last_requested_at",
+          "next_request_allowed_at",
+          "notified"
+        ],
+        "type": "object"
+      },
       "AudioInfo": {
         "additionalProperties": false,
         "properties": {
@@ -346,6 +451,28 @@
         "required": [
           "items",
           "next_cursor"
+        ],
+        "type": "object"
+      },
+      "AutoApprove": {
+        "additionalProperties": false,
+        "properties": {
+          "micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "takes",
+          "micro_usd",
+          "usd"
         ],
         "type": "object"
       },
@@ -581,6 +708,37 @@
         ],
         "type": "object"
       },
+      "Balance": {
+        "additionalProperties": false,
+        "properties": {
+          "micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "graphql",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "micro_usd",
+          "usd",
+          "source"
+        ],
+        "type": "object"
+      },
       "BandwidthStats": {
         "additionalProperties": false,
         "properties": {
@@ -615,6 +773,651 @@
           "min_hz",
           "median_hz",
           "max_hz"
+        ],
+        "type": "object"
+      },
+      "Batch": {
+        "additionalProperties": false,
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/BatchCost"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/BatchCounts"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "estimate_id": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "jobs": {
+            "description": "At most 50, in take order",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "type": "array"
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "awaiting_confirmation",
+              "active",
+              "finished",
+              "rejected",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "via": {
+            "enum": [
+              "api",
+              "human_create"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobs",
+          "id",
+          "state",
+          "via",
+          "created_by",
+          "created_at",
+          "finished_at",
+          "rationale",
+          "takes",
+          "counts",
+          "cost",
+          "approval",
+          "estimate_id"
+        ],
+        "type": "object"
+      },
+      "BatchCost": {
+        "additionalProperties": false,
+        "properties": {
+          "ceiling_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ceiling_usd": {
+            "type": "string"
+          },
+          "expected_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_usd": {
+            "type": "string"
+          },
+          "max_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_usd": {
+            "type": "string"
+          },
+          "outstanding_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outstanding_usd": {
+            "type": "string"
+          },
+          "reconciled": {
+            "description": "Billing has been matched and the residual released",
+            "type": "boolean"
+          },
+          "reserved_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_usd": {
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_micro_usd",
+          "expected_usd",
+          "max_micro_usd",
+          "max_usd",
+          "ceiling_micro_usd",
+          "ceiling_usd",
+          "reserved_micro_usd",
+          "reserved_usd",
+          "settled_micro_usd",
+          "settled_usd",
+          "outstanding_micro_usd",
+          "outstanding_usd",
+          "reconciled"
+        ],
+        "type": "object"
+      },
+      "BatchCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "awaiting": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cancelled": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "completed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expired": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "awaiting",
+          "queued",
+          "running",
+          "completed",
+          "truncated",
+          "failed",
+          "cancelled",
+          "expired"
+        ],
+        "type": "object"
+      },
+      "BatchPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "BatchSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/BatchCost"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/BatchCounts"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "estimate_id": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "awaiting_confirmation",
+              "active",
+              "finished",
+              "rejected",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "via": {
+            "enum": [
+              "api",
+              "human_create"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "via",
+          "created_by",
+          "created_at",
+          "finished_at",
+          "rationale",
+          "takes",
+          "counts",
+          "cost",
+          "approval",
+          "estimate_id"
+        ],
+        "type": "object"
+      },
+      "Breakdown": {
+        "additionalProperties": false,
+        "properties": {
+          "by_seed": {
+            "description": "Seeds used by at least two tracks, top 30",
+            "items": {
+              "$ref": "#/components/schemas/BreakdownSeed"
+            },
+            "type": "array"
+          },
+          "by_style_term": {
+            "description": "Top 30 by tracks",
+            "items": {
+              "$ref": "#/components/schemas/BreakdownTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_style_term",
+          "by_seed"
+        ],
+        "type": "object"
+      },
+      "BreakdownSeed": {
+        "additionalProperties": false,
+        "properties": {
+          "mean_stars": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "rated": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tracks": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed",
+          "tracks",
+          "rated",
+          "mean_stars"
+        ],
+        "type": "object"
+      },
+      "BreakdownTerm": {
+        "additionalProperties": false,
+        "properties": {
+          "mean_stars": {
+            "description": "Mean human stars over rated tracks (a float of stars, not money); null when none",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "rated": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "term": {
+            "type": "string"
+          },
+          "tracks": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "term",
+          "tracks",
+          "rated",
+          "mean_stars"
+        ],
+        "type": "object"
+      },
+      "Budget": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve": {
+            "$ref": "#/components/schemas/AutoApprove"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Balance"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/CapsView"
+          },
+          "day": {
+            "$ref": "#/components/schemas/BudgetDay"
+          },
+          "month": {
+            "$ref": "#/components/schemas/BudgetMonth"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderBrief"
+          }
+        },
+        "required": [
+          "caps",
+          "month",
+          "day",
+          "auto_approve",
+          "balance",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "BudgetDay": {
+        "additionalProperties": false,
+        "properties": {
+          "cap_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cap_usd": {
+            "type": "string"
+          },
+          "left_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "left_usd": {
+            "type": "string"
+          },
+          "outstanding_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outstanding_usd": {
+            "type": "string"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal",
+          "settled_micro_usd",
+          "settled_usd",
+          "outstanding_micro_usd",
+          "outstanding_usd",
+          "cap_micro_usd",
+          "cap_usd",
+          "left_micro_usd",
+          "left_usd"
+        ],
+        "type": "object"
+      },
+      "BudgetMonth": {
+        "additionalProperties": false,
+        "properties": {
+          "bill_adjustments_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bill_adjustments_usd": {
+            "type": "string"
+          },
+          "cap_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cap_usd": {
+            "type": "string"
+          },
+          "left_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "left_usd": {
+            "type": "string"
+          },
+          "outstanding_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outstanding_usd": {
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          },
+          "start": {
+            "description": "RFC 3339, start of the month in the server's time zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "settled_micro_usd",
+          "settled_usd",
+          "bill_adjustments_micro_usd",
+          "bill_adjustments_usd",
+          "outstanding_micro_usd",
+          "outstanding_usd",
+          "cap_micro_usd",
+          "cap_usd",
+          "left_micro_usd",
+          "left_usd"
+        ],
+        "type": "object"
+      },
+      "CapToken": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "daily_budget_micro_usd": {
+            "description": "null: the global agent daily cap applies",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_budget_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "token_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_id",
+          "name",
+          "daily_budget_micro_usd",
+          "daily_budget_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd",
+          "auto_approve_usd"
+        ],
+        "type": "object"
+      },
+      "CapsView": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_daily_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "agent_daily_usd": {
+            "type": "string"
+          },
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auto_approve_usd": {
+            "type": "string"
+          },
+          "batch_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "batch_usd": {
+            "type": "string"
+          },
+          "human_daily_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "human_daily_usd": {
+            "type": "string"
+          },
+          "monthly_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "monthly_usd": {
+            "type": "string"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/CapToken"
+            },
+            "type": "array"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          }
+        },
+        "required": [
+          "monthly_micro_usd",
+          "monthly_usd",
+          "batch_micro_usd",
+          "batch_usd",
+          "human_daily_micro_usd",
+          "human_daily_usd",
+          "agent_daily_micro_usd",
+          "agent_daily_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd",
+          "auto_approve_usd",
+          "updated_by",
+          "updated_at",
+          "tokens"
         ],
         "type": "object"
       },
@@ -1240,6 +2043,26 @@
           "flags",
           "recipe_known",
           "lossy"
+        ],
+        "type": "object"
+      },
+      "ConfirmBody": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation_token": {
+            "description": "From the estimate; single use",
+            "pattern": "^mmc_[a-z2-7]{52}$",
+            "type": "string"
+          },
+          "rationale": {
+            "description": "Why; stored on the batch and the Operator Ledger",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmation_token"
         ],
         "type": "object"
       },
@@ -2156,6 +2979,11 @@
               "null"
             ]
           },
+          "generated_takes": {
+            "description": "Takes generated from this draft",
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "items": {
               "$ref": "#/components/schemas/GroupMember"
@@ -2173,6 +3001,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "in_flight": {
+            "description": "A non-terminal job renders this draft; it cannot be edited or estimated again",
+            "type": "boolean"
           },
           "label": {
             "type": [
@@ -2279,7 +3111,9 @@
           "editable",
           "created_by",
           "updated_by",
-          "lint"
+          "lint",
+          "in_flight",
+          "generated_takes"
         ],
         "type": "object"
       },
@@ -2430,6 +3264,11 @@
               "null"
             ]
           },
+          "generated_takes": {
+            "description": "Takes generated from this draft",
+            "format": "int64",
+            "type": "integer"
+          },
           "group_key": {
             "type": [
               "string",
@@ -2438,6 +3277,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "in_flight": {
+            "description": "A non-terminal job renders this draft; it cannot be edited or estimated again",
+            "type": "boolean"
           },
           "label": {
             "type": [
@@ -2512,7 +3355,29 @@
           "editable",
           "created_by",
           "updated_by",
-          "lint"
+          "lint",
+          "in_flight",
+          "generated_takes"
+        ],
+        "type": "object"
+      },
+      "DriftView": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "got": {
+            "type": "string"
+          },
+          "want": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "want",
+          "got"
         ],
         "type": "object"
       },
@@ -2898,6 +3763,373 @@
           "my_verdict",
           "human_verdict",
           "critic_verdicts"
+        ],
+        "type": "object"
+      },
+      "EnvDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "cuda": {
+            "type": "string"
+          },
+          "gpu_name": {
+            "type": "string"
+          },
+          "python": {
+            "type": "string"
+          },
+          "torch": {
+            "type": "string"
+          },
+          "worker_build": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gpu_name",
+          "cuda",
+          "torch",
+          "worker_build",
+          "python"
+        ],
+        "type": "object"
+      },
+      "Estimate": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_reasons": {
+            "description": "human_api_path, takes_over_limit or cost_over_limit",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/EstimateBudget"
+          },
+          "confirmation_token": {
+            "description": "mmc_..., single use, 10 minutes, bound to this principal; shown only here",
+            "type": "string"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/EstimateCost"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "estimate_id": {
+            "type": "string"
+          },
+          "eta_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateItem"
+            },
+            "type": "array"
+          },
+          "price": {
+            "$ref": "#/components/schemas/EstimatePrice"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderBrief"
+          },
+          "requires_human_approval": {
+            "type": "boolean"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "estimate_id",
+          "confirmation_token",
+          "expires_at",
+          "engine",
+          "backend",
+          "takes",
+          "cost",
+          "eta_s",
+          "price",
+          "items",
+          "warnings",
+          "requires_human_approval",
+          "approval_reasons",
+          "budget",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "EstimateBudget": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_cap_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "batch_cap_usd": {
+            "type": "string"
+          },
+          "day": {
+            "$ref": "#/components/schemas/Pot"
+          },
+          "fits": {
+            "type": "boolean"
+          },
+          "month": {
+            "$ref": "#/components/schemas/Pot"
+          },
+          "would_exceed": {
+            "description": "batch, monthly and/or daily",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fits",
+          "would_exceed",
+          "month",
+          "day",
+          "batch_cap_micro_usd",
+          "batch_cap_usd"
+        ],
+        "type": "object"
+      },
+      "EstimateCost": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt_overhead_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "attempt_overhead_usd": {
+            "type": "string"
+          },
+          "ceiling_display": {
+            "description": "The ceiling rounded up for display (up to ...)",
+            "examples": [
+              "$0.70"
+            ],
+            "type": "string"
+          },
+          "ceiling_micro_usd": {
+            "description": "What the batch may ever reserve: max plus the retry allowance",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ceiling_usd": {
+            "type": "string"
+          },
+          "expected_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_usd": {
+            "type": "string"
+          },
+          "max_micro_usd": {
+            "description": "The no-retry worst case: every take's reserve plus one attempt overhead per take",
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_usd": {
+            "type": "string"
+          },
+          "retry_allowance_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "retry_allowance_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_micro_usd",
+          "expected_usd",
+          "max_micro_usd",
+          "max_usd",
+          "retry_allowance_micro_usd",
+          "retry_allowance_usd",
+          "ceiling_micro_usd",
+          "ceiling_usd",
+          "ceiling_display",
+          "attempt_overhead_micro_usd",
+          "attempt_overhead_usd"
+        ],
+        "type": "object"
+      },
+      "EstimateGenerationInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "description": "Default yue2",
+            "enum": [
+              "yue2"
+            ],
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemIn"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "EstimateItem": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "takes": {
+            "items": {
+              "$ref": "#/components/schemas/TakePlan"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "mode",
+          "takes"
+        ],
+        "type": "object"
+      },
+      "EstimatePrice": {
+        "additionalProperties": false,
+        "properties": {
+          "gpu_pools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observed_at": {
+            "description": "RFC 3339 UTC; null for the fake backend",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "per_hour_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "per_hour_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "per_hour_micro_usd",
+          "per_hour_usd",
+          "gpu_pools",
+          "observed_at"
+        ],
+        "type": "object"
+      },
+      "EstimateVariantInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "new_seed",
+              "same_seed_edit",
+              "lyric_edit",
+              "style_edit"
+            ],
+            "type": "string"
+          },
+          "n_seeds": {
+            "format": "int64",
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "patch": {
+            "$ref": "#/components/schemas/Patch"
+          },
+          "seeds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "EstimateWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "error"
+            ],
+            "type": "string"
+          },
+          "take_index": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "take_index",
+          "code",
+          "field",
+          "severity",
+          "message"
         ],
         "type": "object"
       },
@@ -3426,6 +4658,45 @@
         ],
         "type": "object"
       },
+      "GenerationStats": {
+        "additionalProperties": false,
+        "properties": {
+          "jobs_by_state": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "outstanding_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outstanding_usd": {
+            "type": "string"
+          },
+          "spend_month_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "spend_month_usd": {
+            "type": "string"
+          },
+          "takes_month": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "jobs_by_state",
+          "takes_month",
+          "spend_month_micro_usd",
+          "spend_month_usd",
+          "outstanding_micro_usd",
+          "outstanding_usd"
+        ],
+        "type": "object"
+      },
       "GroupMember": {
         "additionalProperties": false,
         "properties": {
@@ -3657,6 +4928,640 @@
           "code",
           "severity",
           "message"
+        ],
+        "type": "object"
+      },
+      "ItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "draft_ids": {
+            "description": "from_draft: the drafts to render",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "mode": {
+            "description": "How the take list is built; see the modes table",
+            "enum": [
+              "new_seed",
+              "same_seed_edit",
+              "lyric_edit",
+              "style_edit",
+              "from_draft",
+              "compose_new",
+              "from_template"
+            ],
+            "type": "string"
+          },
+          "n_seeds": {
+            "description": "Seeds per base recipe (default 1)",
+            "format": "int64",
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "parent_track_id": {
+            "description": "Variants: the mother (required). from_draft: optional mother override",
+            "type": "string"
+          },
+          "parent_track_ids": {
+            "description": "from_template: the mothers",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 2,
+            "type": "array"
+          },
+          "patch": {
+            "$ref": "#/components/schemas/Patch",
+            "description": "*_edit modes and from_template"
+          },
+          "recipe": {
+            "description": "compose_new: the song request, as sent",
+            "type": "object"
+          },
+          "seeds": {
+            "description": "Explicit seeds (unique, 0..2^53-1); override n_seeds",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "template_mode": {
+            "description": "from_template: the mode applied to every mother",
+            "enum": [
+              "new_seed",
+              "same_seed_edit",
+              "lyric_edit",
+              "style_edit"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "compose_new, single-take items",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "Job": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/JobArtifact"
+            },
+            "type": "array"
+          },
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "audio_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "backend": {
+            "type": "string"
+          },
+          "batch_id": {
+            "type": "string"
+          },
+          "cancel_requested_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost": {
+            "$ref": "#/components/schemas/JobCost"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "deadline_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "engine": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "type": "string"
+              },
+              "code_commit": {
+                "type": "string"
+              },
+              "decoder": {
+                "type": "string"
+              },
+              "detail": {
+                "$ref": "#/components/schemas/EnvDetail"
+              },
+              "engine": {
+                "type": "string"
+              },
+              "env_id": {
+                "type": "string"
+              },
+              "gpu_class": {
+                "type": "string"
+              },
+              "image_digest": {
+                "type": "string"
+              },
+              "pkg_version": {
+                "type": "string"
+              },
+              "weights": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Weight repository to pinned revision",
+                "type": "object"
+              }
+            },
+            "required": [
+              "env_id",
+              "engine",
+              "pkg_version",
+              "code_commit",
+              "weights",
+              "decoder",
+              "backend",
+              "gpu_class",
+              "image_digest",
+              "detail"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "error_code": {
+            "description": "Failed, cancelled and expired jobs; see the job error codes",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_message": {
+            "description": "A fixed English template per code, never provider text",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "events": {
+            "description": "Newest 50",
+            "items": {
+              "$ref": "#/components/schemas/JobEvent"
+            },
+            "type": "array"
+          },
+          "expected_audio_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "outcome": {
+            "description": "Completed jobs only",
+            "enum": [
+              "clean",
+              "truncated"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "resubmits": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "awaiting_confirmation",
+              "queued",
+              "submitting",
+              "starting",
+              "generating",
+              "transferring",
+              "ingesting",
+              "cancelling",
+              "failing",
+              "completed",
+              "failed",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "take_index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timeout_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timings": {
+            "$ref": "#/components/schemas/JobTimings"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "truncated": {
+            "additionalProperties": false,
+            "properties": {
+              "abc": {
+                "type": "boolean"
+              },
+              "semantic": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "abc",
+              "semantic"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "backend",
+          "mode",
+          "attempts",
+          "resubmits",
+          "started_at",
+          "finished_at",
+          "deadline_at",
+          "timeout_s",
+          "expected_audio_s",
+          "audio_s",
+          "truncated",
+          "env",
+          "artifacts",
+          "cancel_requested_at",
+          "timings",
+          "error_message",
+          "events",
+          "id",
+          "batch_id",
+          "take_index",
+          "state",
+          "outcome",
+          "error_code",
+          "title",
+          "request_id",
+          "seed",
+          "operator",
+          "parent_track_id",
+          "draft_id",
+          "track_id",
+          "created_at",
+          "updated_at",
+          "cost"
+        ],
+        "type": "object"
+      },
+      "JobArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "bytes",
+          "sha256",
+          "verified"
+        ],
+        "type": "object"
+      },
+      "JobCost": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "enum": [
+              "estimate",
+              "provisional",
+              "reconciled"
+            ],
+            "type": "string"
+          },
+          "display_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "display_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_micro_usd",
+          "expected_usd",
+          "display_micro_usd",
+          "display_usd",
+          "basis"
+        ],
+        "type": "object"
+      },
+      "JobEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event": {
+            "type": "string"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "from",
+          "to",
+          "event",
+          "code"
+        ],
+        "type": "object"
+      },
+      "JobPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "JobSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/JobCost"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "draft_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_code": {
+            "description": "Failed, cancelled and expired jobs; see the job error codes",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "outcome": {
+            "description": "Completed jobs only",
+            "enum": [
+              "clean",
+              "truncated"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "awaiting_confirmation",
+              "queued",
+              "submitting",
+              "starting",
+              "generating",
+              "transferring",
+              "ingesting",
+              "cancelling",
+              "failing",
+              "completed",
+              "failed",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "take_index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "batch_id",
+          "take_index",
+          "state",
+          "outcome",
+          "error_code",
+          "title",
+          "request_id",
+          "seed",
+          "operator",
+          "parent_track_id",
+          "draft_id",
+          "track_id",
+          "created_at",
+          "updated_at",
+          "cost"
+        ],
+        "type": "object"
+      },
+      "JobTimings": {
+        "additionalProperties": false,
+        "properties": {
+          "cold_start_s": {
+            "description": "Announced time minus the worker's start",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "execution_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queue_delay_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "queue_delay_ms",
+          "execution_ms",
+          "cold_start_s"
         ],
         "type": "object"
       },
@@ -3962,6 +5867,87 @@
         ],
         "type": "object"
       },
+      "LedgerEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "batch_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "job_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "reserve",
+              "settle",
+              "residual",
+              "release",
+              "bill"
+            ],
+            "type": "string"
+          },
+          "micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "micro_usd",
+          "usd",
+          "batch_id",
+          "job_id",
+          "reason",
+          "principal"
+        ],
+        "type": "object"
+      },
+      "LedgerPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntry"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
       "Lineage": {
         "additionalProperties": false,
         "properties": {
@@ -4011,6 +5997,180 @@
           "inferred",
           "rule",
           "siblings"
+        ],
+        "type": "object"
+      },
+      "LineageNode": {
+        "additionalProperties": false,
+        "properties": {
+          "children_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost": {
+            "additionalProperties": false,
+            "properties": {
+              "basis": {
+                "enum": [
+                  "estimate",
+                  "provisional",
+                  "reconciled"
+                ],
+                "type": "string"
+              },
+              "display_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "display_usd": {
+                "description": "Exact decimal dollars",
+                "type": "string"
+              }
+            },
+            "required": [
+              "display_micro_usd",
+              "display_usd",
+              "basis"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "critic_stars": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inferred": {
+            "type": "boolean"
+          },
+          "job_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lossy": {
+            "type": "boolean"
+          },
+          "operator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipe_known": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "seed": {
+            "description": "null for a reference track (recipe unknown)",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stars": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "parent_id",
+          "generation",
+          "title",
+          "status",
+          "seed",
+          "recipe_known",
+          "lossy",
+          "request_id",
+          "origin",
+          "operator",
+          "inferred",
+          "rationale",
+          "stars",
+          "critic_stars",
+          "outcome",
+          "cost",
+          "job_id",
+          "created_at",
+          "children_count"
+        ],
+        "type": "object"
+      },
+      "LineageTree": {
+        "additionalProperties": false,
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/LineageNode"
+            },
+            "type": "array"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "Cut at limit or at the page byte cap",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "root_id",
+          "total",
+          "truncated",
+          "nodes"
         ],
         "type": "object"
       },
@@ -4772,6 +6932,44 @@
         ],
         "type": "object"
       },
+      "Patch": {
+        "additionalProperties": false,
+        "properties": {
+          "abc": {
+            "description": "A string sets the score, null removes it, absent keeps it",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cfg_scale": {
+            "description": "A number sets it, null removes it, absent keeps it",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cot": {
+            "enum": [
+              "full",
+              "melody",
+              "off"
+            ],
+            "type": "string"
+          },
+          "lyrics": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "style": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PeaksLevel": {
         "additionalProperties": false,
         "properties": {
@@ -4956,6 +7154,41 @@
         ],
         "type": "object"
       },
+      "Pot": {
+        "additionalProperties": false,
+        "properties": {
+          "cap_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cap_usd": {
+            "type": "string"
+          },
+          "left_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "left_usd": {
+            "type": "string"
+          },
+          "used_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "used_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cap_micro_usd",
+          "cap_usd",
+          "used_micro_usd",
+          "used_usd",
+          "left_micro_usd",
+          "left_usd"
+        ],
+        "type": "object"
+      },
       "PrincipalRef": {
         "additionalProperties": false,
         "properties": {
@@ -5003,6 +7236,362 @@
           "code",
           "message",
           "details"
+        ],
+        "type": "object"
+      },
+      "ProviderBrief": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "type": "boolean"
+          },
+          "disabled_reason": {
+            "description": "backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation_enabled": {
+            "type": "boolean"
+          },
+          "tripped": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "generation_enabled",
+          "disabled_reason",
+          "armed",
+          "tripped"
+        ],
+        "type": "object"
+      },
+      "ProviderCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "billing": {
+            "enum": [
+              "hour",
+              "none"
+            ],
+            "type": "string"
+          },
+          "revert_drift": {
+            "type": "boolean"
+          },
+          "scale_to_zero": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scale_to_zero",
+          "revert_drift",
+          "billing"
+        ],
+        "type": "object"
+      },
+      "ProviderStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "type": "boolean"
+          },
+          "armed_changed_at": {
+            "type": "string"
+          },
+          "armed_changed_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Balance"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ProviderCapabilities"
+          },
+          "cold_start_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "disabled_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endpoint": {
+            "additionalProperties": false,
+            "properties": {
+              "drift": {
+                "items": {
+                  "$ref": "#/components/schemas/DriftView"
+                },
+                "type": "array"
+              },
+              "excluded_types": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "flashboot": {
+                "type": "string"
+              },
+              "gpu_pools": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "idle_timeout_s": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "image_digest_short": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "workers_max": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "workers_min": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "workers_min",
+              "workers_max",
+              "idle_timeout_s",
+              "gpu_pools",
+              "excluded_types",
+              "flashboot",
+              "image_digest_short",
+              "drift"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "generation_enabled": {
+            "type": "boolean"
+          },
+          "kill_slack_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_reconcile_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_runtime_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "meter": {
+            "additionalProperties": false,
+            "properties": {
+              "billed_seconds_24h": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "lifetimes_24h": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "max_workers_seen_24h": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "lifetimes_24h",
+              "billed_seconds_24h",
+              "max_workers_seen_24h"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "price": {
+            "additionalProperties": false,
+            "properties": {
+              "observed_at": {
+                "type": "string"
+              },
+              "per_hour_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "per_hour_usd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "per_hour_micro_usd",
+              "per_hour_usd",
+              "observed_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "price_margin_ppm": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "quote_observed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restored_unreconciled": {
+            "type": "boolean"
+          },
+          "rtf": {
+            "items": {
+              "$ref": "#/components/schemas/RTFView"
+            },
+            "type": "array"
+          },
+          "skew_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "trip": {
+            "additionalProperties": false,
+            "properties": {
+              "actions": {
+                "description": "What the reconciler did",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reset_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tripped_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "tripped_at",
+              "reason",
+              "actions",
+              "reset_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "trips_recent": {
+            "description": "At most 5",
+            "items": {
+              "$ref": "#/components/schemas/TripView"
+            },
+            "type": "array"
+          },
+          "ttl_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workers": {
+            "additionalProperties": false,
+            "properties": {
+              "idle": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "initializing": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "observed_at": {
+                "type": "string"
+              },
+              "running": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "throttled": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "unhealthy": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "running",
+              "idle",
+              "initializing",
+              "throttled",
+              "unhealthy",
+              "observed_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "backend",
+          "generation_enabled",
+          "disabled_reason",
+          "armed",
+          "armed_changed_by",
+          "armed_changed_at",
+          "trip",
+          "trips_recent",
+          "last_reconcile_at",
+          "workers",
+          "endpoint",
+          "capabilities",
+          "price",
+          "rtf",
+          "cold_start_s",
+          "kill_slack_s",
+          "max_runtime_s",
+          "ttl_s",
+          "price_margin_ppm",
+          "meter",
+          "quote_observed_at",
+          "skew_ms",
+          "restored_unreconciled",
+          "balance"
         ],
         "type": "object"
       },
@@ -5071,6 +7660,28 @@
         ],
         "type": "object"
       },
+      "RTFView": {
+        "additionalProperties": false,
+        "properties": {
+          "gpu_class": {
+            "type": "string"
+          },
+          "rtf_milli": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "samples": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gpu_class",
+          "rtf_milli",
+          "samples"
+        ],
+        "type": "object"
+      },
       "Range": {
         "additionalProperties": false,
         "properties": {
@@ -5120,6 +7731,17 @@
         "required": [
           "stars"
         ],
+        "type": "object"
+      },
+      "ReasonBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "RecipeDiff": {
@@ -5214,6 +7836,20 @@
         ],
         "type": "object"
       },
+      "RejectBatchInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "SectionOut": {
         "additionalProperties": false,
         "properties": {
@@ -5291,6 +7927,55 @@
           "a",
           "b"
         ],
+        "type": "object"
+      },
+      "SetSpendCapsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_daily_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "batch_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "human_daily_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "monthly_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/TokenCapsIn"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "SetTagsInBody": {
@@ -5669,6 +8354,158 @@
         ],
         "type": "object"
       },
+      "Spend": {
+        "additionalProperties": false,
+        "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/SpendBatch"
+            },
+            "type": "array"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/SpendDay"
+            },
+            "type": "array"
+          },
+          "month": {
+            "examples": [
+              "2026-10"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/SpendTotals"
+          }
+        },
+        "required": [
+          "month",
+          "days",
+          "batches",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "SpendBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "expected_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_usd": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "max_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_usd": {
+            "type": "string"
+          },
+          "reconciled": {
+            "type": "boolean"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by",
+          "takes",
+          "state",
+          "expected_micro_usd",
+          "expected_usd",
+          "max_micro_usd",
+          "max_usd",
+          "settled_micro_usd",
+          "settled_usd",
+          "reconciled"
+        ],
+        "type": "object"
+      },
+      "SpendDay": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "examples": [
+              "2026-10-14"
+            ],
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "settled_micro_usd",
+          "settled_usd"
+        ],
+        "type": "object"
+      },
+      "SpendTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "bill_adjustments_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bill_adjustments_usd": {
+            "type": "string"
+          },
+          "outstanding_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outstanding_usd": {
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "settled_micro_usd",
+          "settled_usd",
+          "bill_adjustments_micro_usd",
+          "bill_adjustments_usd",
+          "outstanding_micro_usd",
+          "outstanding_usd"
+        ],
+        "type": "object"
+      },
       "StarFacet": {
         "additionalProperties": false,
         "properties": {
@@ -5699,12 +8536,18 @@
           "bandwidth": {
             "$ref": "#/components/schemas/BandwidthStats"
           },
+          "breakdown": {
+            "$ref": "#/components/schemas/Breakdown"
+          },
           "drafts_by_origin": {
             "additionalProperties": {
               "format": "int64",
               "type": "integer"
             },
             "type": "object"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/GenerationStats"
           },
           "imports": {
             "$ref": "#/components/schemas/ImportStats"
@@ -5740,7 +8583,9 @@
           "judgments",
           "playlists",
           "drafts_by_origin",
-          "backups"
+          "backups",
+          "generation",
+          "breakdown"
         ],
         "type": "object"
       },
@@ -6037,6 +8882,69 @@
         ],
         "type": "object"
       },
+      "TakePlan": {
+        "additionalProperties": false,
+        "properties": {
+          "draft_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_audio_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_usd": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "take_index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timeout_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "take_index",
+          "request_id",
+          "seed",
+          "title",
+          "operator",
+          "parent_track_id",
+          "draft_id",
+          "expected_audio_s",
+          "timeout_s",
+          "max_micro_usd",
+          "max_usd"
+        ],
+        "type": "object"
+      },
       "TermCount": {
         "additionalProperties": false,
         "properties": {
@@ -6091,6 +8999,49 @@
         "required": [
           "start_s",
           "end_s"
+        ],
+        "type": "object"
+      },
+      "TokenCapsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_budget_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "token_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_id",
+          "daily_budget_micro_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd"
         ],
         "type": "object"
       },
@@ -6316,6 +9267,125 @@
             "format": "double",
             "type": "number"
           },
+          "generation": {
+            "additionalProperties": false,
+            "description": "How the take was generated; null for imported takes",
+            "properties": {
+              "batch_id": {
+                "type": "string"
+              },
+              "cost": {
+                "additionalProperties": false,
+                "properties": {
+                  "basis": {
+                    "enum": [
+                      "estimate",
+                      "provisional",
+                      "reconciled"
+                    ],
+                    "type": "string"
+                  },
+                  "display_micro_usd": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "display_usd": {
+                    "description": "Exact decimal dollars",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "display_micro_usd",
+                  "display_usd",
+                  "basis"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "env": {
+                "additionalProperties": false,
+                "properties": {
+                  "backend": {
+                    "type": "string"
+                  },
+                  "code_commit": {
+                    "type": "string"
+                  },
+                  "decoder": {
+                    "type": "string"
+                  },
+                  "detail": {
+                    "$ref": "#/components/schemas/EnvDetail"
+                  },
+                  "engine": {
+                    "type": "string"
+                  },
+                  "env_id": {
+                    "type": "string"
+                  },
+                  "gpu_class": {
+                    "type": "string"
+                  },
+                  "image_digest": {
+                    "type": "string"
+                  },
+                  "pkg_version": {
+                    "type": "string"
+                  },
+                  "weights": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Weight repository to pinned revision",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "env_id",
+                  "engine",
+                  "pkg_version",
+                  "code_commit",
+                  "weights",
+                  "decoder",
+                  "backend",
+                  "gpu_class",
+                  "image_digest",
+                  "detail"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "job_id": {
+                "type": "string"
+              },
+              "operator": {
+                "description": "reroll_seed, same_seed_edit, lyric_edit, style_edit, from_draft or compose_new",
+                "type": "string"
+              },
+              "rationale": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "job_id",
+              "batch_id",
+              "operator",
+              "rationale",
+              "cost",
+              "env"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -6494,7 +9564,8 @@
           "playlists",
           "listening",
           "recipe_known",
-          "lossy"
+          "lossy",
+          "generation"
         ],
         "type": "object"
       },
@@ -6749,6 +9820,20 @@
             "format": "int64",
             "type": "integer"
           },
+          "cost_display_micro_usd": {
+            "description": "Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cost_display_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "created_at": {
             "description": "RFC 3339 UTC",
             "type": "string"
@@ -6785,6 +9870,10 @@
           "open_comments": {
             "format": "int64",
             "type": "integer"
+          },
+          "origin": {
+            "description": "import or job",
+            "type": "string"
           },
           "parent_track_id": {
             "type": [
@@ -6874,7 +9963,10 @@
           "comments",
           "open_comments",
           "recipe_known",
-          "lossy"
+          "lossy",
+          "origin",
+          "cost_display_micro_usd",
+          "cost_display_usd"
         ],
         "type": "object"
       },
@@ -6894,6 +9986,41 @@
         "required": [
           "track_id",
           "tags"
+        ],
+        "type": "object"
+      },
+      "TripView": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "description": "What the reconciler did",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reset_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tripped_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tripped_at",
+          "reason",
+          "actions",
+          "reset_at"
         ],
         "type": "object"
       },
@@ -7014,6 +10141,27 @@
         },
         "required": [
           "revision"
+        ],
+        "type": "object"
+      },
+      "UpdateProviderStateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reset_trip": {
+            "description": "Clear the open trip (no-op when none is open)",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason"
         ],
         "type": "object"
       },
@@ -7269,6 +10417,27 @@
           "ties",
           "both_bad",
           "n"
+        ],
+        "type": "object"
+      },
+      "WaitJobResult": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "description": "The state differs from since_state (or the job is terminal)",
+            "type": "boolean"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "timed_out": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "job",
+          "changed",
+          "timed_out"
         ],
         "type": "object"
       },
@@ -7587,6 +10756,355 @@
           "human_only": false,
           "idempotency": "create",
           "rate": "heavy"
+        }
+      }
+    },
+    "/api/batches": {
+      "get": {
+        "description": "Batches newest first with their counts and costs, filtered by state, creator kind or time.",
+        "operationId": "list_batches",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "awaiting_confirmation",
+                  "active",
+                  "finished",
+                  "rejected",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "principal_kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "human",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List generation batches",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false
+        }
+      }
+    },
+    "/api/batches/{id}": {
+      "get": {
+        "description": "One batch with its approval, counts, costs and jobs in take order.",
+        "operationId": "get_batch",
+        "parameters": [
+          {
+            "description": "Batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a generation batch",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/batches/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/batches/{id}/approval": {
+      "get": {
+        "description": "The approval state of a batch (pending, approved, rejected, expired or auto) with who decided and when it expires.",
+        "operationId": "get_approval_status",
+        "parameters": [
+          {
+            "description": "Batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a batch's approval status",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "none:agent-face (get_batch carries the approval for the SPA)",
+          "human_only": false
+        }
+      }
+    },
+    "/api/batches/{id}/approval-request": {
+      "post": {
+        "description": "Pushes one notification (at most one per 10 minutes) asking the operator to approve your pending batch. Only the batch creator may ask.",
+        "operationId": "request_approval",
+        "parameters": [
+          {
+            "description": "Batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ask the human to approve a batch",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "none:agent-face (humans approve directly)",
+          "human_only": false
+        }
+      }
+    },
+    "/api/batches/{id}/cancel": {
+      "post": {
+        "description": "Records a cancel intent on every unfinished job; the runner stops them and releases what was not used. Finished batches are unchanged. An agent can cancel only its own batches.",
+        "operationId": "cancel_batch",
+        "parameters": [
+          {
+            "description": "Job or batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Job or batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Cancel a generation batch",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false
+        }
+      }
+    },
+    "/api/budget": {
+      "get": {
+        "description": "The caps, this month's and today's use, your auto-approve limits, the provider balance when readable, and whether generation is enabled.",
+        "operationId": "get_budget",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get what you may still spend",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false
         }
       }
     },
@@ -8715,6 +12233,116 @@
         }
       }
     },
+    "/api/generations": {
+      "post": {
+        "description": "Spends money: needs the confirmation_token of a fresh estimate. Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).",
+        "operationId": "create_generation",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a generation batch",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "spend",
+          "mcp": "tool",
+          "ui": "none:agent-face (the SPA confirms through create_generation_human)",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/generations/estimate": {
+      "post": {
+        "description": "Plans 1-20 items (new seeds, edits, drafts, templates, new songs) into at most 50 takes and prices them. Free. Returns the worst-case cost, warnings and the confirmation_token create_generation needs.",
+        "operationId": "estimate_generation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateGenerationInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Estimate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Estimate a generation batch",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/human/generate",
+          "human_only": false,
+          "rate": "heavy"
+        }
+      }
+    },
     "/api/imports": {
       "get": {
         "description": "Import runs, newest first, with state, plan digest and error and warning counts. Pages are capped in size; follow next_cursor.",
@@ -8861,6 +12489,309 @@
         }
       }
     },
+    "/api/jobs": {
+      "get": {
+        "description": "Jobs newest first, filtered by state, batch or track (as parent or child).",
+        "operationId": "list_jobs",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "awaiting_confirmation",
+                  "queued",
+                  "submitting",
+                  "starting",
+                  "generating",
+                  "transferring",
+                  "ingesting",
+                  "cancelling",
+                  "failing",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "batch_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Jobs with this track as parent or child",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Jobs with this track as parent or child",
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List generation jobs",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false
+        }
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "description": "One job: state, outcome, cost, timings, environment, artifacts and its newest events. The job id is the take id.",
+        "operationId": "get_job",
+        "parameters": [
+          {
+            "description": "Job id (= the take id)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Job id (= the take id)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a generation job",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/jobs/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/jobs/{id}/cancel": {
+      "post": {
+        "description": "Records a cancel intent; the runner cancels the provider job and settles what ran. Terminal jobs are unchanged. An agent can cancel only its own batches' jobs.",
+        "operationId": "cancel_job",
+        "parameters": [
+          {
+            "description": "Job or batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Job or batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Cancel a generation job",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/jobs",
+          "human_only": false
+        }
+      }
+    },
+    "/api/jobs/{id}/wait": {
+      "get": {
+        "description": "Long-poll: returns as soon as the job's state differs from since_state (default: now) or is terminal, else after timeout_s (0-55, default 25) with timed_out true.",
+        "operationId": "wait_for_job",
+        "parameters": [
+          {
+            "description": "Job id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Job id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return as soon as the state differs; default the state at call time",
+            "explode": false,
+            "in": "query",
+            "name": "since_state",
+            "schema": {
+              "description": "Return as soon as the state differs; default the state at call time",
+              "enum": [
+                "awaiting_confirmation",
+                "queued",
+                "submitting",
+                "starting",
+                "generating",
+                "transferring",
+                "ingesting",
+                "cancelling",
+                "failing",
+                "completed",
+                "failed",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "timeout_s",
+            "schema": {
+              "default": 25,
+              "format": "int64",
+              "maximum": 55,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitJobResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Wait for a job to change",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/jobs/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/ladder": {
       "get": {
         "description": "The operator's personal ranking of takes, fitted from human blind-duel verdicts only (critic verdicts never count), globally or within one lineage. u is a log-strength on a scale anchored at the virtual 'reject' item (0); compare u values, not probabilities of acceptance. sd is the Laplace standard deviation; provisional rows have few duels.",
@@ -8948,6 +12879,110 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/ladder",
+          "human_only": false
+        }
+      }
+    },
+    "/api/ledger": {
+      "get": {
+        "description": "The append-only money ledger (reserve, settle, residual, release, bill), newest first, filtered by batch, kind or time.",
+        "operationId": "list_ledger",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "batch_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "reserve",
+                  "settle",
+                  "residual",
+                  "release",
+                  "bill"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List ledger entries",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
           "human_only": false
         }
       }
@@ -9379,6 +13414,42 @@
         }
       }
     },
+    "/api/provider": {
+      "get": {
+        "description": "Whether generation is enabled, armed or tripped; the open trip; worker counts; the endpoint without its id; price, real-time factors and limits.",
+        "operationId": "get_provider_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the generation provider status",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false
+        }
+      }
+    },
     "/api/recipes/lint": {
       "post": {
         "description": "Checks up to 200 requests against the protocol rules and the songwriting rules (sections, line counts, repeat markers, language, estimated duration, duplicates). Read-only; nothing is stored.",
@@ -9421,6 +13492,55 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/backlog/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/spend": {
+      "get": {
+        "description": "Settled spend per day and per batch for a month (default the current one), with bill adjustments and what is still outstanding.",
+        "operationId": "get_spend",
+        "parameters": [
+          {
+            "description": "YYYY-MM; default the current month",
+            "explode": false,
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "description": "YYYY-MM; default the current month",
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spend"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a month's spend report",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
           "human_only": false
         }
       }
@@ -10356,6 +14476,66 @@
         }
       }
     },
+    "/api/tracks/{id}/lineage": {
+      "get": {
+        "description": "Every track of the tree around the given track in pre-order, with the operator, rationale, cost and ratings of each edge. Cut at limit or the page byte cap (truncated).",
+        "operationId": "get_lineage",
+        "parameters": [
+          {
+            "description": "Any track of the tree",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Any track of the tree",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageTree"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the lineage tree of a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/lineage/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/tracks/{id}/media": {
       "get": {
         "description": "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
@@ -10641,6 +14821,254 @@
         }
       }
     },
+    "/api/tracks/{id}/variants": {
+      "post": {
+        "description": "Spends money: needs the confirmation_token of a fresh estimate. Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.",
+        "operationId": "create_variant",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The mother track of the estimate",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "The mother track of the estimate",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create variants of a track",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "spend",
+          "mcp": "tool",
+          "ui": "none:agent-face (the SPA confirms through create_generation_human)",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/tracks/{id}/variants/estimate": {
+      "post": {
+        "description": "Prices new-seed, same-seed edit, lyric edit or style edit takes of one mother track. Free; returns the confirmation_token create_variant needs. Reference tracks cannot be mothers.",
+        "operationId": "estimate_variant",
+        "parameters": [
+          {
+            "description": "The mother track",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "The mother track",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateVariantInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Estimate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Estimate variants of a track",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/human/generate",
+          "human_only": false,
+          "rate": "heavy"
+        }
+      }
+    },
+    "/human/api/batches/{id}/approve": {
+      "post": {
+        "description": "The operator approves an agent's pending batch; its jobs start. Approving an approved batch changes nothing.",
+        "operationId": "approve_batch",
+        "parameters": [
+          {
+            "description": "Batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Approve a pending batch",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "approve",
+          "mcp": "exclude:human-only",
+          "ui": "/human/confirm/:batch",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/batches/{id}/reject": {
+      "post": {
+        "description": "The operator rejects an agent's pending batch; the whole reservation is released.",
+        "operationId": "reject_batch",
+        "parameters": [
+          {
+            "description": "Batch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Batch id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBatchInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Reject a pending batch",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "approve",
+          "mcp": "exclude:human-only",
+          "ui": "/human/confirm/:batch",
+          "human_only": true
+        }
+      }
+    },
     "/human/api/devices": {
       "get": {
         "description": "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
@@ -10787,6 +15215,162 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/generations": {
+      "post": {
+        "description": "Spends money: needs the confirmation_token of a fresh estimate. The operator's confirmation counts as the approval: the batch starts at once.",
+        "operationId": "create_generation_human",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a generation batch (human)",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "spend",
+          "mcp": "exclude:human-only",
+          "ui": "/human/generate",
+          "human_only": true,
+          "idempotency": "create",
+          "rate": "heavy",
+          "alias_of": "create_generation"
+        }
+      }
+    },
+    "/human/api/provider/state": {
+      "post": {
+        "description": "The operator arms or disarms generation and/or resets an open trip. A reason is required. Arming after a restore waits for a billing reconciliation.",
+        "operationId": "update_provider_state",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProviderStateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Arm, disarm or reset the provider",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/spend",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/spend/caps": {
+      "put": {
+        "description": "The operator changes the monthly, batch and daily caps and the auto-approve limits, globally or per agent token. At least one field; every change is recorded.",
+        "operationId": "set_spend_caps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpendCapsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapsView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Set the spend caps",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/spend",
           "human_only": true
         }
       }

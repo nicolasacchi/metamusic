@@ -52,7 +52,7 @@ func WorstCase(tb testing.TB, st *store.Store, now time.Time) string {
 			tb.Fatal(err)
 		}
 		defer func() { _ = tx.Rollback() }()
-		rid, _, err := lib.InsertRecipe(ctx, tx, p)
+		rid, _, err := lib.InsertRecipe(ctx, tx, p, "import")
 		if err != nil {
 			tb.Fatal(err)
 		}

@@ -116,12 +116,12 @@ func TestImportGraph_M3(t *testing.T) {
 				impl = true
 			}
 		}
-		// internal/engine/yue2 itself imports engine; callers of yue2 that also use engine.Engine (the adapter) are
-		// limited to the registry. Today only yue2 (the adapter) and the registry may import `engine`.
-		if eng && pkg != "internal/engine/yue2" {
-			t.Errorf("%s imports internal/engine; only engine/yue2 and engine/registry may", pkg)
+		// Packages may use the interface (generation, jobs ...) or the implementation's domain types (lineage,
+		// drafts ...); only the registry connects the two (M3-B2 relaxed B1's stricter first draft, which also
+		// forbade the legitimate engine.Registry fields of generation and jobs).
+		if eng && impl {
+			t.Errorf("%s imports both internal/engine and internal/engine/yue2; only engine/registry may", pkg)
 		}
-		_ = impl
 	}
 }
 

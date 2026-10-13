@@ -23,6 +23,10 @@ type Stats struct {
 	Playlists      int            `json:"playlists"`
 	DraftsByOrigin map[string]int `json:"drafts_by_origin"`
 	Backups        BackupStats    `json:"backups"`
+
+	// M3 (C81.1)
+	Generation GenerationStats `json:"generation"`
+	Breakdown  Breakdown       `json:"breakdown"`
 }
 
 // TrackStats counts tracks.
@@ -106,7 +110,9 @@ func (s *Service) countBy(ctx context.Context, q string) (map[string]int, error)
 
 // Stats computes the overview in a handful of aggregate queries.
 func (s *Service) Stats(ctx context.Context) (Stats, error) {
-	st := Stats{DraftsByOrigin: map[string]int{}, Judgments: JudgmentStats{StarsHist: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}}}
+	st := Stats{Generation: GenerationStats{JobsByState: map[string]int{}, SpendMonthUSD: "0", OutstandingUSD: "0"},
+		Breakdown:      Breakdown{ByStyleTerm: []BreakdownTerm{}, BySeed: []BreakdownSeed{}},
+		DraftsByOrigin: map[string]int{}, Judgments: JudgmentStats{StarsHist: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}}}
 	r := s.st.R
 	var err error
 	if st.Tracks.ByStatus, err = s.countBy(ctx, `SELECT status, COUNT(*) FROM tracks GROUP BY status`); err != nil {

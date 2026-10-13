@@ -48,6 +48,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List generation batches
+         * @description Batches newest first with their counts and costs, filtered by state, creator kind or time.
+         */
+        get: operations["list_batches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a generation batch
+         * @description One batch with its approval, counts, costs and jobs in take order.
+         */
+        get: operations["get_batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batches/{id}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a batch's approval status
+         * @description The approval state of a batch (pending, approved, rejected, expired or auto) with who decided and when it expires.
+         */
+        get: operations["get_approval_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batches/{id}/approval-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the human to approve a batch
+         * @description Pushes one notification (at most one per 10 minutes) asking the operator to approve your pending batch. Only the batch creator may ask.
+         */
+        post: operations["request_approval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batches/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a generation batch
+         * @description Records a cancel intent on every unfinished job; the runner stops them and releases what was not used. Finished batches are unchanged. An agent can cancel only its own batches.
+         */
+        post: operations["cancel_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get what you may still spend
+         * @description The caps, this month's and today's use, your auto-approve limits, the provider balance when readable, and whether generation is enabled.
+         */
+        get: operations["get_budget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/comments/{id}": {
         parameters: {
             query?: never;
@@ -380,6 +500,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a generation batch
+         * @description Spends money: needs the confirmation_token of a fresh estimate. Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).
+         */
+        post: operations["create_generation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/generations/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a generation batch
+         * @description Plans 1-20 items (new seeds, edits, drafts, templates, new songs) into at most 50 takes and prices them. Free. Returns the worst-case cost, warnings and the confirmation_token create_generation needs.
+         */
+        post: operations["estimate_generation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/imports": {
         parameters: {
             query?: never;
@@ -420,6 +580,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List generation jobs
+         * @description Jobs newest first, filtered by state, batch or track (as parent or child).
+         */
+        get: operations["list_jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a generation job
+         * @description One job: state, outcome, cost, timings, environment, artifacts and its newest events. The job id is the take id.
+         */
+        get: operations["get_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a generation job
+         * @description Records a cancel intent; the runner cancels the provider job and settles what ran. Terminal jobs are unchanged. An agent can cancel only its own batches' jobs.
+         */
+        post: operations["cancel_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{id}/wait": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wait for a job to change
+         * @description Long-poll: returns as soon as the job's state differs from since_state (default: now) or is terminal, else after timeout_s (0-55, default 25) with timed_out true.
+         */
+        get: operations["wait_for_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ladder": {
         parameters: {
             query?: never;
@@ -432,6 +672,26 @@ export interface paths {
          * @description The operator's personal ranking of takes, fitted from human blind-duel verdicts only (critic verdicts never count), globally or within one lineage. u is a log-strength on a scale anchored at the virtual 'reject' item (0); compare u values, not probabilities of acceptance. sd is the Laplace standard deviation; provisional rows have few duels.
          */
         get: operations["get_ladder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List ledger entries
+         * @description The append-only money ledger (reserve, settle, residual, release, bill), newest first, filtered by batch, kind or time.
+         */
+        get: operations["list_ledger"];
         put?: never;
         post?: never;
         delete?: never;
@@ -588,6 +848,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the generation provider status
+         * @description Whether generation is enabled, armed or tripped; the open trip; worker counts; the endpoint without its id; price, real-time factors and limits.
+         */
+        get: operations["get_provider_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/recipes/lint": {
         parameters: {
             query?: never;
@@ -602,6 +882,26 @@ export interface paths {
          * @description Checks up to 200 requests against the protocol rules and the songwriting rules (sections, line counts, repeat markers, language, estimated duration, duplicates). Read-only; nothing is stored.
          */
         post: operations["lint_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a month's spend report
+         * @description Settled spend per day and per batch for a month (default the current one), with bill adjustments and what is still outstanding.
+         */
+        get: operations["get_spend"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -836,6 +1136,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks/{id}/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the lineage tree of a track
+         * @description Every track of the tree around the given track in pre-order, with the operator, rationale, cost and ratings of each edge. Cut at limit or the page byte cap (truncated).
+         */
+        get: operations["get_lineage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/media": {
         parameters: {
             query?: never;
@@ -936,6 +1256,86 @@ export interface paths {
         patch: operations["set_tags"];
         trace?: never;
     };
+    "/api/tracks/{id}/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create variants of a track
+         * @description Spends money: needs the confirmation_token of a fresh estimate. Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.
+         */
+        post: operations["create_variant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/variants/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate variants of a track
+         * @description Prices new-seed, same-seed edit, lyric edit or style edit takes of one mother track. Free; returns the confirmation_token create_variant needs. Reference tracks cannot be mothers.
+         */
+        post: operations["estimate_variant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/batches/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a pending batch
+         * @description The operator approves an agent's pending batch; its jobs start. Approving an approved batch changes nothing.
+         */
+        post: operations["approve_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/batches/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a pending batch
+         * @description The operator rejects an agent's pending batch; the whole reservation is released.
+         */
+        post: operations["reject_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/human/api/devices": {
         parameters: {
             query?: never;
@@ -990,6 +1390,66 @@ export interface paths {
          * @description Unpairs a device by id. Repeating the call returns the same result. Operator only.
          */
         post: operations["revoke_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a generation batch (human)
+         * @description Spends money: needs the confirmation_token of a fresh estimate. The operator's confirmation counts as the approval: the batch starts at once.
+         */
+        post: operations["create_generation_human"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/provider/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Arm, disarm or reset the provider
+         * @description The operator arms or disarms generation and/or resets an open trip. A reason is required. Arming after a restore waits for a billing reconciliation.
+         */
+        post: operations["update_provider_state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/spend/caps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the spend caps
+         * @description The operator changes the monthly, batch and daily caps and the auto-approve limits, globally or per agent token. At least one field; every change is recorded.
+         */
+        put: operations["set_spend_caps"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1101,6 +1561,29 @@ export interface components {
                 [key: string]: string;
             };
         };
+        ApprovalStatus: {
+            batch_id: string;
+            decided_at: string | null;
+            decided_by: {
+                /** @description Principal key (kind:id); "human" for the operator as seen by an agent */
+                id: string;
+                /** @description human, device, agent or system */
+                kind: string;
+                /** @description Display name; "human" or "device" for agents */
+                name: string;
+            } | null;
+            expires_at: string;
+            last_requested_at: string | null;
+            next_request_allowed_at: string | null;
+            /** @description request_approval only: whether a push was sent now */
+            notified: boolean | null;
+            reason: string | null;
+            reasons: string[];
+            /** @enum {string} */
+            state: "pending" | "approved" | "rejected" | "expired" | "auto";
+            /** @description auto, human_create, web or expiry; null while pending */
+            via: string | null;
+        };
         AudioInfo: {
             audio_md5: string;
             /**
@@ -1146,6 +1629,13 @@ export interface components {
         AuditOutBody: {
             items: components["schemas"]["AuditEntry"][];
             next_cursor: string | null;
+        };
+        AutoApprove: {
+            /** Format: int64 */
+            micro_usd: number;
+            /** Format: int64 */
+            takes: number;
+            usd: string;
         };
         BacklogStats: {
             collections: components["schemas"]["CollectionCount"][];
@@ -1213,6 +1703,13 @@ export interface components {
             last_completed_at: string | null;
             last_state: string | null;
         };
+        Balance: {
+            /** Format: int64 */
+            micro_usd: number | null;
+            /** @enum {string} */
+            source: "graphql" | "unknown";
+            usd: string | null;
+        };
         BandwidthStats: {
             /** Format: int64 */
             max_hz: number | null;
@@ -1222,6 +1719,193 @@ export interface components {
             min_hz: number | null;
             /** Format: int64 */
             n: number;
+        };
+        Batch: {
+            approval: components["schemas"]["ApprovalStatus"];
+            cost: components["schemas"]["BatchCost"];
+            counts: components["schemas"]["BatchCounts"];
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            estimate_id: string;
+            finished_at: string | null;
+            id: string;
+            /** @description At most 50, in take order */
+            jobs: components["schemas"]["JobSummary"][];
+            rationale: string | null;
+            /** @enum {string} */
+            state: "awaiting_confirmation" | "active" | "finished" | "rejected" | "expired";
+            /** Format: int64 */
+            takes: number;
+            /** @enum {string} */
+            via: "api" | "human_create";
+        };
+        BatchCost: {
+            /** Format: int64 */
+            ceiling_micro_usd: number;
+            ceiling_usd: string;
+            /** Format: int64 */
+            expected_micro_usd: number;
+            expected_usd: string;
+            /** Format: int64 */
+            max_micro_usd: number;
+            max_usd: string;
+            /** Format: int64 */
+            outstanding_micro_usd: number;
+            outstanding_usd: string;
+            /** @description Billing has been matched and the residual released */
+            reconciled: boolean;
+            /** Format: int64 */
+            reserved_micro_usd: number;
+            reserved_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+        };
+        BatchCounts: {
+            /** Format: int64 */
+            awaiting: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            completed: number;
+            /** Format: int64 */
+            expired: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            truncated: number;
+        };
+        BatchPage: {
+            items: components["schemas"]["BatchSummary"][];
+            next_cursor: string | null;
+        };
+        BatchSummary: {
+            approval: components["schemas"]["ApprovalStatus"];
+            cost: components["schemas"]["BatchCost"];
+            counts: components["schemas"]["BatchCounts"];
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            estimate_id: string;
+            finished_at: string | null;
+            id: string;
+            rationale: string | null;
+            /** @enum {string} */
+            state: "awaiting_confirmation" | "active" | "finished" | "rejected" | "expired";
+            /** Format: int64 */
+            takes: number;
+            /** @enum {string} */
+            via: "api" | "human_create";
+        };
+        Breakdown: {
+            /** @description Seeds used by at least two tracks, top 30 */
+            by_seed: components["schemas"]["BreakdownSeed"][];
+            /** @description Top 30 by tracks */
+            by_style_term: components["schemas"]["BreakdownTerm"][];
+        };
+        BreakdownSeed: {
+            /** Format: double */
+            mean_stars: number | null;
+            /** Format: int64 */
+            rated: number;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            tracks: number;
+        };
+        BreakdownTerm: {
+            /**
+             * Format: double
+             * @description Mean human stars over rated tracks (a float of stars, not money); null when none
+             */
+            mean_stars: number | null;
+            /** Format: int64 */
+            rated: number;
+            term: string;
+            /** Format: int64 */
+            tracks: number;
+        };
+        Budget: {
+            auto_approve: components["schemas"]["AutoApprove"];
+            balance: components["schemas"]["Balance"];
+            caps: components["schemas"]["CapsView"];
+            day: components["schemas"]["BudgetDay"];
+            month: components["schemas"]["BudgetMonth"];
+            provider: components["schemas"]["ProviderBrief"];
+        };
+        BudgetDay: {
+            /** Format: int64 */
+            cap_micro_usd: number;
+            cap_usd: string;
+            /** Format: int64 */
+            left_micro_usd: number;
+            left_usd: string;
+            /** Format: int64 */
+            outstanding_micro_usd: number;
+            outstanding_usd: string;
+            principal: components["schemas"]["PrincipalRef"];
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+        };
+        BudgetMonth: {
+            /** Format: int64 */
+            bill_adjustments_micro_usd: number;
+            bill_adjustments_usd: string;
+            /** Format: int64 */
+            cap_micro_usd: number;
+            cap_usd: string;
+            /** Format: int64 */
+            left_micro_usd: number;
+            left_usd: string;
+            /** Format: int64 */
+            outstanding_micro_usd: number;
+            outstanding_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+            /** @description RFC 3339, start of the month in the server's time zone */
+            start: string;
+        };
+        CapToken: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number | null;
+            /** Format: int64 */
+            auto_approve_takes: number | null;
+            auto_approve_usd: string | null;
+            /**
+             * Format: int64
+             * @description null: the global agent daily cap applies
+             */
+            daily_budget_micro_usd: number | null;
+            daily_budget_usd: string | null;
+            name: string;
+            token_id: string;
+        };
+        CapsView: {
+            /** Format: int64 */
+            agent_daily_micro_usd: number;
+            agent_daily_usd: string;
+            /** Format: int64 */
+            auto_approve_micro_usd: number;
+            /** Format: int64 */
+            auto_approve_takes: number;
+            auto_approve_usd: string;
+            /** Format: int64 */
+            batch_micro_usd: number;
+            batch_usd: string;
+            /** Format: int64 */
+            human_daily_micro_usd: number;
+            human_daily_usd: string;
+            /** Format: int64 */
+            monthly_micro_usd: number;
+            monthly_usd: string;
+            tokens: components["schemas"]["CapToken"][];
+            updated_at: string;
+            updated_by: components["schemas"]["PrincipalRef"];
         };
         ClipLink: {
             /**
@@ -1410,6 +2094,12 @@ export interface components {
             tier: "0" | "A";
             title: string;
             track_id: string;
+        };
+        ConfirmBody: {
+            /** @description From the estimate; single use */
+            confirmation_token: string;
+            /** @description Why; stored on the batch and the Operator Ledger */
+            rationale?: string;
         };
         ContextBudget: {
             /** Format: int64 */
@@ -1664,10 +2354,17 @@ export interface components {
             /** @description false once fulfilled */
             editable: boolean;
             fulfilled_by_track_id: string | null;
+            /**
+             * Format: int64
+             * @description Takes generated from this draft
+             */
+            generated_takes: number;
             group: components["schemas"]["GroupMember"][];
             group_key: string | null;
             has_reference: boolean;
             id: string;
+            /** @description A non-terminal job renders this draft; it cannot be edited or estimated again */
+            in_flight: boolean;
             label: string | null;
             /** @description Full lint of the stored request */
             lint: components["schemas"]["LintResult"];
@@ -1734,8 +2431,15 @@ export interface components {
             /** @description false once fulfilled */
             editable: boolean;
             fulfilled_by_track_id: string | null;
+            /**
+             * Format: int64
+             * @description Takes generated from this draft
+             */
+            generated_takes: number;
             group_key: string | null;
             id: string;
+            /** @description A non-terminal job renders this draft; it cannot be edited or estimated again */
+            in_flight: boolean;
             label: string | null;
             /** @description Full lint (protocol and songwriting) of the stored request */
             lint: components["schemas"]["LintCounts"];
@@ -1753,6 +2457,11 @@ export interface components {
             style_terms: string[];
             /** @description Principal key; masked for agents */
             updated_by: string;
+        };
+        DriftView: {
+            field: string;
+            got: string;
+            want: string;
         };
         Duel: {
             blind: boolean;
@@ -1845,6 +2554,113 @@ export interface components {
             /** @enum {string} */
             state: "open" | "decided" | "expired";
             window: components["schemas"]["ClipWindow"];
+        };
+        EnvDetail: {
+            cuda: string;
+            gpu_name: string;
+            python: string;
+            torch: string;
+            worker_build: string;
+        };
+        Estimate: {
+            /** @description human_api_path, takes_over_limit or cost_over_limit */
+            approval_reasons: string[];
+            backend: string;
+            budget: components["schemas"]["EstimateBudget"];
+            /** @description mmc_..., single use, 10 minutes, bound to this principal; shown only here */
+            confirmation_token: string;
+            cost: components["schemas"]["EstimateCost"];
+            engine: string;
+            estimate_id: string;
+            /** Format: int64 */
+            eta_s: number;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            items: components["schemas"]["EstimateItem"][];
+            price: components["schemas"]["EstimatePrice"];
+            provider: components["schemas"]["ProviderBrief"];
+            requires_human_approval: boolean;
+            /** Format: int64 */
+            takes: number;
+            warnings: components["schemas"]["EstimateWarning"][];
+        };
+        EstimateBudget: {
+            /** Format: int64 */
+            batch_cap_micro_usd: number;
+            batch_cap_usd: string;
+            day: components["schemas"]["Pot"];
+            fits: boolean;
+            month: components["schemas"]["Pot"];
+            /** @description batch, monthly and/or daily */
+            would_exceed: string[];
+        };
+        EstimateCost: {
+            /** Format: int64 */
+            attempt_overhead_micro_usd: number;
+            attempt_overhead_usd: string;
+            /**
+             * @description The ceiling rounded up for display (up to ...)
+             * @example $0.70
+             */
+            ceiling_display: string;
+            /**
+             * Format: int64
+             * @description What the batch may ever reserve: max plus the retry allowance
+             */
+            ceiling_micro_usd: number;
+            ceiling_usd: string;
+            /** Format: int64 */
+            expected_micro_usd: number;
+            expected_usd: string;
+            /**
+             * Format: int64
+             * @description The no-retry worst case: every take's reserve plus one attempt overhead per take
+             */
+            max_micro_usd: number;
+            max_usd: string;
+            /** Format: int64 */
+            retry_allowance_micro_usd: number;
+            retry_allowance_usd: string;
+        };
+        EstimateGenerationInBody: {
+            /**
+             * @description Default yue2
+             * @enum {string}
+             */
+            engine?: "yue2";
+            items: components["schemas"]["ItemIn"][] | null;
+        };
+        EstimateItem: {
+            /** Format: int64 */
+            index: number;
+            mode: string;
+            takes: components["schemas"]["TakePlan"][];
+        };
+        EstimatePrice: {
+            gpu_pools: string[];
+            /** @description RFC 3339 UTC; null for the fake backend */
+            observed_at: string | null;
+            /** Format: int64 */
+            per_hour_micro_usd: number;
+            per_hour_usd: string;
+        };
+        EstimateVariantInBody: {
+            /** @enum {string} */
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
+            /** Format: int64 */
+            n_seeds?: number;
+            patch?: components["schemas"]["Patch"];
+            seeds?: number[];
+            title?: string;
+        };
+        EstimateWarning: {
+            code: string;
+            field: string;
+            message: string;
+            /** @enum {string} */
+            severity: "warning" | "error";
+            /** Format: int64 */
+            take_index: number;
         };
         Export: {
             /** Format: int64 */
@@ -1976,6 +2792,19 @@ export interface components {
             only_a: string[];
             only_b: string[];
         };
+        GenerationStats: {
+            jobs_by_state: {
+                [key: string]: number;
+            };
+            /** Format: int64 */
+            outstanding_micro_usd: number;
+            outstanding_usd: string;
+            /** Format: int64 */
+            spend_month_micro_usd: number;
+            spend_month_usd: string;
+            /** Format: int64 */
+            takes_month: number;
+        };
         GroupMember: {
             id: string;
             label: string | null;
@@ -2034,6 +2863,170 @@ export interface components {
             message: string;
             section?: string;
             severity: string;
+        };
+        ItemIn: {
+            /** @description from_draft: the drafts to render */
+            draft_ids?: string[];
+            /**
+             * @description How the take list is built; see the modes table
+             * @enum {string}
+             */
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template";
+            /**
+             * Format: int64
+             * @description Seeds per base recipe (default 1)
+             */
+            n_seeds?: number;
+            /** @description Variants: the mother (required). from_draft: optional mother override */
+            parent_track_id?: string;
+            /** @description from_template: the mothers */
+            parent_track_ids?: string[];
+            /** @description *_edit modes and from_template */
+            patch?: components["schemas"]["Patch"];
+            /** @description compose_new: the song request, as sent */
+            recipe?: Record<string, never>;
+            /** @description Explicit seeds (unique, 0..2^53-1); override n_seeds */
+            seeds?: number[];
+            /**
+             * @description from_template: the mode applied to every mother
+             * @enum {string}
+             */
+            template_mode?: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
+            /** @description compose_new, single-take items */
+            title?: string;
+        };
+        Job: {
+            artifacts: components["schemas"]["JobArtifact"][];
+            /** Format: int64 */
+            attempts: number;
+            /** Format: double */
+            audio_s: number | null;
+            backend: string;
+            batch_id: string;
+            cancel_requested_at: string | null;
+            cost: components["schemas"]["JobCost"];
+            created_at: string;
+            deadline_at: string | null;
+            draft_id: string | null;
+            engine: string;
+            env: {
+                backend: string;
+                code_commit: string;
+                decoder: string;
+                detail: components["schemas"]["EnvDetail"];
+                engine: string;
+                env_id: string;
+                gpu_class: string;
+                image_digest: string;
+                pkg_version: string;
+                /** @description Weight repository to pinned revision */
+                weights: {
+                    [key: string]: string;
+                };
+            } | null;
+            /** @description Failed, cancelled and expired jobs; see the job error codes */
+            error_code: string | null;
+            /** @description A fixed English template per code, never provider text */
+            error_message: string | null;
+            /** @description Newest 50 */
+            events: components["schemas"]["JobEvent"][];
+            /** Format: int64 */
+            expected_audio_s: number;
+            finished_at: string | null;
+            id: string;
+            mode: string;
+            operator: string;
+            /**
+             * @description Completed jobs only
+             * @enum {string|null}
+             */
+            outcome: "clean" | "truncated" | null;
+            parent_track_id: string | null;
+            request_id: string;
+            /** Format: int64 */
+            resubmits: number;
+            /** Format: int64 */
+            seed: number;
+            started_at: string | null;
+            /** @enum {string} */
+            state: "awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired";
+            /** Format: int64 */
+            take_index: number;
+            /** Format: int64 */
+            timeout_s: number;
+            timings: components["schemas"]["JobTimings"];
+            title: string;
+            track_id: string | null;
+            truncated: {
+                abc: boolean;
+                semantic: boolean;
+            } | null;
+            updated_at: string;
+        };
+        JobArtifact: {
+            /** Format: int64 */
+            bytes: number;
+            name: string;
+            sha256: string;
+            verified: boolean;
+        };
+        JobCost: {
+            /** @enum {string} */
+            basis: "estimate" | "provisional" | "reconciled";
+            /** Format: int64 */
+            display_micro_usd: number | null;
+            display_usd: string | null;
+            /** Format: int64 */
+            expected_micro_usd: number;
+            expected_usd: string;
+        };
+        JobEvent: {
+            at: string;
+            code: string | null;
+            event: string;
+            from: string | null;
+            to: string | null;
+        };
+        JobPage: {
+            items: components["schemas"]["JobSummary"][];
+            next_cursor: string | null;
+        };
+        JobSummary: {
+            batch_id: string;
+            cost: components["schemas"]["JobCost"];
+            created_at: string;
+            draft_id: string | null;
+            /** @description Failed, cancelled and expired jobs; see the job error codes */
+            error_code: string | null;
+            id: string;
+            operator: string;
+            /**
+             * @description Completed jobs only
+             * @enum {string|null}
+             */
+            outcome: "clean" | "truncated" | null;
+            parent_track_id: string | null;
+            request_id: string;
+            /** Format: int64 */
+            seed: number;
+            /** @enum {string} */
+            state: "awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired";
+            /** Format: int64 */
+            take_index: number;
+            title: string;
+            track_id: string | null;
+            updated_at: string;
+        };
+        JobTimings: {
+            /**
+             * Format: int64
+             * @description Announced time minus the worker's start
+             */
+            cold_start_s: number | null;
+            /** Format: int64 */
+            execution_ms: number | null;
+            /** Format: int64 */
+            queue_delay_ms: number | null;
         };
         JudgmentCounters: {
             /** Format: int64 */
@@ -2135,6 +3128,24 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        LedgerEntry: {
+            at: string;
+            batch_id: string | null;
+            /** Format: int64 */
+            id: number;
+            job_id: string | null;
+            /** @enum {string} */
+            kind: "reserve" | "settle" | "residual" | "release" | "bill";
+            /** Format: int64 */
+            micro_usd: number;
+            principal: components["schemas"]["PrincipalRef"];
+            reason: string;
+            usd: string;
+        };
+        LedgerPage: {
+            items: components["schemas"]["LedgerEntry"][];
+            next_cursor: string | null;
+        };
         Lineage: {
             /** Format: int64 */
             generation: number;
@@ -2144,6 +3155,51 @@ export interface components {
             root_track_id: string;
             rule: string | null;
             siblings: components["schemas"]["Sibling"][];
+        };
+        LineageNode: {
+            /** Format: int64 */
+            children_count: number;
+            cost: {
+                /** @enum {string} */
+                basis: "estimate" | "provisional" | "reconciled";
+                /** Format: int64 */
+                display_micro_usd: number;
+                /** @description Exact decimal dollars */
+                display_usd: string;
+            } | null;
+            created_at: string;
+            /** Format: int64 */
+            critic_stars: number | null;
+            /** Format: int64 */
+            generation: number;
+            id: string;
+            inferred: boolean;
+            job_id: string | null;
+            lossy: boolean;
+            operator: string | null;
+            origin: string;
+            outcome: string | null;
+            parent_id: string | null;
+            rationale: string | null;
+            recipe_known: boolean;
+            request_id: string;
+            /**
+             * Format: int64
+             * @description null for a reference track (recipe unknown)
+             */
+            seed: number | null;
+            /** Format: int64 */
+            stars: number | null;
+            status: string;
+            title: string;
+        };
+        LineageTree: {
+            nodes: components["schemas"]["LineageNode"][];
+            root_id: string;
+            /** Format: int64 */
+            total: number;
+            /** @description Cut at limit or at the page byte cap */
+            truncated: boolean;
         };
         LintCounts: {
             /** Format: int64 */
@@ -2353,6 +3409,16 @@ export interface components {
             /** @description <public url>/pair#<code> */
             pair_url: string | null;
         };
+        Patch: {
+            /** @description A string sets the score, null removes it, absent keeps it */
+            abc?: string | null;
+            /** @description A number sets it, null removes it, absent keeps it */
+            cfg_scale?: number | null;
+            /** @enum {string} */
+            cot?: "full" | "melody" | "off";
+            lyrics?: string;
+            style?: string;
+        };
         PeaksLevel: {
             /** Format: double */
             duration_s: number;
@@ -2405,6 +3471,17 @@ export interface components {
         PlaylistsOutBody: {
             items: components["schemas"]["PlaylistSummary"][];
         };
+        Pot: {
+            /** Format: int64 */
+            cap_micro_usd: number;
+            cap_usd: string;
+            /** Format: int64 */
+            left_micro_usd: number;
+            left_usd: string;
+            /** Format: int64 */
+            used_micro_usd: number;
+            used_usd: string;
+        };
         PrincipalRef: {
             /** @description Principal key (kind:id); "human" for the operator as seen by an agent */
             id: string;
@@ -2426,6 +3503,96 @@ export interface components {
             /** @description Human-readable message */
             message: string;
         };
+        ProviderBrief: {
+            armed: boolean;
+            /** @description backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable */
+            disabled_reason: string | null;
+            generation_enabled: boolean;
+            tripped: boolean;
+        };
+        ProviderCapabilities: {
+            /** @enum {string} */
+            billing: "hour" | "none";
+            revert_drift: boolean;
+            scale_to_zero: boolean;
+        };
+        ProviderStatus: {
+            armed: boolean;
+            armed_changed_at: string;
+            armed_changed_by: components["schemas"]["PrincipalRef"];
+            backend: string;
+            balance: components["schemas"]["Balance"];
+            capabilities: components["schemas"]["ProviderCapabilities"];
+            /** Format: int64 */
+            cold_start_s: number;
+            disabled_reason: string | null;
+            endpoint: {
+                drift: components["schemas"]["DriftView"][];
+                excluded_types: string[];
+                flashboot: string;
+                gpu_pools: string[];
+                /** Format: int64 */
+                idle_timeout_s: number | null;
+                image_digest_short: string;
+                name: string;
+                /** Format: int64 */
+                workers_max: number;
+                /** Format: int64 */
+                workers_min: number;
+            } | null;
+            generation_enabled: boolean;
+            /** Format: int64 */
+            kill_slack_s: number;
+            last_reconcile_at: string | null;
+            /** Format: int64 */
+            max_runtime_s: number;
+            meter: {
+                /** Format: int64 */
+                billed_seconds_24h: number;
+                /** Format: int64 */
+                lifetimes_24h: number;
+                /** Format: int64 */
+                max_workers_seen_24h: number;
+            } | null;
+            price: {
+                observed_at: string;
+                /** Format: int64 */
+                per_hour_micro_usd: number;
+                per_hour_usd: string;
+            } | null;
+            /** Format: int64 */
+            price_margin_ppm: number;
+            quote_observed_at: string | null;
+            restored_unreconciled: boolean;
+            rtf: components["schemas"]["RTFView"][];
+            /** Format: int64 */
+            skew_ms: number | null;
+            trip: {
+                /** @description What the reconciler did */
+                actions: string[];
+                id: string;
+                reason: string;
+                reset_at: string | null;
+                tripped_at: string;
+            } | null;
+            /** @description At most 5 */
+            trips_recent: components["schemas"]["TripView"][];
+            /** Format: int64 */
+            ttl_s: number;
+            workers: {
+                /** Format: int64 */
+                idle: number;
+                /** Format: int64 */
+                initializing: number;
+                observed_at: string;
+                /** Format: int64 */
+                running: number;
+                /** Format: int64 */
+                throttled: number;
+                /** Format: int64 */
+                unhealthy: number;
+            } | null;
+        };
         PutDeviceProfileInBody: {
             /** @description canPlayType('audio/flac') result: probably, maybe or empty */
             flac_can_play: string;
@@ -2445,6 +3612,13 @@ export interface components {
             quality_source: "default" | "user" | "probe";
             user_agent: string;
         };
+        RTFView: {
+            gpu_class: string;
+            /** Format: int64 */
+            rtf_milli: number;
+            /** Format: int64 */
+            samples: number;
+        };
         Range: {
             /** Format: double */
             max: number | null;
@@ -2459,6 +3633,9 @@ export interface components {
             stars: number | null;
             /** @description Short free-text verdict, or null */
             verdict?: string | null;
+        };
+        ReasonBody: {
+            reason?: string;
         };
         RecipeDiff: {
             /** @description seed, style, lyrics and/or cot */
@@ -2486,6 +3663,9 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        RejectBatchInBody: {
+            reason: string;
+        };
         SectionOut: {
             /** Format: double */
             confidence: number | null;
@@ -2507,6 +3687,21 @@ export interface components {
             a: number;
             /** Format: int64 */
             b: number;
+        };
+        SetSpendCapsInBody: {
+            /** Format: int64 */
+            agent_daily_micro_usd?: number;
+            /** Format: int64 */
+            auto_approve_micro_usd?: number;
+            /** Format: int64 */
+            auto_approve_takes?: number;
+            /** Format: int64 */
+            batch_micro_usd?: number;
+            /** Format: int64 */
+            human_daily_micro_usd?: number;
+            /** Format: int64 */
+            monthly_micro_usd?: number;
+            tokens?: components["schemas"]["TokenCapsIn"][];
         };
         SetTagsInBody: {
             /** @description Tags to add (normalised: lower case, single spaces) */
@@ -2614,6 +3809,49 @@ export interface components {
             /** Format: int64 */
             width: number;
         };
+        Spend: {
+            batches: components["schemas"]["SpendBatch"][];
+            days: components["schemas"]["SpendDay"][];
+            /** @example 2026-10 */
+            month: string;
+            totals: components["schemas"]["SpendTotals"];
+        };
+        SpendBatch: {
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** Format: int64 */
+            expected_micro_usd: number;
+            expected_usd: string;
+            id: string;
+            /** Format: int64 */
+            max_micro_usd: number;
+            max_usd: string;
+            reconciled: boolean;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+            state: string;
+            /** Format: int64 */
+            takes: number;
+        };
+        SpendDay: {
+            /** @example 2026-10-14 */
+            date: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+        };
+        SpendTotals: {
+            /** Format: int64 */
+            bill_adjustments_micro_usd: number;
+            bill_adjustments_usd: string;
+            /** Format: int64 */
+            outstanding_micro_usd: number;
+            outstanding_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+        };
         StarFacet: {
             /** Format: int64 */
             count: number;
@@ -2624,9 +3862,11 @@ export interface components {
             backlog: components["schemas"]["BacklogStats"];
             backups: components["schemas"]["BackupStatus"];
             bandwidth: components["schemas"]["BandwidthStats"];
+            breakdown: components["schemas"]["Breakdown"];
             drafts_by_origin: {
                 [key: string]: number;
             };
+            generation: components["schemas"]["GenerationStats"];
             imports: components["schemas"]["ImportStats"];
             judgments: components["schemas"]["JudgmentCounters"];
             loudness: components["schemas"]["LoudnessStats"];
@@ -2725,6 +3965,24 @@ export interface components {
             /** Format: int64 */
             inherited: number;
         };
+        TakePlan: {
+            draft_id: string | null;
+            /** Format: int64 */
+            expected_audio_s: number;
+            /** Format: int64 */
+            max_micro_usd: number;
+            max_usd: string;
+            operator: string;
+            parent_track_id: string | null;
+            request_id: string;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            take_index: number;
+            /** Format: int64 */
+            timeout_s: number;
+            title: string;
+        };
         TermCount: {
             /** Format: int64 */
             count: number;
@@ -2739,6 +3997,15 @@ export interface components {
             end_s: number;
             /** Format: double */
             start_s: number;
+        };
+        TokenCapsIn: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number | null;
+            /** Format: int64 */
+            auto_approve_takes: number | null;
+            /** Format: int64 */
+            daily_budget_micro_usd: number | null;
+            token_id: string;
         };
         TokenInfo: {
             created_at: string;
@@ -2806,6 +4073,37 @@ export interface components {
             created_at: string;
             /** Format: double */
             duration_s: number;
+            /** @description How the take was generated; null for imported takes */
+            generation: {
+                batch_id: string;
+                cost: {
+                    /** @enum {string} */
+                    basis: "estimate" | "provisional" | "reconciled";
+                    /** Format: int64 */
+                    display_micro_usd: number;
+                    /** @description Exact decimal dollars */
+                    display_usd: string;
+                } | null;
+                env: {
+                    backend: string;
+                    code_commit: string;
+                    decoder: string;
+                    detail: components["schemas"]["EnvDetail"];
+                    engine: string;
+                    env_id: string;
+                    gpu_class: string;
+                    image_digest: string;
+                    pkg_version: string;
+                    /** @description Weight repository to pinned revision */
+                    weights: {
+                        [key: string]: string;
+                    };
+                } | null;
+                job_id: string;
+                /** @description reroll_seed, same_seed_edit, lyric_edit, style_edit, from_draft or compose_new */
+                operator: string;
+                rationale: string | null;
+            } | null;
             id: string;
             import: components["schemas"]["ImportInfo"];
             lineage: components["schemas"]["Lineage"];
@@ -2921,6 +4219,12 @@ export interface components {
             children_count: number;
             /** Format: int64 */
             comments: number;
+            /**
+             * Format: int64
+             * @description Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes
+             */
+            cost_display_micro_usd: number | null;
+            cost_display_usd: string | null;
             /** @description RFC 3339 UTC */
             created_at: string;
             /**
@@ -2938,6 +4242,8 @@ export interface components {
             lossy: boolean;
             /** Format: int64 */
             open_comments: number;
+            /** @description import or job */
+            origin: string;
             parent_track_id: string | null;
             /** @description false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother */
             recipe_known: boolean;
@@ -2965,6 +4271,14 @@ export interface components {
         TrackTags: {
             tags: components["schemas"]["TagRef"][];
             track_id: string;
+        };
+        TripView: {
+            /** @description What the reconciler did */
+            actions: string[];
+            id: string;
+            reason: string;
+            reset_at: string | null;
+            tripped_at: string;
         };
         UpdateCommentInBody: {
             body?: string;
@@ -2998,6 +4312,12 @@ export interface components {
             revision: number;
             /** @description Full ordered replacement; exclusive with add_track_ids */
             track_ids?: string[] | null;
+        };
+        UpdateProviderStateInBody: {
+            armed?: boolean;
+            reason: string;
+            /** @description Clear the open trip (no-op when none is open) */
+            reset_trip?: boolean;
         };
         UpdateTrackInBody: {
             /** @enum {string} */
@@ -3068,6 +4388,12 @@ export interface components {
             n: number;
             /** Format: int64 */
             ties: number;
+        };
+        WaitJobResult: {
+            /** @description The state differs from since_state (or the job is terminal) */
+            changed: boolean;
+            job: components["schemas"]["Job"];
+            timed_out: boolean;
         };
         Waveform: {
             /** Format: int64 */
@@ -3196,6 +4522,205 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BackupRun"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_batches: {
+        parameters: {
+            query?: {
+                state?: ("awaiting_confirmation" | "active" | "finished" | "rejected" | "expired")[];
+                principal_kind?: ("human" | "agent")[];
+                /** @description RFC 3339 */
+                since?: string;
+                /** @description RFC 3339 */
+                until?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_approval_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    request_approval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job or batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_budget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
                 };
             };
             /** @description Error */
@@ -3856,6 +5381,75 @@ export interface operations {
             };
         };
     };
+    create_generation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    estimate_generation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateGenerationInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_import_runs: {
         parameters: {
             query?: {
@@ -3924,6 +5518,148 @@ export interface operations {
             };
         };
     };
+    list_jobs: {
+        parameters: {
+            query?: {
+                state?: ("awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired")[];
+                batch_id?: string;
+                /** @description Jobs with this track as parent or child */
+                track_id?: string;
+                /** @description RFC 3339 */
+                since?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id (= the take id) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job or batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    wait_for_job: {
+        parameters: {
+            query?: {
+                /** @description Return as soon as the state differs; default the state at call time */
+                since_state?: "awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired";
+                timeout_s?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Job id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitJobResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_ladder: {
         parameters: {
             query?: {
@@ -3948,6 +5684,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LadderPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_ledger: {
+        parameters: {
+            query?: {
+                batch_id?: string;
+                kind?: ("reserve" | "settle" | "residual" | "release" | "bill")[];
+                /** @description RFC 3339 */
+                since?: string;
+                /** @description RFC 3339 */
+                until?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerPage"];
                 };
             };
             /** @description Error */
@@ -4251,6 +6025,35 @@ export interface operations {
             };
         };
     };
+    get_provider_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     lint_recipe: {
         parameters: {
             query?: never;
@@ -4271,6 +6074,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LintReport"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_spend: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM; default the current month */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Spend"];
                 };
             };
             /** @description Error */
@@ -4742,6 +6577,40 @@ export interface operations {
             };
         };
     };
+    get_lineage: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Any track of the tree */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineageTree"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_media_links: {
         parameters: {
             query?: never;
@@ -4915,6 +6784,153 @@ export interface operations {
             };
         };
     };
+    create_variant: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description The mother track of the estimate */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    estimate_variant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The mother track */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateVariantInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    approve_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBatchInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_devices: {
         parameters: {
             query?: never;
@@ -4999,6 +7015,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_generation_human: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_provider_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProviderStateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_spend_caps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSpendCapsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapsView"];
                 };
             };
             /** @description Error */

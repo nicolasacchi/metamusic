@@ -50,6 +50,8 @@ type Quote struct {
 	Pools, GPUClasses []string
 	Endpoint          EndpointConfig
 	ObservedAt        time.Time
+	// SweepUnreadable: the read key could not GET the endpoint or list workers (C68 reason sweep_unreadable).
+	SweepUnreadable bool
 }
 
 // EndpointConfig is the endpoint as read from the provider (C77.5); the desired values live in

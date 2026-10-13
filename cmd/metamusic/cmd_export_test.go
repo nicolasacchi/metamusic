@@ -108,7 +108,7 @@ func exportEnv(t *testing.T) (env map[string]string, abcLine string) {
 	}
 	lib := library.New(st, nil, func() time.Time { return lt.FixedNow })
 	tx, _ := st.W.BeginTx(ctx, nil)
-	rid, _, err := lib.InsertRecipe(ctx, tx, p)
+	rid, _, err := lib.InsertRecipe(ctx, tx, p, "import")
 	if err != nil {
 		t.Fatal(err)
 	}

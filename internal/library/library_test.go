@@ -251,7 +251,7 @@ func addTrack(t *testing.T, e *env, n int, style string) string {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	rid, _, err := e.svc.InsertRecipe(ctx, tx, p)
+	rid, _, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -902,7 +902,7 @@ func TestLibrary_WritesTwice(t *testing.T) {
 	}
 	for round := 1; round <= 2; round++ {
 		tx, _ := e.st.W.BeginTx(ctx, nil)
-		rid, created, err := e.svc.InsertRecipe(ctx, tx, p)
+		rid, created, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 		if err != nil || created != (round == 1) {
 			t.Fatalf("round %d recipe: %v created=%v", round, err, created)
 		}
@@ -987,7 +987,7 @@ func TestInsertTake_FulfilsOwnAndCoreMatch(t *testing.T) {
 	if err := e.svc.InsertTake(ctx, tx, t1); err != nil {
 		t.Fatal(err)
 	}
-	rid2, created, err := e.svc.InsertRecipe(ctx, tx, p)
+	rid2, created, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 	if err != nil || !created {
 		t.Fatalf("core recipe: %v %v", err, created)
 	}
@@ -1036,7 +1036,7 @@ func TestRelinkVariantiMothers_UniqueRoot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rid, _, err := e.svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1286,7 +1286,7 @@ func TestListDrafts_PageCap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rid, _, err := e.svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := e.svc.InsertRecipe(ctx, tx, p, "import")
 		if err != nil {
 			t.Fatal(err)
 		}
