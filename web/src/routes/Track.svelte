@@ -11,6 +11,8 @@
   import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
+  import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
+  import ContextButton from "../lib/components/ContextButton.svelte";
   import MetricsCard from "../lib/components/MetricsCard.svelte";
 
   type Track = components["schemas"]["TrackDetail"];
@@ -179,6 +181,13 @@
         <section class="card">
           <h2>Comments</h2>
           <CommentsPanel trackId={id} bind:comments />
+        </section>
+        <section class="card">
+          <AddToPlaylist trackId={id} member={track.playlists} />
+        </section>
+        <section class="card">
+          <h2>Agent context</h2>
+          <ContextButton trackId={id} />
         </section>
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <section class="card">
