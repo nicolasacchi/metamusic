@@ -271,12 +271,18 @@ func TestLoginBusyWhenContextDone(t *testing.T) {
 	for i := 0; i < maxHashers; i++ {
 		la.sem <- struct{}{} // saturate
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	// Login reads the account with ctx before it waits for a hasher slot, so the deadline must
+	// comfortably outlast that query even on a loaded CI runner; otherwise ctx expires in the
+	// query and Login returns the context error instead of ErrBusy. Each call gets its own ctx.
+	const wait = 300 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	if _, err := la.Login(ctx, "alice", "pw-pw-pw-pw-pw"); !errors.Is(err, ErrBusy) {
 		t.Fatalf("err = %v", err)
 	}
-	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw-pw-pw-pw-pw")).WithContext(ctx)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), wait)
+	defer cancel2()
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader("username=alice&password=pw-pw-pw-pw-pw")).WithContext(ctx2)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	la.Handler().ServeHTTP(rec, r)
