@@ -23,6 +23,8 @@ import (
 // Ingester freezes one take into the library (internal/media/ingest).
 type Ingester interface {
 	Ingest(ctx context.Context, r ingest.Request) (ingest.Result, error)
+	// IngestLossy freezes a standalone MP3 as a lossy reference master (M2c).
+	IngestLossy(ctx context.Context, r ingest.Request) (ingest.Result, error)
 	Discard(r ingest.Result) error
 }
 

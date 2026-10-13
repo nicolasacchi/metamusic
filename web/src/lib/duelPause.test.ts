@@ -28,6 +28,7 @@ function links(id: string): MediaLinks {
     track_id: id,
     expires_at: new Date(Date.now() + 12 * 3600_000).toISOString(),
     ttl_s: 12 * 3600,
+    lossy: false,
     flac: { url: `/media/${id}.flac?exp=1`, bytes: 1, content_type: "audio/flac", sample_rate: 44100, bits_per_sample: 16, sha256: "x" },
     mp3: { url: `/media/${id}.mp3?exp=1`, bytes: 1, content_type: "audio/mpeg", bitrate_kbps: 192, sha256: "y" },
   };

@@ -2322,3 +2322,12 @@ in the header is recorded; create the public plan copy, stage it and run `script
 - **Replayed `create_duel`** returns stored clip links that may have expired (agents: 15 min); the op
   description tells agents to call `get_duel`, and the SPA re-mints on 403/404.
 
+---
+
+## Amendments by M2c (reference and lossy imports)
+
+M2c amends this plan additively: C44 the hard-coded schema-version assertion becomes 5; C45
+`library.TrackRef` gains `Lossy` and `RecipeKnown`; C46/C51 clip and Ears work-dir links keep the
+master's extension and Ears adds the `lossy_source` blind spot; C53 `duels.TrackBrief` and `ears.Side`
+gain `recipe_known` and `lossy` (a duel's brief stays null until reveal, so the flags cannot leak slot
+identity); C54 the reveal and compare views show the badges.

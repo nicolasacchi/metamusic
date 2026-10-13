@@ -417,7 +417,7 @@ func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name 
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true, M2b: servertest.M2bOptions{Fixture: true}}
+	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
@@ -582,7 +582,10 @@ func TestToolsListGolden(t *testing.T) {
 //
 // M2b-B2 re-baseline 85917 -> 130984: four first-class M2b tools (next_duel, submit_duel, get_track_analysis,
 // get_track_spectrogram) with full output schemas; create_duel, get_ladder and compare_tracks are generic (D-M2b-22).
-const toolsListBaselineBytes = 130984
+//
+// M2c-B1 re-baseline 130984 -> 132866: recipe_known/lossy on the track, media-link and duel/compare shapes, the
+// nullable flac link and two search_tracks parameters (no tool added or demoted).
+const toolsListBaselineBytes = 132866
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {

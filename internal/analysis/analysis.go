@@ -63,6 +63,9 @@ type Analyzer interface {
 	ToolVersion() string
 	Loudness(ctx context.Context, workPath string) (Loudness, error)
 	Scan(ctx context.Context, workPath string, sampleRate, channels int, totalSamples uint64) (Peaks, Spectrum, error)
+	// CountFrames decodes the first audio stream and returns the number of sample frames per channel
+	// (bytes / (4·channels) of the f32le decode). Lossy ingest uses the decoder's count as the truth (C60).
+	CountFrames(ctx context.Context, workPath string, sampleRate, channels int) (uint64, error)
 }
 
 // Input limits for the builders: STREAMINFO comes from untrusted files, and the

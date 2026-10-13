@@ -123,6 +123,7 @@ func WriteFiles(tb testing.TB, dataDir string) {
 			}
 		}
 	}
+	writeRefFiles(tb, dataDir)
 }
 
 func mustParse(tb testing.TB, raw string) yue2.Parsed {

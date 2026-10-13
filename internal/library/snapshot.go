@@ -10,6 +10,7 @@ import (
 type SnapRecipe struct {
 	ID, RequestID, CoreHash string
 	Seed                    int64
+	Engine                  string // "unknown" for a stub (reference) recipe
 }
 
 // SnapTrack is a stored track as the importer needs it.
@@ -19,6 +20,8 @@ type SnapTrack struct {
 	TotalSamples                           int64
 	RecordedAt                             string
 	Generation                             int
+	Lossy                                  bool // the master is an MP3 (M2c)
+	Reference                              bool // import_rule = 'reference': recipe-less (M2c)
 }
 
 // SnapDraft is a stored draft as the importer needs it.
@@ -33,7 +36,7 @@ type SnapDraft struct {
 type LibrarySnapshot struct {
 	Recipes      map[string]SnapRecipe // by recipe hash
 	Tracks       []SnapTrack
-	AudioIDs     map[string]string    // "<frames sha>:<total samples>" -> track id
+	AudioIDs     map[string]string    // "<frames sha>:<total samples>" -> track id; "mp3:<master sha256>" for lossy masters
 	Drafts       map[string]SnapDraft // by source recipe id
 	SourceKeys   map[string]bool      // recipe hash + "\x00" + path + "\x00" + line + "\x00" + raw sha
 	RefKeys      map[string]string    // recipe hash + "\x00" + source -> sha256 of ref_json
@@ -69,10 +72,10 @@ func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) {
 		}
 		return rows.Err()
 	}
-	if err := each(`SELECT id, hash, request_id, core_hash, seed FROM recipes`, func(r *sql.Rows) error {
+	if err := each(`SELECT id, hash, request_id, core_hash, seed, engine FROM recipes`, func(r *sql.Rows) error {
 		var x SnapRecipe
 		var h string
-		if err := r.Scan(&x.ID, &h, &x.RequestID, &x.CoreHash, &x.Seed); err != nil {
+		if err := r.Scan(&x.ID, &h, &x.RequestID, &x.CoreHash, &x.Seed, &x.Engine); err != nil {
 			return err
 		}
 		snap.Recipes[h], byID[x.ID] = x, h
@@ -80,14 +83,19 @@ func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) {
 	}); err != nil {
 		return snap, err
 	}
-	if err := each(`SELECT id, recipe_id, root_track_id, slug, title, frames_sha256, master_sha256, source_sha256, total_samples, recorded_at, master_path, generation FROM tracks ORDER BY recorded_at, id`, func(r *sql.Rows) error {
+	if err := each(`SELECT id, recipe_id, root_track_id, slug, title, frames_sha256, master_sha256, source_sha256, total_samples, recorded_at, master_path, generation, lossy, import_rule FROM tracks ORDER BY recorded_at, id`, func(r *sql.Rows) error {
 		var x SnapTrack
-		var mp string
-		if err := r.Scan(&x.ID, &x.RecipeID, &x.RootTrackID, &x.Slug, &x.Title, &x.FramesSHA256, &x.MasterSHA256, &x.SourceSHA, &x.TotalSamples, &x.RecordedAt, &mp, &x.Generation); err != nil {
+		var mp, rule string
+		if err := r.Scan(&x.ID, &x.RecipeID, &x.RootTrackID, &x.Slug, &x.Title, &x.FramesSHA256, &x.MasterSHA256, &x.SourceSHA, &x.TotalSamples, &x.RecordedAt, &mp, &x.Generation, &x.Lossy, &rule); err != nil {
 			return err
 		}
+		x.Reference = rule == RuleReference
 		snap.Tracks = append(snap.Tracks, x)
-		snap.AudioIDs[fmt.Sprintf("%s:%d", x.FramesSHA256, x.TotalSamples)] = x.ID
+		if x.Lossy {
+			snap.AudioIDs["mp3:"+x.MasterSHA256] = x.ID
+		} else {
+			snap.AudioIDs[fmt.Sprintf("%s:%d", x.FramesSHA256, x.TotalSamples)] = x.ID
+		}
 		snap.MasterPaths[mp] = true
 		return nil
 	}); err != nil {

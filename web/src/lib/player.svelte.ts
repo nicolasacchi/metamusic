@@ -340,9 +340,10 @@ export class Player {
   private apply(links: MediaLinks) {
     const el = this.el;
     if (!el) return;
-    const format = this.formatFor(links.track_id);
+    // A track without a lossless file (flac === null: a lossy reference) always plays its MP3 link.
+    const format = links.flac ? this.formatFor(links.track_id) : "mp3";
     this.state.format = format;
-    const url = format === "flac" ? links.flac.url : links.mp3.url;
+    const url = format === "flac" && links.flac ? links.flac.url : links.mp3.url;
     this.appliedExp = Date.parse(links.expires_at);
     this.src = url;
     this.appliedTrack = links.track_id;

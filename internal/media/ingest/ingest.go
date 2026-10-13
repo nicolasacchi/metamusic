@@ -297,7 +297,7 @@ func (p *Pipeline) Ingest(ctx context.Context, req Request) (res Result, err err
 	if beforeClaim != nil {
 		beforeClaim(req.TrackID)
 	}
-	masterRel, cerr2 := cl.claimMaster(rel("master.flac"), req.Slug, req.Seed, req.RecordedAt)
+	masterRel, cerr2 := cl.claimMaster(rel("master.flac"), req.Slug, req.Seed, req.RecordedAt, "flac")
 	if cerr2 != nil {
 		return Result{}, cerr2
 	}
@@ -372,4 +372,11 @@ func readInfo(root *os.Root, rel string) (frames string, info flacmeta.Info, err
 		return "", info, &Error{Code: CodeInvalidAudio, Detail: "FLAC frames: " + err.Error(), Err: err}
 	}
 	return frames, info, nil
+}
+
+// IngestLossy freezes a standalone MP3 byte-for-byte as a lossy reference master (C60, D-M2c-3).
+//
+// STUB(M2c-B2): copy, verify, decode-based analysis, freeze and claim are implemented there.
+func (p *Pipeline) IngestLossy(ctx context.Context, req Request) (Result, error) {
+	return Result{}, errors.ErrUnsupported
 }

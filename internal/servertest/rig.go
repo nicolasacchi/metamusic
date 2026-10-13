@@ -46,6 +46,7 @@ import (
 type Options struct {
 	Mode    string                // "proxy" (default) | "local"
 	Fixture bool                  // librarytest.Fixture (M1 rows plus the M2a rows)
+	M2c     bool                  // plus the two M2c rows of librarytest.FixtureM2c (a reference FLAC and a lossy reference); requires Fixture
 	Archive *archivetest.Template // an imported synthetic archive (archivetest.SyntheticArchive), copied into the DataDir; exclusive with Fixture
 	Files   bool                  // librarytest.WriteFiles: files whose sha256 match the rows
 	Clock   *Clock                // nil => fixed at librarytest.FixedNow
@@ -165,6 +166,12 @@ func New(tb testing.TB, o Options) *Rig {
 	tb.Cleanup(func() { _ = st.Close() })
 	if o.Fixture && !seeded {
 		librarytest.Fixture(tb, st, clock.Now())
+	}
+	if o.M2c {
+		if !o.Fixture {
+			tb.Fatal("servertest: M2c requires Fixture")
+		}
+		librarytest.ApplyM2c(tb, st, clock.Now())
 	}
 	if o.Files {
 		librarytest.WriteFiles(tb, r.DataDir)

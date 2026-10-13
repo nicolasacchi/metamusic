@@ -42,19 +42,19 @@ func (c *claimer) link(from, to string) (exists bool, err error) {
 	return false, nil
 }
 
-// masterName is audio/masters/<slug>__<seed>__<yyyymmdd-hhmm>[__N].flac.
-func masterName(slug string, seed int64, at time.Time, n int) string {
+// masterName is audio/masters/<slug>__<seed>__<yyyymmdd-hhmm>[__N].<ext> (ext "flac" or "mp3").
+func masterName(slug string, seed int64, at time.Time, n int, ext string) string {
 	base := fmt.Sprintf("%s__%d__%s", slug, seed, at.UTC().Format("20060102-1504"))
 	if n > 1 {
 		base += fmt.Sprintf("__%d", n)
 	}
-	return "audio/masters/" + base + ".flac"
+	return "audio/masters/" + base + "." + ext
 }
 
 // claimMaster finds the first free master name (up to __99).
-func (c *claimer) claimMaster(from, slug string, seed int64, at time.Time) (string, error) {
+func (c *claimer) claimMaster(from, slug string, seed int64, at time.Time, ext string) (string, error) {
 	for n := 1; n <= 99; n++ {
-		name := masterName(slug, seed, at, n)
+		name := masterName(slug, seed, at, n, ext)
 		exists, err := c.link(from, name)
 		if err != nil {
 			return "", err
@@ -63,7 +63,7 @@ func (c *claimer) claimMaster(from, slug string, seed int64, at time.Time) (stri
 			return name, nil
 		}
 	}
-	return "", errorf(CodeIO, masterName(slug, seed, at, 1), "no free master name")
+	return "", errorf(CodeIO, masterName(slug, seed, at, 1, ext), "no free master name")
 }
 
 // Discard removes exactly the master and takes/<TrackID>/ files listed in

@@ -1,0 +1,100 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000000106",
+    "title": "Synthetic Reference",
+    "status": "draft",
+    "stars": null,
+    "critic_stars": null,
+    "critic_verdict": null,
+    "tags": [],
+    "duration_s": 6,
+    "recipe_known": false,
+    "lossy": false,
+    "recorded_at": "2026-10-06T00:00:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000106"
+  },
+  "recipe": {
+    "engine": "unknown",
+    "known": false,
+    "hash": "ae646e9a241175746e9a91546fb90382a667b3d886c259824d71ef2d78bffaa1",
+    "request": null,
+    "note": "recipe unknown: this is a reference track; no style, lyrics or seed exist"
+  },
+  "provenance": {
+    "origin": "import",
+    "import_rule": "reference",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost_usd": null,
+    "env": null
+  },
+  "score": null,
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000000106",
+        "title": "Synthetic Reference"
+      }
+    ],
+    "operator": null,
+    "inferred": null,
+    "rule": null,
+    "rationale": null,
+    "children": [],
+    "siblings": 0
+  },
+  "judgments": {
+    "comments": [],
+    "comments_total": 0,
+    "open_fix": 0,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -13.5,
+    "true_peak_db": -1,
+    "lra_lu": 4,
+    "bandwidth_hz": 16000,
+    "sections": [],
+    "timed": false,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "silence, clipping and token loops (Tier A not run yet)",
+      "section times unknown (no aligned score)"
+    ]
+  },
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
+  },
+  "_links": {
+    "stream": {
+      "mp3": "https://mm.example.com/media/1a4399fa9c967dcb445d4c7df239ccfc9b067e34ecfec7266eb8e8a1d69e2224.mp3?exp=1791288900\u0026sig=vC_-9CW-4Q0gcFsGFyVltOdIerHLUfldnrXGRKi5lgw",
+      "flac": "https://mm.example.com/media/7359d0bea66a3e8e69de9d21534f663150a301bfd5188ba6f6f1a12aaa0d95d3.flac?exp=1791288900\u0026sig=r6V4pka5JDPqVcripA-GwJob8uf0YirbIti1P6BVBZA",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "spectrogram": null,
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000000106/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000000106"
+  },
+  "next_actions": [
+    "ask the human to rate this take (rate_track)",
+    "section times need a score: refer to sections by lyrics, not by time",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 2277,
+    "limit": 24000,
+    "truncated": []
+  }
+}

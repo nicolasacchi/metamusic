@@ -94,6 +94,13 @@ func input(workPath string) ([]string, error) {
 	return []string{"-protocol_whitelist", "file,pipe", "-i", "file:" + workPath, "-map", "0:a:0"}, nil
 }
 
+// CountFrames is the lossy-ingest frame count (C60).
+//
+// STUB(M2c-B2): the decode-counting implementation replaces this.
+func (f *FFmpeg) CountFrames(ctx context.Context, workPath string, sampleRate, channels int) (uint64, error) {
+	return 0, errors.ErrUnsupported
+}
+
 // Loudness runs the C14 ebur128 invocation and parses its metadata stream.
 func (f *FFmpeg) Loudness(ctx context.Context, workPath string) (analysis.Loudness, error) {
 	in, err := input(workPath)

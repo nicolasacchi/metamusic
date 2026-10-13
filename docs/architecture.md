@@ -91,6 +91,18 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
   clients receive it as an image result. Tier A runs from the CLI after a take is committed.
 - **Compare**: `compare_tracks` reports metric, recipe and verdict deltas between two takes.
 
+## Reference tracks and lossy masters (M2c)
+
+- **Reference tracks**: audio that has no recipe can be imported on purpose (`--reference-unmatched`,
+  `--reference-lossy` or a mapping row), never by a plain `import`. Such a track is an ordinary track
+  linked to a stub recipe with `engine = 'unknown'`; the API, MCP and `/context` show `recipe_known:
+  false`, and the library filters on it.
+- **Lossy masters**: a standalone MP3 imports byte-for-byte as an MP3 master (`lossy: true`): frozen
+  like a FLAC master, no tags, no MP3 rendition, never a lossless link (`get_media_links` returns
+  `flac: null`). Only imports can create one; generated tracks stay FLAC.
+- **Refusals**: stub recipes are excluded from `songs.jsonl` exports and refused by lint, draft
+  creation and as mothers, in Go and in the database (`RECIPE_UNKNOWN`).
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

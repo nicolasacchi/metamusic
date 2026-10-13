@@ -17,7 +17,7 @@ describe("duelViewModel", () => {
 
   test("a blind duel with tracks present (should never happen) still hides them while open", () => {
     const leaky = structuredClone(duelOpenBlind);
-    leaky.slots.a.track = { id: "x", title: "Secret Title", seed: 4242, request_id: "r", root_track_id: "x", duration_s: 1 };
+    leaky.slots.a.track = { id: "x", title: "Secret Title", seed: 4242, request_id: "r", root_track_id: "x", duration_s: 1, recipe_known: true, lossy: false };
     leaky.slots.a.gain_db = -3.5;
     const json = JSON.stringify(duelViewModel(leaky));
     expect(json).not.toContain("Secret Title");
@@ -84,8 +84,8 @@ describe("history rows", () => {
     human_verdict: { verdict: "tie", winner_track_id: null },
     window: { from_s: 0, to_s: 30, duration_s: 30 },
     slots: {
-      a: { track: { id: "a", title: "One", seed: 1, request_id: "r", root_track_id: "a", duration_s: 60 } },
-      b: { track: { id: "b", title: "Two", seed: 2, request_id: "r", root_track_id: "a", duration_s: 60 } },
+      a: { track: { id: "a", title: "One", seed: 1, request_id: "r", root_track_id: "a", duration_s: 60, recipe_known: true, lossy: false } },
+      b: { track: { id: "b", title: "Two", seed: 2, request_id: "r", root_track_id: "a", duration_s: 60, recipe_known: true, lossy: false } },
     },
   };
   test("a revealed summary shows titles and links to /duels/:id", () => {

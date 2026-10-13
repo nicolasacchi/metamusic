@@ -717,7 +717,7 @@ export interface paths {
         };
         /**
          * Search tracks
-         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
          */
         get: operations["search_tracks"];
         put?: never;
@@ -845,7 +845,7 @@ export interface paths {
         };
         /**
          * Get signed media links
-         * @description Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.
+         * @description Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.
          */
         get: operations["get_media_links"];
         put?: never;
@@ -1103,7 +1103,10 @@ export interface components {
         };
         AudioInfo: {
             audio_md5: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Nominal (16) for a lossy master
+             */
             bits_per_sample: number;
             /** Format: int64 */
             channels: number;
@@ -1397,6 +1400,8 @@ export interface components {
             /** Format: double */
             duration_s: number;
             flags: string[];
+            lossy: boolean;
+            recipe_known: boolean;
             request_id: string;
             root_track_id: string;
             /** Format: int64 */
@@ -1966,19 +1971,6 @@ export interface components {
              */
             unrated: number;
         };
-        FlacLink: {
-            /** Format: int64 */
-            bits_per_sample: number;
-            /** Format: int64 */
-            bytes: number;
-            /** @example audio/flac */
-            content_type: string;
-            /** Format: int64 */
-            sample_rate: number;
-            sha256: string;
-            /** @description Signed, relative URL; valid until expires_at */
-            url: string;
-        };
         FlagDiff: {
             both: string[];
             only_a: string[];
@@ -2257,7 +2249,22 @@ export interface components {
         MediaLinksOutBody: {
             /** @description RFC 3339 UTC */
             expires_at: string;
-            flac: components["schemas"]["FlacLink"];
+            /** @description null for a lossy track: there is no lossless file; never guess a FLAC URL */
+            flac: {
+                /** Format: int64 */
+                bits_per_sample: number;
+                /** Format: int64 */
+                bytes: number;
+                /** @example audio/flac */
+                content_type: string;
+                /** Format: int64 */
+                sample_rate: number;
+                sha256: string;
+                /** @description Signed, relative URL; valid until expires_at */
+                url: string;
+            } | null;
+            /** @description The master is an MP3; mp3 points at it */
+            lossy: boolean;
             mp3: components["schemas"]["MP3Link"];
             track_id: string;
             /**
@@ -2521,6 +2528,8 @@ export interface components {
                 /** Format: double */
                 duration_s: number;
                 id: string;
+                lossy: boolean;
+                recipe_known: boolean;
                 request_id: string;
                 root_track_id: string;
                 /** Format: int64 */
@@ -2535,6 +2544,8 @@ export interface components {
                 /** Format: double */
                 duration_s: number;
                 id: string;
+                lossy: boolean;
+                recipe_known: boolean;
                 request_id: string;
                 root_track_id: string;
                 /** Format: int64 */
@@ -2794,12 +2805,16 @@ export interface components {
             import: components["schemas"]["ImportInfo"];
             lineage: components["schemas"]["Lineage"];
             listening: components["schemas"]["ListeningStats"];
+            /** @description The master is an MP3; bits_per_sample is nominal and there is no lossless file */
+            lossy: boolean;
             /** Format: int64 */
             open_comments: number;
             origin: string;
             playlists: components["schemas"]["PlaylistRef"][];
             rating: components["schemas"]["TrackRating"];
             recipe: components["schemas"]["RecipeInfo"];
+            /** @description false for a reference track: its recipe is a stub */
+            recipe_known: boolean;
             recorded_at: string;
             /** @description null when the track has no score */
             score: {
@@ -2914,9 +2929,13 @@ export interface components {
             id: string;
             /** Format: double */
             integrated_lufs: number | null;
+            /** @description The master is an MP3; there is no lossless file */
+            lossy: boolean;
             /** Format: int64 */
             open_comments: number;
             parent_track_id: string | null;
+            /** @description false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother */
+            recipe_known: boolean;
             /** @description RFC 3339 UTC */
             recorded_at: string;
             request_id: string;
@@ -4430,6 +4449,10 @@ export interface operations {
                 /** @description Repeatable tag; all must match */
                 tag?: string[];
                 has_open_comments?: boolean;
+                /** @description false lists reference tracks (recipe unknown); true only tracks with a real recipe */
+                recipe_known?: boolean;
+                /** @description true lists tracks whose master is an MP3; false only lossless masters */
+                lossy?: boolean;
                 /** @description Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last */
                 sort?: "recorded_desc" | "recorded_asc" | "duration_desc" | "duration_asc" | "title_asc" | "relevance" | "stars_desc";
                 limit?: number;

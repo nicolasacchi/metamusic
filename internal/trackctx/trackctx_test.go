@@ -137,11 +137,11 @@ func TestContext_Golden(t *testing.T) {
 	if diff := cmp.Diff(wantTop, keys(t, raw)); diff != "" {
 		t.Errorf("top-level keys (-want +got):\n%s", diff)
 	}
-	wantTrack := []string{"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recorded_at", "url"}
+	wantTrack := []string{"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"}
 	if diff := cmp.Diff(wantTrack, keys(t, section(t, raw, "track"))); diff != "" {
 		t.Errorf("track keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"engine", "hash", "request"}, keys(t, section(t, raw, "recipe"))); diff != "" {
+	if diff := cmp.Diff([]string{"engine", "known", "hash", "request"}, keys(t, section(t, raw, "recipe"))); diff != "" {
 		t.Errorf("recipe keys:\n%s", diff)
 	}
 	if diff := cmp.Diff([]string{"id", "style", "lyrics", "cot", "seed", "abc_present", "cfg_scale"}, keys(t, section(t, section(t, raw, "recipe"), "request"))); diff != "" {

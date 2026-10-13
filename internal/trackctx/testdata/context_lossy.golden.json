@@ -1,0 +1,99 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000000107",
+    "title": "Synthetic Lossy",
+    "status": "draft",
+    "stars": null,
+    "critic_stars": null,
+    "critic_verdict": null,
+    "tags": [],
+    "duration_s": 8,
+    "recipe_known": false,
+    "lossy": true,
+    "recorded_at": "2026-10-06T00:00:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000107"
+  },
+  "recipe": {
+    "engine": "unknown",
+    "known": false,
+    "hash": "56cfba80c3abe9f465864ae687ce8983774f51f6f67f8288eb231902e61497ee",
+    "request": null,
+    "note": "recipe unknown: this is a reference track; no style, lyrics or seed exist"
+  },
+  "provenance": {
+    "origin": "import",
+    "import_rule": "reference",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost_usd": null,
+    "env": null
+  },
+  "score": null,
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000000107",
+        "title": "Synthetic Lossy"
+      }
+    ],
+    "operator": null,
+    "inferred": null,
+    "rule": null,
+    "rationale": null,
+    "children": [],
+    "siblings": 0
+  },
+  "judgments": {
+    "comments": [],
+    "comments_total": 0,
+    "open_fix": 0,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -13.5,
+    "true_peak_db": -1,
+    "lra_lu": 4,
+    "bandwidth_hz": 16000,
+    "sections": [],
+    "timed": false,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "silence, clipping and token loops (Tier A not run yet)",
+      "section times unknown (no aligned score)"
+    ]
+  },
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
+  },
+  "_links": {
+    "stream": {
+      "mp3": "https://mm.example.com/media/74a76c9fef644626c575d2ddbbf81b1e841f5c69b67ea865f615535b73f4a855.mp3?exp=1791288900\u0026sig=GSk1qZ3cuCiZKIuhgczYcvDg6GwEaeOEvHeHJ2P7wXI",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "spectrogram": null,
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000000107/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000000107"
+  },
+  "next_actions": [
+    "ask the human to rate this take (rate_track)",
+    "section times need a score: refer to sections by lyrics, not by time",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 2092,
+    "limit": 24000,
+    "truncated": []
+  }
+}

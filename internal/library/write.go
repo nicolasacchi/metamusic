@@ -50,7 +50,7 @@ type NewArtifact struct {
 type NewMutation struct {
 	Operator  string // inferred_sibling
 	Inferred  bool
-	Rule      string // same_request_id | seed_family | mapping
+	Rule      string // same_request_id | seed_family | mapping | reference_group
 	Rationale string
 }
 
@@ -93,6 +93,14 @@ type NewTake struct {
 	// takes/<ID>/score.abc); the library parses and aligns it.
 	ScoreABC []byte
 	Mutation *NewMutation
+
+	// Reference marks a recipe-less take (its recipe is a stub, ImportRule is
+	// RuleReference): no score, artifacts, fulfilment or style terms (M2c, C59).
+	Reference bool
+	// Lossy marks a take whose master is an MP3 (tracks.lossy = 1). It requires
+	// Reference and the nominal lossy shape (16 bits, zero audio_md5, equal
+	// source/frames/master hashes) and allows only a peaks rendition.
+	Lossy bool
 
 	// Out, when non-nil, receives the fulfilled drafts.
 	Out *Fulfilment
@@ -234,12 +242,18 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 			return invalid("rendition", "unknown kind %q", r.Kind)
 		}
 	}
+	if err := validateReferenceTake(t); err != nil {
+		return err
+	}
 	var reqID, style, lyrics, coreHash string
 	if err := tx.QueryRowContext(ctx, `SELECT request_id, style, lyrics, core_hash FROM recipes WHERE id = ?`, t.RecipeID).
 		Scan(&reqID, &style, &lyrics, &coreHash); err != nil {
 		return fmt.Errorf("library: take recipe: %w", err)
 	}
 	terms, bpm := yue2.StyleTerms(style)
+	if t.Reference {
+		terms, bpm = nil, 0
+	}
 	root := t.RootTrackID
 	if root == "" {
 		root = t.ID
@@ -250,10 +264,16 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 		bpmArg = bpm
 	}
 	runArg := nullStr(t.ImportRunID)
+	// The lossy column exists from schema version 5; it is written only for lossy
+	// takes so FixtureV2 keeps working against older databases.
+	lossyCol, lossyArg := "", ""
+	if t.Lossy {
+		lossyCol, lossyArg = ", lossy", ",1"
+	}
 	if err := execTx(ctx, tx, `INSERT INTO tracks(id, slug, title, recipe_id, parent_track_id, root_track_id, generation, status, status_set_by, origin,
 		duration_s, sample_rate, bits_per_sample, channels, total_samples, master_path, master_sha256, master_bytes, source_sha256, frames_sha256, audio_md5,
-		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at)
-		VALUES (?,?,?,?,?,?,?,'draft','import','import',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at`+lossyCol+`)
+		VALUES (?,?,?,?,?,?,?,'draft','import','import',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?`+lossyArg+`)`,
 		t.ID, t.Slug, t.Title, t.RecipeID, nullStr(t.ParentTrackID), root, t.Generation,
 		t.DurationS, t.SampleRate, t.BitsPerSample, t.Channels, t.TotalSamples, t.MasterPath, t.MasterSHA256, t.MasterBytes, t.SourceSHA256, t.FramesSHA256, t.AudioMD5,
 		boolPtr(t.TruncatedABC), boolPtr(t.TruncatedSemantic), bpmArg, t.ImportRule, runArg, ts(t.RecordedAt), now); err != nil {
@@ -313,7 +333,52 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 			return fmt.Errorf("library: inherit tags: %w", err)
 		}
 	}
+	if t.Reference {
+		return nil // a stub recipe never fulfils a draft (C59)
+	}
 	return s.fulfil(ctx, tx, t, coreHash, now)
+}
+
+// zeroMD5 is the audio_md5 of a take whose master has no STREAMINFO (lossy).
+const zeroMD5 = "00000000000000000000000000000000"
+
+// validateReferenceTake enforces the Go side of the reference/lossy rules (the
+// database triggers enforce the same shape for any other writer).
+func validateReferenceTake(t NewTake) error {
+	if (t.ImportRule == RuleReference) != t.Reference {
+		return invalid("import_rule", "rule %q and reference=%v disagree", t.ImportRule, t.Reference)
+	}
+	if t.Lossy && !t.Reference {
+		return invalid("lossy", "a lossy take must be a reference take")
+	}
+	if t.Reference {
+		if t.ScoreABC != nil {
+			return invalid("score", "a reference take has no score")
+		}
+		if len(t.Artifacts) > 0 {
+			return invalid("artifacts", "a reference take keeps no artifacts")
+		}
+		if m := t.Mutation; m != nil && !oneOf(m.Rule, "reference_group", "mapping") {
+			return invalid("mutation", "rule %q is not valid for a reference take", m.Rule)
+		}
+	}
+	if !t.Lossy {
+		return nil
+	}
+	for _, r := range t.Renditions {
+		if r.Kind != "peaks" {
+			return invalid("rendition", "a lossy take has only a peaks rendition, got %q", r.Kind)
+		}
+	}
+	switch {
+	case t.BitsPerSample != 16:
+		return invalid("bits_per_sample", "a lossy take stores the nominal 16")
+	case t.AudioMD5 != zeroMD5:
+		return invalid("audio_md5", "a lossy take has an all-zero audio_md5")
+	case t.SourceSHA256 != t.MasterSHA256 || t.FramesSHA256 != t.MasterSHA256:
+		return invalid("master_sha256", "a lossy take has equal source, frames and master hashes")
+	}
+	return nil
 }
 
 func (s *Service) insertAnalyses(ctx context.Context, tx *sql.Tx, t NewTake, now string) error {
@@ -545,7 +610,7 @@ func (s *Service) FinishRun(ctx context.Context, runID, state string, summary, r
 // (revision > 1) are never touched (C27).
 func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) {
 	roots := map[string]map[string]bool{} // group key -> root track ids
-	rows, err := tx.QueryContext(ctx, `SELECT t.root_track_id, r.request_id FROM tracks t JOIN recipes r ON r.id = t.recipe_id`)
+	rows, err := tx.QueryContext(ctx, `SELECT t.root_track_id, r.request_id FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE r.engine <> 'unknown'`)
 	if err != nil {
 		return 0, err
 	}

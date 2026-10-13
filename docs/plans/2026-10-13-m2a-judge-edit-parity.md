@@ -2995,3 +2995,13 @@ write the public copy of this plan and run `make gate` on it.
   modification of a frozen file; restore re-hashes everything; periodic snapshot verification is a later
   decision (with D7).
 
+---
+
+## Amendments by M2c (reference and lossy imports)
+
+M2c amends this plan additively: C32 drafts refuse a stub recipe's request id and a reference track as
+mother (`RECIPE_UNKNOWN`); C33 `songs.jsonl` export always excludes stub recipes (note
+`recipe_unknown_excluded`) and the playlist ZIP carries lossy masters unchanged; C34 backups need no
+change; C35 `/context` gains `track.recipe_known`/`lossy` and `recipe.known`/`note`; C40 the library
+gains the recipe and audio filters and badges; C41 the `tools/list` ceiling is re-baselined to 56 200
+bytes (measured 56 122); C42 `librarytest.FixtureM2c` adds a reference FLAC and a lossy reference.

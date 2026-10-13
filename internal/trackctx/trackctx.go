@@ -116,10 +116,13 @@ func writeObject(keys []string, get func(string) any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// recipeUnknownNote is the note of a reference track's recipe section (C63).
+const recipeUnknownNote = "recipe unknown: this is a reference track; no style, lyrics or seed exist"
+
 // Key order of the sections (C35); keys not listed follow, sorted.
 var order = map[string][]string{
-	"track":      {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recorded_at", "url"},
-	"recipe":     {"engine", "hash", "request"},
+	"track":      {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
+	"recipe":     {"engine", "known", "hash", "request", "note"},
 	"provenance": {"origin", "import_rule", "truncated", "cost_usd", "env"},
 	"score":      {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"lineage":    {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
@@ -566,12 +569,17 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		tags[i] = t.Name
 	}
 	out.Track = map[string]any{"id": d.ID, "title": d.Title, "status": d.Status, "stars": stars, "critic_stars": critic, "critic_verdict": verdict,
-		"tags": tags, "duration_s": d.DurationS, "recorded_at": d.RecordedAt, "url": b.publicURL + "/tracks/" + d.ID}
+		"tags": tags, "duration_s": d.DurationS, "recipe_known": d.RecipeKnown, "lossy": d.Lossy, "recorded_at": d.RecordedAt, "url": b.publicURL + "/tracks/" + d.ID}
 
 	// recipe and provenance
-	out.Recipe = map[string]any{"engine": d.Recipe.Engine, "hash": d.Recipe.Hash, "request": newOmap(
-		"id", d.Recipe.RequestID, "style", d.Recipe.Style, "lyrics", d.Recipe.Lyrics, "cot", d.Recipe.Cot, "seed", d.Recipe.Seed,
-		"abc_present", d.Score != nil, "cfg_scale", nil)}
+	if d.RecipeKnown {
+		out.Recipe = map[string]any{"engine": d.Recipe.Engine, "known": true, "hash": d.Recipe.Hash, "request": newOmap(
+			"id", d.Recipe.RequestID, "style", d.Recipe.Style, "lyrics", d.Recipe.Lyrics, "cot", d.Recipe.Cot, "seed", d.Recipe.Seed,
+			"abc_present", d.Score != nil, "cfg_scale", nil)}
+	} else {
+		// a reference track (D-M2c-1): the stub carries no style, lyrics or seed worth showing
+		out.Recipe = map[string]any{"engine": d.Recipe.Engine, "known": false, "hash": d.Recipe.Hash, "request": nil, "note": recipeUnknownNote}
+	}
 	var tabc, tsem any
 	if d.Truncated != nil {
 		if d.Truncated.ABC != nil {
@@ -698,12 +706,19 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			return Bundle{}, err
 		}
 		ttl, bucket := serve.TTLFor(p)
-		fl := b.signer.Sign(m.Flac.SHA256, "flac", ttl, bucket)
 		var mp3 any
+		exp := time.Time{}
 		if err == nil {
-			mp3 = b.publicURL + b.signer.Sign(m.MP3.SHA256, "mp3", ttl, bucket).URL
+			l := b.signer.Sign(m.MP3.SHA256, "mp3", ttl, bucket)
+			mp3, exp = b.publicURL+l.URL, l.Expires
 		}
-		links["stream"] = newOmap("mp3", mp3, "flac", b.publicURL+fl.URL, "expires_at", rfc(fl.Expires))
+		if m.Flac == nil {
+			// a lossy track has no lossless file: no flac key at all (D-M2c-7)
+			links["stream"] = newOmap("mp3", mp3, "expires_at", rfc(exp))
+		} else {
+			fl := b.signer.Sign(m.Flac.SHA256, "flac", ttl, bucket)
+			links["stream"] = newOmap("mp3", mp3, "flac", b.publicURL+fl.URL, "expires_at", rfc(fl.Expires))
+		}
 		if sp, ok := b.per.(spectrogramSource); ok {
 			sha, err := sp.SpectrogramSHA256(ctx, d.ID)
 			if err != nil {

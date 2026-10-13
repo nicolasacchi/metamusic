@@ -207,6 +207,8 @@ type Side struct {
 	DurationS   float64  `json:"duration_s"`
 	Tier        string   `json:"tier" enum:"0,A"`
 	Flags       []string `json:"flags" nullable:"false"`
+	RecipeKnown bool     `json:"recipe_known"`
+	Lossy       bool     `json:"lossy"`
 }
 
 // Deltas are b minus a; null when either side lacks the metric.

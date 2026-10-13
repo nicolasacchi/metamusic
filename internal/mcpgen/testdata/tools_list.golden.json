@@ -628,6 +628,9 @@
                       "null"
                     ]
                   },
+                  "lossy": {
+                    "type": "boolean"
+                  },
                   "open_comments": {
                     "format": "int64",
                     "type": "integer"
@@ -637,6 +640,9 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "recipe_known": {
+                    "type": "boolean"
                   },
                   "recorded_at": {
                     "type": "string"
@@ -1358,7 +1364,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Get signed media links\n\nSigned, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.",
+    "description": "Get signed media links\n\nSigned, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1402,7 +1408,13 @@
               "type": "string"
             }
           },
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lossy": {
+          "type": "boolean"
         },
         "mp3": {
           "properties": {
@@ -1995,6 +2007,9 @@
           },
           "type": "object"
         },
+        "lossy": {
+          "type": "boolean"
+        },
         "open_comments": {
           "format": "int64",
           "type": "integer"
@@ -2139,6 +2154,9 @@
             }
           },
           "type": "object"
+        },
+        "recipe_known": {
+          "type": "boolean"
         },
         "recorded_at": {
           "type": "string"
@@ -3743,6 +3761,12 @@
                         "id": {
                           "type": "string"
                         },
+                        "lossy": {
+                          "type": "boolean"
+                        },
+                        "recipe_known": {
+                          "type": "boolean"
+                        },
                         "request_id": {
                           "type": "string"
                         },
@@ -3815,6 +3839,12 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "lossy": {
+                          "type": "boolean"
+                        },
+                        "recipe_known": {
+                          "type": "boolean"
                         },
                         "request_id": {
                           "type": "string"
@@ -4049,7 +4079,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4069,6 +4099,10 @@
           "maximum": 100,
           "minimum": 1,
           "type": "integer"
+        },
+        "lossy": {
+          "description": "true lists tracks whose master is an MP3; false only lossless masters",
+          "type": "boolean"
         },
         "max_duration_s": {
           "format": "double",
@@ -4091,6 +4125,10 @@
           "description": "Free text over title, request id, style and lyrics (prefix match)",
           "maxLength": 200,
           "type": "string"
+        },
+        "recipe_known": {
+          "description": "false lists reference tracks (recipe unknown); true only tracks with a real recipe",
+          "type": "boolean"
         },
         "recorded_from": {
           "description": "RFC 3339 date or date-time (inclusive)",
@@ -4210,6 +4248,9 @@
                   "null"
                 ]
               },
+              "lossy": {
+                "type": "boolean"
+              },
               "open_comments": {
                 "format": "int64",
                 "type": "integer"
@@ -4219,6 +4260,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "recipe_known": {
+                "type": "boolean"
               },
               "recorded_at": {
                 "type": "string"
@@ -4685,6 +4729,12 @@
                         "id": {
                           "type": "string"
                         },
+                        "lossy": {
+                          "type": "boolean"
+                        },
+                        "recipe_known": {
+                          "type": "boolean"
+                        },
                         "request_id": {
                           "type": "string"
                         },
@@ -4757,6 +4807,12 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "lossy": {
+                          "type": "boolean"
+                        },
+                        "recipe_known": {
+                          "type": "boolean"
                         },
                         "request_id": {
                           "type": "string"
