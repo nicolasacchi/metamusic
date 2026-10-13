@@ -8,6 +8,8 @@
   import { installMediaSession } from "./lib/mediaSession";
   import { installListen } from "./lib/listen.svelte";
   import { createNav } from "./lib/nav";
+  import { api } from "./api/client";
+  import { loadDuelBadge } from "./lib/navBadge";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
@@ -25,6 +27,10 @@
   import SettingsAudit from "./routes/SettingsAudit.svelte";
   import HumanTokens from "./routes/HumanTokens.svelte";
   import HumanDevices from "./routes/HumanDevices.svelte";
+  import Duels from "./routes/Duels.svelte";
+  import Duel from "./routes/Duel.svelte";
+  import Ladder from "./routes/Ladder.svelte";
+  import Compare from "./routes/Compare.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const router = createRouter(APP_ROUTES);
@@ -41,6 +47,13 @@
     void _loc;
     return window.location.search;
   }
+
+  // Open-duel count for the nav badge: list_duels(state=open, limit=1).total, refreshed on navigation.
+  let duelBadge = $state<number | null>(null);
+  $effect(() => {
+    void $router.path;
+    void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
+  });
 
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
@@ -67,6 +80,8 @@
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
       <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/duels" aria-current={$router.route?.name === "duels" || $router.route?.name === "duel" ? "page" : undefined}>Duels{#if duelBadge}<span class="badge" data-testid="duels-badge" aria-label="{duelBadge} open">{duelBadge}</span>{/if}</a>
+      <a href="/ladder" aria-current={$router.route?.name === "ladder" ? "page" : undefined}>Ladder</a>
       <a href="/playlists" aria-current={$router.route?.name === "playlists" || $router.route?.name === "playlist" ? "page" : undefined}>Playlists</a>
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
@@ -94,6 +109,16 @@
       {#key $router.params.id}
         <Draft id={$router.params.id ?? ""} />
       {/key}
+    {:else if $router.route?.name === "duels"}
+      <Duels navigate={router.navigate} />
+    {:else if $router.route?.name === "duel"}
+      {#key $router.params.id}
+        <Duel id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "ladder"}
+      <Ladder root={$router.query.root ?? ""} />
+    {:else if $router.route?.name === "compare"}
+      <Compare a={$router.query.a ?? ""} b={$router.query.b ?? ""} />
     {:else if $router.route?.name === "playlists"}
       <Playlists />
     {:else if $router.route?.name === "playlist"}
@@ -169,6 +194,14 @@
   nav a[aria-current="page"] {
     font-weight: 700;
     text-decoration: none;
+  }
+  .badge {
+    margin-left: 0.3rem;
+    padding: 0 0.4rem;
+    border-radius: 0.6rem;
+    background: #f2a65a;
+    color: #14110f;
+    font-size: 0.75rem;
   }
   main {
     min-width: 0;

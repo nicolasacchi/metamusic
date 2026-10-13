@@ -83,6 +83,10 @@ describe("APP_ROUTES (C40)", () => {
     ["/settings/audit", "settings-audit"],
     ["/human/tokens", "human-tokens"],
     ["/human/devices", "human-devices"],
+    ["/duels", "duels"],
+    ["/duels/d1", "duel", { id: "d1" }],
+    ["/ladder", "ladder"],
+    ["/compare", "compare"],
   ];
   for (const [path, name, params] of cases) {
     test(path, () => {
