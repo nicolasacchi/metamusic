@@ -121,6 +121,19 @@ describe("429 and step-up handling", () => {
     expect(assigned).toEqual(["/auth/step-up?next=" + encodeURIComponent("/human/tokens?x=1")]);
   });
 
+  test("403 STEP_UP_REQUIRED on /human/tokens goes to /auth/step-up?next=/human/tokens", async () => {
+    const assigned: string[] = [];
+    const api = createApi({
+      baseUrl: "http://localhost",
+      session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
+      fetch: async () => problem(403, "STEP_UP_REQUIRED")(),
+      assign: (u) => void assigned.push(u),
+      currentPath: () => "/human/tokens",
+    });
+    await api.GET("/human/api/tokens" as never, {} as never).catch(() => {});
+    expect(decodeURIComponent(assigned[0] ?? "")).toBe("/auth/step-up?next=/human/tokens");
+  });
+
   test("other 403s do not navigate", async () => {
     const assigned: string[] = [];
     const api = createApi({

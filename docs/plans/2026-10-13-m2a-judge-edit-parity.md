@@ -1854,6 +1854,7 @@ web/src/
   lib/components/AuditTable.svelte
   lib/components/TokenForm.svelte      name + scope checkboxes; shows the token ONCE with its own copy button, plus MCP command templates that use ${MM_TOKEN}, never the token
   lib/components/PairingPanel.svelte   name ⇒ code "ABCD-EFGH" + QR (uqr SVG of pair_url) + 5:00 countdown
+                                   (QR library pinned at implementation: `uqr` 0.1.3, MIT, zero dependencies, published 2026-04; rendered from its boolean matrix as SVG rects, no `{@html}`)
   lib/components/ContextButton.svelte  "Copy agent context" ⇒ get_track_context ⇒ clipboard + a displayed char count (UTF-16 units of the copied text)
   routes/{Library,Track,Backlog,DraftNew,DraftUpload,Draft,Playlists,Playlist,Export,Import,Settings,
           SettingsBackups,SettingsAudit,HumanTokens,HumanDevices}.svelte

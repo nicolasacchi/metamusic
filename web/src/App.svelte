@@ -5,6 +5,8 @@
   import { dismissToast, toasts } from "./lib/judge.svelte";
   import { installDevice } from "./lib/device.svelte";
   import { installMediaSession } from "./lib/mediaSession";
+  import { installListen } from "./lib/listen.svelte";
+  import { createNav } from "./lib/nav";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
@@ -26,6 +28,12 @@
 
   const router = createRouter(APP_ROUTES);
   const audioId = randomId();
+  // /human/* is always a full-page load so the server's second-factor / step-up check runs first.
+  const nav = createNav({ assign: (u) => location.assign(u), route: (u) => router.navigate(u) });
+  const humanClick = (e: MouseEvent) => {
+    const href = (e.currentTarget as HTMLAnchorElement).getAttribute("href") ?? "";
+    nav.onLinkClick(e, href);
+  };
   // The router's query map collapses repeated keys; the library needs the raw string.
   // The argument only makes the call re-run on every navigation.
   function searchOf(_loc: unknown): string {
@@ -38,7 +46,9 @@
     player.attach(audio);
     installDevice(player);
     const offMediaSession = installMediaSession(player, audio);
+    const offListen = installListen(player);
     return () => {
+      offListen();
       offMediaSession();
       player.attach(null);
       router.destroy();
@@ -56,6 +66,8 @@
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
+      <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
     </nav>
   </header>
 
