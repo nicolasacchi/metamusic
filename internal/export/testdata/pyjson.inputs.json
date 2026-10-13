@@ -1,0 +1,15 @@
+[
+  {"id":"syn-plain","style":"synthetic pop, 100 bpm","lyrics":"[Verse]\nla la la\nna na na","cot":"full","seed":831001},
+  {"id":"syn-accents","style":"italiano, caffè","lyrics":"[Verse]\nperché è così\nlibertà città","cot":"melody","seed":7},
+  {"id":"syn-html","style":"a<b>&c/d","lyrics":"<b>&amp;</b> \"quoted\" \\ back","cot":"off","seed":0},
+  {"id":"syn-u2028","style":"x","lyrics":"line sep para","cot":"full","seed":9007199254740991},
+  {"id":"syn-emoji","style":"x","lyrics":"note 🎵 end","cot":"full","seed":1},
+  {"id":"syn-controls","style":"x","lyrics":"a\u0001b\u007fc\td\ne\rf\bg\fh\u001f","cot":"full","seed":2},
+  {"id":"syn-cfg-a","style":"x","lyrics":"l","cot":"full","seed":3,"cfg_scale":1.5},
+  {"id":"syn-cfg-b","style":"x","lyrics":"l","cot":"full","seed":3,"cfg_scale":2.0},
+  {"id":"syn-cfg-c","style":"x","lyrics":"l","cot":"full","seed":3,"cfg_scale":0.00001},
+  {"id":"syn-cfg-d","style":"x","lyrics":"l","cot":"off","seed":3,"cfg_scale":0.0001},
+  {"id":"syn-cfg-e","style":"x","lyrics":"l","cot":"off","seed":3,"cfg_scale":20.0},
+  {"id":"syn-abc","style":"x","lyrics":"l","cot":"melody","seed":4,"abc":"X:1\nT:syn é\nK:C\nCDEF|","cfg_scale":1.25},
+  {"id":"syn-bmp","style":"x","lyrics":"ä中😀ÿ\u0080","cot":"full","seed":5}
+]
