@@ -1,0 +1,139 @@
+{
+  "track_id": "01900000-0000-7000-8000-000000000102",
+  "tier": "A",
+  "complete": true,
+  "missing": [],
+  "summary": "-15.5 LUFS, true peak -1.2 dBTP, bandwidth 12.0 kHz; 2 warnings: clipping 2.0 s at 0:02; internal silence 2.5 s at 0:04",
+  "loudness": {
+    "integrated_lufs": -15.5,
+    "lra_lu": 5.5,
+    "lra_low_lufs": -20.5,
+    "lra_high_lufs": -14.5,
+    "true_peak_dbtp": -1.2,
+    "sample_peak_dbfs": -1.5,
+    "short_term_max_lufs": -13.5,
+    "short_term_1hz": [
+      -15.5,
+      -15
+    ],
+    "replaygain_track_gain_db": -4,
+    "version": "mm-loudness/1 ffmpeg n9.0.1"
+  },
+  "spectrum": {
+    "bandwidth_hz": 12000,
+    "ref_db": -40,
+    "threshold_db": -110,
+    "frames": 30,
+    "version": "mm-spectrum/1 ffmpeg n9.0.1"
+  },
+  "silence": {
+    "threshold_db": -50,
+    "min_duration_s": 1,
+    "spans": [
+      {
+        "start_s": 4,
+        "end_s": 6.5
+      }
+    ],
+    "spans_truncated": false,
+    "leading_s": 0,
+    "trailing_s": 0,
+    "internal_s": 2.5,
+    "total_s": 2.5,
+    "duration_s": 6,
+    "version": "mm-silence/1 ffmpeg n9.0.1"
+  },
+  "clipping": {
+    "frame_s": 0.1,
+    "peak_dbfs": 0,
+    "full_scale_frames": 20,
+    "clipped_frames": 20,
+    "clipped_s": 2,
+    "spans": [
+      {
+        "start_s": 2,
+        "end_s": 4
+      }
+    ],
+    "spans_truncated": false,
+    "version": "mm-clipping/1 ffmpeg n9.0.1"
+  },
+  "token_loops": null,
+  "structure": {
+    "duration_s": 6,
+    "timed": false,
+    "source": null,
+    "confidence": null,
+    "expected_duration_s": null,
+    "ratio": null,
+    "sections": [
+      {
+        "idx": 0,
+        "label": "verse",
+        "kind": "verse",
+        "start_s": null,
+        "end_s": null
+      }
+    ]
+  },
+  "flags": [
+    {
+      "code": "clipping",
+      "severity": "warn",
+      "evidence": {
+        "clipped_s": 2,
+        "spans": [
+          {
+            "start_s": 2,
+            "end_s": 4
+          }
+        ]
+      }
+    },
+    {
+      "code": "internal_silence",
+      "severity": "warn",
+      "evidence": {
+        "spans": [
+          {
+            "start_s": 4,
+            "end_s": 6.5
+          }
+        ]
+      }
+    },
+    {
+      "code": "band_limited",
+      "severity": "info",
+      "evidence": {
+        "bandwidth_hz": 12000
+      }
+    }
+  ],
+  "blind_spots": [
+    "timbre",
+    "emotional delivery",
+    "mix balance beyond loudness",
+    "hook catchiness",
+    "diction and intelligibility",
+    "melody and harmony adherence to the score",
+    "token loops (no semantic.npy for this take)",
+    "section times unknown (no aligned score)"
+  ],
+  "spectrogram": {
+    "available": true,
+    "bytes": 28582,
+    "width": 1308,
+    "height": 560,
+    "quality": 85
+  },
+  "provenance": {
+    "analyzers": {
+      "clipping": "mm-clipping/1 ffmpeg n9.0.1",
+      "loudness": "mm-loudness/1 ffmpeg n9.0.1",
+      "silence": "mm-silence/1 ffmpeg n9.0.1",
+      "spectrogram": "mm-spectro/1 ffmpeg n9.0.1",
+      "spectrum": "mm-spectrum/1 ffmpeg n9.0.1"
+    }
+  }
+}
