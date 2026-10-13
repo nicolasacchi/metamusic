@@ -3,6 +3,8 @@
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import Pager from "../lib/components/Pager.svelte";
+  import { MAX_TAKES, draftsIntent, mayGenerate, startGeneration, toggled, validateIntent, type Viewer } from "../lib/genIntent";
+  import { fetchViewer } from "../lib/viewer";
 
   type Draft = components["schemas"]["DraftSummary"];
   type Stats = components["schemas"]["Stats"];
@@ -123,6 +125,53 @@
     return out;
   });
 
+  // Selection (C84.2): backlog drafts only; at most 50 per batch.
+  let me = $state<Viewer | null>(null);
+  let selected = $state<Set<string>>(new Set());
+  let selBusy = $state(false);
+  let selNote = $state("");
+  const canSelect = $derived(mayGenerate(me) && status === "backlog");
+  const selError = $derived(selected.size === 0 ? "" : (validateIntent(draftsIntent([...selected])) ?? ""));
+
+  $effect(() => {
+    void fetchViewer().then((v) => (me = v));
+  });
+  // A new filter starts a new selection.
+  $effect(() => {
+    void q;
+    void collection;
+    void origin;
+    void status;
+    selected = new Set();
+    selNote = "";
+  });
+
+  async function selectAll() {
+    if (selBusy) return;
+    selBusy = true;
+    selNote = "";
+    try {
+      const r = await api.GET("/api/drafts", {
+        params: { query: { status, limit: MAX_TAKES, ...(q ? { q } : {}), ...(collection ? { collection } : {}), ...(origin ? { origin } : {}) } },
+      });
+      if (!r.data) {
+        selNote = r.error?.message ?? "Could not select";
+        return;
+      }
+      selected = new Set(r.data.items.map((d) => d.id));
+      if (r.data.total > r.data.items.length) selNote = `Selected the first ${r.data.items.length} of ${r.data.total}: generate in batches of at most ${MAX_TAKES}.`;
+    } catch {
+      selNote = "Could not select";
+    } finally {
+      selBusy = false;
+    }
+  }
+  function generate() {
+    const i = draftsIntent([...selected]);
+    if (validateIntent(i)) return;
+    startGeneration(sessionStorage, i, (to) => location.assign(to));
+  }
+
   function submit(e: Event) {
     e.preventDefault();
     commit({ q: qInput.trim() });
@@ -161,6 +210,16 @@
   <button type="submit">Search</button>
 </form>
 
+{#if canSelect}
+  <p class="sel" data-testid="backlog-select-bar">
+    <button type="button" onclick={() => void selectAll()} disabled={selBusy} data-testid="select-all">Select all in this filter (≤ {MAX_TAKES})</button>
+    <button type="button" onclick={() => (selected = new Set())} disabled={selected.size === 0}>Clear</button>
+    <button type="button" onclick={generate} disabled={selected.size === 0 || selError !== ""} data-testid="generate-selected">Generate ({selected.size})</button>
+    {#if selError}<span role="alert" data-testid="selection-error">{selError}</span>{/if}
+    {#if selNote}<span class="muted" data-testid="selection-note">{selNote}</span>{/if}
+  </p>
+{/if}
+
 <p class="muted" data-testid="backlog-counts">{total} drafts in {groupsTotal} groups</p>
 {#if error}<p role="alert">{error}</p>{/if}
 
@@ -171,6 +230,9 @@
       <ul>
         {#each g.items as d (d.id)}
           <li data-testid="draft-row" data-draft-id={d.id}>
+            {#if canSelect}
+              <input type="checkbox" data-testid="draft-select" aria-label="Select {d.label ?? d.request_id}" checked={selected.has(d.id)} onchange={(e) => (selected = toggled(selected, d.id, e.currentTarget.checked))} />
+            {/if}
             <a href="/backlog/{d.id}">{d.label ?? d.request_id}</a>
             <span class="muted">{d.request_id}</span>
             {#if d.lint.errors > 0}<span class="badge err" data-testid="lint-errors">{d.lint.errors} errors</span>{/if}
@@ -200,6 +262,12 @@
     display: grid;
     gap: 0.2rem;
     font-size: 0.85rem;
+  }
+  .sel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
   }
   .group h2 {
     font-size: 1rem;

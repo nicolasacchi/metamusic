@@ -71,3 +71,59 @@ describe("parseSeeds", () => {
     expect(parseSeeds("99999999999999999")).toBeNull();
   });
 });
+
+describe("entry-point intents (C84.2)", () => {
+  test("backlog selection round trips and caps at 50", async () => {
+    const { draftsIntent } = await import("./genIntent");
+    const s = store();
+    for (const n of [1, 7, 50]) {
+      const i = draftsIntent(ids(n));
+      expect(validateIntent(i)).toBeNull();
+      saveIntent(s, i);
+      expect(loadIntent(s)).toEqual(i);
+      expect(intentToEstimate(i)).toEqual({ kind: "generation", body: { items: [{ mode: "from_draft", draft_ids: ids(n) }] } });
+    }
+    expect(validateIntent(draftsIntent(ids(51)))).toMatch(/batches of at most 50/);
+    expect(validateIntent(draftsIntent([]))).not.toBeNull();
+  });
+  test("library template selection is 2..50 and round trips", async () => {
+    const { templateIntent } = await import("./genIntent");
+    const s = store();
+    for (const n of [2, 3, 50]) {
+      const i = templateIntent(ids(n), "style_edit");
+      expect(validateIntent(i)).toBeNull();
+      saveIntent(s, i);
+      expect(loadIntent(s)).toEqual(i);
+    }
+    expect(validateIntent(templateIntent(ids(1), "style_edit"))).not.toBeNull();
+    expect(validateIntent(templateIntent(ids(51), "style_edit"))).toMatch(/at most 50/);
+  });
+  test("variant and compose intents round trip", async () => {
+    const { variantIntent, composeIntent } = await import("./genIntent");
+    const s = store();
+    const v = variantIntent("t1", "new_seed");
+    expect(v).toEqual({ mode: "new_seed", parent_track_id: "t1", n_seeds: 3 });
+    saveIntent(s, v);
+    expect(loadIntent(s)).toEqual(v);
+    expect(variantIntent("t1", "lyric_edit")).toEqual({ mode: "lyric_edit", parent_track_id: "t1" });
+    const c = composeIntent();
+    saveIntent(s, c);
+    expect(loadIntent(s)).toEqual(c);
+    expect(c.mode).toBe("compose_new");
+  });
+});
+
+describe("canGenerate (C84)", () => {
+  test("only humans or principals with the generate scope, and only on known lossless recipes", async () => {
+    const { canGenerate } = await import("./genIntent");
+    const human = { kind: "human" as const, scopes: ["read", "write", "generate", "admin"] };
+    expect(canGenerate(human, { recipe_known: true, lossy: false })).toBe(true);
+    expect(canGenerate(human, { recipe_known: false, lossy: false })).toBe(false);
+    expect(canGenerate(human, { recipe_known: true, lossy: true })).toBe(false);
+    expect(canGenerate(human, { recipe_known: false, lossy: true })).toBe(false);
+    expect(canGenerate({ kind: "device", scopes: ["read", "write", "generate"] }, { recipe_known: true, lossy: false })).toBe(false);
+    expect(canGenerate({ kind: "human", scopes: ["read", "write"] }, { recipe_known: true, lossy: false })).toBe(false);
+    expect(canGenerate({ kind: "agent", scopes: ["generate"] }, { recipe_known: true, lossy: false })).toBe(true);
+    expect(canGenerate(null, { recipe_known: true, lossy: false })).toBe(false);
+  });
+});

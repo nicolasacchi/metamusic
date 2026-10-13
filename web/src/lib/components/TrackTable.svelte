@@ -2,6 +2,7 @@
   import type { components } from "../../api/schema";
   import { fmt } from "../time";
   import { judge } from "../judge.svelte";
+  import { templateSelectable } from "../genIntent";
   import TrackBadges from "./TrackBadges.svelte";
 
   type Track = components["schemas"]["TrackSummary"];
@@ -9,8 +10,11 @@
     tracks: readonly Track[];
     playingId?: string;
     onplay: (id: string) => void;
+    /** Selection mode (C84.2): a checkbox column; reference and lossy rows are disabled. */
+    selected?: ReadonlySet<string> | null;
+    onselect?: (id: string, on: boolean) => void;
   }
-  let { tracks, playingId = "", onplay }: Props = $props();
+  let { tracks, playingId = "", onplay, selected = null, onselect }: Props = $props();
 
   // A rating or status changed in this session shows at once, before the next fetch.
   function stars(t: Track): number | null {
@@ -33,6 +37,7 @@
   <table data-testid="track-table">
     <thead>
       <tr>
+        {#if selected}<th scope="col"><span class="sr">Select</span></th>{/if}
         <th scope="col"><span class="sr">Play</span></th>
         <th scope="col">Title</th>
         <th scope="col">Style</th>
@@ -49,6 +54,20 @@
     <tbody>
       {#each tracks as t (t.id)}
         <tr data-testid="track-row" data-track-id={t.id} class:playing={t.id === playingId}>
+          {#if selected}
+            <td>
+              <input
+                type="checkbox"
+                data-testid="row-select"
+                aria-label="Select {t.title}"
+                checked={selected.has(t.id)}
+                disabled={!templateSelectable(t)}
+                title={templateSelectable(t) ? "" : "recipe unknown"}
+                onchange={(e) => onselect?.(t.id, e.currentTarget.checked)}
+              />
+              {#if !templateSelectable(t)}<span class="muted sel-note">recipe unknown</span>{/if}
+            </td>
+          {/if}
           <td>
             <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}>▶</button>
           </td>
@@ -77,7 +96,7 @@
           <td class="num">{t.children_count > 0 ? t.children_count : ""}</td>
         </tr>
       {:else}
-        <tr><td colspan="11" class="muted">No tracks match.</td></tr>
+        <tr><td colspan={selected ? 12 : 11} class="muted">No tracks match.</td></tr>
       {/each}
     </tbody>
   </table>
@@ -134,6 +153,9 @@
     font-size: 0.7rem;
     margin-left: 0.3rem;
     color: inherit;
+  }
+  .sel-note {
+    font-size: 0.7rem;
   }
   .sr {
     position: absolute;

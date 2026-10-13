@@ -128,3 +128,59 @@ export function parseSeeds(text: string): number[] | null {
   }
   return out;
 }
+
+/** The take (variant) intent for the Track page menu: "New seed" asks for three seeds; edits open the form first. */
+export function variantIntent(parentTrackId: string, mode: VariantMode): GenerationIntent {
+  return mode === "new_seed" ? { mode, parent_track_id: parentTrackId, n_seeds: 3 } : { mode, parent_track_id: parentTrackId };
+}
+
+/** Backlog selection (C84.2). Validation (1..50) is validateIntent's job. */
+export function draftsIntent(draftIds: string[]): GenerationIntent {
+  return { mode: "from_draft", draft_ids: [...draftIds] };
+}
+
+/** Library selection (C84.2): 2..50 known lossless mothers. */
+export function templateIntent(parentTrackIds: string[], templateMode: VariantMode): GenerationIntent {
+  return { mode: "from_template", parent_track_ids: [...parentTrackIds], template_mode: templateMode };
+}
+
+/** "New song": the form on /human/generate fills in the recipe. */
+export function composeIntent(): GenerationIntent {
+  return { mode: "compose_new", recipe: {} };
+}
+
+/** The slice of whoami the generation entry points need. */
+export interface Viewer {
+  kind: "human" | "agent" | "device";
+  scopes: readonly string[];
+}
+
+/** Devices, principals without the generate scope, reference (recipe unknown) and lossy tracks never see generation buttons. */
+export function canGenerate(me: Viewer | null, t: { recipe_known: boolean; lossy: boolean }): boolean {
+  if (!me || me.kind === "device" || !me.scopes.includes("generate")) return false;
+  return t.recipe_known && !t.lossy;
+}
+
+/** Who may start any generation from a list page (no per-track check). */
+export function mayGenerate(me: Viewer | null): boolean {
+  return me !== null && me.kind !== "device" && me.scopes.includes("generate");
+}
+
+/** Hand the intent to the full-page /human/generate flow (C84.1). */
+export function startGeneration(storage: IntentStorage, i: GenerationIntent, go: (to: string) => void): void {
+  saveIntent(storage, i);
+  go("/human/generate");
+}
+
+/** Reference (recipe unknown) and lossy tracks cannot be mothers: not selectable for a template edit (D-M3-34). */
+export function templateSelectable(t: { recipe_known: boolean; lossy: boolean }): boolean {
+  return t.recipe_known && !t.lossy;
+}
+
+/** Toggle an id in a selection, returning a new set. */
+export function toggled(sel: ReadonlySet<string>, id: string, on: boolean): Set<string> {
+  const next = new Set(sel);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
+}

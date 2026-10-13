@@ -36,6 +36,7 @@
   import HumanSpend from "./routes/HumanSpend.svelte";
   import Jobs from "./routes/Jobs.svelte";
   import Job from "./routes/Job.svelte";
+  import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
@@ -162,9 +163,9 @@
         <Batch id={$router.params.id ?? ""} />
       {/key}
     {:else if $router.route?.name === "lineage"}
-      <!-- Placeholder until M3-W3 replaces this branch. -->
-      <h1>Lineage</h1>
-      <p class="muted" data-testid="m3-placeholder">This page is not built yet.</p>
+      {#key $router.params.id}
+        <Lineage id={$router.params.id ?? ""} />
+      {/key}
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}
