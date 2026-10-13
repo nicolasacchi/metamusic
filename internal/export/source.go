@@ -42,6 +42,9 @@ type Source interface {
 	JSONLSourceRows(ctx context.Context, path string) ([]SourceRow, error)
 	// SelectRecipes returns one row per distinct recipe of the tracks matching f.
 	SelectRecipes(ctx context.Context, f TrackFilter) ([]RecipeRow, error)
+	// UnknownRecipeTracks returns the ids of the tracks matching f whose recipe is unknown (reference
+	// tracks, C59): SelectRecipes leaves them out, Build names them in a recipe_unknown_excluded note.
+	UnknownRecipeTracks(ctx context.Context, f TrackFilter) ([]string, error)
 	// SelectDrafts returns the drafts matching f.
 	SelectDrafts(ctx context.Context, f DraftFilter) ([]DraftRow, error)
 	// StyleSamples returns the raw bytes of every jsonl_line source (DetectStyle input).

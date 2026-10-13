@@ -15,6 +15,16 @@ import (
 // ErrEmpty is returned by Build when the selection matches no row (EXPORT_EMPTY).
 var ErrEmpty = errors.New("export: nothing to export")
 
+// EmptyError is the ErrEmpty answer that keeps the notes of the selection (a reference-only
+// selection names the excluded tracks). errors.Is(err, ErrEmpty) holds.
+type EmptyError struct{ Notes []Note }
+
+func (e *EmptyError) Error() string        { return ErrEmpty.Error() }
+func (e *EmptyError) Is(target error) bool { return target == ErrEmpty }
+
+// maxUnknownIDs caps the track ids named in a recipe_unknown_excluded note.
+const maxUnknownIDs = 50
+
 // ErrBadSelection is returned by Build for a Selection it cannot interpret.
 var ErrBadSelection = errors.New("export: bad selection")
 
@@ -37,6 +47,9 @@ func Build(ctx context.Context, src Source, sel Selection) (Result, error) {
 		always = sel.ForBatch
 	case "tracks":
 		rows, err = trackCands(ctx, src, sel.Tracks)
+		if err == nil {
+			warnings, err = unknownNotes(ctx, src, sel.Tracks)
+		}
 	case "drafts":
 		rows, err = draftCands(ctx, src, sel.Drafts)
 	default:
@@ -46,6 +59,9 @@ func Build(ctx context.Context, src Source, sel Selection) (Result, error) {
 		return Result{}, err
 	}
 	if len(rows) == 0 {
+		if len(warnings) > 0 {
+			return Result{}, &EmptyError{Notes: warnings}
+		}
 		return Result{}, ErrEmpty
 	}
 
@@ -128,6 +144,20 @@ func Build(ctx context.Context, src Source, sel Selection) (Result, error) {
 	res.Validation = yue2.ValidateBatch(res.JSONL, abcFS(res.ABCFiles))
 	sort.SliceStable(res.Warnings, func(a, b int) bool { return res.Warnings[a].Code < res.Warnings[b].Code })
 	return res, nil
+}
+
+// unknownNotes is the recipe_unknown_excluded note for the reference tracks of a track selection (D-M2c-5).
+func unknownNotes(ctx context.Context, src Source, f TrackFilter) ([]Note, error) {
+	ids, err := src.UnknownRecipeTracks(ctx, f)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	shown := ids
+	if len(shown) > maxUnknownIDs {
+		shown = shown[:maxUnknownIDs]
+	}
+	return []Note{{Code: "recipe_unknown_excluded", Message: "tracks without a known recipe cannot be exported as songs.jsonl",
+		Details: map[string]any{"track_ids": shown, "count": len(ids)}}}, nil
 }
 
 // abcFS serves the ABC files of a result to ValidateBatch.
