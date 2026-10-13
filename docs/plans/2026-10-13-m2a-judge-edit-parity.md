@@ -1185,6 +1185,8 @@ func (s *Service) Upload(ctx context.Context, p auth.Principal, in Upload) (Uplo
 
 ### C33. Exports, `songs.jsonl`, playlists and MP3 ZIPs (`internal/export`, `internal/exports`, `internal/playlists`, `internal/media/id3`)
 
+> M2b-B1 addendum: the media path regex also accepts `jpg` (spectrogram renditions); `get_system_info.schema_version` is 4 after M2b (C27/C34 tests that pinned 3 now expect 4).
+
 **Python-compatible JSON writer** (`internal/export/pyjson.go`; M2a-B3, used by export and tests):
 ```go
 type Style struct {
@@ -1457,7 +1459,7 @@ start (heartbeat rule).
    high-priority notification "backup failed".
 
 ```json
-{"format":"mm.backup/1","id":"<run id>","created_at":"…","app_version":"…","schema_version":3,
+{"format":"mm.backup/1","id":"<run id>","created_at":"…","app_version":"…","schema_version":3, /* M2b-B1: the live schema is now 4; backups record the live version */
  "db":{"path":"db/metamusic.db","sha256":"…","bytes":0,"integrity":"ok"},
  "files":[{"path":"audio/masters/…","sha256":"…","bytes":0,"kind":"master|artifact|rendition|import|export","linked":true}],
  "counts":{"tracks":0,"masters":0,"artifacts":0,"renditions":0,"drafts":0,"comments":0},

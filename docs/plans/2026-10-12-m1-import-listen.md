@@ -48,7 +48,7 @@ non-registry signed Range handler (`internal/media/serve`). Every hand-written p
 through the leaf `internal/problem`. The Svelte shell gains Library / Track / Backlog / Import /
 Settings routes and a real player. `internal/synth` generates every test/E2E/dev fixture at runtime.
 
-**Tech stack:** one new Go module dependency, `golang.org/x/text` (NFKD folding for `Slug`; D-M1-3).
+**Tech stack:** one new Go module dependency, `golang.org/x/text` (NFKD folding for `Slug`; D-M1-3; the fold itself now lives in the leaf `internal/textfold`, M2b-B1).
 FFT, FLAC metadata, peaks and ABC parsing are stdlib Go. Every "UUIDv7" below is the Go 1.27 stdlib
 `uuid.NewV7().String()`, as M0's `internal/auth` already uses (no `github.com/google/uuid` import).
 Runtime tools: `ffmpeg` (filter `ebur128`,
@@ -128,6 +128,7 @@ FFmpeg   string // MM_FFMPEG,   default "ffmpeg"   (resolved via exec.LookPath a
 FLAC     string // MM_FLAC,     default "flac"
 Metaflac string // MM_METAFLAC, default "metaflac"
 Inbox    string // MM_INBOX,    default DataDir + "/inbox"
+// M2b-B1 addendum: ClipCacheMB int64 // MM_CLIP_CACHE_MB, default 4096, minimum 256 (M2b C43)
 ```
 `config.Load` keeps M0's rule that `MM_AUTH` must be `proxy` or `local` (else an error), so every
 subcommand that loads config — including `import --dry-run` and `seed-synthetic` — needs `MM_AUTH` set
@@ -1202,7 +1203,7 @@ draft:syn-song-01-v2,,,,syn-song-01
  "errors":[{"path":"…","line":0,"code":"…","message":"…"}],
  "library_orphans":["audio/masters/…","derived/…"]}
 ```
-`library_orphans` = files under `audio/masters/` and `derived/` (except `derived/probe/`) not referenced
+`library_orphans` = files under `audio/masters/` and `derived/` (except the caches `derived/probe/`, `derived/clips/` and `derived/exports/`; M2b-B1) not referenced
 by `tracks`/`renditions` (reported, never deleted). Reports contain no absolute paths, never print
 non-UTF-8 names (C16.1) and never contain reference values (C16.9). CLI stdout prints the summary as
 aligned text plus the unmatched/ambiguous lists and the next command; every printed path has
@@ -1311,6 +1312,8 @@ func WriteFixtureDB(tb testing.TB, path string) // `make fixture-db` (go test -r
 ```
 
 ### C18. Media URLs and handler: `internal/media/serve`
+
+> M2b-B1 addendum: the path regex is `^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`; `Service.Resolve` (C17) answers `jpg` from `renditions(kind='spectrogram')` as `image/jpeg`.
 
 ```go
 type Signer struct{ /* key []byte; now func() time.Time */ }

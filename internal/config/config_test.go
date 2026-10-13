@@ -21,7 +21,7 @@ func TestLoadDefaults(t *testing.T) {
 		Addr: "127.0.0.1:8080", PublicURL: "http://127.0.0.1:8080", AuthMode: "local",
 		DataDir: "./data", SecretsDir: "data/secrets",
 		FFmpeg: "ffmpeg", FLAC: "flac", Metaflac: "metaflac", Inbox: "data/inbox",
-		BackupDir: "backup", BackupAt: "03:30", RateScale: 1,
+		BackupDir: "backup", BackupAt: "03:30", RateScale: 1, ClipCacheMB: 4096,
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Fatal(diff)
@@ -217,5 +217,32 @@ func TestLoadSecrets_NtfyTokenOptional(t *testing.T) {
 	}
 	if _, err = LoadSecrets(dir, "local"); err == nil || !strings.Contains(err.Error(), "ntfy_token") {
 		t.Fatalf("empty ntfy_token err = %v", err)
+	}
+}
+
+func TestConfig_ClipCacheMB(t *testing.T) {
+	t.Parallel()
+	base := map[string]string{"MM_AUTH": "local"}
+	with := func(v string) map[string]string {
+		m := map[string]string{"MM_AUTH": base["MM_AUTH"]}
+		if v != "" {
+			m["MM_CLIP_CACHE_MB"] = v
+		}
+		return m
+	}
+	c, err := Load(env(with("")))
+	if err != nil || c.ClipCacheMB != 4096 {
+		t.Fatalf("default = %d, %v", c.ClipCacheMB, err)
+	}
+	c, err = LoadOffline(env(with("256")))
+	if err != nil || c.ClipCacheMB != 256 {
+		t.Fatalf("256 = %d, %v", c.ClipCacheMB, err)
+	}
+	for _, v := range []string{"100", "255", "0", "-5", "abc", "1.5"} {
+		for name, f := range map[string]func(func(string) string) (Config, error){"Load": Load, "LoadOffline": LoadOffline} {
+			if _, err := f(env(with(v))); err == nil || !strings.Contains(err.Error(), "MM_CLIP_CACHE_MB") {
+				t.Errorf("%s(%q): err = %v", name, v, err)
+			}
+		}
 	}
 }
