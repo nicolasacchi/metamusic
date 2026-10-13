@@ -48,6 +48,7 @@ forbidden_path() {
   case "$b" in
     *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.aac | *.aif | *.aiff | *.webm | *.mp4 | *.mka | *.wma | \
       *.zip | *.7z | *.tar | *.tar.* | *.tgz | *.gz | *.bz2 | *.xz | *.zst | *.rar | \
+      *.jpg | *.jpeg | *.npy | \
       *.db* | *.sqlite* | *.s3db | *.pdf | *.docx | songs.json | songs.json* | CLAUDE.local.md | .env* | *.env | \
       *public-gate-patterns* | .gitleaksignore) rc=0 ;;
   esac

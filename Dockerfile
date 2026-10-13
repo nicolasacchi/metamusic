@@ -32,9 +32,14 @@ FROM alpine:3.24
 RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
  && adduser -D -u 1000 -h /state metamusic \
  && mkdir -p /state/data /state/backup && chown -R 1000:1000 /state
-# Fail the build if the media tools lack what the import/serve pipeline needs (C-media tooling).
+# Fail the build if the media tools lack what the import/serve pipeline, the clip service and Tier A
+# analysis need (same lists as RequireClips / RequireTierA).
 RUN ffmpeg -hide_banner -filters | grep -q ' ebur128 ' \
  && ffmpeg -hide_banner -encoders | grep -q libmp3lame \
+ && for f in atrim asetpts afade aresample volume ametadata asetnsamples astats silencedetect aformat showspectrumpic; do \
+      ffmpeg -hide_banner -filters | grep -q " $f " || { echo "ffmpeg lacks filter $f" >&2; exit 1; }; done \
+ && for e in flac png; do \
+      ffmpeg -hide_banner -encoders | grep -q " $e " || { echo "ffmpeg lacks encoder $e" >&2; exit 1; }; done \
  && metaflac --version
 COPY --from=build /out/metamusic /usr/local/bin/metamusic
 # One parent volume holds data/ and backup/ so snapshots can hardlink masters (same filesystem).

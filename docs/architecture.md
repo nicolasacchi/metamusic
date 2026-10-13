@@ -76,6 +76,21 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
   CLI-only and re-verifies every hash. Data and backup directories live on one volume.
 - **Notifications**: optional ntfy messages for backup failures, device pairing and token creation.
 
+## Duels and ears (M2b)
+
+- **Blind duels**: two takes are rendered as short, loudness-matched clips (attenuation only) and judged
+  A/B in the browser; the web client plays both on one Web Audio clock so toggling is sample-synced.
+  Which slot holds which take is hidden until the human verdict exists. Verdicts are append-only; a
+  second human-source verdict for a duel is refused.
+- **Ladder**: human verdicts on blind duels feed a Bradley-Terry-Davidson ranking (per lineage and
+  global, with uncertainty), computed on read. Agent (critic) verdicts are stored but never move it.
+- **Clips**: addressed by their inputs and cached under `derived/clips/` (size-capped, not backed up).
+  A GET may fill the cache but never writes the database.
+- **Ears Tier A**: silence, clipping, token-loop metrics, duration against the plan, explicit blind
+  spots, and a spectrogram JPEG of at most 100 000 bytes with sections and lyric lines drawn in. MCP
+  clients receive it as an image result. Tier A runs from the CLI after a take is committed.
+- **Compare**: `compare_tracks` reports metric, recipe and verdict deltas between two takes.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

@@ -57,3 +57,26 @@ Do this regularly into a scratch directory, never over live data.
 
 Set `MM_NTFY_URL` (topic URL; `https://` unless loopback). Optional publisher token: secret file
 `ntfy_token`. Messages cover backup failure, device pairing and token creation.
+
+## Tier A analysis and the clip cache
+
+**Tier A** is the automatic per-take dossier: silence spans, clipping, token-loop metrics (from
+`semantic.npy`, when present), duration against the score plan, and a spectrogram JPEG of at most
+100 000 bytes. `metamusic import` and `metamusic seed-synthetic` run it after the take is committed;
+a failure is a warning and never changes the import exit code. To (re)run it on demand:
+
+```bash
+metamusic analyze            # analyse every take that lacks a current result
+metamusic analyze --force    # redo existing results too
+```
+
+Analysers are skipped when their current definition already has a row, so a new image build does not
+re-analyse the library. If ffmpeg lacks a Tier A filter the command reports `TOOL_MISSING` once; the
+image build checks the filters and encoders, so this only happens with a custom `MM_FFMPEG`.
+
+**Clip cache.** Duel and `get_clip` clips are rendered on demand into `derived/clips/` and addressed by
+their inputs. The cache is size-capped by `MM_CLIP_CACHE_MB` (default 4096, minimum 256; smaller values
+make the server refuse to start). Clips of open duels are pinned; everything else is evicted oldest
+first. The cache is not backed up and is ignored by the import orphan report; deleting it is always
+safe, the next request renders again. Stale work directories (`incoming/clip-*`, `incoming/ears-*`,
+older than one hour) are removed at `serve` and `analyze` start.
