@@ -1,0 +1,159 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000000101",
+    "title": "Luna Park",
+    "status": "draft",
+    "stars": 5,
+    "critic_stars": 2,
+    "critic_verdict": "Synthetic critic note",
+    "tags": [],
+    "duration_s": 12,
+    "recorded_at": "2026-10-01T12:00:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000101"
+  },
+  "recipe": {
+    "engine": "yue2",
+    "hash": "31d27c5ce74c6e779c39e36f5bf2297068dd3a4c7b5142ec4027244bf71bc917",
+    "request": {
+      "id": "fx-luna",
+      "style": "Dream pop, 120 bpm, warm synth, female vocal",
+      "lyrics": "[Verse 1]\nla la luna\n[Chorus]\nsing it loud\n[Outro]\nfade away",
+      "cot": "full",
+      "seed": 101,
+      "abc_present": true,
+      "cfg_scale": null
+    }
+  },
+  "provenance": {
+    "origin": "import",
+    "import_rule": "slug",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost_usd": null,
+    "env": null
+  },
+  "score": {
+    "source": "import",
+    "bars": 6,
+    "meter": "4/4",
+    "q": "1/4=120",
+    "seconds_per_bar": 2,
+    "aligned": true
+  },
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000000101",
+        "title": "Luna Park"
+      }
+    ],
+    "operator": null,
+    "inferred": null,
+    "rule": null,
+    "rationale": null,
+    "children": [],
+    "siblings": 0
+  },
+  "judgments": {
+    "comments": [
+      {
+        "id": "01900000-0000-7000-8000-000000000402",
+        "at_second": 5,
+        "section": "chorus",
+        "section_confidence": 0.7,
+        "kind": "fix",
+        "state": "open",
+        "by": "human",
+        "body": "Synthetic fix at the chorus"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000000403",
+        "at_second": 1,
+        "section": "verse",
+        "section_confidence": 0.7,
+        "kind": "keep",
+        "state": "open",
+        "by": "human",
+        "body": "Synthetic keep at the start"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000000401",
+        "at_second": null,
+        "section": null,
+        "section_confidence": null,
+        "kind": "note",
+        "state": "open",
+        "by": "human",
+        "body": "Synthetic general note"
+      }
+    ],
+    "comments_total": 3,
+    "open_fix": 1,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -14,
+    "true_peak_db": -1.2,
+    "lra_lu": 5.5,
+    "bandwidth_hz": 16000,
+    "sections": [
+      {
+        "label": "verse",
+        "start": 0,
+        "end": 4,
+        "source": "plan",
+        "confidence": 0.7
+      },
+      {
+        "label": "chorus",
+        "start": 4,
+        "end": 8,
+        "source": "plan",
+        "confidence": 0.7
+      },
+      {
+        "label": "outro",
+        "start": 8,
+        "end": 12,
+        "source": "plan",
+        "confidence": 0.7
+      }
+    ],
+    "timed": true,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility"
+    ]
+  },
+  "listening": {
+    "plays": 2,
+    "completion_rate": 0.5,
+    "last_played_at": "2026-10-06T11:40:00Z"
+  },
+  "_links": {
+    "stream": {
+      "mp3": "https://mm.example.com/media/b15f44a2a0d3f53694175385397a7dc800a25f9498e38744c1b59ee22d11e53e.mp3?exp=1791288900\u0026sig=FvCi7dBB-tfTSvNn7vLGL63lyY8-gXkrWzIuybkiWPM",
+      "flac": "https://mm.example.com/media/51c2c6e87704306d7de7e059dd398245309d73053ee14e81590e0211bc21a5b8.flac?exp=1791288900\u0026sig=EC9ob_Di9cBprwM0In-zhgBATeItmdD3sTC4TEjkV3I",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000000101/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000000101"
+  },
+  "next_actions": [
+    "address 1 open fix comments (call_operation list_comments state=open kind=fix)",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 2989,
+    "limit": 24000,
+    "truncated": []
+  }
+}

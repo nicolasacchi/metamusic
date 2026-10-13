@@ -68,6 +68,12 @@ type Filter struct {
 	Since, Until time.Time
 	Cursor       string
 	Limit        int // default 50, max 200
+
+	// get_audit filters (C38); each list matches any of its values.
+	PrincipalKinds []string
+	Ops            []string
+	ExcludeOps     []string
+	StatusMin      int
 }
 
 // Page is one newest-first page; NextCursor is empty on the last page.
@@ -135,6 +141,22 @@ func (s *Store) List(ctx context.Context, f Filter) (Page, error) {
 	if f.Op != "" {
 		where = append(where, "op = ?")
 		args = append(args, f.Op)
+	}
+	in := func(col, neg string, vals []string) {
+		if len(vals) == 0 {
+			return
+		}
+		where = append(where, col+neg+" IN ("+strings.TrimSuffix(strings.Repeat("?,", len(vals)), ",")+")")
+		for _, v := range vals {
+			args = append(args, v)
+		}
+	}
+	in("principal_kind", "", f.PrincipalKinds)
+	in("op", "", f.Ops)
+	in("op", " NOT", f.ExcludeOps)
+	if f.StatusMin > 0 {
+		where = append(where, "status >= ?")
+		args = append(args, f.StatusMin)
 	}
 	if f.Transport != "" {
 		where = append(where, "transport = ?")

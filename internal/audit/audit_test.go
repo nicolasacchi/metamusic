@@ -94,3 +94,46 @@ func TestAudit_Collector(t *testing.T) {
 		t.Fatal("expected nil without collector")
 	}
 }
+
+func TestAudit_ListMultiValueFilters(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	at := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	add := func(k auth.Kind, op string, status int) {
+		t.Helper()
+		if err := s.Insert(ctx, audit.Entry{At: at, Principal: auth.Principal{Kind: k, ID: "x", Name: "n"}, Transport: reqinfo.REST,
+			Op: op, Method: "POST", Status: status, Duration: time.Millisecond}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(auth.KindAgent, "a", 200)  // id-0001
+	add(auth.KindHuman, "b", 404)  // id-0002
+	add(auth.KindDevice, "c", 500) // id-0003
+	add(auth.KindAgent, "c", 200)  // id-0004
+	ids := func(f audit.Filter) string {
+		t.Helper()
+		p, err := s.List(ctx, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, r := range p.Items {
+			out = append(out, r.ID[3:])
+		}
+		return strings.Join(out, ",")
+	}
+	for _, tc := range []struct {
+		f    audit.Filter
+		want string
+	}{
+		{audit.Filter{PrincipalKinds: []string{"agent", "device"}}, "0004,0003,0001"},
+		{audit.Filter{Ops: []string{"a", "b"}}, "0002,0001"},
+		{audit.Filter{ExcludeOps: []string{"c"}}, "0002,0001"},
+		{audit.Filter{StatusMin: 400}, "0003,0002"},
+		{audit.Filter{PrincipalKinds: []string{"agent"}, ExcludeOps: []string{"a"}, StatusMin: 100}, "0004"},
+	} {
+		if got := ids(tc.f); got != tc.want {
+			t.Errorf("%+v: got %s want %s", tc.f, got, tc.want)
+		}
+	}
+}
