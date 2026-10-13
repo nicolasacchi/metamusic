@@ -1,0 +1,108 @@
+{
+  "scope": "global",
+  "root_track_id": null,
+  "include_sighted": false,
+  "generated_at": "2026-10-06T12:00:00Z",
+  "model": {
+    "kind": "btd",
+    "prior_sd": 1.5,
+    "nu_prior": "gamma(2,2)",
+    "anchor": "reject",
+    "anchor_u": 0,
+    "nu": 0.2710379914259739,
+    "iterations": 61,
+    "converged": true
+  },
+  "counts": {
+    "verdicts_human_counted": 5,
+    "verdicts_critic_excluded": 1,
+    "verdicts_sighted_excluded": 1,
+    "both_bad": 1,
+    "ties": 0,
+    "tracks": 4
+  },
+  "diagnostics": {
+    "slot_a_win_rate": 0.5,
+    "n_ab": 4
+  },
+  "items": [
+    {
+      "rank": 1,
+      "track_id": "01900000-0000-7000-8000-000000000103",
+      "title": "Twin A",
+      "root_track_id": "01900000-0000-7000-8000-000000000103",
+      "seed": 103,
+      "u": 0.1842,
+      "sd": 1.0225,
+      "ci95": [
+        -1.8199,
+        2.1883
+      ],
+      "n_duels": 3,
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "both_bad": 1,
+      "provisional": true
+    },
+    {
+      "rank": 2,
+      "track_id": "01900000-0000-7000-8000-000000000a01",
+      "title": "Blindtest Alpha",
+      "root_track_id": "01900000-0000-7000-8000-000000000a01",
+      "seed": 7340021,
+      "u": -0.7063,
+      "sd": 1.1016,
+      "ci95": [
+        -2.8654,
+        1.4528
+      ],
+      "n_duels": 3,
+      "wins": 1,
+      "losses": 2,
+      "ties": 0,
+      "both_bad": 0,
+      "provisional": true
+    },
+    {
+      "rank": 3,
+      "track_id": "01900000-0000-7000-8000-000000000a02",
+      "title": "Blindtest Beta",
+      "root_track_id": "01900000-0000-7000-8000-000000000a01",
+      "seed": 7340022,
+      "u": -0.7063,
+      "sd": 1.1016,
+      "ci95": [
+        -2.8654,
+        1.4528
+      ],
+      "n_duels": 3,
+      "wins": 1,
+      "losses": 2,
+      "ties": 0,
+      "both_bad": 0,
+      "provisional": true
+    },
+    {
+      "rank": 4,
+      "track_id": "01900000-0000-7000-8000-000000000104",
+      "title": "Twin B",
+      "root_track_id": "01900000-0000-7000-8000-000000000103",
+      "seed": 104,
+      "u": -0.7311,
+      "sd": 1.2274,
+      "ci95": [
+        -3.1368,
+        1.6746
+      ],
+      "n_duels": 1,
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "both_bad": 1,
+      "provisional": true
+    }
+  ],
+  "total": 4,
+  "next_cursor": null
+}
