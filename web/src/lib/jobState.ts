@@ -113,3 +113,8 @@ export async function followJob<J extends { state: JobState }>(d: FollowDeps<J>)
     d.onJob(next);
   }
 }
+
+/** The Ledger tab fetches its first page once: an empty ledger must not trigger a refetch loop. */
+export function shouldLoadLedger(tab: string, loaded: boolean): boolean {
+  return tab === "ledger" && !loaded;
+}

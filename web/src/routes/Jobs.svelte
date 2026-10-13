@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import BatchCard from "../lib/components/BatchCard.svelte";
@@ -7,7 +8,7 @@
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
   import SpendChart from "../lib/components/SpendChart.svelte";
   import { pushToast } from "../lib/judge.svelte";
-  import { LIVE_STATES, pollDelayMs, type Viewer } from "../lib/jobState";
+  import { LIVE_STATES, pollDelayMs, shouldLoadLedger, type Viewer } from "../lib/jobState";
   import { formatMicroUSD } from "../lib/money";
 
   type Job = components["schemas"]["JobSummary"];
@@ -31,6 +32,8 @@
   let ledgerNext = $state<string | null>(null);
   let error = $state("");
   let busy = $state(false);
+  let ledgerLoaded = $state(false);
+  let tick = $state(0);
 
   async function loadJobs() {
     try {
@@ -73,6 +76,7 @@
       if (r.data) {
         ledger = more ? [...ledger, ...r.data.items] : r.data.items;
         ledgerNext = r.data.next_cursor;
+        ledgerLoaded = true;
       } else error = r.error?.message ?? "Could not load the ledger";
     } catch {
       error = "Could not load the ledger";
@@ -82,21 +86,23 @@
   // Header, jobs, spend: loaded on every visit. Polling re-runs loadJobs every 5 s while any job is live
   // and stops by itself when none is.
   $effect(() => {
-    void loadHeader();
-    void loadJobs();
-    void loadSpend();
+    untrack(() => {
+      void loadHeader();
+      void loadJobs();
+      void loadSpend();
+    });
   });
   $effect(() => {
+    void tick; // re-armed after every attempt, so a failed fetch does not stop the poll
     const delay = pollDelayMs(live);
     if (delay === null) return;
     const t = setTimeout(() => {
-      void loadJobs();
-      void loadHeader();
+      void Promise.all([loadJobs(), loadHeader()]).finally(() => tick++);
     }, delay);
     return () => clearTimeout(t);
   });
   $effect(() => {
-    if (tab === "ledger" && ledger.length === 0) void loadLedger(false);
+    if (shouldLoadLedger(tab, ledgerLoaded)) untrack(() => void loadLedger(false));
   });
 
   async function terminateJob(id: string) {

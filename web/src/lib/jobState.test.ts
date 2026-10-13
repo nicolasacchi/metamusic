@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { JOB_STATES, canCancel, canCancelBatch, followJob, isLive, isTerminal, pollDelayMs, stateLabel, stateTone, type JobState } from "./jobState";
+import { JOB_STATES, canCancel, canCancelBatch, followJob, isLive, isTerminal, pollDelayMs, shouldLoadLedger, stateLabel, stateTone, type JobState } from "./jobState";
 
 const TERMINAL: JobState[] = ["completed", "failed", "cancelled", "expired"];
 
@@ -88,5 +88,13 @@ describe("followJob", () => {
     let err = 0;
     await followJob({ initial: job("queued"), wait: async () => null, onJob: () => {}, onError: () => err++, active: () => true });
     expect(err).toBe(1);
+  });
+});
+
+describe("shouldLoadLedger", () => {
+  test("loads once per visit, never again after a (possibly empty) load", () => {
+    expect(shouldLoadLedger("ledger", false)).toBe(true);
+    expect(shouldLoadLedger("ledger", true)).toBe(false);
+    expect(shouldLoadLedger("jobs", false)).toBe(false);
   });
 });

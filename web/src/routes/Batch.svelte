@@ -15,6 +15,7 @@
   let batch = $state<Batch | null>(null);
   let error = $state("");
   let busy = $state(false);
+  let tick = $state(0);
 
   async function load() {
     try {
@@ -32,9 +33,10 @@
   });
   // Poll every 5 s while any take is live.
   $effect(() => {
+    void tick; // re-armed after every attempt, so a failed fetch does not stop the poll
     const delay = pollDelayMs(batch?.jobs ?? []);
     if (delay === null) return;
-    const t = setTimeout(() => void load(), delay);
+    const t = setTimeout(() => void load().finally(() => tick++), delay);
     return () => clearTimeout(t);
   });
 
