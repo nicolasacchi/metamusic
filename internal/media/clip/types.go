@@ -5,12 +5,7 @@ package clip
 
 import (
 	"context"
-	"os"
 	"time"
-
-	"github.com/nicolasacchi/metamusic/internal/library"
-	"github.com/nicolasacchi/metamusic/internal/media/serve"
-	"github.com/nicolasacchi/metamusic/internal/mediatool"
 )
 
 // Clip format constants (C46).
@@ -83,15 +78,4 @@ type Link struct {
 	WindowLUFS, WindowTPDBTP       *float64
 	TargetLUFS                     *float64
 	Match                          string // off | matched | limited | window_silent
-}
-
-// Service is the clip service. STUB(M2b-M1): the cache and ffmpeg render land in M2b-M1.
-type Service struct {
-	data    *os.Root
-	dataDir string
-	tools   mediatool.Tools
-	an      WindowAnalyzer
-	lib     *library.Service
-	signer  *serve.Signer
-	opts    Options
 }
