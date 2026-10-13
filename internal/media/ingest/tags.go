@@ -62,15 +62,20 @@ func replayGainStrings(gainDB, peak float64) (string, string) {
 	return fmt.Sprintf("%+.2f dB", gainDB), fmt.Sprintf("%.6f", peak)
 }
 
-// tagLines builds the eight C15 tags in order.
+// tagLines builds the eight C15 tags in order. A reference take (D-M2c-12) has
+// no seed: MM_REFERENCE=1 takes MM_SEED's place.
 func tagLines(req Request, gainDB, peak float64) []string {
 	g, p := replayGainStrings(gainDB, peak)
+	seedTag := struct{ k, v string }{"MM_SEED", strconv.FormatInt(req.Seed, 10)}
+	if req.Reference {
+		seedTag = struct{ k, v string }{"MM_REFERENCE", "1"}
+	}
 	kv := []struct{ k, v string }{
 		{"TITLE", sanitizeTag(req.Title, maxTitleRunes)},
 		{"MM_TAKE_ID", sanitizeTag(req.TrackID, 0)},
 		{"MM_RECIPE_ID", sanitizeTag(req.RecipeID, 0)},
 		{"MM_REQUEST_ID", sanitizeTag(req.RequestID, 0)},
-		{"MM_SEED", strconv.FormatInt(req.Seed, 10)},
+		seedTag,
 		{"REPLAYGAIN_TRACK_GAIN", g},
 		{"REPLAYGAIN_TRACK_PEAK", p},
 		{"REPLAYGAIN_REFERENCE_LOUDNESS", rgReferenceTag},
