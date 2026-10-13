@@ -80,3 +80,15 @@ func TestDevicePairsThroughHTTP(t *testing.T) {
 		t.Fatal("no Device paired notification")
 	}
 }
+
+func TestSec_PairAuditTransportIsPair(t *testing.T) {
+	r := servertest.New(t, servertest.Options{Mode: "proxy"})
+	r.Device(t)
+	var tr string
+	if err := r.Store.R.QueryRow(`SELECT transport FROM audit_log WHERE op = 'auth:pair'`).Scan(&tr); err != nil {
+		t.Fatal(err)
+	}
+	if tr != "pair" {
+		t.Fatalf("transport = %q, want pair", tr)
+	}
+}

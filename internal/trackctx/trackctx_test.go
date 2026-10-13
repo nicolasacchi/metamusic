@@ -477,3 +477,27 @@ func TestFit_ScoreABCCut(t *testing.T) {
 		t.Error("chars is not the measured size")
 	}
 }
+
+func TestFit_IncludeCommentsWorstCase(t *testing.T) {
+	t.Parallel()
+	comments := make([]any, 500)
+	for i := range comments {
+		comments[i] = map[string]any{"id": i, "body": strings.Repeat("x", 4000)}
+	}
+	b := &trackctx.Bundle{
+		Format: "mm.context/1", Track: map[string]any{}, Recipe: map[string]any{}, Provenance: map[string]any{},
+		Score: map[string]any{}, Lineage: map[string]any{},
+		Judgments:  map[string]any{"comments": comments, "comments_total": 500},
+		Perception: map[string]any{}, Listening: map[string]any{}, Links: map[string]any{}, NextActions: []string{}, Budget: trackctx.Budget{Truncated: []string{}},
+	}
+	chars, trunc := trackctx.Fit(b, trackctx.IncludeLimit, []string{"comments"})
+	if chars > trackctx.IncludeLimit || !slices.Contains(trunc, "comments") {
+		t.Errorf("chars %d, truncated %v", chars, trunc)
+	}
+	if utf16Len(string(marshal(t, *b))) != chars {
+		t.Error("chars is not the measured size")
+	}
+	if b.Judgments["comments_total"] != 500 {
+		t.Error("comments_total lost")
+	}
+}

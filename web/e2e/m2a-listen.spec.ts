@@ -102,6 +102,21 @@ test("leaving the page sends a beacon and the next load adds no duplicates", asy
   await page.getByTestId("track-play").click();
   await expect(page.getByTestId("track-play")).toHaveText("Play");
   expect(await pending(page)).toBeGreaterThan(0);
+  // The pause segment is appended to IndexedDB asynchronously. An unload beacon from this suite carries no
+  // proxy identity, so a row still in flight when the document goes away would be lost; wait until the
+  // outbox count has settled before leaving.
+  let last = -1;
+  await expect
+    .poll(
+      async () => {
+        const n = await pending(page);
+        const settled = n === last;
+        last = n;
+        return settled;
+      },
+      { intervals: [400], timeout: 10_000 },
+    )
+    .toBe(true);
   // leaving the document fires pagehide
   await page.goto("/healthz");
   const beacons = (await page.evaluate(() => localStorage.getItem("e2e-beacons"))) ?? "";

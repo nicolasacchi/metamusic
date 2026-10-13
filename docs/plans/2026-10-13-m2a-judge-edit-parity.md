@@ -830,6 +830,10 @@ func New(o Options) http.Handler
    `code` of a problem body (first 4 KiB parsed); `args_sha256` = the idempotency request hash (computed
    for every audited call). Inserted with `context.WithoutCancel` and a 2 s timeout; failures are logged
    (no row content) and do not change the response.
+2a. **Rate limit (charged first, rev 4):** for every non-anonymous principal, before the body is read, before the
+   unmatched pass-through and before `Authorize`: classes = `agent` for agents, `human` for humans and devices,
+   plus the `_heavy` class only when an op matched and `meta.Rate == "heavy"`. Refused ⇒ 429 `RATE_LIMITED` with
+   `Retry-After`. Unknown paths and scope-refused calls therefore consume tokens and cannot grow the audit log unboundedly.
    **Body reading:** for every call that will be audited (decidable from principal and meta before the
    handler) and every create op, the gate reads the body through `http.MaxBytesReader(MaxBody)` — over
    ⇒ 413 `PAYLOAD_TOO_LARGE` before any later step — and restores it for Huma. `MaxBody` (8 MiB) is ≥
@@ -838,8 +842,6 @@ func New(o Options) http.Handler
    untouched.
 3. No op matched ⇒ pass through (the M0 `notFound` handler answers).
 4. `api.Authorize(ctx, meta)` ⇒ 401/403 problem (defense in depth stays in `api.Register`).
-5. **Rate limit:** classes = `agent` (+ `agent_heavy` when `meta.Rate == "heavy"`) for agents,
-   `human` (+ `human_heavy`) for humans and devices. Refused ⇒ 429 `RATE_LIMITED` with `Retry-After`.
 6. **Idempotency** (only `meta.Idempotency == "create"`):
    - key = `Idempotency-Key` header; else `idem.DerivedFrom(ctx)` (MCP); else 428
      `IDEMPOTENCY_KEY_REQUIRED`. TTL 24 h for header keys, 10 min for derived keys. The MCP adapter also
@@ -2059,18 +2061,18 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
 
 | Roadmap item | Named test(s) |
 |---|---|
-| [S] timestamp comment jumps the player | `m2a-comments.spec.ts › clicking a timestamped comment seeks the player` (chrome + firefox: same track paused, same track playing, another track playing ⇒ `currentTime` within ±0.5 s of `at_second`) · `› waveform pin seeks` · `TestAcceptance_M2a_TimestampCommentLink` · `jump.test.ts` |
-| section labels only from timed sections (none outside every section) | `TestAddComment_SectionLabelOnlyFromTimed` · `TestMigration0003_CommentSectionSourceNeverLyrics` · `m2a-comments.spec.ts › untimed track comment has no section label` |
-| [S] rating / status / tag filters | `TestAcceptance_M2a_RatingStatusTagFilters` · `TestSearchTracks_JudgmentFilters` · `TestParity_MultiValueQuery` (tag) · `m2a-judge.spec.ts › filters by stars, status and tags` (URL carries `tag=a&tag=b`) |
-| human stars + status; critic stored separately | `TestRate_SourceFromPrincipal` · `TestMigration0003_RatingSourceCheck` · `m2a-judge.spec.ts › rate and set status from the player bar` |
+| [S] timestamp comment jumps the player | `m2a-comments.spec.ts › jump: a timestamped comment seeks the paused player on the same track` (chrome + firefox: same track paused, same track playing, another track playing ⇒ `currentTime` within ±0.5 s of `at_second`) · `› waveform pin seeks` · `TestAcceptance_M2a_TimestampCommentLink` · `jump.test.ts` |
+| section labels only from timed sections (none outside every section) | `TestAddComment_SectionLabelOnlyFromTimed` · `TestMigration0003_CommentSectionSourceNeverLyrics` · `m2a-comments.spec.ts › general comment on an untimed track has no timestamp and no section chip` |
+| [S] rating / status / tag filters | `TestAcceptance_M2a_RatingStatusTagFilters` · `TestSearchTracks_JudgmentFilters` · `TestParity_MultiValueQuery` (tag) · `m2a-judge.spec.ts › library filters: status, two tags AND, min stars, back/forward` (URL carries `tag=a&tag=b`) |
+| human stars + status; critic stored separately | `TestRate_SourceFromPrincipal` · `TestMigration0003_RatingSourceCheck` · `m2a-judge.spec.ts › rate 4 and set to_relisten from the player bar` |
 | agent `rate_track` never changes the human rating | `TestAcceptance_M2a_RatingIsolation` (REST bearer, MCP tool, `call_operation`, stdio; checks `get_track`, `search_tracks min_stars`, facets, context, ZIP `POPM`) |
 | tags (human/agent/inherited) | `TestSetTags_Sources` · `TestInheritTags_OnInsertTake` · `TestNormalizeTag` |
-| general + timestamped comments, kind/state | `TestAddComment_*` · `TestCommentTransitions` · `TestUpdateComment_Permissions` · `m2a-comments.spec.ts › add, resolve, reopen, hide` |
-| [S] `songs.jsonl` export byte-identical | `TestAcceptance_M2a_ExportByteIdentical` (seeded synthetic archive: `--source` equals the original file bytes minus the lines M1 did not record; every raw row of a `tracks` export equals a `recipe_sources.raw`) · `TestExport_SourceSuperseded` · `TestPyJSON_Golden` · `TestDetectStyle` · `m2a-export.spec.ts › exported songs.jsonl equals the seed file byte for byte` |
+| general + timestamped comments, kind/state | `TestAddComment_*` · `TestCommentTransitions` · `TestUpdateComment_Permissions` · `m2a-comments.spec.ts › resolve, reopen and hide a comment` |
+| [S] `songs.jsonl` export byte-identical | `TestAcceptance_M2a_ExportByteIdentical` (seeded synthetic archive: `--source` equals the original file bytes minus the lines M1 did not record; every raw row of a `tracks` export equals a `recipe_sources.raw`) · `TestExport_SourceSuperseded` · `TestPyJSON_Golden` · `TestDetectStyle` · `m2a-export.spec.ts › source export is the original file byte for byte and reports exactly its own issues` |
 | [S] `yue2 batch` validator mirror accepts it unchanged + `--for-batch` lineage | `TestAcceptance_M2a_ExportPassesBatchValidator` (D-M2a-20: `tracks`, `drafts` and every for-batch export validate clean; a `--source` export reports exactly the issues of its original file — one `duplicate_id` for the acceptance `songs.jsonl`) · `TestExport_ForBatchSiblingsUniqueIDs` (3-sibling lineage) · `TestValidateBatch_Table` · `TestCheckRequest_AgreesWithParseRequest` |
-| [S] v2 drafts visible, editable, lint-clean | `TestAcceptance_M2a_VariantiDraftsEditableLintClean` · `m2a-drafts.spec.ts › varianti drafts are listed, edited and lint-clean` |
+| [S] v2 drafts visible, editable, lint-clean | `TestAcceptance_M2a_VariantiDraftsEditableLintClean` · `m2a-drafts.spec.ts › varianti drafts are listed under their origin filter` |
 | draft editor + `lint_recipe` | `TestLint_ProtocolRules` · `TestLint_RunsOnCanonical` · `TestDrafts_LintDecoration` · `TestLintRecipe_RawTokens` · `TestLint_SongwritingRules` · `TestEstimateDuration` · `TestDetectLanguage` · `TestDrafts_CreateUpdateRevision` · `draftForm.test.ts` |
-| JSONL batch upload into drafts | `TestUploadBatch_AllOrNothing` · `TestUploadBatch_Limits` · `TestUploadBatch_AllowPartial` · `TestUploadBatch_ABCFiles` · `m2a-drafts.spec.ts › upload creates drafts in a collection` |
+| JSONL batch upload into drafts | `TestUploadBatch_AllOrNothing` · `TestUploadBatch_Limits` · `TestUploadBatch_AllowPartial` · `TestUploadBatch_ABCFiles` · `m2a-drafts.spec.ts › upload of three synthetic lines into a new collection creates three drafts` |
 | playlists + MP3 ZIP with current tags | `TestPlaylists_Revision` · `TestZipExport_CurrentTagsID3` (title changed after creation appears in TIT2) · `TestZipExport_Deterministic` · `TestZipExport_Caps` · `TestZipExport_EntryNamesFlat` · `TestID3_Encode` · `m2a-playlists.spec.ts` |
 | [S] backup restore on an empty directory | `TestAcceptance_M2a_BackupRestoreEmptyDir` · `TestBackup_EXDEVFallbackCopiesAndVerifies` · `TestBackup_SnapshotSurvivesLiveMutation` · `TestBackup_ManifestComplete` · `TestBackup_CrossProcessGuard` · `TestBackup_SameSecondNamesDistinct` · `TestRestore_RefusesNonEmptyTarget` · `TestRestore_DetectsTamper` · `TestRetain_Table` · `TestNextRun_Table` · `TestScheduler_LoopSynctest` |
 | `/context` bundle ≤ 24k, `include=` | `TestAcceptance_M2a_ContextBudget` (REST body and MCP `TextContent`) · `TestFit_WorstCase` · `TestFit_BudgetFixedPoint` · `TestMeasure_MatchesRESTBody` · `TestContext_Include` · `TestContext_NextActions` |
@@ -2078,9 +2080,9 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
 | rate limits | `TestRateLimit_AgentBucket` · `TestRateLimit_HeavyBucket` · `TestRateLimit_RetryAfter` (fake clock) · `TestRateLimit_PairEndpoint` · `TestRateLimit_Scaled` · `judge.test.ts` / `outbox.test.ts` (429 handling) |
 | idempotency: REST header required; MCP derived 10 min; explicit 24 h; checked before any consumption | `TestIdempotency_RESTRequiresKey` · `TestIdempotency_ReplayAndConflict` · `TestIdempotency_InProgress` · `TestIdempotency_PendingLeaseReclaimed` · `TestIdempotency_LeaseExtendedForLongHandler` · `TestIdempotency_TTLs` (fake clock) · `TestIdempotency_ErrorsNotStored` · `TestIdempotency_CheckedBeforeConsumption` · `TestMCP_DerivedIdempotency_AddComment` · `TestIdempotency_SecretFieldsRedacted` |
 | `/human/` pages for tokens + devices; human-only refusals | `TestHumanOnly_RefusedForAgentsDevicesStdio` · `TestHumanOnly_NotFoundOffHumanPrefix` · `TestLocalStepUp_HumanPaths` · `nav.test.ts` (`/human/*` is a full-page navigation) · `m2a-human.spec.ts` |
-| device pairing (QR / code, `mm_dev`, read+write only) | `TestPairing_CodeLifecycle` · `TestPairing_SingleUse` · `TestDevice_ScopesReadWriteOnly` · `TestTrustMatrix_DeviceCookie` · `TestHTTPServer_NilDevicesNoPanic` · `TestRoutingContract` (mm-pair, mm-device) · `m2a-human.spec.ts › pair a second browser context` · DC-M2a-1..3 |
+| device pairing (QR / code, `mm_dev`, read+write only) | `TestPairing_CodeLifecycle` · `TestPairing_SingleUse` · `TestDevice_ScopesReadWriteOnly` · `TestTrustMatrix_DeviceCookie` · `TestHTTPServer_NilDevicesNoPanic` · `TestRoutingContract` (mm-pair, mm-device) · `m2a-human.spec.ts › pairing: a code makes a device that can rate but never reach /human; unpair returns to /start` · DC-M2a-1..3 |
 | `mcp-stdio` (MM_TOKEN required, agent principal) | `TestMCPStdio_RequiresToken` · `TestMCPStdio_AgentPrincipal` · `TestMCPStdio_RevokedMidSession` · `TestCLI_OfflineCommandsWithoutMMAuth` · `TestCLI_MCPStdio_Smoke` · `TestParity_Stdio` |
-| listen-event logging (beacon + IndexedDB outbox) | `TestListen_ValidationAndDedup` · `TestListen_Stats` · `outbox.test.ts` · `listen.test.ts` · `m2a-listen.spec.ts › events survive navigation, offline and page close` |
+| listen-event logging (beacon + IndexedDB outbox) | `TestListen_ValidationAndDedup` · `TestListen_Stats` · `outbox.test.ts` · `listen.test.ts` · `m2a-listen.spec.ts › offline: events stay in IndexedDB and are flushed when back online` |
 | an MCP client with a token performs every M2a UI action | `TestAcceptance_M2a_AgentPerformsEveryUIAction` (derived from the registry: every op with a `ui` route that MCP exposes — not human-only, not `exclude:*` — is called over MCP and appears in `get_audit`) · parity runner · served-operation coverage (zero unserved ui ops) |
 | agents never see the operator's username or device names (D-M2a-19) | `TestAgentsNeverSeeHumanNames` · `TestRefFor_Table` · `TestGetAudit_AgentHumanKeyFilter422` |
 | `TestNoSecretLeak` | `TestNoSecretLeak` (Go; static and dynamic secrets) · E2E leak scanner (`GET /__e2e/leaks` = `[]` in the Playwright teardown; static canaries) |
@@ -2223,7 +2225,7 @@ time-dependent tests use injected fake clocks (C42), never synctest.
   `error_code`, `args_sha256`, `created_ids` from `NoteCreated`, transport, client — never body bytes),
   `TestAudit_RefusalsRecorded` (agent 403 `FORBIDDEN_SCOPE`, 429, 428, 413 ⇒ rows with those codes),
   `TestAudit_UnknownOpAgent` (agent `GET /api/nope` ⇒ row with op `-`), `TestAudit_ListKeyset`.
-- `TestGate_Order` (spies: authorize → limiter → idem → handler; a 403 consumes no rate token; a 429
+- `TestGate_Order` (spies: limiter → authorize → idem → handler; a 403 consumes a rate token; a 429
   creates no idempotency row), `TestGate_BodyCap` (9 MiB to an audited op ⇒ 413 `PAYLOAD_TOO_LARGE`, the
   same code Huma's `MaxBodyBytes` refusal produces; an unaudited human read with a body is streamed
   untouched), `TestGate_TransportLabels` (human with `X-MM-Client: spa` ⇒ `spa`; device with
@@ -2603,7 +2605,7 @@ time-dependent tests here advance an injected clock (C42), never synctest.
   `read,write`; fake clock +5 min 01 s ⇒ `ErrInvalidCode`; minting a second code revokes the first, which
   is then invalid; a 600-byte `User-Agent` is stored truncated to 512 bytes at a UTF-8 boundary, no
   error), `TestPairing_SingleUse`.
-- `TestPairing_PageAndRateLimit` (`GET /pair` has the C26 headers and never echoes a code; wrong code ⇒
+- `TestRateLimit_PairEndpoint` (`GET /pair` has the C26 headers and never echoes a code; wrong code ⇒
   401 page after `FailDelay`; the 11th POST in a minute ⇒ 429; cross-site POST ⇒ 403 `CROSS_ORIGIN`;
   success ⇒ cookie attributes as C26 and 303 `/`; `OnPaired` called once).
 - `TestStart_Chooser` (valid device cookie ⇒ 302 `/`; `mm_start=sso` ⇒ 302 `/` in proxy, `/auth/login` in

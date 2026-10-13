@@ -190,6 +190,26 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// 2. Rate limit: charged before the body is read, the unmatched pass-through and Authorize,
+	// so unknown paths and refused calls cannot grow the audit log without bound.
+	if g.Limiter != nil && p.Kind != auth.KindAnonymous {
+		classes := []ratelimit.Class{ratelimit.Human}
+		heavy := ratelimit.HumanHeavy
+		if p.Kind == auth.KindAgent {
+			classes, heavy = []ratelimit.Class{ratelimit.Agent}, ratelimit.AgentHeavy
+		}
+		if matched && info.Meta.Rate == "heavy" {
+			classes = append(classes, heavy)
+		}
+		if ok, retry, bucket := g.Limiter.Allow(p.Key(), classes...); !ok {
+			secs := int(retry / time.Second)
+			rec.Header().Set("Retry-After", strconv.Itoa(secs))
+			problem.Write(rec, http.StatusTooManyRequests, "RATE_LIMITED", "rate limit exceeded",
+				map[string]any{"retry_after_s": secs, "bucket": string(bucket)})
+			return
+		}
+	}
+
 	var body []byte
 	if (audited || create) && r.Body != nil && r.Body != http.NoBody {
 		r.Body = http.MaxBytesReader(rec, r.Body, g.MaxBody)
@@ -227,25 +247,6 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		problem.Write(rec, pr.Status, pr.Code, pr.Message, pr.Details)
 		return
-	}
-
-	// 5. Rate limit.
-	if g.Limiter != nil {
-		classes := []ratelimit.Class{ratelimit.Human}
-		heavy := ratelimit.HumanHeavy
-		if p.Kind == auth.KindAgent {
-			classes, heavy = []ratelimit.Class{ratelimit.Agent}, ratelimit.AgentHeavy
-		}
-		if info.Meta.Rate == "heavy" {
-			classes = append(classes, heavy)
-		}
-		if ok, retry, bucket := g.Limiter.Allow(p.Key(), classes...); !ok {
-			secs := int(retry / time.Second)
-			rec.Header().Set("Retry-After", strconv.Itoa(secs))
-			problem.Write(rec, http.StatusTooManyRequests, "RATE_LIMITED", "rate limit exceeded",
-				map[string]any{"retry_after_s": secs, "bucket": string(bucket)})
-			return
-		}
 	}
 
 	// 6. Idempotency.

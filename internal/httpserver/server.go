@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -166,9 +168,11 @@ func New(o Options) (http.Handler, error) {
 			},
 			OnPaired: func(ctx context.Context, d auth.DeviceInfo) {
 				if o.Audit != nil {
-					_ = o.Audit.Insert(context.WithoutCancel(ctx), audit.Entry{At: now(),
+					if err := o.Audit.Insert(context.WithoutCancel(ctx), audit.Entry{At: now(),
 						Principal: auth.Principal{Kind: auth.KindDevice, ID: d.ID, Name: d.Name, Via: "device"},
-						Transport: reqinfo.SPA, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther})
+						Transport: reqinfo.Pair, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther}); err != nil {
+						slog.Error("audit insert failed", "op", "auth:pair", "err", redact.Error(err))
+					}
 				}
 				if o.Notify != nil {
 					_ = o.Notify.Notify(context.WithoutCancel(ctx), notify.DevicePaired(d.Name))

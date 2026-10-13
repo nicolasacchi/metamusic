@@ -701,3 +701,31 @@ func TestScheduleFor(t *testing.T) {
 		t.Fatalf("%+v", s)
 	}
 }
+
+func TestBackup_FailureNotifies(t *testing.T) {
+	e := newEnv(t)
+	e.opts.Link = exdev
+	e.svc = e.newService()
+	flipped := false
+	e.svc.hook = func(stage, p string) {
+		if stage == "copied" && !flipped && strings.Contains(filepath.ToSlash(p), "/audio/masters/") {
+			flipped = true
+			if b, err := os.ReadFile(p); err == nil {
+				b[0] ^= 0xff
+				_ = os.WriteFile(p, b, 0o600)
+			}
+		}
+	}
+	if _, err := e.svc.RunSync(context.Background(), "manual", auth.CLI); err == nil {
+		t.Fatal("run succeeded")
+	}
+	msgs := e.ntf.got()
+	if len(msgs) != 1 {
+		t.Fatalf("want one failure notification, got %+v", msgs)
+	}
+	for _, s := range []string{msgs[0].Title, msgs[0].Body, msgs[0].Click, strings.Join(msgs[0].Tags, " ")} {
+		if strings.Contains(s, e.data) || strings.Contains(s, e.bdir) || strings.Contains(strings.ToLower(s), "secret") {
+			t.Errorf("notification leaks: %q", s)
+		}
+	}
+}

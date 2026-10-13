@@ -69,7 +69,7 @@ func checkPageHeaders(t *testing.T, rec *httptest.ResponseRecorder) {
 	}
 }
 
-func TestPairing_PageAndRateLimit(t *testing.T) {
+func TestRateLimit_PairEndpoint(t *testing.T) {
 	pr := newPairRig(t, "proxy", nil)
 	ctx := context.Background()
 

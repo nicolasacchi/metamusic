@@ -326,7 +326,59 @@ func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string)
 		b.Score["abc"] = string(runes[:lo])
 		chars = settle(b)
 	}
+	// Last resorts for protected parts: the largest comment prefix that fits, then the
+	// largest lyrics prefix that fits (cut at a rune boundary).
+	if chars > limit && has(include, "comments") && b.Judgments != nil {
+		full := b.Judgments["comments"]
+		if n := listLen(full); n > 0 {
+			note("comments")
+			lo, hi := 0, n-1
+			for lo < hi {
+				mid := (lo + hi + 1) / 2
+				b.Judgments["comments"] = full
+				shrink(b.Judgments, "comments", mid)
+				if settle(b) <= limit {
+					lo = mid
+				} else {
+					hi = mid - 1
+				}
+			}
+			b.Judgments["comments"] = full
+			shrink(b.Judgments, "comments", lo)
+			chars = settle(b)
+		}
+	}
+	if chars > limit && has(include, "lyrics") {
+		if l, ok := get("lyrics").(string); ok && l != "" {
+			note("lyrics")
+			runes := []rune(l)
+			lo, hi := 0, len(runes)
+			for lo < hi {
+				mid := (lo + hi + 1) / 2
+				set("lyrics", string(runes[:mid]))
+				if settle(b) <= limit {
+					lo = mid
+				} else {
+					hi = mid - 1
+				}
+			}
+			set("lyrics", string(runes[:lo]))
+			chars = settle(b)
+		}
+	}
 	return chars, b.Budget.Truncated
+}
+
+func listLen(v any) int {
+	switch l := v.(type) {
+	case []any:
+		return len(l)
+	case []*omap:
+		return len(l)
+	case []map[string]any:
+		return len(l)
+	}
+	return 0
 }
 
 // ---- builder ----

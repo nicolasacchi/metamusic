@@ -514,16 +514,14 @@ func TestRateLimit_GateRefusal(t *testing.T) {
 
 func TestGate_Order(t *testing.T) {
 	t.Parallel()
-	// A 403 consumes no rate token.
+	// The limiter runs before Authorize: a 403 consumes a rate token.
 	r := newRig(t, rigOpts{limits: ratelimit.Config{ratelimit.Agent: {PerMinute: 60, Burst: 1}, ratelimit.Human: {PerMinute: 60, Burst: 1}}})
 	ro := agent("t1", auth.ScopeRead)
-	for i := 0; i < 5; i++ {
-		if w := r.do(req{p: ro, method: "PATCH", path: "/api/t/write", body: `{}`}); w.Code != 403 || code(w) != "FORBIDDEN_SCOPE" {
-			t.Fatalf("call %d: %d %s", i, w.Code, w.Body)
-		}
+	if w := r.do(req{p: ro, method: "PATCH", path: "/api/t/write", body: `{}`}); w.Code != 403 || code(w) != "FORBIDDEN_SCOPE" {
+		t.Fatalf("first: %d %s", w.Code, w.Body)
 	}
-	if w := r.do(req{p: ro, method: "GET", path: "/api/t/read"}); w.Code != 200 {
-		t.Fatalf("the token bucket was consumed by refused calls: %d", w.Code)
+	if w := r.do(req{p: ro, method: "GET", path: "/api/t/read"}); w.Code != 429 {
+		t.Fatalf("refused calls must consume the token bucket: %d", w.Code)
 	}
 
 	// Rate limit comes before idempotency: a 429 creates no row and hides the missing key.
@@ -809,5 +807,33 @@ func TestGate_FlushPassesThrough(t *testing.T) {
 	h.ServeHTTP(w, hr.WithContext(auth.WithPrincipal(hr.Context(), human)))
 	if !w.flushed {
 		t.Fatal("Flush did not reach the underlying writer")
+	}
+}
+
+func TestSec_UnmatchedAgentCallsAreRateLimited(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{limits: ratelimit.Config{ratelimit.Agent: {PerMinute: 60, Burst: 2}, ratelimit.Human: {PerMinute: 60, Burst: 2}}})
+	got429 := false
+	for i := 0; i < 20; i++ {
+		if w := r.do(req{p: agent("t1"), method: "POST", path: "/api/nope", body: `{}`}); w.Code == 429 {
+			got429 = true
+		}
+	}
+	if !got429 {
+		t.Fatal("unmatched agent calls were never rate limited")
+	}
+}
+
+func TestSec_RefusedAgentCallsAreRateLimited(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{limits: ratelimit.Config{ratelimit.Agent: {PerMinute: 60, Burst: 2}, ratelimit.Human: {PerMinute: 60, Burst: 2}}})
+	got429 := false
+	for i := 0; i < 20; i++ {
+		if w := r.do(req{p: agent("t1", auth.ScopeRead), method: "PATCH", path: "/api/t/write", body: `{}`}); w.Code == 429 {
+			got429 = true
+		}
+	}
+	if !got429 {
+		t.Fatal("scope-refused agent calls were never rate limited")
 	}
 }
