@@ -276,3 +276,13 @@ func copyFile(src, dst string) error {
 	}
 	return out.Close()
 }
+
+// Inbox returns the generated inbox directory of a synthetic profile template ("" for a custom
+// template): the files an import read, for tests that compare masters with their sources. It is
+// removed by Cleanup and must be treated as read-only.
+func (t Template) Inbox() string {
+	if t.profile == "custom" || t.dir == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(t.dir), "inbox")
+}

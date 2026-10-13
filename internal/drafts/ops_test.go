@@ -107,6 +107,9 @@ func TestLintRecipe_RawTokens(t *testing.T) {
 
 func TestLintRecipe_BodyLimit(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("posts two 2 MiB bodies through the linter under -race; make test and CI run it")
+	}
 	r := servertest.New(t, servertest.Options{Fixture: true, Files: true})
 	agent, _ := r.Agent(t, auth.ScopeRead)
 	pad := func(total int) string {

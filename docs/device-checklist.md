@@ -51,4 +51,10 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M2b-4 the spectrogram is readable on a phone; a tap seeks the player
 - [ ] DC-M2b-5 the main player pauses when a duel starts and can be resumed afterwards
 
+## M2c
+
+- [ ] DC-M2c-1 iPhone and Android: a lossy reference track (MP3 master) plays from the library and the track page, seeks by tapping the waveform, and keeps playing with the screen locked; the quality switch is not offered for it
+- [ ] DC-M2c-2 a lossy track and a FLAC reference in one blind duel play in sync and at matched loudness
+- [ ] DC-M2c-3 the "recipe unknown" and "lossy reference" badges are readable on the phone and the library filters find the track
+
 ## Notes

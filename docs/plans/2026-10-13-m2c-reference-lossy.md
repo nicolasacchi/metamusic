@@ -1,4 +1,4 @@
-# M2c — Reference & Lossy Imports — Implementation Plan (DRAFT, revision 2)
+# M2c — Reference & Lossy Imports — Implementation Plan (revision 2, implemented)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this
 > plan task-by-task (TDD per task: write the named tests first, watch them fail, implement, review

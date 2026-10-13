@@ -111,7 +111,7 @@ Rendering runs on a RunPod Serverless endpoint; the server submits jobs and inge
 
 `make check` (format, vet, lint, race tests, web checks), `make e2e` (Playwright on chrome and
 firefox against a coverage-instrumented binary) and `make gate` (privacy gate) mirror the CI jobs
-`go`, `lint`, `web`, `e2e` and `gate`. The E2E teardown fails the job if a secret-shaped value
+`go-fast` and `go-media` (the module split in two parallel jobs), `lint`, `web`, `e2e` and `gate`. The E2E teardown fails the job if a secret-shaped value
 appeared in any served response; no HAR files are recorded or uploaded. The release image is a multi-stage Docker build running as
 a non-root user.
 

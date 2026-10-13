@@ -15,7 +15,7 @@ env:
   CGO_ENABLED: "1"
 
 jobs:
-  go:
+  go-fast:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -54,16 +54,56 @@ jobs:
           if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
       - name: vet
         run: go vet ./...
-      - name: test
-        # no -short: runs the media-tool and acceptance tiers (MM_REQUIRE_MEDIA_TOOLS=1 makes a missing tool fail)
-        run: |
-          mkdir -p covdata/unit
-          go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$PWD/covdata/unit"
+      - name: test (every package outside the media tier)
+        # no -short: scripts/ci-go-test.sh splits the module in two parallel jobs (C67); this is the rest
+        run: scripts/ci-go-test.sh fast covdata/unit
       - name: openapi drift
         run: CGO_ENABLED=0 go run ./cmd/metamusic openapi | diff - openapi.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: covdata-unit
+          name: covdata-unit-fast
+          path: covdata/unit
+          retention-days: 1
+
+  go-media:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
+          metaflac --version
+          v=$(metaflac --version | awk '{print $2}')
+          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+      - name: test (media tools and the acceptance tier)
+        # MM_REQUIRE_MEDIA_TOOLS=1 makes a missing tool fail
+        run: scripts/ci-go-test.sh media covdata/unit
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: covdata-unit-media
           path: covdata/unit
           retention-days: 1
 
@@ -218,7 +258,7 @@ jobs:
           retention-days: 7
 
   coverage:
-    needs: [go, e2e]
+    needs: [go-fast, go-media, e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -233,7 +273,8 @@ jobs:
           cache: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: covdata-unit
+          pattern: covdata-unit-*
+          merge-multiple: true
           path: covdata/unit
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
