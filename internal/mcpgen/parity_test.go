@@ -158,16 +158,6 @@ var stubCases = []ParityCase{
 	{Op: "get_track_context", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 501},
 	{Op: "log_listen_events", Args: fixedArgs(map[string]any{"events": []map[string]any{{
 		"id": "01900000-0000-7000-8000-0000000000a1", "track_id": lt.TrackLuna, "session_id": "s1", "kind": "start", "client_at": "2026-10-06T11:59:00Z"}}}), Status: 501},
-	{Op: "list_playlists", Status: 501},
-	{Op: "get_playlist", Args: fixedArgs(map[string]any{"id": "p1"}), Status: 501},
-	{Op: "create_playlist", Args: fixedArgs(map[string]any{"name": "Night"}), Status: 501},
-	{Op: "update_playlist", Args: fixedArgs(map[string]any{"id": "p1", "revision": 1, "name": "Day"}), Status: 501},
-	{Op: "export_playlist_zip", Args: fixedArgs(map[string]any{"id": "p1"}), Status: 501},
-	{Op: "list_export_sources", Status: 501},
-	{Op: "export_jsonl", Args: fixedArgs(map[string]any{"selection": "tracks"}), Status: 501},
-	{Op: "get_export", Args: fixedArgs(map[string]any{"id": "e1"}), Status: 501},
-	{Op: "create_backup", Status: 501},
-	{Op: "list_backups", Status: 501},
 	{Op: "get_audit", Args: fixedArgs(map[string]any{"limit": 10}), Status: 501},
 	{Op: "list_tokens", Status: 501},
 	{Op: "revoke_own_token", Status: 501},
@@ -198,9 +188,33 @@ var draftCases = []ParityCase{
 		Masks: []string{"id", "drafts"}},
 }
 
+// dataCases are the M2a-B6 cases (playlists and exports). Ids come from the rig's id sequence, which the
+// audit rows of the extra call_operation replays advance, and agent token ids differ per rig; the media
+// links and shas are equal at the fixed clock (content addressing).
+var dataCases = []ParityCase{
+	{Op: "list_playlists", Args: fixedArgs(map[string]any{"include_hidden": true})},
+	{Op: "get_playlist", Args: fixedArgs(map[string]any{"id": lt.PlaylistMix})},
+	{Op: "create_playlist", Args: fixedArgs(map[string]any{"name": "Night", "track_ids": []string{lt.TrackCitta, lt.TrackLuna}}), Masks: []string{"id", "created_by", "updated_by"}},
+	{Op: "update_playlist", Args: fixedArgs(map[string]any{"id": lt.PlaylistMix, "revision": 1, "name": "Day", "add_track_ids": []string{lt.TrackShort}}), Masks: []string{"created_by", "updated_by"}},
+	{Op: "export_playlist_zip", Args: fixedArgs(map[string]any{"id": lt.PlaylistMix}), Masks: []string{"id"}},
+	{Op: "list_export_sources"},
+	{Op: "export_jsonl", Args: fixedArgs(map[string]any{"selection": "tracks", "tracks": map[string]any{"track_ids": []string{lt.TrackLuna, lt.TrackCitta}}}), Masks: []string{"id"}},
+	{Op: "get_export", Args: fixedArgs(map[string]any{"id": "no-such-export"}), Status: 404},
+}
+
+// backupCases are the M2a-B7 cases. list_backups runs before create_backup, so no rig has a run in flight
+// (and no snapshot on disk) when it is read; the run id comes from the rig's id sequence. Each rig's
+// cleanup Close waits for the backup its create_backup started.
+var backupCases = []ParityCase{
+	{Op: "list_backups"},
+	{Op: "create_backup", Masks: []string{"id"}},
+}
+
 func init() {
+	parityCases = append(parityCases, backupCases...)
 	parityCases = append(parityCases, judgmentCases...)
 	parityCases = append(parityCases, draftCases...)
+	parityCases = append(parityCases, dataCases...)
 	parityCases = append(parityCases, stubCases...)
 }
 

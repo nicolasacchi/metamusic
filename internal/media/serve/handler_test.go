@@ -374,3 +374,47 @@ func TestHandler_DirectoryIs500(t *testing.T) {
 		t.Fatalf("status %d", w.Code)
 	}
 }
+
+func TestHandler_ExportExtensions(t *testing.T) {
+	dir := t.TempDir()
+	body := objBytes()
+	for _, n := range []string{"e.jsonl", "e.zip", "e.exe"} {
+		if err := os.WriteFile(filepath.Join(dir, n), body, 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { root.Close() })
+	sha := strings.Repeat("cd", 32)
+	mod := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	res := stubResolver{
+		sha + ".jsonl": {RelPath: "e.jsonl", ContentType: "application/x-ndjson", ETag: sha, ModTime: mod, DownloadName: "songs.jsonl"},
+		sha + ".zip":   {RelPath: "e.zip", ContentType: "application/zip", ETag: sha, ModTime: mod, DownloadName: "mix.zip"},
+		sha + ".exe":   {RelPath: "e.exe", ContentType: "application/octet-stream", ETag: sha, ModTime: mod},
+		sha + ".flac":  {RelPath: "e.zip", ContentType: "audio/flac", ETag: sha, ModTime: mod},
+	}
+	s := NewSigner(testKey, fixedClock(handlerNow))
+	r := &rig{h: Handler(s, root, res, nil), signer: s, data: body, sha: sha, root: dir}
+
+	w := r.do("GET", r.url(sha, "jsonl"), nil)
+	if w.Code != 200 || w.Header().Get("Content-Type") != "application/x-ndjson" ||
+		w.Header().Get("Content-Disposition") != `attachment; filename="songs.jsonl"` || !bytes.Equal(w.Body.Bytes(), body) {
+		t.Fatalf("jsonl: %d %v", w.Code, w.Header())
+	}
+	w = r.do("GET", r.url(sha, "zip"), map[string]string{"Range": "bytes=10-19"})
+	if w.Code != 206 || w.Header().Get("Content-Type") != "application/zip" || w.Header().Get("Content-Disposition") != `attachment; filename="mix.zip"` ||
+		!bytes.Equal(w.Body.Bytes(), body[10:20]) || w.Header().Get("Content-Range") != "bytes 10-19/10000" {
+		t.Fatalf("zip range: %d %v", w.Code, w.Header())
+	}
+	if w = r.do("GET", r.url(sha, "flac"), nil); w.Code != 200 || w.Header().Get("Content-Disposition") != "" {
+		t.Errorf("library objects send no Content-Disposition: %d %v", w.Code, w.Header())
+	}
+	// unsigned and tampered requests are refused before the resolver is asked
+	assertProblem(t, r.do("GET", "/media/"+sha+".jsonl", nil), 403, "MEDIA_LINK_INVALID")
+	assertProblem(t, r.do("GET", strings.Replace(r.url(sha, "jsonl"), ".jsonl", ".zip", 1), nil), 403, "MEDIA_LINK_INVALID")
+	// an extension outside flac|mp3|jsonl|zip is no media address
+	assertProblem(t, r.do("GET", r.url(sha, "exe"), nil), 404, "NOT_FOUND")
+}

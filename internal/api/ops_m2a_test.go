@@ -291,9 +291,12 @@ func TestOps_M2aStubsAnswer501(t *testing.T) {
 		"upload_batch_jsonl": `{"jsonl":"{}"}`, "create_playlist": `{"name":"n"}`, "update_playlist": `{"revision":1}`,
 		"export_jsonl": `{"selection":"tracks"}`, "create_token": `{"name":"n","scopes":["read"]}`, "create_pairing_code": `{"name":"n"}`,
 	}
-	// M2a-B4b implemented the judgment operations: without their service they answer 503 UNAVAILABLE.
+	// M2a-B4b and M2a-B6 implemented the judgment, playlist and export operations: without their service they answer 503 UNAVAILABLE.
 	implemented := map[string]bool{"rate_track": true, "update_track": true, "set_tags": true, "list_tags": true, "add_comment": true, "update_comment": true, "list_comments": true,
-		"lint_recipe": true, "create_draft": true, "update_draft": true, "upload_batch_jsonl": true}
+		"list_playlists": true, "get_playlist": true, "create_playlist": true, "update_playlist": true,
+		"export_playlist_zip": true, "list_export_sources": true, "export_jsonl": true, "get_export": true, // M2a-B6
+		"create_backup": true, "list_backups": true,
+		"lint_recipe": true, "create_draft": true, "update_draft": true, "upload_batch_jsonl": true} // M2a-B5 // M2a-B7
 	for _, w := range m2aOps {
 		path := strings.NewReplacer("{id}", "x").Replace(w.path)
 		req := bodies[w.id]

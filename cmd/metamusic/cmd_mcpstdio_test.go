@@ -148,7 +148,17 @@ func TestCLI_OfflineCommandsWithoutMMAuth(t *testing.T) {
 			t.Fatalf("whoami: %s", resultText(res))
 		}
 	})
-	// M2a-B7 adds the restore row.
+	t.Run("restore", func(t *testing.T) {
+		src := backupEnv(t)
+		if code, _, errs := do(t, src, "", "backup"); code != 0 {
+			t.Fatalf("backup: %d %s", code, errs)
+		}
+		snap := filepath.Join(src["MM_BACKUP_DIR"], snapshotsIn(t, src["MM_BACKUP_DIR"])[0])
+		noAuth := map[string]string{} // MM_AUTH, MM_DATA_DIR and every secret unset
+		if code, out, errs := do(t, noAuth, "", "restore", "--from", snap, "--into", filepath.Join(t.TempDir(), "r")); code != 0 {
+			t.Fatalf("restore: %d %s %s", code, out, errs)
+		}
+	})
 }
 
 // TestCLI_MCPStdio_Smoke (heavy) drives the real binary over a command

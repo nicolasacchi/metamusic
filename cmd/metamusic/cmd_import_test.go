@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta/flactest"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
@@ -328,6 +329,8 @@ func TestMain(m *testing.M) {
 	if archDir != "" {
 		_ = os.RemoveAll(archDir)
 	}
+	archivetest.Cleanup()
+	cleanupSeedTexts()
 	os.Exit(code)
 }
 

@@ -4,11 +4,11 @@ package exports
 
 import (
 	"context"
-	"errors"
 	"os"
 	"time"
 
-	"github.com/nicolasacchi/metamusic/internal/auth"
+	"uuid"
+
 	"github.com/nicolasacchi/metamusic/internal/export"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
@@ -131,71 +131,11 @@ func New(o Options) *Service {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.NewID == nil {
+		o.NewID = func() string { return uuid.NewV7().String() }
+	}
 	if o.Source == nil {
 		o.Source = NewDBSource(o.Store, o.Lib, o.Playlists)
 	}
 	return &Service{o: o}
-}
-
-// NewDBSource is the database-backed export.Source.
-func NewDBSource(st *store.Store, lib *library.Service, pl *playlists.Service) export.Source {
-	return &dbSource{st: st, lib: lib, pl: pl}
-}
-
-type dbSource struct {
-	st  *store.Store
-	lib *library.Service
-	pl  *playlists.Service
-}
-
-// STUB(M2a-B6): every dbSource method.
-
-func (d *dbSource) JSONLSourceRows(context.Context, string) ([]export.SourceRow, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (d *dbSource) SelectRecipes(context.Context, export.TrackFilter) ([]export.RecipeRow, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (d *dbSource) SelectDrafts(context.Context, export.DraftFilter) ([]export.DraftRow, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (d *dbSource) StyleSamples(context.Context) ([][]byte, error) { return nil, errors.ErrUnsupported }
-
-// JSONL exports a selection as songs.jsonl (or a bundle when ABC files are needed).
-func (s *Service) JSONL(ctx context.Context, p auth.Principal, sel export.Selection, filename string) (Export, error) {
-	// STUB(M2a-B6)
-	return Export{}, errors.ErrUnsupported
-}
-
-// PlaylistZIP exports a playlist as a ZIP of tagged MP3 files.
-func (s *Service) PlaylistZIP(ctx context.Context, p auth.Principal, playlistID string) (Export, error) {
-	// STUB(M2a-B6)
-	return Export{}, errors.ErrUnsupported
-}
-
-// Get returns an export with a fresh link; EXPORT_EXPIRED when swept.
-func (s *Service) Get(ctx context.Context, p auth.Principal, id string) (Export, error) {
-	// STUB(M2a-B6)
-	return Export{}, errors.ErrUnsupported
-}
-
-// Sources lists the JSONL source paths with line and recipe counts.
-func (s *Service) Sources(ctx context.Context) ([]ExportSource, error) {
-	// STUB(M2a-B6)
-	return nil, errors.ErrUnsupported
-}
-
-// Resolve maps a media address (ext jsonl|zip) to a stored export file.
-func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, error) {
-	// STUB(M2a-B6)
-	return serve.Object{}, serve.ErrNotFound
-}
-
-// Sweep removes export files whose newest row is older than olderThan.
-func (s *Service) Sweep(ctx context.Context, olderThan time.Duration) (int, error) {
-	// STUB(M2a-B6)
-	return 0, nil
 }
