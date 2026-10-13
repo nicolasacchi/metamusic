@@ -58,6 +58,22 @@ services:
       - traefik.http.routers.mm-api-bearer.rule=Host(`mm.example.com`) && PathPrefix(`/api/`) && HeaderRegexp(`Authorization`, `^[Bb]earer .+`)
       - traefik.http.routers.mm-api-bearer.priority=110
       - traefik.http.routers.mm-api-bearer.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker
+      # device pairing pages: public, the one-time code is the credential; no Authelia
+      - traefik.http.routers.mm-pair.entrypoints=websecure
+      - traefik.http.routers.mm-pair.tls=true
+      - traefik.http.routers.mm-pair.tls.certresolver=myresolver
+      - traefik.http.routers.mm-pair.service=metamusic
+      - traefik.http.routers.mm-pair.rule=Host(`mm.example.com`) && (Path(`/start`) || Path(`/pair`) || Path(`/pair.js`) || Path(`/auth/pair`))
+      - traefik.http.routers.mm-pair.priority=120
+      - traefik.http.routers.mm-pair.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker
+      # paired devices (cookie mm_dev, validated by the app): SPA and cookie /api without Authelia; /human/, /oauth/, /auth/ still go to mm-ui
+      - traefik.http.routers.mm-device.entrypoints=websecure
+      - traefik.http.routers.mm-device.tls=true
+      - traefik.http.routers.mm-device.tls.certresolver=myresolver
+      - traefik.http.routers.mm-device.service=metamusic
+      - traefik.http.routers.mm-device.rule=Host(`mm.example.com`) && HeaderRegexp(`Cookie`, `(^|;\s*)mm_dev=`) && !PathPrefix(`/human/`) && !PathPrefix(`/oauth/`) && !PathPrefix(`/auth/`)
+      - traefik.http.routers.mm-device.priority=50
+      - traefik.http.routers.mm-device.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker,mm-compress
       # Identity headers: emptied on every router that skips Authelia. Never put this middleware on
       # mm-ui, where it would run after forward-auth and delete the Remote-User Authelia just set.
       - traefik.http.middlewares.mm-strip-identity.headers.customrequestheaders.Remote-User=

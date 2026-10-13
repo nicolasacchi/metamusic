@@ -11,17 +11,25 @@ services:
       MM_AUTH: local
       MM_PUBLIC_URL: http://localhost:8080
       MM_SECRETS_DIR: /run/secrets
+      MM_DATA_DIR: /state/data
+      MM_BACKUP_DIR: /state/backup
+      # Daily snapshot time (HH:MM, process time zone) or "off".
+      MM_BACKUP_AT: "03:30"
+      # Optional push notifications (backup failed, device paired, token created). https:// unless
+      # loopback; the publisher token, if any, is the optional secret file "ntfy_token".
+      # MM_NTFY_URL: https://ntfy.example.com/metamusic
     ports:
       - "127.0.0.1:8080:8080"
     user: "1000:1000"
     volumes:
-      - metamusic-data:/data
+      - metamusic-state:/state
       # Read-only inbox for "metamusic import". Host side is relative to deploy/ and under the
       # gitignored data/ dir; container side is the MM_INBOX default (<DataDir>/inbox). The files
       # must be readable by uid 1000 on the host.
-      - ./data/inbox:/data/inbox:ro
+      - ./data/inbox:/state/data/inbox:ro
     secrets:
       - secret_key
+      # - ntfy_token   # optional; also declare it under the top-level secrets below
     read_only: true
     tmpfs:
       - /tmp
@@ -32,6 +40,8 @@ services:
 # Create first, from the repo root (path is relative to deploy/). Compose file secrets are
 # bind mounts, so the file must be readable by uid 1000 (chown 1000 if your host uid differs):
 #   (umask 077; mkdir -p deploy/secrets && openssl rand -hex 32 > deploy/secrets/secret_key)
+# Optional ntfy publisher token: create deploy/secrets/ntfy_token the same way, then add it to the
+# service "secrets" list and to the top-level "secrets" map below.
 # After "up", create the human account (password read from stdin):
 #   printf '%s\n' "$PW" | docker compose -f deploy/compose.example.yml exec -T metamusic \
 #     metamusic user set-password --username <you>
@@ -39,5 +49,7 @@ secrets:
   secret_key:
     file: ./secrets/secret_key
 
+# Data and backups share the one /state volume (data/ and backup/) so snapshots hardlink
+# masters instead of copying them. A bind mount works too if both directories are on it.
 volumes:
-  metamusic-data:
+  metamusic-state:

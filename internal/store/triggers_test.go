@@ -3,6 +3,7 @@ package store
 import "testing"
 
 func TestTriggers_Immutable(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	r := insertRecipe(t, s, "a", 1)
 	insertRun(t, s, "run-done", "completed")

@@ -18,7 +18,26 @@ export interface RouterState extends Location {
   params: Record<string, string>;
 }
 
-const SERVER_PREFIXES = ["/api", "/human/api", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest"];
+/** Every SPA route (C40); specific before parametric. `/human/*` pages are served by the Go shell, never client-navigated. */
+export const APP_ROUTES: Route[] = [
+  { pattern: "/", name: "home" },
+  { pattern: "/tracks/:id", name: "track" },
+  { pattern: "/backlog", name: "backlog" },
+  { pattern: "/backlog/new", name: "draft-new" },
+  { pattern: "/backlog/upload", name: "draft-upload" },
+  { pattern: "/backlog/:id", name: "draft" },
+  { pattern: "/playlists", name: "playlists" },
+  { pattern: "/playlists/:id", name: "playlist" },
+  { pattern: "/export", name: "export" },
+  { pattern: "/import", name: "import" },
+  { pattern: "/settings", name: "settings" },
+  { pattern: "/settings/backups", name: "settings-backups" },
+  { pattern: "/settings/audit", name: "settings-audit" },
+  { pattern: "/human/tokens", name: "human-tokens" },
+  { pattern: "/human/devices", name: "human-devices" },
+];
+
+const SERVER_PREFIXES = ["/api", "/human", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest"];
 
 /** Paths owned by the Go server; links to them must be left to the browser. */
 export function isServerPath(path: string): boolean {

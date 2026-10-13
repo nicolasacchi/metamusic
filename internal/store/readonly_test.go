@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,6 +43,7 @@ func closedWAL(t *testing.T) string {
 }
 
 func TestOpenReadOnly_MissingDB(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	_, err := OpenReadOnly(context.Background(), filepath.Join(dir, "mm.db"))
 	if !errors.Is(err, ErrNoDatabase) {
@@ -53,6 +55,7 @@ func TestOpenReadOnly_MissingDB(t *testing.T) {
 }
 
 func TestOpenReadOnly_ClosedWALCreatesNothing(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p := closedWAL(t)
 	dir := filepath.Dir(p)
@@ -78,6 +81,7 @@ func TestOpenReadOnly_ClosedWALCreatesNothing(t *testing.T) {
 }
 
 func TestOpenReadOnly_LiveWriter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	w, p := open(t)
 	mustExec(t, w, `INSERT INTO settings(key,value) VALUES('k','v')`)
@@ -102,6 +106,7 @@ func TestOpenReadOnly_LiveWriter(t *testing.T) {
 }
 
 func TestOpenReadOnly_SchemaMismatch(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p1 := filepath.Join(t.TempDir(), "v1.db")
 	w, err := OpenRaw(p1)
@@ -116,12 +121,17 @@ func TestOpenReadOnly_SchemaMismatch(t *testing.T) {
 	if !errors.Is(err, ErrSchemaMismatch) {
 		t.Fatalf("err=%v", err)
 	}
-	if !strings.Contains(err.Error(), "version 1") || !strings.Contains(err.Error(), "expects 2") {
+	ms, lerr := loadMigrations()
+	if lerr != nil {
+		t.Fatal(lerr)
+	}
+	if !strings.Contains(err.Error(), "version 1") || !strings.Contains(err.Error(), fmt.Sprintf("expects %d", len(ms))) {
 		t.Fatalf("message must name both versions: %v", err)
 	}
 }
 
 func TestOpenReadOnly_WritesFail(t *testing.T) {
+	t.Parallel()
 	for _, live := range []bool{false, true} {
 		var p string
 		if live {

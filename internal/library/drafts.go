@@ -27,6 +27,13 @@ type DraftSummary struct {
 	Collections        []string `json:"collections" nullable:"false"`
 	ParentTrackID      *string  `json:"parent_track_id"`
 	FulfilledByTrackID *string  `json:"fulfilled_by_track_id"`
+
+	// M2a (C32)
+	Revision  int             `json:"revision"`
+	Editable  bool            `json:"editable" doc:"false once fulfilled"`
+	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
+	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
+	Lint      yue2.LintCounts `json:"lint" doc:"Full lint (protocol and songwriting) of the stored request"`
 }
 
 // DraftPage is one page of drafts.
@@ -109,7 +116,7 @@ func (s *Service) ListDrafts(ctx context.Context, p DraftParams) (DraftPage, err
 	}
 	rows, err := s.st.R.QueryContext(ctx, `SELECT d.id, d.request_id, d.group_key, d.label, d.origin, d.status,
 		json_extract(d.request_json, '$.seed'), json_extract(d.request_json, '$.cot'), json_extract(d.request_json, '$.style'),
-		json_extract(d.request_json, '$.lyrics'), d.parent_track_id, d.fulfilled_by_track_id`+from+where+
+		json_extract(d.request_json, '$.lyrics'), d.parent_track_id, d.fulfilled_by_track_id, d.revision, d.created_by, d.updated_by`+from+where+
 		` ORDER BY d.group_key, d.request_id, d.id LIMIT ? OFFSET ?`, append(args, limit, off)...)
 	if err != nil {
 		return page, fmt.Errorf("library: list drafts: %w", err)
@@ -119,11 +126,12 @@ func (s *Service) ListDrafts(ctx context.Context, p DraftParams) (DraftPage, err
 		var d DraftSummary
 		var gk, lb, par, ful sql.NullString
 		var style, lyrics string
-		if err := rows.Scan(&d.ID, &d.RequestID, &gk, &lb, &d.Origin, &d.Status, &d.Seed, &d.Cot, &style, &lyrics, &par, &ful); err != nil {
+		if err := rows.Scan(&d.ID, &d.RequestID, &gk, &lb, &d.Origin, &d.Status, &d.Seed, &d.Cot, &style, &lyrics, &par, &ful, &d.Revision, &d.CreatedBy, &d.UpdatedBy); err != nil {
 			_ = rows.Close()
 			return page, err
 		}
 		d.GroupKey, d.Label, d.ParentTrackID, d.FulfilledByTrackID = ptrStr(gk), ptrStr(lb), ptrStr(par), ptrStr(ful)
+		d.Editable = d.Status != "fulfilled"
 		d.StyleExcerpt = excerpt(style, 120)
 		d.StyleTerms, _ = yue2.StyleTerms(style)
 		if d.StyleTerms == nil {
@@ -195,6 +203,10 @@ type DraftRequest struct {
 	Lyrics string `json:"lyrics"`
 	Cot    string `json:"cot"`
 	Seed   int64  `json:"seed"`
+
+	// M2a (C32): present when set
+	ABC      *string  `json:"abc,omitempty"`
+	CfgScale *float64 `json:"cfg_scale,omitempty"`
 }
 
 // DraftSection is one lyric section of a draft.
@@ -247,17 +259,24 @@ type DraftDetail struct {
 	Group              []GroupMember     `json:"group" nullable:"false"`
 	CreatedAt          string            `json:"created_at"`
 	UpdatedAt          string            `json:"updated_at"`
+
+	// M2a (C32)
+	Revision  int             `json:"revision"`
+	Editable  bool            `json:"editable" doc:"false once fulfilled"`
+	CreatedBy string          `json:"created_by" doc:"Principal key; masked for agents"`
+	UpdatedBy string          `json:"updated_by" doc:"Principal key; masked for agents"`
+	Lint      yue2.LintResult `json:"lint" doc:"Full lint of the stored request"`
 }
 
 // Draft returns one draft. The reference map is filled only withReference
 // (human principals); has_reference is always reported.
 func (s *Service) Draft(ctx context.Context, id string, withReference bool) (DraftDetail, error) {
-	var d DraftDetail
+	d := DraftDetail{Lint: yue2.LintResult{Errors: []yue2.Issue{}, Warnings: []yue2.Issue{}}}
 	var gk, lb, src, par, ful sql.NullString
 	var reqJSON string
 	err := s.st.R.QueryRowContext(ctx, `SELECT id, origin, status, request_id, group_key, label, request_json, source_recipe_id, parent_track_id,
-		fulfilled_by_track_id, created_at, updated_at FROM recipe_drafts WHERE id = ?`, id).
-		Scan(&d.ID, &d.Origin, &d.Status, &d.RequestID, &gk, &lb, &reqJSON, &src, &par, &ful, &d.CreatedAt, &d.UpdatedAt)
+		fulfilled_by_track_id, created_at, updated_at, revision, created_by, updated_by FROM recipe_drafts WHERE id = ?`, id).
+		Scan(&d.ID, &d.Origin, &d.Status, &d.RequestID, &gk, &lb, &reqJSON, &src, &par, &ful, &d.CreatedAt, &d.UpdatedAt, &d.Revision, &d.CreatedBy, &d.UpdatedBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -265,6 +284,7 @@ func (s *Service) Draft(ctx context.Context, id string, withReference bool) (Dra
 		return d, fmt.Errorf("library: draft: %w", err)
 	}
 	d.GroupKey, d.Label, d.ParentTrackID, d.FulfilledByTrackID = ptrStr(gk), ptrStr(lb), ptrStr(par), ptrStr(ful)
+	d.Editable = d.Status != "fulfilled"
 	if err := json.Unmarshal([]byte(reqJSON), &d.Request); err != nil {
 		return d, fmt.Errorf("library: draft request: %w", err)
 	}

@@ -48,7 +48,7 @@ func newEnv(t *testing.T, mutate func(*config.Config), spa fstestFS, mcp http.Ha
 	}
 	key := []byte("0123456789abcdef0123456789abcdef")
 	sec := config.Secrets{Key: key, EdgeSecret: edge}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens,
 		Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL), MCP: mcp, SPA: spa,
@@ -109,6 +109,7 @@ var spaFS = fstest.MapFS{
 const wantCSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 
 func TestHealthz(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/healthz", nil))
 	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"status":"ok"}` {
@@ -117,6 +118,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestOpsHumanAndAgent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 
 	w := e.do(human(httptest.NewRequest("GET", "/api/ping", nil)))
@@ -137,12 +139,13 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	w = e.do(bearer(httptest.NewRequest("GET", "/api/system", nil), tok))
 	m = decode(t, w)
 	if w.Code != 200 || m["version"] != "v-test" || m["commit"] != "abc123" || m["auth_mode"] != "proxy" ||
-		m["schema_version"] != float64(2) || m["started_at"] == "" {
+		m["schema_version"] != float64(3) || m["started_at"] == "" {
 		t.Fatalf("system %d %v", w.Code, m)
 	}
 }
 
 func TestScopeEnforcement(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	tok := e.token(t, auth.ScopeWrite)
 	w := e.do(bearer(httptest.NewRequest("GET", "/api/me", nil), tok))
@@ -152,6 +155,7 @@ func TestScopeEnforcement(t *testing.T) {
 }
 
 func TestProblemStatuses(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	for _, tc := range []struct {
 		name   string
@@ -172,6 +176,7 @@ func TestProblemStatuses(t *testing.T) {
 }
 
 func TestOpenAPIServed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/api/openapi.json", nil)))
 	if w.Code != 200 || decode(t, w)["openapi"] == nil {
@@ -180,6 +185,7 @@ func TestOpenAPIServed(t *testing.T) {
 }
 
 func TestSPA(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/library/some-route", nil)))
 	if w.Code != 200 || w.Body.String() != "<html>spa</html>" {
@@ -217,6 +223,7 @@ func TestSPA(t *testing.T) {
 }
 
 func TestSPANotBuilt(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, fstest.MapFS{".gitkeep": {}}, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/", nil)))
 	if w.Code != 503 || !strings.Contains(w.Body.String(), "UI not built") || w.Header().Get("Content-Security-Policy") != wantCSP {
@@ -225,6 +232,7 @@ func TestSPANotBuilt(t *testing.T) {
 }
 
 func TestMCPRouting(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(httptest.NewRequest("POST", "/mcp", nil)); w.Code != 404 {
 		t.Errorf("nil mcp: %d", w.Code)
@@ -252,6 +260,7 @@ func TestMCPRouting(t *testing.T) {
 }
 
 func TestAuthRoutesLocalOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(httptest.NewRequest("GET", "/auth/login", nil)); w.Code != 404 {
 		t.Errorf("proxy mode login = %d", w.Code)
@@ -264,6 +273,7 @@ func TestAuthRoutesLocalOnly(t *testing.T) {
 }
 
 func TestE2EServed(t *testing.T) {
+	t.Parallel()
 	// disabled unless E2E
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(human(httptest.NewRequest("GET", "/__e2e/served", nil))); w.Code == 200 && strings.HasPrefix(w.Body.String(), "[") {
@@ -291,6 +301,7 @@ func TestE2EServed(t *testing.T) {
 }
 
 func TestMCPFactoryShares(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {
@@ -299,7 +310,7 @@ func TestMCPFactoryShares(t *testing.T) {
 	t.Cleanup(func() { st.Close() })
 	key := []byte("0123456789abcdef0123456789abcdef")
 	cfg := config.Config{Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy"}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	started := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	var gotAPI huma.API
 	var gotInner http.Handler
@@ -344,6 +355,7 @@ func TestMCPFactoryShares(t *testing.T) {
 }
 
 func TestHTTPServer_OptionsWired(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {
@@ -359,7 +371,7 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
 	}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	build := func(media http.Handler) http.Handler {
 		h, err := httpserver.New(httpserver.Options{
 			Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: edge}, Store: st, Tokens: tokens,
@@ -414,5 +426,42 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 	w = do(build(nil), "/media/x")
 	if w.Code != 404 || w.Header().Get("Content-Type") != "application/problem+json" || decode(t, w)["code"] != "NOT_FOUND" {
 		t.Errorf("nil Media: %d %q %s", w.Code, w.Header().Get("Content-Type"), w.Body)
+	}
+}
+
+// TestHTTPServer_NilDevicesNoPanic: neither a nil verifier nor a nil
+// *DeviceStore may reach the middleware as a typed nil interface.
+func TestHTTPServer_NilDevicesNoPanic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	key := []byte("0123456789abcdef0123456789abcdef")
+	cfg := config.Config{
+		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+	}
+	var typedNil *auth.DeviceStore
+	for name, o := range map[string]httpserver.Options{
+		"unset":      {},
+		"typed nil":  {DeviceStore: typedNil},
+		"real store": {DeviceStore: auth.NewDeviceStore(st, key, nil, func() string { return "id" })},
+	} {
+		o.Cfg, o.Sec, o.Store = cfg, config.Secrets{Key: key, EdgeSecret: edge}, st
+		o.Tokens, o.Sessions, o.SPA = auth.NewTokenStore(st, key, time.Now), auth.NewLocalAuth(st, key, cfg.PublicURL), spaFS
+		h, err := httpserver.New(o)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		req := httptest.NewRequest("GET", "/api/ping", nil)
+		req.Header.Set("Cookie", auth.DeviceCookie+"=mmd_whatever")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req) // must not panic
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s: unauthenticated /api/ping = %d, want 401", name, w.Code)
+		}
 	}
 }

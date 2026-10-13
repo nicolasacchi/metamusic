@@ -1,6 +1,39 @@
 {
   "components": {
     "schemas": {
+      "AddCommentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "at_second": {
+            "description": "Position in the track, rounded to 0.1 s",
+            "format": "double",
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "description": "Default note",
+            "enum": [
+              "note",
+              "fix",
+              "keep",
+              "marker"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
       "AnalysisInfo": {
         "additionalProperties": false,
         "properties": {
@@ -185,6 +218,96 @@
         ],
         "type": "object"
       },
+      "AuditEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "args_sha256": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "client": {
+            "type": "string"
+          },
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "idempotency": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "status": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "principal",
+          "transport",
+          "client",
+          "op",
+          "method",
+          "status",
+          "error_code",
+          "idempotency",
+          "created_ids",
+          "args_sha256",
+          "duration_ms"
+        ],
+        "type": "object"
+      },
+      "AuditOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
       "BacklogStats": {
         "additionalProperties": false,
         "properties": {
@@ -214,6 +337,206 @@
           "fulfilled",
           "groups",
           "collections"
+        ],
+        "type": "object"
+      },
+      "BackupListing": {
+        "additionalProperties": false,
+        "properties": {
+          "backup_dir_label": {
+            "examples": [
+              "backup"
+            ],
+            "type": "string"
+          },
+          "runs": {
+            "description": "Newest 30",
+            "items": {
+              "$ref": "#/components/schemas/BackupRun"
+            },
+            "type": "array"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/BackupSchedule"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/BackupSnapshot"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs",
+          "snapshots",
+          "schedule",
+          "backup_dir_label"
+        ],
+        "type": "object"
+      },
+      "BackupRun": {
+        "additionalProperties": false,
+        "properties": {
+          "cause": {
+            "enum": [
+              "manual",
+              "scheduled",
+              "cli"
+            ],
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "snapshot": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "completed",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "stats": {
+            "additionalProperties": false,
+            "description": "Null while running",
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "copied": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "files": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "linked": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "files",
+              "bytes",
+              "linked",
+              "copied"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cause",
+          "state",
+          "snapshot",
+          "started_at",
+          "finished_at",
+          "stats",
+          "error"
+        ],
+        "type": "object"
+      },
+      "BackupSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "HH:MM in the server time zone, or off",
+            "type": "string"
+          },
+          "next_run_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "next_run_at"
+        ],
+        "type": "object"
+      },
+      "BackupSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "copied": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "files": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "linked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "created_at",
+          "bytes",
+          "files",
+          "linked",
+          "copied"
+        ],
+        "type": "object"
+      },
+      "BackupStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "last_completed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "last_completed_at",
+          "last_state"
         ],
         "type": "object"
       },
@@ -268,6 +591,487 @@
         "required": [
           "name",
           "drafts"
+        ],
+        "type": "object"
+      },
+      "Comment": {
+        "additionalProperties": false,
+        "properties": {
+          "at_second": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "edited_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "fix",
+              "keep",
+              "marker"
+            ],
+            "type": "string"
+          },
+          "link": {
+            "description": "Relative SPA link, /tracks/\u003cid\u003e?t=\u003cs\u003e; empty without at_second",
+            "type": "string"
+          },
+          "section": {
+            "additionalProperties": false,
+            "description": "Section label; null when no timed section covers at_second",
+            "properties": {
+              "confidence": {
+                "format": "double",
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "manual",
+                  "measured",
+                  "plan"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "source",
+              "confidence"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "web",
+              "api",
+              "mcp",
+              "stdio"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "addressed",
+              "resolved",
+              "regressed"
+            ],
+            "type": "string"
+          },
+          "state_changed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Absolute link",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "track_id",
+          "body",
+          "at_second",
+          "link",
+          "url",
+          "section",
+          "kind",
+          "state",
+          "source",
+          "author",
+          "created_at",
+          "updated_at",
+          "edited_at",
+          "state_changed_at",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "CommentPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "ContextBudget": {
+        "additionalProperties": false,
+        "properties": {
+          "chars": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "limit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "chars",
+          "limit",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "ContextBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "_budget": {
+            "$ref": "#/components/schemas/ContextBudget"
+          },
+          "_links": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "format": {
+            "examples": [
+              "mm.context/1"
+            ],
+            "type": "string"
+          },
+          "judgments": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "lineage": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "listening": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "next_actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "perception": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "recipe": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "score": {
+            "additionalProperties": {},
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "track": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "format",
+          "track",
+          "recipe",
+          "provenance",
+          "score",
+          "lineage",
+          "judgments",
+          "perception",
+          "listening",
+          "_links",
+          "next_actions",
+          "_budget"
+        ],
+        "type": "object"
+      },
+      "CreateDraftInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "collection": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": "string"
+          },
+          "request": {
+            "description": "Song request object (id, style or tags, lyrics, cot, seed, abc, cfg_scale)",
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "CreatePairingInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "Label of the device being paired",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreatePlaylistInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "track_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateTokenInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "read",
+                "write",
+                "generate",
+                "admin"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ],
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "CreatedToken": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "token": {
+            "description": "The new token; null on an idempotent replay",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "Device": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "paired_by": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "user_agent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "user_agent",
+          "paired_by",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "DeviceListOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -425,6 +1229,47 @@
         ],
         "type": "object"
       },
+      "DeviceSelf": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "DownloadLink": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "url": {
+            "description": "Signed, relative /media/ URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "type": "object"
+      },
       "DraftDetail": {
         "additionalProperties": false,
         "properties": {
@@ -436,6 +1281,14 @@
           },
           "created_at": {
             "type": "string"
+          },
+          "created_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
+          },
+          "editable": {
+            "description": "false once fulfilled",
+            "type": "boolean"
           },
           "fulfilled_by_track_id": {
             "type": [
@@ -467,6 +1320,10 @@
               "null"
             ]
           },
+          "lint": {
+            "$ref": "#/components/schemas/LintResult",
+            "description": "Full lint of the stored request"
+          },
           "origin": {
             "type": "string"
           },
@@ -491,6 +1348,10 @@
           },
           "request_id": {
             "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
           },
           "sections": {
             "items": {
@@ -530,6 +1391,10 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "updated_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
           }
         },
         "required": [
@@ -549,7 +1414,12 @@
           "fulfilled_by_track_id",
           "group",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "revision",
+          "editable",
+          "created_by",
+          "updated_by",
+          "lint"
         ],
         "type": "object"
       },
@@ -588,6 +1458,13 @@
       "DraftRequest": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "type": "string"
+          },
+          "cfg_scale": {
+            "format": "double",
+            "type": "number"
+          },
           "cot": {
             "type": "string"
           },
@@ -679,6 +1556,14 @@
           "cot": {
             "type": "string"
           },
+          "created_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
+          },
+          "editable": {
+            "description": "false once fulfilled",
+            "type": "boolean"
+          },
           "fulfilled_by_track_id": {
             "type": [
               "string",
@@ -700,6 +1585,10 @@
               "null"
             ]
           },
+          "lint": {
+            "$ref": "#/components/schemas/LintCounts",
+            "description": "Full lint (protocol and songwriting) of the stored request"
+          },
           "origin": {
             "type": "string"
           },
@@ -711,6 +1600,10 @@
           },
           "request_id": {
             "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
           },
           "section_kinds": {
             "items": {
@@ -734,6 +1627,10 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "updated_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
           }
         },
         "required": [
@@ -750,7 +1647,456 @@
           "section_kinds",
           "collections",
           "parent_track_id",
-          "fulfilled_by_track_id"
+          "fulfilled_by_track_id",
+          "revision",
+          "editable",
+          "created_by",
+          "updated_by",
+          "lint"
+        ],
+        "type": "object"
+      },
+      "Export": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "download": {
+            "$ref": "#/components/schemas/DownloadLink"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "jsonl": {
+            "$ref": "#/components/schemas/ExportJSONLInfo"
+          },
+          "kind": {
+            "enum": [
+              "songs_jsonl",
+              "songs_bundle",
+              "playlist_zip"
+            ],
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "zip": {
+            "$ref": "#/components/schemas/ExportZIPInfo"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "sha256",
+          "bytes",
+          "created_at",
+          "download"
+        ],
+        "type": "object"
+      },
+      "ExportABCFile": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "ExportDraftsSel": {
+        "additionalProperties": false,
+        "properties": {
+          "collection": {
+            "type": "string"
+          },
+          "draft_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "group_key": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "status": {
+            "items": {
+              "enum": [
+                "backlog",
+                "fulfilled",
+                "archived"
+              ],
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ExportIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fatal": {
+            "type": "boolean"
+          },
+          "field": {
+            "type": "string"
+          },
+          "line": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "ExportJSONLInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "drafts": {
+            "$ref": "#/components/schemas/ExportDraftsSel"
+          },
+          "filename": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "for_batch": {
+            "description": "Selection source only: make ids unique so yue2 batch accepts the file",
+            "type": "boolean"
+          },
+          "selection": {
+            "enum": [
+              "source",
+              "tracks",
+              "drafts"
+            ],
+            "type": "string"
+          },
+          "source_path": {
+            "description": "Selection source: a path from list_export_sources",
+            "type": "string"
+          },
+          "tracks": {
+            "$ref": "#/components/schemas/ExportTracksSel"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "type": "object"
+      },
+      "ExportJSONLInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "abc_files": {
+            "items": {
+              "$ref": "#/components/schemas/ExportABCFile"
+            },
+            "type": "array"
+          },
+          "content": {
+            "description": "The JSONL text when it is at most 60000 bytes, else null",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generated_rows": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "raw_rows": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "renamed": {
+            "items": {
+              "$ref": "#/components/schemas/ExportRename"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/ExportStyle"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/ExportValidation"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ExportNote"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "raw_rows",
+          "generated_rows",
+          "renamed",
+          "style",
+          "validation",
+          "abc_files",
+          "warnings",
+          "content"
+        ],
+        "type": "object"
+      },
+      "ExportNote": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ExportRename": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "ExportSource": {
+        "additionalProperties": false,
+        "properties": {
+          "first_seen_at": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "jsonl"
+            ],
+            "type": "string"
+          },
+          "lines": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "recipes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "kind",
+          "lines",
+          "recipes",
+          "first_seen_at"
+        ],
+        "type": "object"
+      },
+      "ExportSourcesOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportSource"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ExportStyle": {
+        "additionalProperties": false,
+        "properties": {
+          "ensure_ascii": {
+            "type": "boolean"
+          },
+          "item_sep": {
+            "type": "string"
+          },
+          "key_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key_sep": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_order",
+          "item_sep",
+          "key_sep",
+          "ensure_ascii"
+        ],
+        "type": "object"
+      },
+      "ExportTracksSel": {
+        "additionalProperties": false,
+        "properties": {
+          "min_stars": {
+            "format": "int64",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "playlist_id": {
+            "type": "string"
+          },
+          "status": {
+            "items": {
+              "enum": [
+                "draft",
+                "to_relisten",
+                "final",
+                "discarded"
+              ],
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "track_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ExportValidation": {
+        "additionalProperties": false,
+        "properties": {
+          "fatal": {
+            "type": "boolean"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ExportIssue"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "fatal",
+          "issues"
+        ],
+        "type": "object"
+      },
+      "ExportZIPEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "entry"
+        ],
+        "type": "object"
+      },
+      "ExportZIPInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "missing_mp3": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/ExportZIPEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "tracks",
+          "missing_mp3"
         ],
         "type": "object"
       },
@@ -763,6 +2109,13 @@
           "recorded_at": {
             "$ref": "#/components/schemas/TimeRange"
           },
+          "stars": {
+            "description": "Human star histogram",
+            "items": {
+              "$ref": "#/components/schemas/StarFacet"
+            },
+            "type": "array"
+          },
           "statuses": {
             "items": {
               "$ref": "#/components/schemas/StatusCount"
@@ -774,13 +2127,28 @@
               "$ref": "#/components/schemas/TermCount"
             },
             "type": "array"
+          },
+          "tags": {
+            "description": "Top 50 effective tags",
+            "items": {
+              "$ref": "#/components/schemas/TagFacet"
+            },
+            "type": "array"
+          },
+          "unrated": {
+            "description": "Tracks without a human star rating",
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
           "style_terms",
           "statuses",
           "duration_s",
-          "recorded_at"
+          "recorded_at",
+          "tags",
+          "stars",
+          "unrated"
         ],
         "type": "object"
       },
@@ -1008,6 +2376,81 @@
         ],
         "type": "object"
       },
+      "Issue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fatal": {
+            "type": "boolean"
+          },
+          "field": {
+            "type": "string"
+          },
+          "line": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "type": "object"
+      },
+      "JudgmentCounters": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "open_fix": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rated_critic": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rated_human": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stars_hist": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "description": "Human stars 1..5 to track count",
+            "type": "object"
+          },
+          "tags": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rated_human",
+          "rated_critic",
+          "stars_hist",
+          "comments",
+          "open_fix",
+          "tags"
+        ],
+        "type": "object"
+      },
       "Lineage": {
         "additionalProperties": false,
         "properties": {
@@ -1057,6 +2500,301 @@
           "inferred",
           "rule",
           "siblings"
+        ],
+        "type": "object"
+      },
+      "LintCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warnings": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "errors",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "LintItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "draft_id": {
+            "type": "string"
+          },
+          "request": {
+            "description": "The request object to lint, as sent",
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "LintLanguage": {
+        "additionalProperties": false,
+        "properties": {
+          "detected": {
+            "type": "string"
+          },
+          "tagged": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "detected",
+          "tagged"
+        ],
+        "type": "object"
+      },
+      "LintRecipeInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "batch": {
+            "description": "Also check ids for duplicates across items (default true)",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LintItemIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LintReport": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_errors": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LintResult"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "items",
+          "batch_errors"
+        ],
+        "type": "object"
+      },
+      "LintResult": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_basis": {
+            "type": "string"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "estimated_duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "language": {
+            "$ref": "#/components/schemas/LintLanguage"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "request_id",
+          "hash",
+          "errors",
+          "warnings",
+          "estimated_duration_s",
+          "duration_basis",
+          "language"
+        ],
+        "type": "object"
+      },
+      "ListenEventIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "flac",
+              "mp3"
+            ],
+            "type": "string"
+          },
+          "from_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "description": "Client-generated UUID (UUIDv7); re-sending the same id is harmless",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "start",
+              "segment",
+              "seek",
+              "complete",
+              "skip"
+            ],
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "to_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "track_id",
+          "session_id",
+          "kind",
+          "client_at"
+        ],
+        "type": "object"
+      },
+      "ListenRejected": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code"
+        ],
+        "type": "object"
+      },
+      "ListeningStats": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_rate": {
+            "description": "complete/start, at most 1; null without plays",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "last_played_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plays": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plays",
+          "completion_rate",
+          "last_played_at"
+        ],
+        "type": "object"
+      },
+      "LogListenInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ListenEventIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "type": "object"
+      },
+      "LogListenOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "duplicates": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/ListenRejected"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicates",
+          "rejected"
         ],
         "type": "object"
       },
@@ -1167,6 +2905,42 @@
         ],
         "type": "object"
       },
+      "PairingCodeOut": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "Crockford base32, shown once",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pair_url": {
+            "description": "\u003cpublic url\u003e/pair#\u003ccode\u003e",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "code",
+          "pair_url",
+          "expires_at"
+        ],
+        "type": "object"
+      },
       "PeaksLevel": {
         "additionalProperties": false,
         "properties": {
@@ -1207,6 +2981,170 @@
         "required": [
           "ok",
           "version"
+        ],
+        "type": "object"
+      },
+      "Playlist": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlaylistItem"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updated_by": {
+            "description": "Principal key; masked for agents",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "revision",
+          "hidden",
+          "created_at",
+          "updated_at",
+          "created_by",
+          "updated_by",
+          "items"
+        ],
+        "type": "object"
+      },
+      "PlaylistItem": {
+        "additionalProperties": false,
+        "properties": {
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "track": {
+            "$ref": "#/components/schemas/TrackSummary"
+          }
+        },
+        "required": [
+          "position",
+          "track"
+        ],
+        "type": "object"
+      },
+      "PlaylistRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "PlaylistSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "items_count",
+          "duration_s",
+          "hidden",
+          "revision",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "PlaylistsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlaylistSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PrincipalRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Principal key (kind:id); \"human\" for the operator as seen by an agent",
+            "type": "string"
+          },
+          "kind": {
+            "description": "human, device, agent or system",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name; \"human\" or \"device\" for agents",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name"
         ],
         "type": "object"
       },
@@ -1323,6 +3261,33 @@
         "required": [
           "min",
           "max"
+        ],
+        "type": "object"
+      },
+      "RateTrackInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "stars": {
+            "description": "1..5, or null to clear your rating",
+            "format": "int64",
+            "maximum": 5,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "verdict": {
+            "description": "Short free-text verdict, or null",
+            "maxLength": 280,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "stars"
         ],
         "type": "object"
       },
@@ -1451,6 +3416,33 @@
         ],
         "type": "object"
       },
+      "SetTagsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "add": {
+            "description": "Tags to add (normalised: lower case, single spaces)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "remove": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "Sibling": {
         "additionalProperties": false,
         "properties": {
@@ -1476,20 +3468,55 @@
         ],
         "type": "object"
       },
+      "StarFacet": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stars": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stars",
+          "count"
+        ],
+        "type": "object"
+      },
       "Stats": {
         "additionalProperties": false,
         "properties": {
           "backlog": {
             "$ref": "#/components/schemas/BacklogStats"
           },
+          "backups": {
+            "$ref": "#/components/schemas/BackupStatus"
+          },
           "bandwidth": {
             "$ref": "#/components/schemas/BandwidthStats"
+          },
+          "drafts_by_origin": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
           },
           "imports": {
             "$ref": "#/components/schemas/ImportStats"
           },
+          "judgments": {
+            "$ref": "#/components/schemas/JudgmentCounters"
+          },
           "loudness": {
             "$ref": "#/components/schemas/LoudnessStats"
+          },
+          "playlists": {
+            "format": "int64",
+            "type": "integer"
           },
           "recipes": {
             "$ref": "#/components/schemas/RecipeStats"
@@ -1508,7 +3535,11 @@
           "loudness",
           "bandwidth",
           "storage",
-          "imports"
+          "imports",
+          "judgments",
+          "playlists",
+          "drafts_by_origin",
+          "backups"
         ],
         "type": "object"
       },
@@ -1583,6 +3614,106 @@
         ],
         "type": "object"
       },
+      "TagCount": {
+        "additionalProperties": false,
+        "properties": {
+          "by_source": {
+            "$ref": "#/components/schemas/TagSourceCounts"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tracks": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tracks",
+          "by_source"
+        ],
+        "type": "object"
+      },
+      "TagCountsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TagCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "TagFacet": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "count"
+        ],
+        "type": "object"
+      },
+      "TagRef": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "enum": [
+                "human",
+                "agent",
+                "inherited"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "sources"
+        ],
+        "type": "object"
+      },
+      "TagSourceCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "human": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inherited": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "human",
+          "agent",
+          "inherited"
+        ],
+        "type": "object"
+      },
       "TermCount": {
         "additionalProperties": false,
         "properties": {
@@ -1622,6 +3753,66 @@
         ],
         "type": "object"
       },
+      "TokenInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "TokenListOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TokenInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "TrackDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1637,6 +3828,10 @@
               "integer",
               "null"
             ]
+          },
+          "comments": {
+            "format": "int64",
+            "type": "integer"
           },
           "created_at": {
             "type": "string"
@@ -1654,8 +3849,24 @@
           "lineage": {
             "$ref": "#/components/schemas/Lineage"
           },
+          "listening": {
+            "$ref": "#/components/schemas/ListeningStats"
+          },
+          "open_comments": {
+            "format": "int64",
+            "type": "integer"
+          },
           "origin": {
             "type": "string"
+          },
+          "playlists": {
+            "items": {
+              "$ref": "#/components/schemas/PlaylistRef"
+            },
+            "type": "array"
+          },
+          "rating": {
+            "$ref": "#/components/schemas/TrackRating"
           },
           "recipe": {
             "$ref": "#/components/schemas/RecipeInfo"
@@ -1732,6 +3943,12 @@
             },
             "type": "array"
           },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
+            },
+            "type": "array"
+          },
           "timed": {
             "type": "boolean"
           },
@@ -1785,7 +4002,13 @@
           "sections",
           "timed",
           "analysis",
-          "import"
+          "import",
+          "rating",
+          "tags",
+          "comments",
+          "open_comments",
+          "playlists",
+          "listening"
         ],
         "type": "object"
       },
@@ -1813,6 +4036,98 @@
           "items",
           "total",
           "next_cursor"
+        ],
+        "type": "object"
+      },
+      "TrackRating": {
+        "additionalProperties": false,
+        "properties": {
+          "critic": {
+            "additionalProperties": false,
+            "description": "The agent rating; null when none",
+            "properties": {
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "stars": {
+                "format": "int64",
+                "maximum": 5,
+                "minimum": 1,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "verdict": {
+                "maxLength": 280,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "stars",
+              "verdict",
+              "by",
+              "updated_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "human": {
+            "additionalProperties": false,
+            "description": "The operator rating (canonical); null when none",
+            "properties": {
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "stars": {
+                "format": "int64",
+                "maximum": 5,
+                "minimum": 1,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "verdict": {
+                "maxLength": 280,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "stars",
+              "verdict",
+              "by",
+              "updated_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "human",
+          "critic"
         ],
         "type": "object"
       },
@@ -1887,9 +4202,21 @@
             "format": "int64",
             "type": "integer"
           },
+          "comments": {
+            "format": "int64",
+            "type": "integer"
+          },
           "created_at": {
             "description": "RFC 3339 UTC",
             "type": "string"
+          },
+          "critic_stars": {
+            "description": "The agent's stars",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "duration_s": {
             "format": "double",
@@ -1907,6 +4234,10 @@
               "number",
               "null"
             ]
+          },
+          "open_comments": {
+            "format": "int64",
+            "type": "integer"
           },
           "parent_track_id": {
             "type": [
@@ -1928,10 +4259,25 @@
             "format": "int64",
             "type": "integer"
           },
+          "stars": {
+            "description": "Human stars; null when unrated",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "status": {
             "type": "string"
           },
           "style_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tags": {
+            "description": "Effective tag names",
             "items": {
               "type": "string"
             },
@@ -1970,7 +4316,293 @@
           "bandwidth_hz",
           "root_track_id",
           "parent_track_id",
-          "children_count"
+          "children_count",
+          "stars",
+          "critic_stars",
+          "tags",
+          "comments",
+          "open_comments"
+        ],
+        "type": "object"
+      },
+      "TrackTags": {
+        "additionalProperties": false,
+        "properties": {
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
+            },
+            "type": "array"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "tags"
+        ],
+        "type": "object"
+      },
+      "UpdateCommentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "fix",
+              "keep",
+              "marker"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "resolved",
+              "addressed",
+              "regressed"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateDraftInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "description": "null or empty clears",
+            "maxLength": 40,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_track_id": {
+            "description": "null or empty clears",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request": {
+            "type": "object"
+          },
+          "revision": {
+            "description": "The revision you read; a stale value answers 409 REVISION_CONFLICT",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "backlog",
+              "archived"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "UpdatePlaylistInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "add_track_ids": {
+            "description": "Appended in order; duplicates allowed",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "track_ids": {
+            "description": "Full ordered replacement; exclusive with add_track_ids",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "UpdateTrackInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "draft",
+              "to_relisten",
+              "final",
+              "discarded"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UploadBatchInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "abc_files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "abc_path to ABC text (at most 50 files, 1 MiB each)",
+            "type": "object"
+          },
+          "allow_partial": {
+            "description": "Create the clean lines even when others fail",
+            "type": "boolean"
+          },
+          "collection": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "jsonl": {
+            "description": "songs.jsonl text, one request per line (at most 1000 lines, 4 MiB)",
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jsonl"
+        ],
+        "type": "object"
+      },
+      "UploadLineIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "line": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "code",
+          "field"
+        ],
+        "type": "object"
+      },
+      "UploadResult": {
+        "additionalProperties": false,
+        "properties": {
+          "collection": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "drafts": {
+            "items": {
+              "$ref": "#/components/schemas/UploadedDraft"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/UploadLineIssue"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/UploadLineIssue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "drafts",
+          "errors",
+          "warnings",
+          "collection"
+        ],
+        "type": "object"
+      },
+      "UploadedDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "id",
+          "request_id",
+          "label"
         ],
         "type": "object"
       },
@@ -2030,7 +4662,8 @@
             "description": "Principal kind",
             "enum": [
               "human",
-              "agent"
+              "agent",
+              "device"
             ],
             "type": "string"
           },
@@ -2046,7 +4679,7 @@
             "type": "array"
           },
           "via": {
-            "description": "How the principal authenticated: proxy, local or token",
+            "description": "How the principal authenticated: proxy, local, token or device",
             "type": "string"
           }
         },
@@ -2066,6 +4699,289 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/audit": {
+      "get": {
+        "description": "Recorded agent calls and operator mutations, newest first, filtered by principal, operation, time and status. Never contains request bodies.",
+        "operationId": "get_audit",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "principal_kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent",
+                  "system"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A Principal.Key(); agents may only pass agent: or device: keys",
+            "explode": false,
+            "in": "query",
+            "name": "principal_id",
+            "schema": {
+              "description": "A Principal.Key(); agents may only pass agent: or device: keys",
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "op",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "exclude_op",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339",
+            "explode": false,
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "description": "RFC 3339",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "status_min",
+            "schema": {
+              "format": "int64",
+              "maximum": 599,
+              "minimum": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Read the audit log",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings/audit",
+          "human_only": false
+        }
+      }
+    },
+    "/api/backups": {
+      "get": {
+        "description": "The newest backup runs, the snapshots on disk and the daily schedule.",
+        "operationId": "list_backups",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupListing"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List backups",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings/backups",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Starts a database and file snapshot in the background and returns the running run; poll list_backups. 409 while another backup runs.",
+        "operationId": "create_backup",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupRun"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Start a backup",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings/backups",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/comments/{id}": {
+      "patch": {
+        "description": "Edits the body or kind, hides it, or changes its state (open, resolved; reopen). Authors and the operator may edit; agents only their own.",
+        "operationId": "update_comment",
+        "parameters": [
+          {
+            "description": "Comment id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Comment id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a comment",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/device-probe": {
       "get": {
         "description": "A signed link to a 3 s 24-bit/48 kHz FLAC test file and the expectations a client checks to learn whether the device decodes and seeks FLAC.",
@@ -2219,9 +5135,53 @@
         }
       }
     },
+    "/api/devices/self/revoke": {
+      "post": {
+        "description": "Revokes the paired device that made this call and clears its cookie. Other callers get 403 NOT_A_DEVICE.",
+        "operationId": "revoke_own_device",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSelf"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "description": "Clears the device cookie",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Unpair this device",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:device-self-service",
+          "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
     "/api/drafts": {
       "get": {
-        "description": "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin.",
+        "description": "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.",
         "operationId": "list_drafts",
         "parameters": [
           {
@@ -2322,11 +5282,134 @@
           "ui": "/backlog",
           "human_only": false
         }
+      },
+      "post": {
+        "description": "Stores a new backlog draft from a song request. Drafts are always protocol-valid; songwriting warnings are returned, not blocking.",
+        "operationId": "create_draft",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftDetail"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a draft",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/backlog/new",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/drafts/batch": {
+      "post": {
+        "description": "Creates one draft per line of a songs.jsonl text (at most 1000 lines, 6 MiB in total). All-or-nothing unless allow_partial is set.",
+        "operationId": "upload_batch_jsonl",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadBatchInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Upload a songs.jsonl batch",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/backlog/upload",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
       }
     },
     "/api/drafts/{id}": {
       "get": {
-        "description": "One draft with its request, lyric structure, collections, group and recipe sources. Private reference metadata is returned to human users only; agents see has_reference.",
+        "description": "One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
         "operationId": "get_draft",
         "parameters": [
           {
@@ -2368,6 +5451,209 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/backlog/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Edits a draft's request, label, status (backlog, archived) or parent track under optimistic locking: send the revision you read.",
+        "operationId": "update_draft",
+        "parameters": [
+          {
+            "description": "Draft id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Draft id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDraftInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a draft",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/backlog/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/exports/jsonl": {
+      "post": {
+        "description": "Exports an imported source file, a track selection or drafts as a songs.jsonl that yue2 batch accepts, with the validator result and a signed download link. Small files are also returned inline.",
+        "operationId": "export_jsonl",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportJSONLInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Export"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Export songs.jsonl",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/export",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/exports/sources": {
+      "get": {
+        "description": "The imported songs.jsonl paths that export_jsonl can reproduce byte for byte, with line and recipe counts.",
+        "operationId": "list_export_sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSourcesOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List exportable source files",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/export",
+          "human_only": false
+        }
+      }
+    },
+    "/api/exports/{id}": {
+      "get": {
+        "description": "An earlier export with a fresh download link; 410 once the file was swept (create a new export).",
+        "operationId": "get_export",
+        "parameters": [
+          {
+            "description": "Export id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Export id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Export"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an export",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/export",
           "human_only": false
         }
       }
@@ -2554,6 +5840,52 @@
         }
       }
     },
+    "/api/listen-events": {
+      "post": {
+        "description": "Records player events (start, segment, seek, complete, skip) with client-generated ids; re-sending an id is harmless.",
+        "operationId": "log_listen_events",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogListenInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogListenOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Log listen events",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "description": "Returns the identity, scopes and authentication path of the caller.",
@@ -2622,6 +5954,325 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/playlists": {
+      "get": {
+        "description": "Playlists with their track counts and total duration; hidden ones only with include_hidden.",
+        "operationId": "list_playlists",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List playlists",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/playlists",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Creates a playlist, optionally with an ordered list of track ids (at most 1000).",
+        "operationId": "create_playlist",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlaylistInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a playlist",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/playlists",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/playlists/{id}": {
+      "get": {
+        "description": "One playlist with its tracks in order.",
+        "operationId": "get_playlist",
+        "parameters": [
+          {
+            "description": "Playlist id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Playlist id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a playlist",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/playlists/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Renames, hides, replaces (track_ids) or extends (add_track_ids) a playlist under optimistic locking: send the revision you read.",
+        "operationId": "update_playlist",
+        "parameters": [
+          {
+            "description": "Playlist id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Playlist id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlaylistInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a playlist",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/playlists/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/playlists/{id}/exports": {
+      "post": {
+        "description": "Builds a ZIP of the playlist's MP3 files with ID3 tags (at most 200 tracks, 2 GiB) and returns a signed download link.",
+        "operationId": "export_playlist_zip",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Playlist id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Playlist id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Export"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Export a playlist as a ZIP",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/playlists/:id",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/recipes/lint": {
+      "post": {
+        "description": "Checks up to 200 requests against the protocol rules and the songwriting rules (sections, line counts, repeat markers, language, estimated duration, duplicates). Read-only; nothing is stored.",
+        "operationId": "lint_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LintRecipeInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LintReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Lint song requests",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/backlog/:id",
           "human_only": false
         }
       }
@@ -2698,9 +6349,117 @@
         }
       }
     },
+    "/api/tags": {
+      "get": {
+        "description": "Every active tag with its track count and counts per source.",
+        "operationId": "list_tags",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagCountsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List tags",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tokens": {
+      "get": {
+        "description": "Token names, prefixes, scopes and last use. Never the tokens themselves.",
+        "operationId": "list_tokens",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenListOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List API tokens",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/tokens",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tokens/self/revoke": {
+      "post": {
+        "description": "Revokes the token that made this call. Needs only read scope so any token can retire itself; other callers get 403 NOT_A_TOKEN.",
+        "operationId": "revoke_own_token",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke the calling token",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "none:agent-self-service",
+          "human_only": false
+        }
+      }
+    },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -2812,19 +6571,65 @@
             }
           },
           {
-            "description": "Default recorded_desc, or relevance when q is set",
+            "description": "Human stars at least; exclusive with unrated",
+            "explode": false,
+            "in": "query",
+            "name": "min_stars",
+            "schema": {
+              "description": "Human stars at least; exclusive with unrated",
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "No human rating (or a cleared one); exclusive with min_stars",
+            "explode": false,
+            "in": "query",
+            "name": "unrated",
+            "schema": {
+              "description": "No human rating (or a cleared one); exclusive with min_stars",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable tag; all must match",
+            "explode": true,
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "description": "Repeatable tag; all must match",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 5,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_open_comments",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Default recorded_desc, or relevance when q is set",
+              "description": "Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last",
               "enum": [
                 "recorded_desc",
                 "recorded_asc",
                 "duration_desc",
                 "duration_asc",
                 "title_asc",
-                "relevance"
+                "relevance",
+                "stars_desc"
               ],
               "type": "string"
             }
@@ -2923,6 +6728,321 @@
           }
         },
         "summary": "Get a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Changes the title and/or the status (draft, to_relisten, final, discarded). The audio is never touched.",
+        "operationId": "update_track",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrackInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a track",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/comments": {
+      "get": {
+        "description": "A track's comments, newest first or by time, filtered by state and kind. Pages are capped in size; follow next_cursor.",
+        "operationId": "list_comments",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "open",
+                  "addressed",
+                  "resolved",
+                  "regressed"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "note",
+                  "fix",
+                  "keep",
+                  "marker"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "default": "newest",
+              "enum": [
+                "newest",
+                "time"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List comments",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Adds a comment, optionally at a second of the track (kind note, fix, keep or marker). The section label is computed from timed sections only.",
+        "operationId": "add_comment",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCommentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Comment on a track",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/tracks/{id}/context": {
+      "get": {
+        "description": "Everything needed to critique and regenerate one take in a single size-bounded document: recipe, score, lineage, comments, perception and next actions. The _budget key reports the size.",
+        "operationId": "get_track_context",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Parts to add and protect from trimming",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "description": "Parts to add and protect from trimming",
+              "items": {
+                "enum": [
+                  "score",
+                  "lyrics",
+                  "comments"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextBundle"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a track's context bundle",
         "x-mm": {
           "scope": "read",
           "cost": "free",
@@ -3038,6 +7158,385 @@
           "mcp": "generic",
           "ui": "/tracks/:id",
           "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/rating": {
+      "put": {
+        "description": "Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
+        "operationId": "rate_track",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateTrackInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackRating"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rate a track",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/tags": {
+      "patch": {
+        "description": "Adds and removes free-form tags. Tags normalise to lower case; a human removal wins over agent tags.",
+        "operationId": "set_tags",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTagsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackTags"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Add or remove tags",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/human/api/devices": {
+      "get": {
+        "description": "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
+        "operationId": "list_devices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceListOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List paired devices",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/devices",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/devices/pairing-codes": {
+      "post": {
+        "description": "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. Operator only.",
+        "operationId": "create_pairing_code",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePairingInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCodeOut"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a pairing code",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/devices",
+          "human_only": true,
+          "idempotency": "create",
+          "secret_fields": [
+            "code",
+            "pair_url"
+          ]
+        }
+      }
+    },
+    "/human/api/devices/{id}/revoke": {
+      "post": {
+        "description": "Unpairs a device by id. Repeating the call returns the same result. Operator only.",
+        "operationId": "revoke_device",
+        "parameters": [
+          {
+            "description": "Device id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Device id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a paired device",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/devices",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/tokens": {
+      "post": {
+        "description": "Mints a token with the given scopes. The token is shown once. Operator only.",
+        "operationId": "create_token",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create an API token",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/tokens",
+          "human_only": true,
+          "idempotency": "create",
+          "secret_fields": [
+            "token"
+          ]
+        }
+      }
+    },
+    "/human/api/tokens/{id}/revoke": {
+      "post": {
+        "description": "Revokes any token by id. Repeating the call returns the same result. Operator only.",
+        "operationId": "revoke_token",
+        "parameters": [
+          {
+            "description": "Token id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Token id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke an API token",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/tokens",
+          "human_only": true
         }
       }
     }

@@ -58,6 +58,10 @@ type NewMutation struct {
 type Fulfilment struct {
 	OwnDraftID string
 	CoreDrafts []string // drafts fulfilled through the core_hash fallback
+	// EditedSkipped lists the drafts whose recipe matched (own recipe or
+	// core_hash) but which a human edited (revision > 1): they stay in the
+	// backlog untouched (M2a C27).
+	EditedSkipped []string
 }
 
 // NewTake is everything one take writes, in one transaction.
@@ -300,6 +304,15 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 			return fmt.Errorf("library: insert mutation: %w", err)
 		}
 	}
+	if t.ParentTrackID != "" && !s.legacyV2 {
+		// Tag inheritance (C27): a child starts with its parent's human and inherited tags.
+		if err := execTx(ctx, tx, `INSERT INTO track_tags(track_id, tag_id, source, inherited_from, principal_id, created_at, updated_at)
+			SELECT ?, tag_id, 'inherited', ?, 'system:inherit', ?, ? FROM track_tags
+			WHERE track_id = ? AND source IN ('human','inherited') AND removed_at IS NULL GROUP BY tag_id ON CONFLICT DO NOTHING`,
+			t.ID, t.ParentTrackID, now, now, t.ParentTrackID); err != nil {
+			return fmt.Errorf("library: inherit tags: %w", err)
+		}
+	}
 	return s.fulfil(ctx, tx, t, coreHash, now)
 }
 
@@ -383,20 +396,37 @@ func (s *Service) insertScoreAndSections(ctx context.Context, tx *sql.Tx, t NewT
 }
 
 func (s *Service) fulfil(ctx context.Context, tx *sql.Tx, t NewTake, coreHash, now string) error {
+	revOne, revCol := ` AND revision = 1`, `d.revision`
+	if s.legacyV2 {
+		revOne, revCol = ``, `1`
+	}
+	// Edited drafts (revision > 1) are never touched by an import (C27): they are
+	// reported in EditedSkipped and stay in the backlog.
 	var own string
-	err := tx.QueryRowContext(ctx, `SELECT id FROM recipe_drafts WHERE source_recipe_id=? AND status='backlog'`, t.RecipeID).Scan(&own)
+	err := tx.QueryRowContext(ctx, `SELECT id FROM recipe_drafts WHERE source_recipe_id=? AND status='backlog'`+revOne, t.RecipeID).Scan(&own)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("library: find own draft: %w", err)
 	}
-	if own != "" { // C11 form, verbatim
-		if _, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=? WHERE id=? AND status='backlog'`, t.ID, now, own); err != nil {
+	if own != "" { // C11 form, verbatim, plus the revision guard
+		if _, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=? WHERE id=? AND status='backlog'`+revOne, t.ID, now, own); err != nil {
 			return fmt.Errorf("library: fulfil draft: %w", err)
+		}
+	}
+	var skipped []string
+	if own == "" && !s.legacyV2 {
+		var edited string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM recipe_drafts WHERE source_recipe_id=? AND status='backlog' AND revision > 1`, t.RecipeID).Scan(&edited)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("library: find edited draft: %w", err)
+		}
+		if edited != "" {
+			skipped = append(skipped, edited)
 		}
 	}
 	if t.Out != nil {
 		t.Out.OwnDraftID = own
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT d.id FROM recipe_drafts d JOIN recipes r ON r.id = d.source_recipe_id
+	rows, err := tx.QueryContext(ctx, `SELECT d.id, `+revCol+` FROM recipe_drafts d JOIN recipes r ON r.id = d.source_recipe_id
 		WHERE d.status='backlog' AND r.core_hash = ? AND r.id <> ? ORDER BY d.id`, coreHash, t.RecipeID)
 	if err != nil {
 		return fmt.Errorf("library: core match: %w", err)
@@ -404,9 +434,14 @@ func (s *Service) fulfil(ctx context.Context, tx *sql.Tx, t NewTake, coreHash, n
 	var ids []string
 	for rows.Next() {
 		var id string
-		if err := rows.Scan(&id); err != nil {
+		var rev int
+		if err := rows.Scan(&id, &rev); err != nil {
 			_ = rows.Close()
 			return err
+		}
+		if rev > 1 {
+			skipped = append(skipped, id)
+			continue
 		}
 		ids = append(ids, id)
 	}
@@ -415,12 +450,13 @@ func (s *Service) fulfil(ctx context.Context, tx *sql.Tx, t NewTake, coreHash, n
 	}
 	for _, id := range ids {
 		if err := execTx(ctx, tx, `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=?
-			WHERE id=? AND status='backlog'`, t.ID, now, id); err != nil {
+			WHERE id=? AND status='backlog'`+revOne, t.ID, now, id); err != nil {
 			return fmt.Errorf("library: fulfil core draft: %w", err)
 		}
 	}
 	if t.Out != nil {
 		t.Out.CoreDrafts = ids
+		t.Out.EditedSkipped = skipped
 	}
 	return nil
 }
@@ -505,7 +541,8 @@ func (s *Service) FinishRun(ctx context.Context, runID, state string, summary, r
 }
 
 // RelinkVariantiMothers fills NULL mother links of varianti drafts once the
-// mother (a unique lineage root with the same group key) exists.
+// mother (a unique lineage root with the same group key) exists. Edited drafts
+// (revision > 1) are never touched (C27).
 func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) {
 	roots := map[string]map[string]bool{} // group key -> root track ids
 	rows, err := tx.QueryContext(ctx, `SELECT t.root_track_id, r.request_id FROM tracks t JOIN recipes r ON r.id = t.recipe_id`)
@@ -527,7 +564,7 @@ func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, e
 	if err := rows.Close(); err != nil {
 		return 0, err
 	}
-	rows, err = tx.QueryContext(ctx, `SELECT id, group_key FROM recipe_drafts WHERE origin='varianti_import' AND parent_track_id IS NULL AND group_key IS NOT NULL`)
+	rows, err = tx.QueryContext(ctx, `SELECT id, group_key FROM recipe_drafts WHERE origin='varianti_import' AND parent_track_id IS NULL AND group_key IS NOT NULL AND revision = 1`)
 	if err != nil {
 		return 0, err
 	}
@@ -551,7 +588,7 @@ func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, e
 	n := 0
 	now := s.nowStr()
 	for _, l := range links {
-		res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL`, l.mother, now, l.draft)
+		res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL AND revision = 1`, l.mother, now, l.draft)
 		if err != nil {
 			return n, fmt.Errorf("library: relink mother: %w", err)
 		}

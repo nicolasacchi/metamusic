@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 	"uuid"
 
@@ -36,6 +37,10 @@ const (
 	argonThreads = 2
 	argonKeyLen  = 32
 
+	// Test-only cost (see UseCheapHashForTests); never the default.
+	cheapArgonTime   = 1
+	cheapArgonMemory = 8 // KiB
+
 	SessionCookie     = "mm_session"
 	HostSessionCookie = "__Host-mm_session" // used when PublicURL is https: sibling hosts cannot plant or shadow it
 	maxSessionCookies = 4                   // duplicate session cookies examined per request
@@ -43,8 +48,9 @@ const (
 	maxPendingLogins  = 16 // login attempts in flight (hasher queue + failure delay); more get 503 at once
 	maxFailBackoff    = 32 // cap on the failure-delay multiplier
 	sessionTTL        = 12 * time.Hour
-	slideAfter        = 5 * time.Minute // slide/re-issue only when this much of the TTL has elapsed
-	maxHashers        = 2               // concurrent argon2id computations (64 MiB each)
+	stepUpWindow      = 10 * time.Minute // a password confirmation unlocks /human/ for this long
+	slideAfter        = 5 * time.Minute  // slide/re-issue only when this much of the TTL has elapsed
+	maxHashers        = 2                // concurrent argon2id computations (64 MiB each)
 )
 
 // ErrBusy is returned when the caller's context ends while waiting for a hashing slot.
@@ -114,6 +120,9 @@ func (l *LocalAuth) succeeded() {
 	<-l.failSem
 }
 
+// UseClock replaces the clock (app.Build hands it the rig clock; tests inject fakes).
+func (l *LocalAuth) UseClock(now func() time.Time) { l.now = now }
+
 func NewLocalAuth(st *store.Store, key []byte, publicURL string) *LocalAuth {
 	la := &LocalAuth{
 		st: st, key: key,
@@ -157,13 +166,30 @@ func (l *LocalAuth) withHasher(ctx context.Context, f func()) error {
 	return nil
 }
 
+// hashCost is the argon2id (time, memory KiB) used for NEW hashes. The production default is
+// argonTime/argonMemory; verification always uses the parameters stored in the PHC string.
+var hashCost = struct{ time, memory uint32 }{argonTime, argonMemory}
+
+// UseCheapHashForTests lowers the cost of newly created hashes so tests that log in many times
+// stay fast. It must be called from TestMain (or a test helper run before any hashing); the
+// production default is unchanged and pinned by TestProductionHashParams.
+func UseCheapHashForTests() {
+	cheapOnce.Do(func() { hashCost.time, hashCost.memory = cheapArgonTime, cheapArgonMemory })
+}
+
+var cheapOnce sync.Once
+
 func hashPassword(pw string) (string, error) {
+	return hashPasswordWith(pw, hashCost.time, hashCost.memory)
+}
+
+func hashPasswordWith(pw string, t, m uint32) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	sum := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
-	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, argonMemory, argonTime, argonThreads,
+	sum := argon2.IDKey([]byte(pw), salt, t, m, argonThreads, argonKeyLen)
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, m, t, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(sum)), nil
 }
 
@@ -270,7 +296,8 @@ func (l *LocalAuth) VerifySession(ctx context.Context, cookieValue string) (Prin
 	}
 	h := mac(l.key, cookieValue)
 	var id, exp string
-	err := l.st.R.QueryRowContext(ctx, `SELECT id,expires_at FROM human_sessions WHERE hmac_hash=?`, h).Scan(&id, &exp)
+	var stepUp sql.NullString
+	err := l.st.R.QueryRowContext(ctx, `SELECT id,expires_at,step_up_at FROM human_sessions WHERE hmac_hash=?`, h).Scan(&id, &exp, &stepUp)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, ErrInvalidSession
 	}
@@ -293,7 +320,87 @@ func (l *LocalAuth) VerifySession(ctx context.Context, cookieValue string) (Prin
 	if expires.Sub(n) < sessionTTL-slideAfter {
 		_, _ = l.st.W.ExecContext(ctx, `UPDATE human_sessions SET expires_at=? WHERE id=?`, l.ts(n.Add(sessionTTL)), id)
 	}
-	return humanPrincipal(user, "local"), nil
+	p := humanPrincipal(user, "local")
+	if t, perr := time.Parse(time.RFC3339, stepUp.String); stepUp.Valid && perr == nil {
+		p.StepUpAt = t
+	}
+	return p, nil
+}
+
+// StepUpFresh reports whether p confirmed its password within the step-up
+// window, by this instance's clock.
+func (l *LocalAuth) StepUpFresh(p Principal) bool {
+	return !p.StepUpAt.IsZero() && l.now().Sub(p.StepUpAt) <= stepUpWindow
+}
+
+// StepUp verifies the operator's password for the session behind cookieValue
+// and records the confirmation (D-M2a-13). It is bounded like Login.
+func (l *LocalAuth) StepUp(ctx context.Context, cookieValue, password string) error {
+	if cookieValue == "" {
+		return ErrInvalidSession
+	}
+	var id, exp, hash string
+	err := l.st.R.QueryRowContext(ctx,
+		`SELECT s.id, s.expires_at, a.password_hash FROM human_sessions s, human_account a WHERE s.hmac_hash=? AND a.id=1`,
+		mac(l.key, cookieValue)).Scan(&id, &exp, &hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrInvalidSession
+	}
+	if err != nil {
+		return fmt.Errorf("step-up: %w", err)
+	}
+	n := l.now()
+	if expires, perr := time.Parse(time.RFC3339, exp); perr != nil || !n.Before(expires) {
+		return ErrInvalidSession
+	}
+	var ok bool
+	if err := l.withHasher(ctx, func() { ok = checkPassword(hash, password) }); err != nil {
+		return err
+	}
+	if !ok {
+		return ErrBadCredentials
+	}
+	if _, err := l.st.W.ExecContext(ctx, `UPDATE human_sessions SET step_up_at=? WHERE id=?`, l.ts(n), id); err != nil {
+		return fmt.Errorf("step-up: %w", err)
+	}
+	return nil
+}
+
+const defaultNext = "/human/tokens"
+
+// safeNext confines a post-step-up redirect to the /human/ area: it must
+// start with /human/ and contain no "//", backslash or control character.
+func safeNext(next string) string {
+	if !strings.HasPrefix(next, "/human/") || strings.Contains(next, "//") || strings.Contains(next, `\`) {
+		return defaultNext
+	}
+	for _, r := range next {
+		if unicode.IsControl(r) {
+			return defaultNext
+		}
+	}
+	return next
+}
+
+const stepUpPage = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>metamusic - confirm password</title></head>
+<body><main><h1>Confirm your password</h1><p>This area needs a recent confirmation.</p>%s
+<form method="post" action="/auth/step-up">
+<input type="hidden" name="next" value="%s">
+<label>Password <input name="password" type="password" autocomplete="current-password" required autofocus></label>
+<button type="submit">Confirm</button></form></main></body></html>`
+
+func writeStepUp(w http.ResponseWriter, status int, next, msg string) {
+	if msg != "" {
+		msg = `<p role="alert">` + html.EscapeString(msg) + `</p>`
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.WriteHeader(status)
+	fmt.Fprintf(w, stepUpPage, msg, html.EscapeString(next))
 }
 
 func (l *LocalAuth) Logout(ctx context.Context, cookieValue string) error {
@@ -378,6 +485,48 @@ func (l *LocalAuth) Handler() http.Handler {
 		}
 		http.SetCookie(w, l.cookie(cv, int(sessionTTL.Seconds())))
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})))
+	mux.HandleFunc("GET /auth/step-up", func(w http.ResponseWriter, r *http.Request) {
+		writeStepUp(w, 200, safeNext(r.URL.Query().Get("next")), "")
+	})
+	mux.Handle("POST /auth/step-up", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if err := r.ParseForm(); err != nil {
+			writeStepUp(w, http.StatusBadRequest, defaultNext, "Bad request.")
+			return
+		}
+		next := safeNext(r.PostForm.Get("next"))
+		if !l.admit() {
+			w.Header().Set("Retry-After", "1")
+			writeStepUp(w, http.StatusServiceUnavailable, next, "Server busy, try again.")
+			return
+		}
+		defer l.release()
+		err := ErrInvalidSession
+		for i, c := range r.CookiesNamed(l.CookieName()) {
+			if i >= maxSessionCookies {
+				break
+			}
+			if err = l.StepUp(r.Context(), c.Value, r.PostForm.Get("password")); !errors.Is(err, ErrInvalidSession) {
+				break
+			}
+		}
+		switch {
+		case errors.Is(err, ErrInvalidSession):
+			http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		case errors.Is(err, ErrBadCredentials):
+			l.penalize(r.Context())
+			writeStepUp(w, http.StatusUnauthorized, next, "Invalid password.")
+		case errors.Is(err, ErrBusy), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			w.Header().Set("Retry-After", "1")
+			writeStepUp(w, http.StatusServiceUnavailable, next, "Server busy, try again.")
+		case err != nil:
+			slog.Error("step-up failed", "err", err)
+			writeStepUp(w, http.StatusInternalServerError, next, "Server error.")
+		default:
+			l.succeeded()
+			http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: next passed safeNext: a /human/ path, no "//", backslash or control character
+		}
 	})))
 	mux.Handle("POST /auth/logout", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for i, c := range r.CookiesNamed(l.CookieName()) {

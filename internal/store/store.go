@@ -27,6 +27,13 @@ func dsn(path string, writer bool) string {
 
 // Open opens (creating if needed) the database at path and applies migrations.
 func Open(ctx context.Context, path string) (*Store, error) {
+	if templateEnabled.Load() {
+		seedFromTemplate(ctx, path)
+	}
+	return openRaw(ctx, path)
+}
+
+func openRaw(ctx context.Context, path string) (*Store, error) {
 	w, err := sql.Open("sqlite", dsn(path, true))
 	if err != nil {
 		return nil, fmt.Errorf("store: open writer: %w", err)

@@ -57,6 +57,7 @@ type plannedDraft struct {
 	mother     trackRef
 	noMother   bool // mapping said "-": no mother, no warning
 	fulfilled  bool
+	edited     bool // a human edited the stored draft (revision > 1): imports leave it alone (M2a C27)
 }
 
 // plannedColl is a draft collection.
@@ -350,6 +351,7 @@ func (b *builder) placeDrafts() {
 			if ex, ok := b.snap.Drafts[r.dbID]; ok {
 				d.existingID = ex.ID
 				d.origin = ex.Origin
+				d.edited = ex.Revision > 1
 			}
 		}
 		d.create = d.existingID == ""
@@ -382,7 +384,7 @@ func (b *builder) planMothers() {
 		if d.origin != "varianti_import" {
 			continue
 		}
-		if d.existingID != "" && b.snap.Drafts[d.r.dbID].ParentTrackID != "" {
+		if d.existingID != "" && (b.snap.Drafts[d.r.dbID].ParentTrackID != "" || d.edited) {
 			continue
 		}
 		if row := b.mapping.Drafts[d.r.reqID()]; row != nil && row.Parent != "" {
@@ -425,11 +427,11 @@ func (b *builder) planMothers() {
 func (b *builder) predictFulfilment() {
 	for _, t := range b.takes {
 		r := t.recipe
-		if r.draft != nil && !r.draft.fulfilled {
+		if r.draft != nil && !r.draft.fulfilled && !r.draft.edited {
 			r.draft.fulfilled = true
 		}
 		for _, o := range b.recipeList {
-			if o == r || o.draft == nil || o.draft.fulfilled || o.parsed.CoreHash != r.parsed.CoreHash {
+			if o == r || o.draft == nil || o.draft.fulfilled || o.draft.edited || o.parsed.CoreHash != r.parsed.CoreHash {
 				continue
 			}
 			o.draft.fulfilled = true

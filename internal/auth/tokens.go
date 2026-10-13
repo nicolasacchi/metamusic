@@ -42,10 +42,16 @@ type TokenInfo struct {
 type TokenStore struct {
 	st  *store.Store
 	key []byte
+	now func() time.Time
 }
 
-func NewTokenStore(st *store.Store, key []byte) *TokenStore {
-	return &TokenStore{st: st, key: key}
+// NewTokenStore returns a store whose timestamps come from now (time.Now in
+// production, the test clock in tests).
+func NewTokenStore(st *store.Store, key []byte, now func() time.Time) *TokenStore {
+	if now == nil {
+		now = time.Now
+	}
+	return &TokenStore{st: st, key: key, now: now}
 }
 
 func mac(key []byte, s string) string {
@@ -56,7 +62,7 @@ func mac(key []byte, s string) string {
 
 const touchInterval = time.Minute // minimum gap between last_used_at writes per token
 
-func now() string { return time.Now().UTC().Format(time.RFC3339) }
+func (t *TokenStore) ts() string { return t.now().UTC().Format(time.RFC3339) }
 
 func (t *TokenStore) Create(ctx context.Context, name string, scopes []Scope) (string, string, error) {
 	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
@@ -81,7 +87,7 @@ func (t *TokenStore) Create(ctx context.Context, name string, scopes []Scope) (s
 	}
 	_, err := t.st.W.ExecContext(ctx,
 		`INSERT INTO api_tokens(id,name,prefix,hmac_hash,scopes,created_at) VALUES(?,?,?,?,?,?)`,
-		id, name, plain[4:12], mac(t.key, plain), strings.Join(ss, ","), now())
+		id, name, plain[4:12], mac(t.key, plain), strings.Join(ss, ","), t.ts())
 	if err != nil {
 		return "", "", fmt.Errorf("create token: %w", err)
 	}
@@ -116,7 +122,7 @@ func (t *TokenStore) Verify(ctx context.Context, plaintext string) (Principal, e
 	// Best effort bookkeeping: decided in Go from the reader-pool value so the
 	// single writer connection is only touched when a write is actually due,
 	// and then only under a short bounded context.
-	n := time.Now().UTC()
+	n := t.now().UTC()
 	if lu, perr := time.Parse(time.RFC3339, lastUsed.String); !lastUsed.Valid || perr != nil || n.Sub(lu) >= touchInterval {
 		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 250*time.Millisecond)
 		_, _ = t.st.W.ExecContext(wctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, n.Format(time.RFC3339), id)
@@ -146,9 +152,27 @@ func (t *TokenStore) List(ctx context.Context) ([]TokenInfo, error) {
 	return out, rows.Err()
 }
 
+// Get returns one token's metadata (never hash material); ErrNotFound if absent.
+func (t *TokenStore) Get(ctx context.Context, id string) (TokenInfo, error) {
+	var ti TokenInfo
+	var scopes string
+	var lu, rv sql.NullString
+	err := t.st.R.QueryRowContext(ctx,
+		`SELECT id,name,prefix,scopes,created_at,last_used_at,revoked_at FROM api_tokens WHERE id=?`, id).
+		Scan(&ti.ID, &ti.Name, &ti.Prefix, &scopes, &ti.CreatedAt, &lu, &rv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return TokenInfo{}, ErrNotFound
+	}
+	if err != nil {
+		return TokenInfo{}, err
+	}
+	ti.Scopes, ti.LastUsedAt, ti.RevokedAt = splitScopes(scopes), lu.String, rv.String
+	return ti, nil
+}
+
 func (t *TokenStore) Revoke(ctx context.Context, id string) error {
 	res, err := t.st.W.ExecContext(ctx,
-		`UPDATE api_tokens SET revoked_at=COALESCE(revoked_at,?) WHERE id=?`, now(), id)
+		`UPDATE api_tokens SET revoked_at=COALESCE(revoked_at,?) WHERE id=?`, t.ts(), id)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
@@ -34,6 +36,13 @@ type TrackSummary struct {
 	RootTrackID    string   `json:"root_track_id"`
 	ParentTrackID  *string  `json:"parent_track_id"`
 	ChildrenCount  int      `json:"children_count"`
+
+	// M2a (C38)
+	Stars        *int     `json:"stars" doc:"Human stars; null when unrated"`
+	CriticStars  *int     `json:"critic_stars" doc:"The agent's stars"`
+	Tags         []string `json:"tags" nullable:"false" doc:"Effective tag names"`
+	Comments     int      `json:"comments"`
+	OpenComments int      `json:"open_comments"`
 }
 
 // TrackPage is one page of search results.
@@ -52,6 +61,10 @@ type SearchParams struct {
 	RecordedFrom, RecordedTo   string
 	HasScore, Truncated        *bool
 	RootTrackID                string
+	MinStars                   *int     // human stars at least (M2a); exclusive with Unrated
+	Unrated                    bool     // no human rating row, or one with stars NULL
+	Tags                       []string // AND, normalised names
+	HasOpenComments            *bool
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -59,7 +72,7 @@ type SearchParams struct {
 
 var trackStatuses = []string{"draft", "to_relisten", "final", "discarded"}
 
-var trackSorts = []string{"recorded_desc", "recorded_asc", "duration_desc", "duration_asc", "title_asc", "relevance"}
+var trackSorts = []string{"recorded_desc", "recorded_asc", "duration_desc", "duration_asc", "title_asc", "relevance", "stars_desc"}
 
 // parseWhen accepts an RFC 3339 date-time or a plain date. A date as an upper
 // bound covers the whole day.
@@ -85,25 +98,54 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   (SELECT json_extract(a.metrics_json, '$.integrated_lufs') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'loudness' ORDER BY a.created_at DESC, a.version DESC LIMIT 1),
   (SELECT json_extract(a.metrics_json, '$.bandwidth_hz') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'spectrum' ORDER BY a.created_at DESC, a.version DESC LIMIT 1),
   t.root_track_id, t.parent_track_id,
-  (SELECT COUNT(*) FROM tracks c WHERE c.parent_track_id = t.id)`
+  (SELECT COUNT(*) FROM tracks c WHERE c.parent_track_id = t.id),
+  hs.stars, ha.stars,
+  (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
+  (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open')`
 
-// SearchTracks lists tracks with FTS and filters. User text never reaches
-// FTS5 syntax.
-func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, error) {
+// the human and agent rating rows of a track (primary-key lookups)
+const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'`
+
+// normTag lower-cases and space-collapses a tag name for filtering; the
+// judgments package owns the full NormalizeTag rule and stored names already
+// satisfy it, so a filter that normalises differently simply matches nothing.
+func normTag(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+
+// searchQuery is the validated, compiled form of SearchParams.
+type searchQuery struct {
+	from, where string
+	args        []any
+	order       string
+	limit, off  int
+}
+
+// compileSearch validates p and builds its FROM/WHERE/ORDER BY. User text
+// never reaches FTS5 syntax.
+func compileSearch(p SearchParams) (searchQuery, error) {
+	var q searchQuery
 	off, err := decodeCursor(p.Cursor)
 	if err != nil {
-		return TrackPage{}, err
+		return q, err
 	}
 	for _, st := range p.Status {
 		if !oneOf(st, trackStatuses...) {
-			return TrackPage{}, invalid("status", "unknown status %q", st)
+			return q, invalid("status", "unknown status %q", st)
 		}
 	}
 	if len(p.Style) > 5 {
-		return TrackPage{}, invalid("style", "at most 5 terms")
+		return q, invalid("style", "at most 5 terms")
+	}
+	if len(p.Tags) > 5 {
+		return q, invalid("tag", "at most 5 tags")
+	}
+	if p.MinStars != nil && (*p.MinStars < 1 || *p.MinStars > 5) {
+		return q, invalid("min_stars", "must be 1..5")
+	}
+	if p.MinStars != nil && p.Unrated {
+		return q, invalid("unrated", "cannot be combined with min_stars")
 	}
 	if p.Sort != "" && !oneOf(p.Sort, trackSorts...) {
-		return TrackPage{}, invalid("sort", "unknown sort %q", p.Sort)
+		return q, invalid("sort", "unknown sort %q", p.Sort)
 	}
 	fts := ftsQuery(p.Q)
 	sort := p.Sort
@@ -113,52 +155,54 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 			sort = "relevance"
 		}
 	}
-	limit := clampLimit(p.Limit, 50, 100)
+	q.limit, q.off = clampLimit(p.Limit, 50, 100), off
 
-	from := ` FROM tracks t JOIN recipes r ON r.id = t.recipe_id`
-	var args []any
+	q.from = ` FROM tracks t JOIN recipes r ON r.id = t.recipe_id` + ratingJoins
+	args := &q.args
 	if fts != "" {
-		from += ` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`
-		args = append(args, fts)
+		q.from += ` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`
+		*args = append(*args, fts)
 	}
 	where := ` WHERE 1=1`
 	if len(p.Status) > 0 {
 		where += ` AND t.status IN (` + placeholders(len(p.Status)) + `)`
 		for _, st := range p.Status {
-			args = append(args, st)
+			*args = append(*args, st)
 		}
+	} else {
+		where += ` AND t.status <> 'discarded'` // D-M2a-18
 	}
 	for _, term := range p.Style {
 		where += ` AND EXISTS (SELECT 1 FROM track_style_terms x WHERE x.track_id = t.id AND x.term = ?)`
-		args = append(args, normTerm(term))
+		*args = append(*args, normTerm(term))
 	}
 	if p.MinDurationS != nil {
 		where += ` AND t.duration_s >= ?`
-		args = append(args, *p.MinDurationS)
+		*args = append(*args, *p.MinDurationS)
 	}
 	if p.MaxDurationS != nil {
 		where += ` AND t.duration_s <= ?`
-		args = append(args, *p.MaxDurationS)
+		*args = append(*args, *p.MaxDurationS)
 	}
 	if p.RecordedFrom != "" {
 		v, err := parseWhen("recorded_from", p.RecordedFrom, false)
 		if err != nil {
-			return TrackPage{}, err
+			return q, err
 		}
 		where += ` AND t.recorded_at >= ?`
-		args = append(args, v)
+		*args = append(*args, v)
 	}
 	if p.RecordedTo != "" {
 		v, err := parseWhen("recorded_to", p.RecordedTo, true)
 		if err != nil {
-			return TrackPage{}, err
+			return q, err
 		}
 		if len(p.RecordedTo) == len("2006-01-02") {
 			where += ` AND t.recorded_at < ?`
 		} else {
 			where += ` AND t.recorded_at <= ?`
 		}
-		args = append(args, v)
+		*args = append(*args, v)
 	}
 	if p.HasScore != nil {
 		if *p.HasScore {
@@ -176,22 +220,50 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	}
 	if p.RootTrackID != "" {
 		where += ` AND t.root_track_id = ?`
-		args = append(args, p.RootTrackID)
+		*args = append(*args, p.RootTrackID)
 	}
-	order := map[string]string{
+	if p.MinStars != nil {
+		where += ` AND hs.stars >= ?`
+		*args = append(*args, *p.MinStars)
+	}
+	if p.Unrated {
+		where += ` AND hs.stars IS NULL`
+	}
+	for _, tag := range p.Tags {
+		where += ` AND EXISTS (SELECT 1 FROM track_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.track_id = t.id AND g.name = ? AND tt.removed_at IS NULL)`
+		*args = append(*args, normTag(tag))
+	}
+	if p.HasOpenComments != nil {
+		cond := `EXISTS (SELECT 1 FROM comments c WHERE c.track_id = t.id AND c.state = 'open' AND c.hidden_at IS NULL)`
+		if !*p.HasOpenComments {
+			cond = `NOT ` + cond
+		}
+		where += ` AND ` + cond
+	}
+	q.where = where
+	q.order = map[string]string{
 		"recorded_desc": `t.recorded_at DESC, t.id DESC`,
 		"recorded_asc":  `t.recorded_at ASC, t.id ASC`,
 		"duration_desc": `t.duration_s DESC, t.id DESC`,
 		"duration_asc":  `t.duration_s ASC, t.id ASC`,
 		"title_asc":     `t.title COLLATE NOCASE ASC, t.id ASC`,
 		"relevance":     `f.rank ASC, t.id ASC`,
+		"stars_desc":    `(hs.stars IS NULL) ASC, hs.stars DESC, t.recorded_at DESC, t.id DESC`,
 	}[sort]
+	return q, nil
+}
 
+// SearchTracks lists tracks with FTS and filters.
+func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, error) {
+	q, err := compileSearch(p)
+	if err != nil {
+		return TrackPage{}, err
+	}
 	var total int
-	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*)`+from+where, args...).Scan(&total); err != nil {
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*)`+q.from+q.where, q.args...).Scan(&total); err != nil {
 		return TrackPage{}, fmt.Errorf("library: count tracks: %w", err)
 	}
-	rows, err := s.st.R.QueryContext(ctx, summarySelect+from+where+` ORDER BY `+order+` LIMIT ? OFFSET ?`, append(args, limit, off)...)
+	rows, err := s.st.R.QueryContext(ctx, summarySelect+q.from+q.where+` ORDER BY `+q.order+` LIMIT ? OFFSET ?`, append(slices.Clone(q.args), q.limit, q.off)...)
 	if err != nil {
 		return TrackPage{}, fmt.Errorf("library: search tracks: %w", err)
 	}
@@ -199,26 +271,90 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	page := TrackPage{Items: []TrackSummary{}, Total: total}
 	pg := newPager(page)
 	more := false
+	var sums []TrackSummary
 	for rows.Next() {
 		sum, err := scanSummary(rows)
 		if err != nil {
 			return TrackPage{}, err
 		}
+		sums = append(sums, sum)
+	}
+	if err := rows.Err(); err != nil {
+		return TrackPage{}, err
+	}
+	if err := rows.Close(); err != nil {
+		return TrackPage{}, err
+	}
+	if err := s.fillTags(ctx, sums); err != nil {
+		return TrackPage{}, err
+	}
+	for _, sum := range sums {
 		if !pg.add(sizeOf(sum)) {
 			more = true
 			break
 		}
 		page.Items = append(page.Items, sum)
 	}
-	if err := rows.Err(); err != nil {
-		return TrackPage{}, err
-	}
-	next := off + len(page.Items)
+	next := q.off + len(page.Items)
 	if more || next < total {
 		c := encodeCursor(next)
 		page.NextCursor = &c
 	}
 	return page, nil
+}
+
+// MatchTrackIDs returns the id of every track SearchTracks would list for p,
+// in the same order, without paging (Limit and Cursor are ignored). Exports use
+// it to select tracks with the exact search semantics.
+func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, error) {
+	p.Limit, p.Cursor = 0, ""
+	q, err := compileSearch(p)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.st.R.QueryContext(ctx, `SELECT t.id`+q.from+q.where+` ORDER BY `+q.order, q.args...) //nolint:gosec // G202: fragments are fixed strings built by compileSearch
+	if err != nil {
+		return nil, fmt.Errorf("library: match tracks: %w", err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// fillTags sets the effective tag names of each summary (one query per page).
+func (s *Service) fillTags(ctx context.Context, sums []TrackSummary) error {
+	if len(sums) == 0 {
+		return nil
+	}
+	idx := make(map[string]int, len(sums))
+	args := make([]any, len(sums))
+	for i, x := range sums {
+		idx[x.ID] = i
+		args[i] = x.ID
+	}
+	const base = `SELECT DISTINCT tt.track_id, g.name FROM track_tags tt JOIN tags g ON g.id = tt.tag_id
+		WHERE tt.removed_at IS NULL AND tt.track_id IN (`
+	q := base + placeholders(len(sums)) + `) ORDER BY g.name` //nolint:gosec // G202: only "?" placeholders are concatenated
+	rows, err := s.st.R.QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf("library: summary tags: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return err
+		}
+		sums[idx[id]].Tags = append(sums[idx[id]].Tags, name)
+	}
+	return rows.Err()
 }
 
 func placeholders(n int) string {
@@ -249,9 +385,11 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		lufs                sql.NullFloat64
 		parent              sql.NullString
 		hasScore, timedFlag bool
+		stars, critic       sql.NullInt64
 	)
 	if err := rows.Scan(&t.ID, &t.Title, &t.Status, &t.DurationS, &t.RecordedAt, &t.CreatedAt, &t.RequestID, &t.Seed, &style, &bpm,
-		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount); err != nil {
+		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount,
+		&stars, &critic, &t.Comments, &t.OpenComments); err != nil {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
@@ -260,6 +398,15 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		terms = []string{}
 	}
 	t.StyleTerms = terms
+	t.Tags = []string{}
+	if stars.Valid {
+		v := int(stars.Int64)
+		t.Stars = &v
+	}
+	if critic.Valid {
+		v := int(critic.Int64)
+		t.CriticStars = &v
+	}
 	if bpm.Valid {
 		v := int(bpm.Int64)
 		t.BPMDeclared = &v
@@ -311,11 +458,16 @@ type Facets struct {
 	Statuses   []StatusCount `json:"statuses" nullable:"false"`
 	DurationS  Range         `json:"duration_s"`
 	RecordedAt TimeRange     `json:"recorded_at"`
+
+	// M2a (C38)
+	Tags    []TagFacet  `json:"tags" nullable:"false" doc:"Top 50 effective tags"`
+	Stars   []StarFacet `json:"stars" nullable:"false" doc:"Human star histogram"`
+	Unrated int         `json:"unrated" doc:"Tracks without a human star rating"`
 }
 
 // Facets returns the top 50 style terms, status counts and ranges.
 func (s *Service) Facets(ctx context.Context) (Facets, error) {
-	f := Facets{StyleTerms: []TermCount{}, Statuses: []StatusCount{}}
+	f := Facets{StyleTerms: []TermCount{}, Statuses: []StatusCount{}, Tags: []TagFacet{}, Stars: []StarFacet{}}
 	rows, err := s.st.R.QueryContext(ctx, `SELECT term, COUNT(*) c FROM track_style_terms GROUP BY term ORDER BY c DESC, term ASC LIMIT 50`)
 	if err != nil {
 		return f, err
@@ -354,6 +506,41 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if dmin.Valid {
 		f.DurationS = Range{&dmin.Float64, &dmax.Float64}
 		f.RecordedAt = TimeRange{&rmin.String, &rmax.String}
+	}
+	rows, err = s.st.R.QueryContext(ctx, `SELECT g.name, COUNT(DISTINCT tt.track_id) c FROM track_tags tt JOIN tags g ON g.id = tt.tag_id
+		WHERE tt.removed_at IS NULL GROUP BY g.id ORDER BY c DESC, g.name ASC LIMIT 50`)
+	if err != nil {
+		return f, err
+	}
+	for rows.Next() {
+		var tf TagFacet
+		if err := rows.Scan(&tf.Tag, &tf.Count); err != nil {
+			_ = rows.Close()
+			return f, err
+		}
+		f.Tags = append(f.Tags, tf)
+	}
+	if err := rows.Close(); err != nil {
+		return f, err
+	}
+	rows, err = s.st.R.QueryContext(ctx, `SELECT stars, COUNT(*) FROM ratings WHERE source = 'human' AND stars IS NOT NULL GROUP BY stars ORDER BY stars`)
+	if err != nil {
+		return f, err
+	}
+	for rows.Next() {
+		var sf StarFacet
+		if err := rows.Scan(&sf.Stars, &sf.Count); err != nil {
+			_ = rows.Close()
+			return f, err
+		}
+		f.Stars = append(f.Stars, sf)
+	}
+	if err := rows.Close(); err != nil {
+		return f, err
+	}
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t WHERE NOT EXISTS
+		(SELECT 1 FROM ratings r WHERE r.track_id = t.id AND r.source = 'human' AND r.stars IS NOT NULL)`).Scan(&f.Unrated); err != nil {
+		return f, err
 	}
 	return f, nil
 }
@@ -487,6 +674,14 @@ type TrackDetail struct {
 	Timed       bool         `json:"timed"`
 	Analysis    AnalysisInfo `json:"analysis"`
 	Import      ImportInfo   `json:"import"`
+
+	// M2a (C38)
+	Rating       TrackRating    `json:"rating"`
+	Tags         []TagRef       `json:"tags" nullable:"false"`
+	Comments     int            `json:"comments"`
+	OpenComments int            `json:"open_comments"`
+	Playlists    []PlaylistRef  `json:"playlists" nullable:"false"`
+	Listening    ListeningStats `json:"listening"`
 }
 
 func nb(n sql.NullInt64) *bool {
@@ -502,7 +697,8 @@ var sectionRank = map[string]int{"manual": 4, "measured": 3, "plan": 2, "lyrics"
 
 // Track returns the full detail of one track.
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
-	var d TrackDetail
+	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}}
+	d.Rating.TrackID = id
 	var (
 		parent, runID sql.NullString
 		bpm           sql.NullInt64
@@ -544,6 +740,9 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		d.StyleTerms = []string{}
 	}
 	if err := s.trackExtras(ctx, &d); err != nil {
+		return d, err
+	}
+	if err := s.judgmentExtras(ctx, &d); err != nil {
 		return d, err
 	}
 	return d, nil

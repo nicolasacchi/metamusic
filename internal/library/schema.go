@@ -23,6 +23,7 @@ type (
 	loudnessShape   LoudnessOut
 	spectrumShape   SpectrumOut
 	draftSrcShape   DraftSource
+	ratingRowShape  RatingRow
 )
 
 // Schema implements huma.SchemaProvider.
@@ -42,3 +43,6 @@ func (SpectrumOut) Schema(r huma.Registry) *huma.Schema { return nullableObject[
 
 // Schema implements huma.SchemaProvider.
 func (DraftSource) Schema(r huma.Registry) *huma.Schema { return nullableObject[draftSrcShape](r) }
+
+// Schema implements huma.SchemaProvider.
+func (RatingRow) Schema(r huma.Registry) *huma.Schema { return nullableObject[ratingRowShape](r) }

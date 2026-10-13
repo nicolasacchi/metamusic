@@ -130,6 +130,8 @@ func TestTTLFor(t *testing.T) {
 		ttl, backing time.Duration
 	}{
 		{"human", auth.Principal{Kind: auth.KindHuman}, 12 * time.Hour, time.Hour},
+		{"device", auth.Principal{Kind: auth.KindDevice}, 12 * time.Hour, time.Hour},
+		{"system", auth.Principal{Kind: auth.KindSystem}, 15 * time.Minute, time.Minute},
 		{"agent", auth.Principal{Kind: auth.KindAgent}, 15 * time.Minute, time.Minute},
 		{"anonymous", auth.Principal{Kind: auth.KindAnonymous}, 15 * time.Minute, time.Minute},
 		{"zero", auth.Principal{}, 15 * time.Minute, time.Minute},

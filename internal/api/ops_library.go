@@ -13,7 +13,7 @@ func registerLibrary(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
-		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score and truncation filters. Pages are capped in size; follow next_cursor.",
+		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {
@@ -22,7 +22,8 @@ func registerLibrary(a huma.API, d Deps) {
 			page, err := d.Library.SearchTracks(ctx, library.SearchParams{
 				Q: in.Q, Status: in.Status, Style: in.Style, MinDurationS: in.MinDurationS.ptr(), MaxDurationS: in.MaxDurationS.ptr(),
 				RecordedFrom: in.RecordedFrom, RecordedTo: in.RecordedTo, HasScore: in.HasScore.ptr(), Truncated: in.Truncated.ptr(),
-				RootTrackID: in.RootTrackID, Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor,
+				RootTrackID: in.RootTrackID, MinStars: in.MinStars.ptr(), Unrated: in.Unrated.ptr() != nil && *in.Unrated.ptr(),
+				Tags: in.Tag, HasOpenComments: in.HasOpenComments.ptr(), Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor,
 			})
 			if err != nil {
 				return nil, libErr(err)
@@ -59,6 +60,7 @@ func registerLibrary(a huma.API, d Deps) {
 			if err != nil {
 				return nil, libErr(err)
 			}
+			maskTrack(auth.FromContext(ctx), &t)
 			return &trackOut{Body: t}, nil
 		})
 

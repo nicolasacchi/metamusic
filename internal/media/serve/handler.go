@@ -11,7 +11,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
-var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3)$`)
+var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip)$`)
+
+// downloadName is the ASCII file name a Content-Disposition may carry (no RFC 5987 form needed).
+var downloadName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,119}$`)
 
 // Handler serves signed /media/<sha>.<ext> links (C18). data is the DataDir
 // root; probe, when non-nil, is the device-probe object addressed by its ETag
@@ -77,6 +80,9 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
 		h.Set("Accept-Ranges", "bytes")
 		h.Set("ETag", `"`+obj.ETag+`"`)
 		h.Set("Cache-Control", "private, max-age=31536000, immutable")
+		if downloadName.MatchString(obj.DownloadName) {
+			h.Set("Content-Disposition", `attachment; filename="`+obj.DownloadName+`"`)
+		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Cross-Origin-Resource-Policy", "same-origin")

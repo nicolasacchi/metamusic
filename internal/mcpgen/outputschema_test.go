@@ -16,6 +16,7 @@ import (
 // outputSchema advertised by tools/list (MCP requires structured results to
 // conform). Nullable sub-objects such as track.truncated must be declared so.
 func TestToolResultsConformToOutputSchema(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-1", auth.ScopeRead)
 	sess := r.client(t, tok)

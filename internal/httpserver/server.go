@@ -2,8 +2,10 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -11,12 +13,26 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/gate"
+	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/redact"
+	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
 // Options configures New.
@@ -43,6 +59,29 @@ type Options struct {
 	Probe   *serve.Object
 	Media   http.Handler
 	Now     func() time.Time
+
+	// M2a (C39). The gate (audit, authorize, rate limit, idempotency) wraps the
+	// inner mux. app.Build supplies one shared set; a nil value is replaced by a
+	// default built from Store, Now and NewID so the gate is never skipped.
+	Audit   *audit.Store
+	Idem    *idem.Store
+	Limiter *ratelimit.Limiter
+	NewID   func() string // nil => UUIDv7
+
+	// M2a services (C39); they reach api.Deps. A nil value makes the matching
+	// operations answer 503 UNAVAILABLE (once their handlers exist).
+	Judgments *judgments.Service
+	Drafts    *drafts.Service
+	Playlists *playlists.Service
+	Exports   *exports.Service
+	Backups   *backup.Service
+	Context   *trackctx.Builder
+	Listening *listening.Service
+	// Devices verifies the device cookie; a nil interface disables device auth.
+	// DeviceStore backs the pairing pages and the device operations.
+	Devices     auth.DeviceVerifier
+	DeviceStore *auth.DeviceStore
+	Notify      notify.Notifier
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -58,11 +97,31 @@ func New(o Options) (http.Handler, error) {
 	if started.IsZero() {
 		started = time.Now()
 	}
+	now := o.Now
+	if now == nil {
+		now = time.Now
+	}
 	inner := http.NewServeMux()
 	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
-		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now})
+		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
+		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
+		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify})
+	gated := http.Handler(inner)
+	if o.Store != nil {
+		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
+		if o.Audit == nil {
+			o.Audit = audit.NewStore(o.Store, newID)
+		}
+		if o.Idem == nil {
+			o.Idem = idem.NewStore(o.Store, now)
+		}
+		if o.Limiter == nil {
+			o.Limiter = ratelimit.New(ratelimit.Default.Scaled(max(o.Cfg.RateScale, 1)), now)
+		}
+		gated = gate.New(gate.Options{API: a, Inner: inner, Audit: o.Audit, Idem: o.Idem, Limiter: o.Limiter, Now: now})
+	}
 	if o.MCP == nil && o.MCPFactory != nil {
-		m, err := o.MCPFactory(a, inner)
+		m, err := o.MCPFactory(a, gated)
 		if err != nil {
 			return nil, err
 		}
@@ -75,16 +134,16 @@ func New(o Options) (http.Handler, error) {
 		opByPattern[op.Method+" "+op.Path] = op.ID
 	}
 	rec := &servedRecorder{}
-	var innerH http.Handler = inner
+	innerH := gated
 	if o.Cfg.E2E {
 		innerH = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !isSPARequest(r) {
-				inner.ServeHTTP(w, r)
+				gated.ServeHTTP(w, r)
 				return
 			}
 			_, pat := inner.Handler(r)
 			sw := &statusWriter{ResponseWriter: w}
-			inner.ServeHTTP(sw, r)
+			gated.ServeHTTP(sw, r)
 			if id, ok := opByPattern[pat]; ok && sw.status > 0 && sw.status < 400 {
 				rec.add(id)
 			}
@@ -97,6 +156,35 @@ func New(o Options) (http.Handler, error) {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 	})
+	if o.DeviceStore != nil {
+		pairing := auth.PairingHandler(auth.PairingOptions{
+			Cfg: o.Cfg, Devices: o.DeviceStore, Sessions: o.Sessions,
+			Allow: func() (bool, time.Duration) {
+				if o.Limiter == nil {
+					return true, 0
+				}
+				ok, retry, _ := o.Limiter.Allow("pair", ratelimit.Pair)
+				return ok, retry
+			},
+			OnPaired: func(ctx context.Context, d auth.DeviceInfo) {
+				if o.Audit != nil {
+					if err := o.Audit.Insert(context.WithoutCancel(ctx), audit.Entry{At: now(),
+						Principal: auth.Principal{Kind: auth.KindDevice, ID: d.ID, Name: d.Name, Via: "device"},
+						Transport: reqinfo.Pair, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther}); err != nil {
+						slog.Error("audit insert failed", "op", "auth:pair", "err", redact.Error(err))
+					}
+				}
+				if o.Notify != nil {
+					_ = o.Notify.Notify(context.WithoutCancel(ctx), notify.DevicePaired(d.Name))
+				}
+			},
+		})
+		mux.Handle("GET /start", pairing)
+		mux.Handle("POST /start", pairing)
+		mux.Handle("GET /pair", pairing)
+		mux.Handle("GET /pair.js", pairing)
+		mux.Handle("POST /auth/pair", pairing)
+	}
 	if o.Cfg.AuthMode == "local" {
 		mux.Handle("/auth/", o.Sessions.Handler())
 	} else {
@@ -132,10 +220,26 @@ func New(o Options) (http.Handler, error) {
 			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 	}
+	var leaks *leakScanner
 	if o.Cfg.E2E {
+		leaks = newLeakScanner(o.Sec)
 		mux.Handle("GET /__e2e/served", rec.handler())
+		mux.Handle("GET /__e2e/leaks", leaks.handler())
+	} else {
+		mux.HandleFunc("/__e2e/", func(w http.ResponseWriter, r *http.Request) {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+		})
 	}
 	mux.Handle("/", spaHandler(o.SPA))
 
-	return auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions)(mux), nil
+	// A nil *DeviceStore must reach the middleware as a nil interface.
+	devices := o.Devices
+	if devices == nil && o.DeviceStore != nil {
+		devices = o.DeviceStore
+	}
+	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions, devices)(mux)
+	if leaks != nil {
+		outer = leaks.wrap(outer)
+	}
+	return outer, nil
 }

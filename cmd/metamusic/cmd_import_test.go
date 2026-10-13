@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta/flactest"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
@@ -190,6 +192,7 @@ func TestCLI_ImportExitCodes(t *testing.T) {
 }
 
 func TestCLI_ImportJSONOutput(t *testing.T) {
+	t.Parallel()
 	env, inbox := importEnv(t)
 	put(t, inbox, "r.jsonl", `{"cot": "full", "id": "cli-a", "lyrics": "[Verse 1]\nla\n[Chorus]\nsing", "seed": 1, "style": "pop"}`+"\n")
 	code, out, errs := do(t, env, "", "import", "--dry-run", "--json")
@@ -227,6 +230,7 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 }
 
 func TestCLI_DryRunWritesOnlyImportDir(t *testing.T) {
+	t.Parallel()
 	env, inbox := importEnv(t)
 	put(t, inbox, "r.jsonl", `{"cot": "full", "id": "cli-a", "lyrics": "[Verse 1]\nla\n[Chorus]\nsing", "seed": 1, "style": "pop"}`+"\n")
 	put(t, inbox, "x.flac", "not a flac")
@@ -276,6 +280,7 @@ func TestCLI_DryRunWritesOnlyImportDir(t *testing.T) {
 }
 
 func TestCLI_OutputEscapesControlChars(t *testing.T) {
+	t.Parallel()
 	env, inbox := importEnv(t)
 	put(t, inbox, "r.jsonl", `{"cot": "full", "id": "cli-a", "lyrics": "[Verse 1]\nla\n[Chorus]\nsing", "seed": 1, "style": "pop"}`+"\n")
 	name := "evil\x1b[31m\u202egnp.flac"
@@ -324,10 +329,14 @@ func e2eInbox(t *testing.T, dst string) {
 }
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
+	auth.UseCheapHashForTests()
 	code := m.Run()
 	if archDir != "" {
 		_ = os.RemoveAll(archDir)
 	}
+	archivetest.Cleanup()
+	cleanupSeedTexts()
 	os.Exit(code)
 }
 
@@ -350,6 +359,7 @@ func TestCLI_ImportSpreadLine(t *testing.T) {
 
 // Reference values must not reach stdout, stderr or the report files (C16.9).
 func TestCLI_ImportPrivacy(t *testing.T) {
+	t.Parallel()
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	env, inbox := importEnv(t)
 	const s1, s2, s3 = "zqxS1clisentinel", "zqxS2clisentinel", "zqxS3clisentinel"

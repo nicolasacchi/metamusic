@@ -13,6 +13,10 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 )
 
 const maxBody = 8 << 20
@@ -186,9 +190,81 @@ func serve(inner http.Handler, req *http.Request) *mcp.CallToolResult {
 	return res
 }
 
+// origin says which face a tool call came through and who the client says it is.
+type origin struct {
+	transport reqinfo.Transport // reqinfo.MCP or reqinfo.Stdio
+	client    string
+}
+
+// clientLabel names the calling MCP client. Over HTTP (RequestExtra.Header is
+// set) it is the User-Agent, since the production handler is stateless and the
+// SDK then reports whatever clientInfo the ephemeral session saw; otherwise
+// (stdio, in-memory) it is the initialized session's clientInfo name/version.
+// Either may be empty.
+func clientLabel(req *mcp.CallToolRequest) string {
+	if req == nil {
+		return ""
+	}
+	if req.Extra != nil && req.Extra.Header != nil {
+		if ua := req.Extra.Header.Get("User-Agent"); ua != "" {
+			return ua
+		}
+	}
+	if req.Session != nil {
+		if ip := req.Session.InitializeParams(); ip != nil && ip.ClientInfo != nil && ip.ClientInfo.Name != "" {
+			label := strings.Join(strings.Fields(ip.ClientInfo.Name), "_")
+			if v := strings.Join(strings.Fields(ip.ClientInfo.Version), "_"); v != "" {
+				label += "/" + v
+			}
+			return label
+		}
+	}
+	return ""
+}
+
+// deriveKey supplies the idempotency_key argument of a create operation when
+// the caller gave none (C30): a key derived from (caller, operation, other
+// arguments), marked on the context so the gate treats it as derived. It runs
+// before buildRequest's required-parameter check.
+func deriveKey(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (context.Context, json.RawMessage) {
+	args := map[string]json.RawMessage{}
+	if t := bytes.TrimSpace(rawArgs); len(t) > 0 && !bytes.Equal(t, []byte("null")) {
+		if json.Unmarshal(rawArgs, &args) != nil || args == nil {
+			return ctx, rawArgs // buildRequest reports the malformed arguments
+		}
+	}
+	if raw, ok := args[idemArg]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return ctx, rawArgs // explicit key: passed through, not derived
+	}
+	pk := auth.FromContext(ctx).Key()
+	if pk == "" {
+		return ctx, rawArgs // anonymous: the gate refuses before any key matters
+	}
+	delete(args, idemArg)
+	rest, err := json.Marshal(args)
+	if err != nil {
+		return ctx, rawArgs
+	}
+	key, err := idem.DerivedKey(pk, s.ID, rest)
+	if err != nil {
+		return ctx, rawArgs
+	}
+	kb, _ := json.Marshal(key)
+	args[idemArg] = kb
+	out, err := json.Marshal(args)
+	if err != nil {
+		return ctx, rawArgs
+	}
+	return idem.WithDerived(ctx, key), out
+}
+
 // dispatch executes spec with args on inner, using ctx (which carries the
 // already-resolved principal).
-func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.RawMessage) *mcp.CallToolResult {
+func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.RawMessage, o origin) *mcp.CallToolResult {
+	ctx = reqinfo.WithClient(reqinfo.WithTransport(ctx, o.transport), o.client)
+	if s.IdemCreate {
+		ctx, args = deriveKey(ctx, s, args)
+	}
 	req, bad := buildRequest(ctx, s, args)
 	if bad != nil {
 		return bad

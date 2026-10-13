@@ -1,0 +1,122 @@
+# Generated once with CPython 3.14.7; lines starting with '# ' are comments.
+# Command (run from the repo root): python3 -I gen_pyjson.py internal/export/testdata/pyjson.inputs.json   (gen_pyjson.py = the lines starting with '#| ' below, prefix removed)
+# Order per input: {sorted,design} x {python,compact separators} x {ensure_ascii true,false}; design order = id,lyrics,style,seed,cot then the rest sorted.
+#| import json, sys
+#| inputs = json.load(open(sys.argv[1], encoding="utf-8"))
+#| D = ["id", "lyrics", "style", "seed", "cot"]
+#| out = []
+#| for r in inputs:
+#|     for design in (False, True):
+#|         for seps in ((", ", ": "), (",", ":")):
+#|             for ea in (True, False):
+#|                 if design:
+#|                     o = {k: r[k] for k in D if k in r}
+#|                     o.update({k: r[k] for k in sorted(r) if k not in o})
+#|                 else:
+#|                     o = r
+#|                 out.append(json.dumps(o, ensure_ascii=ea, separators=seps, sort_keys=not design))
+#| sys.stdout.buffer.write(("\n".join(out) + "\n").encode("utf-8"))
+{"cot": "full", "id": "syn-plain", "lyrics": "[Verse]\nla la la\nna na na", "seed": 831001, "style": "synthetic pop, 100 bpm"}
+{"cot": "full", "id": "syn-plain", "lyrics": "[Verse]\nla la la\nna na na", "seed": 831001, "style": "synthetic pop, 100 bpm"}
+{"cot":"full","id":"syn-plain","lyrics":"[Verse]\nla la la\nna na na","seed":831001,"style":"synthetic pop, 100 bpm"}
+{"cot":"full","id":"syn-plain","lyrics":"[Verse]\nla la la\nna na na","seed":831001,"style":"synthetic pop, 100 bpm"}
+{"id": "syn-plain", "lyrics": "[Verse]\nla la la\nna na na", "style": "synthetic pop, 100 bpm", "seed": 831001, "cot": "full"}
+{"id": "syn-plain", "lyrics": "[Verse]\nla la la\nna na na", "style": "synthetic pop, 100 bpm", "seed": 831001, "cot": "full"}
+{"id":"syn-plain","lyrics":"[Verse]\nla la la\nna na na","style":"synthetic pop, 100 bpm","seed":831001,"cot":"full"}
+{"id":"syn-plain","lyrics":"[Verse]\nla la la\nna na na","style":"synthetic pop, 100 bpm","seed":831001,"cot":"full"}
+{"cot": "melody", "id": "syn-accents", "lyrics": "[Verse]\nperch\u00e9 \u00e8 cos\u00ec\nlibert\u00e0 citt\u00e0", "seed": 7, "style": "italiano, caff\u00e8"}
+{"cot": "melody", "id": "syn-accents", "lyrics": "[Verse]\nperché è così\nlibertà città", "seed": 7, "style": "italiano, caffè"}
+{"cot":"melody","id":"syn-accents","lyrics":"[Verse]\nperch\u00e9 \u00e8 cos\u00ec\nlibert\u00e0 citt\u00e0","seed":7,"style":"italiano, caff\u00e8"}
+{"cot":"melody","id":"syn-accents","lyrics":"[Verse]\nperché è così\nlibertà città","seed":7,"style":"italiano, caffè"}
+{"id": "syn-accents", "lyrics": "[Verse]\nperch\u00e9 \u00e8 cos\u00ec\nlibert\u00e0 citt\u00e0", "style": "italiano, caff\u00e8", "seed": 7, "cot": "melody"}
+{"id": "syn-accents", "lyrics": "[Verse]\nperché è così\nlibertà città", "style": "italiano, caffè", "seed": 7, "cot": "melody"}
+{"id":"syn-accents","lyrics":"[Verse]\nperch\u00e9 \u00e8 cos\u00ec\nlibert\u00e0 citt\u00e0","style":"italiano, caff\u00e8","seed":7,"cot":"melody"}
+{"id":"syn-accents","lyrics":"[Verse]\nperché è così\nlibertà città","style":"italiano, caffè","seed":7,"cot":"melody"}
+{"cot": "off", "id": "syn-html", "lyrics": "<b>&amp;</b> \"quoted\" \\ back", "seed": 0, "style": "a<b>&c/d"}
+{"cot": "off", "id": "syn-html", "lyrics": "<b>&amp;</b> \"quoted\" \\ back", "seed": 0, "style": "a<b>&c/d"}
+{"cot":"off","id":"syn-html","lyrics":"<b>&amp;</b> \"quoted\" \\ back","seed":0,"style":"a<b>&c/d"}
+{"cot":"off","id":"syn-html","lyrics":"<b>&amp;</b> \"quoted\" \\ back","seed":0,"style":"a<b>&c/d"}
+{"id": "syn-html", "lyrics": "<b>&amp;</b> \"quoted\" \\ back", "style": "a<b>&c/d", "seed": 0, "cot": "off"}
+{"id": "syn-html", "lyrics": "<b>&amp;</b> \"quoted\" \\ back", "style": "a<b>&c/d", "seed": 0, "cot": "off"}
+{"id":"syn-html","lyrics":"<b>&amp;</b> \"quoted\" \\ back","style":"a<b>&c/d","seed":0,"cot":"off"}
+{"id":"syn-html","lyrics":"<b>&amp;</b> \"quoted\" \\ back","style":"a<b>&c/d","seed":0,"cot":"off"}
+{"cot": "full", "id": "syn-u2028", "lyrics": "line\u2028sep\u2029para", "seed": 9007199254740991, "style": "x"}
+{"cot": "full", "id": "syn-u2028", "lyrics": "line sep para", "seed": 9007199254740991, "style": "x"}
+{"cot":"full","id":"syn-u2028","lyrics":"line\u2028sep\u2029para","seed":9007199254740991,"style":"x"}
+{"cot":"full","id":"syn-u2028","lyrics":"line sep para","seed":9007199254740991,"style":"x"}
+{"id": "syn-u2028", "lyrics": "line\u2028sep\u2029para", "style": "x", "seed": 9007199254740991, "cot": "full"}
+{"id": "syn-u2028", "lyrics": "line sep para", "style": "x", "seed": 9007199254740991, "cot": "full"}
+{"id":"syn-u2028","lyrics":"line\u2028sep\u2029para","style":"x","seed":9007199254740991,"cot":"full"}
+{"id":"syn-u2028","lyrics":"line sep para","style":"x","seed":9007199254740991,"cot":"full"}
+{"cot": "full", "id": "syn-emoji", "lyrics": "note \ud83c\udfb5 end", "seed": 1, "style": "x"}
+{"cot": "full", "id": "syn-emoji", "lyrics": "note 🎵 end", "seed": 1, "style": "x"}
+{"cot":"full","id":"syn-emoji","lyrics":"note \ud83c\udfb5 end","seed":1,"style":"x"}
+{"cot":"full","id":"syn-emoji","lyrics":"note 🎵 end","seed":1,"style":"x"}
+{"id": "syn-emoji", "lyrics": "note \ud83c\udfb5 end", "style": "x", "seed": 1, "cot": "full"}
+{"id": "syn-emoji", "lyrics": "note 🎵 end", "style": "x", "seed": 1, "cot": "full"}
+{"id":"syn-emoji","lyrics":"note \ud83c\udfb5 end","style":"x","seed":1,"cot":"full"}
+{"id":"syn-emoji","lyrics":"note 🎵 end","style":"x","seed":1,"cot":"full"}
+{"cot": "full", "id": "syn-controls", "lyrics": "a\u0001b\u007fc\td\ne\rf\bg\fh\u001f", "seed": 2, "style": "x"}
+{"cot": "full", "id": "syn-controls", "lyrics": "a\u0001bc\td\ne\rf\bg\fh\u001f", "seed": 2, "style": "x"}
+{"cot":"full","id":"syn-controls","lyrics":"a\u0001b\u007fc\td\ne\rf\bg\fh\u001f","seed":2,"style":"x"}
+{"cot":"full","id":"syn-controls","lyrics":"a\u0001bc\td\ne\rf\bg\fh\u001f","seed":2,"style":"x"}
+{"id": "syn-controls", "lyrics": "a\u0001b\u007fc\td\ne\rf\bg\fh\u001f", "style": "x", "seed": 2, "cot": "full"}
+{"id": "syn-controls", "lyrics": "a\u0001bc\td\ne\rf\bg\fh\u001f", "style": "x", "seed": 2, "cot": "full"}
+{"id":"syn-controls","lyrics":"a\u0001b\u007fc\td\ne\rf\bg\fh\u001f","style":"x","seed":2,"cot":"full"}
+{"id":"syn-controls","lyrics":"a\u0001bc\td\ne\rf\bg\fh\u001f","style":"x","seed":2,"cot":"full"}
+{"cfg_scale": 1.5, "cot": "full", "id": "syn-cfg-a", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale": 1.5, "cot": "full", "id": "syn-cfg-a", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale":1.5,"cot":"full","id":"syn-cfg-a","lyrics":"l","seed":3,"style":"x"}
+{"cfg_scale":1.5,"cot":"full","id":"syn-cfg-a","lyrics":"l","seed":3,"style":"x"}
+{"id": "syn-cfg-a", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 1.5}
+{"id": "syn-cfg-a", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 1.5}
+{"id":"syn-cfg-a","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":1.5}
+{"id":"syn-cfg-a","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":1.5}
+{"cfg_scale": 2.0, "cot": "full", "id": "syn-cfg-b", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale": 2.0, "cot": "full", "id": "syn-cfg-b", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale":2.0,"cot":"full","id":"syn-cfg-b","lyrics":"l","seed":3,"style":"x"}
+{"cfg_scale":2.0,"cot":"full","id":"syn-cfg-b","lyrics":"l","seed":3,"style":"x"}
+{"id": "syn-cfg-b", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 2.0}
+{"id": "syn-cfg-b", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 2.0}
+{"id":"syn-cfg-b","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":2.0}
+{"id":"syn-cfg-b","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":2.0}
+{"cfg_scale": 1e-05, "cot": "full", "id": "syn-cfg-c", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale": 1e-05, "cot": "full", "id": "syn-cfg-c", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale":1e-05,"cot":"full","id":"syn-cfg-c","lyrics":"l","seed":3,"style":"x"}
+{"cfg_scale":1e-05,"cot":"full","id":"syn-cfg-c","lyrics":"l","seed":3,"style":"x"}
+{"id": "syn-cfg-c", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 1e-05}
+{"id": "syn-cfg-c", "lyrics": "l", "style": "x", "seed": 3, "cot": "full", "cfg_scale": 1e-05}
+{"id":"syn-cfg-c","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":1e-05}
+{"id":"syn-cfg-c","lyrics":"l","style":"x","seed":3,"cot":"full","cfg_scale":1e-05}
+{"cfg_scale": 0.0001, "cot": "off", "id": "syn-cfg-d", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale": 0.0001, "cot": "off", "id": "syn-cfg-d", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale":0.0001,"cot":"off","id":"syn-cfg-d","lyrics":"l","seed":3,"style":"x"}
+{"cfg_scale":0.0001,"cot":"off","id":"syn-cfg-d","lyrics":"l","seed":3,"style":"x"}
+{"id": "syn-cfg-d", "lyrics": "l", "style": "x", "seed": 3, "cot": "off", "cfg_scale": 0.0001}
+{"id": "syn-cfg-d", "lyrics": "l", "style": "x", "seed": 3, "cot": "off", "cfg_scale": 0.0001}
+{"id":"syn-cfg-d","lyrics":"l","style":"x","seed":3,"cot":"off","cfg_scale":0.0001}
+{"id":"syn-cfg-d","lyrics":"l","style":"x","seed":3,"cot":"off","cfg_scale":0.0001}
+{"cfg_scale": 20.0, "cot": "off", "id": "syn-cfg-e", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale": 20.0, "cot": "off", "id": "syn-cfg-e", "lyrics": "l", "seed": 3, "style": "x"}
+{"cfg_scale":20.0,"cot":"off","id":"syn-cfg-e","lyrics":"l","seed":3,"style":"x"}
+{"cfg_scale":20.0,"cot":"off","id":"syn-cfg-e","lyrics":"l","seed":3,"style":"x"}
+{"id": "syn-cfg-e", "lyrics": "l", "style": "x", "seed": 3, "cot": "off", "cfg_scale": 20.0}
+{"id": "syn-cfg-e", "lyrics": "l", "style": "x", "seed": 3, "cot": "off", "cfg_scale": 20.0}
+{"id":"syn-cfg-e","lyrics":"l","style":"x","seed":3,"cot":"off","cfg_scale":20.0}
+{"id":"syn-cfg-e","lyrics":"l","style":"x","seed":3,"cot":"off","cfg_scale":20.0}
+{"abc": "X:1\nT:syn \u00e9\nK:C\nCDEF|", "cfg_scale": 1.25, "cot": "melody", "id": "syn-abc", "lyrics": "l", "seed": 4, "style": "x"}
+{"abc": "X:1\nT:syn é\nK:C\nCDEF|", "cfg_scale": 1.25, "cot": "melody", "id": "syn-abc", "lyrics": "l", "seed": 4, "style": "x"}
+{"abc":"X:1\nT:syn \u00e9\nK:C\nCDEF|","cfg_scale":1.25,"cot":"melody","id":"syn-abc","lyrics":"l","seed":4,"style":"x"}
+{"abc":"X:1\nT:syn é\nK:C\nCDEF|","cfg_scale":1.25,"cot":"melody","id":"syn-abc","lyrics":"l","seed":4,"style":"x"}
+{"id": "syn-abc", "lyrics": "l", "style": "x", "seed": 4, "cot": "melody", "abc": "X:1\nT:syn \u00e9\nK:C\nCDEF|", "cfg_scale": 1.25}
+{"id": "syn-abc", "lyrics": "l", "style": "x", "seed": 4, "cot": "melody", "abc": "X:1\nT:syn é\nK:C\nCDEF|", "cfg_scale": 1.25}
+{"id":"syn-abc","lyrics":"l","style":"x","seed":4,"cot":"melody","abc":"X:1\nT:syn \u00e9\nK:C\nCDEF|","cfg_scale":1.25}
+{"id":"syn-abc","lyrics":"l","style":"x","seed":4,"cot":"melody","abc":"X:1\nT:syn é\nK:C\nCDEF|","cfg_scale":1.25}
+{"cot": "full", "id": "syn-bmp", "lyrics": "\u00e4\u4e2d\ud83d\ude00\u00ff\u0080", "seed": 5, "style": "x"}
+{"cot": "full", "id": "syn-bmp", "lyrics": "ä中😀ÿ", "seed": 5, "style": "x"}
+{"cot":"full","id":"syn-bmp","lyrics":"\u00e4\u4e2d\ud83d\ude00\u00ff\u0080","seed":5,"style":"x"}
+{"cot":"full","id":"syn-bmp","lyrics":"ä中😀ÿ","seed":5,"style":"x"}
+{"id": "syn-bmp", "lyrics": "\u00e4\u4e2d\ud83d\ude00\u00ff\u0080", "style": "x", "seed": 5, "cot": "full"}
+{"id": "syn-bmp", "lyrics": "ä中😀ÿ", "style": "x", "seed": 5, "cot": "full"}
+{"id":"syn-bmp","lyrics":"\u00e4\u4e2d\ud83d\ude00\u00ff\u0080","style":"x","seed":5,"cot":"full"}
+{"id":"syn-bmp","lyrics":"ä中😀ÿ","style":"x","seed":5,"cot":"full"}

@@ -1,8 +1,11 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +25,7 @@ type echoIn struct {
 }
 
 func TestProblemShape(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("t", "1")
 	cfg.CreateHooks = nil
@@ -84,6 +88,7 @@ func TestProblemShape(t *testing.T) {
 }
 
 func TestInnerMuxProblems(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	api.New(mux, api.Deps{Version: "x"})
 	for _, tc := range []struct {
@@ -101,5 +106,48 @@ func TestInnerMuxProblems(t *testing.T) {
 			!strings.Contains(w.Body.String(), tc.code) {
 			t.Errorf("%s %s: %d %q %s", tc.method, tc.path, w.Code, w.Header().Get("Content-Type"), w.Body)
 		}
+	}
+}
+
+func TestProblem5xxLogRedacted(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	defer slog.SetDefault(old)
+	canary := "mmp_" + strings.Repeat("a2b3", 13)
+
+	mux := http.NewServeMux()
+	cfg := huma.DefaultConfig("t", "1")
+	cfg.CreateHooks = nil
+	a := humago.New(mux, cfg)
+	api.Register(a, huma.Operation{OperationID: "boom", Method: "GET", Path: "/api/boom", Summary: "s", Description: "d"},
+		api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "none:test"},
+		func(context.Context, *nothing) (*outT, error) {
+			return nil, huma.Error500InternalServerError("x", errors.New("upstream said no for "+canary))
+		})
+	p := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}
+	r := httptest.NewRequest("GET", "/api/boom", nil).WithContext(auth.WithPrincipal(context.Background(), p))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != 500 {
+		t.Fatalf("status %d body %s", w.Code, w.Body)
+	}
+	logged := buf.String()
+	if strings.Contains(logged, canary) || !strings.Contains(logged, "mmp_<redacted>") {
+		t.Fatalf("log not redacted: %s", logged)
+	}
+	if strings.Contains(w.Body.String(), canary) {
+		t.Fatalf("response leaks: %s", w.Body)
+	}
+}
+
+func TestDeps_NewIDFunc(t *testing.T) {
+	t.Parallel()
+	if id := (api.Deps{}).NewIDFunc()(); len(id) != 36 || id[14] != '7' {
+		t.Fatalf("default id %q is not a UUIDv7", id)
+	}
+	if got := (api.Deps{NewID: func() string { return "fixed" }}).NewIDFunc()(); got != "fixed" {
+		t.Fatalf("injected id = %q", got)
 	}
 }

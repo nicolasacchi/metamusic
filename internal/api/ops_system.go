@@ -18,10 +18,10 @@ type pingOut struct {
 
 type whoamiOut struct {
 	Body struct {
-		Kind   string   `json:"kind" enum:"human,agent" doc:"Principal kind"`
+		Kind   string   `json:"kind" enum:"human,agent,device" doc:"Principal kind"`
 		Name   string   `json:"name" doc:"Username or token name"`
 		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
-		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local or token"`
+		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local, token or device"`
 	}
 }
 

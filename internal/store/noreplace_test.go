@@ -12,6 +12,7 @@ import (
 // TestNoReplaceSQL forbids the REPLACE forms (they bypass no-delete triggers
 // and reset created_at). The patterns are assembled so this file passes itself.
 func TestNoReplaceSQL(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)

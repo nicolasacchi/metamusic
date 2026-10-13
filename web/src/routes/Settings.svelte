@@ -3,6 +3,8 @@
   import type { components } from "../api/schema";
   import { getDevice, type DeviceProfile } from "../lib/device.svelte";
   import type { Quality } from "../lib/player.svelte";
+  import { unpairBrowser } from "../lib/exportView";
+  import { pushToast } from "../lib/judge.svelte";
 
   type System = components["schemas"]["SystemOutBody"];
 
@@ -11,6 +13,8 @@
   let error = $state("");
   let profiles = $state<DeviceProfile[]>([]);
   let profilesError = $state("");
+  let kind = $state("");
+  let unpairing = $state(false);
   const hasConnection = typeof navigator !== "undefined" && "connection" in navigator;
 
   $effect(() => {
@@ -24,6 +28,29 @@
       }
     })();
   });
+
+  // Only a paired device can unpair itself.
+  $effect(() => {
+    void (async () => {
+      try {
+        const r = await api.GET("/api/me", {});
+        if (r.data) kind = r.data.kind;
+      } catch {
+        /* the section stays hidden */
+      }
+    })();
+  });
+  async function unpair() {
+    if (unpairing) return;
+    unpairing = true;
+    try {
+      if (!(await unpairBrowser(api, (u) => location.assign(u)))) pushToast("Could not unpair this browser");
+    } catch {
+      pushToast("Could not unpair this browser");
+    } finally {
+      unpairing = false;
+    }
+  }
 
   async function refreshProfiles() {
     try {
@@ -67,6 +94,16 @@
   </dl>
 {:else if !error}
   <p class="muted">Loading…</p>
+{/if}
+
+<p><a href="/settings/backups">Backups</a> · <a href="/settings/audit">Audit log</a></p>
+
+{#if kind === "device"}
+  <section data-testid="unpair-section">
+    <h2>This browser</h2>
+    <p class="muted">This browser is paired as a device. Unpairing signs it out until it is paired again.</p>
+    <button type="button" onclick={unpair} disabled={unpairing} data-testid="unpair">Unpair this browser</button>
+  </section>
 {/if}
 
 <h2>This device</h2>

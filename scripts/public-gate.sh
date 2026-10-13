@@ -53,6 +53,10 @@ forbidden_path() {
   esac
   # the one tracked placeholder list (content is checked separately)
   [ "$p" = ".public-gate-patterns.example" ] && rc=1
+  # root-anchored: a default local BackupDir; internal/backup/ is source code and stays allowed
+  case "$p" in
+    backup/*) rc=0 ;;
+  esac
   case "/$p" in
     */varianti/* | */docs/private/* | */secrets/*) rc=0 ;;
   esac

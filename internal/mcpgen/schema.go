@@ -35,6 +35,47 @@ type toolSpec struct {
 	BodyProps        []string // flat mode: property names owned by the body
 	Input            map[string]any
 	Output           map[string]any // nil when there is no object-shaped 2xx JSON response
+	// IdemCreate marks x-mm.idempotency == "create" operations: the
+	// idempotency_key argument is optional and dispatch derives a key (C30).
+	IdemCreate bool
+}
+
+const (
+	idemArg    = "idempotency_key"
+	idemHeader = "Idempotency-Key"
+	idemDesc   = "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call " +
+		"within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an " +
+		"action on purpose; explicit keys are remembered for 24 hours."
+)
+
+// markIdempotent turns the Idempotency-Key header parameter of a create
+// operation into an optional argument with the MCP description (C30).
+func (s *toolSpec) markIdempotent() error {
+	found := false
+	for i := range s.Params {
+		if p := &s.Params[i]; p.In == "header" && p.Wire == idemHeader {
+			p.Required, found = false, true
+		}
+	}
+	if !found {
+		return fmt.Errorf("%s: idempotency create operations must declare the %s header", s.ID, idemHeader)
+	}
+	props, _ := s.Input["properties"].(map[string]any)
+	prop := asMap(props[idemArg])
+	if prop == nil {
+		return fmt.Errorf("%s: input schema lacks %s", s.ID, idemArg)
+	}
+	prop["description"] = idemDesc
+	if req, ok := s.Input["required"].([]string); ok {
+		req = slices.DeleteFunc(slices.Clone(req), func(n string) bool { return n == idemArg })
+		if len(req) == 0 {
+			delete(s.Input, "required")
+		} else {
+			s.Input["required"] = req
+		}
+	}
+	s.IdemCreate = true
+	return nil
 }
 
 // snake converts a header-style name (Idempotency-Key) to snake_case.
@@ -247,4 +288,55 @@ func buildSpec(id, method, path string, op map[string]any, comps map[string]any)
 	}
 	spec.Input, spec.Output = input, output
 	return spec, nil
+}
+
+// slimOutputSchema is the outputSchema advertised in tools/list: the shape of
+// the result without descriptions, additionalProperties and required lists.
+// The server produced the result itself, so the strict parts add no safety,
+// and prose costs context on every tools/list (C41 ceiling). The full schema
+// stays available through describe_operation.
+func slimOutputSchema(s map[string]any) map[string]any {
+	out, _ := slimSchema(s).(map[string]any)
+	return out
+}
+
+func slimSchema(v any) any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	out := make(map[string]any, len(m))
+	for k, x := range m {
+		switch k {
+		case "description", "additionalProperties", "required", "examples", "default":
+			continue
+		case "properties", "$defs", "definitions", "patternProperties":
+			named, ok := x.(map[string]any)
+			if !ok {
+				out[k] = x
+				continue
+			}
+			cp := make(map[string]any, len(named))
+			for name, sub := range named {
+				cp[name] = slimSchema(sub)
+			}
+			out[k] = cp
+		case "items", "not", "if", "then", "else":
+			out[k] = slimSchema(x)
+		case "anyOf", "oneOf", "allOf", "prefixItems":
+			list, ok := x.([]any)
+			if !ok {
+				out[k] = x
+				continue
+			}
+			cp := make([]any, len(list))
+			for i, sub := range list {
+				cp[i] = slimSchema(sub)
+			}
+			out[k] = cp
+		default:
+			out[k] = x
+		}
+	}
+	return out
 }

@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 )
@@ -16,6 +17,12 @@ type Stats struct {
 	Bandwidth BandwidthStats `json:"bandwidth"`
 	Storage   StorageStats   `json:"storage"`
 	Imports   ImportStats    `json:"imports"`
+
+	// M2a (C38)
+	Judgments      JudgmentStats  `json:"judgments"`
+	Playlists      int            `json:"playlists"`
+	DraftsByOrigin map[string]int `json:"drafts_by_origin"`
+	Backups        BackupStats    `json:"backups"`
 }
 
 // TrackStats counts tracks.
@@ -99,7 +106,7 @@ func (s *Service) countBy(ctx context.Context, q string) (map[string]int, error)
 
 // Stats computes the overview in a handful of aggregate queries.
 func (s *Service) Stats(ctx context.Context) (Stats, error) {
-	var st Stats
+	st := Stats{DraftsByOrigin: map[string]int{}, Judgments: JudgmentStats{StarsHist: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}}}
 	r := s.st.R
 	var err error
 	if st.Tracks.ByStatus, err = s.countBy(ctx, `SELECT status, COUNT(*) FROM tracks GROUP BY status`); err != nil {
@@ -175,7 +182,53 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 	case err != sql.ErrNoRows:
 		return st, err
 	}
+	if err := s.judgmentStats(ctx, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+// judgmentStats fills the M2a counters of Stats (C38).
+func (s *Service) judgmentStats(ctx context.Context, st *Stats) error {
+	r := s.st.R
+	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(source = 'human' AND stars IS NOT NULL), 0), COALESCE(SUM(source = 'agent' AND stars IS NOT NULL), 0) FROM ratings`).
+		Scan(&st.Judgments.RatedHuman, &st.Judgments.RatedCritic); err != nil {
+		return fmt.Errorf("library: stats ratings: %w", err)
+	}
+	hist, err := s.countBy(ctx, `SELECT CAST(stars AS TEXT), COUNT(*) FROM ratings WHERE source = 'human' AND stars IS NOT NULL GROUP BY stars`)
+	if err != nil {
+		return err
+	}
+	for k, n := range hist {
+		st.Judgments.StarsHist[k] = n
+	}
+	if err := r.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(state = 'open' AND kind = 'fix'), 0) FROM comments WHERE hidden_at IS NULL`).
+		Scan(&st.Judgments.Comments, &st.Judgments.OpenFix); err != nil {
+		return fmt.Errorf("library: stats comments: %w", err)
+	}
+	if err := r.QueryRowContext(ctx, `SELECT COUNT(DISTINCT tag_id) FROM track_tags WHERE removed_at IS NULL`).Scan(&st.Judgments.Tags); err != nil {
+		return fmt.Errorf("library: stats tags: %w", err)
+	}
+	if err := r.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlists WHERE hidden_at IS NULL`).Scan(&st.Playlists); err != nil {
+		return fmt.Errorf("library: stats playlists: %w", err)
+	}
+	if st.DraftsByOrigin, err = s.countBy(ctx, `SELECT origin, COUNT(*) FROM recipe_drafts GROUP BY origin`); err != nil {
+		return err
+	}
+	var done, state sql.NullString
+	switch err := r.QueryRowContext(ctx, `SELECT state FROM backup_runs ORDER BY started_at DESC, id DESC LIMIT 1`).Scan(&state); {
+	case err == nil:
+		st.Backups.LastState = ptrStr(state)
+	case !errors.Is(err, sql.ErrNoRows):
+		return fmt.Errorf("library: stats backups: %w", err)
+	}
+	switch err := r.QueryRowContext(ctx, `SELECT finished_at FROM backup_runs WHERE state = 'completed' ORDER BY finished_at DESC, id DESC LIMIT 1`).Scan(&done); {
+	case err == nil:
+		st.Backups.LastCompletedAt = ptrStr(done)
+	case !errors.Is(err, sql.ErrNoRows):
+		return fmt.Errorf("library: stats backups: %w", err)
+	}
+	return nil
 }
 
 // latestMetric returns the non-null numeric metric of each track's newest analysis row.

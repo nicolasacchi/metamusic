@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { get } from "svelte/store";
-import { createApi } from "./client";
+import { createApi, RateLimited } from "./client";
 import { createSession } from "./session";
 
 function setup(respond: (req: Request) => Response | Promise<Response>, playing = false) {
@@ -81,5 +81,68 @@ describe("client middleware", () => {
     await expect(api.GET("/api/ping")).rejects.toBeInstanceOf(TypeError);
     expect(reloads()).toBe(0);
     expect(get(session.banner)).toBe("connection");
+  });
+});
+
+describe("429 and step-up handling", () => {
+  const problem = (status: number, code: string, headers: Record<string, string> = {}) => () =>
+    new Response(JSON.stringify({ code, message: "m", details: {} }), {
+      status,
+      headers: { "content-type": "application/problem+json", ...headers },
+    });
+
+  test("429 RATE_LIMITED throws a typed RateLimited carrying Retry-After and is not session loss", async () => {
+    const { api, reloads, session } = setup(problem(429, "RATE_LIMITED", { "Retry-After": "7" }));
+    const err = await api.PUT("/api/tracks/{id}/rating", { params: { path: { id: "t" } }, body: { stars: 3 } }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RateLimited);
+    expect((err as RateLimited).retryAfterS).toBe(7);
+    expect(reloads()).toBe(0);
+    expect(get(session.banner)).toBe("none");
+  });
+
+  test("429 without a usable Retry-After falls back to 30 s", async () => {
+    const { api } = setup(problem(429, "RATE_LIMITED"));
+    const err = await api.GET("/api/ping").catch((e: unknown) => e);
+    expect((err as RateLimited).retryAfterS).toBe(30);
+  });
+
+  test("403 STEP_UP_REQUIRED navigates to the step-up form", async () => {
+    const assigned: string[] = [];
+    const seen: string[] = [];
+    const api = createApi({
+      baseUrl: "http://localhost",
+      session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
+      fetch: async () => problem(403, "STEP_UP_REQUIRED")(),
+      assign: (u) => void assigned.push(u),
+      currentPath: () => "/human/tokens?x=1",
+    });
+    const r = await api.GET("/api/ping");
+    seen.push(String(r.response.status));
+    expect(assigned).toEqual(["/auth/step-up?next=" + encodeURIComponent("/human/tokens?x=1")]);
+  });
+
+  test("403 STEP_UP_REQUIRED on /human/tokens goes to /auth/step-up?next=/human/tokens", async () => {
+    const assigned: string[] = [];
+    const api = createApi({
+      baseUrl: "http://localhost",
+      session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
+      fetch: async () => problem(403, "STEP_UP_REQUIRED")(),
+      assign: (u) => void assigned.push(u),
+      currentPath: () => "/human/tokens",
+    });
+    await api.GET("/human/api/tokens" as never, {} as never).catch(() => {});
+    expect(decodeURIComponent(assigned[0] ?? "")).toBe("/auth/step-up?next=/human/tokens");
+  });
+
+  test("other 403s do not navigate", async () => {
+    const assigned: string[] = [];
+    const api = createApi({
+      baseUrl: "http://localhost",
+      session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
+      fetch: async () => problem(403, "FORBIDDEN")(),
+      assign: (u) => void assigned.push(u),
+    });
+    await api.GET("/api/ping");
+    expect(assigned).toEqual([]);
   });
 });

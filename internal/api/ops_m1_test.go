@@ -43,7 +43,7 @@ func newRig(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	lt.Fixture(t, st, lt.FixedNow)
+	lt.FixtureV2(t, st, lt.FixedNow)
 	dir := t.TempDir()
 	lt.WriteFiles(t, dir)
 	root, err := os.OpenRoot(dir)
@@ -107,7 +107,7 @@ type opWant struct {
 }
 
 var m1Ops = []opWant{
-	{"search_tracks", "GET", "/api/tracks", "tool", "/", auth.ScopeRead, []string{"status", "style"}},
+	{"search_tracks", "GET", "/api/tracks", "tool", "/", auth.ScopeRead, []string{"status", "style", "tag"}},
 	{"get_library_facets", "GET", "/api/library/facets", "generic", "/", auth.ScopeRead, nil},
 	{"get_track", "GET", "/api/tracks/{id}", "tool", "/tracks/:id", auth.ScopeRead, nil},
 	{"get_track_peaks", "GET", "/api/tracks/{id}/peaks", "generic", "/tracks/:id", auth.ScopeRead, nil},
@@ -123,6 +123,7 @@ var m1Ops = []opWant{
 }
 
 func TestOps_RegisteredWithMeta(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	a := api.New(mux, api.Deps{})
 	byID := map[string]api.OpInfo{}
@@ -173,6 +174,7 @@ func TestOps_RegisteredWithMeta(t *testing.T) {
 }
 
 func TestOps_NilDepsUnavailable(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	api.New(mux, api.Deps{}) // zero Deps must register every op without panicking
 	r := &rig{mux: mux}
@@ -221,6 +223,7 @@ func TestOps_NilDepsUnavailable(t *testing.T) {
 }
 
 func TestSearchTracks_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/tracks")
 	if m["total"] != float64(5) || m["next_cursor"] != nil {
@@ -259,6 +262,7 @@ func TestSearchTracks_REST(t *testing.T) {
 }
 
 func TestGetTrackAndFacetsAndPeaks_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/tracks/"+lt.TrackLuna)
 	if m["title"] != "Luna Park" || m["timed"] != true || m["audio"].(map[string]any)["mp3"] == nil {
@@ -281,6 +285,7 @@ func TestGetTrackAndFacetsAndPeaks_REST(t *testing.T) {
 }
 
 func TestGetMediaLinks_TTLByPrincipal(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	path := "/api/tracks/" + lt.TrackLuna + "/media"
 	// fixture clock: 2026-10-06T12:00:00Z
@@ -318,6 +323,7 @@ func TestGetMediaLinks_TTLByPrincipal(t *testing.T) {
 }
 
 func TestGetMediaLinks_MediaUnavailable(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	// a track without renditions answers 409 MEDIA_UNAVAILABLE
 	ctx := context.Background()
@@ -342,6 +348,7 @@ func TestGetMediaLinks_MediaUnavailable(t *testing.T) {
 }
 
 func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	id := r.get(t, agent, "/api/drafts")["items"].([]any)[0].(map[string]any)["id"].(string)
 	h := r.get(t, human, "/api/drafts/"+id)
@@ -359,9 +366,34 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 		t.Errorf("reference inside request")
 	}
 	r.problem(t, human, "GET", "/api/drafts/nope", "", 404, "NOT_FOUND")
+
+	// a paired device counts as the operator (D-M2a-1)
+	dev := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
+	if d := r.get(t, dev, "/api/drafts/"+id); d["reference"] == nil {
+		t.Errorf("device must see the reference like the operator: %v", d)
+	}
+}
+
+func TestWhoami_Device(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	dev := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
+	m := r.get(t, dev, "/api/me")
+	if m["kind"] != "device" || m["via"] != "device" || m["name"] != "Phone" {
+		t.Errorf("whoami = %v", m)
+	}
+	if sc := m["scopes"].([]any); len(sc) != 2 || sc[0] != "read" || sc[1] != "write" {
+		t.Errorf("device scopes = %v", sc)
+	}
+	// and the contract says so
+	b, _ := api.OpenAPIJSON(api.New(http.NewServeMux(), api.Deps{}))
+	if !strings.Contains(string(b), `"human",`) || !strings.Contains(string(b), `"device"`) {
+		t.Error("whoami kind enum must list device")
+	}
 }
 
 func TestListDrafts_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/drafts")
 	if m["total"] != float64(6) || m["groups_total"] != float64(2) {
@@ -377,6 +409,7 @@ func TestListDrafts_REST(t *testing.T) {
 }
 
 func TestGetStats_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/stats")
 	tr := m["tracks"].(map[string]any)
@@ -389,6 +422,7 @@ func TestGetStats_REST(t *testing.T) {
 }
 
 func TestDeviceProfile_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	body := `{"label":"Phone","user_agent":"UA","quality":"auto","quality_source":"default","probe_result":"none","flac_can_play":"","probe_version":1}`
 	w := r.call(agent, "PUT", "/api/device-profiles/phone-abcdef01", body)
@@ -419,6 +453,7 @@ func TestDeviceProfile_REST(t *testing.T) {
 }
 
 func TestImportRuns_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	runs := r.get(t, agent, "/api/imports")
 	if len(runs["items"].([]any)) != 1 {
@@ -436,6 +471,7 @@ func TestImportRuns_REST(t *testing.T) {
 }
 
 func TestDeviceProbe_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/device-probe")
 	u, _ := url.Parse(m["url"].(string))
@@ -449,6 +485,7 @@ func TestDeviceProbe_REST(t *testing.T) {
 }
 
 func TestSystemInfoUsesDepsNow(t *testing.T) {
+	t.Parallel()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -460,4 +497,24 @@ func TestSystemInfoUsesDepsNow(t *testing.T) {
 	if m["uptime_s"] != float64(90) || m["started_at"] != "2026-10-06T11:58:30Z" {
 		t.Errorf("system: %v", m)
 	}
+}
+
+func (r *rig) callWith(p auth.Principal, method, path, body string, hdr ...string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(auth.WithPrincipal(context.Background(), p))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for i := 0; i+1 < len(hdr); i += 2 {
+		req.Header.Set(hdr[i], hdr[i+1])
+	}
+	w := httptest.NewRecorder()
+	r.mux.ServeHTTP(w, req)
+	return w
+}
+
+func decodeProblem(t *testing.T, b []byte) map[string]any {
+	t.Helper()
+	var m map[string]any
+	_ = json.Unmarshal(b, &m)
+	return m
 }

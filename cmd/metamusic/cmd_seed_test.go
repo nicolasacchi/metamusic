@@ -179,6 +179,7 @@ func TestDev_SeedsOnlyWhenEmpty(t *testing.T) {
 }
 
 func TestDev_SeedWithoutToolsContinues(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	env := map[string]string{"MM_ADDR": "127.0.0.1:0", "MM_AUTH": "proxy", "MM_FFMPEG": "/nonexistent/ffmpeg"}
 	_, _, stop := startDev(t, env, "--data-dir", dir, "--seed-synthetic")
@@ -189,6 +190,7 @@ func TestDev_SeedWithoutToolsContinues(t *testing.T) {
 }
 
 func TestServe_ProbeWired(t *testing.T) {
+	t.Parallel()
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	env := testEnv(t, "local")
 	code, tokOut, errs := do(t, env, "", "token", "create", "--name", "x", "--scopes", "read")

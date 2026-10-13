@@ -54,6 +54,15 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 			"description":  strings.TrimSpace(e.spec.Description),
 			"input_schema": e.spec.Input,
 		}
+		if e.meta.Idempotency != "" {
+			doc["idempotency"] = e.meta.Idempotency
+		}
+		if e.meta.Rate != "" {
+			doc["rate"] = e.meta.Rate
+		}
+		if len(e.meta.SecretFields) > 0 {
+			doc["secret_fields"] = e.meta.SecretFields
+		}
 		if e.spec.Output != nil {
 			doc["output_schema"] = e.spec.Output
 		}
@@ -80,7 +89,7 @@ func (g *gen) addGeneric(srv *mcp.Server) {
 		if !ok {
 			return problemResult("NOT_FOUND", "no such operation"), nil
 		}
-		return dispatch(ctx, g.inner, e.spec, in.Arguments), nil
+		return g.run(ctx, req, e.spec, in.Arguments), nil
 	})
 }
 

@@ -3,3 +3,6 @@
 internal/...            85
 internal/auth           95
 internal/media/serve    95
+internal/gate           95
+internal/idem           95
+internal/ratelimit      95

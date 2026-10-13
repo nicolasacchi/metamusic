@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/problem"
@@ -67,9 +69,14 @@ func proxyPrincipal(r *http.Request, cfg config.Config, sec config.Secrets) (Pri
 	return humanPrincipal(user[0], "proxy"), true
 }
 
-// Middleware resolves the request principal per the C3 table.
-func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, sessions SessionVerifier) func(http.Handler) http.Handler {
+// Middleware resolves the request principal per the C3 table. devices may be
+// nil (device auth disabled); callers pass a nil interface, never a typed-nil
+// *DeviceStore. Rows 6 and 7 of the C26 table are the device cookie: it is
+// read only on UI-class paths outside /human/, and only a cookie that was read
+// and rejected is cleared.
+func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, sessions SessionVerifier, devices DeviceVerifier) func(http.Handler) http.Handler {
 	cop := http.NewCrossOriginProtection()
+	secure := strings.HasPrefix(cfg.PublicURL, "https://")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path
@@ -108,6 +115,9 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 			var p Principal
 			var ok bool
 			var refresh string // session cookie value to re-issue (sliding expiry)
+			var deviceRefresh string
+			rejectedDevice := false
+			underHuman := path == "/human" || strings.HasPrefix(path, "/human/")
 			switch cfg.AuthMode {
 			case "proxy":
 				p, ok = proxyPrincipal(r, cfg, sec)
@@ -128,11 +138,36 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 					}
 				}
 			}
+			if !ok && devices != nil && !underHuman {
+				for i, c := range r.CookiesNamed(DeviceCookie) {
+					if i >= maxSessionCookies {
+						break
+					}
+					dp, slid, err := verifyDevice(r.Context(), devices, c.Value)
+					if err == nil {
+						p, ok, rejectedDevice = dp, true, false
+						if slid {
+							deviceRefresh = c.Value
+						}
+						break
+					}
+					if !errors.Is(err, ErrInvalidDevice) {
+						internalError(w, "device verification failed", err)
+						return
+					}
+					rejectedDevice = true
+				}
+			}
 			if !ok {
+				if rejectedDevice {
+					http.SetCookie(w, deviceCookie("", -1, secure))
+				}
 				isAPI := strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/human/api/")
 				switch {
 				case isAPI:
 					unauthenticated(w, false)
+				case rejectedDevice:
+					http.Redirect(w, r, "/start?expired=1", http.StatusSeeOther)
 				case cfg.AuthMode == "local":
 					http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 				default:
@@ -146,10 +181,48 @@ func Middleware(cfg config.Config, sec config.Secrets, tokens TokenVerifier, ses
 				writeProblem(w, http.StatusForbidden, "CROSS_ORIGIN", "cross-origin request refused")
 				return
 			}
+			if p.Via == "local" && (path == "/human" || strings.HasPrefix(path, "/human/")) && !stepUpFresh(sessions, p) {
+				if strings.HasPrefix(path, "/human/api/") {
+					writeProblem(w, http.StatusForbidden, "STEP_UP_REQUIRED", "confirm your password to continue")
+				} else {
+					http.Redirect(w, r, "/auth/step-up?next="+url.QueryEscape(path), http.StatusSeeOther)
+				}
+				return
+			}
+			if deviceRefresh != "" {
+				http.SetCookie(w, deviceCookie(deviceRefresh, int(DeviceTTL.Seconds()), secure))
+			}
 			if refresh != "" {
 				http.SetCookie(w, sessionCookie(refresh, int(sessionTTL.Seconds()), strings.HasPrefix(cfg.PublicURL, "https://")))
 			}
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 		})
 	}
+}
+
+// verifyDevice resolves a device cookie; slid reports a server-side expiry
+// slide (the cookie is then re-issued) when the verifier can tell.
+func verifyDevice(ctx context.Context, v DeviceVerifier, cookie string) (Principal, bool, error) {
+	if s, ok := v.(deviceSlider); ok {
+		return s.verify(ctx, cookie)
+	}
+	p, err := v.VerifyDevice(ctx, cookie)
+	return p, false, err
+}
+
+// stepUpChecker is implemented by session verifiers that own a clock.
+type stepUpChecker interface{ StepUpFresh(p Principal) bool }
+
+// stepUpFresh reports whether a local human session confirmed its password recently.
+func stepUpFresh(sessions SessionVerifier, p Principal) bool {
+	if c, ok := sessions.(stepUpChecker); ok {
+		return c.StepUpFresh(p)
+	}
+	return !p.StepUpAt.IsZero() && time.Since(p.StepUpAt) <= stepUpWindow
+}
+
+func deviceCookie(value string, maxAge int, secure bool) *http.Cookie {
+	return &http.Cookie{Name: DeviceCookie, //nolint:gosec // G124: Secure follows PublicURL (plain-http dev); HttpOnly and SameSite are always set
+		Value: value, Path: "/", HttpOnly: true,
+		Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
 }

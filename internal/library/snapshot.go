@@ -25,6 +25,7 @@ type SnapTrack struct {
 type SnapDraft struct {
 	ID, SourceRecipeID, Status, Origin string
 	ParentTrackID                      string
+	Revision                           int // > 1: a human edited it; imports leave it alone (C27)
 }
 
 // LibrarySnapshot is a consistent read of the state a dry-run or apply plans
@@ -92,10 +93,10 @@ func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) {
 	}); err != nil {
 		return snap, err
 	}
-	if err := each(`SELECT id, source_recipe_id, status, origin, parent_track_id FROM recipe_drafts WHERE source_recipe_id IS NOT NULL`, func(r *sql.Rows) error {
+	if err := each(`SELECT id, source_recipe_id, status, origin, parent_track_id, revision FROM recipe_drafts WHERE source_recipe_id IS NOT NULL`, func(r *sql.Rows) error {
 		var x SnapDraft
 		var par sql.NullString
-		if err := r.Scan(&x.ID, &x.SourceRecipeID, &x.Status, &x.Origin, &par); err != nil {
+		if err := r.Scan(&x.ID, &x.SourceRecipeID, &x.Status, &x.Origin, &par, &x.Revision); err != nil {
 			return err
 		}
 		x.ParentTrackID = par.String

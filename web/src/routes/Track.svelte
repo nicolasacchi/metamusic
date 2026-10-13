@@ -3,8 +3,16 @@
   import type { components } from "../api/schema";
   import { player } from "../lib/player.svelte";
   import { fmt, parseT } from "../lib/time";
+  import { judge, createTagSuggestions } from "../lib/judge.svelte";
+  import { jumpTo } from "../lib/jump";
+  import StarRating from "../lib/components/StarRating.svelte";
+  import StatusSelect from "../lib/components/StatusSelect.svelte";
+  import TagEditor from "../lib/components/TagEditor.svelte";
+  import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
+  import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
+  import ContextButton from "../lib/components/ContextButton.svelte";
   import MetricsCard from "../lib/components/MetricsCard.svelte";
 
   type Track = components["schemas"]["TrackDetail"];
@@ -25,6 +33,12 @@
   let overview = $state<Level | null>(null);
   let detail = $state<Level | null>(null);
   let width = $state(0);
+  let comments = $state<components["schemas"]["Comment"][]>([]);
+  let tagNames = $state<string[]>([]);
+  // One list_tags call per page visit.
+  const suggestions = createTagSuggestions(api);
+  const j = $derived(judge.get(id));
+  const pins = $derived(comments.flatMap((c) => (c.at_second === null ? [] : [{ id: c.id, t: c.at_second, kind: c.kind }])));
 
   const isCurrent = $derived(player.state.trackId === id);
   const position = $derived(isCurrent ? player.state.current : 0);
@@ -55,6 +69,17 @@
           return;
         }
         track = tr.data;
+        const r = tr.data.rating;
+        judge.seed(mine, {
+          stars: r.human?.stars ?? null,
+          verdict: r.human?.verdict ?? null,
+          critic: r.critic ? { stars: r.critic.stars, verdict: r.critic.verdict } : null,
+          status: tr.data.status,
+          tags: tr.data.tags,
+        });
+        void suggestions.names().then((n) => {
+          if (mine === id) tagNames = n;
+        });
         overview = pk.data?.peaks.data ? { data: pk.data.peaks.data, bits: pk.data.peaks.bits } : null;
       } catch {
         if (mine === id) error = "Failed to load track";
@@ -129,8 +154,19 @@
     </div>
 
     <div class="wave" bind:clientWidth={width}>
-      <Waveform {peaks} {duration} current={position} onseek={seek} {bits} height={96} label="Track waveform" />
+      <Waveform {peaks} {duration} current={position} onseek={seek} {bits} height={96} label="Track waveform" {pins} onpin={(cid) => { const c = comments.find((x) => x.id === cid); if (c?.at_second != null) jumpTo(id, c.at_second); }} />
     </div>
+
+    {#if j}
+      <div class="judge" data-testid="track-judge">
+        <StarRating value={j.stars} onchange={(n) => judge.rate(id, n)} label="Your rating" />
+        <StatusSelect value={j.status} onchange={(st) => judge.setStatus(id, st)} />
+        {#if j.critic}
+          <span class="muted" data-testid="critic">critic ★{j.critic.stars ?? "—"}{j.critic.verdict ? ` — ${j.critic.verdict}` : ""}</span>
+        {/if}
+      </div>
+      <TagEditor tags={j.tags} suggestions={tagNames} onadd={(n) => judge.addTag(id, n)} onremove={(n) => judge.removeTag(id, n)} />
+    {/if}
 
     <div class="terms">
       {#each track.style_terms as term (term)}<span class="chip">{term}</span>{/each}
@@ -142,6 +178,17 @@
         <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
       </section>
       <aside>
+        <section class="card">
+          <h2>Comments</h2>
+          <CommentsPanel trackId={id} bind:comments />
+        </section>
+        <section class="card">
+          <AddToPlaylist trackId={id} member={track.playlists} />
+        </section>
+        <section class="card">
+          <h2>Agent context</h2>
+          <ContextButton trackId={id} />
+        </section>
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <section class="card">
           <h2>Recipe</h2>
@@ -184,6 +231,13 @@
     align-items: center;
     gap: 1rem;
     margin: 0.6rem 0;
+  }
+  .judge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    align-items: center;
+    margin: 0.4rem 0;
   }
   .time {
     font-variant-numeric: tabular-nums;

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -26,8 +27,9 @@ func newStore(t *testing.T) *store.Store {
 var key = []byte("0123456789abcdef0123456789abcdef")
 
 func TestTokenLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, err := ts.Create(ctx, "agent1", []Scope{ScopeRead, ScopeWrite})
 	if err != nil {
 		t.Fatal(err)
@@ -61,15 +63,16 @@ func TestTokenLifecycle(t *testing.T) {
 }
 
 func TestTokenVerifyRejects(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	for _, bad := range []string{"", "mmp_", "mmp_abc", "xxx_" + strings.Repeat("a", 52), "mmp_" + strings.Repeat("a", 52)} {
 		if _, err := ts.Verify(ctx, bad); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("Verify(%q) err = %v", bad, err)
 		}
 	}
 	// a token minted with a different key must not verify
-	other := NewTokenStore(ts.st, []byte("another-key-another-key-another!"))
+	other := NewTokenStore(ts.st, []byte("another-key-another-key-another!"), time.Now)
 	plain, _, _ := other.Create(ctx, "o", []Scope{ScopeRead})
 	if _, err := ts.Verify(ctx, plain); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("cross-key verify err = %v", err)
@@ -77,6 +80,7 @@ func TestTokenVerifyRejects(t *testing.T) {
 }
 
 func TestTokenInfoHasNoHash(t *testing.T) {
+	t.Parallel()
 	typ := reflect.TypeOf(TokenInfo{})
 	for i := 0; i < typ.NumField(); i++ {
 		if strings.Contains(strings.ToLower(typ.Field(i).Name), "hash") {
@@ -84,7 +88,7 @@ func TestTokenInfoHasNoHash(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, _, err := ts.Create(ctx, "a", []Scope{ScopeRead})
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +111,8 @@ func TestTokenInfoHasNoHash(t *testing.T) {
 }
 
 func TestTokenCreateValidation(t *testing.T) {
-	ts := NewTokenStore(newStore(t), key)
+	t.Parallel()
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	tests := []struct {
 		name   string
 		tname  string
@@ -130,8 +135,9 @@ func TestTokenCreateValidation(t *testing.T) {
 }
 
 func TestTokenIDIsUUIDv7AndOrdered(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	var ids []string
 	for i := 0; i < 5; i++ {
 		_, id, err := ts.Create(ctx, "n", []Scope{ScopeRead})
@@ -152,8 +158,9 @@ func TestTokenIDIsUUIDv7AndOrdered(t *testing.T) {
 }
 
 func TestTokenLastUsedThrottled(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
 	get := func() string {
 		var lu string
@@ -188,8 +195,9 @@ func TestTokenLastUsedThrottled(t *testing.T) {
 }
 
 func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ts := NewTokenStore(newStore(t), key)
+	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
 	recent := time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339)
 	_, _ = ts.st.W.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, recent, id)
@@ -204,5 +212,56 @@ func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
 	}
 	if d := time.Since(start); d > 100*time.Millisecond {
 		t.Fatalf("Verify blocked %v on the writer inside the throttle window", d)
+	}
+}
+
+func TestTokenStore_InjectedClock(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+	ts := NewTokenStore(newStore(t), key, func() time.Time { return now })
+	plain, id, err := ts.Create(ctx, "clocked", []Scope{ScopeRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ts.Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.CreatedAt != "2026-03-04T05:06:07Z" || info.LastUsedAt != "2026-03-04T05:06:07Z" {
+		t.Fatalf("times = %q / %q", info.CreatedAt, info.LastUsedAt)
+	}
+	now = now.Add(2 * time.Minute)
+	if err := ts.Revoke(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if info, _ = ts.Get(ctx, id); info.RevokedAt != "2026-03-04T05:08:07Z" {
+		t.Fatalf("revoked_at = %q", info.RevokedAt)
+	}
+}
+
+func TestTokenStore_Get(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := NewTokenStore(newStore(t), key, time.Now)
+	plain, id, err := ts.Create(ctx, "getme", []Scope{ScopeRead, ScopeWrite})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := ts.Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ID != id || info.Name != "getme" || info.Prefix != plain[4:12] || len(info.Scopes) != 2 || info.RevokedAt != "" {
+		t.Fatalf("info = %+v", info)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", info), plain) {
+		t.Fatal("TokenInfo carries the plaintext")
+	}
+	if _, err := ts.Get(ctx, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown err = %v", err)
 	}
 }

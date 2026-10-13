@@ -65,7 +65,7 @@ func newMediaEnv(t *testing.T, mode, publicURL string) *mediaEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := auth.NewTokenStore(st, key)
+	tokens := auth.NewTokenStore(st, key, time.Now)
 	local := auth.NewLocalAuth(st, key, publicURL)
 	spa := fstest.MapFS{
 		"index.html":           {Data: []byte("<html>spa</html>")},
@@ -105,6 +105,7 @@ func (m *mediaEnv) url() string {
 }
 
 func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("acceptance test (C23 tier)")
 	}
@@ -195,6 +196,7 @@ func TestAcceptance_M1_MediaTrustMatrix(t *testing.T) {
 }
 
 func TestHTTP_ManifestAndIconsPublic(t *testing.T) {
+	t.Parallel()
 	// mime cannot unregister a type, so the override leaks for the rest of this
 	// test binary; acceptable because spa.go sets the header explicitly and no
 	// other test depends on the .webmanifest mapping.
@@ -212,6 +214,7 @@ func TestHTTP_ManifestAndIconsPublic(t *testing.T) {
 }
 
 func TestHandler_DotSegmentsNeverServe(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []string{"proxy", "local"} {
 		t.Run(mode, func(t *testing.T) {
 			m := newMediaEnv(t, mode, "http://mm.example.com")

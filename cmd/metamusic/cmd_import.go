@@ -81,7 +81,6 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 	if err != nil {
 		return fatal(err)
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	dir := cfg.Inbox
 	if *inboxFlag != "" {
 		dir = *inboxFlag

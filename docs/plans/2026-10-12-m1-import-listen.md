@@ -218,7 +218,8 @@ cycles and to keep test code out of the binary):
 
 ### C11. Migration `internal/store/migrations/0002_library.sql` (full DDL) and store additions
 
-After M1, `PRAGMA user_version == 2`. M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
+After M1, `PRAGMA user_version == 2` (M2a-B1: migration `0003_judge.sql` makes it 3; the M1 tests that pinned `== 2` now
+assert "at least 2" or migrate explicitly with `MigrateTo(…, 2)`; `librarytest.FixtureV2` is the M1 fixture body). M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
 package `store`) asserts `user_version == 1` twice; both change to the number of embedded migrations
 (`loadMigrations()`). M0's runner is `store.Migrate(ctx, db)` (exported, applies every pending file in
 its own tx, and already refuses a database newer than the binary with a plain error); it has no partial
@@ -573,6 +574,7 @@ metadata appears only in `recipe_refs.ref_json` (never in FTS).
 - Fulfilment: `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=?
   WHERE id=? AND status='backlog'`. Mother relink: `UPDATE recipe_drafts SET parent_track_id=?,
   updated_at=? WHERE id=? AND parent_track_id IS NULL`.
+- **M2a-B4b addendum (C27):** every `recipe_drafts` write of an import (this fulfilment, the `core_hash` fallback and the mother writes) adds `AND revision = 1`: a draft a human edited (revision > 1) stays in the backlog with its edited request and mother, and the import reports `draft_edited_not_fulfilled` / `draft_edited_not_relinked`.
 - Runs: heartbeat `UPDATE import_runs SET heartbeat_at=? WHERE id=? AND state='running'`; finish
   `UPDATE import_runs SET state=?, finished_at=?, summary_json=?, report_json=?, error=? WHERE id=?
   AND state='running'`.
@@ -1098,6 +1100,7 @@ group and are processed once. A non-zero STREAMINFO MD5 shared by two different 
   an imported take).
 
 **C16.4 Placement.**
+- **M2a-B4b addendum:** drafts with `revision > 1` are never planned a mother, never predicted fulfilled and never written by an apply (`library.SnapDraft.Revision`); see C11.
 - **Tracks:** one per matched audio identity. Title precedence: mapping `title` → per-song JSON `title`
   → `TITLE` tag → humanised stem (`_`/`-` → space, first letter upper; stem `audio` ⇒ humanised request
   id). `recorded_at` = inbox mtime of the representative (rsync preserves it).
@@ -1251,11 +1254,11 @@ func (s *Service) InsertRecipeSource(ctx context.Context, tx *sql.Tx, recipeID s
 func (s *Service) InsertRefs(ctx context.Context, tx *sql.Tx, recipeID, source string, ref map[string]string) error
 func (s *Service) InsertDraft(ctx context.Context, tx *sql.Tx, d NewDraft) (id string, created bool, err error)
 func (s *Service) AddToCollection(ctx context.Context, tx *sql.Tx, draftID, name, source string) error
-func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error // track+terms+renditions+analyses+artifacts+score+sections+mutation+fulfilment (own recipe + core_hash fallback)
+func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error // track+terms+renditions+analyses+artifacts+score+sections+mutation+tag inheritance (M2a)+fulfilment (own recipe + core_hash fallback; edited drafts skipped, reported in Fulfilment.EditedSkipped)
 func (s *Service) BeginRun(ctx context.Context, principal, inboxLabel, planDigest string) (runID string, err error) // C16.8 guard
 func (s *Service) Heartbeat(ctx context.Context, runID string) error
 func (s *Service) FinishRun(ctx context.Context, runID, state string, summary, report []byte, runErr error) error
-func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) // C16.4
+func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) // C16.4; M2a-B4b: skips edited drafts (revision > 1)
 func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) // one read tx: hashes, audio ids, drafts, roots (importer/dry-run)
 
 // Reads (ops)
@@ -1345,8 +1348,15 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
   `..` segment in ClassUI (anonymous ⇒ proxy mode 401 plain text "Not authenticated", local mode 303 to
   `/auth/login`), and with a principal (e.g. a bearer, C3 row 1) ServeMux answers 301 to the cleaned
   path; tests assert "never 200, never file bytes".
+- **M2a-B4a addendum:** `serve.Object` gains `DownloadName string` (empty for library objects; the handler
+  sends `Content-Disposition: attachment` when set, M2a-B6), `serve.Chain(resolvers ...Resolver) Resolver` tries
+  resolvers in order (library, then exports; `ErrNotFound` falls through), and `serve.TTLFor` gives the 12 h /
+  1 h-bucket lifetime to `Principal.ActsAsHuman()` (human and paired device).
 - Resolution: `flac` ⇒ `tracks.master_sha256`; `mp3` ⇒ `renditions(kind='mp3_320').sha256`; the probe
   object (registered at startup) by its sha.
+- **M2a-B6 addendum:** the path regex accepts `ext ∈ {flac, mp3, jsonl, zip}` (`jsonl` ⇒ `application/x-ndjson`,
+  `zip` ⇒ `application/zip`, both resolved by `exports.Resolve`); a non-empty `Object.DownloadName` (ASCII
+  `[a-z0-9._-]`) adds `Content-Disposition: attachment; filename="<name>"`; library objects send none.
 
 ### C19. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case)
 
@@ -1440,6 +1450,14 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
 (C20 "same now") must pass them the same func as `Options.Now`, so tests fix one clock). **Registration never dereferences `Library`, `Signer` or `Probe`**:
 `metamusic openapi` calls `api.New` with no database; handlers check for nil at call time and answer 503.
 
+**M2a-B4b addendum (C19, C17):** behaviour of the M2a fields: `search_tracks` filters (`min_stars` and `unrated` are exclusive, `tag` is AND over effective tags, `has_open_comments` ignores hidden comments, discarded tracks are hidden unless `status` asks), `MatchTrackIDs(ctx, SearchParams)` returns the unpaged ids of the same query, `list_drafts` accepts the origins `editor`, `agent`, `jsonl_upload`, and `librarytest.Fixture` now holds the M2a rows (`FixtureV2` keeps the M1 rows; M1 tests that pin M1 counts use it).
+
+**M2a-B4a addendum (C19):** `search_tracks` gains `min_stars`, `unrated`, `tag`, `has_open_comments` and the
+`stars_desc` sort; `TrackSummary`, `TrackDetail`, `Facets`, `Stats`, `DraftSummary`, `DraftDetail` gain the M2a
+fields (zero values until M2a-B4b/B5 fill them); `list_drafts` and `get_draft` moved to
+`internal/api/ops_drafts_m2a.go` (same ids, paths, metadata) and call `drafts.Decorate`/`DecorateDetail`; the
+reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`.
+
 ### C20. HTTP server and CLI additions
 
 - `httpserver.Options` (M0: `Cfg`, `Sec`, `Store`, `Tokens`, `Sessions`, `MCP`, `MCPFactory`, `Started`,
@@ -1469,6 +1487,9 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
   command call `config.Load` directly, not M0's `boot()`, which loads secrets, creates `DataDir` and
   opens (creates and migrates) the database: the dry-run must create nothing, and apply/seed open the
   store themselves with `store.Open`. (`dev --seed-synthetic` keeps using `boot()`.)
+- **M2a-B4b addendum:** `internal/archivetest.SyntheticArchive` imports the acceptance or e2e archive once per test binary (the same import as `seedSynthetic`); its package is added to `TestNoTestHelpersInBinary`.
+- **M2a-B4a addendum:** `run` also dispatches `export`, `validate-batch` (real), `backup` and `restore` (stubs until
+  M2a-B6/B7); `serve` starts the backup `Scheduler` (unless `MM_BACKUP_AT=off`) and a daily export sweep.
 - New subcommands (stdlib `flag`, testable through `run`):
   - `import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
     [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]`
@@ -1599,7 +1620,7 @@ web/src/
   lib/device.svelte.ts               device id, quality, probe (C22.3)
   lib/peaks.ts                       pure: peaksToColumns(data, pairs, width) → {min,max}[]
   lib/sections.ts                    pure: sectionAt(sections, t) → idx | -1 (−1 when untimed)
-  lib/time.ts                        fmt(seconds) "m:ss"; parseT("72"|"1:12") → seconds
+  lib/time.ts                        fmt(seconds) "m:ss"; parseT("72"|"72.0"|"1:12"|"1:12.5") → seconds (decimals added by M2a-W1)
   lib/libraryQuery.ts                filters ⇄ URL query string (back/forward restores filters)
   api/session.ts                     session-loss detection + confirmation probe (C22.4; inside web/src/api/)
 ```
@@ -1795,6 +1816,8 @@ non-zero exit. The probe specs still trigger the probe with a real click, so the
 | `mm-api-bearer` | `PathPrefix(/api/) && HeaderRegexp(Authorization, ^[Bb]earer .+)` | 110 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
 | `mm-agent` | `Path(/mcp) \|\| PathPrefix(/mcp/) \|\| PathPrefix(/.well-known/) \|\| Path(/oauth/token) \|\| Path(/oauth/register) \|\| Path(/oauth/revoke) \|\| Path(/api/openapi.json)` | 100 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
 | `mm-media` | `PathPrefix(/rest/) \|\| PathPrefix(/media/) \|\| PathPrefix(/worker/)` | 100 | `mm-strip-identity`, `sec-headers`; access log off (`observability.accesslogs=false`) |
+| `mm-pair` (M2a) | `Path(/start) \|\| Path(/pair) \|\| Path(/pair.js) \|\| Path(/auth/pair)` | 120 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
+| `mm-device` (M2a) | `HeaderRegexp(Cookie, (^\|;\s*)mm_dev=) && !PathPrefix(/human/) && !PathPrefix(/oauth/) && !PathPrefix(/auth/)` | 50 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers`, `mm-compress` |
 | `mm-ui` | everything else | 10 | `authelia` (forward-auth), `mm-edge-mark`, `sec-headers`, `mm-compress` |
 
 - `mm-strip-identity` empties `Remote-User`, `Remote-Groups`, `Remote-Name`, `Remote-Email` and
@@ -1802,7 +1825,7 @@ non-zero exit. The probe specs still trigger the probe with a real click, so the
   `mm-ui`: there it would run after forward-auth and delete the `Remote-User` that Authelia just set. On
   `mm-ui`, forward-auth replaces `Remote-*` and `mm-edge-mark` overwrites `X-MM-Edge`.
 - `mm-compress` never applies to `mm-media`. `/healthz` is not routed publicly (container healthcheck
-  only). `mm-device` (paired devices) arrives with M2a.
+  only). `mm-device` (paired devices) and `mm-pair` arrived with M2a.
 - App-side classes (M0 `auth.Classify`) differ from the routers in two places, by design: `/assets/*` is
   ClassPublic in the app but goes through `mm-ui` at the edge; `/api/openapi.json` is ClassUI in the app.
   Bearer requests for it match `mm-api-bearer` (110) first, so every request that reaches `mm-agent`

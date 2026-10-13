@@ -14,6 +14,9 @@ type Object struct {
 	ContentType string
 	ETag        string // sha256 of the file, hex (the handler quotes it)
 	ModTime     time.Time
+	// DownloadName, when set, makes the handler send Content-Disposition: attachment
+	// (ASCII [a-z0-9._-]). Empty for library objects.
+	DownloadName string
 }
 
 // Resolver maps a (sha, ext) address to a stored object.

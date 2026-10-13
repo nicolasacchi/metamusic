@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -25,10 +28,36 @@ type Config struct {
 	FLAC           string // MM_FLAC, default "flac"
 	Metaflac       string // MM_METAFLAC, default "metaflac"
 	Inbox          string // MM_INBOX, default DataDir/inbox
+
+	// M2a (C25).
+	BackupDir string // MM_BACKUP_DIR, default <parent of DataDir>/backup
+	BackupAt  string // MM_BACKUP_AT "HH:MM" or "off", default "03:30"
+	NtfyURL   string // MM_NTFY_URL, default "" (notifications off)
+	RateScale int    // MM_RATE_SCALE 1..1000, default 1
 }
+
+var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 // Load builds a Config from getenv. MM_AUTH must be "proxy" or "local".
 func Load(getenv func(string) string) (Config, error) {
+	c, err := load(getenv)
+	if err != nil {
+		return Config{}, err
+	}
+	if c.AuthMode != "proxy" && c.AuthMode != "local" {
+		return Config{}, fmt.Errorf("config: MM_AUTH must be %q or %q (got %q)", "proxy", "local", c.AuthMode)
+	}
+	return c, nil
+}
+
+// LoadOffline is Load without the MM_AUTH requirement, for commands that never
+// serve HTTP (mcp-stdio, export, backup, restore, validate-batch, token, user).
+// AuthMode stays as given, possibly empty.
+func LoadOffline(getenv func(string) string) (Config, error) {
+	return load(getenv)
+}
+
+func load(getenv func(string) string) (Config, error) {
 	c := Config{
 		Addr:     orDefault(getenv("MM_ADDR"), "127.0.0.1:8080"),
 		AuthMode: getenv("MM_AUTH"),
@@ -37,9 +66,6 @@ func Load(getenv func(string) string) (Config, error) {
 		FFmpeg:   orDefault(getenv("MM_FFMPEG"), "ffmpeg"),
 		FLAC:     orDefault(getenv("MM_FLAC"), "flac"),
 		Metaflac: orDefault(getenv("MM_METAFLAC"), "metaflac"),
-	}
-	if c.AuthMode != "proxy" && c.AuthMode != "local" {
-		return Config{}, fmt.Errorf("config: MM_AUTH must be %q or %q (got %q)", "proxy", "local", c.AuthMode)
 	}
 	c.Inbox = orDefault(getenv("MM_INBOX"), filepath.Join(c.DataDir, "inbox"))
 	c.PublicURL = orDefault(getenv("MM_PUBLIC_URL"), "http://"+c.Addr)
@@ -52,7 +78,77 @@ func Load(getenv func(string) string) (Config, error) {
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
+	if err := loadM2a(&c, getenv); err != nil {
+		return Config{}, err
+	}
 	return c, nil
+}
+
+func loadM2a(c *Config, getenv func(string) string) error {
+	c.BackupAt = orDefault(getenv("MM_BACKUP_AT"), "03:30")
+	if c.BackupAt != "off" && !backupAtRE.MatchString(c.BackupAt) {
+		return errors.New(`config: MM_BACKUP_AT must be "off" or HH:MM (00:00-23:59)`)
+	}
+	c.BackupDir = orDefault(getenv("MM_BACKUP_DIR"), filepath.Join(filepath.Dir(c.DataDir), "backup"))
+	if err := checkDisjoint(c.DataDir, c.BackupDir); err != nil {
+		return err
+	}
+	if u := getenv("MM_NTFY_URL"); u != "" {
+		if err := checkNtfyURL(u); err != nil {
+			return err
+		}
+		c.NtfyURL = u
+	}
+	c.RateScale = 1
+	if v := getenv("MM_RATE_SCALE"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 1000 {
+			return errors.New("config: MM_RATE_SCALE must be an integer in 1..1000")
+		}
+		c.RateScale = n
+	}
+	return nil
+}
+
+// checkDisjoint refuses a backup dir that equals, contains or lies inside the data dir.
+func checkDisjoint(dataDir, backupDir string) error {
+	d, err1 := filepath.Abs(dataDir)
+	b, err2 := filepath.Abs(backupDir)
+	if err1 != nil || err2 != nil {
+		return errors.New("config: MM_BACKUP_DIR: cannot resolve path")
+	}
+	inside := func(base, p string) bool {
+		rel, err := filepath.Rel(base, p)
+		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	}
+	if inside(d, b) || inside(b, d) {
+		return errors.New("config: MM_BACKUP_DIR must not equal, contain or lie inside MM_DATA_DIR")
+	}
+	return nil
+}
+
+// checkNtfyURL validates MM_NTFY_URL. Errors never echo the value (it may carry credentials).
+func checkNtfyURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return errors.New("config: MM_NTFY_URL must be an absolute URL")
+	}
+	if u.User != nil {
+		return errors.New("config: MM_NTFY_URL must not carry credentials (use the ntfy_token secret)")
+	}
+	if u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(raw, "#") {
+		return errors.New("config: MM_NTFY_URL must not carry a query string or fragment")
+	}
+	switch u.Scheme {
+	case "https":
+	case "http":
+		if ip, perr := netip.ParseAddr(u.Hostname()); !(u.Hostname() == "localhost" || (perr == nil && ip.IsLoopback())) {
+			return errors.New("config: MM_NTFY_URL must use https unless the host is loopback")
+		}
+	default:
+		return errors.New("config: MM_NTFY_URL must use https unless the host is loopback")
+	}
+	return nil
 }
 
 func parsePrefix(s string) (netip.Prefix, error) {
@@ -87,6 +183,7 @@ func splitList(s string) []string {
 type Secrets struct {
 	Key        []byte // HMAC pepper for tokens/URLs
 	EdgeSecret string // shared secret with the reverse proxy (proxy mode)
+	NtfyToken  string // optional ntfy publisher token (file ntfy_token)
 }
 
 // LoadSecrets reads secret_key (always) and edge_secret (proxy mode). Errors
@@ -123,6 +220,14 @@ func LoadSecrets(dir string, mode string) (Secrets, error) {
 		if s.EdgeSecret == "" {
 			return s, errors.New("config: edge_secret: file is empty")
 		}
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "ntfy_token")); err == nil {
+		s.NtfyToken = strings.TrimSpace(string(b))
+		if s.NtfyToken == "" {
+			return s, errors.New("config: ntfy_token: file is empty")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return s, fmt.Errorf("config: reading ntfy_token: %w", errors.Unwrap(err))
 	}
 	return s, nil
 }

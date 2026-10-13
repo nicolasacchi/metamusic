@@ -78,19 +78,23 @@ type deviceProbeOut struct {
 // Inputs.
 
 type searchTracksIn struct {
-	Q            string            `query:"q" maxLength:"200" doc:"Free text over title, request id, style and lyrics (prefix match)"`
-	Status       []string          `query:"status,explode" nullable:"false" enum:"draft,to_relisten,final,discarded" doc:"Repeatable status filter"`
-	Style        []string          `query:"style,explode" nullable:"false" maxItems:"5" doc:"Repeatable style term; all must match"`
-	MinDurationS optParam[float64] `query:"min_duration_s" minimum:"0"`
-	MaxDurationS optParam[float64] `query:"max_duration_s" minimum:"0"`
-	RecordedFrom string            `query:"recorded_from" doc:"RFC 3339 date or date-time (inclusive)"`
-	RecordedTo   string            `query:"recorded_to" doc:"RFC 3339 date (whole day, inclusive) or date-time"`
-	HasScore     optParam[bool]    `query:"has_score"`
-	Truncated    optParam[bool]    `query:"truncated"`
-	RootTrackID  string            `query:"root_track_id"`
-	Sort         string            `query:"sort" enum:"recorded_desc,recorded_asc,duration_desc,duration_asc,title_asc,relevance" doc:"Default recorded_desc, or relevance when q is set"`
-	Limit        int               `query:"limit" minimum:"1" maximum:"100" default:"50"`
-	Cursor       string            `query:"cursor" doc:"Opaque cursor from next_cursor"`
+	Q               string            `query:"q" maxLength:"200" doc:"Free text over title, request id, style and lyrics (prefix match)"`
+	Status          []string          `query:"status,explode" nullable:"false" enum:"draft,to_relisten,final,discarded" doc:"Repeatable status filter"`
+	Style           []string          `query:"style,explode" nullable:"false" maxItems:"5" doc:"Repeatable style term; all must match"`
+	MinDurationS    optParam[float64] `query:"min_duration_s" minimum:"0"`
+	MaxDurationS    optParam[float64] `query:"max_duration_s" minimum:"0"`
+	RecordedFrom    string            `query:"recorded_from" doc:"RFC 3339 date or date-time (inclusive)"`
+	RecordedTo      string            `query:"recorded_to" doc:"RFC 3339 date (whole day, inclusive) or date-time"`
+	HasScore        optParam[bool]    `query:"has_score"`
+	Truncated       optParam[bool]    `query:"truncated"`
+	RootTrackID     string            `query:"root_track_id"`
+	MinStars        optParam[int]     `query:"min_stars" minimum:"1" maximum:"5" doc:"Human stars at least; exclusive with unrated"`
+	Unrated         optParam[bool]    `query:"unrated" doc:"No human rating (or a cleared one); exclusive with min_stars"`
+	Tag             []string          `query:"tag,explode" nullable:"false" maxItems:"5" doc:"Repeatable tag; all must match"`
+	HasOpenComments optParam[bool]    `query:"has_open_comments"`
+	Sort            string            `query:"sort" enum:"recorded_desc,recorded_asc,duration_desc,duration_asc,title_asc,relevance,stars_desc" doc:"Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last"`
+	Limit           int               `query:"limit" minimum:"1" maximum:"100" default:"50"`
+	Cursor          string            `query:"cursor" doc:"Opaque cursor from next_cursor"`
 }
 
 type trackIDIn struct {

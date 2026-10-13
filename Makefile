@@ -7,6 +7,9 @@ GOLINT = $(or $(wildcard bin/golangci-lint),golangci-lint)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
+# Go test scratch (t.TempDir) goes to tmpfs when available: the suites fsync heavily and a
+# disk-backed TMPDIR adds ~10 s to `make check`. Override with TEST_TMPDIR=<dir>.
+TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
 .PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing
 
@@ -20,10 +23,10 @@ openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
 
 test:
-	$(LOOP) test -- env CGO_ENABLED=1 go test -race -shuffle=on ./...
+	$(LOOP) test -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on ./...
 
 race:
-	$(LOOP) race -- env CGO_ENABLED=1 go test -race -shuffle=on ./...
+	$(LOOP) race -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on ./...
 
 lint:
 	$(LOOP) lint -- $(GOLINT) run ./...
@@ -31,14 +34,20 @@ lint:
 check:
 	$(LOOP) check -- $(MAKE) --no-print-directory _check
 
+# Fast-loop only: the transpiled SQLite stack (modernc.org/*: sqlite, libc, memory) is compiled without
+# race/checkptr instrumentation. It is generated C-to-Go code with no project logic, and instrumenting it
+# cost about two thirds of suite CPU. Everything else (all of our code, database/sql, net/http) stays
+# under -race, and `make test` / `make cover` / CI keep full instrumentation everywhere.
+CHECK_GCFLAGS = -gcflags=modernc.org/...=-race=false
+
 # Internal: steps of `check` (run inside one metrics row). -short skips the heavy media-tool/acceptance
 # tiers (testtools.Require, TestAcceptance_*); `make test` and CI run them.
 _check:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	go vet ./...
 	$(GOLINT) run ./...
-	CGO_ENABLED=1 go test -race -short -shuffle=on ./...
-	@if [ -d web/node_modules ]; then cd web && bun run lint && bun run check && bun test; else echo "web/node_modules missing: skipping web checks"; fi
+	TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short -shuffle=on ./...
+	@scripts/web-check.sh
 
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh
@@ -46,7 +55,7 @@ e2e:
 # Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e` ran;
 # scripts/coverage-gate.sh enforces coverage.thresholds (C23).
 cover:
-	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && CGO_ENABLED=1 go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'
+	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'
 
 # Seeds the dev data dir with the synthetic archive (needs the seed-synthetic command, M1-B9).
 seed:

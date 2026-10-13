@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -46,6 +47,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   mkdirSync(secretsDir, { recursive: true, mode: 0o700 });
   writeFileSync(join(secretsDir, "secret_key"), "0123456789abcdef".repeat(4) + "\n", { mode: 0o600 });
   writeFileSync(join(secretsDir, "edge_secret"), EDGE_SECRET + "\n", { mode: 0o600 });
+  // Canary for the leak scanner (C39): its value must never appear in any response body or header.
+  writeFileSync(join(secretsDir, "ntfy_token"), `canary-${randomBytes(16).toString("hex")}\n`, { mode: 0o600 });
 
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -57,7 +60,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     MM_E2E: "1",
     MM_DATA_DIR: dataDir,
     MM_SECRETS_DIR: secretsDir,
+    // One e2e human principal across parallel workers would exceed the production buckets (D-M2a-10);
+    // the schedule is off so a backup only ever runs when a spec asks for it.
+    MM_RATE_SCALE: "100",
+    MM_BACKUP_AT: "off",
   };
+  // Specs read the seed archive (byte-identity export check); workers inherit this from the setup process.
+  process.env.MM_E2E_SEED_DIR = join(dataDir, "inbox-synthetic");
   // Seed the synthetic library (C22): synchronous, same env; a failed seed fails the whole setup.
   const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e"], { env, stdio: ["ignore", "ignore", "inherit"] });
   if (seed.status !== 0) {
@@ -101,6 +110,14 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         if (missing.length > 0) {
           failure = new Error(`operations with a UI never served to the SPA: ${missing.join(", ")} (filtered run? set MM_E2E_COVERAGE=0 to skip this check)`);
         }
+      }
+      // The leak scanner saw every request and response of the run (C39); it must have found no secret value.
+      const lk = await fetch(`${BASE_URL}/__e2e/leaks`, { headers: HEADERS });
+      if (!lk.ok) throw new Error(`/__e2e/leaks returned ${lk.status}`);
+      const leaks = (await lk.json()) as unknown[];
+      if (leaks.length > 0) {
+        // Entries name the kind, place and path of a leak, never its value.
+        failure = new Error(`secret leak scanner reported ${leaks.length} finding(s): ${JSON.stringify(leaks)}`, { cause: failure });
       }
     } catch (e) {
       failure = e instanceof Error ? e : new Error(String(e));

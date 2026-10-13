@@ -2,6 +2,10 @@
   import { api } from "../../api/client";
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
+  import { judge } from "../judge.svelte";
+  import CommentComposer from "./CommentComposer.svelte";
+  import StarRating from "./StarRating.svelte";
+  import StatusSelect from "./StatusSelect.svelte";
   import Waveform from "./Waveform.svelte";
 
   let { player }: { player: Player } = $props();
@@ -9,6 +13,32 @@
   let peaks = $state<number[] | null>(null);
   let bits = $state(8);
   let peaksFor = "";
+  let commenting = $state(false);
+  const trackId = $derived(player.state.trackId);
+  const j = $derived(trackId ? judge.get(trackId) : undefined);
+
+  // Seed the judging state for the current track unless a page already did.
+  $effect(() => {
+    const id = trackId;
+    commenting = false;
+    if (!id || judge.get(id)) return;
+    void (async () => {
+      try {
+        const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
+        if (r.data && !judge.get(id)) {
+          judge.seed(id, {
+            stars: r.data.rating.human?.stars ?? null,
+            verdict: r.data.rating.human?.verdict ?? null,
+            critic: r.data.rating.critic ? { stars: r.data.rating.critic.stars, verdict: r.data.rating.critic.verdict } : null,
+            status: r.data.status,
+            tags: r.data.tags,
+          });
+        }
+      } catch {
+        /* the bar works without judging controls */
+      }
+    })();
+  });
 
   $effect(() => {
     const id = player.state.trackId;
@@ -63,12 +93,25 @@
     />
   </div>
   <span class="time" data-testid="player-time">{fmt(player.state.current)} / {fmt(player.state.duration)}</span>
+  {#if trackId && j}
+    <div class="judge" data-testid="player-judge">
+      <StarRating value={j.stars} onchange={(n) => judge.rate(trackId, n)} label="Rating" />
+      <StatusSelect value={j.status} onchange={(st) => judge.setStatus(trackId, st)} />
+      <button type="button" aria-expanded={commenting} data-testid="player-comment" onclick={() => (commenting = !commenting)}>Comment</button>
+    </div>
+  {/if}
+  {#if commenting && trackId}
+    <div class="pop" data-testid="player-composer">
+      <CommentComposer {trackId} current={player.state.current} playing={player.state.playing} oncreated={() => (commenting = false)} oncancel={() => (commenting = false)} />
+    </div>
+  {/if}
 </div>
 
 <style>
   .bar {
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
     align-items: center;
     flex: 1;
     min-width: 0;
@@ -82,13 +125,33 @@
     min-height: 2.5rem;
   }
   .mid {
-    flex: 1;
+    flex: 1 1 8rem;
     min-width: 0;
   }
   .title {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .judge {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .bar {
+    position: relative;
+  }
+  .pop {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.5rem);
+    width: min(24rem, 100%);
+    background: #1d1814;
+    border: 1px solid #3a322b;
+    border-radius: 0.5rem;
+    padding: 0.6rem;
+    z-index: 5;
   }
   .err {
     margin-left: 0.5rem;

@@ -359,6 +359,83 @@ func TestRoutingContract(t *testing.T) {
 		}
 	})
 
+	t.Run("pair and device", func(t *testing.T) {
+		cookie := func(v string) http.Header { return http.Header{"Cookie": {v}} }
+		for _, path := range []string{"/start", "/pair", "/pair.js", "/auth/pair"} {
+			before := e.stubCalls()
+			r := e.do(http.MethodGet, path, nil)
+			if r.router() != "mm-pair" || r.Status != http.StatusOK {
+				t.Errorf("%s: router %q status %d, want mm-pair 200", path, r.router(), r.Status)
+			}
+			if n := e.stubCalls(); n != before {
+				t.Errorf("%s: reached forward-auth (%d calls)", path, n-before)
+			}
+			spoof := map[string][]string{}
+			for _, h := range identityHeaders {
+				spoof[h] = []string{"evil"}
+			}
+			r, err := e.try(http.MethodGet, path, nil, spoof)
+			if err != nil || r.router() != "mm-pair" {
+				t.Errorf("%s spoof: err %v router %q", path, err, r.router())
+				continue
+			}
+			for _, h := range identityHeaders {
+				if v, ok := r.echo(t).Headers[http.CanonicalHeaderKey(h)]; ok {
+					t.Errorf("%s: %s arrived as %q", path, h, v)
+				}
+			}
+		}
+		deviceCases := []struct {
+			path   string
+			hdr    http.Header
+			router string
+			stub   bool
+		}{
+			{"/", cookie("mm_dev=x"), "mm-device", false},
+			{"/api/tracks", cookie("mm_dev=x"), "mm-device", false},
+			{"/api/tracks", cookie("a=1; mm_dev=x"), "mm-device", false},
+			{"/api/tracks", cookie("a=1;mm_dev=x"), "mm-device", false},
+			{"/api/tracks", cookie("xmm_dev=1"), "mm-ui", true},
+			{"/api/tracks", cookie("mm_dev_x=1"), "mm-ui", true},
+			{"/human/tokens", cookie("mm_dev=x"), "mm-ui", true},
+			{"/auth/step-up", cookie("mm_dev=x"), "mm-ui", true},
+			{"/media/x", cookie("mm_dev=x"), "mm-media", false},
+			{"/mcp", cookie("mm_dev=x"), "mm-agent", false},
+		}
+		for _, c := range deviceCases {
+			before := e.stubCalls()
+			r := e.do(http.MethodGet, c.path, c.hdr)
+			if r.router() != c.router {
+				t.Errorf("%s %v: router %q, want %s", c.path, c.hdr["Cookie"], r.router(), c.router)
+			}
+			want := before
+			if c.stub {
+				want++
+			}
+			if n := e.stubCalls(); n != want {
+				t.Errorf("%s %v: forward-auth calls = %d, want %d", c.path, c.hdr["Cookie"], n-before, want-before)
+			}
+		}
+		// mm-device: identity headers stripped, response compressed
+		spoof := map[string][]string{}
+		for _, h := range identityHeaders {
+			spoof[h] = []string{"evil"}
+		}
+		r, err := e.try(http.MethodGet, "/api/tracks", cookie("mm_dev=x"), spoof)
+		if err != nil || r.router() != "mm-device" || r.Status != http.StatusOK {
+			t.Fatalf("mm-device spoof: err %v router %q status %d", err, r.router(), r.Status)
+		}
+		for _, h := range identityHeaders {
+			if v, ok := r.echo(t).Headers[http.CanonicalHeaderKey(h)]; ok {
+				t.Errorf("mm-device: %s arrived as %q", h, v)
+			}
+		}
+		gz := merge(cookie("mm_dev=x"), http.Header{"Accept-Encoding": {"gzip"}})
+		if r := e.do(http.MethodGet, "/restore?size=5000", gz); r.router() != "mm-device" || r.Header.Get("Content-Encoding") != "gzip" {
+			t.Errorf("mm-device compress: router %q Content-Encoding %q", r.router(), r.Header.Get("Content-Encoding"))
+		}
+	})
+
 	t.Run("identity", func(t *testing.T) {
 		spoof := map[string][]string{}
 		for _, h := range identityHeaders {
@@ -410,7 +487,7 @@ func TestRoutingContract(t *testing.T) {
 		if got := order["mm-ui"]; strings.Join(got, ",") != strings.Join(wantUI, ",") {
 			t.Errorf("mm-ui middlewares = %v, want %v", got, wantUI)
 		}
-		for _, r := range []string{"mm-public", "mm-api-bearer", "mm-agent", "mm-media"} {
+		for _, r := range []string{"mm-public", "mm-api-bearer", "mm-agent", "mm-media", "mm-pair", "mm-device"} {
 			mws := order[r]
 			if len(mws) == 0 || mws[0] != "mm-strip-identity" {
 				t.Errorf("%s: first middleware must be mm-strip-identity, got %v", r, mws)
@@ -426,8 +503,25 @@ func TestRoutingContract(t *testing.T) {
 				t.Errorf("mm-media has %s", mw)
 			}
 		}
-		if len(order) != 5 {
-			t.Errorf("routers = %d, want 5 (mm-device arrives with M2a)", len(order))
+		for r, want := range map[string][]string{
+			"mm-pair":   {"mm-strip-identity", "sec-ratelimit@docker", "sec-headers@docker"},
+			"mm-device": {"mm-strip-identity", "sec-ratelimit@docker", "sec-headers@docker", "mm-compress"},
+		} {
+			if got := order[r]; strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Errorf("%s middlewares = %v, want %v", r, got, want)
+			}
+		}
+		for r, mws := range order {
+			has := false
+			for _, mw := range mws {
+				has = has || mw == "mm-compress"
+			}
+			if has != (r == "mm-device" || r == "mm-ui") {
+				t.Errorf("%s: mm-compress present = %v", r, has)
+			}
+		}
+		if len(order) != 7 {
+			t.Errorf("routers = %d, want 7", len(order))
 		}
 	})
 
