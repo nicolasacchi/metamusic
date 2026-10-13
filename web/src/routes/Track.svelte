@@ -14,6 +14,8 @@
   import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
   import ContextButton from "../lib/components/ContextButton.svelte";
   import MetricsCard from "../lib/components/MetricsCard.svelte";
+  import EarsPanel from "../lib/components/EarsPanel.svelte";
+  import LineageDuels from "../lib/components/LineageDuels.svelte";
 
   type Track = components["schemas"]["TrackDetail"];
   interface Props {
@@ -23,6 +25,12 @@
     navigate?: (to: string, replace?: boolean) => void;
   }
   let { id, t = "", navigate }: Props = $props();
+
+  /** Router-less fallback (the router listens to popstate). */
+  function defaultNavigate(to: string) {
+    history.pushState(null, "", to);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
 
   let track = $state<Track | null>(null);
   let error = $state("");
@@ -190,6 +198,13 @@
           <ContextButton trackId={id} />
         </section>
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
+        <EarsPanel trackId={id} />
+        <LineageDuels
+          trackId={id}
+          rootId={track.lineage.root_track_id}
+          parentId={track.lineage.parent_track_id}
+          navigate={(to) => (navigate ?? defaultNavigate)(to)}
+        />
         <section class="card">
           <h2>Recipe</h2>
           <p class="style" data-testid="recipe-style">{track.recipe.style}</p>

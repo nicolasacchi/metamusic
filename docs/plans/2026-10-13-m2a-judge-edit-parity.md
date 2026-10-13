@@ -1820,6 +1820,10 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
 
 ### C40. Web (`web/`; amends M1 C22)
 
+> M2b-W2 (recorded): `APP_ROUTES` gains `/duels`, `/duels/:id`, `/ladder`, `/compare`; the nav gains "Duels"
+> (badge from `list_duels?state=open&limit=1`) and "Ladder"; the Track page gains the Ears panel and the
+> Lineage-duels block (M2b C54.4).
+
 Routes (M0 router; specific before parametric): `/` Library · `/tracks/:id` Track · `/backlog` ·
 `/backlog/new` · `/backlog/upload` · `/backlog/:id` Draft editor · `/playlists` · `/playlists/:id` ·
 `/export` · `/import` · `/settings` · `/settings/backups` · `/settings/audit` · `/human/tokens` ·
