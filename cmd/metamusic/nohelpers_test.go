@@ -19,6 +19,7 @@ func TestNoTestHelpersInBinary(t *testing.T) {
 		modulePath + "internal/testtools":               true,
 		modulePath + "internal/media/flacmeta/flactest": true,
 		modulePath + "internal/library/librarytest":     true,
+		modulePath + "internal/servertest":              true,
 	}
 	checked := 0
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {

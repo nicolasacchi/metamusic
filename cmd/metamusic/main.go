@@ -29,6 +29,7 @@ commands:
   token list
   token revoke ID
   user set-password --username U (password read from stdin)
+  mcp-stdio                      serve MCP on stdin/stdout as the agent owning MM_TOKEN (no MM_AUTH needed)
   import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
          [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]
                                  inventory the inbox (--dry-run), then apply the reviewed plan (--plan)
@@ -76,6 +77,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdToken(ctx, rest, getenv, s)
 	case "user":
 		err = cmdUser(ctx, rest, getenv, s)
+	case "mcp-stdio":
+		err = cmdMCPStdio(ctx, rest, getenv, s)
 	case "import":
 		err = cmdImport(ctx, rest, getenv, s)
 	case "seed-synthetic":

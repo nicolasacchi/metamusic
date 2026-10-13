@@ -7,14 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/go-cmp/cmp"
@@ -22,72 +19,24 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
-	"github.com/nicolasacchi/metamusic/internal/config"
-	"github.com/nicolasacchi/metamusic/internal/httpserver"
-	"github.com/nicolasacchi/metamusic/internal/library"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
-	"github.com/nicolasacchi/metamusic/internal/mcpgen"
-	"github.com/nicolasacchi/metamusic/internal/media/serve"
-	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
 type rig struct {
-	srv    *httptest.Server
+	url    string
 	tokens *auth.TokenStore
 	api    huma.API
 }
 
+// newRig starts a servertest rig holding the M0+M1 fixture library under the
+// fixed clock, so every face and every rig of a mutating op agree exactly.
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
-	key := []byte("0123456789abcdef0123456789abcdef")
-	cfg := config.Config{
-		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-		TrustedUsers:   []string{"alice"},
-	}
-	tokens := auth.NewTokenStore(st, key, time.Now)
-	r := &rig{tokens: tokens}
-	// Every rig holds the same fixture library under a fixed clock, so the REST
-	// face and the MCP face (and the two rigs of a mutating op) agree exactly.
-	lt.Fixture(t, st, lt.FixedNow)
-	dataDir := t.TempDir()
-	lt.WriteFiles(t, dataDir)
-	root, err := os.OpenRoot(dataDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = root.Close() })
-	now := func() time.Time { return lt.FixedNow }
-	h, err := httpserver.New(httpserver.Options{
-		Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: "edge"}, Store: st, Tokens: tokens,
-		Sessions: auth.NewLocalAuth(st, key, cfg.PublicURL),
-		SPA:      fstest.MapFS{"index.html": {Data: []byte("x")}},
-		Version:  "v-test", Commit: "abc123",
-		Started: lt.FixedNow.Add(-time.Hour),
-		Library: library.New(st, root, now), Signer: serve.NewSigner(key, now), Now: now,
-		Probe: &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
-		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
-			r.api = a
-			s, err := mcpgen.NewServer(a, inner, "v-test")
-			if err != nil {
-				return nil, err
-			}
-			return mcpgen.Handler(s), nil
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.srv = httptest.NewServer(h)
-	t.Cleanup(r.srv.Close)
-	return r
+	sr := servertest.New(t, servertest.Options{Fixture: true, Files: true})
+	return &rig{url: sr.URL, tokens: sr.Services.Tokens, api: sr.API}
 }
 
 type bearerRT struct{ tok string }
@@ -111,7 +60,7 @@ func (r *rig) client(t *testing.T, tok string) *mcp.ClientSession {
 	t.Helper()
 	c := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
 	sess, err := c.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:   r.srv.URL + "/mcp",
+		Endpoint:   r.url + "/mcp",
 		HTTPClient: &http.Client{Transport: bearerRT{tok}},
 		MaxRetries: -1,
 	}, nil)
@@ -132,7 +81,7 @@ func (r *rig) rest(t *testing.T, tok, method, path string, body any) any {
 		}
 		rd = strings.NewReader(string(b))
 	}
-	req, _ := http.NewRequest(method, r.srv.URL+path, rd)
+	req, _ := http.NewRequest(method, r.url+path, rd)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -166,40 +115,39 @@ func structured(t *testing.T, res *mcp.CallToolResult) any {
 	return v
 }
 
-// parityFixture is the REST rendering of one MCP call: tool arguments plus the
-// method, path (with query string) and JSON body the same call uses over REST.
-type parityFixture struct {
-	Args   map[string]any
-	Method string // "" means GET
-	Path   string
-	Body   any
+// ParityCase is one step of the parity script: an operation, its tool
+// arguments (built per rig so cases can refer to rig-specific ids), and the
+// response keys that legitimately differ between faces (token ids, ...).
+type ParityCase struct {
+	Op          string
+	Args        func(*servertest.Rig) map[string]any
+	Masks       []string
+	SkipGeneric bool // do not repeat the call through call_operation (non-replayable mutations)
+	Last        bool // runs after every other case (ops that end a principal)
 }
 
-// parityArgs holds a fixture for every tool or generic operation that is not a
-// parameterless GET. needsFixture decides which operations those are; one
-// without an entry fails TestParityEveryOperation, so new ops cannot escape
-// parity unnoticed (and -update on the golden cannot hide it).
-var parityArgs = map[string]parityFixture{
-	"search_tracks":        {Args: map[string]any{"q": "luna", "limit": 10}, Path: "/api/tracks?q=luna&limit=10"},
-	"get_track":            {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna},
-	"get_track_peaks":      {Args: map[string]any{"id": lt.TrackLuna, "level": "detail"}, Path: "/api/tracks/" + lt.TrackLuna + "/peaks?level=detail"},
-	"get_media_links":      {Args: map[string]any{"id": lt.TrackLuna}, Path: "/api/tracks/" + lt.TrackLuna + "/media"},
-	"list_drafts":          {Args: map[string]any{"limit": 10}, Path: "/api/drafts?limit=10"},
-	"get_draft":            {Args: map[string]any{"id": lt.Draft1}, Path: "/api/drafts/" + lt.Draft1},
-	"list_import_runs":     {Args: map[string]any{"limit": 10}, Path: "/api/imports?limit=10"},
-	"list_device_profiles": {Args: map[string]any{"limit": 10}, Path: "/api/device-profiles?limit=10"},
-	"get_import_run":       {Args: map[string]any{"id": lt.RunID, "section": "warnings"}, Path: "/api/imports/" + lt.RunID + "?section=warnings"},
-	"put_device_profile": {
-		Args: map[string]any{
-			"device_id": "parity-device-1", "label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",
-			"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
-		},
-		Method: "PUT", Path: "/api/device-profiles/parity-device-1",
-		Body: map[string]any{
-			"label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",
-			"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
-		},
-	},
+func fixedArgs(m map[string]any) func(*servertest.Rig) map[string]any {
+	return func(*servertest.Rig) map[string]any { return m }
+}
+
+// parityCases holds a case for every tool or generic operation that is not a
+// parameterless GET (needsFixture); parameterless GETs get an implicit case.
+// An operation without a case fails TestParityEveryOperation, so new ops
+// cannot escape parity unnoticed. Each task adds its cases here.
+var parityCases = []ParityCase{
+	{Op: "search_tracks", Args: fixedArgs(map[string]any{"q": "luna", "limit": 10})},
+	{Op: "get_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "get_track_peaks", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "level": "detail"})},
+	{Op: "get_media_links", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "list_drafts", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_draft", Args: fixedArgs(map[string]any{"id": lt.Draft1})},
+	{Op: "list_import_runs", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "list_device_profiles", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_import_run", Args: fixedArgs(map[string]any{"id": lt.RunID, "section": "warnings"})},
+	{Op: "put_device_profile", Args: fixedArgs(map[string]any{
+		"device_id": "parity-device-1", "label": "Parity", "user_agent": "UA/1", "quality": "high", "quality_source": "probe",
+		"probe_result": "failed", "flac_can_play": "maybe", "flac_decode_ok": false, "probe_version": 1,
+	})},
 }
 
 // needsFixture reports whether an operation must carry a parity fixture: any
@@ -239,73 +187,186 @@ func TestNeedsFixture(t *testing.T) {
 	}
 }
 
-func TestParityEveryOperation(t *testing.T) {
-	shared := newRig(t)
-	sharedTok := shared.token(t, "agent-1", auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin)
-	sharedSess := shared.client(t, sharedTok)
-	ctx := context.Background()
-	n := 0
-	for _, op := range api.Operations(shared.api) {
+// restRequest renders tool arguments as the REST call of op: path, query and
+// header parameters come from the OpenAPI operation; the remaining arguments
+// are the JSON body (the "body" argument alone when the body is nested).
+func restRequest(t *testing.T, a huma.API, op api.OpInfo, args map[string]any) (path string, body any, headers []string) {
+	t.Helper()
+	o := pathOperation(a, op)
+	if o == nil {
+		t.Fatalf("%s: not in the OpenAPI document", op.ID)
+	}
+	path = op.Path
+	q := url.Values{}
+	rest := map[string]any{}
+	for k, v := range args {
+		rest[k] = v
+	}
+	for _, p := range o.Parameters {
+		arg := p.Name
+		if p.In == "header" {
+			arg = strings.ToLower(strings.ReplaceAll(p.Name, "-", "_"))
+		}
+		v, ok := rest[arg]
+		if !ok {
+			continue
+		}
+		delete(rest, arg)
+		switch p.In {
+		case "path":
+			path = strings.ReplaceAll(path, "{"+p.Name+"}", url.PathEscape(fmt.Sprint(v)))
+		case "query":
+			if list, isList := v.([]string); isList {
+				for _, e := range list {
+					q.Add(p.Name, e)
+				}
+			} else {
+				q.Set(p.Name, fmt.Sprint(v))
+			}
+		case "header":
+			headers = append(headers, p.Name, fmt.Sprint(v))
+		}
+	}
+	if len(q) > 0 {
+		path += "?" + q.Encode()
+	}
+	if nested, ok := rest["body"]; ok && len(rest) == 1 {
+		return path, nested, headers
+	}
+	if len(rest) > 0 || o.RequestBody != nil {
+		return path, rest, headers
+	}
+	return path, nil, headers
+}
+
+type paritySteps struct {
+	cases []ParityCase
+	ops   map[string]api.OpInfo
+}
+
+// parityScript orders the cases (Last ones at the end) and adds the implicit
+// no-argument case of every operation that needs none.
+func parityScript(t *testing.T, a huma.API) paritySteps {
+	t.Helper()
+	ps := paritySteps{ops: map[string]api.OpInfo{}}
+	have := map[string]bool{}
+	for _, c := range parityCases {
+		if have[c.Op] {
+			t.Errorf("duplicate parity case for %s", c.Op)
+		}
+		have[c.Op] = true
+	}
+	for _, op := range api.Operations(a) {
 		if op.Meta.MCP != "tool" && op.Meta.MCP != "generic" {
 			continue
 		}
-		o := pathOperation(shared.api, op)
+		ps.ops[op.ID] = op
+		o := pathOperation(a, op)
 		if o == nil {
 			t.Errorf("%s: not found in the OpenAPI document", op.ID)
 			continue
 		}
-		fx, haveFx := parityArgs[op.ID]
-		if needsFixture(op.Method, o) && !haveFx {
-			t.Errorf("%s: %s %s has inputs or side effects and needs a parityArgs fixture", op.ID, op.Method, op.Path)
+		if !have[op.ID] {
+			if needsFixture(op.Method, o) {
+				t.Errorf("%s: %s %s has inputs or side effects and needs a parityCases entry", op.ID, op.Method, op.Path)
+				continue
+			}
+			ps.cases = append(ps.cases, ParityCase{Op: op.ID})
+		}
+	}
+	var last []ParityCase
+	for _, c := range parityCases {
+		if _, ok := ps.ops[c.Op]; !ok {
+			t.Errorf("parity case for unknown or non-MCP operation %q", c.Op)
 			continue
 		}
-		method, path := op.Method, op.Path
-		if haveFx {
-			path = fx.Path
-			if fx.Method != "" {
-				method = fx.Method
-			}
-		}
-		n++
-		routes := map[string]*mcp.CallToolParams{
-			"call_operation": {Name: "call_operation", Arguments: map[string]any{"operation_id": op.ID, "arguments": fx.Args}},
-		}
-		if op.Meta.MCP == "tool" {
-			routes["tool"] = &mcp.CallToolParams{Name: op.ID, Arguments: fx.Args}
-		}
-		for route, params := range routes {
-			var diff string
-			if method == http.MethodGet {
-				for attempt := 0; attempt < 3; attempt++ { // uptime_s may tick between the two calls
-					res, err := sharedSess.CallTool(ctx, params)
-					if err != nil {
-						t.Fatalf("%s via %s: %v", op.ID, route, err)
-					}
-					diff = cmp.Diff(shared.rest(t, sharedTok, method, path, fx.Body), structured(t, res))
-					if diff == "" {
-						break
-					}
-				}
-			} else {
-				// mutating op: each face runs against its own fresh rig, so one
-				// call cannot change the other face's result
-				ra, rb := newRig(t), newRig(t)
-				scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-				ta, tb := ra.token(t, "agent-1", scopes...), rb.token(t, "agent-1", scopes...)
-				res, err := rb.client(t, tb).CallTool(ctx, params)
-				if err != nil {
-					t.Fatalf("%s via %s: %v", op.ID, route, err)
-				}
-				diff = cmp.Diff(ra.rest(t, ta, method, path, fx.Body), structured(t, res))
-			}
-			if diff != "" {
-				t.Errorf("%s via %s: REST vs MCP mismatch (-rest +mcp):\n%s", op.ID, route, diff)
-			}
+		if c.Last {
+			last = append(last, c)
+		} else {
+			ps.cases = append(ps.cases, c)
 		}
 	}
-	if n == 0 {
+	ps.cases = append(ps.cases, last...)
+	return ps
+}
+
+// faceCall runs one case on an MCP session through the first-class tool (or
+// call_operation when generic) and returns the normalised structured result.
+func mcpCall(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[string]any, viaGeneric bool, masks []string) any {
+	t.Helper()
+	name, params := op.ID, any(args)
+	if viaGeneric || op.Meta.MCP != "tool" {
+		name, params = "call_operation", map[string]any{"operation_id": op.ID, "arguments": args}
+	}
+	res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: params})
+	if err != nil {
+		t.Fatalf("%s via %s: %v", op.ID, name, err)
+	}
+	return servertest.Normalize(structured(t, res), masks...)
+}
+
+// runParity executes the script on identically seeded rigs: REST on A (agent
+// bearer, explicit Idempotency-Key parity-<n> for create ops), MCP on B (no
+// key, so derived) and, when stdio is set, stdio on C. Normalised responses
+// must be equal at every step.
+func runParity(t *testing.T, stdio bool) {
+	t.Helper()
+	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
+	opts := servertest.Options{Fixture: true, Files: true}
+	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
+	restClient, _ := ra.Agent(t, scopes...)
+	mcpSess := rb.MCP(t, scopes...)
+	var stdioSess *mcp.ClientSession
+	if stdio {
+		rc := servertest.New(t, opts)
+		stdioSess = rc.Stdio(t, scopes...)
+	}
+	script := parityScript(t, ra.API)
+	if len(script.cases) == 0 {
 		t.Fatal("no operations exercised")
 	}
+	for i, c := range script.cases {
+		op := script.ops[c.Op]
+		var args map[string]any
+		if c.Args != nil {
+			args = c.Args(ra)
+		}
+		path, body, headers := restRequest(t, ra.API, op, args)
+		if op.Meta.Idempotency == "create" {
+			headers = append(headers, "Idempotency-Key", fmt.Sprintf("parity-%d", i))
+		}
+		resp := restClient.Do(t, op.Method, path, body, headers...)
+		if resp.Status/100 != 2 {
+			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
+		}
+		want := servertest.Normalize(resp.JSON(t), c.Masks...)
+		sessions := map[string]*mcp.ClientSession{"mcp": mcpSess}
+		if stdio {
+			sessions["stdio"] = stdioSess
+		}
+		for face, sess := range sessions {
+			if diff := cmp.Diff(want, mcpCall(t, sess, op, args, false, c.Masks)); diff != "" {
+				t.Errorf("%s: REST vs %s mismatch (-rest +%s):\n%s", op.ID, face, face, diff)
+			}
+			if op.Meta.MCP == "tool" && !c.SkipGeneric {
+				// Replays (derived key) or idempotent writes: the generic route must agree too.
+				if diff := cmp.Diff(want, mcpCall(t, sess, op, args, true, c.Masks)); diff != "" {
+					t.Errorf("%s: REST vs %s call_operation mismatch:\n%s", op.ID, face, diff)
+				}
+			}
+		}
+	}
+}
+
+// TestParityEveryOperation: every registered, non-excluded operation has a
+// case, and REST, MCP tools and call_operation agree on each.
+func TestParityEveryOperation(t *testing.T) {
+	runParity(t, false)
+}
+
+// TestParity_Stdio: the M0 and M1 cases are equal over REST, MCP and stdio.
+func TestParity_Stdio(t *testing.T) {
+	runParity(t, true)
 }
 
 func TestWhoamiPropagatesAgentPrincipal(t *testing.T) {
@@ -339,7 +400,7 @@ func TestScopeEnforcedThroughMCP(t *testing.T) {
 func TestAnonymousMCPIs401(t *testing.T) {
 	r := newRig(t)
 	for _, auth := range []string{"", "Bearer mmp_bogus"} {
-		req, _ := http.NewRequest("POST", r.srv.URL+"/mcp", strings.NewReader(`{}`))
+		req, _ := http.NewRequest("POST", r.url+"/mcp", strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		if auth != "" {
 			req.Header.Set("Authorization", auth)
@@ -421,7 +482,7 @@ func TestWhoamiAcrossProtocolVersions(t *testing.T) {
 	tok := r.token(t, "agent-pv", auth.ScopeRead)
 	for _, ver := range []string{"", "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"} {
 		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"whoami","arguments":{}}}`
-		req, _ := http.NewRequest("POST", r.srv.URL+"/mcp", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", r.url+"/mcp", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+tok)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
@@ -468,7 +529,7 @@ func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
 		{"unsupported rpc method", "POST", `{"jsonrpc":"2.0","id":1,"method":"nope/nothing"}`, 400, "BAD_REQUEST"},
 	}
 	for _, tc := range tests {
-		req, _ := http.NewRequest(tc.method, r.srv.URL+"/mcp", strings.NewReader(tc.body))
+		req, _ := http.NewRequest(tc.method, r.url+"/mcp", strings.NewReader(tc.body))
 		req.Header.Set("Authorization", "Bearer "+tok)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")

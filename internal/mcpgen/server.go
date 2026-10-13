@@ -5,6 +5,7 @@ package mcpgen
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 )
 
 type entry struct {
@@ -21,13 +24,54 @@ type entry struct {
 }
 
 type gen struct {
-	inner    http.Handler
-	callable map[string]entry // tool + generic operations
+	inner     http.Handler
+	callable  map[string]entry // tool + generic operations
+	transport reqinfo.Transport
+	// principal, when set, resolves the caller before every tool call (stdio).
+	principal func(ctx context.Context) (auth.Principal, error)
+}
+
+// run resolves the caller (stdio) and dispatches one tool call.
+func (g *gen) run(ctx context.Context, req *mcp.CallToolRequest, spec *toolSpec, args json.RawMessage) *mcp.CallToolResult {
+	if g.principal != nil {
+		p, err := g.principal(ctx)
+		if err != nil {
+			if errors.Is(err, auth.ErrInvalidToken) {
+				return problemResult("UNAUTHENTICATED", "the credential is no longer valid")
+			}
+			return problemResult("INTERNAL", "could not resolve the caller")
+		}
+		ctx = auth.WithPrincipal(ctx, p)
+	}
+	return dispatch(ctx, g.inner, spec, args, origin{transport: g.transport, client: clientLabel(req)})
+}
+
+// StdioOptions configures NewStdioServer.
+type StdioOptions struct {
+	// Principal is called before EVERY tool call; its result is the caller of
+	// that call. An error wrapping auth.ErrInvalidToken answers UNAUTHENTICATED,
+	// any other error INTERNAL (never the credential).
+	Principal func(ctx context.Context) (auth.Principal, error)
+	Version   string
 }
 
 // NewServer builds an MCP server whose tools are derived from api's operations
-// and dispatch into inner (the Huma mux, not the outer auth chain).
+// and dispatch into inner (the gated Huma mux, not the outer auth chain).
 func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, error) {
+	return newServer(a, inner, version, reqinfo.MCP, nil)
+}
+
+// NewStdioServer builds the same tools as NewServer for the stdio face: every
+// call runs as the principal o.Principal returns, with transport "stdio".
+func NewStdioServer(a huma.API, gated http.Handler, o StdioOptions) (*mcp.Server, error) {
+	if o.Principal == nil {
+		return nil, errors.New("mcpgen: StdioOptions.Principal is required")
+	}
+	return newServer(a, gated, o.Version, reqinfo.Stdio, o.Principal)
+}
+
+func newServer(a huma.API, inner http.Handler, version string, tr reqinfo.Transport,
+	principal func(context.Context) (auth.Principal, error)) (*mcp.Server, error) {
 	raw, err := json.Marshal(a.OpenAPI())
 	if err != nil {
 		return nil, err
@@ -40,7 +84,7 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 	paths := asMap(doc["paths"])
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "metamusic", Version: version}, nil)
-	g := &gen{inner: inner, callable: map[string]entry{}}
+	g := &gen{inner: inner, callable: map[string]entry{}, transport: tr, principal: principal}
 	for _, op := range api.Operations(a) {
 		if op.Meta.MCP != "tool" && op.Meta.MCP != "generic" {
 			if !strings.HasPrefix(op.Meta.MCP, "exclude:") {
@@ -59,6 +103,11 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 		if err != nil {
 			return nil, err
 		}
+		if op.Meta.Idempotency == "create" {
+			if err := spec.markIdempotent(); err != nil {
+				return nil, err
+			}
+		}
 		g.callable[op.ID] = entry{spec, op.Meta}
 		if op.Meta.MCP != "tool" {
 			continue
@@ -76,7 +125,7 @@ func NewServer(a huma.API, inner http.Handler, version string) (*mcp.Server, err
 		open := op.Meta.Cost == "spend"
 		t.Annotations.OpenWorldHint = &open
 		srv.AddTool(t, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return dispatch(ctx, inner, spec, req.Params.Arguments), nil
+			return g.run(ctx, req, spec, req.Params.Arguments), nil
 		})
 	}
 	g.addGeneric(srv)

@@ -35,6 +35,47 @@ type toolSpec struct {
 	BodyProps        []string // flat mode: property names owned by the body
 	Input            map[string]any
 	Output           map[string]any // nil when there is no object-shaped 2xx JSON response
+	// IdemCreate marks x-mm.idempotency == "create" operations: the
+	// idempotency_key argument is optional and dispatch derives a key (C30).
+	IdemCreate bool
+}
+
+const (
+	idemArg    = "idempotency_key"
+	idemHeader = "Idempotency-Key"
+	idemDesc   = "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call " +
+		"within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an " +
+		"action on purpose; explicit keys are remembered for 24 hours."
+)
+
+// markIdempotent turns the Idempotency-Key header parameter of a create
+// operation into an optional argument with the MCP description (C30).
+func (s *toolSpec) markIdempotent() error {
+	found := false
+	for i := range s.Params {
+		if p := &s.Params[i]; p.In == "header" && p.Wire == idemHeader {
+			p.Required, found = false, true
+		}
+	}
+	if !found {
+		return fmt.Errorf("%s: idempotency create operations must declare the %s header", s.ID, idemHeader)
+	}
+	props, _ := s.Input["properties"].(map[string]any)
+	prop := asMap(props[idemArg])
+	if prop == nil {
+		return fmt.Errorf("%s: input schema lacks %s", s.ID, idemArg)
+	}
+	prop["description"] = idemDesc
+	if req, ok := s.Input["required"].([]string); ok {
+		req = slices.DeleteFunc(slices.Clone(req), func(n string) bool { return n == idemArg })
+		if len(req) == 0 {
+			delete(s.Input, "required")
+		} else {
+			s.Input["required"] = req
+		}
+	}
+	s.IdemCreate = true
+	return nil
 }
 
 // snake converts a header-style name (Idempotency-Key) to snake_case.
