@@ -159,18 +159,18 @@ var parityCases = []ParityCase{
 // with real cases (m2bCases) when its service lands. Ids come from duelstest and
 // librarytest (fixed), so every rig agrees.
 var stubCases = []ParityCase{
-	{Op: "get_clip", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "from_s": 1.0, "to_s": 7.0, "match_lufs": -20.0}), Status: 501},
-	{Op: "create_duel", Variant: "explicit", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta, "blind": false, "match_loudness": false}), Status: 501},
-	{Op: "create_duel", Variant: "defaults", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta}), Status: 501},
-	{Op: "next_duel", Args: fixedArgs(map[string]any{"exclude": []string{duelstest.DuelDecided}}), Status: 501},
-	{Op: "get_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen}), Status: 501},
-	{Op: "list_duels", Args: fixedArgs(map[string]any{"state": []string{"open", "decided"}, "mode": "blind", "limit": 10}), Status: 501},
-	{Op: "submit_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen, "verdict": "a", "note": "parity", "latency_ms": 4000, "switches": 3}), SkipGeneric: true, Status: 501},
-	{Op: "get_ladder", Args: fixedArgs(map[string]any{"scope": "lineage", "root_track_id": duelstest.TrackAlpha}), Status: 501},
-	{Op: "get_track_analysis", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack}), Status: 501},
-	{Op: "get_track_spectrogram", Variant: "inline", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack}), Status: 501},
-	{Op: "get_track_spectrogram", Variant: "link", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack, "inline": false}), Status: 501},
-	{Op: "compare_tracks", Args: fixedArgs(map[string]any{"a": duelstest.TrackAlpha, "b": duelstest.TrackBeta}), Status: 501},
+	{Op: "get_clip", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "from_s": 0.0, "to_s": 12.0, "match_lufs": -20.0})},
+	{Op: "create_duel", Variant: "explicit", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta, "blind": false, "match_loudness": false}), Masks: []string{"id"}},
+	{Op: "create_duel", Variant: "defaults", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta}), Masks: []string{"id"}},
+	{Op: "next_duel", Args: fixedArgs(map[string]any{"exclude": []string{duelstest.DuelDecided}})},
+	{Op: "get_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen})},
+	{Op: "list_duels", Args: fixedArgs(map[string]any{"state": []string{"open", "decided"}, "mode": "blind", "limit": 10}), Masks: []string{"id"}},
+	{Op: "submit_duel", Args: fixedArgs(map[string]any{"id": duelstest.DuelOpen, "verdict": "a", "note": "parity", "latency_ms": 4000, "switches": 3}), SkipGeneric: true, Masks: []string{"id"}},
+	{Op: "get_ladder", Args: fixedArgs(map[string]any{"scope": "lineage", "root_track_id": duelstest.TrackAlpha})},
+	{Op: "get_track_analysis", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack})},
+	{Op: "get_track_spectrogram", Variant: "inline", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack})},
+	{Op: "get_track_spectrogram", Variant: "link", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack, "inline": false})},
+	{Op: "compare_tracks", Args: fixedArgs(map[string]any{"a": duelstest.TrackAlpha, "b": duelstest.TrackBeta})},
 }
 
 // judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn

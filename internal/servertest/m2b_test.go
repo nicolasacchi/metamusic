@@ -52,8 +52,8 @@ func TestRig_M2bServicesBuilt(t *testing.T) {
 		t.Errorf("derived dir: %v", err)
 	}
 	h, _ := r.Agent(t)
-	if resp := h.Do(t, "GET", "/api/duels/next", nil); resp.Status != 501 {
-		t.Errorf("next_duel at Stage 1 = %d %s, want 501", resp.Status, resp.Body)
+	if resp := h.Do(t, "GET", "/api/duels/next", nil); resp.Status != 200 {
+		t.Errorf("next_duel = %d %s, want 200", resp.Status, resp.Body)
 	}
 }
 

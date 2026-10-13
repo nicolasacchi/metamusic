@@ -125,7 +125,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Library: lib, Judgments: judg, Signer: signer, Now: now, Playlists: pls, Backups: bak,
 		Exports:   exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
 		Clips:     clip.New(e.data, e.dataDir, mediatool.Tools{}, cliptest.NewAnalyzer(), lib, signer, clip.Options{CacheBytes: 1 << 20, Now: now}),
-		Duels:     duels.New(duels.Options{Store: e.st, Library: lib, Signer: signer, Now: now}),
+		Duels:     duels.New(duels.Options{Store: e.st, Library: lib, Clips: cliptest.NewRenderer(), Signer: signer, Now: now}),
 		Ears:      ears.New(ears.Options{Store: e.st, Library: lib, Signer: signer, Now: now}),
 		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return "privacy-audit" }),
 		DeviceStore: auth.NewDeviceStore(e.st, key, now, func() string { return "privacy-device" }),
@@ -303,8 +303,8 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 				if code == 501 || (!human && code == 403) {
 					continue // M2a stubs (until their task lands) and operator-only operations
 				}
-				// peaks files do not exist under the fake ingester; the body is still checked
-				if code/100 != 2 && op != "get_track_peaks" {
+				// peaks files and clip sources do not exist under the fake ingester; the body is still checked
+				if code/100 != 2 && op != "get_track_peaks" && !(code == 409 && (op == "get_clip" || strings.HasPrefix(op, "get_track_"))) {
 					t.Fatalf("GET %s (human=%v): %d %s", u, human, code, body)
 				}
 				for _, s := range []string{sentS2, sentS3} {
