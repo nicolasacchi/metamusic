@@ -157,7 +157,12 @@ type summary struct {
 func problemOf(err error) error {
 	switch {
 	case errors.Is(err, export.ErrEmpty):
-		return &Error{Status: http.StatusUnprocessableEntity, Code: "EXPORT_EMPTY", Msg: "the selection matches nothing to export"}
+		pe := &Error{Status: http.StatusUnprocessableEntity, Code: "EXPORT_EMPTY", Msg: "the selection matches nothing to export"}
+		var ee *export.EmptyError
+		if errors.As(err, &ee) && len(ee.Notes) > 0 {
+			pe.Details = map[string]any{"notes": ee.Notes}
+		}
+		return pe
 	case errors.Is(err, export.ErrUnknownSource):
 		return &Error{Status: http.StatusUnprocessableEntity, Code: "UNKNOWN_SOURCE", Msg: "no imported JSONL file has that path",
 			Details: map[string]any{"field": "source_path"}}

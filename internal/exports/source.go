@@ -113,7 +113,7 @@ func (d *dbSource) SelectRecipes(ctx context.Context, f export.TrackFilter) ([]e
 	arr := jsonArray(ids)
 	rows, err := d.st.R.QueryContext(ctx, `SELECT r.id, r.hash, r.request_id, r.request_json, MIN(t.recorded_at)
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id
-		WHERE t.id IN (SELECT value FROM json_each(?)) GROUP BY r.id ORDER BY r.id`, arr)
+		WHERE t.id IN (SELECT value FROM json_each(?)) AND r.engine <> 'unknown' GROUP BY r.id ORDER BY r.id`, arr)
 	if err != nil {
 		return nil, fmt.Errorf("exports: select recipes: %w", err)
 	}
@@ -159,6 +159,28 @@ func (d *dbSource) SelectRecipes(ctx context.Context, f export.TrackFilter) ([]e
 		out[idx[rid]].JSONLSources = append(out[idx[rid]].JSONLSources, s)
 	}
 	return out, srows.Err()
+}
+
+func (d *dbSource) UnknownRecipeTracks(ctx context.Context, f export.TrackFilter) ([]string, error) {
+	ids, err := d.trackIDs(ctx, f)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	rows, err := d.st.R.QueryContext(ctx, `SELECT t.id FROM tracks t JOIN recipes r ON r.id = t.recipe_id
+		WHERE t.id IN (SELECT value FROM json_each(?)) AND r.engine = 'unknown' ORDER BY t.id`, jsonArray(ids))
+	if err != nil {
+		return nil, fmt.Errorf("exports: unknown recipe tracks: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 func (d *dbSource) SelectDrafts(ctx context.Context, f export.DraftFilter) ([]export.DraftRow, error) {
