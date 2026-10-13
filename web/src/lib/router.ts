@@ -39,6 +39,13 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/settings/audit", name: "settings-audit" },
   { pattern: "/human/tokens", name: "human-tokens" },
   { pattern: "/human/devices", name: "human-devices" },
+  { pattern: "/jobs", name: "jobs" },
+  { pattern: "/jobs/:id", name: "job" },
+  { pattern: "/batches/:id", name: "batch" },
+  { pattern: "/lineage/:id", name: "lineage" },
+  { pattern: "/human/generate", name: "human-generate" },
+  { pattern: "/human/confirm/:batch", name: "human-confirm" },
+  { pattern: "/human/spend", name: "human-spend" },
 ];
 
 const SERVER_PREFIXES = ["/api", "/human", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest"];

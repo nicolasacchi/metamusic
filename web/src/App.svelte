@@ -31,6 +31,9 @@
   import Duel from "./routes/Duel.svelte";
   import Ladder from "./routes/Ladder.svelte";
   import Compare from "./routes/Compare.svelte";
+  import HumanGenerate from "./routes/HumanGenerate.svelte";
+  import HumanConfirm from "./routes/HumanConfirm.svelte";
+  import HumanSpend from "./routes/HumanSpend.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const router = createRouter(APP_ROUTES);
@@ -86,6 +89,8 @@
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
+      <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
     </nav>
@@ -135,6 +140,18 @@
       <HumanTokens />
     {:else if $router.route?.name === "human-devices"}
       <HumanDevices />
+    {:else if $router.route?.name === "human-generate"}
+      <HumanGenerate />
+    {:else if $router.route?.name === "human-confirm"}
+      {#key $router.params.batch}
+        <HumanConfirm batch={$router.params.batch ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "human-spend"}
+      <HumanSpend />
+    {:else if $router.route?.name === "jobs" || $router.route?.name === "job" || $router.route?.name === "batch" || $router.route?.name === "lineage"}
+      <!-- Placeholder until M3-W2 (jobs, job, batch) and M3-W3 (lineage) replace this branch. -->
+      <h1>{$router.route?.name === "lineage" ? "Lineage" : "Jobs"}</h1>
+      <p class="muted" data-testid="m3-placeholder">This page is not built yet.</p>
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}

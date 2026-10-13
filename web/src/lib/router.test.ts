@@ -100,3 +100,18 @@ describe("APP_ROUTES (C40)", () => {
     expect(matchRoute(APP_ROUTES, "/nope")).toBeNull();
   });
 });
+
+describe("M3 routes (C84)", () => {
+  test("seven new routes match, specific before parametric", async () => {
+    const { APP_ROUTES } = await import("./router");
+    const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+    expect(name("/jobs")).toBe("jobs");
+    expect(name("/jobs/j1")).toBe("job");
+    expect(name("/batches/b1")).toBe("batch");
+    expect(name("/lineage/t1")).toBe("lineage");
+    expect(name("/human/generate")).toBe("human-generate");
+    expect(name("/human/confirm/b1")).toBe("human-confirm");
+    expect(matchRoute(APP_ROUTES, "/human/confirm/b1")?.params).toEqual({ batch: "b1" });
+    expect(name("/human/spend")).toBe("human-spend");
+  });
+});
