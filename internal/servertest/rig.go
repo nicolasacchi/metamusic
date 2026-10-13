@@ -198,8 +198,7 @@ func idSequence(seed string) func() string {
 }
 
 // Human is a REST client for the operator: proxy headers in proxy mode, a
-// logged-in session cookie in local mode. (Local-mode step-up arrives with
-// M2a-B9.)
+// logged-in session cookie that has just stepped up in local mode (see StepUp).
 func (r *Rig) Human(tb testing.TB) *Client {
 	tb.Helper()
 	if r.mode == "proxy" {
@@ -214,6 +213,7 @@ func (r *Rig) Human(tb testing.TB) *Client {
 	if resp.Status != http.StatusSeeOther {
 		tb.Fatalf("servertest: local login: status %d", resp.Status)
 	}
+	r.StepUp(tb, c)
 	return c
 }
 
@@ -235,13 +235,6 @@ func (r *Rig) token(tb testing.TB, scopes []auth.Scope) (string, string) {
 		tb.Fatal(err)
 	}
 	return tok, id
-}
-
-// Device returns a paired device client. Until M2a-B9 it skips the test.
-func (r *Rig) Device(tb testing.TB) *Client {
-	tb.Helper()
-	tb.Skip("M2a-B9")
-	return nil
 }
 
 type bearerRT struct{ tok string }

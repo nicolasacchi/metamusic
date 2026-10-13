@@ -169,8 +169,6 @@ var stubCases = []ParityCase{
 	{Op: "get_export", Args: fixedArgs(map[string]any{"id": "e1"}), Status: 501},
 	{Op: "create_backup", Status: 501},
 	{Op: "list_backups", Status: 501},
-	{Op: "list_tokens", Status: 501},
-	{Op: "revoke_own_token", Status: 501},
 }
 
 // judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn

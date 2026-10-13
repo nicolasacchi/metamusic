@@ -2,11 +2,20 @@
 package notify
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	neturl "net/url"
+	"path"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/redact"
 )
@@ -25,14 +34,120 @@ type Notifier interface {
 }
 
 // NewNtfy returns an ntfy publisher for MM_NTFY_URL (<server base>/<topic>).
+// It publishes as JSON to the server base, so the only headers are Content-Type
+// and the bearer token: no user-chosen text ever travels as a header. A nil
+// client means a 10 s timeout client.
 func NewNtfy(url, token string, client *http.Client) Notifier {
-	// STUB(M2a-B9)
-	return ntfyStub{}
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &ntfy{url: url, token: token, client: client}
 }
 
-type ntfyStub struct{}
+type ntfy struct {
+	url, token string
+	client     *http.Client
+}
 
-func (ntfyStub) Notify(context.Context, Message) error { return errors.ErrUnsupported }
+const (
+	maxTitleRunes   = 200
+	maxMessageRunes = 1000
+)
+
+// clean replaces C0/C1 controls (incl. CR, LF, NUL, U+0085) with spaces and caps the rune count.
+func clean(s string, maxRunes int) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		if n == maxRunes {
+			break
+		}
+		if unicode.IsControl(r) || r == utf8.RuneError {
+			r = ' '
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return b.String()
+}
+
+type ntfyPayload struct {
+	Topic    string   `json:"topic"`
+	Title    string   `json:"title,omitempty"`
+	Message  string   `json:"message"`
+	Priority int      `json:"priority,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
+	Click    string   `json:"click,omitempty"`
+}
+
+// Notify implements Notifier.
+func (n *ntfy) Notify(ctx context.Context, m Message) error {
+	u, err := neturl.Parse(n.url)
+	if err != nil || u.Host == "" {
+		return errors.New("ntfy: invalid MM_NTFY_URL")
+	}
+	topic := path.Base(u.Path)
+	if u.Path == "" || topic == "/" || topic == "." {
+		return errors.New("ntfy: MM_NTFY_URL has no topic")
+	}
+	base := *u
+	base.Path = path.Dir(u.Path)
+	if base.Path == "." {
+		base.Path = "/"
+	}
+	base.RawPath, base.RawQuery, base.Fragment = "", "", ""
+	p := ntfyPayload{Topic: topic, Title: clean(m.Title, maxTitleRunes), Message: clean(m.Body, maxMessageRunes)}
+	if m.Priority >= 1 && m.Priority <= 5 {
+		p.Priority = m.Priority
+	}
+	for _, t := range m.Tags {
+		p.Tags = append(p.Tags, clean(t, 40))
+	}
+	if m.Click != "" && !strings.ContainsFunc(m.Click, unicode.IsControl) {
+		p.Click = m.Click
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base.String(), bytes.NewReader(raw))
+	if err != nil {
+		return errors.New("ntfy: building request failed")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if n.token != "" {
+		req.Header.Set("Authorization", "Bearer "+n.token)
+	}
+	resp, err := n.client.Do(req)
+	if err != nil {
+		var ue *neturl.Error
+		if errors.As(err, &ue) {
+			err = ue.Err // the *url.Error text carries the full URL
+		}
+		return fmt.Errorf("ntfy publish: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("ntfy publish: status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// DevicePaired is the notification for a newly paired device.
+func DevicePaired(name string) Message {
+	return Message{Title: "Device paired", Body: "Device paired: " + name, Priority: 3, Tags: []string{"iphone"}}
+}
+
+// TokenCreated is the notification for a new API token; it never carries the token.
+func TokenCreated(name string, scopes []string) Message {
+	return Message{Title: "Token created", Body: "Token created: " + name + " (" + strings.Join(scopes, ", ") + ")", Priority: 3, Tags: []string{"key"}}
+}
+
+// BackupFailed is the notification for a failed backup; code is a stable error code, never raw error text.
+func BackupFailed(code string) Message {
+	return Message{Title: "Backup failed", Body: "Backup failed: " + code, Priority: 4, Tags: []string{"warning"}}
+}
 
 // Async wraps n so Notify returns at once; the publish runs with timeout and
 // failures are logged through redact.

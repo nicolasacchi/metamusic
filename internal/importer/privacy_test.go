@@ -113,7 +113,8 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Version: "v-test", Commit: "abc", Started: e.now.Add(-time.Hour),
 		Library: lib, Judgments: judg, Signer: signer, Now: now,
 		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return "privacy-audit" }),
-		Probe: &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
+		DeviceStore: auth.NewDeviceStore(e.st, key, now, func() string { return "privacy-device" }),
+		Probe:       &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
 			r.api = a
 			s, err := mcpgen.NewServer(a, inner, "v-test")

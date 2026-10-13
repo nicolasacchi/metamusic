@@ -10,6 +10,8 @@ func TestClassify(t *testing.T) {
 		{"/healthz", ClassPublic}, {"/manifest.webmanifest", ClassPublic},
 		{"/icons/a.png", ClassPublic}, {"/icons/", ClassPublic},
 		{"/auth/login", ClassPublic}, {"/auth/logout", ClassPublic},
+		{"/start", ClassPublic}, {"/pair", ClassPublic}, {"/pair.js", ClassPublic}, {"/auth/pair", ClassPublic},
+		{"/start/", ClassUI}, {"/pair/x", ClassUI}, {"/pairs", ClassUI}, {"/auth/pairing", ClassUI}, {"/auth/step-up", ClassUI},
 		{"/assets/app.js", ClassPublic}, {"/assets/", ClassPublic},
 		{"/mcp", ClassMachine}, {"/mcp/", ClassMachine}, {"/mcp/x", ClassMachine},
 		{"/rest/tracks", ClassMachine}, {"/media/a.flac", ClassMachine},
