@@ -339,7 +339,7 @@ func (st *state) sectionSource() (source string, conf *float64) {
 func (st *state) blindFacts(spectrogram bool) analysis.BlindSpotFacts {
 	src, conf := st.sectionSource()
 	return analysis.BlindSpotFacts{TierA: st.tier == "A", HasSemantic: st.hasSemantic, Timed: st.d.Timed,
-		SectionSource: src, Confidence: conf, Spectrogram: spectrogram}
+		SectionSource: src, Confidence: conf, Spectrogram: spectrogram, Lossy: st.d.Lossy}
 }
 
 func (st *state) blindSpots(spectrogram bool) []string {

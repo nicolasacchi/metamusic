@@ -94,11 +94,31 @@ func input(workPath string) ([]string, error) {
 	return []string{"-protocol_whitelist", "file,pipe", "-i", "file:" + workPath, "-map", "0:a:0"}, nil
 }
 
-// CountFrames is the lossy-ingest frame count (C60).
-//
-// STUB(M2c-B2): the decode-counting implementation replaces this.
+// countWriter counts bytes without keeping them.
+type countWriter struct{ n uint64 }
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	c.n += uint64(len(p)) // #nosec G115 -- len is non-negative
+	return len(p), nil
+}
+
+// CountFrames decodes the first audio stream to f32le and returns the number of
+// sample frames produced (C60). It is the truth for a lossy file's length.
 func (f *FFmpeg) CountFrames(ctx context.Context, workPath string, sampleRate, channels int) (uint64, error) {
-	return 0, errors.ErrUnsupported
+	if sampleRate <= 0 || channels <= 0 {
+		return 0, errors.New("ffmpeg: bad sample rate or channel count")
+	}
+	in, err := input(workPath)
+	if err != nil {
+		return 0, err
+	}
+	args := append([]string{"-nostdin", "-hide_banner", "-v", "error"}, in...)
+	args = append(args, "-f", "f32le", "-acodec", "pcm_f32le", "-")
+	cw := &countWriter{}
+	if _, err := mediatool.Run(ctx, f.bin, args, mediatool.RunOpts{Timeout: decodeTimeout, Stdout: cw}); err != nil {
+		return 0, err
+	}
+	return cw.n / (4 * uint64(channels)), nil // #nosec G115 -- channels > 0
 }
 
 // Loudness runs the C14 ebur128 invocation and parses its metadata stream.

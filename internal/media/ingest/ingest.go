@@ -20,7 +20,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 )
 
-type timeouts struct{ flacTest, metaflac, mp3 time.Duration }
+type timeouts struct{ flacTest, metaflac, mp3, decode time.Duration }
 
 // Pipeline ingests masters into DataDir.
 type Pipeline struct {
@@ -38,7 +38,7 @@ func New(data *os.Root, dataDir string, tools mediatool.Tools, an analysis.Analy
 		now = time.Now
 	}
 	return &Pipeline{data: data, dataDir: dataDir, tools: tools, an: an, now: now,
-		to: timeouts{flacTest: 120 * time.Second, metaflac: 30 * time.Second, mp3: 300 * time.Second}}
+		to: timeouts{flacTest: 120 * time.Second, metaflac: 30 * time.Second, mp3: 300 * time.Second, decode: 300 * time.Second}}
 }
 
 const maxToolOut = 1 << 20
@@ -372,11 +372,4 @@ func readInfo(root *os.Root, rel string) (frames string, info flacmeta.Info, err
 		return "", info, &Error{Code: CodeInvalidAudio, Detail: "FLAC frames: " + err.Error(), Err: err}
 	}
 	return frames, info, nil
-}
-
-// IngestLossy freezes a standalone MP3 byte-for-byte as a lossy reference master (C60, D-M2c-3).
-//
-// STUB(M2c-B2): copy, verify, decode-based analysis, freeze and claim are implemented there.
-func (p *Pipeline) IngestLossy(ctx context.Context, req Request) (Result, error) {
-	return Result{}, errors.ErrUnsupported
 }

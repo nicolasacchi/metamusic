@@ -178,7 +178,8 @@ func recipeDiff(a, b *state) RecipeDiff {
 // when either has one, section times only when both are timed (the score-plan side decides the source).
 func compareBlindSpots(a, b *state) []string {
 	f := analysis.BlindSpotFacts{TierA: a.tier == "A" && b.tier == "A", HasSemantic: a.hasSemantic || b.hasSemantic,
-		Timed: a.d.Timed && b.d.Timed}
+		Timed: a.d.Timed && b.d.Timed,
+		Lossy: a.d.Lossy || b.d.Lossy}
 	if f.Timed {
 		src, conf := a.sectionSource()
 		if bs, bc := b.sectionSource(); bs == "plan" {

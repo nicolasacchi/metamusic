@@ -10,6 +10,7 @@ type BlindSpotFacts struct {
 	SectionSource string   // "plan" | "measured" | "manual" | "" (untimed)
 	Confidence    *float64 // confidence of the section times, when known
 	Spectrogram   bool     // the payload is or embeds a spectrogram view
+	Lossy         bool     // the analysed master is (or, for a comparison, includes) an MP3 decode
 }
 
 // BlindSpots is the one list of things the machine cannot judge (D-M2b-21): it
@@ -24,6 +25,9 @@ func BlindSpots(f BlindSpotFacts) []string {
 		"hook catchiness",
 		"diction and intelligibility",
 		"melody and harmony adherence to the score",
+	}
+	if f.Lossy {
+		out = append(out, "analysed from a lossy MP3 decode: bandwidth, clipping and true peak are not comparable with FLAC takes")
 	}
 	if !f.TierA {
 		out = append(out, "silence, clipping and token loops (Tier A not run yet)")
