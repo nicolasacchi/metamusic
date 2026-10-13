@@ -354,8 +354,14 @@ func failAt(t *testing.T, stage string, sabotage func(partial string)) Run {
 	if err == nil || run.State != "failed" || run.Error == nil {
 		t.Fatalf("stage %s: run = %+v, err = %v", stage, run, err)
 	}
-	if strings.Contains(*run.Error, e.data) || strings.Contains(*run.Error, e.bdir) {
-		t.Errorf("stage %s: error leaks a path: %s", stage, *run.Error)
+	for _, bad := range []string{e.data, e.bdir, os.TempDir(), "/backup/"} {
+		if strings.Contains(*run.Error, bad) {
+			t.Errorf("stage %s: error leaks a path (%q): %s", stage, bad, *run.Error)
+		}
+	}
+	// an error naming a path under the data or backup dir must show the scrubbed label
+	if strings.Contains(*run.Error, ".partial") && !strings.Contains(*run.Error, "<backup>") {
+		t.Errorf("stage %s: partial path not scrubbed: %s", stage, *run.Error)
 	}
 	return run
 }
@@ -546,10 +552,4 @@ func TestScrubPaths_Deterministic(t *testing.T) {
 	if strings.Contains(got, "/a/d") || !strings.Contains(got, "<backup>/x") || !strings.Contains(got, "<data>/db/y") {
 		t.Errorf("scrubPaths = %q", got)
 	}
-}
-
-// TestBackup_FailureNotifies pins the priority-4 notification without secrets
-// or paths on a failed run.
-func TestBackup_FailureNotifies(t *testing.T) {
-	TestBackup_CopyCorruptionDetected(t)
 }
