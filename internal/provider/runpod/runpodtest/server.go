@@ -29,6 +29,7 @@ const (
 	OpCancel         = "cancel"
 	OpPurge          = "purge"
 	OpHealth         = "health"
+	OpRetry          = "retry"
 	OpGetEndpoint    = "get_endpoint"
 	OpPatchEndpoint  = "patch_endpoint"
 	OpListEndpoints  = "list_endpoints"
@@ -44,7 +45,7 @@ type Allow map[string]bool
 
 // JobsOnly may call the job API.
 func JobsOnly() Allow {
-	return Allow{OpRun: true, OpStatus: true, OpCancel: true, OpPurge: true, OpHealth: true}
+	return Allow{OpRun: true, OpStatus: true, OpCancel: true, OpPurge: true, OpHealth: true, OpRetry: true}
 }
 
 // ReadOnly may GET the management API.
@@ -358,6 +359,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.doStatus(r.Context(), w, arg)
 	case OpCancel:
 		s.doCancel(w, arg)
+	case OpRetry:
+		// the app never calls /retry; the probe records only whether the jobs key may. Nothing is requeued.
+		s.problem(w, 404, "Not Found", "job not found")
 	case OpPurge:
 		s.mu.Lock()
 		n := 0
@@ -414,7 +418,11 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 	case OpBilling:
 		s.mu.Lock()
-		writeJSON(w, 200, s.billing)
+		recs := s.billing
+		if recs == nil {
+			recs = []map[string]any{} // RunPod answers an empty list, never null
+		}
+		writeJSON(w, 200, recs)
 		s.mu.Unlock()
 	case OpGraphQL:
 		s.mu.Lock()
@@ -466,6 +474,8 @@ func (s *Server) route(r *http.Request) (op, arg string) {
 			return OpStatus, seg[3]
 		case seg[2] == "cancel" && len(seg) == 4 && m == "POST":
 			return OpCancel, seg[3]
+		case seg[2] == "retry" && len(seg) == 4 && m == "POST":
+			return OpRetry, seg[3]
 		}
 	}
 	return "", ""

@@ -251,7 +251,7 @@ func (c *Client) once(ctx context.Context, lim *limiter, k call, target, tok str
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, classify(c.red, k.op, nil, nil, err)
+		return nil, c.scrubKeys(classify(c.red, k.op, nil, nil, err))
 	}
 	defer resp.Body.Close()
 	raw, rerr := io.ReadAll(io.LimitReader(resp.Body, MaxResponse+1))
@@ -259,7 +259,7 @@ func (c *Client) once(ctx context.Context, lim *limiter, k call, target, tok str
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, classify(c.red, k.op, nil, nil, rerr)
+		return nil, c.scrubKeys(classify(c.red, k.op, nil, nil, rerr))
 	}
 	now := c.o.Clock.Now()
 	c.observeDate(resp, now)
@@ -276,9 +276,36 @@ func (c *Client) once(ctx context.Context, lim *limiter, k call, target, tok str
 			Header: resp.Header.Clone(), Request: k.body, Response: raw})
 	}
 	if e := classify(c.red, k.op, resp, raw, nil); e != nil {
-		return nil, e
+		return nil, c.scrubKeys(e)
 	}
 	return raw, nil
+}
+
+// scrubKeys masks the configured key values in an error, in case a server or a proxy echoes one back.
+func (c *Client) scrubKeys(e *Error) *Error {
+	if e == nil {
+		return nil
+	}
+	mask := func(s string) string {
+		for _, k := range []string{c.o.Keys.Jobs, c.o.Keys.Read, c.o.Keys.Write, c.adminValue()} {
+			if len(k) >= 4 {
+				s = strings.ReplaceAll(s, k, "<key>")
+			}
+		}
+		return s
+	}
+	e.Title, e.Detail = mask(e.Title), mask(e.Detail)
+	for i := range e.Errors {
+		e.Errors[i] = mask(e.Errors[i])
+	}
+	return e
+}
+
+func (c *Client) adminValue() string {
+	if c.o.Admin == nil {
+		return ""
+	}
+	return c.o.Admin.Value()
 }
 
 func (c *Client) observeDate(resp *http.Response, now time.Time) {
