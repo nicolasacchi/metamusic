@@ -34,6 +34,9 @@ type Config struct {
 	BackupAt  string // MM_BACKUP_AT "HH:MM" or "off", default "03:30"
 	NtfyURL   string // MM_NTFY_URL, default "" (notifications off)
 	RateScale int    // MM_RATE_SCALE 1..1000, default 1
+
+	// M2b (C43).
+	ClipCacheMB int64 // MM_CLIP_CACHE_MB, default 4096, minimum 256
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -81,7 +84,23 @@ func load(getenv func(string) string) (Config, error) {
 	if err := loadM2a(&c, getenv); err != nil {
 		return Config{}, err
 	}
+	if err := loadM2b(&c, getenv); err != nil {
+		return Config{}, err
+	}
 	return c, nil
+}
+
+// loadM2b reads the M2b settings (C43).
+func loadM2b(c *Config, getenv func(string) string) error {
+	c.ClipCacheMB = 4096
+	if v := getenv("MM_CLIP_CACHE_MB"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n < 256 {
+			return errors.New("config: MM_CLIP_CACHE_MB must be an integer >= 256")
+		}
+		c.ClipCacheMB = n
+	}
+	return nil
 }
 
 func loadM2a(c *Config, getenv func(string) string) error {

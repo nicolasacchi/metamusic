@@ -145,5 +145,6 @@ func seedSynthetic(ctx context.Context, cfg config.Config, st *store.Store, o se
 	}
 	fmt.Fprintf(s.out, "seed-synthetic: imported %d tracks, %d recipes (%d drafts), profile %s\n",
 		res.TracksImported, inv.Report.Summary.RecipesUnique, inv.Report.Summary.DraftsNew, o.profile)
+	fmt.Fprintln(s.out, tierAAfterIngest(ctx, cfg, st, data, rt.lib))
 	return nil
 }

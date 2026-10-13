@@ -68,6 +68,26 @@ export interface paths {
         patch: operations["update_comment"];
         trace?: never;
     };
+    "/api/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare two takes
+         * @description Metric, flag, recipe and verdict deltas between two takes (b minus a): loudness, clipping, silence, token loops, which request fields changed, head-to-head duel counts and both tracks' ladder strengths. relation says how they are related (siblings, parent_child, child_parent, same_lineage, unrelated). See blind_spots.
+         */
+        get: operations["compare_tracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/device-probe": {
         parameters: {
             query?: never;
@@ -216,6 +236,90 @@ export interface paths {
         patch: operations["update_draft"];
         trace?: never;
     };
+    "/api/duels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List duels
+         * @description Duels newest first, filtered by state, track, lineage or mode. Which two tracks a duel compares is not secret, but unrevealed rows keep the slots anonymous. Pages are capped in size; follow next_cursor.
+         */
+        get: operations["list_duels"];
+        put?: never;
+        /**
+         * Create an A/B duel
+         * @description Cuts a 30-45 s window of two takes into loudness-matched, sample-aligned clips (the louder one is attenuated, never boosted) and stores a duel. Blind duels (the default) hide which slot holds which track until the human has judged. A replayed call returns the first result; call get_duel for fresh clip links.
+         */
+        post: operations["create_duel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/duels/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the next duel to judge
+         * @description The oldest unexpired duel waiting for your verdict, with signed clip links, or null. Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. Blind duels stay unrevealed until you have judged them.
+         */
+        get: operations["next_duel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/duels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a duel
+         * @description A duel as you may see it: slots stay A and B (tracks, gains and loudness are null) until the duel is revealed to you, and other judges' verdicts appear only after your own. Clip links are minted fresh on every call.
+         */
+        get: operations["get_duel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/duels/{id}/verdicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Judge a duel
+         * @description Records a verdict: a (slot A is better), b, tie or both_bad, with an optional note. Verdicts from agents are stored as critic opinions and never change the human ladder. Judging again with the same verdict and note returns the stored verdict (200, replayed); a different verdict is DUEL_ALREADY_JUDGED.
+         */
+        post: operations["submit_duel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports/jsonl": {
         parameters: {
             query?: never;
@@ -308,6 +412,26 @@ export interface paths {
          * @description One run and a page of one report section (errors by default). The whole inventory is never returned at once; follow next_cursor.
          */
         get: operations["get_import_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ladder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the preference ladder
+         * @description The operator's personal ranking of takes, fitted from human blind-duel verdicts only (critic verdicts never count), globally or within one lineage. u is a log-strength on a scale anchored at the virtual 'reject' item (0); compare u values, not probabilities of acceptance. sd is the Laplace standard deviation; provisional rows have few duels.
+         */
+        get: operations["get_ladder"];
         put?: never;
         post?: never;
         delete?: never;
@@ -628,6 +752,46 @@ export interface paths {
         patch: operations["update_track"];
         trace?: never;
     };
+    "/api/tracks/{id}/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Ears dossier of a track
+         * @description Measured facts about a take: loudness, bandwidth, silence spans, clipping, token-loop metrics from the model's semantic tokens, structure and duration against the score, plus computed flags with evidence. tier is A when every applicable analyzer ran. Read blind_spots first: it lists what these numbers cannot tell you.
+         */
+        get: operations["get_track_analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/clip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an audio clip of a track
+         * @description A signed link to a 30-45 s window of the master as 24-bit/48 kHz FLAC (shorter tracks: the whole track). match_lufs attenuates the clip toward a target loudness; clips are never boosted. Identical inputs give identical bytes, so the key identifies the clip.
+         */
+        get: operations["get_clip"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/comments": {
         parameters: {
             query?: never;
@@ -725,6 +889,26 @@ export interface paths {
          * @description Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.
          */
         put: operations["rate_track"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/spectrogram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the spectrogram of a track
+         * @description A log-frequency spectrogram JPEG (at most 100 000 bytes) with section boundaries and lyric lines drawn in. Returns the image as MCP ImageContent; never audio. Over REST the image is base64 in image.data_base64, or pass inline=false for a signed link only. A spectrogram shows energy over time and frequency, not pitch accuracy or words; see blind_spots. Missing until Tier A analysis has run (ANALYSIS_UNAVAILABLE).
+         */
+        get: operations["get_track_spectrogram"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -869,6 +1053,14 @@ export interface components {
              */
             kind?: "note" | "fix" | "keep" | "marker";
         };
+        AnalysisFlag: {
+            code: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            severity: "info" | "warn";
+        };
         AnalysisInfo: {
             /** @description null when not analysed */
             loudness: {
@@ -903,6 +1095,11 @@ export interface components {
                 threshold_db: number;
                 version: string;
             } | null;
+        };
+        AnalysisProvenance: {
+            analyzers: {
+                [key: string]: string;
+            };
         };
         AudioInfo: {
             audio_md5: string;
@@ -1023,6 +1220,80 @@ export interface components {
             /** Format: int64 */
             n: number;
         };
+        ClipLink: {
+            /**
+             * Format: int64
+             * @example 24
+             */
+            bits_per_sample: number;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            channels: number;
+            /** @example audio/flac */
+            content_type: string;
+            /** Format: double */
+            duration_s: number;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            /** Format: double */
+            from_s: number;
+            /**
+             * Format: double
+             * @description Applied gain in dB; clips are only ever attenuated
+             */
+            gain_db: number;
+            /** @description Content key of the clip: identical inputs give identical bytes */
+            key: string;
+            /** @enum {string} */
+            match: "off" | "matched" | "limited" | "window_silent";
+            /**
+             * Format: int64
+             * @example 48000
+             */
+            sample_rate: number;
+            /** Format: double */
+            target_lufs: number | null;
+            /** Format: double */
+            to_s: number;
+            track_id: string;
+            /**
+             * Format: int64
+             * @description Link lifetime granted to the caller, seconds
+             */
+            ttl_s: number;
+            /** @description Signed, relative URL; valid until expires_at */
+            url: string;
+            /**
+             * Format: double
+             * @description Integrated loudness of the window before gain; null when not measured
+             */
+            window_lufs: number | null;
+            /** Format: double */
+            window_tp_dbtp: number | null;
+        };
+        ClipRef: {
+            /** Format: int64 */
+            bytes: number;
+            /** @example audio/flac */
+            content_type: string;
+            /** Format: double */
+            duration_s: number;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            /** Format: int64 */
+            ttl_s: number;
+            /** @description Signed, relative URL; valid until expires_at */
+            url: string;
+        };
+        ClipWindow: {
+            /** Format: double */
+            duration_s: number;
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
+        };
         CollectionCount: {
             /** Format: int64 */
             drafts: number;
@@ -1064,6 +1335,76 @@ export interface components {
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
+        };
+        CompareLadder: {
+            a: {
+                /** Format: int64 */
+                n_duels: number;
+                /** Format: double */
+                sd: number;
+                /** Format: double */
+                u: number;
+            } | null;
+            b: {
+                /** Format: int64 */
+                n_duels: number;
+                /** Format: double */
+                sd: number;
+                /** Format: double */
+                u: number;
+            } | null;
+            /** Format: double */
+            nu: number;
+            /**
+             * Format: double
+             * @description null unless both tracks have counted duels
+             */
+            p_a_beats_b: number | null;
+            /** Format: double */
+            p_tie: number | null;
+        };
+        Comparison: {
+            a: components["schemas"]["ComparisonSide"];
+            b: components["schemas"]["ComparisonSide"];
+            blind_spots: string[];
+            deltas: components["schemas"]["ComparisonDeltas"];
+            duels: components["schemas"]["PairStats"];
+            flags: components["schemas"]["FlagDiff"];
+            ladder: components["schemas"]["CompareLadder"];
+            recipe_diff: components["schemas"]["RecipeDiff"];
+            /** @enum {string} */
+            relation: "siblings" | "parent_child" | "child_parent" | "same_lineage" | "unrelated";
+        };
+        ComparisonDeltas: {
+            /** Format: double */
+            bandwidth_hz: number | null;
+            /** Format: double */
+            clipped_s: number | null;
+            /** Format: double */
+            duration_s: number | null;
+            /** Format: double */
+            integrated_lufs: number | null;
+            /** Format: double */
+            internal_silence_s: number | null;
+            /** Format: double */
+            lra_lu: number | null;
+            /** Format: double */
+            token_loop_span_s: number | null;
+            /** Format: double */
+            true_peak_dbtp: number | null;
+        };
+        ComparisonSide: {
+            /** Format: double */
+            duration_s: number;
+            flags: string[];
+            request_id: string;
+            root_track_id: string;
+            /** Format: int64 */
+            seed: number;
+            /** @enum {string} */
+            tier: "0" | "A";
+            title: string;
+            track_id: string;
         };
         ContextBudget: {
             /** Format: int64 */
@@ -1111,6 +1452,21 @@ export interface components {
             parent_track_id?: string;
             /** @description Song request object (id, style or tags, lyrics, cot, seed, abc, cfg_scale) */
             request: Record<string, never>;
+        };
+        CreateDuelInBody: {
+            a_track_id: string;
+            b_track_id: string;
+            /** @description Hide which slot holds which track until the human verdict (default true) */
+            blind?: boolean;
+            /**
+             * Format: double
+             * @description Window start in seconds; default: about 30% into the shorter track
+             */
+            from_s?: number;
+            /** @description Attenuate the louder window to the quieter one (default true) */
+            match_loudness?: boolean;
+            /** Format: double */
+            to_s?: number;
         };
         CreatePairingInBody: {
             /** @description Label of the device being paired */
@@ -1199,6 +1555,95 @@ export interface components {
             id: string;
             name: string;
             revoked_at: string | null;
+        };
+        Dossier: {
+            /** @description What the machine cannot judge; read before trusting the numbers */
+            blind_spots: string[];
+            clipping: {
+                /** Format: int64 */
+                clipped_frames: number;
+                /** Format: double */
+                clipped_s: number;
+                /** Format: double */
+                frame_s: number;
+                /** Format: int64 */
+                full_scale_frames: number;
+                /** Format: double */
+                peak_dbfs: number;
+                spans: components["schemas"]["TimeSpan"][];
+                spans_truncated: boolean;
+                version: string;
+            } | null;
+            complete: boolean;
+            flags: components["schemas"]["AnalysisFlag"][];
+            loudness: {
+                /** Format: double */
+                integrated_lufs: number;
+                /** Format: double */
+                lra_high_lufs: number;
+                /** Format: double */
+                lra_low_lufs: number;
+                /** Format: double */
+                lra_lu: number;
+                /** Format: double */
+                replaygain_track_gain_db: number;
+                /** Format: double */
+                sample_peak_dbfs: number;
+                short_term_1hz: number[] | null;
+                /** Format: double */
+                short_term_max_lufs: number;
+                /** Format: double */
+                true_peak_dbtp: number;
+                version: string;
+            } | null;
+            /** @description Applicable analyzers that have not run */
+            missing: string[];
+            provenance: components["schemas"]["AnalysisProvenance"];
+            silence: {
+                /** Format: double */
+                duration_s: number;
+                /** Format: double */
+                internal_s: number;
+                /** Format: double */
+                leading_s: number;
+                /** Format: double */
+                min_duration_s: number;
+                spans: components["schemas"]["TimeSpan"][];
+                spans_truncated: boolean;
+                /** Format: double */
+                threshold_db: number;
+                /** Format: double */
+                total_s: number;
+                /** Format: double */
+                trailing_s: number;
+                version: string;
+            } | null;
+            spectrogram: components["schemas"]["SpectrogramInfo"];
+            spectrum: {
+                /** Format: int64 */
+                bandwidth_hz: number | null;
+                /** Format: int64 */
+                frames: number;
+                /** Format: double */
+                ref_db: number;
+                /** Format: double */
+                threshold_db: number;
+                version: string;
+            } | null;
+            structure: components["schemas"]["TrackStructure"];
+            summary: string;
+            /** @enum {string} */
+            tier: "0" | "A";
+            token_loops: {
+                artifact_sha256: string;
+                dtype: string;
+                shape: number[];
+                streams: components["schemas"]["TokenStream"][];
+                /** Format: int64 */
+                time_axis: number;
+                version: string;
+            } | null;
+            track_id: string;
         };
         DownloadLink: {
             /** @description RFC 3339 UTC */
@@ -1303,6 +1748,98 @@ export interface components {
             style_terms: string[];
             /** @description Principal key; masked for agents */
             updated_by: string;
+        };
+        Duel: {
+            blind: boolean;
+            /** @description RFC 3339 UTC */
+            created_at: string;
+            /** @enum {string} */
+            created_by_kind: "human" | "device" | "agent";
+            critic_verdicts: components["schemas"]["Verdict"][];
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            human_verdict: {
+                /** @description RFC 3339 UTC */
+                created_at: string;
+                id: string;
+                /** Format: int64 */
+                latency_ms: number | null;
+                note: string | null;
+                /** @enum {string} */
+                principal_kind: "human" | "device" | "agent";
+                /** @description true when the server had revealed the duel to the principal before it judged */
+                saw_reveal: boolean;
+                /** @enum {string} */
+                source: "human" | "critic";
+                /** Format: int64 */
+                switches: number | null;
+                /** @enum {string} */
+                verdict: "a" | "b" | "tie" | "both_bad";
+                /** @description null while the duel is unrevealed, or for tie and both_bad */
+                winner_track_id: string | null;
+            } | null;
+            id: string;
+            loudness_matched: boolean;
+            my_verdict: {
+                /** @description RFC 3339 UTC */
+                created_at: string;
+                id: string;
+                /** Format: int64 */
+                latency_ms: number | null;
+                note: string | null;
+                /** @enum {string} */
+                principal_kind: "human" | "device" | "agent";
+                /** @description true when the server had revealed the duel to the principal before it judged */
+                saw_reveal: boolean;
+                /** @enum {string} */
+                source: "human" | "critic";
+                /** Format: int64 */
+                switches: number | null;
+                /** @enum {string} */
+                verdict: "a" | "b" | "tie" | "both_bad";
+                /** @description null while the duel is unrevealed, or for tie and both_bad */
+                winner_track_id: string | null;
+            } | null;
+            /** @description false while a blind duel hides which slot holds which track */
+            revealed: boolean;
+            slots: components["schemas"]["DuelSlots"];
+            /** @enum {string} */
+            state: "open" | "decided" | "expired";
+            window: components["schemas"]["ClipWindow"];
+        };
+        DuelPage: {
+            items: components["schemas"]["DuelSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        DuelSlots: {
+            a: components["schemas"]["Slot"];
+            b: components["schemas"]["Slot"];
+        };
+        DuelSlotsSummary: {
+            a: components["schemas"]["SlotSummary"];
+            b: components["schemas"]["SlotSummary"];
+        };
+        DuelSummary: {
+            blind: boolean;
+            created_at: string;
+            /** Format: int64 */
+            critic_verdicts: number;
+            expires_at: string;
+            human_verdict: {
+                /** @enum {string} */
+                verdict: "a" | "b" | "tie" | "both_bad";
+                winner_track_id: string | null;
+            } | null;
+            id: string;
+            loudness_matched: boolean;
+            my_verdict: string | null;
+            revealed: boolean;
+            slots: components["schemas"]["DuelSlotsSummary"];
+            /** @enum {string} */
+            state: "open" | "decided" | "expired";
+            window: components["schemas"]["ClipWindow"];
         };
         Export: {
             /** Format: int64 */
@@ -1442,11 +1979,21 @@ export interface components {
             /** @description Signed, relative URL; valid until expires_at */
             url: string;
         };
+        FlagDiff: {
+            both: string[];
+            only_a: string[];
+            only_b: string[];
+        };
         GroupMember: {
             id: string;
             label: string | null;
             request_id: string;
             status: string;
+        };
+        ImageData: {
+            /** @description Base64 image bytes; omitted when the caller asked for a link only */
+            data_base64?: string;
+            mime_type: string;
         };
         ImportInfo: {
             rule: string;
@@ -1511,6 +2058,90 @@ export interface components {
             };
             /** Format: int64 */
             tags: number;
+        };
+        LadderCounts: {
+            /** Format: int64 */
+            both_bad: number;
+            /** Format: int64 */
+            ties: number;
+            /** Format: int64 */
+            tracks: number;
+            /** Format: int64 */
+            verdicts_critic_excluded: number;
+            /** Format: int64 */
+            verdicts_human_counted: number;
+            /** Format: int64 */
+            verdicts_sighted_excluded: number;
+        };
+        LadderDiagnostics: {
+            /** Format: int64 */
+            n_ab: number;
+            /**
+             * Format: double
+             * @description Share of slot A among counted a/b verdicts; null when there are none
+             */
+            slot_a_win_rate: number | null;
+        };
+        LadderItem: {
+            /** Format: int64 */
+            both_bad: number;
+            ci95: number[] | null;
+            /** Format: int64 */
+            losses: number;
+            /** Format: int64 */
+            n_duels: number;
+            /** @description fewer than 3 duels or sd above 1.0 */
+            provisional: boolean;
+            /** Format: int64 */
+            rank: number;
+            root_track_id: string;
+            /** Format: double */
+            sd: number;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            ties: number;
+            title: string;
+            track_id: string;
+            /**
+             * Format: double
+             * @description Log-strength anchored at the virtual reject item (0)
+             */
+            u: number;
+            /** Format: int64 */
+            wins: number;
+        };
+        LadderModel: {
+            /** @example reject */
+            anchor: string;
+            /** Format: double */
+            anchor_u: number;
+            converged: boolean;
+            /** Format: int64 */
+            iterations: number;
+            /** @example btd */
+            kind: string;
+            /** Format: double */
+            nu: number;
+            /** @example gamma(2,2) */
+            nu_prior: string;
+            /** Format: double */
+            prior_sd: number;
+        };
+        LadderPage: {
+            counts: components["schemas"]["LadderCounts"];
+            diagnostics: components["schemas"]["LadderDiagnostics"];
+            /** @description RFC 3339 UTC */
+            generated_at: string;
+            include_sighted: boolean;
+            items: components["schemas"]["LadderItem"][];
+            model: components["schemas"]["LadderModel"];
+            next_cursor: string | null;
+            root_track_id: string | null;
+            /** @enum {string} */
+            scope: "global" | "lineage";
+            /** Format: int64 */
+            total: number;
         };
         Lineage: {
             /** Format: int64 */
@@ -1635,6 +2266,77 @@ export interface components {
              */
             ttl_s: number;
         };
+        NextDuel: {
+            duel: {
+                blind: boolean;
+                /** @description RFC 3339 UTC */
+                created_at: string;
+                /** @enum {string} */
+                created_by_kind: "human" | "device" | "agent";
+                critic_verdicts: components["schemas"]["Verdict"][];
+                /** @description RFC 3339 UTC */
+                expires_at: string;
+                human_verdict: {
+                    /** @description RFC 3339 UTC */
+                    created_at: string;
+                    id: string;
+                    /** Format: int64 */
+                    latency_ms: number | null;
+                    note: string | null;
+                    /** @enum {string} */
+                    principal_kind: "human" | "device" | "agent";
+                    /** @description true when the server had revealed the duel to the principal before it judged */
+                    saw_reveal: boolean;
+                    /** @enum {string} */
+                    source: "human" | "critic";
+                    /** Format: int64 */
+                    switches: number | null;
+                    /** @enum {string} */
+                    verdict: "a" | "b" | "tie" | "both_bad";
+                    /** @description null while the duel is unrevealed, or for tie and both_bad */
+                    winner_track_id: string | null;
+                } | null;
+                id: string;
+                loudness_matched: boolean;
+                my_verdict: {
+                    /** @description RFC 3339 UTC */
+                    created_at: string;
+                    id: string;
+                    /** Format: int64 */
+                    latency_ms: number | null;
+                    note: string | null;
+                    /** @enum {string} */
+                    principal_kind: "human" | "device" | "agent";
+                    /** @description true when the server had revealed the duel to the principal before it judged */
+                    saw_reveal: boolean;
+                    /** @enum {string} */
+                    source: "human" | "critic";
+                    /** Format: int64 */
+                    switches: number | null;
+                    /** @enum {string} */
+                    verdict: "a" | "b" | "tie" | "both_bad";
+                    /** @description null while the duel is unrevealed, or for tie and both_bad */
+                    winner_track_id: string | null;
+                } | null;
+                /** @description false while a blind duel hides which slot holds which track */
+                revealed: boolean;
+                slots: components["schemas"]["DuelSlots"];
+                /** @enum {string} */
+                state: "open" | "decided" | "expired";
+                window: components["schemas"]["ClipWindow"];
+            } | null;
+            /**
+             * Format: int64
+             * @description How many duels are waiting for you
+             */
+            open_total: number;
+        };
+        PairStats: {
+            critic: components["schemas"]["VerdictCounts"];
+            human: components["schemas"]["VerdictCounts"];
+            /** Format: int64 */
+            human_blind_n: number;
+        };
         PairingCodeOut: {
             /** @description Crockford base32, shown once */
             code: string | null;
@@ -1751,6 +2453,13 @@ export interface components {
             /** @description Short free-text verdict, or null */
             verdict?: string | null;
         };
+        RecipeDiff: {
+            /** @description seed, style, lyrics and/or cot */
+            changed: string[];
+            same_hash: boolean;
+            seed: components["schemas"]["SeedPair"];
+            style_terms: components["schemas"]["StyleTermDiff"];
+        };
         RecipeInfo: {
             cot: string;
             engine: string;
@@ -1786,6 +2495,12 @@ export interface components {
             /** Format: double */
             start_s: number | null;
         };
+        SeedPair: {
+            /** Format: int64 */
+            a: number;
+            /** Format: int64 */
+            b: number;
+        };
         SetTagsInBody: {
             /** @description Tags to add (normalised: lower case, single spaces) */
             add?: string[] | null;
@@ -1797,6 +2512,96 @@ export interface components {
             /** Format: int64 */
             seed: number;
             title: string;
+        };
+        Slot: {
+            clip: components["schemas"]["ClipRef"];
+            /** Format: double */
+            gain_db: number | null;
+            track: {
+                /** Format: double */
+                duration_s: number;
+                id: string;
+                request_id: string;
+                root_track_id: string;
+                /** Format: int64 */
+                seed: number;
+                title: string;
+            } | null;
+            /** Format: double */
+            window_lufs: number | null;
+        };
+        SlotSummary: {
+            track: {
+                /** Format: double */
+                duration_s: number;
+                id: string;
+                request_id: string;
+                root_track_id: string;
+                /** Format: int64 */
+                seed: number;
+                title: string;
+            } | null;
+        };
+        SpectrogramInfo: {
+            available: boolean;
+            /** Format: int64 */
+            bytes: number | null;
+            /** Format: int64 */
+            height: number | null;
+            /** Format: int64 */
+            quality: number | null;
+            /** Format: int64 */
+            width: number | null;
+        };
+        SpectrogramOverlay: {
+            /** Format: double */
+            confidence: number | null;
+            /**
+             * @description none: lyric lines are listed inside their section, not timed
+             * @example none
+             */
+            line_timing: string;
+            source: string | null;
+            timed: boolean;
+        };
+        SpectrogramPlot: {
+            /** Format: double */
+            duration_s: number;
+            /** @example log */
+            freq_scale: string;
+            /** Format: int64 */
+            height: number;
+            /** Format: int64 */
+            width: number;
+            /** Format: int64 */
+            x0: number;
+            /** Format: int64 */
+            y0: number;
+        };
+        SpectrogramView: {
+            blind_spots: string[];
+            /** Format: int64 */
+            bytes: number;
+            /** @example image/jpeg */
+            content_type: string;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            /** Format: int64 */
+            height: number;
+            /** @description Present when inline=true (default) */
+            image?: components["schemas"]["ImageData"];
+            overlay: components["schemas"]["SpectrogramOverlay"];
+            plot: components["schemas"]["SpectrogramPlot"];
+            /** Format: int64 */
+            quality: number;
+            sha256: string;
+            track_id: string;
+            /** Format: int64 */
+            ttl_s: number;
+            /** @description Signed, relative URL; valid until expires_at */
+            url: string;
+            /** Format: int64 */
+            width: number;
         };
         StarFacet: {
             /** Format: int64 */
@@ -1830,6 +2635,39 @@ export interface components {
             derived_bytes: number;
             /** Format: int64 */
             masters_bytes: number;
+        };
+        StructureSection: {
+            /** Format: double */
+            end_s: number | null;
+            /** Format: int64 */
+            idx: number;
+            kind: string;
+            label: string;
+            /** Format: double */
+            start_s: number | null;
+        };
+        StyleTermDiff: {
+            added: string[];
+            removed: string[];
+        };
+        SubmitDuelInBody: {
+            /** Format: int64 */
+            latency_ms?: number;
+            /** @description Trimmed; empty means no note */
+            note?: string;
+            /** Format: int64 */
+            switches?: number;
+            /**
+             * @description a or b: that slot is better; tie; both_bad: neither is acceptable
+             * @enum {string}
+             */
+            verdict: "a" | "b" | "tie" | "both_bad";
+        };
+        SubmitResult: {
+            duel: components["schemas"]["Duel"];
+            /** @description true when the verdict already existed and this call changed nothing */
+            replayed: boolean;
+            verdict: components["schemas"]["Verdict"];
         };
         SystemOutBody: {
             auth_mode: string;
@@ -1880,6 +2718,12 @@ export interface components {
             max: string | null;
             min: string | null;
         };
+        TimeSpan: {
+            /** Format: double */
+            end_s: number;
+            /** Format: double */
+            start_s: number;
+        };
         TokenInfo: {
             created_at: string;
             id: string;
@@ -1891,6 +2735,50 @@ export interface components {
         };
         TokenListOutBody: {
             items: components["schemas"]["TokenInfo"][];
+        };
+        TokenPeriodic: {
+            /** Format: double */
+            at_s: number;
+            /** Format: double */
+            period_s: number;
+            /** Format: int64 */
+            period_tokens: number;
+            /** Format: double */
+            repeats: number;
+            /** Format: double */
+            span_s: number;
+            /** Format: int64 */
+            span_tokens: number;
+        };
+        TokenRepeat: {
+            /** Format: double */
+            first_at_s: number;
+            /** Format: double */
+            s: number;
+            /** Format: double */
+            second_at_s: number;
+            /** Format: int64 */
+            tokens: number;
+        };
+        TokenStream: {
+            /** Format: double */
+            distinct_4gram_ratio: number;
+            /** Format: int64 */
+            distinct_tokens: number;
+            encoding: string;
+            gzip_ratio_10s: number[];
+            /** Format: double */
+            gzip_ratio_median: number | null;
+            /** Format: double */
+            gzip_ratio_min: number | null;
+            /** Format: int64 */
+            index: number;
+            longest_repeat: components["schemas"]["TokenRepeat"];
+            /** Format: int64 */
+            n_tokens: number;
+            periodic_run: components["schemas"]["TokenPeriodic"];
+            /** Format: double */
+            tokens_per_s: number;
         };
         TrackDetail: {
             analysis: components["schemas"]["AnalysisInfo"];
@@ -1983,6 +2871,23 @@ export interface components {
             truncated: number;
             /** Format: int64 */
             with_score: number;
+        };
+        TrackStructure: {
+            /** Format: double */
+            confidence: number | null;
+            /** Format: double */
+            duration_s: number;
+            /** Format: double */
+            expected_duration_s: number | null;
+            /**
+             * Format: double
+             * @description duration_s / expected_duration_s
+             */
+            ratio: number | null;
+            sections: components["schemas"]["StructureSection"][];
+            /** @description plan | measured | manual; null when untimed */
+            source: string | null;
+            timed: boolean;
         };
         TrackSummary: {
             /** Format: int64 */
@@ -2107,6 +3012,38 @@ export interface components {
             /** Format: int64 */
             line: number;
             request_id: string;
+        };
+        Verdict: {
+            /** @description RFC 3339 UTC */
+            created_at: string;
+            id: string;
+            /** Format: int64 */
+            latency_ms: number | null;
+            note: string | null;
+            /** @enum {string} */
+            principal_kind: "human" | "device" | "agent";
+            /** @description true when the server had revealed the duel to the principal before it judged */
+            saw_reveal: boolean;
+            /** @enum {string} */
+            source: "human" | "critic";
+            /** Format: int64 */
+            switches: number | null;
+            /** @enum {string} */
+            verdict: "a" | "b" | "tie" | "both_bad";
+            /** @description null while the duel is unrevealed, or for tie and both_bad */
+            winner_track_id: string | null;
+        };
+        VerdictCounts: {
+            /** Format: int64 */
+            a_wins: number;
+            /** Format: int64 */
+            b_wins: number;
+            /** Format: int64 */
+            both_bad: number;
+            /** Format: int64 */
+            n: number;
+            /** Format: int64 */
+            ties: number;
         };
         Waveform: {
             /** Format: int64 */
@@ -2271,6 +3208,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Comment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    compare_tracks: {
+        parameters: {
+            query: {
+                /** @description First track id */
+                a: string;
+                /** @description Second track id */
+                b: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comparison"];
                 };
             };
             /** @description Error */
@@ -2588,6 +3559,182 @@ export interface operations {
             };
         };
     };
+    list_duels: {
+        parameters: {
+            query?: {
+                /** @description Repeatable state filter */
+                state?: ("open" | "decided" | "expired")[];
+                /** @description Duels with this track in either slot (pair membership is not secret) */
+                track_id?: string;
+                /** @description Duels with a track of this lineage in either slot */
+                root_track_id?: string;
+                mode?: "any" | "blind" | "sighted";
+                limit?: number;
+                /** @description Opaque cursor from next_cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuelPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_duel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDuelInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Duel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    next_duel: {
+        parameters: {
+            query?: {
+                /** @description Duel ids to skip */
+                exclude?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDuel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_duel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Duel id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Duel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    submit_duel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Duel id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitDuelInBody"];
+            };
+        };
+        responses: {
+            /** @description The verdict already existed; nothing changed (replayed: true) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitResult"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitResult"];
+                };
+            };
+        };
+    };
     export_jsonl: {
         parameters: {
             query?: never;
@@ -2740,6 +3887,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportRunPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_ladder: {
+        parameters: {
+            query?: {
+                scope?: "global" | "lineage";
+                /** @description Required for scope=lineage */
+                root_track_id?: string;
+                /** @description Also count non-blind human verdicts (biased; default false) */
+                include_sighted?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LadderPage"];
                 };
             };
             /** @description Error */
@@ -3346,6 +4530,77 @@ export interface operations {
             };
         };
     };
+    get_track_analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dossier"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_clip: {
+        parameters: {
+            query?: {
+                /** @description Window start in seconds (rounded to 0.1 s); default: about 30% into the track */
+                from_s?: number;
+                /** @description Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter) */
+                to_s?: number;
+                /** @description Attenuate the clip toward this integrated loudness; quieter windows are never boosted */
+                match_lufs?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClipLink"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_comments: {
         parameters: {
             query?: {
@@ -3548,6 +4803,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackRating"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_track_spectrogram: {
+        parameters: {
+            query?: {
+                /** @description Embed the image as base64 (default); false returns only a signed link */
+                inline?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpectrogramView"];
                 };
             };
             /** @description Error */

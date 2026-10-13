@@ -11,7 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
-var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip)$`)
+var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`)
 
 // downloadName is the ASCII file name a Content-Disposition may carry (no RFC 5987 form needed).
 var downloadName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,119}$`)

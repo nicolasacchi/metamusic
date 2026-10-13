@@ -40,6 +40,9 @@ var (
 type FFmpeg struct {
 	bin     string
 	version string // raw token
+	// The -filters and -encoders listings New already reads; RequireClips and
+	// RequireTierA (capabilities.go) match against them.
+	filters, encoders []byte
 }
 
 // New probes the binary: version token (stored verbatim) and the ebur128 and
@@ -60,12 +63,14 @@ func New(ctx context.Context, tools mediatool.Tools) (*FFmpeg, error) {
 	if err != nil {
 		return nil, err
 	}
+	f := &FFmpeg{bin: tools.FFmpeg, version: tok}
 	for _, c := range []struct {
 		arg, name string
 		re        *regexp.Regexp
+		keep      *[]byte
 	}{
-		{"-filters", "ebur128", reEbur128},
-		{"-encoders", "libmp3lame", reLibMP3Lame},
+		{"-filters", "ebur128", reEbur128, &f.filters},
+		{"-encoders", "libmp3lame", reLibMP3Lame, &f.encoders},
 	} {
 		out, err := run(c.arg)
 		if err != nil {
@@ -74,8 +79,9 @@ func New(ctx context.Context, tools mediatool.Tools) (*FFmpeg, error) {
 		if !c.re.Match(out) {
 			return nil, fmt.Errorf("%w: %s", analysis.ErrToolMissing, c.name)
 		}
+		*c.keep = out
 	}
-	return &FFmpeg{bin: tools.FFmpeg, version: tok}, nil
+	return f, nil
 }
 
 // ToolVersion is "ffmpeg <raw token>".

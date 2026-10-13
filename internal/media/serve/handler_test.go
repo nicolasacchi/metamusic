@@ -255,6 +255,8 @@ func TestHandler_Paths(t *testing.T) {
 		"/media/" + r.sha,
 		"/media/",
 		"/media/sub/" + r.sha + ".flac",
+		"/media/" + r.sha + ".png",
+		"/media/" + r.sha + ".JPG",
 	} {
 		assertProblem(t, r.do("GET", p+q, nil), 404, "NOT_FOUND")
 	}
@@ -417,4 +419,31 @@ func TestHandler_ExportExtensions(t *testing.T) {
 	assertProblem(t, r.do("GET", strings.Replace(r.url(sha, "jsonl"), ".jsonl", ".zip", 1), nil), 403, "MEDIA_LINK_INVALID")
 	// an extension outside flac|mp3|jsonl|zip is no media address
 	assertProblem(t, r.do("GET", r.url(sha, "exe"), nil), 404, "NOT_FOUND")
+}
+
+func TestHandler_JPGContentType(t *testing.T) {
+	dir := t.TempDir()
+	body := objBytes()
+	if err := os.WriteFile(filepath.Join(dir, "s.jpg"), body, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { root.Close() })
+	sha := strings.Repeat("ef", 32)
+	mod := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	res := stubResolver{sha + ".jpg": {RelPath: "s.jpg", ContentType: "image/jpeg", ETag: sha, ModTime: mod}}
+	s := NewSigner(testKey, fixedClock(handlerNow))
+	r := &rig{h: Handler(s, root, res, nil), signer: s, data: body, sha: sha, root: dir}
+
+	w := r.do("GET", r.url(sha, "jpg"), nil)
+	if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" || w.Header().Get("Content-Disposition") != "" || !bytes.Equal(w.Body.Bytes(), body) {
+		t.Fatalf("jpg: %d %v", w.Code, w.Header())
+	}
+	w = r.do("GET", r.url(sha, "jpg"), map[string]string{"Range": "bytes=5-14"})
+	if w.Code != 206 || w.Header().Get("Content-Type") != "image/jpeg" || !bytes.Equal(w.Body.Bytes(), body[5:15]) || w.Header().Get("Content-Range") != "bytes 5-14/10000" {
+		t.Fatalf("jpg range: %d %v", w.Code, w.Header())
+	}
 }

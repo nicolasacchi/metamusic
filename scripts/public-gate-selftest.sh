@@ -145,6 +145,17 @@ expect "staged audio ext blocked" 1 --staged
 contains "staged audio ext blocked reason" "forbidden path: a.opus"
 reset
 
+# M2b: spectrogram JPEGs and token-loop arrays are derived data and never belong in the repo
+for f in x.jpg x.JPEG x.npy; do
+  echo x > "$f"; git add -f "$f"
+  expect "staged $f blocked" 1 --staged
+  contains "staged $f blocked reason" "forbidden path: $f"
+  reset
+done
+echo x > icon.png; git add icon.png
+expect "staged icon.png allowed" 0 --staged
+reset
+
 # invalid private regex must block (not silently disable the check)
 echo "hello" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'(unclosed' expect "invalid regex blocked" 1 --staged

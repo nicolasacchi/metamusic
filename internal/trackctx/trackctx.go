@@ -15,7 +15,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
+	"github.com/nicolasacchi/metamusic/internal/ladder"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
@@ -124,7 +126,7 @@ var order = map[string][]string{
 	"judgments":  {"comments", "comments_total", "open_fix", "ladder"},
 	"perception": {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots"},
 	"listening":  {"plays", "completion_rate", "last_played_at"},
-	"_links":     {"stream", "comments", "track"},
+	"_links":     {"stream", "spectrogram", "comments", "track"},
 }
 
 func sectionJSON(name string, m map[string]any) ([]byte, error) {
@@ -392,7 +394,30 @@ type Builder struct {
 	publicURL string
 	now       func() time.Time
 	abc       func(ctx context.Context, trackID string) (string, error)
+	per       PerceptionSource
+	str       StrengthSource
 }
+
+// PerceptionSource builds the perception block of a track; *ears.Service implements it (C51.8).
+type PerceptionSource interface {
+	Perception(ctx context.Context, trackID string) (ears.Perception, error)
+}
+
+// StrengthSource is the global ladder fit restricted to some tracks; *duels.Service implements it.
+type StrengthSource interface {
+	Strengths(ctx context.Context, ids []string) (map[string]ladder.Strength, float64, error)
+}
+
+// spectrogramSource is optionally implemented by the PerceptionSource (*ears.Service does): the
+// sha256 of the track's spectrogram rendition, "" when it has none.
+type spectrogramSource interface {
+	SpectrogramSHA256(ctx context.Context, trackID string) (string, error)
+}
+
+// UseM2b wires the M2b sources: perception (tier, flags, blind spots, loudness and sections) from Ears
+// and the ladder strengths from duels. Either may be nil: without a PerceptionSource the perception
+// section is null, without a StrengthSource every ladder is null.
+func (b *Builder) UseM2b(p PerceptionSource, s StrengthSource) { b.per, b.str = p, s }
 
 // New builds a Builder.
 func New(lib *library.Service, j *judgments.Service, l *listening.Service, signer *serve.Signer, publicURL string, now func() time.Time) *Builder {
@@ -407,8 +432,6 @@ func New(lib *library.Service, j *judgments.Service, l *listening.Service, signe
 func (b *Builder) UseScoreABC(f func(ctx context.Context, trackID string) (string, error)) { b.abc = f }
 
 var includes = []string{"score", "lyrics", "comments"}
-
-var blindSpots = []string{"timbre", "emotional delivery", "mix balance beyond loudness", "hook catchiness", "diction and intelligibility"}
 
 func rfc(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
@@ -578,6 +601,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	// lineage
 	pathItems := []any{newOmap("id", d.ID, "title", d.Title)}
 	children := []any{}
+	var childIDs []string
 	if len(d.Lineage.Siblings) > 0 || d.Lineage.ParentTrackID != nil {
 		fam, err := b.family(ctx, d.Lineage.RootTrackID)
 		if err != nil {
@@ -591,6 +615,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 					st = *s.Stars
 				}
 				children = append(children, newOmap("id", s.ID, "title", s.Title, "stars", st, "ladder", nil))
+				childIDs = append(childIDs, s.ID)
 			}
 		}
 		slices.SortStableFunc(children, func(x, y any) int {
@@ -609,6 +634,27 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		}
 		pathItems = append(path, pathItems...)
 	}
+	// ladder strengths (global fit, human-source verdicts only): one fit lookup for the track and its children
+	var own any
+	if b.str != nil {
+		ids := append([]string{d.ID}, childIDs...)
+		strengths, _, err := b.str.Strengths(ctx, ids)
+		switch {
+		case errors.Is(err, errors.ErrUnsupported):
+			strengths = nil
+		case err != nil:
+			return Bundle{}, err
+		}
+		if s, ok := strengths[d.ID]; ok && s.NDuels > 0 {
+			own = newOmap("u", s.U, "sd", s.SD, "n_duels", s.NDuels)
+		}
+		for _, c := range children {
+			om := c.(*omap)
+			if s, ok := strengths[om.Get("id").(string)]; ok && s.NDuels > 0 {
+				om.Set("ladder", newOmap("u", s.U, "sd", s.SD))
+			}
+		}
+	}
 	out.Lineage = map[string]any{"path": pathItems, "operator": d.Lineage.Operator, "inferred": d.Lineage.Inferred, "rule": d.Lineage.Rule,
 		"rationale": nil, "children": children, "siblings": len(d.Lineage.Siblings)}
 
@@ -619,23 +665,21 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			return Bundle{}, err
 		}
 	}
-	out.Judgments = map[string]any{"comments": comments, "comments_total": d.Comments, "open_fix": openFix, "ladder": nil}
+	out.Judgments = map[string]any{"comments": comments, "comments_total": d.Comments, "open_fix": openFix, "ladder": own}
 
-	// perception
-	per := map[string]any{"tier": "0", "lufs_i": nil, "true_peak_db": nil, "lra_lu": nil, "bandwidth_hz": nil,
-		"timed": d.Timed, "flags": []string{}, "blind_spots": blindSpots}
-	if l := d.Analysis.Loudness; l != nil {
-		per["lufs_i"], per["true_peak_db"], per["lra_lu"] = l.IntegratedLUFS, l.TruePeakDBTP, l.LRA
+	// perception (Ears computes it; the sections keep M2a's start/end keys)
+	if b.per != nil {
+		p, err := b.per.Perception(ctx, d.ID)
+		if err != nil {
+			return Bundle{}, err
+		}
+		secs := make([]any, len(p.Sections))
+		for i, s := range p.Sections {
+			secs[i] = newOmap("label", s.Label, "start", s.Start, "end", s.End, "source", s.Source, "confidence", s.Confidence)
+		}
+		out.Perception = map[string]any{"tier": p.Tier, "lufs_i": p.LUFSI, "true_peak_db": p.TruePeakDB, "lra_lu": p.LRALU,
+			"bandwidth_hz": p.BandwidthHz, "sections": secs, "timed": p.Timed, "flags": nonNil(p.Flags), "blind_spots": nonNil(p.BlindSpots)}
 	}
-	if s := d.Analysis.Spectrum; s != nil && s.BandwidthHz != nil {
-		per["bandwidth_hz"] = *s.BandwidthHz
-	}
-	secs := make([]any, len(d.Sections))
-	for i, s := range d.Sections {
-		secs[i] = newOmap("label", s.Label, "start", s.StartS, "end", s.EndS, "source", s.Source, "confidence", s.Confidence)
-	}
-	per["sections"] = secs
-	out.Perception = per
 
 	// listening
 	st := d.Listening
@@ -647,7 +691,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	out.Listening = map[string]any{"plays": st.Plays, "completion_rate": st.CompletionRate, "last_played_at": st.LastPlayedAt}
 
 	// links
-	links := map[string]any{"stream": nil, "comments": "/api/tracks/" + d.ID + "/comments", "track": "/api/tracks/" + d.ID}
+	links := map[string]any{"stream": nil, "spectrogram": nil, "comments": "/api/tracks/" + d.ID + "/comments", "track": "/api/tracks/" + d.ID}
 	if b.signer != nil {
 		m, err := b.lib.Media(ctx, d.ID)
 		if err != nil && !errors.Is(err, library.ErrMediaUnavailable) {
@@ -660,6 +704,15 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			mp3 = b.publicURL + b.signer.Sign(m.MP3.SHA256, "mp3", ttl, bucket).URL
 		}
 		links["stream"] = newOmap("mp3", mp3, "flac", b.publicURL+fl.URL, "expires_at", rfc(fl.Expires))
+		if sp, ok := b.per.(spectrogramSource); ok {
+			sha, err := sp.SpectrogramSHA256(ctx, d.ID)
+			if err != nil {
+				return Bundle{}, err
+			}
+			if sha != "" {
+				links["spectrogram"] = b.publicURL + b.signer.Sign(sha, "jpg", ttl, bucket).URL
+			}
+		}
 	}
 	out.Links = links
 
@@ -686,6 +739,13 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	}
 	Fit(&out, limit, include)
 	return out, nil
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 func mapKeys[V any](m map[string]V) func(yield func(string) bool) {

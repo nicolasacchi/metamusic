@@ -43,6 +43,8 @@ commands:
                                  inventory the inbox (--dry-run), then apply the reviewed plan (--plan)
   seed-synthetic [--profile dev|e2e] [--seed 1] [--force]
                                  fill a dev or e2e data directory with a generated library
+  analyze [--track ID]... [--force] [--dry-run] [--jobs N] [--json]
+                                 run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it
 dev flags: --data-dir DIR  --seed-synthetic
 
 import exit codes: 0 ok, 1 per-file errors, 2 usage or fatal, 3 PLAN_CHANGED, 4 IMPORT_IN_PROGRESS
@@ -104,6 +106,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdImport(ctx, rest, getenv, s)
 	case "seed-synthetic":
 		err = cmdSeedSynthetic(ctx, rest, getenv, s)
+	case "analyze":
+		err = cmdAnalyze(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 	default:

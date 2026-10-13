@@ -19,10 +19,13 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
@@ -60,6 +63,11 @@ type Deps struct {
 	Audit     *audit.Store
 	Devices   *auth.DeviceStore
 	Notify    notify.Notifier // nil => no notifications
+
+	// M2b (C53). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}.
+	Duels *duels.Service
+	Ears  *ears.Service
+	Clips *clip.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -121,6 +129,23 @@ var wireNames = map[string]string{
 	"internal/library.JudgmentStats":    "JudgmentCounters",
 	"internal/drafts.UploadDraft":       "UploadedDraft",
 	"internal/drafts.UploadIssue":       "UploadLineIssue",
+	// M2b: package-local names that are too generic for the one OpenAPI namespace.
+	"internal/duels.Page":               "DuelPage",
+	"internal/duels.NextResult":         "NextDuel",
+	"internal/duels.Window":             "ClipWindow",
+	"internal/duels.Slots":              "DuelSlots",
+	"internal/duels.SlotsSummary":       "DuelSlotsSummary",
+	"internal/ladder.Counts":            "VerdictCounts",
+	"internal/ears.Side":                "ComparisonSide",
+	"internal/ears.Deltas":              "ComparisonDeltas",
+	"internal/ears.Flag":                "AnalysisFlag",
+	"internal/ears.Structure":           "TrackStructure",
+	"internal/ears.Provenance":          "AnalysisProvenance",
+	"internal/ears.SeedPair":            "SeedPair",
+	"internal/analysis.Span":            "TimeSpan",
+	"internal/analysis/tokens.Stream":   "TokenStream",
+	"internal/analysis/tokens.Repeat":   "TokenRepeat",
+	"internal/analysis/tokens.Periodic": "TokenPeriodic",
 }
 
 func schemaNamer(t reflect.Type, hint string) string {
@@ -151,6 +176,9 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerPlaylists(a, d)
 	registerExports(a, d)
 	registerBackups(a, d)
+	registerDuels(a, d)
+	registerClips(a, d)
+	registerEars(a, d)
 	registerAudit(a, d)
 	registerTokens(a, d)
 	registerPairedDevices(a, d)

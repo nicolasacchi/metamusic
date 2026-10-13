@@ -95,7 +95,7 @@
     "ladder": null
   },
   "perception": {
-    "tier": "0",
+    "tier": "A",
     "lufs_i": -14,
     "true_peak_db": -1.2,
     "lra_lu": 5.5,
@@ -124,13 +124,17 @@
       }
     ],
     "timed": true,
-    "flags": [],
+    "flags": [
+      "token_loop_suspected"
+    ],
     "blind_spots": [
       "timbre",
       "emotional delivery",
       "mix balance beyond loudness",
       "hook catchiness",
-      "diction and intelligibility"
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "section times are score-plan estimates (confidence 0.7)"
     ]
   },
   "listening": {
@@ -144,6 +148,7 @@
       "flac": "https://mm.example.com/media/51c2c6e87704306d7de7e059dd398245309d73053ee14e81590e0211bc21a5b8.flac?exp=1791288900\u0026sig=EC9ob_Di9cBprwM0In-zhgBATeItmdD3sTC4TEjkV3I",
       "expires_at": "2026-10-06T12:15:00Z"
     },
+    "spectrogram": "https://mm.example.com/media/796fd8e7ae853c2fe2e7651115da2fc55119d7c1679a9e72d90fb7619296c512.jpg?exp=1791288900\u0026sig=KcRr3iYWtOTTIZ02cLyK-XI89CtpbxCGpL-swle3-Bc",
     "comments": "/api/tracks/01900000-0000-7000-8000-000000000101/comments",
     "track": "/api/tracks/01900000-0000-7000-8000-000000000101"
   },
@@ -152,7 +157,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 2989,
+    "chars": 3295,
     "limit": 24000,
     "truncated": []
   }

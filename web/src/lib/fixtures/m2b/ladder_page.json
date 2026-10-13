@@ -1,0 +1,89 @@
+{
+  "scope": "lineage",
+  "root_track_id": "01900000-0000-7000-8000-000000000a01",
+  "include_sighted": false,
+  "generated_at": "2026-10-13T12:00:00Z",
+  "model": {
+    "kind": "btd",
+    "prior_sd": 1.5,
+    "nu_prior": "gamma(2,2)",
+    "anchor": "reject",
+    "anchor_u": 0,
+    "nu": 0.62,
+    "iterations": 41,
+    "converged": true
+  },
+  "counts": {
+    "verdicts_human_counted": 9,
+    "verdicts_critic_excluded": 3,
+    "verdicts_sighted_excluded": 1,
+    "both_bad": 1,
+    "ties": 2,
+    "tracks": 3
+  },
+  "diagnostics": {
+    "slot_a_win_rate": 0.5,
+    "n_ab": 6
+  },
+  "items": [
+    {
+      "rank": 1,
+      "track_id": "01900000-0000-7000-8000-000000000a02",
+      "title": "Synthetic Beta",
+      "root_track_id": "01900000-0000-7000-8000-000000000a01",
+      "seed": 2002,
+      "u": 1.2312,
+      "sd": 0.61,
+      "ci95": [
+        0.035600000000000076,
+        2.4268
+      ],
+      "n_duels": 6,
+      "wins": 4,
+      "losses": 1,
+      "ties": 1,
+      "both_bad": 0,
+      "provisional": false
+    },
+    {
+      "rank": 2,
+      "track_id": "01900000-0000-7000-8000-000000000a01",
+      "title": "Synthetic Alpha",
+      "root_track_id": "01900000-0000-7000-8000-000000000a01",
+      "seed": 2001,
+      "u": 0.4107,
+      "sd": 0.58,
+      "ci95": [
+        -0.7260999999999997,
+        1.5474999999999999
+      ],
+      "n_duels": 6,
+      "wins": 2,
+      "losses": 3,
+      "ties": 1,
+      "both_bad": 0,
+      "provisional": false
+    },
+    {
+      "rank": 3,
+      "track_id": "01900000-0000-7000-8000-000000000a03",
+      "title": "Synthetic Gamma",
+      "root_track_id": "01900000-0000-7000-8000-000000000a01",
+      "seed": 2003,
+      "u": -0.9,
+      "sd": 1.1,
+      "ci95": [
+        -3.056,
+        1.2560000000000002
+      ],
+      "n_duels": 2,
+      "wins": 0,
+      "losses": 1,
+      "ties": 0,
+      "both_bad": 1,
+      "provisional": true
+    }
+  ],
+  "total": 3,
+  "next_cursor": null
+}

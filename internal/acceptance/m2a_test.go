@@ -56,6 +56,12 @@ func callTool(t *testing.T, s *mcp.ClientSession, op string, args map[string]any
 	if res.IsError {
 		t.Fatalf("%s: tool error: %+v", op, res.Content)
 	}
+	return decodeStructured(t, res)
+}
+
+// decodeStructured returns the structured content of a successful result as plain JSON values.
+func decodeStructured(t *testing.T, res *mcp.CallToolResult) any {
+	t.Helper()
 	b, err := json.Marshal(res.StructuredContent)
 	if err != nil {
 		t.Fatal(err)

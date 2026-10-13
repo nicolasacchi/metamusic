@@ -17,6 +17,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
+	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/gate"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
@@ -24,6 +26,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
@@ -42,6 +45,13 @@ type Options struct {
 	HTTP   *http.Client       // ntfy client; nil => 10 s timeout client
 	// Version and Commit are reported by the system operations.
 	Version, Commit string
+	// M2b (C51.7). Media injects the clip and Tier A inputs (nil => probe cfg.FFmpeg).
+	Media *MediaOptions
+	// SlotCoin fixes the blind-duel slot coin (nil => crypto/rand); the parity rigs share one sequence.
+	SlotCoin func() bool
+	// DuelClips, when set, receives the renderer duels would use (nil when clips are unavailable)
+	// and returns the one they use instead: a spy, or a fake in lanes without a clip service.
+	DuelClips func(duels.ClipRenderer) duels.ClipRenderer
 }
 
 // Services is everything Build wires.
@@ -60,6 +70,15 @@ type Services struct {
 	Idem    *idem.Store
 	Audit   *audit.Store
 	Limiter *ratelimit.Limiter
+
+	// M2b services. Clips is nil when ffmpeg lacks the clip capabilities.
+	Clips *clip.Service
+	Duels *duels.Service
+	Ears  *ears.Service
+
+	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
+	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
+	ClipsMissing, TierAMissing error
 }
 
 // Build constructs the services over st and data. Every store and service
@@ -106,6 +125,33 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Now: now, NewID: newID, Version: o.Version, Notify: notifier})
 	ctxb := trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now)
 
+	// M2b: the clip cache pins the clips of open duels, which only the duels service knows;
+	// the closure resolves it after construction (clip must not import duels, C43).
+	var ds *duels.Service
+	media, err := NewMedia(ctx, cfg, st, data, lib, signer, now, func(ctx context.Context) (map[string]struct{}, error) {
+		if ds == nil {
+			return nil, nil
+		}
+		return ds.OpenClipKeys(ctx)
+	}, o.Media)
+	if err != nil {
+		return nil, err
+	}
+	var renderer duels.ClipRenderer // never a typed-nil *clip.Service
+	if media.Clips != nil {
+		renderer = media.Clips
+	}
+	if o.DuelClips != nil {
+		renderer = o.DuelClips(renderer)
+	}
+	ds = duels.New(duels.Options{Store: st, Library: lib, Clips: renderer, Signer: signer, Now: now, NewID: newID, Rand: o.SlotCoin})
+	media.Ears.UseJudgments(ds)
+	ctxb.UseM2b(media.Ears, ds) // perception from Ears, ladders from duels (C51.8)
+	resolvers := []mediaserve.Resolver{lib, exp}
+	if media.Clips != nil {
+		resolvers = append(resolvers, media.Clips)
+	}
+
 	s := &Services{
 		Tokens:  tokens,
 		Local:   local,
@@ -115,20 +161,28 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Idem:    idem.NewStore(st, now),
 		Audit:   audit.NewStore(st, newID),
 		Limiter: ratelimit.New(limits, now),
+		Clips:   media.Clips,
+		Duels:   ds,
+		Ears:    media.Ears,
+
+		ClipsMissing: media.ClipsMissing,
+		TierAMissing: media.TierAMissing,
 	}
 	s.Deps = api.Deps{
 		Store: st, Tokens: tokens, Cfg: cfg, Version: o.Version, Commit: o.Commit, Started: now(),
 		Library: lib, Signer: signer, Probe: o.Probe, Now: now, NewID: o.NewID,
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Audit: s.Audit, Devices: devices, Notify: notifier,
+		Duels: ds, Ears: media.Ears, Clips: media.Clips,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
 		Version: o.Version, Commit: o.Commit, Started: s.Deps.Started,
-		Library: lib, Signer: signer, Probe: o.Probe, Media: mediaserve.Handler(signer, data, mediaserve.Chain(lib, exp), o.Probe), Now: now,
+		Library: lib, Signer: signer, Probe: o.Probe, Media: mediaserve.Handler(signer, data, mediaserve.Chain(resolvers...), o.Probe), Now: now,
 		Audit: s.Audit, Idem: s.Idem, Limiter: s.Limiter, NewID: o.NewID,
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Devices: devices, DeviceStore: devices, Notify: notifier,
+		Duels: ds, Ears: media.Ears, Clips: media.Clips,
 	}
 	return s, nil
 }

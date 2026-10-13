@@ -48,7 +48,7 @@ non-registry signed Range handler (`internal/media/serve`). Every hand-written p
 through the leaf `internal/problem`. The Svelte shell gains Library / Track / Backlog / Import /
 Settings routes and a real player. `internal/synth` generates every test/E2E/dev fixture at runtime.
 
-**Tech stack:** one new Go module dependency, `golang.org/x/text` (NFKD folding for `Slug`; D-M1-3).
+**Tech stack:** one new Go module dependency, `golang.org/x/text` (NFKD folding for `Slug`; D-M1-3; the fold itself now lives in the leaf `internal/textfold`, M2b-B1).
 FFT, FLAC metadata, peaks and ABC parsing are stdlib Go. Every "UUIDv7" below is the Go 1.27 stdlib
 `uuid.NewV7().String()`, as M0's `internal/auth` already uses (no `github.com/google/uuid` import).
 Runtime tools: `ffmpeg` (filter `ebur128`,
@@ -128,6 +128,7 @@ FFmpeg   string // MM_FFMPEG,   default "ffmpeg"   (resolved via exec.LookPath a
 FLAC     string // MM_FLAC,     default "flac"
 Metaflac string // MM_METAFLAC, default "metaflac"
 Inbox    string // MM_INBOX,    default DataDir + "/inbox"
+// M2b-B1 addendum: ClipCacheMB int64 // MM_CLIP_CACHE_MB, default 4096, minimum 256 (M2b C43)
 ```
 `config.Load` keeps M0's rule that `MM_AUTH` must be `proxy` or `local` (else an error), so every
 subcommand that loads config — including `import --dry-run` and `seed-synthetic` — needs `MM_AUTH` set
@@ -796,6 +797,10 @@ func WriteFile(tb testing.TB, path string, s Spec) // mode 0644
 
 ### C14. Analyzer: `internal/analysis` + `internal/analysis/ffmpeg`
 
+> M2b-B2 addendum: `ffmpeg.New` keeps its signature and requirements (`ebur128`, `libmp3lame`) but retains the `-filters` and
+> `-encoders` listings it reads; `(*FFmpeg).RequireClips()` and `RequireTierA()` (`capabilities.go`) check the M2b filters and
+> encoders against them and return `analysis.ErrToolMissing` naming the first missing item (M2b C51.7).
+
 ```go
 type Loudness struct {
     IntegratedLUFS   float64   `json:"integrated_lufs"`
@@ -1202,7 +1207,7 @@ draft:syn-song-01-v2,,,,syn-song-01
  "errors":[{"path":"…","line":0,"code":"…","message":"…"}],
  "library_orphans":["audio/masters/…","derived/…"]}
 ```
-`library_orphans` = files under `audio/masters/` and `derived/` (except `derived/probe/`) not referenced
+`library_orphans` = files under `audio/masters/` and `derived/` (except the caches `derived/probe/`, `derived/clips/` and `derived/exports/`; M2b-B1) not referenced
 by `tracks`/`renditions` (reported, never deleted). Reports contain no absolute paths, never print
 non-UTF-8 names (C16.1) and never contain reference values (C16.9). CLI stdout prints the summary as
 aligned text plus the unmatched/ambiguous lists and the next command; every printed path has
@@ -1311,6 +1316,8 @@ func WriteFixtureDB(tb testing.TB, path string) // `make fixture-db` (go test -r
 ```
 
 ### C18. Media URLs and handler: `internal/media/serve`
+
+> M2b-B1 addendum: the path regex is `^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`; `Service.Resolve` (C17) answers `jpg` from `renditions(kind='spectrogram')` as `image/jpeg`.
 
 ```go
 type Signer struct{ /* key []byte; now func() time.Time */ }
@@ -1460,6 +1467,9 @@ reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`
 
 ### C20. HTTP server and CLI additions
 
+> M2b-B2 addendum: `httpserver.Options` gains `Duels`, `Ears` and `Clips` (see M0 C6); the CLI gains `analyze` (M2b C51.7, a stub
+> until M2b-E3) and the media chain becomes `serve.Chain(lib, exp, clips)` with `clips` appended only when the service exists.
+
 - `httpserver.Options` (M0: `Cfg`, `Sec`, `Store`, `Tokens`, `Sessions`, `MCP`, `MCPFactory`, `Started`,
   `SPA`, `Version`, `Commit`) gains (M1-B4 amends M0 C6): `Library *library.Service`,
   `Signer *serve.Signer`, `Probe *serve.Object`, `Media http.Handler` (nil ⇒ `/media/` answers 404
@@ -1597,6 +1607,11 @@ func Archive(ctx context.Context, t mediatool.Tools, dir string, profile Profile
 `<b>&`, two siblings sharing a request id, durations 6–12 s, LUFS −12…−16), 12 backlog recipes
 in 4 groups with a 3-draft collection, 1 varianti recipe ⇒ 19 recipes, 6 tracks, 19 drafts (13
 backlog, 6 fulfilled), 1 sibling edge; no unmatched/invalid inputs, no symlink/FIFO/archive.
+
+> M2b-B3 amendment (C55): the e2e/dev profile gains the `ears` group of three takes (`syn-ears-clip`,
+> `syn-ears-gap`, `syn-ears-loop`, one defect each) ⇒ **22 recipes, 9 tracks, 22 drafts (13 backlog, 9
+> fulfilled), 1 sibling edge**, 2 scores (both timed), 9 audio files. `seed-synthetic` and `import` run Tier A
+> after the import. The acceptance profile's `syn-song-05/semantic.npy` is now a valid loop-free array.
 
 ### C22. Web (`web/`)
 

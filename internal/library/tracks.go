@@ -695,6 +695,28 @@ func nb(n sql.NullInt64) *bool {
 // sectionRank orders section sources: the most informative wins.
 var sectionRank = map[string]int{"manual": 4, "measured": 3, "plan": 2, "lyrics": 1}
 
+// selectSections is the one section-selection rule (shared by Track and Sections): the highest-ranked
+// source present wins; timed means every row of the winner has a start. It returns "" when bySource is
+// empty.
+func selectSections(bySource map[string][]SectionOut) (best string, rows []SectionOut, timed bool) {
+	for src := range bySource {
+		if sectionRank[src] > sectionRank[best] {
+			best = src
+		}
+	}
+	if best == "" {
+		return "", nil, false
+	}
+	rows = bySource[best]
+	timed = len(rows) > 0
+	for _, so := range rows {
+		if so.StartS == nil || so.EndS == nil {
+			timed = false
+		}
+	}
+	return best, rows, timed
+}
+
 // Track returns the full detail of one track.
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}}
@@ -852,20 +874,8 @@ func (s *Service) trackExtras(ctx context.Context, d *TrackDetail) error {
 	if err := rows.Close(); err != nil {
 		return err
 	}
-	best := ""
-	for src := range bySource {
-		if sectionRank[src] > sectionRank[best] {
-			best = src
-		}
-	}
-	if best != "" {
-		d.Sections = bySource[best]
-		d.Timed = d.Sections[0].StartS != nil
-		for _, so := range d.Sections {
-			if so.StartS == nil {
-				d.Timed = false
-			}
-		}
+	if best, rows, timed := selectSections(bySource); best != "" {
+		d.Sections, d.Timed = rows, timed
 	}
 	// analyses (latest version of each)
 	rows, err = q.QueryContext(ctx, `SELECT analyzer, version, metrics_json FROM analyses WHERE track_id = ? ORDER BY created_at ASC, version ASC`, d.ID)
@@ -1000,7 +1010,7 @@ func (s *Service) Media(ctx context.Context, trackID string) (MediaSet, error) {
 }
 
 // Resolve implements serve.Resolver: flac addresses masters, mp3 addresses
-// the MP3 rendition.
+// the MP3 rendition, jpg the spectrogram rendition.
 func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, error) {
 	var (
 		q  string
@@ -1011,6 +1021,8 @@ func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, e
 		q, ct = `SELECT master_path, created_at FROM tracks WHERE master_sha256 = ?`, "audio/flac"
 	case "mp3":
 		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'mp3_320' AND sha256 = ? LIMIT 1`, "audio/mpeg"
+	case "jpg":
+		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'spectrogram' AND sha256 = ? LIMIT 1`, "image/jpeg"
 	default:
 		return serve.Object{}, serve.ErrNotFound
 	}

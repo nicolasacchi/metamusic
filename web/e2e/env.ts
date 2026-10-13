@@ -9,3 +9,7 @@ process.env.MM_E2E_EDGE_SECRET ??= randomBytes(16).toString("hex");
 export const EDGE_SECRET = process.env.MM_E2E_EDGE_SECRET;
 export const E2E_USER = "e2e";
 export const HEADERS = { "Remote-User": E2E_USER, "X-MM-Edge": EDGE_SECRET };
+// Per-run Playwright artifact directory (exported so workers share it): concurrent or overlapping runs
+// never write into the same .playwright-artifacts-N tree.
+process.env.MM_E2E_OUTPUT_DIR ??= `test-results/run-${process.pid}-${Date.now()}`;
+export const OUTPUT_DIR = process.env.MM_E2E_OUTPUT_DIR;

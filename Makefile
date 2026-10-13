@@ -39,15 +39,20 @@ check:
 # cost about two thirds of suite CPU. Everything else (all of our code, database/sql, net/http) stays
 # under -race, and `make test` / `make cover` / CI keep full instrumentation everywhere.
 CHECK_GCFLAGS = -gcflags=modernc.org/...=-race=false
+# Also fast-loop only: GORACE=atexit_sleep_ms=0 drops the race runtime's 1 s sleep at the exit of each of the ~45
+# test binaries (about 2 s of wall time on 8 cores) and GOGC=400 trades memory for fewer collections.
 
 # Internal: steps of `check` (run inside one metrics row). -short skips the heavy media-tool/acceptance
 # tiers (testtools.Require, TestAcceptance_*); `make test` and CI run them.
 _check:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
-	go vet ./...
-	$(GOLINT) run ./...
-	TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short -shuffle=on ./...
-	@scripts/web-check.sh
+	@# The web checks (bun, ~7 s) run beside vet/lint/go test: the Go side saturates the cores only while
+	@# it links and runs the big packages, and the two sides are independent. Output is buffered and printed
+	@# after the Go output; both must pass.
+	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; scripts/web-check.sh >"$$log" 2>&1 & wp=$$!; \
+	rc=0; \
+	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short -shuffle=on ./...; } || rc=1; \
+	wait $$wp || rc=1; cat "$$log"; exit $$rc
 
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh
@@ -79,7 +84,7 @@ tools:
 # Writes a fixture library (metadata + peaks files) the web lane can serve:
 #   go run ./cmd/metamusic dev --data-dir ./data/fixture
 fixture-db:
-	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1'
+	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M2b -count=1'
 
 dev:
 	go run ./cmd/metamusic dev --data-dir ./data/dev

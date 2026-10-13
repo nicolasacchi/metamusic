@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
+	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/synth"
@@ -402,10 +403,11 @@ func TestSynthArchive_E2EProfile(t *testing.T) {
 		}
 	}
 	e := m.Expect
-	if e.Recipes != 19 || e.Tracks != 6 || e.Drafts != 19 || e.DraftsBacklog != 13 || e.DraftsFulfilled != 6 || e.SiblingEdges != 1 || e.ExitCode != 0 || m.Mapping != "" {
+	if e.Recipes != 22 || e.RecipeSources != 22 || e.Tracks != 9 || e.Drafts != 22 || e.DraftsBacklog != 13 || e.DraftsFulfilled != 9 ||
+		e.SiblingEdges != 1 || e.AudioFiles != 9 || e.AudioIdentities != 9 || e.Scores != 2 || e.TimedScores != 2 || e.LoudnessSpreadLU != 12.8 || e.ExitCode != 0 || m.Mapping != "" {
 		t.Errorf("expect = %+v mapping=%q", e, m.Mapping)
 	}
-	if len(m.Audio) != 6 {
+	if len(m.Audio) != 9 {
 		t.Errorf("audio specs = %d", len(m.Audio))
 	}
 	if _, err := synth.Archive(context.Background(), testtools.Tools(), t.TempDir(), "nope", 1); err == nil {
@@ -414,3 +416,79 @@ func TestSynthArchive_E2EProfile(t *testing.T) {
 }
 
 func sortStrings(s []string) { sort.Strings(s) }
+
+func TestSynthEars_RecipesBatchValid(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	t.Parallel()
+	dir := t.TempDir()
+	if _, err := synth.Archive(context.Background(), testtools.Tools(), dir, synth.ProfileE2E, 1); err != nil {
+		t.Fatal(err)
+	}
+	songs, err := os.ReadFile(filepath.Join(dir, "music/songs.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := bytes.Count(songs, []byte("\n")); n != 9 {
+		t.Errorf("songs.jsonl has %d lines, want 9", n)
+	}
+	for _, id := range []string{"syn-ears-clip", "syn-ears-gap", "syn-ears-loop"} {
+		if !bytes.Contains(songs, []byte(`"id": "`+id+`"`)) {
+			t.Errorf("songs.jsonl lacks %s", id)
+		}
+	}
+	// The M1 lines repeat syn-song-01 on purpose (a sibling pair), which the batch validator reports as
+	// duplicate_id; the three ears lines must be clean on their own and add no issue to the whole file.
+	lines := bytes.SplitAfter(songs, []byte("\n"))
+	ears := bytes.Join(lines[6:9], nil)
+	if rep := yue2.ValidateBatch(ears, nil); !rep.OK || len(rep.Issues) != 0 || rep.Requests != 3 {
+		t.Errorf("ears lines report = %+v", rep)
+	}
+	whole := yue2.ValidateBatch(songs, os.DirFS(filepath.Join(dir, "music")))
+	if whole.Requests != 9 || len(whole.Issues) != 1 || whole.Issues[0].Code != "duplicate_id" {
+		t.Errorf("whole file report = %+v", whole)
+	}
+}
+
+func TestSynthEars_Files(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	t.Parallel()
+	dir := t.TempDir()
+	m, err := synth.Archive(context.Background(), testtools.Tools(), dir, synth.ProfileE2E, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, f := range m.Files {
+		have[f.Path] = true
+	}
+	for _, p := range []string{"music/flac/syn_ears_clip.flac", "music/flac/syn_ears_gap.flac",
+		"music/results/syn-ears-loop/audio.flac", "music/results/syn-ears-loop/request.json", "music/results/syn-ears-loop/result.json",
+		"music/results/syn-ears-loop/score.abc", "music/results/syn-ears-loop/semantic.npy"} {
+		if !have[p] {
+			t.Errorf("manifest lacks %s", p)
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "music/results/syn-ears-loop/semantic.npy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(b, []byte("\x93NUMPY")) || !bytes.Contains(b[:128], []byte("(1, 600)")) {
+		t.Errorf("semantic.npy header = %q", b[:min(len(b), 96)])
+	}
+}
+
+func TestSynthArchive_AcceptanceSemanticNPYValid(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	t.Parallel()
+	dir := t.TempDir()
+	if _, err := synth.Archive(context.Background(), testtools.Tools(), dir, synth.ProfileAcceptance, 1); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "music/results/syn-song-05/semantic.npy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(b, []byte("\x93NUMPY")) {
+		t.Errorf("acceptance semantic.npy is not a numpy array: %q", b[:min(len(b), 16)])
+	}
+}

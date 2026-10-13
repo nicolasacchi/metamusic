@@ -29,6 +29,20 @@ type syncBuf struct {
 func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
+// waitListening polls out for the "listening on" line of a starting server and returns its address, or ""
+// after limit. Startup spawns ffmpeg four times (version, filters, encoders, device probe) and runs
+// migrations, which takes 1-2 s alone and several times that when `make cover` runs every package under
+// -race -cover at once, so the limit is generous: a hung start still fails, a slow one passes.
+func waitListening(out *syncBuf, limit time.Duration) string {
+	for deadline := time.Now().Add(limit); time.Now().Before(deadline); time.Sleep(25 * time.Millisecond) {
+		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
+			addr, _, _ := strings.Cut(rest, " ")
+			return addr
+		}
+	}
+	return ""
+}
+
 func envFn(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func do(t *testing.T, env map[string]string, stdin string, args ...string) (int, string, string) {
@@ -118,13 +132,7 @@ func TestServeAndHealthcheck(t *testing.T) {
 	var out, errb syncBuf
 	done := make(chan int, 1)
 	go func() { done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb) }()
-	var addr string
-	for i := 0; i < 200 && addr == ""; i++ {
-		time.Sleep(25 * time.Millisecond)
-		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
-			addr, _, _ = strings.Cut(rest, " ")
-		}
-	}
+	addr := waitListening(&out, 60*time.Second)
 	if addr == "" {
 		t.Fatalf("server did not start: %s %s", out.String(), errb.String())
 	}

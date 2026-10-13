@@ -701,6 +701,10 @@ BEGIN SELECT RAISE(ABORT, 'backup_runs: frozen column'); END;
 
 ### C28. Registry amendments (amends M0 C4, M1 C19)
 
+> M2b-B2 addendum: `Meta` gains `MCPImage` (after `SecretFields`); `Deps` gains `Duels`, `Ears` and `Clips` (concrete pointers; a nil one
+> makes its operations answer 503 `UNAVAILABLE {component}`). The M2b operations are registered by `registerDuels`, `registerClips`
+> and `registerEars`; `internal/api/errors_m2b.go` holds `m2bErr`.
+
 ```go
 type Meta struct {
     Scope        auth.Scope `json:"scope"`
@@ -1185,6 +1189,8 @@ func (s *Service) Upload(ctx context.Context, p auth.Principal, in Upload) (Uplo
 
 ### C33. Exports, `songs.jsonl`, playlists and MP3 ZIPs (`internal/export`, `internal/exports`, `internal/playlists`, `internal/media/id3`)
 
+> M2b-B1 addendum: the media path regex also accepts `jpg` (spectrogram renditions); `get_system_info.schema_version` is 4 after M2b (C27/C34 tests that pinned 3 now expect 4).
+
 **Python-compatible JSON writer** (`internal/export/pyjson.go`; M2a-B3, used by export and tests):
 ```go
 type Style struct {
@@ -1457,7 +1463,7 @@ start (heartbeat rule).
    high-priority notification "backup failed".
 
 ```json
-{"format":"mm.backup/1","id":"<run id>","created_at":"…","app_version":"…","schema_version":3,
+{"format":"mm.backup/1","id":"<run id>","created_at":"…","app_version":"…","schema_version":3, /* M2b-B1: the live schema is now 4; backups record the live version */
  "db":{"path":"db/metamusic.db","sha256":"…","bytes":0,"integrity":"ok"},
  "files":[{"path":"audio/masters/…","sha256":"…","bytes":0,"kind":"master|artifact|rendition|import|export","linked":true}],
  "counts":{"tracks":0,"masters":0,"artifacts":0,"renditions":0,"drafts":0,"comments":0},
@@ -1492,6 +1498,13 @@ parse as snapshot names (`<yyyymmddThhmmssZ>` with an optional `-N`) are ever to
    `secret_key` keeps tokens, sessions and devices valid, a new one invalidates them).
 
 ### C35. The `/context` bundle (`internal/trackctx`)
+
+> M2b-B3 amendment (C51.8): `perception` is built by `ears.Perception` (same keys and order; `tier`, `flags` and
+> `blind_spots` now come from Ears, so `blind_spots` grows by the Tier A, score-adherence and section-timing
+> entries); `judgments.ladder` is `{u, sd, n_duels}` and `lineage.children[].ladder` is `{u, sd}` from the
+> human-only global fit (`null` without counted duels); `_links` gains `spectrogram` after `stream`
+> (`null` without a rendition). `trackctx.Builder.UseM2b` wires both sources; `trackctx` no longer computes
+> perception itself.
 
 ```go
 func New(lib *library.Service, j *judgments.Service, l *listening.Service, signer *serve.Signer, publicURL string, now func() time.Time) *Builder
@@ -1746,6 +1759,10 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
 
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
 
+> M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
+> and `DuelClips func(duels.ClipRenderer) duels.ClipRenderer`; `app.Services` gains `Clips`, `Duels` and `Ears`. `Build` calls
+> `app.NewMedia` (`internal/app/media.go`), builds `duels.New`, calls `ears.UseJudgments` and appends the clips resolver to the media chain.
+
 - **One constructor** (`internal/app`; created by M2a-B2a, M2a services filled in by M2a-B4a). `serve`,
   `dev`, `mcp-stdio` and `servertest` all build their services through it — no other code constructs
   an M2a service, a gate, a limiter or `api.Deps`:
@@ -1809,6 +1826,10 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
   `config.LoadOffline`; output unchanged.
 
 ### C40. Web (`web/`; amends M1 C22)
+
+> M2b-W2 (recorded): `APP_ROUTES` gains `/duels`, `/duels/:id`, `/ladder`, `/compare`; the nav gains "Duels"
+> (badge from `list_duels?state=open&limit=1`) and "Ladder"; the Track page gains the Ears panel and the
+> Lineage-duels block (M2b C54.4).
 
 Routes (M0 router; specific before parametric): `/` Library · `/tracks/:id` Track · `/backlog` ·
 `/backlog/new` · `/backlog/upload` · `/backlog/:id` Draft editor · `/playlists` · `/playlists/:id` ·
@@ -1973,6 +1994,13 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
 - `scripts/loop` allowlist and `metrics/loop.schema.json`: no new targets.
 
 ### C42. Test harness and fixtures
+
+> M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
+> `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:
+> `media/clip/cliptest`, `duels/duelstest`, `ears/earstest` (asserted absent from the binary by `TestNoTestHelpersInBinary`).
+
+> M2b-B3 addendum: `M2bOptions` also has `ClipCacheMB` (the clip cache cap, used to exercise eviction) and
+> `archivetest.ImportInbox` imports a purpose-built inbox (signals the profiles do not hold).
 
 - **Clock rules (binding).** `testing/synctest` is used **only** for code driven through
   `httptest.NewRecorder` or in-memory transports with no real socket, because network I/O is not

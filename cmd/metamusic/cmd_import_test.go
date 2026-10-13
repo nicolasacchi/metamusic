@@ -352,7 +352,7 @@ func TestCLI_ImportSpreadLine(t *testing.T) {
 	if !strings.Contains(out, "loudness spread") || !strings.Contains(out, "LU") {
 		t.Errorf("no spread line:\n%s", out)
 	}
-	if n := dbRow(t, env, `SELECT count(*) FROM tracks`); n != 6 {
+	if n := dbRow(t, env, `SELECT count(*) FROM tracks`); n != 9 {
 		t.Errorf("tracks = %d", n)
 	}
 }

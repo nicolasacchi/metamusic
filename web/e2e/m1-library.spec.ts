@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-const TITLES = ["Syn song 01 s1001", "Syn song 01 s2001", "Syn song 02", "Syn song 03", "Syn song 04", "Syn song 05"];
+const TITLES = ["Syn ears clip", "Syn ears gap", "Syn ears loop", "Syn song 01 s1001", "Syn song 01 s2001", "Syn song 02", "Syn song 03", "Syn song 04", "Syn song 05"];
 
 async function listTitles(request: APIRequestContext): Promise<string[]> {
   const r = await request.get("/api/tracks?limit=50");
@@ -14,12 +14,12 @@ test("seeded titles are listed", async ({ page, request }) => {
   const rows = page.getByTestId("track-row");
   await expect(rows).toHaveCount(TITLES.length);
   for (const t of TITLES) await expect(page.getByTestId("track-link").filter({ hasText: new RegExp(`^${t}$`) })).toBeVisible();
-  await expect(page.getByTestId("library-counts")).toContainText("6 tracks");
+  await expect(page.getByTestId("library-counts")).toContainText("9 tracks");
 });
 
 test("q search is accent-insensitive", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(6);
+  await expect(page.getByTestId("track-row")).toHaveCount(9);
   await page.getByTestId("filter-q").fill("Sýn sóng 03");
   await expect(page).toHaveURL(/[?&]q=/);
   await expect(page.getByTestId("track-row")).toHaveCount(1);
@@ -36,12 +36,12 @@ test("two style facets select the AND of both terms", async ({ page }) => {
     await route.fulfill({ response: res, json: body });
   });
   await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(6);
+  await expect(page.getByTestId("track-row")).toHaveCount(9);
   const facets = page.getByTestId("style-facets");
 
   await facets.getByRole("button", { name: /^synthetic pop/ }).click();
   await expect(facets.getByRole("button", { name: /^synthetic pop/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("track-row")).toHaveCount(6);
+  await expect(page.getByTestId("track-row")).toHaveCount(9);
 
   const req = page.waitForRequest((r) => {
     const u = new URL(r.url());
@@ -58,32 +58,32 @@ test("two style facets select the AND of both terms", async ({ page }) => {
 
 test("duration filter and URL restore on back/forward", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(6);
+  await expect(page.getByTestId("track-row")).toHaveCount(9);
 
   await page.getByTestId("style-facets").getByRole("button", { name: /^synthetic pop/ }).click();
   await expect(page).toHaveURL(/style=synthetic/);
 
-  // minimum length is entered in minutes: 0.14 min = 8.4 s keeps the 9 s and 12 s takes
+  // minimum length is entered in minutes: 0.14 min = 8.4 s keeps the 9 s, 10 s and two 12 s takes
   await page.locator('input[name="min"]').fill("0.14");
   await page.locator('input[name="min"]').press("Tab");
   await expect(page).toHaveURL(/min_duration_s=8\.3|min_duration_s=8\.4/);
-  await expect(page.getByTestId("track-row")).toHaveCount(2);
+  await expect(page.getByTestId("track-row")).toHaveCount(4);
   const names = await page.getByTestId("track-link").allTextContents();
-  expect(names.sort()).toEqual(["Syn song 03", "Syn song 05"]);
+  expect(names.sort()).toEqual(["Syn ears gap", "Syn ears loop", "Syn song 03", "Syn song 05"]);
 
   await page.goBack();
   await expect(page).toHaveURL(/style=synthetic/);
   await expect(page).not.toHaveURL(/min_duration_s/);
-  await expect(page.getByTestId("track-row")).toHaveCount(6);
+  await expect(page.getByTestId("track-row")).toHaveCount(9);
   await expect(page.locator('input[name="min"]')).toHaveValue("");
 
   await page.goForward();
   await expect(page).toHaveURL(/min_duration_s/);
-  await expect(page.getByTestId("track-row")).toHaveCount(2);
+  await expect(page.getByTestId("track-row")).toHaveCount(4);
   await expect(page.locator('input[name="min"]')).toHaveValue("0.14");
 
   // a deep link restores the same state in a fresh load
   await page.reload();
-  await expect(page.getByTestId("track-row")).toHaveCount(2);
+  await expect(page.getByTestId("track-row")).toHaveCount(4);
   await expect(page.getByTestId("style-facets").getByRole("button", { name: /^synthetic pop/ })).toHaveAttribute("aria-pressed", "true");
 });

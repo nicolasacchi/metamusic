@@ -6,6 +6,7 @@ package servertest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,12 +28,18 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/duels/duelstest"
+	"github.com/nicolasacchi/metamusic/internal/ears"
+	"github.com/nicolasacchi/metamusic/internal/ears/earstest"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
 	"github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
+	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/testtools"
 )
 
 // Options tunes New; the zero value is a proxy-mode rig with an empty library.
@@ -45,6 +52,25 @@ type Options struct {
 	IDSeed  string                // deterministic UUIDv7-shaped id sequence ("" => "0190")
 	Limits  ratelimit.Config      // nil => effectively unlimited
 	Canary  bool                  // canary secret_key / edge_secret / ntfy_token / human username; ntfy fake server
+	M2b     M2bOptions            // duels, Ears and clips (C55)
+}
+
+// M2bOptions tunes the M2b services of a rig.
+type M2bOptions struct {
+	Fixture     bool                                        // duelstest.Fixture + earstest.Fixture (+ the earstest JPEG); requires Options.Fixture
+	Media       bool                                        // real ffmpeg for clips and Tier A (testtools.Require); false => cliptest/earstest fakes, no ffmpeg subprocess in the rig
+	Backfill    bool                                        // run ears.Backfill after the fixture/archive is loaded (archivetest templates carry no Tier A rows)
+	ClipCacheMB int64                                       // clip cache cap in MB (0 => the app default); acceptance tests use 1 to exercise eviction
+	FakeClips   bool                                        // duels use cliptest.Renderer instead of the clip service (lanes without a clip service)
+	SlotCoin    func() bool                                 // nil => Alternating(): false, true, false, ... created fresh per rig, so parity rigs agree
+	WrapClips   func(duels.ClipRenderer) duels.ClipRenderer // optional spy between duels and its renderer (render counts)
+	Override    func(*app.Services)                         // optional: replace the built Duels/Ears/Clips with test instances before the server is mounted
+}
+
+// Alternating is a slot coin that yields false, true, false, ... (one fresh sequence per call).
+func Alternating() func() bool {
+	var n atomic.Uint64
+	return func() bool { return n.Add(1)%2 == 0 }
 }
 
 // Rig is one running server.
@@ -148,6 +174,12 @@ func New(tb testing.TB, o Options) *Rig {
 		tb.Fatal(err)
 	}
 	tb.Cleanup(func() { _ = dataRoot.Close() })
+	if o.M2b.Fixture {
+		if !o.Fixture {
+			tb.Fatal("servertest: M2b.Fixture requires Fixture")
+		}
+		applyM2bFixture(tb, st, dataRoot, r.DataDir, clock.Now())
+	}
 
 	limits := o.Limits
 	if limits == nil {
@@ -156,14 +188,47 @@ func New(tb testing.TB, o Options) *Rig {
 			limits[c] = ratelimit.Limit{PerMinute: unlimitedPM, Burst: unlimitedPM}
 		}
 	}
-	svc, err := app.Build(ctx, cfg, sec, st, dataRoot, app.Options{
+	ao := app.Options{
 		Now: clock.Now, NewID: idSequence(o.IDSeed), Limits: limits, Version: "v-test", Commit: "abc123",
-		Probe: &mediaserve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
-	})
+		Probe:    &mediaserve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
+		SlotCoin: o.M2b.SlotCoin,
+	}
+	if ao.SlotCoin == nil {
+		ao.SlotCoin = Alternating()
+	}
+	cfg.ClipCacheMB = o.M2b.ClipCacheMB
+	if o.M2b.Media {
+		testtools.Require(tb, "ffmpeg")
+		cfg.FFmpeg = testtools.Tools().FFmpeg
+	} else {
+		ao.Media = &app.MediaOptions{Window: cliptest.NewAnalyzer(), Render: cliptest.Render, TierA: earstest.NewTierA()}
+	}
+	if o.M2b.FakeClips || o.M2b.WrapClips != nil {
+		ao.DuelClips = func(built duels.ClipRenderer) duels.ClipRenderer {
+			if o.M2b.FakeClips {
+				built = cliptest.NewRenderer()
+			}
+			if o.M2b.WrapClips != nil {
+				built = o.M2b.WrapClips(built)
+			}
+			return built
+		}
+	}
+	svc, err := app.Build(ctx, cfg, sec, st, dataRoot, ao)
 	if err != nil {
 		tb.Fatal(err)
 	}
+	if o.M2b.Override != nil {
+		o.M2b.Override(svc)
+		svc.Deps.Duels, svc.Deps.Ears, svc.Deps.Clips = svc.Duels, svc.Ears, svc.Clips
+		svc.Server.Duels, svc.Server.Ears, svc.Server.Clips = svc.Duels, svc.Ears, svc.Clips
+	}
 	r.Services = svc
+	if o.M2b.Backfill {
+		if _, err := svc.Ears.Backfill(ctx, ears.BackfillOptions{}); err != nil && !errors.Is(err, errors.ErrUnsupported) {
+			tb.Fatalf("servertest: ears backfill: %v", err)
+		}
+	}
 	// Close runs before the store and the directories go away (LIFO).
 	tb.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
@@ -177,11 +242,29 @@ func New(tb testing.TB, o Options) *Rig {
 	opts.SPA = fstest.MapFS{"index.html": {Data: []byte("x")}}
 	opts.MCPFactory = func(a huma.API, inner http.Handler) (http.Handler, error) {
 		r.API = a
-		s, err := mcpgen.NewServer(a, inner, "v-test")
-		if err != nil {
-			return nil, err
-		}
-		return mcpgen.Handler(s), nil
+		// Built on the first MCP request: marshalling the whole OpenAPI document per rig is
+		// the most expensive part of setup under -race and most tests never touch /mcp.
+		var (
+			once sync.Once
+			mh   http.Handler
+			merr error
+		)
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			once.Do(func() {
+				s, err := mcpgen.NewServer(a, inner, "v-test")
+				if err != nil {
+					merr = err
+					return
+				}
+				mh = mcpgen.Handler(s)
+			})
+			if merr != nil {
+				tb.Errorf("servertest: building MCP server: %v", merr)
+				http.Error(w, "mcp unavailable", http.StatusInternalServerError)
+				return
+			}
+			mh.ServeHTTP(w, req)
+		}), nil
 	}
 	h, err := httpserver.New(opts)
 	if err != nil {
@@ -336,4 +419,11 @@ func seedFixtureDB(tb testing.TB, path string) bool {
 		tb.Fatal(err)
 	}
 	return true
+}
+
+// applyM2bFixture adds the duels and Ears fixture rows on top of librarytest.Fixture.
+func applyM2bFixture(tb testing.TB, st *store.Store, data *os.Root, dataDir string, now time.Time) {
+	tb.Helper()
+	duelstest.Fixture(tb, st, dataDir, librarytest.Fixtures{}, now, nil)
+	earstest.Fixture(tb, st, data, librarytest.Fixtures{}, now)
 }

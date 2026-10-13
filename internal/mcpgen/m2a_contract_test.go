@@ -20,7 +20,12 @@ import (
 
 // toolsCeilingBytes is the absolute C41 ceiling: the compact-JSON tools array
 // of tools/list (about 10 000 tokens at 4 bytes per token).
-const toolsCeilingBytes = 40000
+//
+// M2b-B2 (D-M2b-22) re-baselined 40000 -> 55500 (measured 55308, about 13 800 tokens): the four tools agents
+// call every session (next_duel, submit_duel, get_track_analysis, get_track_spectrogram) are first-class, and
+// create_duel, get_ladder and compare_tracks were demoted to mcp generic (call_operation) because the seven
+// M2b tools alone were 28 198 bytes, over the 16 000 byte rule.
+const toolsCeilingBytes = 55500
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

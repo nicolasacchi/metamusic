@@ -159,6 +159,17 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	if err != nil {
 		return err
 	}
+	if n := sweepWorkDirs(root, time.Now(), workDirMaxAge); n > 0 {
+		slog.Info("swept stale work directories", "removed", n)
+	}
+	// Both capability gaps are also logged by app.NewMedia through slog; the operator running the
+	// binary in a terminal sees one plain line per gap here.
+	if svc.TierAMissing != nil {
+		fmt.Fprintf(s.err, "metamusic: warning: Tier A unavailable (ffmpeg lacks %s); analysis answers TOOL_MISSING\n", capabilityName(missingCapability(svc.TierAMissing)))
+	}
+	if svc.ClipsMissing != nil {
+		fmt.Fprintf(s.err, "metamusic: warning: clips unavailable (ffmpeg lacks %s); clip operations answer 503\n", capabilityName(missingCapability(svc.ClipsMissing)))
+	}
 	defer func() {
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
 		defer cancel()

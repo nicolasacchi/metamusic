@@ -2305,6 +2305,519 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Get the Ears dossier of a track\n\nMeasured facts about a take: loudness, bandwidth, silence spans, clipping, token-loop metrics from the model's semantic tokens, structure and duration against the score, plus computed flags with evidence. tier is A when every applicable analyzer ran. Read blind_spots first: it lists what these numbers cannot tell you.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_track_analysis",
+    "outputSchema": {
+      "properties": {
+        "blind_spots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "clipping": {
+          "properties": {
+            "clipped_frames": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "clipped_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "frame_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "full_scale_frames": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "peak_dbfs": {
+              "format": "double",
+              "type": "number"
+            },
+            "spans": {
+              "items": {
+                "properties": {
+                  "end_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "start_s": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "spans_truncated": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "flags": {
+          "items": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "evidence": {
+                "type": "object"
+              },
+              "severity": {
+                "enum": [
+                  "info",
+                  "warn"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "loudness": {
+          "properties": {
+            "integrated_lufs": {
+              "format": "double",
+              "type": "number"
+            },
+            "lra_high_lufs": {
+              "format": "double",
+              "type": "number"
+            },
+            "lra_low_lufs": {
+              "format": "double",
+              "type": "number"
+            },
+            "lra_lu": {
+              "format": "double",
+              "type": "number"
+            },
+            "replaygain_track_gain_db": {
+              "format": "double",
+              "type": "number"
+            },
+            "sample_peak_dbfs": {
+              "format": "double",
+              "type": "number"
+            },
+            "short_term_1hz": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "short_term_max_lufs": {
+              "format": "double",
+              "type": "number"
+            },
+            "true_peak_dbtp": {
+              "format": "double",
+              "type": "number"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "properties": {
+            "analyzers": {
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "silence": {
+          "properties": {
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "internal_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "leading_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "min_duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "spans": {
+              "items": {
+                "properties": {
+                  "end_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "start_s": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "spans_truncated": {
+              "type": "boolean"
+            },
+            "threshold_db": {
+              "format": "double",
+              "type": "number"
+            },
+            "total_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "trailing_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "spectrogram": {
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "bytes": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "height": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "quality": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "width": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "spectrum": {
+          "properties": {
+            "bandwidth_hz": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "frames": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "ref_db": {
+              "format": "double",
+              "type": "number"
+            },
+            "threshold_db": {
+              "format": "double",
+              "type": "number"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "structure": {
+          "properties": {
+            "confidence": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "expected_duration_s": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ratio": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "sections": {
+              "items": {
+                "properties": {
+                  "end_s": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "idx": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "start_s": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timed": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "summary": {
+          "maxLength": 300,
+          "type": "string"
+        },
+        "tier": {
+          "enum": [
+            "0",
+            "A"
+          ],
+          "type": "string"
+        },
+        "token_loops": {
+          "properties": {
+            "artifact_sha256": {
+              "type": "string"
+            },
+            "dtype": {
+              "type": "string"
+            },
+            "shape": {
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "streams": {
+              "items": {
+                "properties": {
+                  "distinct_4gram_ratio": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "distinct_tokens": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "encoding": {
+                    "type": "string"
+                  },
+                  "gzip_ratio_10s": {
+                    "items": {
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "type": "array"
+                  },
+                  "gzip_ratio_median": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "gzip_ratio_min": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "index": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "longest_repeat": {
+                    "properties": {
+                      "first_at_s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "second_at_s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "n_tokens": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "periodic_run": {
+                    "properties": {
+                      "at_s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "period_s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "period_tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      },
+                      "repeats": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "span_s": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "span_tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "tokens_per_s": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "time_axis": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "track_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Get a track's context bundle\n\nEverything needed to critique and regenerate one take in a single size-bounded document: recipe, score, lineage, comments, perception and next actions. The _budget key reports the size.",
     "inputSchema": {
       "additionalProperties": false,
@@ -2391,6 +2904,142 @@
         },
         "track": {
           "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get the spectrogram of a track\n\nA log-frequency spectrogram JPEG (at most 100 000 bytes) with section boundaries and lyric lines drawn in. Returns the image as MCP ImageContent; never audio. Over REST the image is base64 in image.data_base64, or pass inline=false for a signed link only. A spectrogram shows energy over time and frequency, not pitch accuracy or words; see blind_spots. Missing until Tier A analysis has run (ANALYSIS_UNAVAILABLE).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Track id",
+          "type": "string"
+        },
+        "inline": {
+          "default": true,
+          "description": "Embed the image as base64 (default); false returns only a signed link",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_track_spectrogram",
+    "outputSchema": {
+      "properties": {
+        "blind_spots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "content_type": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        },
+        "height": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "image": {
+          "properties": {
+            "data_base64": {
+              "type": "string"
+            },
+            "mime_type": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "overlay": {
+          "properties": {
+            "confidence": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "line_timing": {
+              "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timed": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "plot": {
+          "properties": {
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "freq_scale": {
+              "type": "string"
+            },
+            "height": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "width": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "x0": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "y0": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "quality": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "track_id": {
+          "type": "string"
+        },
+        "ttl_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        },
+        "width": {
+          "format": "int64",
+          "type": "integer"
         }
       },
       "type": "object"
@@ -2790,6 +3439,449 @@
             "type": "object"
           },
           "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get the next duel to judge\n\nThe oldest unexpired duel waiting for your verdict, with signed clip links, or null. Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. Blind duels stay unrevealed until you have judged them.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "description": "Duel ids to skip",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "name": "next_duel",
+    "outputSchema": {
+      "properties": {
+        "duel": {
+          "properties": {
+            "blind": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "created_by_kind": {
+              "enum": [
+                "human",
+                "device",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "critic_verdicts": {
+              "items": {
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "principal_kind": {
+                    "enum": [
+                      "human",
+                      "device",
+                      "agent"
+                    ],
+                    "type": "string"
+                  },
+                  "saw_reveal": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "enum": [
+                      "human",
+                      "critic"
+                    ],
+                    "type": "string"
+                  },
+                  "switches": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "verdict": {
+                    "enum": [
+                      "a",
+                      "b",
+                      "tie",
+                      "both_bad"
+                    ],
+                    "type": "string"
+                  },
+                  "winner_track_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "expires_at": {
+              "type": "string"
+            },
+            "human_verdict": {
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "latency_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "principal_kind": {
+                  "enum": [
+                    "human",
+                    "device",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                "saw_reveal": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "human",
+                    "critic"
+                  ],
+                  "type": "string"
+                },
+                "switches": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "a",
+                    "b",
+                    "tie",
+                    "both_bad"
+                  ],
+                  "type": "string"
+                },
+                "winner_track_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "loudness_matched": {
+              "type": "boolean"
+            },
+            "my_verdict": {
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "latency_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "principal_kind": {
+                  "enum": [
+                    "human",
+                    "device",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                "saw_reveal": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "human",
+                    "critic"
+                  ],
+                  "type": "string"
+                },
+                "switches": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "a",
+                    "b",
+                    "tie",
+                    "both_bad"
+                  ],
+                  "type": "string"
+                },
+                "winner_track_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "revealed": {
+              "type": "boolean"
+            },
+            "slots": {
+              "properties": {
+                "a": {
+                  "properties": {
+                    "clip": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "expires_at": {
+                          "type": "string"
+                        },
+                        "ttl_s": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "gain_db": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "track": {
+                      "properties": {
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "root_track_id": {
+                          "type": "string"
+                        },
+                        "seed": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "window_lufs": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "b": {
+                  "properties": {
+                    "clip": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "expires_at": {
+                          "type": "string"
+                        },
+                        "ttl_s": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "gain_db": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "track": {
+                      "properties": {
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "root_track_id": {
+                          "type": "string"
+                        },
+                        "seed": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "window_lufs": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "state": {
+              "enum": [
+                "open",
+                "decided",
+                "expired"
+              ],
+              "type": "string"
+            },
+            "window": {
+              "properties": {
+                "duration_s": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "from_s": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "to_s": {
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "open_total": {
+          "format": "int64",
+          "type": "integer"
         }
       },
       "type": "object"
@@ -3262,6 +4354,536 @@
         },
         "track_id": {
           "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Judge a duel\n\nRecords a verdict: a (slot A is better), b, tie or both_bad, with an optional note. Verdicts from agents are stored as critic opinions and never change the human ladder. Judging again with the same verdict and note returns the stored verdict (200, replayed); a different verdict is DUEL_ALREADY_JUDGED.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Duel id",
+          "type": "string"
+        },
+        "latency_ms": {
+          "format": "int64",
+          "maximum": 86400000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "note": {
+          "description": "Trimmed; empty means no note",
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "switches": {
+          "format": "int64",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "verdict": {
+          "description": "a or b: that slot is better; tie; both_bad: neither is acceptable",
+          "enum": [
+            "a",
+            "b",
+            "tie",
+            "both_bad"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "verdict"
+      ],
+      "type": "object"
+    },
+    "name": "submit_duel",
+    "outputSchema": {
+      "properties": {
+        "duel": {
+          "properties": {
+            "blind": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "created_by_kind": {
+              "enum": [
+                "human",
+                "device",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "critic_verdicts": {
+              "items": {
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "principal_kind": {
+                    "enum": [
+                      "human",
+                      "device",
+                      "agent"
+                    ],
+                    "type": "string"
+                  },
+                  "saw_reveal": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "enum": [
+                      "human",
+                      "critic"
+                    ],
+                    "type": "string"
+                  },
+                  "switches": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "verdict": {
+                    "enum": [
+                      "a",
+                      "b",
+                      "tie",
+                      "both_bad"
+                    ],
+                    "type": "string"
+                  },
+                  "winner_track_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "expires_at": {
+              "type": "string"
+            },
+            "human_verdict": {
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "latency_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "principal_kind": {
+                  "enum": [
+                    "human",
+                    "device",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                "saw_reveal": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "human",
+                    "critic"
+                  ],
+                  "type": "string"
+                },
+                "switches": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "a",
+                    "b",
+                    "tie",
+                    "both_bad"
+                  ],
+                  "type": "string"
+                },
+                "winner_track_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "loudness_matched": {
+              "type": "boolean"
+            },
+            "my_verdict": {
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "latency_ms": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "principal_kind": {
+                  "enum": [
+                    "human",
+                    "device",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                "saw_reveal": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "human",
+                    "critic"
+                  ],
+                  "type": "string"
+                },
+                "switches": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "a",
+                    "b",
+                    "tie",
+                    "both_bad"
+                  ],
+                  "type": "string"
+                },
+                "winner_track_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "revealed": {
+              "type": "boolean"
+            },
+            "slots": {
+              "properties": {
+                "a": {
+                  "properties": {
+                    "clip": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "expires_at": {
+                          "type": "string"
+                        },
+                        "ttl_s": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "gain_db": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "track": {
+                      "properties": {
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "root_track_id": {
+                          "type": "string"
+                        },
+                        "seed": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "window_lufs": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "b": {
+                  "properties": {
+                    "clip": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "expires_at": {
+                          "type": "string"
+                        },
+                        "ttl_s": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "gain_db": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "track": {
+                      "properties": {
+                        "duration_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "root_track_id": {
+                          "type": "string"
+                        },
+                        "seed": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "window_lufs": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "state": {
+              "enum": [
+                "open",
+                "decided",
+                "expired"
+              ],
+              "type": "string"
+            },
+            "window": {
+              "properties": {
+                "duration_s": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "from_s": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "to_s": {
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "latency_ms": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "principal_kind": {
+              "enum": [
+                "human",
+                "device",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "saw_reveal": {
+              "type": "boolean"
+            },
+            "source": {
+              "enum": [
+                "human",
+                "critic"
+              ],
+              "type": "string"
+            },
+            "switches": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "verdict": {
+              "enum": [
+                "a",
+                "b",
+                "tie",
+                "both_bad"
+              ],
+              "type": "string"
+            },
+            "winner_track_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
         }
       },
       "type": "object"

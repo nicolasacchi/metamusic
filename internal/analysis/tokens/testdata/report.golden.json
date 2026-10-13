@@ -1,0 +1,38 @@
+{
+  "dtype": "\u003ci8",
+  "shape": [
+    1,
+    1200
+  ],
+  "time_axis": 1,
+  "streams": [
+    {
+      "index": 0,
+      "n_tokens": 1200,
+      "distinct_tokens": 643,
+      "tokens_per_s": 50,
+      "distinct_4gram_ratio": 0.8438,
+      "longest_repeat": {
+        "tokens": 100,
+        "s": 2,
+        "first_at_s": 2,
+        "second_at_s": 4
+      },
+      "periodic_run": {
+        "period_tokens": 10,
+        "period_s": 0.2,
+        "span_tokens": 200,
+        "span_s": 4,
+        "at_s": 2,
+        "repeats": 20
+      },
+      "gzip_ratio_10s": [
+        0.549,
+        0.823
+      ],
+      "gzip_ratio_min": 0.549,
+      "gzip_ratio_median": 0.686,
+      "encoding": "u16le"
+    }
+  ]
+}

@@ -34,6 +34,31 @@
         ],
         "type": "object"
       },
+      "AnalysisFlag": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warn"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "evidence"
+        ],
+        "type": "object"
+      },
       "AnalysisInfo": {
         "additionalProperties": false,
         "properties": {
@@ -147,6 +172,21 @@
         "required": [
           "loudness",
           "spectrum"
+        ],
+        "type": "object"
+      },
+      "AnalysisProvenance": {
+        "additionalProperties": false,
+        "properties": {
+          "analyzers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "analyzers"
         ],
         "type": "object"
       },
@@ -577,6 +617,191 @@
         ],
         "type": "object"
       },
+      "ClipLink": {
+        "additionalProperties": false,
+        "properties": {
+          "bits_per_sample": {
+            "examples": [
+              24
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "audio/flac"
+            ],
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "gain_db": {
+            "description": "Applied gain in dB; clips are only ever attenuated",
+            "format": "double",
+            "type": "number"
+          },
+          "key": {
+            "description": "Content key of the clip: identical inputs give identical bytes",
+            "type": "string"
+          },
+          "match": {
+            "enum": [
+              "off",
+              "matched",
+              "limited",
+              "window_silent"
+            ],
+            "type": "string"
+          },
+          "sample_rate": {
+            "examples": [
+              48000
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "target_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "ttl_s": {
+            "description": "Link lifetime granted to the caller, seconds",
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Signed, relative URL; valid until expires_at",
+            "type": "string"
+          },
+          "window_lufs": {
+            "description": "Integrated loudness of the window before gain; null when not measured",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "window_tp_dbtp": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "track_id",
+          "url",
+          "key",
+          "content_type",
+          "expires_at",
+          "ttl_s",
+          "bytes",
+          "sample_rate",
+          "bits_per_sample",
+          "channels",
+          "from_s",
+          "to_s",
+          "duration_s",
+          "gain_db",
+          "window_lufs",
+          "window_tp_dbtp",
+          "target_lufs",
+          "match"
+        ],
+        "type": "object"
+      },
+      "ClipRef": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "audio/flac"
+            ],
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "ttl_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Signed, relative URL; valid until expires_at",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at",
+          "ttl_s",
+          "content_type",
+          "bytes",
+          "duration_s"
+        ],
+        "type": "object"
+      },
+      "ClipWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from_s",
+          "to_s",
+          "duration_s"
+        ],
+        "type": "object"
+      },
       "CollectionCount": {
         "additionalProperties": false,
         "properties": {
@@ -750,6 +975,265 @@
         ],
         "type": "object"
       },
+      "CompareLadder": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "additionalProperties": false,
+            "properties": {
+              "n_duels": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sd": {
+                "format": "double",
+                "type": "number"
+              },
+              "u": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "u",
+              "sd",
+              "n_duels"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "b": {
+            "additionalProperties": false,
+            "properties": {
+              "n_duels": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sd": {
+                "format": "double",
+                "type": "number"
+              },
+              "u": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "u",
+              "sd",
+              "n_duels"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "nu": {
+            "format": "double",
+            "type": "number"
+          },
+          "p_a_beats_b": {
+            "description": "null unless both tracks have counted duels",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "p_tie": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "nu",
+          "p_a_beats_b",
+          "p_tie"
+        ],
+        "type": "object"
+      },
+      "Comparison": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/ComparisonSide"
+          },
+          "b": {
+            "$ref": "#/components/schemas/ComparisonSide"
+          },
+          "blind_spots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "deltas": {
+            "$ref": "#/components/schemas/ComparisonDeltas"
+          },
+          "duels": {
+            "$ref": "#/components/schemas/PairStats"
+          },
+          "flags": {
+            "$ref": "#/components/schemas/FlagDiff"
+          },
+          "ladder": {
+            "$ref": "#/components/schemas/CompareLadder"
+          },
+          "recipe_diff": {
+            "$ref": "#/components/schemas/RecipeDiff"
+          },
+          "relation": {
+            "enum": [
+              "siblings",
+              "parent_child",
+              "child_parent",
+              "same_lineage",
+              "unrelated"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "relation",
+          "deltas",
+          "flags",
+          "recipe_diff",
+          "duels",
+          "ladder",
+          "blind_spots"
+        ],
+        "type": "object"
+      },
+      "ComparisonDeltas": {
+        "additionalProperties": false,
+        "properties": {
+          "bandwidth_hz": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "clipped_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "integrated_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "internal_silence_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lra_lu": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "token_loop_span_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "true_peak_dbtp": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "integrated_lufs",
+          "true_peak_dbtp",
+          "lra_lu",
+          "bandwidth_hz",
+          "duration_s",
+          "clipped_s",
+          "internal_silence_s",
+          "token_loop_span_s"
+        ],
+        "type": "object"
+      },
+      "ComparisonSide": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "root_track_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tier": {
+            "enum": [
+              "0",
+              "A"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "title",
+          "seed",
+          "request_id",
+          "root_track_id",
+          "duration_s",
+          "tier",
+          "flags"
+        ],
+        "type": "object"
+      },
       "ContextBudget": {
         "additionalProperties": false,
         "properties": {
@@ -871,6 +1355,45 @@
         },
         "required": [
           "request"
+        ],
+        "type": "object"
+      },
+      "CreateDuelInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "a_track_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "b_track_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "blind": {
+            "description": "Hide which slot holds which track until the human verdict (default true)",
+            "type": "boolean"
+          },
+          "from_s": {
+            "description": "Window start in seconds; default: about 30% into the shorter track",
+            "format": "double",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "number"
+          },
+          "match_loudness": {
+            "description": "Attenuate the louder window to the quieter one (default true)",
+            "type": "boolean"
+          },
+          "to_s": {
+            "format": "double",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "a_track_id",
+          "b_track_id"
         ],
         "type": "object"
       },
@@ -1249,6 +1772,334 @@
           "id",
           "name",
           "revoked_at"
+        ],
+        "type": "object"
+      },
+      "Dossier": {
+        "additionalProperties": false,
+        "properties": {
+          "blind_spots": {
+            "description": "What the machine cannot judge; read before trusting the numbers",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "clipping": {
+            "additionalProperties": false,
+            "properties": {
+              "clipped_frames": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "clipped_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "frame_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "full_scale_frames": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "peak_dbfs": {
+                "format": "double",
+                "type": "number"
+              },
+              "spans": {
+                "items": {
+                  "$ref": "#/components/schemas/TimeSpan"
+                },
+                "type": "array"
+              },
+              "spans_truncated": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "frame_s",
+              "peak_dbfs",
+              "full_scale_frames",
+              "clipped_frames",
+              "clipped_s",
+              "spans",
+              "spans_truncated"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisFlag"
+            },
+            "type": "array"
+          },
+          "loudness": {
+            "additionalProperties": false,
+            "properties": {
+              "integrated_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_high_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_low_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "lra_lu": {
+                "format": "double",
+                "type": "number"
+              },
+              "replaygain_track_gain_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "sample_peak_dbfs": {
+                "format": "double",
+                "type": "number"
+              },
+              "short_term_1hz": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "short_term_max_lufs": {
+                "format": "double",
+                "type": "number"
+              },
+              "true_peak_dbtp": {
+                "format": "double",
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "replaygain_track_gain_db",
+              "version",
+              "integrated_lufs",
+              "lra_lu",
+              "lra_low_lufs",
+              "lra_high_lufs",
+              "true_peak_dbtp",
+              "sample_peak_dbfs",
+              "short_term_max_lufs",
+              "short_term_1hz"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "missing": {
+            "description": "Applicable analyzers that have not run",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/AnalysisProvenance"
+          },
+          "silence": {
+            "additionalProperties": false,
+            "properties": {
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "internal_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "leading_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "min_duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "spans": {
+                "items": {
+                  "$ref": "#/components/schemas/TimeSpan"
+                },
+                "type": "array"
+              },
+              "spans_truncated": {
+                "type": "boolean"
+              },
+              "threshold_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "total_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "trailing_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "threshold_db",
+              "min_duration_s",
+              "spans",
+              "spans_truncated",
+              "leading_s",
+              "trailing_s",
+              "internal_s",
+              "total_s",
+              "duration_s"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "spectrogram": {
+            "$ref": "#/components/schemas/SpectrogramInfo"
+          },
+          "spectrum": {
+            "additionalProperties": false,
+            "properties": {
+              "bandwidth_hz": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "frames": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "ref_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "threshold_db": {
+                "format": "double",
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "bandwidth_hz",
+              "ref_db",
+              "threshold_db",
+              "frames"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "structure": {
+            "$ref": "#/components/schemas/TrackStructure"
+          },
+          "summary": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "0",
+              "A"
+            ],
+            "type": "string"
+          },
+          "token_loops": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact_sha256": {
+                "type": "string"
+              },
+              "dtype": {
+                "type": "string"
+              },
+              "shape": {
+                "items": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "streams": {
+                "items": {
+                  "$ref": "#/components/schemas/TokenStream"
+                },
+                "type": "array"
+              },
+              "time_axis": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "artifact_sha256",
+              "dtype",
+              "shape",
+              "time_axis",
+              "streams",
+              "version"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "tier",
+          "complete",
+          "missing",
+          "summary",
+          "loudness",
+          "spectrum",
+          "silence",
+          "clipping",
+          "token_loops",
+          "structure",
+          "flags",
+          "blind_spots",
+          "spectrogram",
+          "provenance"
         ],
         "type": "object"
       },
@@ -1653,6 +2504,391 @@
           "created_by",
           "updated_by",
           "lint"
+        ],
+        "type": "object"
+      },
+      "Duel": {
+        "additionalProperties": false,
+        "properties": {
+          "blind": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "created_by_kind": {
+            "enum": [
+              "human",
+              "device",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "critic_verdicts": {
+            "items": {
+              "$ref": "#/components/schemas/Verdict"
+            },
+            "type": "array"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "human_verdict": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "latency_ms": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "principal_kind": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "saw_reveal": {
+                "description": "true when the server had revealed the duel to the principal before it judged",
+                "type": "boolean"
+              },
+              "source": {
+                "enum": [
+                  "human",
+                  "critic"
+                ],
+                "type": "string"
+              },
+              "switches": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "a",
+                  "b",
+                  "tie",
+                  "both_bad"
+                ],
+                "type": "string"
+              },
+              "winner_track_id": {
+                "description": "null while the duel is unrevealed, or for tie and both_bad",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "principal_kind",
+              "verdict",
+              "winner_track_id",
+              "note",
+              "latency_ms",
+              "switches",
+              "saw_reveal",
+              "created_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "loudness_matched": {
+            "type": "boolean"
+          },
+          "my_verdict": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "latency_ms": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "principal_kind": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "saw_reveal": {
+                "description": "true when the server had revealed the duel to the principal before it judged",
+                "type": "boolean"
+              },
+              "source": {
+                "enum": [
+                  "human",
+                  "critic"
+                ],
+                "type": "string"
+              },
+              "switches": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "a",
+                  "b",
+                  "tie",
+                  "both_bad"
+                ],
+                "type": "string"
+              },
+              "winner_track_id": {
+                "description": "null while the duel is unrevealed, or for tie and both_bad",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "principal_kind",
+              "verdict",
+              "winner_track_id",
+              "note",
+              "latency_ms",
+              "switches",
+              "saw_reveal",
+              "created_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "revealed": {
+            "description": "false while a blind duel hides which slot holds which track",
+            "type": "boolean"
+          },
+          "slots": {
+            "$ref": "#/components/schemas/DuelSlots"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "decided",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "window": {
+            "$ref": "#/components/schemas/ClipWindow"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "blind",
+          "revealed",
+          "created_at",
+          "expires_at",
+          "created_by_kind",
+          "window",
+          "loudness_matched",
+          "slots",
+          "my_verdict",
+          "human_verdict",
+          "critic_verdicts"
+        ],
+        "type": "object"
+      },
+      "DuelPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuelSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "DuelSlots": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/Slot"
+          },
+          "b": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "type": "object"
+      },
+      "DuelSlotsSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/SlotSummary"
+          },
+          "b": {
+            "$ref": "#/components/schemas/SlotSummary"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "type": "object"
+      },
+      "DuelSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "blind": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "critic_verdicts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "human_verdict": {
+            "additionalProperties": false,
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "a",
+                  "b",
+                  "tie",
+                  "both_bad"
+                ],
+                "type": "string"
+              },
+              "winner_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "verdict",
+              "winner_track_id"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "loudness_matched": {
+            "type": "boolean"
+          },
+          "my_verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revealed": {
+            "type": "boolean"
+          },
+          "slots": {
+            "$ref": "#/components/schemas/DuelSlotsSummary"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "decided",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "window": {
+            "$ref": "#/components/schemas/ClipWindow"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "blind",
+          "revealed",
+          "created_at",
+          "expires_at",
+          "window",
+          "loudness_matched",
+          "slots",
+          "my_verdict",
+          "human_verdict",
+          "critic_verdicts"
         ],
         "type": "object"
       },
@@ -2191,6 +3427,35 @@
         ],
         "type": "object"
       },
+      "FlagDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "both": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "only_a": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "only_b": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "only_a",
+          "only_b",
+          "both"
+        ],
+        "type": "object"
+      },
       "GroupMember": {
         "additionalProperties": false,
         "properties": {
@@ -2215,6 +3480,22 @@
           "request_id",
           "label",
           "status"
+        ],
+        "type": "object"
+      },
+      "ImageData": {
+        "additionalProperties": false,
+        "properties": {
+          "data_base64": {
+            "description": "Base64 image bytes; omitted when the caller asked for a link only",
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mime_type"
         ],
         "type": "object"
       },
@@ -2448,6 +3729,266 @@
           "comments",
           "open_fix",
           "tags"
+        ],
+        "type": "object"
+      },
+      "LadderCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "both_bad": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ties": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tracks": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "verdicts_critic_excluded": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "verdicts_human_counted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "verdicts_sighted_excluded": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verdicts_human_counted",
+          "verdicts_critic_excluded",
+          "verdicts_sighted_excluded",
+          "both_bad",
+          "ties",
+          "tracks"
+        ],
+        "type": "object"
+      },
+      "LadderDiagnostics": {
+        "additionalProperties": false,
+        "properties": {
+          "n_ab": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slot_a_win_rate": {
+            "description": "Share of slot A among counted a/b verdicts; null when there are none",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "slot_a_win_rate",
+          "n_ab"
+        ],
+        "type": "object"
+      },
+      "LadderItem": {
+        "additionalProperties": false,
+        "properties": {
+          "both_bad": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ci95": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "losses": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "n_duels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provisional": {
+            "description": "fewer than 3 duels or sd above 1.0",
+            "type": "boolean"
+          },
+          "rank": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "root_track_id": {
+            "type": "string"
+          },
+          "sd": {
+            "format": "double",
+            "type": "number"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ties": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "u": {
+            "description": "Log-strength anchored at the virtual reject item (0)",
+            "format": "double",
+            "type": "number"
+          },
+          "wins": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "track_id",
+          "title",
+          "root_track_id",
+          "seed",
+          "u",
+          "sd",
+          "ci95",
+          "n_duels",
+          "wins",
+          "losses",
+          "ties",
+          "both_bad",
+          "provisional"
+        ],
+        "type": "object"
+      },
+      "LadderModel": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "examples": [
+              "reject"
+            ],
+            "type": "string"
+          },
+          "anchor_u": {
+            "format": "double",
+            "type": "number"
+          },
+          "converged": {
+            "type": "boolean"
+          },
+          "iterations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "examples": [
+              "btd"
+            ],
+            "type": "string"
+          },
+          "nu": {
+            "format": "double",
+            "type": "number"
+          },
+          "nu_prior": {
+            "examples": [
+              "gamma(2,2)"
+            ],
+            "type": "string"
+          },
+          "prior_sd": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "prior_sd",
+          "nu_prior",
+          "anchor",
+          "anchor_u",
+          "nu",
+          "iterations",
+          "converged"
+        ],
+        "type": "object"
+      },
+      "LadderPage": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/LadderCounts"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/LadderDiagnostics"
+          },
+          "generated_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "include_sighted": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LadderItem"
+            },
+            "type": "array"
+          },
+          "model": {
+            "$ref": "#/components/schemas/LadderModel"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "root_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "global",
+              "lineage"
+            ],
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "root_track_id",
+          "include_sighted",
+          "generated_at",
+          "model",
+          "counts",
+          "diagnostics",
+          "items",
+          "total",
+          "next_cursor"
         ],
         "type": "object"
       },
@@ -2905,6 +4446,281 @@
         ],
         "type": "object"
       },
+      "NextDuel": {
+        "additionalProperties": false,
+        "properties": {
+          "duel": {
+            "additionalProperties": false,
+            "properties": {
+              "blind": {
+                "type": "boolean"
+              },
+              "created_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "created_by_kind": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "critic_verdicts": {
+                "items": {
+                  "$ref": "#/components/schemas/Verdict"
+                },
+                "type": "array"
+              },
+              "expires_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "human_verdict": {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "description": "RFC 3339 UTC",
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "principal_kind": {
+                    "enum": [
+                      "human",
+                      "device",
+                      "agent"
+                    ],
+                    "type": "string"
+                  },
+                  "saw_reveal": {
+                    "description": "true when the server had revealed the duel to the principal before it judged",
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "enum": [
+                      "human",
+                      "critic"
+                    ],
+                    "type": "string"
+                  },
+                  "switches": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "verdict": {
+                    "enum": [
+                      "a",
+                      "b",
+                      "tie",
+                      "both_bad"
+                    ],
+                    "type": "string"
+                  },
+                  "winner_track_id": {
+                    "description": "null while the duel is unrevealed, or for tie and both_bad",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "source",
+                  "principal_kind",
+                  "verdict",
+                  "winner_track_id",
+                  "note",
+                  "latency_ms",
+                  "switches",
+                  "saw_reveal",
+                  "created_at"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "loudness_matched": {
+                "type": "boolean"
+              },
+              "my_verdict": {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "description": "RFC 3339 UTC",
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "principal_kind": {
+                    "enum": [
+                      "human",
+                      "device",
+                      "agent"
+                    ],
+                    "type": "string"
+                  },
+                  "saw_reveal": {
+                    "description": "true when the server had revealed the duel to the principal before it judged",
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "enum": [
+                      "human",
+                      "critic"
+                    ],
+                    "type": "string"
+                  },
+                  "switches": {
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "verdict": {
+                    "enum": [
+                      "a",
+                      "b",
+                      "tie",
+                      "both_bad"
+                    ],
+                    "type": "string"
+                  },
+                  "winner_track_id": {
+                    "description": "null while the duel is unrevealed, or for tie and both_bad",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "source",
+                  "principal_kind",
+                  "verdict",
+                  "winner_track_id",
+                  "note",
+                  "latency_ms",
+                  "switches",
+                  "saw_reveal",
+                  "created_at"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "revealed": {
+                "description": "false while a blind duel hides which slot holds which track",
+                "type": "boolean"
+              },
+              "slots": {
+                "$ref": "#/components/schemas/DuelSlots"
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "decided",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "window": {
+                "$ref": "#/components/schemas/ClipWindow"
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "blind",
+              "revealed",
+              "created_at",
+              "expires_at",
+              "created_by_kind",
+              "window",
+              "loudness_matched",
+              "slots",
+              "my_verdict",
+              "human_verdict",
+              "critic_verdicts"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "open_total": {
+            "description": "How many duels are waiting for you",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "duel",
+          "open_total"
+        ],
+        "type": "object"
+      },
+      "PairStats": {
+        "additionalProperties": false,
+        "properties": {
+          "critic": {
+            "$ref": "#/components/schemas/VerdictCounts"
+          },
+          "human": {
+            "$ref": "#/components/schemas/VerdictCounts"
+          },
+          "human_blind_n": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "human",
+          "human_blind_n",
+          "critic"
+        ],
+        "type": "object"
+      },
       "PairingCodeOut": {
         "additionalProperties": false,
         "properties": {
@@ -3291,6 +5107,34 @@
         ],
         "type": "object"
       },
+      "RecipeDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "description": "seed, style, lyrics and/or cot",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "same_hash": {
+            "type": "boolean"
+          },
+          "seed": {
+            "$ref": "#/components/schemas/SeedPair"
+          },
+          "style_terms": {
+            "$ref": "#/components/schemas/StyleTermDiff"
+          }
+        },
+        "required": [
+          "same_hash",
+          "changed",
+          "seed",
+          "style_terms"
+        ],
+        "type": "object"
+      },
       "RecipeInfo": {
         "additionalProperties": false,
         "properties": {
@@ -3416,6 +5260,24 @@
         ],
         "type": "object"
       },
+      "SeedPair": {
+        "additionalProperties": false,
+        "properties": {
+          "a": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "b": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "type": "object"
+      },
       "SetTagsInBody": {
         "additionalProperties": false,
         "properties": {
@@ -3465,6 +5327,314 @@
           "title",
           "seed",
           "recorded_at"
+        ],
+        "type": "object"
+      },
+      "Slot": {
+        "additionalProperties": false,
+        "properties": {
+          "clip": {
+            "$ref": "#/components/schemas/ClipRef"
+          },
+          "gain_db": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "track": {
+            "additionalProperties": false,
+            "properties": {
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "id": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "root_track_id": {
+                "type": "string"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "seed",
+              "request_id",
+              "root_track_id",
+              "duration_s"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "window_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "clip",
+          "track",
+          "gain_db",
+          "window_lufs"
+        ],
+        "type": "object"
+      },
+      "SlotSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "track": {
+            "additionalProperties": false,
+            "properties": {
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "id": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "root_track_id": {
+                "type": "string"
+              },
+              "seed": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "seed",
+              "request_id",
+              "root_track_id",
+              "duration_s"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "track"
+        ],
+        "type": "object"
+      },
+      "SpectrogramInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "quality": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "width": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "bytes",
+          "width",
+          "height",
+          "quality"
+        ],
+        "type": "object"
+      },
+      "SpectrogramOverlay": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "line_timing": {
+            "description": "none: lyric lines are listed inside their section, not timed",
+            "examples": [
+              "none"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "timed",
+          "source",
+          "confidence",
+          "line_timing"
+        ],
+        "type": "object"
+      },
+      "SpectrogramPlot": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "freq_scale": {
+            "examples": [
+              "log"
+            ],
+            "type": "string"
+          },
+          "height": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "width": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "x0": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "y0": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x0",
+          "y0",
+          "width",
+          "height",
+          "duration_s",
+          "freq_scale"
+        ],
+        "type": "object"
+      },
+      "SpectrogramView": {
+        "additionalProperties": false,
+        "properties": {
+          "blind_spots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "examples": [
+              "image/jpeg"
+            ],
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "height": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "image": {
+            "$ref": "#/components/schemas/ImageData",
+            "description": "Present when inline=true (default)"
+          },
+          "overlay": {
+            "$ref": "#/components/schemas/SpectrogramOverlay"
+          },
+          "plot": {
+            "$ref": "#/components/schemas/SpectrogramPlot"
+          },
+          "quality": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "ttl_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Signed, relative URL; valid until expires_at",
+            "type": "string"
+          },
+          "width": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "content_type",
+          "sha256",
+          "bytes",
+          "width",
+          "height",
+          "quality",
+          "plot",
+          "overlay",
+          "url",
+          "expires_at",
+          "ttl_s",
+          "blind_spots"
         ],
         "type": "object"
       },
@@ -3575,6 +5745,122 @@
         "required": [
           "masters_bytes",
           "derived_bytes"
+        ],
+        "type": "object"
+      },
+      "StructureSection": {
+        "additionalProperties": false,
+        "properties": {
+          "end_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "start_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "idx",
+          "label",
+          "kind",
+          "start_s",
+          "end_s"
+        ],
+        "type": "object"
+      },
+      "StyleTermDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "added",
+          "removed"
+        ],
+        "type": "object"
+      },
+      "SubmitDuelInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "latency_ms": {
+            "format": "int64",
+            "maximum": 86400000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "note": {
+            "description": "Trimmed; empty means no note",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "switches": {
+            "format": "int64",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verdict": {
+            "description": "a or b: that slot is better; tie; both_bad: neither is acceptable",
+            "enum": [
+              "a",
+              "b",
+              "tie",
+              "both_bad"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "SubmitResult": {
+        "additionalProperties": false,
+        "properties": {
+          "duel": {
+            "$ref": "#/components/schemas/Duel"
+          },
+          "replayed": {
+            "description": "true when the verdict already existed and this call changed nothing",
+            "type": "boolean"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          }
+        },
+        "required": [
+          "duel",
+          "verdict",
+          "replayed"
         ],
         "type": "object"
       },
@@ -3753,6 +6039,24 @@
         ],
         "type": "object"
       },
+      "TimeSpan": {
+        "additionalProperties": false,
+        "properties": {
+          "end_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "start_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "start_s",
+          "end_s"
+        ],
+        "type": "object"
+      },
       "TokenInfo": {
         "additionalProperties": false,
         "properties": {
@@ -3810,6 +6114,141 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "TokenPeriodic": {
+        "additionalProperties": false,
+        "properties": {
+          "at_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "period_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "period_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "repeats": {
+            "format": "double",
+            "type": "number"
+          },
+          "span_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "span_tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period_tokens",
+          "period_s",
+          "span_tokens",
+          "span_s",
+          "at_s",
+          "repeats"
+        ],
+        "type": "object"
+      },
+      "TokenRepeat": {
+        "additionalProperties": false,
+        "properties": {
+          "first_at_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "s": {
+            "format": "double",
+            "type": "number"
+          },
+          "second_at_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tokens",
+          "s",
+          "first_at_s",
+          "second_at_s"
+        ],
+        "type": "object"
+      },
+      "TokenStream": {
+        "additionalProperties": false,
+        "properties": {
+          "distinct_4gram_ratio": {
+            "format": "double",
+            "type": "number"
+          },
+          "distinct_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "gzip_ratio_10s": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "gzip_ratio_median": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "gzip_ratio_min": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "longest_repeat": {
+            "$ref": "#/components/schemas/TokenRepeat"
+          },
+          "n_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "periodic_run": {
+            "$ref": "#/components/schemas/TokenPeriodic"
+          },
+          "tokens_per_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "index",
+          "n_tokens",
+          "distinct_tokens",
+          "tokens_per_s",
+          "distinct_4gram_ratio",
+          "longest_repeat",
+          "periodic_run",
+          "gzip_ratio_10s",
+          "gzip_ratio_min",
+          "gzip_ratio_median",
+          "encoding"
         ],
         "type": "object"
       },
@@ -4177,6 +6616,63 @@
           "with_score",
           "timed",
           "truncated"
+        ],
+        "type": "object"
+      },
+      "TrackStructure": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "expected_duration_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ratio": {
+            "description": "duration_s / expected_duration_s",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/StructureSection"
+            },
+            "type": "array"
+          },
+          "source": {
+            "description": "plan | measured | manual; null when untimed",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "duration_s",
+          "timed",
+          "source",
+          "confidence",
+          "expected_duration_s",
+          "ratio",
+          "sections"
         ],
         "type": "object"
       },
@@ -4606,6 +7102,119 @@
         ],
         "type": "object"
       },
+      "Verdict": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "latency_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "principal_kind": {
+            "enum": [
+              "human",
+              "device",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "saw_reveal": {
+            "description": "true when the server had revealed the duel to the principal before it judged",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "human",
+              "critic"
+            ],
+            "type": "string"
+          },
+          "switches": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "a",
+              "b",
+              "tie",
+              "both_bad"
+            ],
+            "type": "string"
+          },
+          "winner_track_id": {
+            "description": "null while the duel is unrevealed, or for tie and both_bad",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "principal_kind",
+          "verdict",
+          "winner_track_id",
+          "note",
+          "latency_ms",
+          "switches",
+          "saw_reveal",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "VerdictCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "a_wins": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "b_wins": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "both_bad": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ties": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "a_wins",
+          "b_wins",
+          "ties",
+          "both_bad",
+          "n"
+        ],
+        "type": "object"
+      },
       "Waveform": {
         "additionalProperties": false,
         "properties": {
@@ -4978,6 +7587,66 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/compare": {
+      "get": {
+        "description": "Metric, flag, recipe and verdict deltas between two takes (b minus a): loudness, clipping, silence, token loops, which request fields changed, head-to-head duel counts and both tracks' ladder strengths. relation says how they are related (siblings, parent_child, child_parent, same_lineage, unrelated). See blind_spots.",
+        "operationId": "compare_tracks",
+        "parameters": [
+          {
+            "description": "First track id",
+            "explode": false,
+            "in": "query",
+            "name": "a",
+            "required": true,
+            "schema": {
+              "description": "First track id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Second track id",
+            "explode": false,
+            "in": "query",
+            "name": "b",
+            "required": true,
+            "schema": {
+              "description": "Second track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Compare two takes",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/compare",
           "human_only": false
         }
       }
@@ -5511,6 +8180,337 @@
         }
       }
     },
+    "/api/duels": {
+      "get": {
+        "description": "Duels newest first, filtered by state, track, lineage or mode. Which two tracks a duel compares is not secret, but unrevealed rows keep the slots anonymous. Pages are capped in size; follow next_cursor.",
+        "operationId": "list_duels",
+        "parameters": [
+          {
+            "description": "Repeatable state filter",
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "description": "Repeatable state filter",
+              "items": {
+                "enum": [
+                  "open",
+                  "decided",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Duels with this track in either slot (pair membership is not secret)",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Duels with this track in either slot (pair membership is not secret)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Duels with a track of this lineage in either slot",
+            "explode": false,
+            "in": "query",
+            "name": "root_track_id",
+            "schema": {
+              "description": "Duels with a track of this lineage in either slot",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "mode",
+            "schema": {
+              "default": "any",
+              "enum": [
+                "any",
+                "blind",
+                "sighted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from next_cursor",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from next_cursor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List duels",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/duels",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Cuts a 30-45 s window of two takes into loudness-matched, sample-aligned clips (the louder one is attenuated, never boosted) and stores a duel. Blind duels (the default) hide which slot holds which track until the human has judged. A replayed call returns the first result; call get_duel for fresh clip links.",
+        "operationId": "create_duel",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDuelInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Duel"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create an A/B duel",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/duels",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/duels/next": {
+      "get": {
+        "description": "The oldest unexpired duel waiting for your verdict, with signed clip links, or null. Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. Blind duels stay unrevealed until you have judged them.",
+        "operationId": "next_duel",
+        "parameters": [
+          {
+            "description": "Duel ids to skip",
+            "explode": true,
+            "in": "query",
+            "name": "exclude",
+            "schema": {
+              "description": "Duel ids to skip",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDuel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the next duel to judge",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/duels",
+          "human_only": false
+        }
+      }
+    },
+    "/api/duels/{id}": {
+      "get": {
+        "description": "A duel as you may see it: slots stay A and B (tracks, gains and loudness are null) until the duel is revealed to you, and other judges' verdicts appear only after your own. Clip links are minted fresh on every call.",
+        "operationId": "get_duel",
+        "parameters": [
+          {
+            "description": "Duel id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Duel id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Duel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a duel",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/duels/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/duels/{id}/verdicts": {
+      "post": {
+        "description": "Records a verdict: a (slot A is better), b, tie or both_bad, with an optional note. Verdicts from agents are stored as critic opinions and never change the human ladder. Judging again with the same verdict and note returns the stored verdict (200, replayed); a different verdict is DUEL_ALREADY_JUDGED.",
+        "operationId": "submit_duel",
+        "parameters": [
+          {
+            "description": "Duel id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Duel id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitDuelInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResult"
+                }
+              }
+            },
+            "description": "The verdict already existed; nothing changed (replayed: true)"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResult"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Judge a duel",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/duels",
+          "human_only": false
+        }
+      }
+    },
     "/api/exports/jsonl": {
       "post": {
         "description": "Exports an imported source file, a track selection or drafts as a songs.jsonl that yue2 batch accepts, with the validator result and a signed download link. Small files are also returned inline.",
@@ -5800,6 +8800,97 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/import",
+          "human_only": false
+        }
+      }
+    },
+    "/api/ladder": {
+      "get": {
+        "description": "The operator's personal ranking of takes, fitted from human blind-duel verdicts only (critic verdicts never count), globally or within one lineage. u is a log-strength on a scale anchored at the virtual 'reject' item (0); compare u values, not probabilities of acceptance. sd is the Laplace standard deviation; provisional rows have few duels.",
+        "operationId": "get_ladder",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "default": "global",
+              "enum": [
+                "global",
+                "lineage"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required for scope=lineage",
+            "explode": false,
+            "in": "query",
+            "name": "root_track_id",
+            "schema": {
+              "description": "Required for scope=lineage",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Also count non-blind human verdicts (biased; default false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_sighted",
+            "schema": {
+              "description": "Also count non-blind human verdicts (biased; default false)",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LadderPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the preference ladder",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/ladder",
           "human_only": false
         }
       }
@@ -6793,6 +9884,142 @@
         }
       }
     },
+    "/api/tracks/{id}/analysis": {
+      "get": {
+        "description": "Measured facts about a take: loudness, bandwidth, silence spans, clipping, token-loop metrics from the model's semantic tokens, structure and duration against the score, plus computed flags with evidence. tier is A when every applicable analyzer ran. Read blind_spots first: it lists what these numbers cannot tell you.",
+        "operationId": "get_track_analysis",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dossier"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the Ears dossier of a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/clip": {
+      "get": {
+        "description": "A signed link to a 30-45 s window of the master as 24-bit/48 kHz FLAC (shorter tracks: the whole track). match_lufs attenuates the clip toward a target loudness; clips are never boosted. Identical inputs give identical bytes, so the key identifies the clip.",
+        "operationId": "get_clip",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Window start in seconds (rounded to 0.1 s); default: about 30% into the track",
+            "explode": false,
+            "in": "query",
+            "name": "from_s",
+            "schema": {
+              "description": "Window start in seconds (rounded to 0.1 s); default: about 30% into the track",
+              "format": "double",
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter)",
+            "explode": false,
+            "in": "query",
+            "name": "to_s",
+            "schema": {
+              "description": "Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter)",
+              "format": "double",
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Attenuate the clip toward this integrated loudness; quieter windows are never boosted",
+            "explode": false,
+            "in": "query",
+            "name": "match_lufs",
+            "schema": {
+              "description": "Attenuate the clip toward this integrated loudness; quieter windows are never boosted",
+              "format": "double",
+              "maximum": -6,
+              "minimum": -40,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipLink"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an audio clip of a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "none:clip links reach the SPA inside duel responses",
+          "human_only": false,
+          "rate": "heavy"
+        }
+      }
+    },
     "/api/tracks/{id}/comments": {
       "get": {
         "description": "A track's comments, newest first or by time, filtered by state and kind. Pages are capped in size; follow next_cursor.",
@@ -7216,6 +10443,66 @@
           "mcp": "tool",
           "ui": "/tracks/:id",
           "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/spectrogram": {
+      "get": {
+        "description": "A log-frequency spectrogram JPEG (at most 100 000 bytes) with section boundaries and lyric lines drawn in. Returns the image as MCP ImageContent; never audio. Over REST the image is base64 in image.data_base64, or pass inline=false for a signed link only. A spectrogram shows energy over time and frequency, not pitch accuracy or words; see blind_spots. Missing until Tier A analysis has run (ANALYSIS_UNAVAILABLE).",
+        "operationId": "get_track_spectrogram",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Embed the image as base64 (default); false returns only a signed link",
+            "explode": false,
+            "in": "query",
+            "name": "inline",
+            "schema": {
+              "default": true,
+              "description": "Embed the image as base64 (default); false returns only a signed link",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectrogramView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the spectrogram of a track",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "mcp_image": true
         }
       }
     },

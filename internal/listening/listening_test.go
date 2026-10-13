@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,5 +134,66 @@ func TestListen_Stats(t *testing.T) {
 	var kind, src string
 	if err := st.R.QueryRow(`SELECT principal_kind, source FROM listen_events WHERE id = ?`, id(4)).Scan(&kind, &src); err != nil || kind != "agent" || src != "api" {
 		t.Errorf("row: %q %q %v", kind, src, err)
+	}
+}
+
+// A beacon, a keepalive fetch and the next load's flush can deliver the same client event ids at once;
+// the id is the primary key and the insert ignores a conflict, so exactly one row per id is stored and
+// every delivery adds up to accepted + duplicates == deliveries.
+func TestListen_ConcurrentDuplicateDeliveries(t *testing.T) {
+	t.Parallel()
+	s, st := newSvc(t)
+	ctx := context.Background()
+	const ids, deliveries = 5, 12
+	var base, baseDistinct int
+	if err := st.R.QueryRowContext(ctx, `SELECT COUNT(*), COUNT(DISTINCT id) FROM listen_events`).Scan(&base, &baseDistinct); err != nil {
+		t.Fatal(err)
+	}
+	basePlays, err := s.Stats(ctx, lt.TrackLuna)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch := func() []listening.Event {
+		evs := make([]listening.Event, 0, ids)
+		for n := 1; n <= ids; n++ {
+			evs = append(evs, ev(n, "start"))
+		}
+		return evs
+	}
+	var (
+		wg        sync.WaitGroup
+		mu        sync.Mutex
+		acc, dups int
+	)
+	start := make(chan struct{})
+	for range deliveries {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			a, d, rej, err := s.Log(ctx, human, "web", batch())
+			if err != nil || len(rej) != 0 {
+				t.Errorf("Log: %v rejected=%v", err, rej)
+				return
+			}
+			mu.Lock()
+			acc, dups = acc+a, dups+d
+			mu.Unlock()
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if acc != ids || dups != ids*(deliveries-1) {
+		t.Fatalf("accepted=%d duplicates=%d, want %d and %d", acc, dups, ids, ids*(deliveries-1))
+	}
+	var rows, distinct int
+	if err := st.R.QueryRowContext(ctx, `SELECT COUNT(*), COUNT(DISTINCT id) FROM listen_events`).Scan(&rows, &distinct); err != nil {
+		t.Fatal(err)
+	}
+	if rows != base+ids || distinct != baseDistinct+ids {
+		t.Fatalf("stored %d rows (%d distinct ids), want %d new", rows, distinct, ids)
+	}
+	if got, err := s.Stats(ctx, lt.TrackLuna); err != nil || got.Plays != basePlays.Plays+ids {
+		t.Fatalf("plays = %+v err=%v, want %d more than %d", got, err, ids, basePlays.Plays)
 	}
 }
