@@ -21,3 +21,9 @@ id = "metamusic-device-token"
 description = "metamusic device credential (mmd_)"
 regex = '''mmd_[a-z2-7]{52}'''
 keywords = ["mmd_"]
+
+[[rules]]
+id = "metamusic-runpod-key"
+description = "RunPod key assignment (RUNPOD_*KEY=value, runpod.env format)"
+regex = '''(?i)RUNPOD_[A-Z_]*KEY\s*[=:]\s*\S{8,}'''
+keywords = ["runpod_"]

@@ -18,6 +18,7 @@ docs/private/
 CLAUDE.local.md
 .env
 .env.*
+runpod*.env
 secrets/
 data/
 # default local BackupDir; root-anchored so internal/backup/ is not hidden
