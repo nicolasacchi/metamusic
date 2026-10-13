@@ -23,6 +23,7 @@ const (
 	kScoreABC         = "score_abc"
 	kABCSource        = "abc_source"
 	kAudioFLAC        = "audio_flac"
+	kAudioMP3         = "audio_mp3"
 	kNotFLAC          = "not_flac"
 	kYue2Result       = "yue2_result"
 	kArtifact         = "artifact"

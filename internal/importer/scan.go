@@ -18,6 +18,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/importer/inbox"
 	"github.com/nicolasacchi/metamusic/internal/media/flacmeta"
+	"github.com/nicolasacchi/metamusic/internal/media/mp3info"
 )
 
 // entry is one non-directory inbox entry found by the walk.
@@ -452,6 +453,11 @@ type audioFile struct {
 	rd      *resultDir
 	stem    string
 	status  string // "" (ok) | "invalid" | "unsettled"
+
+	// M2c: a standalone MP3 candidate (audioID "mp3:<sha256>", frames = sha256, no tags).
+	mp3      bool
+	mp3Info  mp3info.Info
+	lossyDec string // "reference" | "skipped" | "unmatched": what classifyMP3 decided
 }
 
 func (b *builder) readAudio(e *entry) {

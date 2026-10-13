@@ -42,9 +42,13 @@ type Summary struct {
 	AudioUnmatched         int            `json:"audio_unmatched"`
 	AudioSkipped           int            `json:"audio_skipped"`
 	AudioAlreadyImported   int            `json:"audio_already_imported"`
+	AudioReference         int            `json:"audio_reference"`
 	AudioInvalid           int            `json:"audio_invalid"`
 	DuplicateGroups        int            `json:"duplicate_groups"`
 	TracksNew              int            `json:"tracks_new"`
+	TracksReference        int            `json:"tracks_reference"`
+	TracksLossy            int            `json:"tracks_lossy"`
+	ReferenceGroups        int            `json:"reference_groups"`
 	DraftsNew              int            `json:"drafts_new"`
 	DraftsFulfilled        int            `json:"drafts_fulfilled"`
 	SiblingsInferred       int            `json:"siblings_inferred"`
@@ -99,9 +103,10 @@ type ParentReport struct {
 	Of   string `json:"of"`
 }
 
-// AudioReport is one FLAC file.
+// AudioReport is one audio file (a FLAC, or a standalone MP3 candidate).
 type AudioReport struct {
 	Path       string        `json:"path"`
+	Format     string        `json:"format"` // flac | mp3
 	SHA256     string        `json:"sha256,omitempty"`
 	AudioID    string        `json:"audio_id,omitempty"`
 	Bytes      int64         `json:"bytes"`
@@ -170,6 +175,12 @@ type ApplyResult struct {
 	Takes          []TakeResult `json:"takes"`
 }
 
+// Flags are the reference opt-ins a report was planned with (C57).
+type Flags struct {
+	ReferenceUnmatched bool `json:"reference_unmatched"`
+	ReferenceLossy     bool `json:"reference_lossy"`
+}
+
 // Report is the JSON inventory (format mm.inventory/1).
 type Report struct {
 	Format         string          `json:"format"`
@@ -177,6 +188,7 @@ type Report struct {
 	GeneratedAt    string          `json:"generated_at"`
 	Inbox          string          `json:"inbox"`
 	DryRun         bool            `json:"dry_run"`
+	Flags          Flags           `json:"flags"`
 	PlanDigest     string          `json:"plan_digest"`
 	Summary        Summary         `json:"summary"`
 	RecipeSources  []SourceReport  `json:"recipe_sources"`
@@ -322,6 +334,7 @@ func (r *Report) FormatText(w io.Writer) {
 		{"invalid recipe lines", s.RecipeLinesInvalid}, {"recipes already imported", s.RecipesAlreadyImported},
 		{"audio files", s.AudioFiles}, {"audio identities", s.AudioIdentities},
 		{"duplicate groups", s.DuplicateGroups}, {"tracks to import", s.TracksNew},
+		{"reference tracks", s.TracksReference}, {"lossy tracks", s.TracksLossy}, {"reference groups", s.ReferenceGroups},
 		{"audio already imported", s.AudioAlreadyImported}, {"audio unmatched", s.AudioUnmatched},
 		{"audio ambiguous", s.AudioAmbiguous}, {"audio skipped", s.AudioSkipped}, {"audio invalid", s.AudioInvalid},
 		{"drafts to create", s.DraftsNew}, {"drafts to fulfil", s.DraftsFulfilled},
@@ -336,7 +349,7 @@ func (r *Report) FormatText(w io.Writer) {
 	for _, st := range []string{"unmatched", "ambiguous"} {
 		var list []string
 		for _, a := range r.Audio {
-			if a.Status == st {
+			if a.Status == st && a.Format != "mp3" {
 				c := ""
 				if len(a.Candidates) > 0 {
 					c = "  (candidates: " + Escape(strings.Join(a.Candidates, ", ")) + ")"
@@ -348,7 +361,27 @@ func (r *Report) FormatText(w io.Writer) {
 			fmt.Fprintf(w, "\n%s audio:\n%s\n", st, strings.Join(list, "\n"))
 		}
 	}
+	r.formatRecipeLess(w)
 	for _, e := range r.Errors {
 		fmt.Fprintf(w, "error: %s:%d %s\n", Escape(e.Path), e.Line, e.Code)
+	}
+}
+
+// formatRecipeLess prints the "Without a recipe" block: audio that stays out of the library unless an
+// opt-in names it, with the exact flag (C61). Nothing is printed when every file has a decision.
+func (r *Report) formatRecipeLess(w io.Writer) {
+	var list []string
+	for _, a := range r.Audio {
+		if a.Status != "unmatched" {
+			continue
+		}
+		flag := "--reference-unmatched"
+		if a.Format == "mp3" {
+			flag = "--reference-lossy"
+		}
+		list = append(list, fmt.Sprintf("  %s  (%s: import as a reference track with %s, or a mapping row \"reference\")", Escape(a.Path), a.Format, flag))
+	}
+	if len(list) > 0 {
+		fmt.Fprintf(w, "\nWithout a recipe (not imported by default):\n%s\n", strings.Join(list, "\n"))
 	}
 }

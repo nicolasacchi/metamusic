@@ -2,7 +2,9 @@ package importer
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/mp3info"
 )
 
 // Inventory is the dry-run result: the report plus the plan Apply executes.
@@ -72,6 +75,7 @@ type builder struct {
 	meta   []*MetaReport
 
 	sidecarOf map[string][]string // audio id -> mp3 sidecar refs
+	refGroups int                 // lossy reference groups with a planned member (C61)
 }
 
 // Inventory scans the inbox and reads library state; it writes nothing.
@@ -148,7 +152,8 @@ func (b *builder) readAllAudio() {
 	}
 }
 
-// classifyMP3 settles *.mp3: a sidecar of a FLAC, or an orphan (never silently dropped).
+// classifyMP3 settles *.mp3: a sidecar of a FLAC, or a standalone file (C61): either a lossy reference
+// candidate or an orphan (never silently dropped).
 func (b *builder) classifyMP3() {
 	stems := map[string]map[string]bool{}
 	byStem := map[string][]*audioFile{}
@@ -175,8 +180,7 @@ func (b *builder) classifyMP3() {
 				b.sidecarOf[id] = append(b.sidecarOf[id], e.ref())
 			}
 		case 0:
-			e.kind = kIgnOrphanMP3
-			b.iss.warn(e.ref(), 0, "orphan_mp3", "no FLAC with this name")
+			b.standaloneMP3(e)
 		default:
 			e.kind = kIgnOrphanMP3
 			var c []string
@@ -186,6 +190,91 @@ func (b *builder) classifyMP3() {
 			b.iss.warn(e.ref(), 0, "orphan_mp3", "ambiguous: matches different audio: "+strings.Join(c, "; "))
 		}
 	}
+}
+
+// minMP3Bytes is the size of the shortest possible two-frame layer III stream; smaller files are not
+// opened (the orphan was never read before M2c either).
+const minMP3Bytes = 30
+
+// standaloneMP3 decides what a *.mp3 without a FLAC of the same name is.
+func (b *builder) standaloneMP3(e *entry) {
+	var af *audioFile
+	if e.size >= minMP3Bytes {
+		af = b.readMP3(e)
+	}
+	if af == nil {
+		if e.kind == kPendingMP3 && !e.failed {
+			e.kind = kIgnOrphanMP3
+			b.iss.warn(e.ref(), 0, "orphan_mp3", "no FLAC with this name")
+		}
+		return
+	}
+	row := b.mapping.ByPath[e.path]
+	if row == nil {
+		row = b.mapping.BySHA[e.sha]
+	}
+	_, imported := b.snap.AudioIDs[af.audioID]
+	switch {
+	case row != nil && row.Skip:
+		af.lossyDec = "skipped"
+	case row != nil && row.RequestID == RefTarget:
+		af.lossyDec = "reference"
+	case row != nil && row.RequestID != "":
+		// a lossy file has no recipe to match (D-M2c-4)
+		b.audioFiles = b.audioFiles[:len(b.audioFiles)-1]
+		e.audio, e.kind = nil, kIgnOrphanMP3
+		b.iss.fail(e.ref(), row.Line, "lossy_needs_reference", "a standalone MP3 can only be mapped to reference or skipped")
+		return
+	case b.im.o.ReferenceLossy:
+		af.lossyDec = "reference"
+	default:
+		af.lossyDec = "unmatched"
+	}
+	switch {
+	case af.lossyDec == "reference" || imported:
+		e.kind = kAudioMP3
+	default:
+		e.kind = kIgnOrphanMP3
+		if af.lossyDec == "unmatched" {
+			b.iss.warn(e.ref(), 0, "orphan_mp3", "standalone MP3: import with --reference-lossy or a mapping row")
+		}
+	}
+}
+
+// readMP3 hashes a standalone MP3 and parses its first frame header. It returns nil (and records an
+// error only for read failures) when the file is not a valid MP3 stream.
+func (b *builder) readMP3(e *entry) *audioFile {
+	f, ok := b.open(e)
+	if !ok {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	ra, okRA := f.(io.ReaderAt)
+	if !okRA {
+		e.failed = true
+		b.iss.fail(e.ref(), 0, "unreadable", "file is not seekable")
+		return nil
+	}
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	if err != nil {
+		e.failed = true
+		b.iss.fail(e.ref(), 0, "unreadable", "file could not be read")
+		return nil
+	}
+	if n != e.size {
+		b.unsettle(e)
+		return nil
+	}
+	e.sha = hex.EncodeToString(h.Sum(nil))
+	info, err := mp3info.Parse(ra, e.size)
+	if err != nil {
+		return nil
+	}
+	af := &audioFile{e: e, stem: stemOf(e.path), mp3: true, mp3Info: info, audioID: "mp3:" + e.sha, frames: e.sha}
+	e.audio = af
+	b.audioFiles = append(b.audioFiles, af)
+	return af
 }
 
 func canon(v map[string]any) string {
@@ -207,6 +296,7 @@ func (b *builder) assemble() *Inventory {
 	*rep = Report{
 		Format: ReportFormat, ReportID: b.im.newID(), GeneratedAt: b.now.Format(time.RFC3339),
 		Inbox: b.im.o.InboxLabel, DryRun: true,
+		Flags:         Flags{ReferenceUnmatched: b.im.o.ReferenceUnmatched, ReferenceLossy: b.im.o.ReferenceLossy},
 		RecipeSources: []SourceReport{}, Recipes: []RecipeReport{}, Audio: []AudioReport{}, Duplicates: []DupReport{},
 		Drafts: []DraftReport{}, Metadata: []MetaReport{}, Ignored: []IgnoredReport{},
 	}
@@ -246,7 +336,9 @@ func (b *builder) assemble() *Inventory {
 	var entries []string
 	hasTrack := map[*recipe]bool{}
 	for _, t := range b.takes {
-		hasTrack[t.recipe] = true
+		if !t.reference() {
+			hasTrack[t.recipe] = true
+		}
 	}
 	for _, r := range b.recipeList {
 		placement := "draft_backlog"
@@ -331,7 +423,10 @@ func (b *builder) assemble() *Inventory {
 	}
 	for _, af := range b.audioFiles {
 		s.AudioFiles++
-		ar := AudioReport{Path: af.e.ref(), Bytes: af.e.size, Candidates: []string{}, Artifacts: []string{}, Sidecars: []string{}}
+		ar := AudioReport{Path: af.e.ref(), Format: "flac", Bytes: af.e.size, Candidates: []string{}, Artifacts: []string{}, Sidecars: []string{}}
+		if af.mp3 {
+			ar.Format = "mp3"
+		}
 		switch af.status {
 		case "unsettled", "invalid":
 			ar.Status = af.status
@@ -343,8 +438,12 @@ func (b *builder) assemble() *Inventory {
 		}
 		g := groupOf[af]
 		ar.SHA256, ar.AudioID = af.e.sha, g.id
-		si := af.info.StreamInfo
-		ar.DurationS, ar.SampleRate, ar.Bits, ar.Channels = af.info.Duration(), int(si.SampleRate), int(si.BitsPerSample), int(si.Channels)
+		if af.mp3 {
+			ar.SampleRate, ar.Channels = af.mp3Info.SampleRate, af.mp3Info.Channels
+		} else {
+			si := af.info.StreamInfo
+			ar.DurationS, ar.SampleRate, ar.Bits, ar.Channels = af.info.Duration(), int(si.SampleRate), int(si.BitsPerSample), int(si.Channels)
+		}
 		ar.Sidecars = append(ar.Sidecars, b.sidecarOf[g.id]...)
 		if len(g.members) > 1 && af != g.rep {
 			ar.Status = "duplicate"
@@ -389,12 +488,38 @@ func (b *builder) assemble() *Inventory {
 				s.ScoresAttached++
 			}
 		}
+		if g.status == "reference" {
+			t := g.take
+			ar.Title = t.title
+			if !t.parent.zero() {
+				ar.Parent = &ParentReport{Rule: t.rule, Of: t.parent.label(b)}
+			}
+			pk := ""
+			if !t.parent.zero() {
+				pk = t.parent.key(b)
+			}
+			entries = append(entries, canon(map[string]any{
+				"k": "take", "reference": true, "format": g.format(), "audio_id": g.id, "path": g.rep.e.sourcePath(), "sha256": g.rep.e.sha,
+				"rule": g.rule(), "hash": t.ref.hash, "title": t.title, "parent": pk, "parent_rule": t.rule,
+			}))
+			s.TracksNew++
+			s.TracksReference++
+			s.AudioReference++
+			if g.isMP3() {
+				s.TracksLossy++
+			}
+			if !t.parent.zero() {
+				s.SiblingsInferred++
+			}
+		}
 		switch g.status {
 		case "ambiguous":
 			s.AudioAmbiguous++
 			inv.todo = append(inv.todo, todoRow{audio: mappingKey(g), candidates: strings.Join(g.candidates, "; ")})
 		case "unmatched":
-			s.AudioUnmatched++
+			if !g.isMP3() {
+				s.AudioUnmatched++
+			}
 			inv.todo = append(inv.todo, todoRow{audio: mappingKey(g), candidates: strings.Join(g.candidates, "; ")})
 		case "skipped":
 			s.AudioSkipped++
@@ -415,6 +540,7 @@ func (b *builder) assemble() *Inventory {
 		}
 	}
 
+	s.ReferenceGroups = b.refGroups
 	inv.todo = append(inv.todo, draftTodo...)
 
 	// orphans, issues

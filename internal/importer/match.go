@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/library"
 )
 
 // Match rules in precedence order (C16.3).
@@ -31,6 +32,9 @@ type audioGroup struct {
 }
 
 func (g *audioGroup) rule() string {
+	if g.status == "reference" {
+		return library.RuleReference
+	}
 	if g.ruleNo == 0 {
 		return ""
 	}
@@ -42,6 +46,19 @@ type memberResult struct {
 	ruleNo  int
 	recipes []*recipe
 	skip    bool
+	// reference: a mapping row sent this file to the reference library (C61)
+	reference bool
+}
+
+// isMP3 reports whether the group is a standalone MP3 identity.
+func (g *audioGroup) isMP3() bool { return len(g.members) > 0 && g.members[0].mp3 }
+
+// format is "mp3" or "flac".
+func (g *audioGroup) format() string {
+	if g.isMP3() {
+		return "mp3"
+	}
+	return "flac"
 }
 
 var seedHintRe = regexp.MustCompile(`(?i)^(.+)[-_](?:seed|s)?(\d+)$`)
@@ -111,6 +128,13 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 		if row.Skip {
 			return memberResult{ruleNo: 1, skip: true}
 		}
+		if row.RequestID == RefTarget {
+			// rules 2-8 only tell whether the row overrides a match
+			if m := b.evalRules(af); len(m.recipes) == 1 {
+				b.iss.warn(af.e.ref(), row.Line, "reference_overrides_match", "the mapping row sends this audio to the reference library although a recipe matches")
+			}
+			return memberResult{ruleNo: 1, reference: true}
+		}
 		if row.RequestID != "" {
 			var c []*recipe
 			for _, r := range b.byReqID[row.RequestID] {
@@ -124,6 +148,11 @@ func (b *builder) evalMember(af *audioFile) memberResult {
 			b.iss.warn(af.e.ref(), row.Line, "mapping_no_recipe", "mapping row names no known recipe")
 		}
 	}
+	return b.evalRules(af)
+}
+
+// evalRules applies match rules 2-8 (C16.3).
+func (b *builder) evalRules(af *audioFile) memberResult {
 	// 2 result dir
 	if af.rd != nil {
 		if r := b.recipeMap[af.rd.parsed.Hash]; r != nil {
@@ -275,6 +304,15 @@ func (b *builder) matchGroups() {
 			g.rep = g.members[0]
 			continue
 		}
+		if g.isMP3() {
+			// a standalone MP3 never matches a recipe; classifyMP3 recorded the decision
+			g.rep = g.members[0]
+			g.status = b.lossyStatus(g)
+			if g.status == "skipped" {
+				g.ruleNo = 1
+			}
+			continue
+		}
 		type res struct {
 			af *audioFile
 			memberResult
@@ -293,6 +331,15 @@ func (b *builder) matchGroups() {
 		g.rep = g.members[0]
 		if skip {
 			g.status, g.ruleNo = "skipped", 1
+			continue
+		}
+		for _, r := range results {
+			if r.reference {
+				g.status, g.ruleNo = "reference", 1
+				break
+			}
+		}
+		if g.status == "reference" {
 			continue
 		}
 		// strongest rule that yields exactly one recipe on any member
@@ -341,7 +388,24 @@ func (b *builder) matchGroups() {
 		}
 		g.status = "unmatched"
 		g.candidates = b.nearRecipes(g)
+		if b.im.o.ReferenceUnmatched {
+			g.status = "reference"
+		}
 	}
+}
+
+// lossyStatus is the group status of a standalone MP3 identity, from the decisions classifyMP3 took.
+func (b *builder) lossyStatus(g *audioGroup) string {
+	st := "unmatched"
+	for _, m := range g.members {
+		switch m.lossyDec {
+		case "skipped":
+			return "skipped"
+		case "reference":
+			st = "reference"
+		}
+	}
+	return st
 }
 
 func recipeLabels(rs []*recipe) []string {
