@@ -242,11 +242,29 @@ func New(tb testing.TB, o Options) *Rig {
 	opts.SPA = fstest.MapFS{"index.html": {Data: []byte("x")}}
 	opts.MCPFactory = func(a huma.API, inner http.Handler) (http.Handler, error) {
 		r.API = a
-		s, err := mcpgen.NewServer(a, inner, "v-test")
-		if err != nil {
-			return nil, err
-		}
-		return mcpgen.Handler(s), nil
+		// Built on the first MCP request: marshalling the whole OpenAPI document per rig is
+		// the most expensive part of setup under -race and most tests never touch /mcp.
+		var (
+			once sync.Once
+			mh   http.Handler
+			merr error
+		)
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			once.Do(func() {
+				s, err := mcpgen.NewServer(a, inner, "v-test")
+				if err != nil {
+					merr = err
+					return
+				}
+				mh = mcpgen.Handler(s)
+			})
+			if merr != nil {
+				tb.Errorf("servertest: building MCP server: %v", merr)
+				http.Error(w, "mcp unavailable", http.StatusInternalServerError)
+				return
+			}
+			mh.ServeHTTP(w, req)
+		}), nil
 	}
 	h, err := httpserver.New(opts)
 	if err != nil {

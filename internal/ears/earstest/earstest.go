@@ -55,6 +55,19 @@ func rfc(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
 // GradientJPEG returns a w x h gradient JPEG; with the fixture geometry it is well under 100 000 bytes.
 func GradientJPEG(w, h int) []byte {
+	k := [2]int{w, h}
+	if b, ok := gradientCache.Load(k); ok {
+		return bytes.Clone(b.([]byte))
+	}
+	b := renderGradient(w, h)
+	gradientCache.Store(k, b)
+	return bytes.Clone(b)
+}
+
+// gradientCache memoises the (deterministic) fixture image: encoding it under -race dominated rig setup.
+var gradientCache sync.Map
+
+func renderGradient(w, h int) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	for y := range h {
 		for x := range w {
