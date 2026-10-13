@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -58,9 +57,8 @@ const (
 	// known), then flushes and streams the rest unbuffered, so the row is still visible before
 	// the first byte reaches the client.
 	maxHeldBody        = 4 << 20
-	defaultAuditBudget = 15 * time.Second
-	defaultAuditRetry  = 25 * time.Millisecond
-	maxAuditRetry      = 500 * time.Millisecond
+	defaultAuditBudget = audit.DefaultBudget
+	defaultAuditRetry  = audit.DefaultBackoff
 )
 
 type patternLookup interface {
@@ -345,35 +343,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // already committed: it is logged at error level and counted (audit.Failures, surfaced by
 // get_system_info and /healthz) and the original response goes out.
 func (g *gate) insertAudit(ctx context.Context, e audit.Entry) {
-	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), g.AuditBudget)
-	defer cancel()
-	delay := g.AuditBackoff
-	var err error
-	for {
-		if err = g.Audit.Insert(actx, e); err == nil {
-			return
-		}
-		if permanent(err) {
-			audit.NoteFailure()
-			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
-			return
-		}
-		t := time.NewTimer(delay)
-		select {
-		case <-actx.Done():
-			t.Stop()
-			audit.NoteFailure()
-			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
-			return
-		case <-t.C:
-		}
-		delay = min(delay*2, maxAuditRetry)
-	}
-}
-
-// permanent reports errors a retry cannot cure (a constraint violation such as a duplicate id).
-func permanent(err error) bool {
-	return strings.Contains(err.Error(), "constraint failed")
+	audit.InsertRetrying(ctx, g.Audit, e, g.AuditBudget, g.AuditBackoff)
 }
 
 func (g *gate) serveIdempotent(rec *recorder, r *http.Request, info api.OpInfo, p auth.Principal, entry *audit.Entry, body []byte) {

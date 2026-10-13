@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -33,7 +32,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
-	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -67,10 +65,12 @@ type Options struct {
 	// M2a (C39). The gate (audit, authorize, rate limit, idempotency) wraps the
 	// inner mux. app.Build supplies one shared set; a nil value is replaced by a
 	// default built from Store, Now and NewID so the gate is never skipped.
-	Audit   *audit.Store
-	Idem    *idem.Store
-	Limiter *ratelimit.Limiter
-	NewID   func() string // nil => UUIDv7
+	Audit *audit.Store
+	// PairAudit overrides the sink for the auth:pair row (tests inject failing stores); nil => Audit.
+	PairAudit audit.Inserter
+	Idem      *idem.Store
+	Limiter   *ratelimit.Limiter
+	NewID     func() string // nil => UUIDv7
 
 	// M2a services (C39); they reach api.Deps. A nil value makes the matching
 	// operations answer 503 UNAVAILABLE (once their handlers exist).
@@ -180,12 +180,17 @@ func New(o Options) (http.Handler, error) {
 				return ok, retry
 			},
 			OnPaired: func(ctx context.Context, d auth.DeviceInfo) {
-				if o.Audit != nil {
-					if err := o.Audit.Insert(context.WithoutCancel(ctx), audit.Entry{At: now(),
+				// Runs before the redirect is written, so the row is committed (retried like the
+				// gate's) before the client sees the pairing succeed.
+				sink := o.PairAudit
+				if sink == nil && o.Audit != nil {
+					sink = o.Audit
+				}
+				if sink != nil {
+					audit.InsertRetrying(ctx, sink, audit.Entry{At: now(),
 						Principal: auth.Principal{Kind: auth.KindDevice, ID: d.ID, Name: d.Name, Via: "device"},
-						Transport: reqinfo.Pair, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther}); err != nil {
-						slog.Error("audit insert failed", "op", "auth:pair", "err", redact.Error(err))
-					}
+						Transport: reqinfo.Pair, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther},
+						audit.DefaultBudget, audit.DefaultBackoff)
 				}
 				if o.Notify != nil {
 					_ = o.Notify.Notify(context.WithoutCancel(ctx), notify.DevicePaired(d.Name))
