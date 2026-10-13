@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 )
@@ -41,4 +42,53 @@ func (f *fakeIngester) IngestLossy(ctx context.Context, r ingest.Request) (inges
 		ToolVersion: "ffmpeg fake", Created: []string{master},
 		Lossy: &ingest.LossyInfo{SampleRate: 44100, Channels: 2, TotalSamples: 88200, DurationS: 2.0},
 	}, nil
+}
+
+// mp3Bytes is a minimal valid MPEG-1 layer III stream: three 128 kbps / 44.1 kHz stereo frame headers
+// (417 bytes each) whose padding bytes depend on n, so different n give different audio identities.
+func mp3Bytes(n int) string {
+	frame := make([]byte, 417)
+	copy(frame, []byte{0xFF, 0xFB, 0x90, 0x00})
+	for i := 4; i < len(frame); i++ {
+		frame[i] = byte(n + i)
+	}
+	return string(frame) + string(frame) + string(frame)
+}
+
+// mp3 writes a settled standalone MP3 with a valid header.
+func (e *env) mp3(rel string, n int) { e.t.Helper(); e.put(rel, mp3Bytes(n)) }
+
+// trackBy returns the stored track whose slug is slug (the first by recording time).
+func (e *env) trackBySlug(slug string) trackRow {
+	e.t.Helper()
+	for _, tr := range e.tracks() {
+		if tr.Slug == slug {
+			return tr
+		}
+	}
+	e.t.Fatalf("no track with slug %q", slug)
+	return trackRow{}
+}
+
+// mappingTemplate renders mapping.todo.csv for inv.
+func mappingTemplate(t *testing.T, inv *Inventory) string {
+	t.Helper()
+	var sb strings.Builder
+	if err := WriteMappingTemplate(&sb, inv); err != nil {
+		t.Fatal(err)
+	}
+	return sb.String()
+}
+
+func planHas(inv *Inventory, sub string) bool {
+	for _, p := range inv.PlanEntries() {
+		if strings.Contains(p, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func withRefFlags(unmatched, lossy bool) func(*Options) {
+	return func(o *Options) { o.ReferenceUnmatched, o.ReferenceLossy = unmatched, lossy }
 }

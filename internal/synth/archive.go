@@ -16,11 +16,13 @@ import (
 // Profile selects a synthetic archive layout (C21).
 type Profile string
 
-// Profiles. ProfileDev generates the same archive as ProfileE2E.
+// Profiles. ProfileDev generates the same archive as ProfileE2E; ProfileReference is that archive
+// plus recipe-less audio for the reference opt-ins (C66).
 const (
 	ProfileAcceptance Profile = "acceptance"
 	ProfileE2E        Profile = "e2e"
 	ProfileDev        Profile = "dev"
+	ProfileReference  Profile = "reference"
 )
 
 // File is one generated path, inbox-relative with forward slashes.
@@ -58,6 +60,8 @@ type Expect struct {
 	ResultDirTakes, MappedTakes       int
 	VariantiDrafts                    int
 	SiblingRuleSameRequest, SiblingSF int
+	// M2c (ProfileReference, imported with both reference flags)
+	ReferenceTracks, LossyTracks, ReferenceGroups int
 }
 
 // Manifest lists everything Archive generated.
@@ -77,6 +81,8 @@ type archive struct {
 	audio []AudioSpec
 	jobs  []renderJob
 	post  []func() error
+	// ffmpeg is the encoder of the reference profile's MP3 files.
+	ffmpeg string
 }
 
 type renderJob struct {
@@ -148,6 +154,9 @@ func Archive(ctx context.Context, t mediatool.Tools, dir string, profile Profile
 		m, err = a.acceptance(ctx, t, seed)
 	case ProfileE2E, ProfileDev:
 		m, err = a.e2e(ctx, t, seed)
+		m.Profile = profile
+	case ProfileReference:
+		m, err = a.reference(ctx, t, seed)
 		m.Profile = profile
 	default:
 		return Manifest{}, fmt.Errorf("synth: unknown profile %q", profile)
@@ -497,4 +506,56 @@ func (a *archive) e2e(ctx context.Context, t mediatool.Tools, seed int64) (Manif
 			SiblingRuleSameRequest: 1, LoudnessSpreadLU: 12.8, ExitCode: 0,
 		},
 	}, nil
+}
+
+// mp3 registers an MP3 encoded after the renders from the FLAC at src (44.1 kHz stereo, 128 kbps).
+// When src is empty a throw-away FLAC of tone is rendered first.
+func (a *archive) mp3(ctx context.Context, rel, src string, tone Tone) {
+	a.add(rel, "mp3")
+	if src == "" {
+		src = rel + ".src.flac"
+		a.jobs = append(a.jobs, renderJob{rel: src, tone: tone, style: StyleYuE2})
+	}
+	a.post = append(a.post, func() error {
+		dst := a.abs(rel)
+		tmp := dst + ".tmp.mp3"
+		err := run(ctx, a.ffmpeg, ffmpegArgs("-i", a.abs(src), "-ac", "2", "-ar", "44100",
+			"-codec:a", "libmp3lame", "-b:a", "128k", "-map_metadata", "-1", "-id3v2_version", "0", "-write_xing", "0", tmp)...)
+		if src == rel+".src.flac" {
+			_ = os.Remove(a.abs(src))
+		}
+		return publish(tmp, dst, err)
+	})
+}
+
+// reference is the e2e archive plus recipe-less audio (C66): two unmatched FLACs, six standalone MP3
+// (two lossy reference groups of three and two members, plus a lone file), a fake MP3 that stays an
+// orphan and an MP3 sidecar of one unmatched FLAC.
+func (a *archive) reference(ctx context.Context, t mediatool.Tools, seed int64) (Manifest, error) {
+	a.ffmpeg = t.FFmpeg
+	m, err := a.e2e(ctx, t, seed)
+	if err != nil {
+		return Manifest{}, err
+	}
+	v := func(n int) int { return a.variant(seed, n) }
+	tone := func(variant int, secs float64) Tone {
+		return Tone{LUFS: -14, Seconds: secs, BPM: 100, Variant: v(variant)}
+	}
+	a.flac("music/ref/syn_ref_a.flac", "", 0, tone(20, 5), StyleYuE2)
+	a.flac("music/ref/syn_ref_b.flac", "", 0, tone(21, 5), StyleYuE2)
+	a.mp3(ctx, "music/ref/syn_ref_a.mp3", "music/ref/syn_ref_a.flac", Tone{})
+	for i, n := range []string{"syn_trio_p1", "syn_trio_p2", "syn_trio_p3", "syn_lone", "syn_pair_p2", "syn_pair_p5"} {
+		a.mp3(ctx, "music/lossy/"+n+".mp3", "", tone(30+i, 4))
+	}
+	if err := a.text("music/lossy/syn_fake.mp3", "mp3", shortBytes+"fake"); err != nil {
+		return Manifest{}, err
+	}
+	e := &m.Expect
+	e.Tracks += 8
+	e.AudioFiles += 8
+	e.AudioIdentities += 8
+	e.SiblingEdges += 3
+	e.Ignored += 2 // the fake MP3 and the sidecar
+	e.ReferenceTracks, e.LossyTracks, e.ReferenceGroups = 8, 6, 2
+	return m, nil
 }

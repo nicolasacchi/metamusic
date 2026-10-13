@@ -55,6 +55,8 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 	minAge := fs.Duration("min-age", 2*time.Minute, "files younger than this are skipped as unsettled")
 	jobs := fs.Int("jobs", 2, "concurrent ingests")
 	asJSON := fs.Bool("json", false, "print the summary as JSON")
+	refUnmatched := fs.Bool("reference-unmatched", false, "import unmatched FLACs as recipe-less reference tracks")
+	refLossy := fs.Bool("reference-lossy", false, "import standalone MP3s as lossy reference tracks")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -77,6 +79,9 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 			return usageError(err.Error())
 		}
 		reviewed = r
+		if r.Flags.ReferenceUnmatched != *refUnmatched || r.Flags.ReferenceLossy != *refLossy {
+			return usageError("import: --plan was reviewed with different reference flags")
+		}
 	}
 	cfg, err := config.Load(getenv)
 	if err != nil {
@@ -98,7 +103,8 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 		return fatal(fmt.Errorf("opening data dir: %w", err))
 	}
 	defer func() { _ = data.Close() }()
-	opts := importer.Options{Inbox: ro, InboxLabel: "inbox", MappingPath: *mapping, MinAge: *minAge, Jobs: *jobs, Principal: "cli"}
+	opts := importer.Options{Inbox: ro, InboxLabel: "inbox", MappingPath: *mapping, MinAge: *minAge, Jobs: *jobs, Principal: "cli",
+		ReferenceUnmatched: *refUnmatched, ReferenceLossy: *refLossy}
 	out := cliOut{s: s, asJSON: *asJSON, dataDir: cfg.DataDir}
 	dbPath := filepath.Join(cfg.DataDir, "metamusic.db")
 

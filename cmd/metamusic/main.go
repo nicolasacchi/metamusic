@@ -40,8 +40,9 @@ commands:
                                  rebuild a data directory from a snapshot
   import [--dry-run] [--plan REPORT] [--yes] [--inbox DIR] [--mapping FILE] [--report FILE]
          [--mapping-template FILE] [--min-age 2m] [--jobs 2] [--json]
+         [--reference-unmatched] [--reference-lossy]
                                  inventory the inbox (--dry-run), then apply the reviewed plan (--plan)
-  seed-synthetic [--profile dev|e2e] [--seed 1] [--force]
+  seed-synthetic [--profile dev|e2e] [--seed 1] [--force] [--references]
                                  fill a dev or e2e data directory with a generated library
   analyze [--track ID]... [--force] [--dry-run] [--jobs N] [--json]
                                  run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it

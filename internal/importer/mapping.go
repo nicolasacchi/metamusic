@@ -19,12 +19,15 @@ import (
 // MapRow is one parsed row of the operator mapping file (C16.6).
 type MapRow struct {
 	Line      int
-	RequestID string // "" when the row only sets title/parent
+	RequestID string // "" when the row only sets title/parent; RefTarget for "import as reference track"
 	Seed      *int64
 	Title     string
 	Parent    string // "", "-", a request id, an inbox path or sha256:<hex>
 	Skip      bool   // request_id "-": do not import this audio
 }
+
+// RefTarget is the request_id cell that sends an audio file to the reference library (C61).
+const RefTarget = "reference"
 
 // Mapping is the parsed mapping file. Rows are keyed by clean inbox path, by
 // content sha256 (hex) or, for varianti drafts, by request id.
@@ -110,6 +113,10 @@ func ParseMapping(r io.Reader, fsys fs.FS, name string) (*Mapping, error) {
 				continue
 			}
 			row.Seed = &n
+		}
+		if row.RequestID == RefTarget && rec[2] != "" {
+			bad(line, "reference rows leave seed empty")
+			continue
 		}
 		audio := rec[0]
 		switch {

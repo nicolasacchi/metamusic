@@ -51,16 +51,16 @@ var (
 	roots    []string
 )
 
-// SyntheticArchive imports the synthetic archive of profile ("acceptance" or
-// "e2e") into a template directory, once per profile and test binary; later
+// SyntheticArchive imports the synthetic archive of profile ("acceptance", "e2e" or
+// "reference"; the last is imported with both reference flags) into a template directory, once per profile and test binary; later
 // calls return the same template. It skips under -short and when the media
 // tools are missing (like every test that decodes audio).
 func SyntheticArchive(tb testing.TB, profile string) Template {
 	tb.Helper()
 	switch profile {
-	case string(synth.ProfileAcceptance), string(synth.ProfileE2E):
+	case string(synth.ProfileAcceptance), string(synth.ProfileE2E), string(synth.ProfileReference):
 	default:
-		tb.Fatalf("archivetest: unknown profile %q (want acceptance or e2e)", profile)
+		tb.Fatalf("archivetest: unknown profile %q (want acceptance, e2e or reference)", profile)
 	}
 	testtools.Require(tb, "ffmpeg", "flac", "metaflac")
 	mu.Lock()
@@ -126,7 +126,7 @@ func ImportInbox(tb testing.TB, inboxDir string) Template {
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {
 		tb.Fatal(err)
 	}
-	if err := importInto(context.Background(), inboxDir, dataDir); err != nil {
+	if err := importInto(context.Background(), inboxDir, dataDir, false); err != nil {
 		tb.Fatalf("archivetest: importing %s: %v", inboxDir, err)
 	}
 	return Template{dir: dataDir, profile: "custom"}
@@ -150,14 +150,15 @@ func importArchive(profile synth.Profile) (string, error) {
 	if _, err := synth.Archive(ctx, testtools.Tools(), inboxDir, profile, 1); err != nil {
 		return "", err
 	}
-	if err := importInto(ctx, inboxDir, dataDir); err != nil {
+	if err := importInto(ctx, inboxDir, dataDir, profile == synth.ProfileReference); err != nil {
 		return "", err
 	}
 	return dataDir, nil
 }
 
-// importInto imports inboxDir into the (existing, empty) data directory dataDir.
-func importInto(ctx context.Context, inboxDir, dataDir string) error {
+// importInto imports inboxDir into the (existing, empty) data directory dataDir; references sets
+// both reference flags of the importer.
+func importInto(ctx context.Context, inboxDir, dataDir string, references bool) error {
 	tools := testtools.Tools()
 	data, err := os.OpenRoot(dataDir)
 	if err != nil {
@@ -181,6 +182,7 @@ func importInto(ctx context.Context, inboxDir, dataDir string) error {
 	}
 	im, err := importer.New(st, lib, data, ingest.New(data, dataDir, tools, an, time.Now), importer.Options{
 		Inbox: ro, InboxLabel: "synthetic", MinAge: 0, Jobs: 2, Principal: Principal, Now: time.Now,
+		ReferenceUnmatched: references, ReferenceLossy: references,
 	})
 	if err != nil {
 		_ = st.Close()

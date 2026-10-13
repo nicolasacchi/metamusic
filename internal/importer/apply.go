@@ -466,6 +466,23 @@ func (s *applyState) ingestOne(ctx context.Context, t *plannedTake) takeOutcome 
 	if err != nil {
 		return takeOutcome{err: sourceChanged(err)}
 	}
+	if t.reference() {
+		req := ingest.Request{
+			TrackID: t.id, Title: t.title, Slug: t.slug, RequestID: t.ref.requestID,
+			// the stub row is written with the take, after the ingest: its generated id does not exist yet,
+			// so the tags and the request carry the deterministic stub request id
+			RecipeID: t.ref.requestID,
+			Seed:     0, Source: src, SourceSHA256: t.g.rep.e.sha, RecordedAt: t.recordedAt, Reference: !t.g.isMP3(),
+		}
+		var res ingest.Result
+		var err error
+		if t.g.isMP3() {
+			res, err = s.im.ing.IngestLossy(ctx, req)
+		} else {
+			res, err = s.im.ing.Ingest(ctx, req)
+		}
+		return takeOutcome{res: res, err: err}
+	}
 	var arts []ingest.ArtifactSrc
 	for _, a := range t.artifacts {
 		f, err := open(a.e)
@@ -566,10 +583,25 @@ func (s *applyState) commitTake(ctx context.Context, t *plannedTake, out takeOut
 	case t.parent.existing != "":
 		parentID, rootID, gen = t.parent.existing, t.root.existing, t.generation
 	}
+	if t.reference() && t.g.isMP3() && out.res.Lossy == nil {
+		_ = s.im.ing.Discard(out.res)
+		fail("INGEST_FAILED", "ingest failed")
+		return
+	}
 	nt := s.newTake(t, out.res, parentID, rootID, gen, rule)
 	var ful library.Fulfilment
 	nt.Out = &ful
-	err := s.tx(ctx, func(tx *sql.Tx) error { return s.im.lib.InsertTake(ctx, tx, nt) })
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		if t.reference() {
+			// the stub recipe is inserted in the take's transaction: a failed ingest or insert leaves none
+			rid, _, err := s.im.lib.InsertReferenceRecipe(ctx, tx, library.NewReferenceRecipe{Title: t.title, Slug: t.slug, AudioKey: t.g.id})
+			if err != nil {
+				return err
+			}
+			nt.RecipeID = rid
+		}
+		return s.im.lib.InsertTake(ctx, tx, nt)
+	})
 	if err != nil {
 		_ = s.im.ing.Discard(out.res)
 		fail("DB_INSERT", "database insert failed")
@@ -584,7 +616,7 @@ func (s *applyState) commitTake(ctx context.Context, t *plannedTake, out takeOut
 		path, line := s.draftLoc(did)
 		s.issues.warn(path, line, "draft_edited_not_fulfilled", "the draft was edited; it stays in the backlog")
 	}
-	for _, did := range ful.CoreDrafts {
+	for _, did := range ful.CoreDrafts { // empty for a reference take
 		for _, d := range s.b.drafts {
 			if s.draftIDs[d.r.hash] == did {
 				s.issues.warn(d.r.occ[0].file.ref(), d.r.occ[0].line, "fulfilled_by_core_match", "differs in: "+strings.Join(differingKeys(t.recipe, d.r), ", "))
@@ -596,7 +628,7 @@ func (s *applyState) commitTake(ctx context.Context, t *plannedTake, out takeOut
 func (s *applyState) newTake(t *plannedTake, res ingest.Result, parentID, rootID string, gen int, rule string) library.NewTake {
 	si := res.Info.StreamInfo
 	nt := library.NewTake{
-		ID: t.id, Title: t.title, Slug: t.slug, RecipeID: s.recipeIDs[t.recipe.hash],
+		ID: t.id, Title: t.title, Slug: t.slug,
 		ParentTrackID: parentID, RootTrackID: rootID, Generation: gen,
 		DurationS: res.Info.Duration(), SampleRate: int(si.SampleRate), BitsPerSample: int(si.BitsPerSample), Channels: int(si.Channels),
 		TotalSamples: int64(si.TotalSamples), //nolint:gosec // FLAC totals are 36 bits
@@ -607,12 +639,25 @@ func (s *applyState) newTake(t *plannedTake, res ingest.Result, parentID, rootID
 		Loudness: res.Loudness, Spectrum: res.Spectrum, ToolVersion: res.ToolVersion, ReplayGainDB: res.ReplayGainDB,
 		ScoreABC: t.scoreABC,
 	}
+	if t.reference() {
+		nt.Reference = true
+		if l := res.Lossy; l != nil {
+			nt.Lossy = true
+			nt.DurationS, nt.SampleRate, nt.Channels, nt.BitsPerSample = l.DurationS, l.SampleRate, l.Channels, 16
+			nt.TotalSamples = int64(l.TotalSamples) //nolint:gosec // an MP3's sample count is far below 2^63
+		}
+	} else {
+		nt.RecipeID = s.recipeIDs[t.recipe.hash]
+	}
 	// ingest names the MP3 "mp3"; the library's rendition kind is "mp3_320" (C11)
 	for _, r := range []struct {
 		kind string
 		r    ingest.Rendition
 	}{{"mp3_320", res.MP3}, {"peaks", res.Peaks}} {
 		r, kind := r.r, r.kind
+		if nt.Lossy && kind == "mp3_320" {
+			continue // a lossy master is its own MP3
+		}
 		nt.Renditions = append(nt.Renditions, library.NewRendition{Kind: kind, SHA256: r.SHA256, Bytes: r.Bytes, Path: r.RelPath, Params: r.Params})
 	}
 	for _, a := range res.Artifacts {

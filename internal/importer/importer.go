@@ -43,7 +43,13 @@ type Options struct {
 	MappingPath string
 	// MinAge: files modified more recently than Now-MinAge are "unsettled" and skipped.
 	// 0 disables the check (the CLI passes its --min-age default of 2m).
-	MinAge    time.Duration
+	MinAge time.Duration
+	// ReferenceUnmatched: unmatched (never ambiguous) FLAC identities become reference
+	// tracks (D-M2c-2a).
+	ReferenceUnmatched bool
+	// ReferenceLossy: standalone MP3 candidates become lossy reference tracks (D-M2c-2b).
+	ReferenceLossy bool
+
 	Jobs      int    // concurrent ingests, default 2
 	Principal string // 'cli' | 'seed-synthetic'; default "cli"
 	Now       func() time.Time
