@@ -162,8 +162,6 @@ var stubCases = []ParityCase{
 	{Op: "create_draft", Args: fixedArgs(map[string]any{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}), Status: 501},
 	{Op: "update_draft", Args: fixedArgs(map[string]any{"id": lt.Draft1, "revision": 1, "status": "archived"}), Status: 501},
 	{Op: "upload_batch_jsonl", Args: fixedArgs(map[string]any{"jsonl": "{}\n"}), Status: 501},
-	{Op: "create_backup", Status: 501},
-	{Op: "list_backups", Status: 501},
 	{Op: "get_audit", Args: fixedArgs(map[string]any{"limit": 10}), Status: 501},
 	{Op: "list_tokens", Status: 501},
 	{Op: "revoke_own_token", Status: 501},
@@ -196,7 +194,16 @@ var dataCases = []ParityCase{
 	{Op: "get_export", Args: fixedArgs(map[string]any{"id": "no-such-export"}), Status: 404},
 }
 
+// backupCases are the M2a-B7 cases. list_backups runs before create_backup, so no rig has a run in flight
+// (and no snapshot on disk) when it is read; the run id comes from the rig's id sequence. Each rig's
+// cleanup Close waits for the backup its create_backup started.
+var backupCases = []ParityCase{
+	{Op: "list_backups"},
+	{Op: "create_backup", Masks: []string{"id"}},
+}
+
 func init() {
+	parityCases = append(parityCases, backupCases...)
 	parityCases = append(parityCases, judgmentCases...)
 	parityCases = append(parityCases, dataCases...)
 	parityCases = append(parityCases, stubCases...)

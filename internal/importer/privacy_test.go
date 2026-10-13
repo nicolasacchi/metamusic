@@ -21,6 +21,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
@@ -106,11 +107,13 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 	judg := judgments.New(e.st, lib, now, func() string { return "privacy-id" })
 	pls := playlists.New(e.st, lib, now, func() string { return "privacy-pl" })
 	signer := serve.NewSigner(key, now)
+	bak := backup.New(backup.Options{Store: e.st, DataDir: e.dataDir, BackupDir: filepath.Join(t.TempDir(), "backup"), Now: now})
+	t.Cleanup(func() { _ = bak.Close(context.Background()) })
 	h, err := httpserver.New(httpserver.Options{
 		Cfg: cfg, Sec: config.Secrets{Key: key, EdgeSecret: "edge"}, Store: e.st, Tokens: tokens,
 		Sessions: auth.NewLocalAuth(e.st, key, cfg.PublicURL), SPA: fstest.MapFS{"index.html": {Data: []byte("x")}},
 		Version: "v-test", Commit: "abc", Started: e.now.Add(-time.Hour),
-		Library: lib, Judgments: judg, Signer: signer, Now: now, Playlists: pls,
+		Library: lib, Judgments: judg, Signer: signer, Now: now, Playlists: pls, Backups: bak,
 		Exports: exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
 		Probe:   &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {

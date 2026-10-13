@@ -88,16 +88,6 @@ func TestValidateBatch_AbcPathResolvedBesideFile(t *testing.T) {
 	}
 }
 
-// TestCLI_M2aStubCommands: until M2a-B7 lands, backup/restore fail loudly (exit 2).
-func TestCLI_M2aStubCommands(t *testing.T) {
-	for _, cmd := range []string{"backup", "restore"} {
-		code, _, errs := do(t, nil, "", cmd)
-		if code != 2 || !strings.Contains(errs, "not implemented") {
-			t.Errorf("%s: exit %d, stderr %q", cmd, code, errs)
-		}
-	}
-}
-
 // exportEnv is a data directory holding the M2a fixture library and an imported source with abc_path.
 func exportEnv(t *testing.T) (env map[string]string, abcLine string) {
 	t.Helper()
