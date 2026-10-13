@@ -36,7 +36,6 @@ func mcpStdio(ctx context.Context, getenv func(string) string, s streams, tr mcp
 	if token == "" {
 		return usageError("MM_TOKEN is required")
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	cfg, err := config.LoadOffline(getenv)
 	if err != nil {
 		return fatal(err)

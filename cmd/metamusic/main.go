@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -48,6 +49,11 @@ import exit codes: 0 ok, 1 per-file errors, 2 usage or fatal, 3 PLAN_CHANGED, 4 
 `
 
 func main() {
+	// The process-wide logger is configured exactly once, here, never inside
+	// run(): run() is re-entered concurrently by tests, and a per-invocation
+	// slog.SetDefault would route other invocations' (and the MCP SDK's
+	// background goroutines') log lines into this invocation's writer.
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	code := run(ctx, os.Args[1:], os.Getenv, os.Stdin, os.Stdout, os.Stderr)
 	stop()

@@ -147,7 +147,6 @@ func sweepExports(ctx context.Context, e *exports.Service, every time.Duration) 
 }
 
 func serve(ctx context.Context, b *booted, s streams) error {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(s.err, nil)))
 	root, err := os.OpenRoot(b.cfg.DataDir)
 	if err != nil {
 		return fmt.Errorf("opening data dir: %w", err)

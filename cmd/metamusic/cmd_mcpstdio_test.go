@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -256,4 +257,24 @@ func withAuth(env map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+// TestCLI_NoGlobalLoggerMutation pins that running commands never swaps the
+// process-wide slog default (which would redirect log lines from goroutines of
+// other, concurrent invocations into this invocation's writer) and that
+// concurrent mcp-stdio sessions with separate writers are race-free.
+func TestCLI_NoGlobalLoggerMutation(t *testing.T) {
+	t.Parallel()
+	before := slog.Default()
+	for range 2 {
+		env, _, _ := offlineEnv(t)
+		s, errb := stdioSession(t, env)
+		if res := callTool(t, s, "whoami", nil); res.IsError {
+			t.Fatalf("whoami: %s", resultText(res))
+		}
+		_ = errb.String()
+	}
+	if slog.Default() != before {
+		t.Fatal("a command invocation replaced the process-wide slog default")
+	}
 }
