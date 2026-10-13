@@ -112,6 +112,51 @@ func TestBackend_QuoteCatalogCachedForAnHour(t *testing.T) {
 	}
 }
 
+// TestBackend_QuoteMaxIsOrderIndependent pins that the maximum is taken whatever the catalog order:
+// the dearest allowed type listed first, last, and alone in its pool.
+func TestBackend_QuoteMaxIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	a5000 := map[string]any{"id": "gpu-a5000", "name": "RTX A5000", "pool": "AMPERE_24", "price": map[string]any{"serverless": json.Number("0.69")}}
+	g4090 := map[string]any{"id": "gpu-4090", "name": "RTX 4090", "pool": "ADA_24", "price": map[string]any{"serverless": json.Number("1.10")}}
+	mid := map[string]any{"id": "gpu-a5000", "name": "RTX A5000", "pool": "AMPERE_24", "price": map[string]any{"serverless": json.Number("0.80")}}
+	cases := []struct {
+		name string
+		cat  []map[string]any
+	}{
+		{"dearest first, cheaper last (own pools)", []map[string]any{g4090, a5000}},
+		{"dearest last", []map[string]any{a5000, g4090}},
+		{"dearest in the middle", []map[string]any{a5000, g4090, mid}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t)
+			e.srv.SetCatalog(c.cat)
+			q, err := e.backend().Quote(bg())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if q.ListPricePPH != 1_100_000 {
+				t.Fatalf("ListPricePPH = %d, want 1100000", q.ListPricePPH)
+			}
+		})
+	}
+}
+
+func TestBackend_QuoteInactive(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.srv.SetEndpoint(func(m map[string]any) { ep(m, "workers")["max"] = 0 })
+	b := e.backend()
+	q, err := b.Quote(bg())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := b.QuoteCheck(q, t0); got != "endpoint_inactive" {
+		t.Fatalf("reason = %q, want endpoint_inactive", got)
+	}
+}
+
 func TestBackend_QuoteFailsClosed(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
