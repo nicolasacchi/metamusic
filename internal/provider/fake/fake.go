@@ -1,11 +1,19 @@
 // Package fake is the in-process provider.Backend used by dev, E2E, the servertest rigs, acceptance and
-// the property suite, plus the simulated worker (M3 C78). M3-B2 freezes Options, the counters and the
-// Backend method set; M3-B7 replaces the STUB bodies (workers, billing, fault markers, SimWorker).
+// the property suite, plus the simulated worker (M3 C78).
+//
+// The simulation is lazy and deterministic: every method first advances a virtual timeline (queue, cold
+// start, execution, idle, billing) to the injected clock's current time, then acts at that time. There are
+// no goroutines or timers, so a manual clock drives it exactly and the outcome never depends on how often
+// it is polled. Handlers called by the simulated worker (the start and upload endpoints) must not call the
+// backend synchronously: the backend lock is held while they run.
 package fake
 
 import (
 	"context"
-	"errors"
+	_ "embed"
+	"encoding/json"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,9 +21,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
-
-// ErrNotImplemented marks a STUB(M3-B7) body.
-var ErrNotImplemented = errors.New("fake: not implemented (STUB(M3-B7))")
 
 // Speed selects how long simulated queue and run phases take.
 type Speed struct {
@@ -37,21 +42,50 @@ type Adversarial struct {
 	IdleDriftTo, MaxDriftTo                                                                 int
 }
 
-// SimWorker simulates the worker handler (C78.3). STUB(M3-B7): a placeholder type so Options is frozen.
-type SimWorker struct{}
-
 // Options builds a Backend.
 type Options struct {
 	Clock         clock.Clock
 	Speed         Speed
-	Worker        *SimWorker
+	Worker        *SimWorker     // nil: jobs complete with no output and upload nothing
 	PricePPH      money.MicroUSD // list price; default 690000
 	WorkersMax    int            // default 2
-	IdleS         int            // default 20
-	ColdStartS    int            // default 3 in fast mode
-	KillLatencyMS int64
+	IdleS         int            // default from canary-measured.json (20)
+	ColdStartS    int            // default from canary-measured.json (3)
+	KillLatencyMS int64          // executionTime overshoot at a timeout kill; default from canary-measured.json
 	Permissions   Permissions
 	Adversarial   Adversarial
+	// BatchOf maps a job id to its batch for AccruedCostByBatch (TakeSpec carries no batch). Nil means each
+	// job is its own batch.
+	BatchOf func(jobID string) string
+}
+
+// Canary is the content of canary-measured.json: the values the real canary measured, which the friendly
+// fake uses as defaults. The committed file holds PLACEHOLDERS until M3-X4 (Measured is false).
+type Canary struct {
+	Measured      bool  `json:"measured"`
+	ColdStartS    int   `json:"cold_start_s"`
+	IdleS         int   `json:"idle_s"`
+	KillLatencyMS int64 `json:"kill_latency_ms"`
+	WorkersPerJob int   `json:"workers_per_job"`
+	IdleBilled    bool  `json:"idle_billed"`
+}
+
+//go:embed canary-measured.json
+var canaryJSON []byte
+
+var (
+	canaryOnce sync.Once
+	canary     Canary
+)
+
+// CanaryDefaults returns the committed canary values.
+func CanaryDefaults() Canary {
+	canaryOnce.Do(func() {
+		if err := json.Unmarshal(canaryJSON, &canary); err != nil {
+			panic("fake: canary-measured.json: " + err.Error()) // a committed file; caught by tests
+		}
+	})
+	return canary
 }
 
 // Counters count backend calls (every method, atomically).
@@ -64,16 +98,37 @@ func (c Counters) Total() int64 {
 	return c.Quote + c.Submit + c.Poll + c.Cancel + c.Sweep + c.PurgeQueue + c.ScaleToZero + c.RevertDrift + c.Billing
 }
 
+const (
+	// imageDigest is the simulated worker image (sha256: plus 64 zeros).
+	imageDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	// endpointTimeoutMS is the simulated endpoint execution timeout (the default MM_JOB_MAX_RUNTIME).
+	endpointTimeoutMS = 15 * 60 * 1000
+)
+
 // Backend is the fake provider.
 type Backend struct {
 	o Options
 	n struct{ quote, submit, poll, cancel, sweep, purge, scale, revert, billing atomic.Int64 }
+
+	mu       sync.Mutex
+	now      time.Time // the simulation's current time (never moves back)
+	seq      int
+	jobs     []*job
+	byID     map[string]*job
+	attempts map[string]int
+	workers  []*worker
+	wseq     int
+	// the endpoint as it currently is, and as the operator wants it
+	maxW, idleS             int
+	desiredMax, desiredIdle int
+	drifted                 bool
 }
 
 var _ provider.Backend = (*Backend)(nil)
 
 // New builds the backend with the C78.1 defaults filled in.
 func New(o Options) *Backend {
+	c := CanaryDefaults()
 	if o.Clock == nil {
 		o.Clock = clock.Real
 	}
@@ -84,13 +139,20 @@ func New(o Options) *Backend {
 		o.WorkersMax = 2
 	}
 	if o.IdleS == 0 {
-		o.IdleS = 20
+		o.IdleS = c.IdleS
 	}
 	if o.ColdStartS == 0 {
-		o.ColdStartS = 3
+		o.ColdStartS = c.ColdStartS
 	}
-	return &Backend{o: o}
+	if o.KillLatencyMS == 0 {
+		o.KillLatencyMS = c.KillLatencyMS
+	}
+	return &Backend{o: o, now: o.Clock.Now(), byID: map[string]*job{}, attempts: map[string]int{},
+		maxW: o.WorkersMax, desiredMax: o.WorkersMax, idleS: o.IdleS, desiredIdle: o.IdleS}
 }
+
+// Options returns the options with every default filled in.
+func (b *Backend) Options() Options { return b.o }
 
 // Counters returns the call counts so far.
 func (b *Backend) Counters() Counters {
@@ -98,71 +160,133 @@ func (b *Backend) Counters() Counters {
 		PurgeQueue: b.n.purge.Load(), ScaleToZero: b.n.scale.Load(), RevertDrift: b.n.revert.Load(), Billing: b.n.billing.Load()}
 }
 
-// AccruedCost is the ground-truth cost of every simulated worker lifetime up to t. STUB(M3-B7).
-func (b *Backend) AccruedCost(t time.Time) money.MicroUSD { return 0 }
-
-// AccruedCostByBatch attributes accrued cost to batches (C86.3). STUB(M3-B7).
-func (b *Backend) AccruedCostByBatch(t time.Time) map[string]money.MicroUSD { return nil }
-
 // Name implements provider.Backend.
 func (b *Backend) Name() string { return provider.BackendFake }
 
-// Quote implements provider.Backend. STUB(M3-B7).
+func (b *Backend) revoked() bool { return b.o.Permissions.AccessRevoked }
+
+// enter takes the lock and advances the simulation to the clock's now.
+func (b *Backend) enter(ctx context.Context) time.Time {
+	b.mu.Lock()
+	now := b.o.Clock.Now()
+	b.advance(ctx, now)
+	return b.now
+}
+
+// Quote implements provider.Backend.
 func (b *Backend) Quote(ctx context.Context) (provider.Quote, error) {
 	b.n.quote.Add(1)
-	return provider.Quote{}, ErrNotImplemented
+	if b.revoked() {
+		return provider.Quote{}, provider.ErrAccess
+	}
+	now := b.enter(ctx)
+	defer b.mu.Unlock()
+	return provider.Quote{
+		Backend: provider.BackendFake, ListPricePPH: b.priceAt(now),
+		Pools: []string{"AMPERE_24"}, GPUClasses: []string{"NVIDIA RTX A5000"},
+		Endpoint: b.endpointConfig(), ObservedAt: now,
+	}, nil
 }
 
-// Submit implements provider.Backend. STUB(M3-B7).
-func (b *Backend) Submit(ctx context.Context, t provider.TakeSpec) (provider.Ref, error) {
-	b.n.submit.Add(1)
-	return provider.Ref{}, ErrNotImplemented
+func (b *Backend) endpointConfig() provider.EndpointConfig {
+	idle := b.idleS
+	return provider.EndpointConfig{
+		Name: "mm-fake", Type: "QUEUE", ScalerType: "QUEUE_DELAY", ScalerValue: strconv.Itoa(b.o.ColdStartS + 60),
+		WorkersMin: 0, WorkersMax: b.maxW, IdleTimeoutS: &idle, TimeoutMS: endpointTimeoutMS, GPUCount: 1, MinCUDA: "12.8",
+		Pools: []string{"AMPERE_24"}, Flashboot: "true", ImageDigest: imageDigest,
+	}
 }
 
-// Poll implements provider.Backend. STUB(M3-B7).
-func (b *Backend) Poll(ctx context.Context, r provider.Ref) (provider.RemoteStatus, error) {
-	b.n.poll.Add(1)
-	return provider.RemoteStatus{}, ErrNotImplemented
-}
-
-// Cancel implements provider.Backend. STUB(M3-B7).
-func (b *Backend) Cancel(ctx context.Context, r provider.Ref) error {
-	b.n.cancel.Add(1)
-	return ErrNotImplemented
-}
-
-// Sweep implements provider.Backend. STUB(M3-B7).
-func (b *Backend) Sweep(ctx context.Context) (provider.SweepReport, error) {
-	b.n.sweep.Add(1)
-	return provider.SweepReport{}, ErrNotImplemented
-}
-
-// PurgeQueue implements provider.Backend. STUB(M3-B7).
-func (b *Backend) PurgeQueue(ctx context.Context) error {
-	b.n.purge.Add(1)
-	return ErrNotImplemented
-}
-
-// ScaleToZero implements provider.Backend. STUB(M3-B7).
-func (b *Backend) ScaleToZero(ctx context.Context) error {
-	b.n.scale.Add(1)
-	return ErrNotImplemented
-}
-
-// RevertDrift implements provider.Backend. STUB(M3-B7).
-func (b *Backend) RevertDrift(ctx context.Context, d []provider.Drift) error {
-	b.n.revert.Add(1)
-	return ErrNotImplemented
-}
-
-// Billing implements provider.Backend. STUB(M3-B7).
-func (b *Backend) Billing(ctx context.Context, from, to time.Time) ([]provider.BillBucket, error) {
-	b.n.billing.Add(1)
-	return nil, ErrNotImplemented
-}
-
-// Capabilities implements provider.Backend: the fake can do everything.
+// Capabilities implements provider.Backend: the fake can do everything its permissions allow.
 func (b *Backend) Capabilities() provider.Capabilities {
 	return provider.Capabilities{ScaleToZero: !b.o.Permissions.PatchForbidden, RevertDrift: !b.o.Permissions.PatchForbidden,
 		Billing: map[bool]string{true: "none", false: "hour"}[b.o.Permissions.BillingForbidden]}
+}
+
+// Sweep implements provider.Backend.
+func (b *Backend) Sweep(ctx context.Context) (provider.SweepReport, error) {
+	b.n.sweep.Add(1)
+	if b.revoked() {
+		return provider.SweepReport{}, provider.ErrAccess
+	}
+	now := b.enter(ctx)
+	defer b.mu.Unlock()
+	var ws []provider.Worker
+	for _, w := range b.workers {
+		if !w.alive() {
+			continue
+		}
+		pw := provider.Worker{ID: w.id, Status: w.status(now), Image: imageDigest}
+		st := w.start
+		pw.StartedAt = &st
+		if !now.Before(w.ready) {
+			u := int(now.Sub(w.start) / time.Second)
+			pw.UptimeS = &u
+		}
+		ws = append(ws, pw)
+	}
+	ep := b.endpointConfig()
+	var drift []provider.Drift
+	for _, d := range b.driftReport() {
+		drift = append(drift, provider.Drift{Field: d.field, Want: d.want, Got: d.got})
+	}
+	skew := time.Duration(0)
+	return provider.SweepReport{Workers: ws, Endpoint: &ep, Drift: drift, ObservedAt: now, Skew: &skew}, nil
+}
+
+// ScaleToZero implements provider.Backend: workers.max = 0; idle workers stop at once, busy ones when
+// their job ends.
+func (b *Backend) ScaleToZero(ctx context.Context) error {
+	b.n.scale.Add(1)
+	if b.revoked() {
+		return provider.ErrAccess
+	}
+	if err := b.patchErr(); err != nil {
+		return err
+	}
+	now := b.enter(ctx)
+	defer b.mu.Unlock()
+	b.maxW, b.desiredMax = 0, 0
+	for _, w := range b.workers {
+		if w.alive() && (w.stuck || (w.job == nil && !w.phantom)) {
+			w.stop = now
+		}
+	}
+	return nil
+}
+
+// RevertDrift implements provider.Backend: restores the Want values of the reported fields.
+func (b *Backend) RevertDrift(ctx context.Context, d []provider.Drift) error {
+	b.n.revert.Add(1)
+	if b.revoked() {
+		return provider.ErrAccess
+	}
+	if err := b.patchErr(); err != nil {
+		return err
+	}
+	b.enter(ctx)
+	defer b.mu.Unlock()
+	for _, x := range d {
+		n, err := strconv.Atoi(x.Want)
+		if err != nil {
+			continue
+		}
+		switch x.Field {
+		case "workers.max":
+			b.maxW = n
+		case "workers.idleTimeout":
+			b.idleS = n
+		}
+	}
+	return nil
+}
+
+func (b *Backend) patchErr() error {
+	switch {
+	case b.o.Permissions.PatchForbidden:
+		return provider.ErrNotPermitted
+	case b.o.Permissions.PatchFails:
+		return errPatchFailed
+	}
+	return nil
 }
