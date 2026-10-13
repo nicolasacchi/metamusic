@@ -17,6 +17,8 @@ const (
 	Stdio Transport = "stdio"
 	CLI   Transport = "cli"
 	Pair  Transport = "pair"
+	// Runner marks audit rows written by the job runner and reconciler (M3 D-M3-22).
+	Runner Transport = "runner"
 )
 
 type (

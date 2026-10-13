@@ -13,7 +13,7 @@ func TestMigration0005_Applies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, err := s.UserVersion(ctx); err != nil || v != 5 || v != len(ms) {
+	if v, err := s.UserVersion(ctx); err != nil || v < 5 || v != len(ms) {
 		t.Fatalf("version=%d migrations=%d err=%v", v, len(ms), err)
 	}
 	var notnull int

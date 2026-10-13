@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -27,6 +29,7 @@ type Meta struct {
 	Rate         string   `json:"rate,omitempty"`          // "" (default bucket) | "heavy"
 	SecretFields []string `json:"secret_fields,omitempty"` // top-level response keys that carry a secret (D-M2a-14)
 	MCPImage     bool     `json:"mcp_image,omitempty"`     // the 2xx body has image {mime_type, data_base64 (optional)}; MCP returns ImageContent (C52)
+	AliasOf      string   `json:"alias_of,omitempty"`      // a human-only alias of another operation (design §4.1, M3 C80)
 }
 
 const humanPrefix = "/human/api/"
@@ -95,6 +98,28 @@ func validate(op huma.Operation, m Meta) error {
 	for _, f := range m.SecretFields {
 		if !secretFieldRe.MatchString(f) {
 			return fmt.Errorf("%s: secret field %q must match %s", op.OperationID, f, secretFieldRe)
+		}
+	}
+	// M3 C80: spend and approval rules, aliases.
+	if m.Cost == "spend" {
+		switch {
+		case op.Method != http.MethodPost:
+			return fmt.Errorf("%s: cost spend requires POST, got %s", op.OperationID, op.Method)
+		case m.Idempotency != "create":
+			return fmt.Errorf("%s: cost spend requires idempotency create", op.OperationID)
+		case m.Scope != auth.ScopeGenerate:
+			return fmt.Errorf("%s: cost spend requires scope generate, got %q", op.OperationID, m.Scope)
+		}
+	}
+	if m.Cost == "approve" && !m.HumanOnly {
+		return fmt.Errorf("%s: cost approve requires a human-only operation", op.OperationID)
+	}
+	if m.AliasOf != "" {
+		if !opIDRe.MatchString(m.AliasOf) {
+			return fmt.Errorf("%s: alias_of %q must be an operation id", op.OperationID, m.AliasOf)
+		}
+		if !m.HumanOnly || m.MCP != "exclude:human-only" {
+			return fmt.Errorf("%s: an alias must be human-only with mcp exclude:human-only", op.OperationID)
 		}
 	}
 	if m.MCPImage {
@@ -237,4 +262,142 @@ func Operations(a huma.API) []OpInfo {
 	}
 	sortOps(out)
 	return out
+}
+
+// ValidateAliases checks every human-only alias (Meta.AliasOf): the target
+// operation exists and its request-body and 2xx response schemas are identical
+// to the alias's (resolved structurally, so two Go types of one shape match).
+// api.New calls it last; it panics on a dangling alias or a mismatch.
+func ValidateAliases(a huma.API) {
+	if err := checkAliases(a); err != nil {
+		panic("api.ValidateAliases: " + err.Error())
+	}
+}
+
+func checkAliases(a huma.API) error {
+	spec := a.OpenAPI()
+	byID := map[string]*huma.Operation{}
+	for _, item := range spec.Paths {
+		for _, op := range []*huma.Operation{item.Get, item.Put, item.Post, item.Delete, item.Patch} {
+			if op != nil {
+				byID[op.OperationID] = op
+			}
+		}
+	}
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		alias := byID[id]
+		m, _ := OpMeta(alias)
+		if m.AliasOf == "" {
+			continue
+		}
+		target, ok := byID[m.AliasOf]
+		if !ok {
+			return fmt.Errorf("%s: alias_of %q does not exist", id, m.AliasOf)
+		}
+		for _, side := range []struct {
+			name string
+			get  func(*huma.Operation) (json.RawMessage, error)
+		}{{"request body", func(o *huma.Operation) (json.RawMessage, error) { return bodySchema(spec, o) }},
+			{"2xx response", func(o *huma.Operation) (json.RawMessage, error) { return responseSchema(spec, o) }}} {
+			want, err1 := side.get(target)
+			got, err2 := side.get(alias)
+			if err1 != nil || err2 != nil {
+				return fmt.Errorf("%s: %s schema: %w", id, side.name, errors.Join(err1, err2))
+			}
+			if !bytes.Equal(want, got) {
+				return fmt.Errorf("%s: %s schema differs from %s", id, side.name, m.AliasOf)
+			}
+		}
+	}
+	return nil
+}
+
+func bodySchema(spec *huma.OpenAPI, op *huma.Operation) (json.RawMessage, error) {
+	if op.RequestBody == nil {
+		return json.RawMessage("null"), nil
+	}
+	return resolvedContent(spec, op.RequestBody.Content)
+}
+
+// responseSchema is the schema of the lowest 2xx response.
+func responseSchema(spec *huma.OpenAPI, op *huma.Operation) (json.RawMessage, error) {
+	var codes []string
+	for c := range op.Responses {
+		if strings.HasPrefix(c, "2") {
+			codes = append(codes, c)
+		}
+	}
+	if len(codes) == 0 {
+		return json.RawMessage("null"), nil
+	}
+	sort.Strings(codes)
+	return resolvedContent(spec, op.Responses[codes[0]].Content)
+}
+
+func resolvedContent(spec *huma.OpenAPI, content map[string]*huma.MediaType) (json.RawMessage, error) {
+	if len(content) == 0 {
+		return json.RawMessage("null"), nil
+	}
+	types := make([]string, 0, len(content))
+	for t := range content {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	out := map[string]any{}
+	for _, t := range types {
+		raw, err := json.Marshal(content[t].Schema)
+		if err != nil {
+			return nil, err
+		}
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return nil, err
+		}
+		out[t] = derefSchema(spec, v, map[string]bool{})
+	}
+	return json.Marshal(out) // map keys are sorted, so the bytes are canonical
+}
+
+const schemaRefPrefix = "#/components/schemas/"
+
+// derefSchema replaces {"$ref": "#/components/schemas/X"} by X's definition,
+// recursively; a cycle keeps the reference name.
+func derefSchema(spec *huma.OpenAPI, v any, seen map[string]bool) any {
+	switch x := v.(type) {
+	case map[string]any:
+		if ref, ok := x["$ref"].(string); ok && strings.HasPrefix(ref, schemaRefPrefix) {
+			name := strings.TrimPrefix(ref, schemaRefPrefix)
+			def := spec.Components.Schemas.Map()[name]
+			if def == nil || seen[name] {
+				return map[string]any{"$cycle": name}
+			}
+			raw, _ := json.Marshal(def)
+			var dv any
+			_ = json.Unmarshal(raw, &dv)
+			seen[name] = true
+			r := derefSchema(spec, dv, seen)
+			delete(seen, name)
+			return r
+		}
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			if k == "$schema" {
+				continue
+			}
+			out[k] = derefSchema(spec, e, seen)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = derefSchema(spec, e, seen)
+		}
+		return out
+	}
+	return v
 }

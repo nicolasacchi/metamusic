@@ -98,6 +98,7 @@ type rigOpts struct {
 	maxBody int64
 	wrap    func(gate.Auditor) gate.Auditor // injectable audit sink
 	budget  time.Duration
+	extra   func(r *rig, a huma.API) // registers more operations (M3 tests)
 }
 
 func newRig(t *testing.T, o rigOpts) *rig {
@@ -190,6 +191,9 @@ func newRig(t *testing.T, o rigOpts) *rig {
 			return o, nil
 		})
 
+	if o.extra != nil {
+		o.extra(r, a)
+	}
 	var sink gate.Auditor = r.audit
 	if o.wrap != nil {
 		sink = o.wrap(r.audit)

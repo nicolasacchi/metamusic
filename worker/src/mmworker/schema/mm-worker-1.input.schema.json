@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.worker/1 job input",
+  "description": "The `input` of a RunPod job for the metamusic worker (C73.3). Mirrored by provider.ParseWorkerInput (Go) and mmworker.contract.parse_input (Python); tests keep the three in agreement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "take_id",
+    "attempt_id",
+    "engine",
+    "request",
+    "timeout_s",
+    "upload_budget_s",
+    "deadline_unix",
+    "start",
+    "uploads",
+    "expect"
+  ],
+  "properties": {
+    "contract": {
+      "const": "mm.worker/1"
+    },
+    "take_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "engine": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "request": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "timeout_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "upload_budget_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "deadline_unix": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://[^\\s]+$",
+          "maxLength": 2048
+        }
+      }
+    },
+    "uploads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audio.flac",
+        "request.json",
+        "config.json",
+        "result.json",
+        "mm-result.json"
+      ],
+      "properties": {
+        "audio.flac": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 167772160
+            }
+          }
+        },
+        "request.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "config.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "score.abc": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            }
+          }
+        },
+        "plan.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "plan_manifest.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "abc_tokens.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            }
+          }
+        },
+        "prefix.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            }
+          }
+        },
+        "semantic.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            }
+          }
+        },
+        "mm-result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65536
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weights"
+      ],
+      "properties": {
+        "weights": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    }
+  }
+}

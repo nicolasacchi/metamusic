@@ -1,0 +1,108 @@
+{
+  "format": [
+    {
+      "micro": 0,
+      "display": "$0.00",
+      "display_ceil": "$0.00",
+      "usd": "0"
+    },
+    {
+      "micro": 1,
+      "display": "$0.0000",
+      "display_ceil": "$0.0001",
+      "usd": "0.000001"
+    },
+    {
+      "micro": 5800,
+      "display": "$0.0058",
+      "display_ceil": "$0.0058",
+      "usd": "0.0058"
+    },
+    {
+      "micro": 5801,
+      "display": "$0.0058",
+      "display_ceil": "$0.0059",
+      "usd": "0.005801"
+    },
+    {
+      "micro": 10000,
+      "display": "$0.01",
+      "display_ceil": "$0.01",
+      "usd": "0.01"
+    },
+    {
+      "micro": 324999,
+      "display": "$0.32",
+      "display_ceil": "$0.33",
+      "usd": "0.324999"
+    },
+    {
+      "micro": 326217,
+      "display": "$0.33",
+      "display_ceil": "$0.33",
+      "usd": "0.326217"
+    },
+    {
+      "micro": 500000,
+      "display": "$0.50",
+      "display_ceil": "$0.50",
+      "usd": "0.5"
+    },
+    {
+      "micro": 690000,
+      "display": "$0.69",
+      "display_ceil": "$0.69",
+      "usd": "0.69"
+    },
+    {
+      "micro": 691731,
+      "display": "$0.69",
+      "display_ceil": "$0.70",
+      "usd": "0.691731"
+    },
+    {
+      "micro": 12000000,
+      "display": "$12.00",
+      "display_ceil": "$12.00",
+      "usd": "12"
+    }
+  ],
+  "parse": [
+    {
+      "in": "0",
+      "micro": 0
+    },
+    {
+      "in": "0.50",
+      "micro": 500000
+    },
+    {
+      "in": "0.69",
+      "micro": 690000
+    },
+    {
+      "in": "12",
+      "micro": 12000000
+    },
+    {
+      "in": "0.000001",
+      "micro": 1
+    },
+    {
+      "in": "-1",
+      "micro": null
+    },
+    {
+      "in": "abc",
+      "micro": null
+    },
+    {
+      "in": "",
+      "micro": null
+    },
+    {
+      "in": "1.2.3",
+      "micro": null
+    }
+  ]
+}

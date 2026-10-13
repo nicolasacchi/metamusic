@@ -184,6 +184,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerPairedDevices(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
+	ValidateAliases(a)
 	return a
 }
 

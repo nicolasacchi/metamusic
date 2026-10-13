@@ -73,6 +73,18 @@ func TestRegisterPanics(t *testing.T) {
 			m.HumanOnly, m.UI, m.MCP, m.Idempotency, m.SecretFields = true, "none:x", "exclude:human-only", "create", []string{"Token"}
 		}},
 		{"human path not human only", func(o *huma.Operation) { o.Path = "/human/api/x" }, nil},
+		// M3 C80
+		{"spend without create", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Scope = "spend", auth.ScopeGenerate }},
+		{"spend on GET", nil, func(m *api.Meta) { m.Cost, m.Scope = "spend", auth.ScopeGenerate }},
+		{"spend without generate scope", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Idempotency = "spend", "create" }},
+		{"approve without human-only", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Scope = "approve", auth.ScopeAdmin }},
+		{"alias without human-only", nil, func(m *api.Meta) { m.AliasOf = "do_thing" }},
+		{"alias human-only but tool", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.AliasOf = true, "none:x", "exclude:other", "do_thing"
+		}},
+		{"alias bad target id", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.AliasOf = true, "none:x", "exclude:human-only", "Do-Thing"
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -308,4 +320,15 @@ func TestAuthorize_Exported(t *testing.T) {
 			t.Errorf("%s: err = %v, want code %s", tc.name, err, tc.code)
 		}
 	}
+}
+
+func TestRegisterSpendAndApproveOK(t *testing.T) {
+	t.Parallel()
+	a := newAPI()
+	op := goodOp()
+	op.OperationID, op.Method, op.Path = "spend_thing", "POST", "/api/spend"
+	api.Register(a, op, api.Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", UI: "none:x", Idempotency: "create"}, h)
+	hop := goodOp()
+	hop.OperationID, hop.Method, hop.Path = "approve_thing", "POST", "/human/api/approve"
+	api.Register(a, hop, api.Meta{Scope: auth.ScopeAdmin, Cost: "approve", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true}, h)
 }

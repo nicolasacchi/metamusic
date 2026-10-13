@@ -26,6 +26,8 @@ func TestNoTestHelpersInBinary(t *testing.T) {
 		modulePath + "internal/media/clip/cliptest": true,
 		modulePath + "internal/duels/duelstest":     true,
 		modulePath + "internal/ears/earstest":       true,
+		// M3 (C68)
+		modulePath + "internal/clock/clocktest": true,
 	}
 	// Forbidden import edges (C43), asserted from the same `go list -deps` output: pairs of module-relative
 	// package prefixes, from -> to. A prefix ending in "/" matches the whole subtree.
