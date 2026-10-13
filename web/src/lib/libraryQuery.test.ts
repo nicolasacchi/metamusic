@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createApi } from "../api/client";
-import { defaultFilters, parseFilters, toApiQuery, toSearch, type Status } from "./libraryQuery";
+import { defaultFilters, isDirty, parseFilters, toApiQuery, toSearch, type Status } from "./libraryQuery";
 
 describe("libraryQuery", () => {
   test("defaults are omitted", () => {
@@ -103,5 +103,34 @@ describe("libraryQuery judging filters", () => {
   });
   test("tags are deduplicated", () => {
     expect(parseFilters("?tag=a&tag=a&tag=b").tag).toEqual(["a", "b"]);
+  });
+});
+
+describe("libraryQuery (M2c)", () => {
+  test("recipe_known and lossy round-trip", () => {
+    const f = parseFilters("?recipe_known=false&lossy=true");
+    expect(f.recipeKnown).toBe(false);
+    expect(f.lossy).toBe(true);
+    expect(toSearch(f)).toBe("?recipe_known=false&lossy=true");
+    expect(toApiQuery(f)).toEqual({ recipe_known: false, lossy: true });
+    expect(parseFilters(toSearch(f))).toEqual(f);
+    const k = parseFilters("?recipe_known=true&lossy=false");
+    expect([k.recipeKnown, k.lossy]).toEqual([true, false]);
+    expect(toApiQuery(k)).toEqual({ recipe_known: true, lossy: false });
+  });
+
+  test("absent and invalid values are null", () => {
+    expect([defaultFilters().recipeKnown, defaultFilters().lossy]).toEqual([null, null]);
+    const f = parseFilters("?recipe_known=maybe&lossy=1");
+    expect([f.recipeKnown, f.lossy]).toEqual([null, null]);
+    expect(toSearch(f)).toBe("");
+    expect(toApiQuery(f)).toEqual({});
+  });
+
+  test("isDirty counts the two new filters", () => {
+    expect(isDirty(defaultFilters())).toBe(false);
+    expect(isDirty({ ...defaultFilters(), recipeKnown: false })).toBe(true);
+    expect(isDirty({ ...defaultFilters(), lossy: false })).toBe(true);
+    expect(isDirty({ ...defaultFilters(), hasScore: true })).toBe(true);
   });
 });

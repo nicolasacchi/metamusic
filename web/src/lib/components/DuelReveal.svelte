@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
+  import TrackBadges from "./TrackBadges.svelte";
 
   type Duel = components["schemas"]["Duel"];
   interface Props {
@@ -18,6 +19,8 @@
         title: s.track?.title ?? null,
         seed: s.track?.seed ?? null,
         trackId: s.track?.id ?? null,
+        recipeKnown: s.track?.recipe_known ?? true,
+        lossy: s.track?.lossy ?? false,
         gain: s.gain_db,
         lufs: s.window_lufs,
         won: winner !== null && s.track?.id === winner,
@@ -45,7 +48,7 @@
       {#each rows as r (r.key)}
         <tr class:won={r.won}>
           <td>{r.key.toUpperCase()}{r.won ? " ★" : ""}</td>
-          <td>{#if r.trackId}<a href="/tracks/{r.trackId}">{r.title}</a>{:else}hidden{/if}</td>
+          <td>{#if r.trackId}<a href="/tracks/{r.trackId}">{r.title}</a> <TrackBadges recipeKnown={r.recipeKnown} lossy={r.lossy} />{:else}hidden{/if}</td>
           <td>{r.seed ?? "–"}</td>
           <td>{r.gain === null ? "–" : `${r.gain.toFixed(1)} dB`}</td>
           <td>{r.lufs === null ? "–" : `${r.lufs.toFixed(1)} LUFS`}</td>
