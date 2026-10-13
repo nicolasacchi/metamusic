@@ -3,7 +3,7 @@
 #        scripts/coverage-gate.sh [--thresholds FILE] --profile <textfmt-file>
 # Merges Go binary coverage data dirs (unit + e2e) with `go tool covdata textfmt`, computes
 # statement coverage per package from the merged profile and enforces coverage.thresholds.
-# Only packages under internal/ are measured. Exit: 0 ok, 1 below threshold, 2 usage/config error.
+# Only packages under internal/ are measured. Exit: 0 ok, 1 below threshold, 2 usage/config error, 4 stale covdata (see D.stamp).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 thresholds="$root/coverage.thresholds"
@@ -43,6 +43,23 @@ while IFS= read -r line || [ -n "$line" ]; do
   n=$((n + 1))
 done <"$thresholds"
 [ "$n" -gt 0 ] || die "no thresholds in $thresholds"
+
+# --- staleness: a covdata dir D with a sibling D.stamp (written by `make e2e`) was built from the
+# sources hashed in it; if the sources changed since, its blocks are for code that no longer exists
+# and would be counted as uncovered. No stamp (CI artifacts, fresh checkouts) => no check.
+# COVERAGE_SOURCE_STAMP overrides the current hash (selftest).
+if [ -z "$profile" ]; then
+  now=""
+  for d in "${dirs[@]}"; do
+    [ -f "${d%/}.stamp" ] || continue
+    built=$(tr -d '[:space:]' <"${d%/}.stamp")
+    [ -n "$now" ] || now=${COVERAGE_SOURCE_STAMP:-$("$root/scripts/source-stamp.sh")}
+    if [ "$built" != "$now" ]; then
+      echo "coverage-gate: $d is stale (built from $built, sources now $now): run make e2e" >&2
+      exit 4
+    fi
+  done
+fi
 
 # --- build the merged profile
 if [ -z "$profile" ]; then

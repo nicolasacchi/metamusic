@@ -57,7 +57,8 @@ _check:
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh
 
-# Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e` ran;
+# Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e` ran
+# (refused as stale if sources changed since: covdata/e2e.stamp);
 # scripts/coverage-gate.sh enforces coverage.thresholds (C23).
 cover:
 	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'

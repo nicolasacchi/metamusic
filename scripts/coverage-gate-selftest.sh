@@ -72,4 +72,18 @@ expect_reject 'internal/nosuchpkg 10'
 # the missing-profile and unknown-flag cases are usage errors
 rc=0; "$gate" --bogus >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "unknown flag: want 2, got $rc"
+# stale covdata: a dir whose sibling .stamp differs from the current sources is refused (exit 4)
+mkdir -p "$tmp/cov/e2e"
+echo aaaaaaaaaaaa >"$tmp/cov/e2e.stamp"
+rc=0; out=$(COVERAGE_SOURCE_STAMP=bbbbbbbbbbbb "$gate" --thresholds "$tmp/th" "$tmp/cov/e2e" 2>&1) || rc=$?
+[ "$rc" = 4 ] || fail "stale covdata: want exit 4, got $rc: $out"
+grep -q 'is stale (built from aaaaaaaaaaaa, sources now bbbbbbbbbbbb): run make e2e' <<<"$out" || fail "stale message: $out"
+# matching stamp, or no stamp at all (CI artifact): not refused as stale
+rc=0; out=$(COVERAGE_SOURCE_STAMP=aaaaaaaaaaaa "$gate" --thresholds "$tmp/th" "$tmp/cov/e2e" 2>&1) || rc=$?
+[ "$rc" != 4 ] || fail "matching stamp refused as stale: $out"
+rm "$tmp/cov/e2e.stamp"
+rc=0; out=$(COVERAGE_SOURCE_STAMP=bbbbbbbbbbbb "$gate" --thresholds "$tmp/th" "$tmp/cov/e2e" 2>&1) || rc=$?
+[ "$rc" != 4 ] || fail "unstamped dir refused as stale: $out"
+# --profile is never stamp-checked
+COVERAGE_SOURCE_STAMP=x "$gate" --profile "$tmp/high.txt" --thresholds "$tmp/th" >/dev/null 2>&1 || fail "profile mode should skip the stamp check"
 echo "coverage-gate-selftest: ok"
