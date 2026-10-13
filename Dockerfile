@@ -30,19 +30,20 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM alpine:3.24
 RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
- && adduser -D -u 1000 -h /data metamusic \
- && mkdir -p /data && chown 1000:1000 /data
+ && adduser -D -u 1000 -h /state metamusic \
+ && mkdir -p /state/data /state/backup && chown -R 1000:1000 /state
 # Fail the build if the media tools lack what the import/serve pipeline needs (C-media tooling).
 RUN ffmpeg -hide_banner -filters | grep -q ' ebur128 ' \
  && ffmpeg -hide_banner -encoders | grep -q libmp3lame \
  && metaflac --version
 COPY --from=build /out/metamusic /usr/local/bin/metamusic
+# One parent volume holds data/ and backup/ so snapshots can hardlink masters (same filesystem).
 # MM_PUBLIC_URL must be set at run time to the externally visible URL (it feeds the MCP
 # WWW-Authenticate metadata URL and the Secure-cookie decision). Secrets: /run/secrets.
-ENV MM_ADDR=0.0.0.0:8080 MM_DATA_DIR=/data MM_SECRETS_DIR=/run/secrets
+ENV MM_ADDR=0.0.0.0:8080 MM_DATA_DIR=/state/data MM_BACKUP_DIR=/state/backup MM_SECRETS_DIR=/run/secrets
 USER 1000:1000
-WORKDIR /data
-VOLUME /data
+WORKDIR /state/data
+VOLUME /state
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD ["metamusic", "healthcheck"]

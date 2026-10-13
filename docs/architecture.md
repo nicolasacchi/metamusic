@@ -58,6 +58,24 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
 - **Edge**: the reverse-proxy routing contract (media, agent, bearer-API and UI routers, identity
   header stripping) is documented in `deploy/labels.example.yml` and tested by `make routing`.
 
+## Judging, editing and parity (M2a)
+
+- **Judgments**: ratings, comments (with optional timestamps), listen events and track context are
+  registry operations like everything else. Human and agent ratings are stored separately and never
+  overwrite each other.
+- **Drafts and exports**: drafts are revisioned; `songs.jsonl` and playlist exports are
+  reproducible artifacts under `derived/exports/`, never backed up and swept after seven days.
+- **Devices**: a phone is paired once with a short code from `/human/devices`; the resulting
+  device cookie is scoped to UI paths and revocable. Human-only pages still require the full
+  sign-in.
+- **Safety rails**: in-memory per-principal rate limits, an append-only audit log (principal,
+  transport, operation), idempotency keys on create operations, and a gate that enforces
+  scope, step-up and human-only rules for every face.
+- **Backup**: a daily (and on-demand) snapshot holds a verified database copy, hardlinked or copied
+  media, import mappings and a `songs.jsonl` export, written atomically with a manifest; restore is
+  CLI-only and re-verifies every hash. Data and backup directories live on one volume.
+- **Notifications**: optional ntfy messages for backup failures, device pairing and token creation.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.
@@ -66,7 +84,8 @@ Rendering runs on a RunPod Serverless endpoint; the server submits jobs and inge
 
 `make check` (format, vet, lint, race tests, web checks), `make e2e` (Playwright on chrome and
 firefox against a coverage-instrumented binary) and `make gate` (privacy gate) mirror the CI jobs
-`go`, `lint`, `web`, `e2e` and `gate`. The release image is a multi-stage Docker build running as
+`go`, `lint`, `web`, `e2e` and `gate`. The E2E teardown fails the job if a secret-shaped value
+appeared in any served response; no HAR files are recorded or uploaded. The release image is a multi-stage Docker build running as
 a non-root user.
 
 See [plans/2026-10-12-roadmap.md](plans/2026-10-12-roadmap.md) for milestones.

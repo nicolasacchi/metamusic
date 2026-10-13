@@ -33,7 +33,8 @@ Every `make` build/test target runs through `scripts/loop`, which appends a metr
 docker compose -f deploy/compose.example.yml up --build
 ```
 
-Container defaults: `MM_ADDR=0.0.0.0:8080`, `MM_DATA_DIR=/data`, secrets under `/run/secrets`
+Container defaults: `MM_ADDR=0.0.0.0:8080`, `MM_DATA_DIR=/state/data`, `MM_BACKUP_DIR=/state/backup`
+(both under the single `/state` volume so backups can hardlink), secrets under `/run/secrets`
 (`MM_SECRETS_DIR`). Set `MM_PUBLIC_URL` to the externally visible URL (for example
 `https://mm.example.com`). Put a TLS-terminating reverse proxy in front for real use.
 
@@ -49,9 +50,38 @@ metamusic import --plan <data>/import/reports/<report>.json
 ```
 
 In Docker: `docker compose -f deploy/compose.example.yml exec metamusic metamusic import --dry-run`
-(the inbox is bind-mounted read-only at `/data/inbox`; files must be readable by uid 1000).
+(the inbox is bind-mounted read-only at `/state/data/inbox`; files must be readable by uid 1000).
 Exit codes: 0 success (warnings allowed), 1 per-file errors, 2 usage/fatal, 3 plan changed,
 4 import already running.
+
+## Connecting an agent
+
+Mint a token on `/human/tokens` (a human-only page) and give it the scopes you want to allow.
+The secret is shown once.
+
+Claude Code over HTTP:
+
+```bash
+claude mcp add --transport http metamusic https://mm.example.com/mcp \
+  --header "Authorization: Bearer $MM_TOKEN"
+```
+
+Over stdio (no network listener; uses the local data directory, no `MM_AUTH` needed):
+
+```bash
+MM_TOKEN=mmp_... MM_DATA_DIR=./data/dev metamusic mcp-stdio
+```
+
+## Export, backup and restore
+
+```bash
+metamusic export --help                       # songs.jsonl / playlist exports from the CLI
+metamusic backup                              # one complete snapshot under MM_BACKUP_DIR
+metamusic restore --from <backup>/<snapshot> --into <new-data-dir>
+```
+
+Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an agent. See
+`docs/runbook.md` for the restore drill and what snapshots do and do not protect.
 
 ## Configuration
 
@@ -64,6 +94,11 @@ Exit codes: 0 success (warnings allowed), 1 per-file errors, 2 usage/fatal, 3 pl
 | `MM_PUBLIC_URL` | Externally visible base URL. |
 | `MM_TRUSTED_PROXY` | Comma-separated CIDRs allowed to assert `Remote-User` (proxy mode). |
 | `MM_TRUSTED_USERS` | The single allow-listed user for proxy mode. |
+| `MM_BACKUP_DIR` | Backup snapshot directory (default: `backup` next to `MM_DATA_DIR`; must not be inside it). |
+| `MM_BACKUP_AT` | Daily snapshot time `HH:MM` in the process time zone (default `03:30`), or `off`. |
+| `MM_NTFY_URL` | Optional ntfy topic URL for notifications; `https://` unless the host is loopback, no credentials or query. Optional secret file `ntfy_token` holds the publisher token. |
+| `MM_RATE_SCALE` | Multiplier (1..1000, default 1) for every rate limit; used by the E2E setup. |
+| `MM_TOKEN` | Access token for `metamusic mcp-stdio`. |
 | `MM_INBOX` | Read-only directory scanned by `metamusic import` (default `<MM_DATA_DIR>/inbox`). |
 | `MM_FFMPEG` | ffmpeg binary (default `ffmpeg`, resolved on `PATH`). |
 | `MM_FLAC` | flac binary (default `flac`). |

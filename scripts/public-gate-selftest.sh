@@ -275,6 +275,19 @@ printf '.gitleaksignore\n' > /dev/null; echo "x" > .gitleaksignore; git add -f .
 expect ".gitleaksignore blocked" 1 --staged
 reset
 
+# default local BackupDir (root-anchored backup/) must never be committed; internal/backup/ is fine
+mkdir -p backup; echo x > backup/x; git add -f backup/x
+expect "staged backup/x blocked" 1 --staged
+contains "staged backup/x reason" "forbidden path: backup/x"
+reset
+mkdir -p internal/backup; echo 'package backup' > internal/backup/x.go; git add internal/backup/x.go
+expect "staged internal/backup/x.go allowed" 0 --staged
+reset
+cp "$root/.gitignore" .gitignore; mkdir -p backup internal/backup; echo x > backup/x; echo x > internal/backup/x.go
+if git check-ignore -q backup/x; then echo "ok:   backup/x ignored"; else echo "FAIL: backup/x not ignored"; fail=1; fi
+if git check-ignore -q internal/backup/x.go; then echo "FAIL: internal/backup/x.go ignored"; fail=1; else echo "ok:   internal/backup/x.go not ignored"; fi
+reset
+
 # renamed forbidden types and encodings
 printf '%%PDF-1.4\nhello\n' > lyrics.txt; git add lyrics.txt
 expect "renamed pdf blocked" 1 --staged

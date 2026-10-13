@@ -34,4 +34,13 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M1-5 forward-auth session expiry while playing: audio continues; the "sign in again" banner appears; no automatic reload while playing; tapping the banner reloads into login. Airplane mode toggled while playing: no reload, only the offline notice
 - [ ] DC-M1-6 device probe: the first Play tap runs it; Settings shows `ok` on both phones (an `inconclusive` result is recorded as such and never downgrades); `crossorigin="use-credentials"` manifest variant tried
 
+## M2a (judge, edit, parity)
+- [ ] DC-M2a-1 iPhone, installed PWA (standalone): launch => `/start` chooser => pair with a code typed from `/human/devices` on the desktop => library, playback, rating and comments work without SSO
+- [ ] DC-M2a-2 the paired device survives a 13 h gap: open the app after >= 13 h => still signed in, no SSO prompt, playback starts
+- [ ] DC-M2a-3 Android: scan the QR in the camera => Chrome pairs => the installed PWA is paired too (shared jar); record the result
+- [ ] DC-M2a-4 while playing on the phone, "comment here" then tap the timestamp => the player jumps
+- [ ] DC-M2a-5 airplane mode while playing => reconnect => the listen events appear in the track context
+- [ ] DC-M2a-6 playlist ZIP downloads on the phone; the MP3s show their current titles in the Files app
+- [ ] DC-M2a-7 revoking the device on the desktop => the phone shows the `/start` chooser on its next request
+
 ## Notes
