@@ -20,6 +20,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -27,9 +28,11 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
 // Sentinels for the three kinds of private reference values (C16.9).
@@ -107,6 +110,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 	judg := judgments.New(e.st, lib, now, func() string { return "privacy-id" })
 	pls := playlists.New(e.st, lib, now, func() string { return "privacy-pl" })
 	signer := serve.NewSigner(key, now)
+	listen := listening.New(e.st, now)
 	bak := backup.New(backup.Options{Store: e.st, DataDir: e.dataDir, BackupDir: filepath.Join(t.TempDir(), "backup"), Now: now})
 	t.Cleanup(func() { _ = bak.Close(context.Background()) })
 	h, err := httpserver.New(httpserver.Options{
@@ -114,8 +118,10 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Sessions: auth.NewLocalAuth(e.st, key, cfg.PublicURL), SPA: fstest.MapFS{"index.html": {Data: []byte("x")}},
 		Version: "v-test", Commit: "abc", Started: e.now.Add(-time.Hour),
 		Library: lib, Judgments: judg, Signer: signer, Now: now, Playlists: pls, Backups: bak,
-		Exports: exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
-		Probe:   &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
+		Exports:   exports.New(exports.Options{Store: e.st, Data: e.data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now}),
+		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return "privacy-audit" }),
+		DeviceStore: auth.NewDeviceStore(e.st, key, now, func() string { return "privacy-device" }),
+		Probe:       &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {
 			r.api = a
 			s, err := mcpgen.NewServer(a, inner, "v-test")

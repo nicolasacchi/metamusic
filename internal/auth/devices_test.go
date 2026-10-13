@@ -18,13 +18,6 @@ func TestDeviceStore_NilReceiver(t *testing.T) {
 	}
 }
 
-func TestDeviceStore_StubsAreMarked(t *testing.T) {
-	d := NewDeviceStore(nil, []byte("k"), nil, func() string { return "id" })
-	if _, _, err := d.CreatePairingCode(context.Background(), Principal{Kind: KindHuman}, "Phone"); !errors.Is(err, errors.ErrUnsupported) {
-		t.Fatalf("CreatePairingCode = %v, want ErrUnsupported until M2a-B9", err)
-	}
-}
-
 // TestMiddleware_NilDevices: the device verifier is optional.
 func TestMiddleware_NilDevices(t *testing.T) {
 	h := Middleware(config.Config{AuthMode: "proxy"}, config.Secrets{}, fakeTokens{}, fakeSessions{}, nil)(http.NotFoundHandler())
@@ -32,13 +25,5 @@ func TestMiddleware_NilDevices(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/ping", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rec.Code)
-	}
-}
-
-func TestPairingHandler_Stub(t *testing.T) {
-	rec := httptest.NewRecorder()
-	PairingHandler(PairingOptions{}).ServeHTTP(rec, httptest.NewRequest("GET", "/start", nil))
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501 until M2a-B9", rec.Code)
 	}
 }

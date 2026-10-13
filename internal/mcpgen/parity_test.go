@@ -155,12 +155,6 @@ var parityCases = []ParityCase{
 // three faces must answer the same 501 NOT_IMPLEMENTED. Each owning task
 // replaces its entries with real cases.
 var stubCases = []ParityCase{
-	{Op: "get_track_context", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 501},
-	{Op: "log_listen_events", Args: fixedArgs(map[string]any{"events": []map[string]any{{
-		"id": "01900000-0000-7000-8000-0000000000a1", "track_id": lt.TrackLuna, "session_id": "s1", "kind": "start", "client_at": "2026-10-06T11:59:00Z"}}}), Status: 501},
-	{Op: "get_audit", Args: fixedArgs(map[string]any{"limit": 10}), Status: 501},
-	{Op: "list_tokens", Status: 501},
-	{Op: "revoke_own_token", Status: 501},
 }
 
 // judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn
