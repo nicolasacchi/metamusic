@@ -1354,6 +1354,9 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
   1 h-bucket lifetime to `Principal.ActsAsHuman()` (human and paired device).
 - Resolution: `flac` ⇒ `tracks.master_sha256`; `mp3` ⇒ `renditions(kind='mp3_320').sha256`; the probe
   object (registered at startup) by its sha.
+- **M2a-B6 addendum:** the path regex accepts `ext ∈ {flac, mp3, jsonl, zip}` (`jsonl` ⇒ `application/x-ndjson`,
+  `zip` ⇒ `application/zip`, both resolved by `exports.Resolve`); a non-empty `Object.DownloadName` (ASCII
+  `[a-z0-9._-]`) adds `Content-Disposition: attachment; filename="<name>"`; library objects send none.
 
 ### C19. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case)
 
