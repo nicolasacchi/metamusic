@@ -56,9 +56,10 @@ export function describeConfirmFailure(f: Extract<ConfirmOutcome, { kind: "faile
   const d = f.details;
   if (f.status === 402) {
     const parts = [`Over budget: the ${typeof d.cap === "string" ? d.cap : "spend"} cap would be exceeded.`];
-    const limit = micro(d.limit);
-    const used = micro(d.used);
-    const req = typeof d.requested === "number" && Number.isFinite(d.requested) ? formatMicroUSDCeil(d.requested) : null;
+    const limit = micro(d.limit_micro_usd ?? d.limit);
+    const used = micro(d.used_micro_usd ?? d.used);
+    const reqRaw = d.requested_micro_usd ?? d.requested;
+    const req = typeof reqRaw === "number" && Number.isFinite(reqRaw) ? formatMicroUSDCeil(reqRaw) : null;
     if (limit) parts.push(`Cap ${limit}.`);
     if (used) parts.push(`Used ${used}.`);
     if (req) parts.push(`This batch needs up to ${req}.`);

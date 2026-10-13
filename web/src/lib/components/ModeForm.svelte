@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import { api } from "../../api/client";
   import type { components } from "../../api/schema";
-  import { debounced, emptyForm, lintForm, toRequest, type DraftForm } from "../draftForm";
+  import { debounced, emptyForm, formFromRequest, lintForm, toRequest, type DraftForm } from "../draftForm";
   import { isVariantMode, parseSeeds, type GenerationIntent, type VariantMode } from "../genIntent";
   import LintPanel from "./LintPanel.svelte";
 
@@ -29,7 +29,7 @@
   /* svelte-ignore state_referenced_locally */
   let templateMode = $state<VariantMode>(intent.template_mode ?? "style_edit");
   /* svelte-ignore state_referenced_locally */
-  let recipe = $state<DraftForm>(intent.recipe ? { ...emptyForm(), id: String(intent.recipe.id ?? ""), style: String(intent.recipe.style ?? ""), lyrics: String(intent.recipe.lyrics ?? ""), cot: String(intent.recipe.cot ?? ""), seed: String(intent.recipe.seed ?? "0") } : emptyForm());
+  let recipe = $state<DraftForm>(intent.recipe ? formFromRequest(intent.recipe as Parameters<typeof formFromRequest>[0]) : emptyForm());
   let lint = $state<Lint | null>(null);
   let lintBusy = $state(false);
   let error = $state("");

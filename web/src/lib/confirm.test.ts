@@ -88,7 +88,7 @@ describe("confirm action", () => {
   });
 
   test("402 renders the cap details", async () => {
-    const { api } = rig(() => problem(402, "BUDGET_EXCEEDED", { cap: "monthly", limit: 20000000, used: 19900000, requested: 691731 }));
+    const { api } = rig(() => problem(402, "BUDGET_EXCEEDED", { cap: "monthly", limit_micro_usd: 20000000, limit_usd: "20", used_micro_usd: 19900000, used_usd: "19.9", requested_micro_usd: 691731, requested_usd: "0.691731" }));
     const r = await createConfirmAction(api, "t", "")();
     expect(r.kind).toBe("failed");
     const v = describeConfirmFailure(r as never);

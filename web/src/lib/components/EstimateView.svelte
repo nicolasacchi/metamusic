@@ -36,8 +36,8 @@
   {/if}
 
   <h3>Budget</h3>
-  <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} reserved={0} cap={e.budget.month.cap_micro_usd} />
-  <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} reserved={0} cap={e.budget.day.cap_micro_usd} />
+  <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
+  <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
   <p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>
 
   {#if e.requires_human_approval}
