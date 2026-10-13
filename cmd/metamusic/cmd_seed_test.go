@@ -38,8 +38,20 @@ func TestSeedSynthetic_E2EProfile(t *testing.T) {
 		}
 	}
 	got := counts()
-	if got != [5]int{19, 6, 19, 13, 1} {
+	if got != [5]int{22, 9, 22, 13, 1} {
 		t.Fatalf("recipes/tracks/drafts/backlog/runs = %v", got)
+	}
+	// Tier A ran after the import: every track has its analyses and a spectrogram
+	for _, an := range []string{"silence", "clipping"} {
+		if n := dbRow(t, env, `SELECT count(*) FROM analyses WHERE analyzer=? AND tier='A'`, an); n != 9 {
+			t.Errorf("%s analyses = %d, want 9", an, n)
+		}
+	}
+	if n := dbRow(t, env, `SELECT count(*) FROM renditions WHERE kind='spectrogram'`); n != 9 {
+		t.Errorf("spectrograms = %d, want 9", n)
+	}
+	if !strings.Contains(out, "Tier A: 9 tracks, 9 analysed, 0 failed") {
+		t.Errorf("no Tier A summary line:\n%s", out)
 	}
 	if n := dbRow(t, env, `SELECT count(*) FROM import_runs WHERE principal='seed-synthetic' AND inbox_label='synthetic'`); n != 1 {
 		t.Errorf("seed run principal/label wrong")
@@ -102,7 +114,7 @@ func TestSeedSynthetic_Guard(t *testing.T) {
 		if code, out, errs := do(t, env, "", "seed-synthetic", "--profile", "dev", "--force"); code != 0 {
 			t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 		}
-		if n := dbRow(t, env, `SELECT count(*) FROM tracks`); n != 6 {
+		if n := dbRow(t, env, `SELECT count(*) FROM tracks`); n != 9 {
 			t.Errorf("tracks = %d", n)
 		}
 	})
@@ -152,7 +164,7 @@ func TestDev_SeedsOnlyWhenEmpty(t *testing.T) {
 	}
 	// with the flag an empty library is seeded
 	addr, _, stop := startDev(t, env, "--data-dir", dir, "--seed-synthetic")
-	if n := dbRow(t, dbEnv, `SELECT count(*) FROM tracks`); n != 6 {
+	if n := dbRow(t, dbEnv, `SELECT count(*) FROM tracks`); n != 9 {
 		t.Errorf("tracks = %d", n)
 	}
 	// the probe is wired: serve() ensured the probe file and the media handler serves it
@@ -170,7 +182,7 @@ func TestDev_SeedsOnlyWhenEmpty(t *testing.T) {
 	// a second start with the flag leaves a non-empty library alone
 	_, out, stop := startDev(t, env, "--data-dir", dir, "--seed-synthetic")
 	stop()
-	if n := dbRow(t, dbEnv, `SELECT count(*) FROM tracks`); n != 6 {
+	if n := dbRow(t, dbEnv, `SELECT count(*) FROM tracks`); n != 9 {
 		t.Errorf("second start: tracks = %d", n)
 	}
 	if n := dbRow(t, dbEnv, `SELECT count(*) FROM import_runs`); n != runs {

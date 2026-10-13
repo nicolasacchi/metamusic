@@ -675,7 +675,7 @@ func TestNoSecretLeak(t *testing.T) {
 	all4 := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
 
 	// ---- proxy-mode rig: REST (human, device, agent), MCP over HTTP, pairing ----
-	r := servertest.New(t, servertest.Options{Canary: true, Archive: &tpl})
+	r := servertest.New(t, servertest.Options{Canary: true, Archive: &tpl, M2b: servertest.M2bOptions{Media: true, Backfill: true}})
 	human := r.Human(t)
 	clients := []leakClient{{name: "human", c: human}}
 	trackID, timedID := track(t, human, false), track(t, human, true)
@@ -811,7 +811,8 @@ func TestNoSecretLeak(t *testing.T) {
 	c.run("", "validate-batch", filepath.Join(exportDir, "songs.jsonl"))
 	c.run("", "backup")
 	c.run("", "backup", "list")
-	c.run("", "analyze", "--dry-run") // M2b: the Tier A command's output is scanned too
+	c.run("", "analyze", "--dry-run")             // M2b: the Tier A command's output is scanned too
+	c.run("", "analyze", "--jobs", "2", "--json") // runs Tier A for real; its output and its cli:analyze audit row are scanned
 	blocker := filepath.Join(t.TempDir(), "blocker")
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)

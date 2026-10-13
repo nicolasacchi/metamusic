@@ -75,6 +75,10 @@ type Services struct {
 	Clips *clip.Service
 	Duels *duels.Service
 	Ears  *ears.Service
+
+	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
+	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
+	ClipsMissing, TierAMissing error
 }
 
 // Build constructs the services over st and data. Every store and service
@@ -142,6 +146,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 	ds = duels.New(duels.Options{Store: st, Library: lib, Clips: renderer, Signer: signer, Now: now, NewID: newID, Rand: o.SlotCoin})
 	media.Ears.UseJudgments(ds)
+	ctxb.UseM2b(media.Ears, ds) // perception from Ears, ladders from duels (C51.8)
 	resolvers := []mediaserve.Resolver{lib, exp}
 	if media.Clips != nil {
 		resolvers = append(resolvers, media.Clips)
@@ -159,6 +164,9 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Clips:   media.Clips,
 		Duels:   ds,
 		Ears:    media.Ears,
+
+		ClipsMissing: media.ClipsMissing,
+		TierAMissing: media.TierAMissing,
 	}
 	s.Deps = api.Deps{
 		Store: st, Tokens: tokens, Cfg: cfg, Version: o.Version, Commit: o.Commit, Started: now(),

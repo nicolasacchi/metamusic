@@ -1499,6 +1499,13 @@ parse as snapshot names (`<yyyymmddThhmmssZ>` with an optional `-N`) are ever to
 
 ### C35. The `/context` bundle (`internal/trackctx`)
 
+> M2b-B3 amendment (C51.8): `perception` is built by `ears.Perception` (same keys and order; `tier`, `flags` and
+> `blind_spots` now come from Ears, so `blind_spots` grows by the Tier A, score-adherence and section-timing
+> entries); `judgments.ladder` is `{u, sd, n_duels}` and `lineage.children[].ladder` is `{u, sd}` from the
+> human-only global fit (`null` without counted duels); `_links` gains `spectrogram` after `stream`
+> (`null` without a rendition). `trackctx.Builder.UseM2b` wires both sources; `trackctx` no longer computes
+> perception itself.
+
 ```go
 func New(lib *library.Service, j *judgments.Service, l *listening.Service, signer *serve.Signer, publicURL string, now func() time.Time) *Builder
 func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, include []string) (Bundle, error)
@@ -1991,6 +1998,9 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
 > M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
 > `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:
 > `media/clip/cliptest`, `duels/duelstest`, `ears/earstest` (asserted absent from the binary by `TestNoTestHelpersInBinary`).
+
+> M2b-B3 addendum: `M2bOptions` also has `ClipCacheMB` (the clip cache cap, used to exercise eviction) and
+> `archivetest.ImportInbox` imports a purpose-built inbox (signals the profiles do not hold).
 
 - **Clock rules (binding).** `testing/synctest` is used **only** for code driven through
   `httptest.NewRecorder` or in-memory transports with no real socket, because network I/O is not

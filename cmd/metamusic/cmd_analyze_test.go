@@ -48,9 +48,13 @@ func TestCLI_Analyze(t *testing.T) {
 	t.Parallel()
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	env := seedEnv(t)
+	// seed-synthetic runs Tier A itself (M2b-B3): seed with an ffmpeg that lacks showspectrumpic so
+	// the library starts without Tier A rows, then analyze with the real one.
+	env["MM_FFMPEG"] = ffmpegWrapper(t, hideShowspectrumpic)
 	if code, out, errs := do(t, env, "", "seed-synthetic", "--profile", "e2e"); code != 0 {
 		t.Fatalf("seed: %d\n%s\n%s", code, out, errs)
 	}
+	delete(env, "MM_FFMPEG")
 	tierA := func() int { return dbRow(t, env, `SELECT count(*) FROM analyses WHERE tier = 'A'`) }
 	renditions := func() int { return dbRow(t, env, `SELECT count(*) FROM renditions WHERE kind = 'spectrogram'`) }
 	if tierA() != 0 || auditRows(t, env) != 0 {

@@ -109,6 +109,29 @@ func Cleanup() {
 	roots = nil
 }
 
+// ImportInbox imports a purpose-built inbox directory (recipes and takes a test wrote itself, for
+// signals the synthetic profiles do not hold) with real ingest and returns its template. The
+// template directory is removed by Cleanup.
+func ImportInbox(tb testing.TB, inboxDir string) Template {
+	tb.Helper()
+	testtools.Require(tb, "ffmpeg", "flac", "metaflac")
+	root, err := os.MkdirTemp("", "mm-archivetest-custom-")
+	if err != nil {
+		tb.Fatal(err)
+	}
+	mu.Lock()
+	roots = append(roots, root)
+	mu.Unlock()
+	dataDir := filepath.Join(root, "data")
+	if err := os.MkdirAll(dataDir, 0o750); err != nil {
+		tb.Fatal(err)
+	}
+	if err := importInto(context.Background(), inboxDir, dataDir); err != nil {
+		tb.Fatalf("archivetest: importing %s: %v", inboxDir, err)
+	}
+	return Template{dir: dataDir, profile: "custom"}
+}
+
 func importArchive(profile synth.Profile) (string, error) {
 	ctx := context.Background()
 	root, err := os.MkdirTemp("", "mm-archivetest-"+string(profile)+"-")
@@ -124,58 +147,66 @@ func importArchive(profile synth.Profile) (string, error) {
 			return "", err
 		}
 	}
-	tools := testtools.Tools()
-	if _, err := synth.Archive(ctx, tools, inboxDir, profile, 1); err != nil {
+	if _, err := synth.Archive(ctx, testtools.Tools(), inboxDir, profile, 1); err != nil {
 		return "", err
 	}
+	if err := importInto(ctx, inboxDir, dataDir); err != nil {
+		return "", err
+	}
+	return dataDir, nil
+}
+
+// importInto imports inboxDir into the (existing, empty) data directory dataDir.
+func importInto(ctx context.Context, inboxDir, dataDir string) error {
+	tools := testtools.Tools()
 	data, err := os.OpenRoot(dataDir)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer func() { _ = data.Close() }()
 	st, err := store.Open(ctx, filepath.Join(dataDir, "metamusic.db"))
 	if err != nil {
-		return "", err
+		return err
 	}
 	lib := library.New(st, data, time.Now)
 	an, err := ffmpeg.New(ctx, tools)
 	if err != nil {
 		_ = st.Close()
-		return "", err
+		return err
 	}
 	ro, err := inbox.Open(inboxDir)
 	if err != nil {
 		_ = st.Close()
-		return "", err
+		return err
 	}
 	im, err := importer.New(st, lib, data, ingest.New(data, dataDir, tools, an, time.Now), importer.Options{
 		Inbox: ro, InboxLabel: "synthetic", MinAge: 0, Jobs: 2, Principal: Principal, Now: time.Now,
 	})
 	if err != nil {
 		_ = st.Close()
-		return "", err
+		return err
 	}
 	inv, err := im.Inventory(ctx)
 	if err != nil {
 		_ = st.Close()
-		return "", err
+		return err
 	}
 	res, err := im.Apply(ctx, inv, importer.ApplyOptions{Force: true})
 	if err != nil {
 		_ = st.Close()
-		return "", err
+		return err
 	}
 	// The acceptance profile deliberately holds one unparsable line (reported as an
 	// error); no take may fail.
 	if res.State != "completed" || res.TracksFailed > 0 {
 		_ = st.Close()
-		return "", fmt.Errorf("import run %s ended %s with %d failed takes", res.RunID, res.State, res.TracksFailed)
+		return fmt.Errorf("import run %s ended %s with %d failed takes", res.RunID, res.State, res.TracksFailed)
 	}
 	// Closing the last connection checkpoints the WAL: the template is one .db file.
 	if err := st.Close(); err != nil {
-		return "", err
+		return err
 	}
-	return dataDir, nil
+	return nil
 }
 
 // Copy gives a test its own data directory: a copy of the database and of the

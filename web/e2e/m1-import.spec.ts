@@ -6,7 +6,7 @@ test("import page shows the seed run with counts and paged sections", async ({ p
   await expect(page.getByTestId("import-errors")).toHaveText("errors: 0");
   await expect(page.getByTestId("import-warnings")).toBeVisible();
   const summary = page.getByTestId("import-summary");
-  await expect(summary.locator('[data-count="audio_files"]')).toHaveText("audio_files: 6");
+  await expect(summary.locator('[data-count="audio_files"]')).toHaveText("audio_files: 9");
   await expect(summary.locator('[data-count="collections"]')).toHaveText("collections: 1");
 
   // paged sections: each renders a (possibly empty) page plus the pager
@@ -19,7 +19,7 @@ test("import page shows the seed run with counts and paged sections", async ({ p
     await expect(page.getByTestId("pager")).toBeVisible();
   }
   const items = page.getByTestId("import-items").locator("li");
-  await expect(items).toHaveCount(6); // audio section: one line per matched file
+  await expect(items).toHaveCount(9); // audio section: one line per matched file
   // no absolute filesystem paths are rendered anywhere on the page
   await expect(page.locator("main")).not.toContainText(/(^|\s)\/(tmp|home|var|srv)\//);
 });

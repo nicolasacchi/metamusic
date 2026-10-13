@@ -42,7 +42,7 @@ type Options struct {
 	Now       func() time.Time
 }
 
-// Service is the Ears service. STUB(M2b-E3): every method answers errors.ErrUnsupported until M2b-E3.
+// Service is the Ears service. An unwired Service (Options{}) answers errors.ErrUnsupported.
 type Service struct{ o Options }
 
 // AnalyzeOptions tunes AnalyzeTrack.

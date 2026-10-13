@@ -18,6 +18,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
@@ -36,8 +37,10 @@ var (
 )
 
 type env struct {
-	st *store.Store
-	b  *trackctx.Builder
+	st  *store.Store
+	b   *trackctx.Builder
+	lib *library.Service
+	now func() time.Time
 }
 
 func newEnv(t *testing.T, fixture bool) *env {
@@ -55,7 +58,9 @@ func newEnv(t *testing.T, fixture bool) *env {
 	n := 0
 	j := judgments.New(st, lib, now, func() string { n++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xc000+n) })
 	b := trackctx.New(lib, j, listening.New(st, now), serve.NewSigner([]byte("0123456789abcdef0123456789abcdef"), now), "https://mm.example.com/", now)
-	return &env{st: st, b: b}
+	// perception comes from Ears (C51.8); without Tier A rows it answers tier "0"
+	b.UseM2b(ears.New(ears.Options{Store: st, Library: lib, Now: now}), nil)
+	return &env{st: st, b: b, lib: lib, now: now}
 }
 
 func marshal(t *testing.T, b trackctx.Bundle) []byte {
@@ -102,7 +107,7 @@ func section(t *testing.T, raw []byte, name string) []byte {
 
 func TestContext_Golden(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true)
+	e, _ := newEarsEnv(t) // Luna carries Tier A rows and a spectrogram rendition
 	b, err := e.b.Build(context.Background(), agent, lt.TrackLuna, nil)
 	if err != nil {
 		t.Fatal(err)

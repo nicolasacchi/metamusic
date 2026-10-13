@@ -57,13 +57,14 @@ type Options struct {
 
 // M2bOptions tunes the M2b services of a rig.
 type M2bOptions struct {
-	Fixture   bool                                        // duelstest.Fixture + earstest.Fixture (+ the earstest JPEG); requires Options.Fixture
-	Media     bool                                        // real ffmpeg for clips and Tier A (testtools.Require); false => cliptest/earstest fakes, no ffmpeg subprocess in the rig
-	Backfill  bool                                        // run ears.Backfill after the fixture/archive is loaded (archivetest templates carry no Tier A rows)
-	FakeClips bool                                        // duels use cliptest.Renderer instead of the clip service (lanes without a clip service)
-	SlotCoin  func() bool                                 // nil => Alternating(): false, true, false, ... created fresh per rig, so parity rigs agree
-	WrapClips func(duels.ClipRenderer) duels.ClipRenderer // optional spy between duels and its renderer (render counts)
-	Override  func(*app.Services)                         // optional: replace the built Duels/Ears/Clips with test instances before the server is mounted
+	Fixture     bool                                        // duelstest.Fixture + earstest.Fixture (+ the earstest JPEG); requires Options.Fixture
+	Media       bool                                        // real ffmpeg for clips and Tier A (testtools.Require); false => cliptest/earstest fakes, no ffmpeg subprocess in the rig
+	Backfill    bool                                        // run ears.Backfill after the fixture/archive is loaded (archivetest templates carry no Tier A rows)
+	ClipCacheMB int64                                       // clip cache cap in MB (0 => the app default); acceptance tests use 1 to exercise eviction
+	FakeClips   bool                                        // duels use cliptest.Renderer instead of the clip service (lanes without a clip service)
+	SlotCoin    func() bool                                 // nil => Alternating(): false, true, false, ... created fresh per rig, so parity rigs agree
+	WrapClips   func(duels.ClipRenderer) duels.ClipRenderer // optional spy between duels and its renderer (render counts)
+	Override    func(*app.Services)                         // optional: replace the built Duels/Ears/Clips with test instances before the server is mounted
 }
 
 // Alternating is a slot coin that yields false, true, false, ... (one fresh sequence per call).
@@ -195,6 +196,7 @@ func New(tb testing.TB, o Options) *Rig {
 	if ao.SlotCoin == nil {
 		ao.SlotCoin = Alternating()
 	}
+	cfg.ClipCacheMB = o.M2b.ClipCacheMB
 	if o.M2b.Media {
 		testtools.Require(tb, "ffmpeg")
 		cfg.FFmpeg = testtools.Tools().FFmpeg

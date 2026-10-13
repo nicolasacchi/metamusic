@@ -35,6 +35,7 @@ type importJSON struct {
 	Summary        importer.Summary `json:"summary"`
 	TracksImported int              `json:"tracks_imported,omitempty"`
 	TracksFailed   int              `json:"tracks_failed,omitempty"`
+	TierA          string           `json:"tier_a,omitempty"`
 	SpreadLU       *float64         `json:"loudness_spread_lu,omitempty"`
 }
 
@@ -186,7 +187,8 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 	if stats, err := rt.lib.Stats(ctx); err == nil {
 		spread = stats.Loudness.SpreadLU
 	}
-	out.applied(res, spread)
+	tierA := tierAAfterIngest(ctx, cfg, st, data, rt.lib)
+	out.applied(res, spread, tierA)
 	slog.Info("import finished", "run", res.RunID, "state", res.State, "tracks_imported", res.TracksImported,
 		"tracks_failed", res.TracksFailed, "errors", res.Errors)
 	if res.State != "completed" {
@@ -293,10 +295,10 @@ func (o cliOut) dryRun(inv *importer.Inventory, files importer.DryRunFiles) {
 	fmt.Fprintf(o.s.out, "\nnext:    metamusic import --plan %s\n", shellQuote(abs))
 }
 
-func (o cliOut) applied(res *importer.RunResult, spread *float64) {
+func (o cliOut) applied(res *importer.RunResult, spread *float64, tierA string) {
 	if o.asJSON {
 		o.json(importJSON{ReportID: res.RunID, State: res.State, PlanDigest: res.Report.PlanDigest, Report: res.ReportPath,
-			Summary: res.Report.Summary, TracksImported: res.TracksImported, TracksFailed: res.TracksFailed, SpreadLU: spread})
+			Summary: res.Report.Summary, TracksImported: res.TracksImported, TracksFailed: res.TracksFailed, SpreadLU: spread, TierA: tierA})
 		return
 	}
 	res.Report.FormatText(o.s.out)
@@ -308,6 +310,7 @@ func (o cliOut) applied(res *importer.RunResult, spread *float64) {
 		}
 		fmt.Fprintf(o.s.out, "loudness spread: %.1f LU%s\n", *spread, note)
 	}
+	fmt.Fprintln(o.s.out, tierA)
 }
 
 func (o cliOut) planDiff(reviewed, current []string) {

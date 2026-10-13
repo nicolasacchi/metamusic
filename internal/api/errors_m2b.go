@@ -8,10 +8,10 @@ import (
 
 // m2bErr maps duels, ears and clip service errors to the problem model (C53):
 // a *problem.Error keeps its status, code and details; a library "not found"
-// is 404; errors.ErrUnsupported is a Stage-1 stub (501 NOT_IMPLEMENTED); every
-// other error is returned unchanged and becomes a 500 INTERNAL whose cause
-// the Huma error hook logs through redact.Error. task names the lane that
-// replaces the stub (STUB(M2b-<task>)).
+// is 404; errors.ErrUnsupported (an unwired service, as handler tests build it)
+// is 501 NOT_IMPLEMENTED; every other error is returned unchanged and becomes a
+// 500 INTERNAL whose cause the Huma error hook logs through redact.Error. task
+// names the lane that owns the service, for log correlation.
 func m2bErr(err error, task string) error {
 	var pe *problem.Error
 	switch {

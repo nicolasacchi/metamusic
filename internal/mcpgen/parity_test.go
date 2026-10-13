@@ -126,7 +126,7 @@ type ParityCase struct {
 	Masks       []string
 	SkipGeneric bool   // do not repeat the call through call_operation (non-replayable mutations)
 	Last        bool   // runs after every other case (ops that end a principal)
-	Status      int    // expected HTTP status (0 => any 2xx); stubs expect 501 on every face
+	Status      int    // expected HTTP status (0 => any 2xx); a case that expects a failure names it, the same on every face
 	Variant     string // distinguishes several cases of one operation (e.g. inline and not)
 }
 
@@ -154,11 +154,9 @@ var parityCases = []ParityCase{
 	})},
 }
 
-// stubCases are the operations whose service is still a STUB(M2b-...): all three
-// faces must answer the same 501 NOT_IMPLEMENTED. Each lane replaces its entries
-// with real cases (m2bCases) when its service lands. Ids come from duelstest and
-// librarytest (fixed), so every rig agrees.
-var stubCases = []ParityCase{
+// m2bCases are the M2b operations over the real duels, Ears and clip services (M2b-B3): all three
+// faces must answer the same. Ids come from duelstest and librarytest (fixed), so every rig agrees.
+var m2bCases = []ParityCase{
 	{Op: "get_clip", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "from_s": 0.0, "to_s": 12.0, "match_lufs": -20.0})},
 	{Op: "create_duel", Variant: "explicit", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta, "blind": false, "match_loudness": false}), Masks: []string{"id"}},
 	{Op: "create_duel", Variant: "defaults", Args: fixedArgs(map[string]any{"a_track_id": duelstest.TrackAlpha, "b_track_id": duelstest.TrackBeta}), Masks: []string{"id"}},
@@ -225,7 +223,7 @@ func init() {
 	parityCases = append(parityCases, judgmentCases...)
 	parityCases = append(parityCases, draftCases...)
 	parityCases = append(parityCases, dataCases...)
-	parityCases = append(parityCases, stubCases...)
+	parityCases = append(parityCases, m2bCases...)
 }
 
 // needsFixture reports whether an operation must carry a parity fixture: any

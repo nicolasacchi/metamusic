@@ -87,7 +87,10 @@ func TestToolResultsConformToOutputSchema_M2b(t *testing.T) {
 				t.Fatalf("%s/%s: %v", c.Op, face, err)
 			}
 			if res.IsError {
-				continue // stubs answer 501; the problem body is not a structured result
+				if c.Status == 0 {
+					t.Errorf("%s/%s: tool error with real services: %+v", c.Op, face, res.Content)
+				}
+				continue // an expected failure: the problem body is not a structured result
 			}
 			if err := rs.Validate(normalize(res.StructuredContent)); err != nil {
 				t.Errorf("%s/%s: result violates its outputSchema: %v", c.Op, face, err)

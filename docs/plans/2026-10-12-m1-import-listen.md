@@ -1608,6 +1608,11 @@ func Archive(ctx context.Context, t mediatool.Tools, dir string, profile Profile
 in 4 groups with a 3-draft collection, 1 varianti recipe ⇒ 19 recipes, 6 tracks, 19 drafts (13
 backlog, 6 fulfilled), 1 sibling edge; no unmatched/invalid inputs, no symlink/FIFO/archive.
 
+> M2b-B3 amendment (C55): the e2e/dev profile gains the `ears` group of three takes (`syn-ears-clip`,
+> `syn-ears-gap`, `syn-ears-loop`, one defect each) ⇒ **22 recipes, 9 tracks, 22 drafts (13 backlog, 9
+> fulfilled), 1 sibling edge**, 2 scores (both timed), 9 audio files. `seed-synthetic` and `import` run Tier A
+> after the import. The acceptance profile's `syn-song-05/semantic.npy` is now a valid loop-free array.
+
 ### C22. Web (`web/`)
 
 Routes (M0 router): `/` Library · `/tracks/:id` Track · `/backlog` Backlog · `/backlog/:id` Draft ·

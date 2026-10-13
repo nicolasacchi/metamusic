@@ -84,6 +84,8 @@ type renderJob struct {
 	tone  Tone
 	style FLACStyle
 	tags  []string // when set, the render is retagged in place
+	// special, when non-zero, renders a purpose-built defect signal instead of a tone.
+	special SpecialKind
 }
 
 func (a *archive) add(rel, kind string) { a.files = append(a.files, File{Path: rel, Kind: kind}) }
@@ -104,6 +106,19 @@ func (a *archive) flac(rel, id string, seed int64, tone Tone, style FLACStyle, t
 	a.add(rel, "flac")
 	a.audio = append(a.audio, AudioSpec{Path: rel, RequestID: id, Seed: seed, LUFS: tone.LUFS, Seconds: tone.Seconds, BandLimitHz: tone.BandLimitHz})
 	a.jobs = append(a.jobs, renderJob{rel: rel, tone: tone, style: style, tags: tags})
+}
+
+// specialFLAC registers a defect-signal take (C55).
+func (a *archive) specialFLAC(rel, id string, seed int64, kind SpecialKind, seconds float64) {
+	a.add(rel, "flac")
+	a.audio = append(a.audio, AudioSpec{Path: rel, RequestID: id, Seed: seed, Seconds: seconds})
+	a.jobs = append(a.jobs, renderJob{rel: rel, tone: Tone{Seconds: seconds}, special: kind})
+}
+
+// npy registers a semantic.npy written after the directories exist.
+func (a *archive) npy(rel string, o NPYOptions) {
+	a.add(rel, "npy")
+	a.post = append(a.post, func() error { return SemanticNPY(a.abs(rel), o) })
 }
 
 // copyOf registers a byte copy of an already registered render.
@@ -185,6 +200,9 @@ func (a *archive) render(ctx context.Context, t mediatool.Tools) error {
 
 func (a *archive) renderOne(ctx context.Context, t mediatool.Tools, j renderJob) error {
 	dst := a.abs(j.rel)
+	if j.special != 0 {
+		return Special(ctx, t, dst, j.special, j.tone.Seconds)
+	}
 	if len(j.tags) == 0 {
 		return FLAC(ctx, t, dst, j.tone, j.style)
 	}
@@ -357,7 +375,6 @@ func (a *archive) acceptance(ctx context.Context, t mediatool.Tools, seed int64)
 		{rd + "config.json", "json", `{"model": "synthetic"}` + "\n"},
 		{rd + "plan.json", "json", `{"sections": 3}` + "\n"},
 		{rd + "score.abc", "abc", abc3},
-		{rd + "semantic.npy", "npy", "npy-semantic"},
 		{rd + "latent.npy", "npy", "npy-latent"},
 		{"music/scores/syn_song_03.abc", "abc", abc3},
 	} {
@@ -365,6 +382,8 @@ func (a *archive) acceptance(ctx context.Context, t mediatool.Tools, seed int64)
 			return Manifest{}, err
 		}
 	}
+
+	a.npy(rd+"semantic.npy", NPYOptions{TokensPerS: 50, Seconds: 12, Vocab: 1024, Seed: 1005})
 
 	all, pilot := a.backlog()
 	var csv strings.Builder
@@ -422,7 +441,7 @@ func (a *archive) acceptance(ctx context.Context, t mediatool.Tools, seed int64)
 	}, nil
 }
 
-// e2e builds the e2e/dev profile: 6 takes, 12 backlog recipes, 1 varianti draft.
+// e2e builds the e2e/dev profile: 9 takes (6 songs, 3 ears), 12 backlog recipes, 1 varianti draft.
 func (a *archive) e2e(ctx context.Context, t mediatool.Tools, seed int64) (Manifest, error) {
 	v := func(n int) int { return a.variant(seed, n) }
 	songs := joinLines(
@@ -432,6 +451,9 @@ func (a *archive) e2e(ctx context.Context, t mediatool.Tools, seed int64) (Manif
 		line("syn-song-03", 1003, lyrics3("syn-song-03"), "full", ""),
 		line("syn-song-04", 1004, lyricsHTML, "full", ""),
 		line("syn-song-05", 1005, lyrics2("syn-song-05"), "full", ""),
+		line("syn-ears-clip", 5001, lyrics2("syn-ears-clip"), "full", ""),
+		line("syn-ears-gap", 5002, lyrics2("syn-ears-gap"), "full", ""),
+		line("syn-ears-loop", 5003, lyrics3("syn-ears-loop"), "full", ""),
 	)
 	all, _ := a.backlog()
 	for _, s := range []struct{ rel, kind, content string }{
@@ -451,12 +473,28 @@ func (a *archive) e2e(ctx context.Context, t mediatool.Tools, seed int64) (Manif
 	a.flac("music/flac/syn_song_03.flac", "syn-song-03", 1003, Tone{LUFS: -14, Seconds: 12, BPM: 120, Variant: v(3)}, StyleYuE2)
 	a.flac("music/flac/syn_song_04.flac", "syn-song-04", 1004, Tone{LUFS: -16, Seconds: 7, BPM: 110, Variant: v(4)}, StyleYuE2)
 	a.flac("music/flac/syn_song_05.flac", "syn-song-05", 1005, Tone{LUFS: -13, Seconds: 9, BPM: 130, Variant: v(5)}, StyleYuE2)
+
+	// ears group (C55): one defect per take
+	a.specialFLAC("music/flac/syn_ears_clip.flac", "syn-ears-clip", 5001, SpecialClipBursts, 8)
+	a.specialFLAC("music/flac/syn_ears_gap.flac", "syn-ears-gap", 5002, SpecialGap, 10)
+	rd := "music/results/syn-ears-loop/"
+	a.flac(rd+"audio.flac", "syn-ears-loop", 5003, Tone{LUFS: -14, Seconds: 12, BPM: 120, Variant: v(6)}, StyleYuE2)
+	for _, s := range []struct{ rel, kind, content string }{
+		{rd + "request.json", "json", yue2Request("syn-ears-loop", 5003, lyrics3("syn-ears-loop"))},
+		{rd + "result.json", "json", `{"truncated": {"abc": false, "semantic": false}, "duration": 12.0}` + "\n"},
+		{rd + "score.abc", "abc", abc3},
+	} {
+		if err := a.text(s.rel, s.kind, s.content); err != nil {
+			return Manifest{}, err
+		}
+	}
+	a.npy(rd+"semantic.npy", NPYOptions{TokensPerS: 50, Seconds: 12, Vocab: 1024, Seed: 5003, LoopAtS: 3, Period: 25, Repeats: 12})
 	return Manifest{
 		Expect: Expect{
-			Recipes: 19, RecipeSources: 19, Tracks: 6, Drafts: 19, DraftsBacklog: 13, DraftsFulfilled: 6,
-			Collections: 1, CollectionDrafts: 3, SiblingEdges: 1, Scores: 1, TimedScores: 1,
-			AudioFiles: 6, AudioIdentities: 6, BacklogGroups: 5, BacklogCollection: 3, VariantiDrafts: 1,
-			SiblingRuleSameRequest: 1, LoudnessSpreadLU: 4.0, ExitCode: 0,
+			Recipes: 22, RecipeSources: 22, Tracks: 9, Drafts: 22, DraftsBacklog: 13, DraftsFulfilled: 9,
+			Collections: 1, CollectionDrafts: 3, SiblingEdges: 1, Scores: 2, TimedScores: 2,
+			AudioFiles: 9, AudioIdentities: 9, BacklogGroups: 5, BacklogCollection: 3, VariantiDrafts: 1,
+			SiblingRuleSameRequest: 1, LoudnessSpreadLU: 12.8, ExitCode: 0,
 		},
 	}, nil
 }

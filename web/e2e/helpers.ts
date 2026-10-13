@@ -22,15 +22,16 @@ export async function trackByTitle(request: APIRequestContext, title: string): P
 }
 
 /**
- * Two seed tracks that no other project uses for the same spec: the six seed tracks are sorted by
- * (title, id) and each project owns a pair. Ratings, statuses and tags set on them are undone by the spec.
+ * Two seed tracks that no other project uses for the same spec: the six "Syn song" tracks (the three
+ * "Syn ears" tracks belong to the M2b Ears specs and sort before them, so they are left out) are sorted
+ * by (title, id) and each project owns a pair. Ratings, statuses and tags set on them are undone by the spec.
  */
 export async function ownTracks(request: APIRequestContext, info: TestInfo): Promise<[Item, Item]> {
-  const all = (await allTracks(request)).sort((x, y) => (x.title === y.title ? (x.id < y.id ? -1 : 1) : x.title < y.title ? -1 : 1));
+  const all = (await allTracks(request)).filter((x) => x.title.startsWith("Syn song")).sort((x, y) => (x.title === y.title ? (x.id < y.id ? -1 : 1) : x.title < y.title ? -1 : 1));
   const slot = Math.max(0, ["chrome", "chrome-pixel7", "chrome-iphone15"].indexOf(info.project.name));
   const a = all[slot * 2];
   const b = all[slot * 2 + 1];
-  if (!a || !b) throw new Error("the e2e profile has six seed tracks");
+  if (!a || !b) throw new Error("the e2e profile has six Syn song tracks");
   return [a, b];
 }
 

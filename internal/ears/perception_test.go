@@ -62,11 +62,14 @@ func TestPerception_Keys(t *testing.T) {
 	}
 }
 
+// TestPerception_MatchesM2aContext: since M2b-B3 trackctx has no perception code of its own; /context
+// carries exactly what ears.Perception computes (M2a's values are pinned by trackctx's golden file).
 func TestPerception_MatchesM2aContext(t *testing.T) {
 	t.Parallel()
 	r := newRig(t, withTierARows())
 	ctx := context.Background()
 	b := trackctx.New(r.lib, nil, nil, serve.NewSigner([]byte("0123456789abcdef0123456789abcdef"), func() time.Time { return r.now }), "https://mm.example.com/", func() time.Time { return r.now })
+	b.UseM2b(r.svc, nil)
 	for _, id := range r.fx.Tracks {
 		bundle, err := b.Build(ctx, human, id, nil)
 		if err != nil {
@@ -91,7 +94,7 @@ func TestPerception_MatchesM2aContext(t *testing.T) {
 		if err := json.Unmarshal(wantRaw, &wm); err != nil {
 			t.Fatal(err)
 		}
-		for _, k := range []string{"lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed"} {
+		for _, k := range []string{"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots"} {
 			if diff := cmp.Diff(string(wm[k]), string(gm[k])); diff != "" {
 				t.Errorf("%s: %s differs from the M2a context (-m2a +ears):\n%s", id, k, diff)
 			}
