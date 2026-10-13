@@ -184,7 +184,7 @@ func (s *Service) execute(ctx context.Context, run Run) (Run, error) {
 	now := s.stamp()
 	var msg string
 	if err != nil {
-		msg = redact.Error(err)
+		msg = redact.Error(errors.New(s.scrubPaths(err.Error())))
 		if len(msg) > maxErrorLen {
 			msg = msg[:maxErrorLen]
 		}
@@ -206,6 +206,22 @@ func (s *Service) execute(ctx context.Context, run Run) (Run, error) {
 		return out, &Error{http.StatusInternalServerError, "BACKUP_FAILED", msg}
 	}
 	return out, nil
+}
+
+// scrubPaths replaces the absolute data and backup directories (and their
+// symlink-resolved forms) so run errors never carry server paths.
+func (s *Service) scrubPaths(msg string) string {
+	var pairs []string
+	for _, d := range []struct{ dir, label string }{{s.o.BackupDir, "<backup>"}, {s.o.DataDir, "<data>"}} {
+		if d.dir == "" {
+			continue
+		}
+		pairs = append(pairs, d.dir, d.label)
+		if r, err := filepath.EvalSymlinks(d.dir); err == nil && r != d.dir {
+			pairs = append(pairs, r, d.label)
+		}
+	}
+	return strings.NewReplacer(pairs...).Replace(msg)
 }
 
 func (s *Service) finalize(ctx context.Context, id, set string, args ...any) {

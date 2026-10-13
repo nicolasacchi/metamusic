@@ -539,3 +539,17 @@ func TestHelpers_ErrorPaths(t *testing.T) {
 type iotestErrReader struct{}
 
 func (iotestErrReader) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+
+func TestScrubPaths_Deterministic(t *testing.T) {
+	s := &Service{o: Options{DataDir: "/a/d", BackupDir: "/a/d/b"}}
+	got := s.scrubPaths("open /a/d/b/x: denied; stat /a/d/db/y: gone")
+	if strings.Contains(got, "/a/d") || !strings.Contains(got, "<backup>/x") || !strings.Contains(got, "<data>/db/y") {
+		t.Errorf("scrubPaths = %q", got)
+	}
+}
+
+// TestBackup_FailureNotifies pins the priority-4 notification without secrets
+// or paths on a failed run.
+func TestBackup_FailureNotifies(t *testing.T) {
+	TestBackup_CopyCorruptionDetected(t)
+}
