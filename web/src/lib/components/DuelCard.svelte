@@ -89,6 +89,11 @@
   {:else if duel.state === "expired"}
     <p role="status">This duel expired.</p>
   {:else}
+    {#if !duel.blind}
+      <p class="titles" data-testid="duel-titles">
+        <span>A: {duel.slots.a.track?.title ?? "?"}</span> · <span>B: {duel.slots.b.track?.title ?? "?"}</span>
+      </p>
+    {/if}
     <ABPlayer
       bind:this={player}
       aUrl={duel.slots.a.clip.url}
@@ -121,6 +126,9 @@
     padding: 0.1rem 0.5rem;
     border: 1px solid #8886;
     border-radius: 999px;
+  }
+  .titles {
+    margin: 0;
   }
   .err {
     color: #e5484d;

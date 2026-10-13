@@ -10,8 +10,14 @@ const firefoxPrefs = { "media.autoplay.default": 0, "media.autoplay.blocking_pol
 // Firefox only the jump (comments) and listen specs; every other M2a spec runs on desktop Chrome only.
 const M2A = ["judge", "comments", "drafts", "playlists", "export", "backup", "audit", "human", "listen", "context"];
 const ignoreM2a = (keep: string[]) => M2A.filter((n) => !keep.includes(n)).map((n) => `**/m2a-${n}.spec.ts`);
-const mobileIgnore = ignoreM2a(["judge", "comments", "human", "listen"]);
-const firefoxIgnore = ignoreM2a(["comments", "listen"]);
+
+// M2b budget (rev 3): the duel specs (keyboard on desktop, toggle on mobile) skip Firefox, whose headless
+// AudioContext is not relied on for scheduling assertions; the ears and compare specs are layout- and
+// data-only, so they run on desktop Chrome and Firefox but not on the phones.
+const M2B = ["duels", "ears", "compare"];
+const ignoreM2b = (keep: string[]) => M2B.filter((n) => !keep.includes(n)).map((n) => `**/m2b-${n}.spec.ts`);
+const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"])];
+const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"])];
 
 export default defineConfig({
   testDir: "./e2e",

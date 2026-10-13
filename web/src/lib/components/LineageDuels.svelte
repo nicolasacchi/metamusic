@@ -30,7 +30,7 @@
       try {
         const [l, t] = await Promise.all([
           api.GET("/api/ladder", { params: { query: { scope: "lineage", root_track_id: root, limit: 50 } } }),
-          api.GET("/api/tracks", { params: { query: { root_track_id: root, limit: 200 } } }),
+          api.GET("/api/tracks", { params: { query: { root_track_id: root, limit: 100 } } }),
         ]);
         if (root !== rootId) return;
         ladder = l.data ?? null;
