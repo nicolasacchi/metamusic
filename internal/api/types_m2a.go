@@ -88,11 +88,6 @@ const (
 	bodySmall  = 64 << 10
 )
 
-// notImplemented is the stub answer of operations whose behaviour a later task fills in.
-func notImplemented(task string) error {
-	return Err(http.StatusNotImplemented, "NOT_IMPLEMENTED", "this operation is not implemented yet", map[string]any{"task": task})
-}
-
 // ---- judgments ----
 
 type rateTrackIn struct {

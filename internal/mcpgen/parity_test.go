@@ -154,8 +154,7 @@ var parityCases = []ParityCase{
 // stubCases are the M2a operations whose handlers are still STUB(M2a-Bn): all
 // three faces must answer the same 501 NOT_IMPLEMENTED. Each owning task
 // replaces its entries with real cases.
-var stubCases = []ParityCase{
-}
+var stubCases = []ParityCase{}
 
 // judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn
 // from the rig's id sequence (which the audit rows of the extra call_operation
