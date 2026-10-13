@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/notify"
 )
 
 func tokenInfo(ti auth.TokenInfo) TokenInfo {
@@ -99,6 +100,9 @@ func registerTokens(a huma.API, d Deps) {
 			ti, err := d.Tokens.Get(ctx, id)
 			if err != nil {
 				return nil, tokenErr(err)
+			}
+			if d.Notify != nil {
+				_ = d.Notify.Notify(context.WithoutCancel(ctx), notify.TokenCreated(ti.Name, in.Body.Scopes))
 			}
 			return &createdTokenOut{Body: CreatedToken{TokenInfo: tokenInfo(ti), Token: &plain}}, nil
 		})

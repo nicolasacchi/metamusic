@@ -1,9 +1,10 @@
 package servertest
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -31,9 +32,31 @@ func (r *Rig) DeviceWithCookie(tb testing.TB, name string) (*Client, string) {
 		tb.Fatalf("servertest: create_pairing_code: status %d: %s", res.Status, res.Body)
 	}
 	code, _ := res.JSON(tb).(map[string]any)["code"].(string)
-	cookie, _, err := r.Services.Devices.Redeem(context.Background(), code, "servertest/1.0")
+	form := url.Values{"code": {code}}
+	req, err := http.NewRequest(http.MethodPost, r.URL+"/auth/pair", strings.NewReader(form.Encode()))
 	if err != nil {
-		tb.Fatalf("servertest: redeeming pairing code: %v", err)
+		tb.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "servertest/1.0")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	hc := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := hc.Do(req)
+	if err != nil {
+		tb.Fatalf("servertest: POST /auth/pair: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		tb.Fatalf("servertest: POST /auth/pair: status %d", resp.StatusCode)
+	}
+	var cookie string
+	for _, c := range resp.Cookies() {
+		if c.Name == auth.DeviceCookie {
+			cookie = c.Value
+		}
+	}
+	if cookie == "" {
+		tb.Fatal("servertest: /auth/pair set no device cookie")
 	}
 	return newClient(r.URL, http.Header{"Cookie": {auth.DeviceCookie + "=" + cookie}}, false), cookie
 }

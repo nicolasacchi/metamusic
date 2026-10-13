@@ -2,6 +2,7 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
@@ -101,7 +103,7 @@ func New(o Options) (http.Handler, error) {
 	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
 		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
-		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore})
+		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
@@ -152,6 +154,33 @@ func New(o Options) (http.Handler, error) {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 	})
+	if o.DeviceStore != nil {
+		pairing := auth.PairingHandler(auth.PairingOptions{
+			Cfg: o.Cfg, Devices: o.DeviceStore, Sessions: o.Sessions,
+			Allow: func() (bool, time.Duration) {
+				if o.Limiter == nil {
+					return true, 0
+				}
+				ok, retry, _ := o.Limiter.Allow("pair", ratelimit.Pair)
+				return ok, retry
+			},
+			OnPaired: func(ctx context.Context, d auth.DeviceInfo) {
+				if o.Audit != nil {
+					_ = o.Audit.Insert(context.WithoutCancel(ctx), audit.Entry{At: now(),
+						Principal: auth.Principal{Kind: auth.KindDevice, ID: d.ID, Name: d.Name, Via: "device"},
+						Transport: reqinfo.SPA, Op: "auth:pair", Method: "POST", Status: http.StatusSeeOther})
+				}
+				if o.Notify != nil {
+					_ = o.Notify.Notify(context.WithoutCancel(ctx), notify.DevicePaired(d.Name))
+				}
+			},
+		})
+		mux.Handle("GET /start", pairing)
+		mux.Handle("POST /start", pairing)
+		mux.Handle("GET /pair", pairing)
+		mux.Handle("GET /pair.js", pairing)
+		mux.Handle("POST /auth/pair", pairing)
+	}
 	if o.Cfg.AuthMode == "local" {
 		mux.Handle("/auth/", o.Sessions.Handler())
 	} else {

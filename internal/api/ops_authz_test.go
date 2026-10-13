@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -37,7 +38,7 @@ func respObj(t *testing.T, r *servertest.Response) map[string]any {
 }
 
 func TestTokenOps(t *testing.T) {
-	rig := servertest.New(t, servertest.Options{})
+	rig := servertest.New(t, servertest.Options{Canary: true})
 	human := rig.Human(t)
 
 	// create_token: plaintext once
@@ -51,6 +52,17 @@ func TestTokenOps(t *testing.T) {
 		t.Fatalf("created = %v", created)
 	}
 	id := created["id"].(string)
+	var note string
+	for i := 0; i < 100 && note == ""; i++ {
+		if reqs := rig.Ntfy.Requests(); len(reqs) > 0 {
+			note = reqs[0].Body
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !strings.Contains(note, "Token created") || strings.Contains(note, plain) {
+		t.Fatalf("ntfy message = %q", note)
+	}
 	replay := human.Do(t, "POST", "/human/api/tokens", map[string]any{"name": "bot", "scopes": []string{"read", "write"}}, "Idempotency-Key", "tok-1")
 	rb := respObj(t, replay)
 	if replay.Status != 201 || rb["token"] != nil || rb["id"] != id || strings.Contains(string(replay.Body), plain) {

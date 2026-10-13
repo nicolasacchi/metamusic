@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/nicolasacchi/metamusic/internal/notify"
 	"net/http"
 	"reflect"
 	"slices"
@@ -58,6 +59,7 @@ type Deps struct {
 	Listening *listening.Service
 	Audit     *audit.Store
 	Devices   *auth.DeviceStore
+	Notify    notify.Notifier // nil => no notifications
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string

@@ -114,7 +114,7 @@ func New(tb testing.TB, o Options) *Rig {
 		BackupAt: "off", FFmpeg: "ffmpeg", FLAC: "flac", Metaflac: "metaflac", RateScale: 1,
 	}
 	if r.Ntfy != nil {
-		cfg.NtfyURL = r.Ntfy.URL
+		cfg.NtfyURL = r.Ntfy.URL + "/mm-test"
 	}
 
 	if o.Archive != nil {

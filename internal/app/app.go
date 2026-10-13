@@ -120,7 +120,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Store: st, Tokens: tokens, Cfg: cfg, Version: o.Version, Commit: o.Commit, Started: now(),
 		Library: lib, Signer: signer, Probe: o.Probe, Now: now, NewID: o.NewID,
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
-		Audit: s.Audit, Devices: devices,
+		Audit: s.Audit, Devices: devices, Notify: notifier,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
