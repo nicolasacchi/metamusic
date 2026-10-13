@@ -309,8 +309,8 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 			}
 			for _, human := range []bool{true, false} {
 				code, body := rig.get(t, u, human)
-				if code == 501 || (!human && code == 403) {
-					continue // M2a stubs (until their task lands) and operator-only operations
+				if code == 501 || (code == 503 && strings.Contains(body, `"UNAVAILABLE"`)) || (!human && code == 403) {
+					continue // stubs of other lanes, services this rig does not wire (M3 generation), and operator-only operations
 				}
 				// peaks files and clip sources do not exist under the fake ingester; the body is still checked
 				if code/100 != 2 && op != "get_track_peaks" && !(code == 409 && (op == "get_clip" || strings.HasPrefix(op, "get_track_"))) {
