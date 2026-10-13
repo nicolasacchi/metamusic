@@ -10,6 +10,5 @@ import (
 	_ "github.com/google/go-cmp/cmp"
 	_ "github.com/modelcontextprotocol/go-sdk/mcp"
 	_ "golang.org/x/crypto/argon2"
-	_ "golang.org/x/image/font/basicfont"
 	_ "modernc.org/sqlite"
 )
