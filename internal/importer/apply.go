@@ -254,13 +254,16 @@ func (s *applyState) run(ctx context.Context) error {
 			if mid == "" {
 				continue
 			}
-			res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL`,
+			res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL AND revision = 1`,
 				mid, now, s.draftIDs[d.r.hash])
 			if err != nil {
 				return err
 			}
 			if n, _ := res.RowsAffected(); n > 0 {
 				s.result.MothersLinked += int(n)
+			} else if edited := s.scalarInt(ctx, tx, `SELECT COUNT(*) FROM recipe_drafts WHERE id=? AND parent_track_id IS NULL AND revision > 1`, s.draftIDs[d.r.hash]); edited > 0 {
+				path, line := s.draftLoc(s.draftIDs[d.r.hash])
+				s.issues.warn(path, line, "draft_edited_not_relinked", "the draft was edited; its mother is left as it is")
 			}
 		}
 		n, err := s.relinkMothers(ctx, tx, now)
@@ -292,15 +295,17 @@ func (s *applyState) relinkMothers(ctx context.Context, tx *sql.Tx, now string) 
 	if err := rows.Close(); err != nil {
 		return 0, err
 	}
-	rows, err = tx.QueryContext(ctx, `SELECT id, group_key, request_id, COALESCE(source_recipe_id,'') FROM recipe_drafts WHERE origin='varianti_import' AND parent_track_id IS NULL AND group_key IS NOT NULL`)
+	rows, err = tx.QueryContext(ctx, `SELECT id, group_key, request_id, COALESCE(source_recipe_id,''), revision FROM recipe_drafts WHERE origin='varianti_import' AND parent_track_id IS NULL AND group_key IS NOT NULL`)
 	if err != nil {
 		return 0, err
 	}
 	type link struct{ draft, mother string }
 	var links []link
+	var edited []string // drafts a human edited: never relinked (M2a C27)
 	for rows.Next() {
 		var id, g, rid, src string
-		if err := rows.Scan(&id, &g, &rid, &src); err != nil {
+		var rev int
+		if err := rows.Scan(&id, &g, &rid, &src, &rev); err != nil {
 			_ = rows.Close()
 			return 0, err
 		}
@@ -314,6 +319,10 @@ func (s *applyState) relinkMothers(ctx context.Context, tx *sql.Tx, now string) 
 			}
 		}
 		if len(roots) == 1 {
+			if rev > 1 {
+				edited = append(edited, id)
+				continue
+			}
 			for m := range roots {
 				links = append(links, link{id, m})
 			}
@@ -322,9 +331,13 @@ func (s *applyState) relinkMothers(ctx context.Context, tx *sql.Tx, now string) 
 	if err := rows.Close(); err != nil {
 		return 0, err
 	}
+	for _, id := range edited {
+		path, line := s.draftLoc(id)
+		s.issues.warn(path, line, "draft_edited_not_relinked", "the draft was edited; its mother is left as it is")
+	}
 	n := 0
 	for _, l := range links {
-		res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL`, l.mother, now, l.draft)
+		res, err := tx.ExecContext(ctx, `UPDATE recipe_drafts SET parent_track_id=?, updated_at=? WHERE id=? AND parent_track_id IS NULL AND revision = 1`, l.mother, now, l.draft)
 		if err != nil {
 			return n, err
 		}
@@ -332,6 +345,24 @@ func (s *applyState) relinkMothers(ctx context.Context, tx *sql.Tx, now string) 
 		n += int(c)
 	}
 	return n, nil
+}
+
+func (s *applyState) scalarInt(ctx context.Context, tx *sql.Tx, q string, a ...any) int {
+	var n int
+	if err := tx.QueryRowContext(ctx, q, a...).Scan(&n); err != nil {
+		return 0
+	}
+	return n
+}
+
+// draftLoc finds where this run saw the recipe of a stored draft ("" and 0 when it did not).
+func (s *applyState) draftLoc(draftID string) (string, int) {
+	for _, d := range s.b.drafts {
+		if s.draftIDs[d.r.hash] == draftID && len(d.r.occ) > 0 {
+			return d.r.occ[0].file.ref(), d.r.occ[0].line
+		}
+	}
+	return "", 0
 }
 
 // takeOutcome is one finished ingest.
@@ -549,6 +580,10 @@ func (s *applyState) commitTake(ctx context.Context, t *plannedTake, out takeOut
 	tr.Status, tr.TrackID = "imported", t.id
 	s.result.Takes = append(s.result.Takes, tr)
 	s.result.TracksImported++
+	for _, did := range ful.EditedSkipped {
+		path, line := s.draftLoc(did)
+		s.issues.warn(path, line, "draft_edited_not_fulfilled", "the draft was edited; it stays in the backlog")
+	}
 	for _, did := range ful.CoreDrafts {
 		for _, d := range s.b.drafts {
 			if s.draftIDs[d.r.hash] == did {

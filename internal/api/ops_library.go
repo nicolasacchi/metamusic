@@ -60,6 +60,7 @@ func registerLibrary(a huma.API, d Deps) {
 			if err != nil {
 				return nil, libErr(err)
 			}
+			maskTrack(auth.FromContext(ctx), &t)
 			return &trackOut{Body: t}, nil
 		})
 

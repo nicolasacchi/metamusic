@@ -23,6 +23,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/app"
+	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
@@ -35,13 +36,14 @@ import (
 
 // Options tunes New; the zero value is a proxy-mode rig with an empty library.
 type Options struct {
-	Mode    string           // "proxy" (default) | "local"
-	Fixture bool             // librarytest.Fixture
-	Files   bool             // librarytest.WriteFiles: files whose sha256 match the rows
-	Clock   *Clock           // nil => fixed at librarytest.FixedNow
-	IDSeed  string           // deterministic UUIDv7-shaped id sequence ("" => "0190")
-	Limits  ratelimit.Config // nil => effectively unlimited
-	Canary  bool             // canary secret_key / edge_secret / ntfy_token / human username; ntfy fake server
+	Mode    string                // "proxy" (default) | "local"
+	Fixture bool                  // librarytest.Fixture (M1 rows plus the M2a rows)
+	Archive *archivetest.Template // an imported synthetic archive (archivetest.SyntheticArchive), copied into the DataDir; exclusive with Fixture
+	Files   bool                  // librarytest.WriteFiles: files whose sha256 match the rows
+	Clock   *Clock                // nil => fixed at librarytest.FixedNow
+	IDSeed  string                // deterministic UUIDv7-shaped id sequence ("" => "0190")
+	Limits  ratelimit.Config      // nil => effectively unlimited
+	Canary  bool                  // canary secret_key / edge_secret / ntfy_token / human username; ntfy fake server
 }
 
 // Rig is one running server.
@@ -115,6 +117,12 @@ func New(tb testing.TB, o Options) *Rig {
 		cfg.NtfyURL = r.Ntfy.URL
 	}
 
+	if o.Archive != nil {
+		if o.Fixture || o.Files {
+			tb.Fatal("servertest: Archive is exclusive with Fixture and Files")
+		}
+		o.Archive.CopyTo(tb, r.DataDir)
+	}
 	st, err := store.Open(ctx, filepath.Join(r.DataDir, "metamusic.db"))
 	if err != nil {
 		tb.Fatal(err)

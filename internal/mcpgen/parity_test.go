@@ -155,13 +155,6 @@ var parityCases = []ParityCase{
 // three faces must answer the same 501 NOT_IMPLEMENTED. Each owning task
 // replaces its entries with real cases.
 var stubCases = []ParityCase{
-	{Op: "rate_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "stars": 4}), Status: 501},
-	{Op: "update_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "status": "final"}), Status: 501},
-	{Op: "set_tags", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "add": []string{"ballad"}}), Status: 501},
-	{Op: "list_tags", Status: 501},
-	{Op: "add_comment", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "body": "second chorus drags", "kind": "fix"}), Status: 501},
-	{Op: "update_comment", Args: fixedArgs(map[string]any{"id": "c1", "state": "resolved"}), Status: 501},
-	{Op: "list_comments", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "limit": 10}), Status: 501},
 	{Op: "get_track_context", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 501},
 	{Op: "log_listen_events", Args: fixedArgs(map[string]any{"events": []map[string]any{{
 		"id": "01900000-0000-7000-8000-0000000000a1", "track_id": lt.TrackLuna, "session_id": "s1", "kind": "start", "client_at": "2026-10-06T11:59:00Z"}}}), Status: 501},
@@ -184,7 +177,23 @@ var stubCases = []ParityCase{
 	{Op: "revoke_own_token", Status: 501},
 }
 
-func init() { parityCases = append(parityCases, stubCases...) }
+// judgmentCases are the M2a-B4b cases. Token ids, transports and the ids drawn
+// from the rig's id sequence (which the audit rows of the extra call_operation
+// replays advance) legitimately differ between faces.
+var judgmentCases = []ParityCase{
+	{Op: "rate_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "stars": 4, "verdict": "parity"}), Masks: []string{"by"}},
+	{Op: "update_track", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "status": "final"}), Masks: []string{"status_set_by", "by"}},
+	{Op: "set_tags", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "add": []string{"Ballad", "late night"}})},
+	{Op: "list_tags"},
+	{Op: "update_comment", Args: fixedArgs(map[string]any{"id": lt.CommentLunaFix, "state": "resolved"})},
+	{Op: "list_comments", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "limit": 10, "order": "time"})},
+	{Op: "add_comment", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "body": "second chorus drags", "kind": "fix", "at_second": 5.04}), Masks: []string{"id", "author", "source"}},
+}
+
+func init() {
+	parityCases = append(parityCases, judgmentCases...)
+	parityCases = append(parityCases, stubCases...)
+}
 
 // needsFixture reports whether an operation must carry a parity fixture: any
 // non-GET method, or any path/query/header parameter, or a request body.

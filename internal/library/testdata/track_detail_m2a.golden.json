@@ -1,0 +1,39 @@
+{
+  "comments": 3,
+  "listening": {
+    "plays": 2,
+    "completion_rate": 0.5,
+    "last_played_at": "2026-10-06T11:40:00Z"
+  },
+  "open_comments": 3,
+  "playlists": [
+    {
+      "id": "01900000-0000-7000-8000-000000000501",
+      "name": "fixture-mix"
+    }
+  ],
+  "rating": {
+    "track_id": "01900000-0000-7000-8000-000000000101",
+    "human": {
+      "stars": 5,
+      "verdict": "Synthetic keeper",
+      "by": {
+        "kind": "human",
+        "id": "human:fixture",
+        "name": "fixture"
+      },
+      "updated_at": "2026-10-06T10:00:00Z"
+    },
+    "critic": {
+      "stars": 2,
+      "verdict": "Synthetic critic note",
+      "by": {
+        "kind": "agent",
+        "id": "agent:fixture-agent",
+        "name": "fixture-agent"
+      },
+      "updated_at": "2026-10-06T10:00:00Z"
+    }
+  },
+  "tags": []
+}

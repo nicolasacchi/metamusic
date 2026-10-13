@@ -7,9 +7,11 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// Fixture builds the standard test library. From M2a-B4b on it also seeds the
-// M2a tables; until then it is exactly FixtureV2.
+// Fixture builds the standard test library: FixtureV2 (the M1 rows) plus the
+// M2a rows of fixture_m2a.go (ratings, tags, comments, a playlist, drafts of
+// the new origins, listen events, a paired device and a backup run).
 func Fixture(tb testing.TB, st *store.Store, now time.Time) Fixtures {
 	tb.Helper()
-	return FixtureV2(tb, st, now)
+	fx := FixtureV2(tb, st, now)
+	return addM2a(tb, st, now, fx)
 }

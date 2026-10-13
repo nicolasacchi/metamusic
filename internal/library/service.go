@@ -21,6 +21,10 @@ type Service struct {
 	data *os.Root
 	now  func() time.Time
 	ids  func() string
+	// legacyV2 makes InsertTake avoid every M2a column and table (revision,
+	// track_tags), so FixtureV2 can build a real schema-version-2 database for
+	// the upgrade test. Tests only; see UseLegacyV2Schema.
+	legacyV2 bool
 }
 
 // New builds a Service. data may be nil for callers that never read files
@@ -58,6 +62,11 @@ func (s *Service) UseIDFunc(f func() string) { s.ids = f }
 
 func (s *Service) newID() string { return s.ids() }
 
+// UseLegacyV2Schema makes InsertTake write against a schema-version-2 database
+// (no draft revisions, no tag inheritance). It exists for librarytest.FixtureV2
+// and the upgrade test; production code never calls it.
+func (s *Service) UseLegacyV2Schema() { s.legacyV2 = true }
+
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
 func (s *Service) nowStr() string { return ts(s.now()) }
@@ -79,7 +88,7 @@ func oneOf(v string, set ...string) bool {
 // Go-validated enumerations (the schema deliberately has no CHECK for these).
 var (
 	enumRawKind  = []string{"jsonl_line", "json_array_item", "json_file"}
-	enumOrigin   = []string{"import_backlog", "varianti_import"}
+	enumOrigin   = []string{"import_backlog", "varianti_import", "editor", "agent", "jsonl_upload"}
 	enumRendKind = []string{"mp3_320", "peaks"}
 	enumQuality  = []string{"lossless", "high", "auto"}
 )

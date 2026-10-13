@@ -49,7 +49,12 @@ type env struct {
 	dir string
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, lt.FixtureV2) }
+
+// newEnvM2a is the standard fixture with the M2a rows (ratings, tags, comments...).
+func newEnvM2a(t *testing.T) *env { return newEnvWith(t, lt.Fixture) }
+
+func newEnvWith(t *testing.T, fixture func(testing.TB, *store.Store, time.Time) lt.Fixtures) *env {
 	t.Helper()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
@@ -57,7 +62,7 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	e := &env{st: st, clk: &clock{t: lt.FixedNow}, dir: t.TempDir()}
-	e.fx = lt.Fixture(t, st, lt.FixedNow)
+	e.fx = fixture(t, st, lt.FixedNow)
 	lt.WriteFiles(t, e.dir)
 	root, err := os.OpenRoot(e.dir)
 	if err != nil {

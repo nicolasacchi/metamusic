@@ -574,6 +574,7 @@ metadata appears only in `recipe_refs.ref_json` (never in FTS).
 - Fulfilment: `UPDATE recipe_drafts SET status='fulfilled', fulfilled_by_track_id=?, updated_at=?
   WHERE id=? AND status='backlog'`. Mother relink: `UPDATE recipe_drafts SET parent_track_id=?,
   updated_at=? WHERE id=? AND parent_track_id IS NULL`.
+- **M2a-B4b addendum (C27):** every `recipe_drafts` write of an import (this fulfilment, the `core_hash` fallback and the mother writes) adds `AND revision = 1`: a draft a human edited (revision > 1) stays in the backlog with its edited request and mother, and the import reports `draft_edited_not_fulfilled` / `draft_edited_not_relinked`.
 - Runs: heartbeat `UPDATE import_runs SET heartbeat_at=? WHERE id=? AND state='running'`; finish
   `UPDATE import_runs SET state=?, finished_at=?, summary_json=?, report_json=?, error=? WHERE id=?
   AND state='running'`.
@@ -1099,6 +1100,7 @@ group and are processed once. A non-zero STREAMINFO MD5 shared by two different 
   an imported take).
 
 **C16.4 Placement.**
+- **M2a-B4b addendum:** drafts with `revision > 1` are never planned a mother, never predicted fulfilled and never written by an apply (`library.SnapDraft.Revision`); see C11.
 - **Tracks:** one per matched audio identity. Title precedence: mapping `title` → per-song JSON `title`
   → `TITLE` tag → humanised stem (`_`/`-` → space, first letter upper; stem `audio` ⇒ humanised request
   id). `recorded_at` = inbox mtime of the representative (rsync preserves it).
@@ -1252,11 +1254,11 @@ func (s *Service) InsertRecipeSource(ctx context.Context, tx *sql.Tx, recipeID s
 func (s *Service) InsertRefs(ctx context.Context, tx *sql.Tx, recipeID, source string, ref map[string]string) error
 func (s *Service) InsertDraft(ctx context.Context, tx *sql.Tx, d NewDraft) (id string, created bool, err error)
 func (s *Service) AddToCollection(ctx context.Context, tx *sql.Tx, draftID, name, source string) error
-func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error // track+terms+renditions+analyses+artifacts+score+sections+mutation+fulfilment (own recipe + core_hash fallback)
+func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error // track+terms+renditions+analyses+artifacts+score+sections+mutation+tag inheritance (M2a)+fulfilment (own recipe + core_hash fallback; edited drafts skipped, reported in Fulfilment.EditedSkipped)
 func (s *Service) BeginRun(ctx context.Context, principal, inboxLabel, planDigest string) (runID string, err error) // C16.8 guard
 func (s *Service) Heartbeat(ctx context.Context, runID string) error
 func (s *Service) FinishRun(ctx context.Context, runID, state string, summary, report []byte, runErr error) error
-func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) // C16.4
+func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) // C16.4; M2a-B4b: skips edited drafts (revision > 1)
 func (s *Service) Snapshot(ctx context.Context) (LibrarySnapshot, error) // one read tx: hashes, audio ids, drafts, roots (importer/dry-run)
 
 // Reads (ops)
@@ -1445,6 +1447,8 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
 (C20 "same now") must pass them the same func as `Options.Now`, so tests fix one clock). **Registration never dereferences `Library`, `Signer` or `Probe`**:
 `metamusic openapi` calls `api.New` with no database; handlers check for nil at call time and answer 503.
 
+**M2a-B4b addendum (C19, C17):** behaviour of the M2a fields: `search_tracks` filters (`min_stars` and `unrated` are exclusive, `tag` is AND over effective tags, `has_open_comments` ignores hidden comments, discarded tracks are hidden unless `status` asks), `MatchTrackIDs(ctx, SearchParams)` returns the unpaged ids of the same query, `list_drafts` accepts the origins `editor`, `agent`, `jsonl_upload`, and `librarytest.Fixture` now holds the M2a rows (`FixtureV2` keeps the M1 rows; M1 tests that pin M1 counts use it).
+
 **M2a-B4a addendum (C19):** `search_tracks` gains `min_stars`, `unrated`, `tag`, `has_open_comments` and the
 `stars_desc` sort; `TrackSummary`, `TrackDetail`, `Facets`, `Stats`, `DraftSummary`, `DraftDetail` gain the M2a
 fields (zero values until M2a-B4b/B5 fill them); `list_drafts` and `get_draft` moved to
@@ -1480,6 +1484,7 @@ reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`
   command call `config.Load` directly, not M0's `boot()`, which loads secrets, creates `DataDir` and
   opens (creates and migrates) the database: the dry-run must create nothing, and apply/seed open the
   store themselves with `store.Open`. (`dev --seed-synthetic` keeps using `boot()`.)
+- **M2a-B4b addendum:** `internal/archivetest.SyntheticArchive` imports the acceptance or e2e archive once per test binary (the same import as `seedSynthetic`); its package is added to `TestNoTestHelpersInBinary`.
 - **M2a-B4a addendum:** `run` also dispatches `export`, `validate-batch` (real), `backup` and `restore` (stubs until
   M2a-B6/B7); `serve` starts the backup `Scheduler` (unless `MM_BACKUP_AT=off`) and a daily export sweep.
 - New subcommands (stdlib `flag`, testable through `run`):

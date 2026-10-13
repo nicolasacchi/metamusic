@@ -43,7 +43,7 @@ func newRig(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	lt.Fixture(t, st, lt.FixedNow)
+	lt.FixtureV2(t, st, lt.FixedNow)
 	dir := t.TempDir()
 	lt.WriteFiles(t, dir)
 	root, err := os.OpenRoot(dir)

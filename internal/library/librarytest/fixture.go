@@ -111,7 +111,9 @@ func WriteFiles(tb testing.TB, dataDir string) {
 	tb.Helper()
 	for i, t := range fxTracks {
 		m, p, k := trackFiles(i, t)
-		for _, f := range []fxFile{m, p, k} {
+		// the kept request.json artifact (its sha256 is in the artifacts row)
+		req := fxFile{"takes/" + t.id + "/request.json", mustParse(tb, reqJSON(t.requestID, t.style, t.lyrics, t.seed)).Canonical}
+		for _, f := range []fxFile{m, p, k, req} {
 			full := filepath.Join(dataDir, f.path)
 			if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 				tb.Fatal(err)
@@ -147,6 +149,7 @@ func FixtureV2(tb testing.TB, st *store.Store, now time.Time) Fixtures {
 	n := idBase
 	svc := library.New(st, nil, func() time.Time { return now })
 	svc.UseIDFunc(func() string { n++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", n) })
+	svc.UseLegacyV2Schema() // FixtureV2 must also run against a version-2 database
 	var fx Fixtures
 
 	// import run first (recipe_sources reference it)

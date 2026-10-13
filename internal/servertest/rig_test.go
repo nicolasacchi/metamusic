@@ -2,6 +2,7 @@ package servertest_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
@@ -138,4 +140,30 @@ func TestNormalize(t *testing.T) {
 	if in["id"] != "x" {
 		t.Error("Normalize must not modify its input")
 	}
+}
+
+// TestServertest_ArchiveOption: a rig over an imported synthetic archive lists its tracks
+// and drafts, and the archive's template stays untouched by writes through the rig.
+func TestServertest_ArchiveOption(t *testing.T) {
+	tpl := archivetest.SyntheticArchive(t, "acceptance")
+	r := servertest.New(t, servertest.Options{Archive: &tpl})
+	h := r.Human(t)
+	tracks := h.OK(t, "GET", "/api/tracks?limit=100", nil).(map[string]any)
+	drafts := h.OK(t, "GET", "/api/drafts?limit=100", nil).(map[string]any)
+	if tracks["total"].(float64) < 1 || drafts["total"].(float64) < 1 {
+		t.Fatalf("empty archive rig: tracks=%v drafts=%v", tracks["total"], drafts["total"])
+	}
+	id := tracks["items"].([]any)[0].(map[string]any)["id"].(string)
+	h.OK(t, "PUT", "/api/tracks/"+id+"/rating", map[string]any{"stars": 3})
+	r2 := servertest.New(t, servertest.Options{Archive: &tpl})
+	var n int
+	if err := r2.Store.R.QueryRow(`SELECT COUNT(*) FROM ratings`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("a second rig sees %d ratings (%v)", n, err)
+	}
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	archivetest.Cleanup()
+	os.Exit(code)
 }

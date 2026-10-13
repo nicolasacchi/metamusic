@@ -3,7 +3,6 @@
 package judgments
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"time"
@@ -96,6 +95,20 @@ type CommentPage struct {
 	NextCursor *string   `json:"next_cursor"`
 }
 
+// Error is a judgments failure with a stable problem code; the API layer maps
+// it to application/problem+json. Plain input errors are
+// *library.ValidationError.
+type Error struct {
+	Status int
+	Code   string
+	Msg    string
+	Field  string
+	cause  error
+}
+
+func (e *Error) Error() string { return e.Code + ": " + e.Msg }
+func (e *Error) Unwrap() error { return e.cause }
+
 // Service implements C31.
 type Service struct {
 	st    *store.Store
@@ -110,78 +123,6 @@ func New(st *store.Store, lib *library.Service, now func() time.Time, newID func
 		now = time.Now
 	}
 	return &Service{st: st, lib: lib, now: now, newID: newID}
-}
-
-// Rate sets or clears the caller's rating (source comes from the principal).
-func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, stars *int, verdict *string) (TrackRating, error) {
-	// STUB(M2a-B4b)
-	return TrackRating{}, errors.ErrUnsupported
-}
-
-// Ratings returns both rating rows of a track.
-func (s *Service) Ratings(ctx context.Context, trackID string) (TrackRating, error) {
-	// STUB(M2a-B4b)
-	return TrackRating{}, errors.ErrUnsupported
-}
-
-// HumanStars returns the human stars of the rated tracks among trackIDs.
-func (s *Service) HumanStars(ctx context.Context, trackIDs []string) (map[string]int, error) {
-	// STUB(M2a-B4b)
-	return nil, errors.ErrUnsupported
-}
-
-// UpdateTrack changes a track's title and/or status.
-func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID string, title, status *string) error {
-	// STUB(M2a-B4b)
-	return errors.ErrUnsupported
-}
-
-// SetTags adds and removes tags.
-func (s *Service) SetTags(ctx context.Context, p auth.Principal, trackID string, add, remove []string) (TrackTags, error) {
-	// STUB(M2a-B4b)
-	return TrackTags{}, errors.ErrUnsupported
-}
-
-// Tags returns a track's effective tags.
-func (s *Service) Tags(ctx context.Context, trackID string) (TrackTags, error) {
-	// STUB(M2a-B4b)
-	return TrackTags{}, errors.ErrUnsupported
-}
-
-// TagCounts lists every active tag with its counts.
-func (s *Service) TagCounts(ctx context.Context) ([]TagCount, error) {
-	// STUB(M2a-B4b)
-	return nil, errors.ErrUnsupported
-}
-
-// AddComment creates a comment; src is the transport label (web|api|mcp|stdio).
-func (s *Service) AddComment(ctx context.Context, p auth.Principal, src string, trackID string, in NewComment) (Comment, error) {
-	// STUB(M2a-B4b)
-	return Comment{}, errors.ErrUnsupported
-}
-
-// UpdateComment edits, hides or transitions a comment.
-func (s *Service) UpdateComment(ctx context.Context, p auth.Principal, id string, in CommentPatch) (Comment, error) {
-	// STUB(M2a-B4b)
-	return Comment{}, errors.ErrUnsupported
-}
-
-// Comments lists a track's comments.
-func (s *Service) Comments(ctx context.Context, trackID string, f CommentFilter) (CommentPage, error) {
-	// STUB(M2a-B4b)
-	return CommentPage{}, errors.ErrUnsupported
-}
-
-// NormalizeTag returns the canonical form of a tag (INVALID_TAG when it fails).
-func NormalizeTag(s string) (string, error) {
-	// STUB(M2a-B4b)
-	return "", errors.ErrUnsupported
-}
-
-// Transition reports whether a comment may move between two states.
-func Transition(from, to string) error {
-	// STUB(M2a-B4b)
-	return errors.ErrUnsupported
 }
 
 // nullableObject renders T (a method-less shadow of the real type) as an inline
