@@ -158,10 +158,6 @@ var stubCases = []ParityCase{
 	{Op: "get_track_context", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 501},
 	{Op: "log_listen_events", Args: fixedArgs(map[string]any{"events": []map[string]any{{
 		"id": "01900000-0000-7000-8000-0000000000a1", "track_id": lt.TrackLuna, "session_id": "s1", "kind": "start", "client_at": "2026-10-06T11:59:00Z"}}}), Status: 501},
-	{Op: "lint_recipe", Args: fixedArgs(map[string]any{"items": []map[string]any{{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}}}), Status: 501},
-	{Op: "create_draft", Args: fixedArgs(map[string]any{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}), Status: 501},
-	{Op: "update_draft", Args: fixedArgs(map[string]any{"id": lt.Draft1, "revision": 1, "status": "archived"}), Status: 501},
-	{Op: "upload_batch_jsonl", Args: fixedArgs(map[string]any{"jsonl": "{}\n"}), Status: 501},
 	{Op: "list_playlists", Status: 501},
 	{Op: "get_playlist", Args: fixedArgs(map[string]any{"id": "p1"}), Status: 501},
 	{Op: "create_playlist", Args: fixedArgs(map[string]any{"name": "Night"}), Status: 501},
@@ -190,8 +186,21 @@ var judgmentCases = []ParityCase{
 	{Op: "add_comment", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "body": "second chorus drags", "kind": "fix", "at_second": 5.04}), Masks: []string{"id", "author", "source"}},
 }
 
+// draftCases are the M2a-B5 cases. Ids drawn from the rig's id sequence, the principal keys and the
+// timestamps of rows written by the call_operation replays legitimately differ between faces.
+var draftCases = []ParityCase{
+	{Op: "lint_recipe", Args: fixedArgs(map[string]any{"items": []map[string]any{{"request": map[string]any{"id": "x", "style": "pop", "lyrics": "[verse]\nla"}}}})},
+	{Op: "create_draft", Args: fixedArgs(map[string]any{"request": map[string]any{"id": "pc_x", "style": "english, pop", "lyrics": "[Verse]\nla la\nla\nla\nla\n[Chorus]\nla\nla\nla\nla", "cot": "full", "seed": 4}}),
+		Masks: []string{"id", "created_by", "updated_by", "created_at", "updated_at", "hash"}},
+	{Op: "update_draft", Args: fixedArgs(map[string]any{"id": lt.Draft1, "revision": 1, "status": "archived"}), SkipGeneric: true,
+		Masks: []string{"updated_by", "updated_at"}},
+	{Op: "upload_batch_jsonl", Args: fixedArgs(map[string]any{"jsonl": `{"id":"pc_u1","style":"english","lyrics":"[Verse]\nla","cot":"full","seed":1}` + "\n", "collection": "parity"}),
+		Masks: []string{"id", "drafts"}},
+}
+
 func init() {
 	parityCases = append(parityCases, judgmentCases...)
+	parityCases = append(parityCases, draftCases...)
 	parityCases = append(parityCases, stubCases...)
 }
 
