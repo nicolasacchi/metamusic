@@ -1813,6 +1813,8 @@ non-zero exit. The probe specs still trigger the probe with a real click, so the
 | `mm-api-bearer` | `PathPrefix(/api/) && HeaderRegexp(Authorization, ^[Bb]earer .+)` | 110 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
 | `mm-agent` | `Path(/mcp) \|\| PathPrefix(/mcp/) \|\| PathPrefix(/.well-known/) \|\| Path(/oauth/token) \|\| Path(/oauth/register) \|\| Path(/oauth/revoke) \|\| Path(/api/openapi.json)` | 100 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
 | `mm-media` | `PathPrefix(/rest/) \|\| PathPrefix(/media/) \|\| PathPrefix(/worker/)` | 100 | `mm-strip-identity`, `sec-headers`; access log off (`observability.accesslogs=false`) |
+| `mm-pair` (M2a) | `Path(/start) \|\| Path(/pair) \|\| Path(/pair.js) \|\| Path(/auth/pair)` | 120 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers` |
+| `mm-device` (M2a) | `HeaderRegexp(Cookie, (^\|;\s*)mm_dev=) && !PathPrefix(/human/) && !PathPrefix(/oauth/) && !PathPrefix(/auth/)` | 50 | `mm-strip-identity`, `sec-ratelimit`, `sec-headers`, `mm-compress` |
 | `mm-ui` | everything else | 10 | `authelia` (forward-auth), `mm-edge-mark`, `sec-headers`, `mm-compress` |
 
 - `mm-strip-identity` empties `Remote-User`, `Remote-Groups`, `Remote-Name`, `Remote-Email` and
@@ -1820,7 +1822,7 @@ non-zero exit. The probe specs still trigger the probe with a real click, so the
   `mm-ui`: there it would run after forward-auth and delete the `Remote-User` that Authelia just set. On
   `mm-ui`, forward-auth replaces `Remote-*` and `mm-edge-mark` overwrites `X-MM-Edge`.
 - `mm-compress` never applies to `mm-media`. `/healthz` is not routed publicly (container healthcheck
-  only). `mm-device` (paired devices) arrives with M2a.
+  only). `mm-device` (paired devices) and `mm-pair` arrived with M2a.
 - App-side classes (M0 `auth.Classify`) differ from the routers in two places, by design: `/assets/*` is
   ClassPublic in the app but goes through `mm-ui` at the edge; `/api/openapi.json` is ClassUI in the app.
   Bearer requests for it match `mm-api-bearer` (110) first, so every request that reaches `mm-agent`

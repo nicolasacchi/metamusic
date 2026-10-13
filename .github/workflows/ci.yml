@@ -192,6 +192,8 @@ jobs:
       - name: install firefox (chrome is preinstalled on the runner)
         working-directory: web
         run: bunx playwright install --with-deps firefox
+      # The secret-leak check (GET /__e2e/leaks must be []) runs in the Playwright global-setup
+      # teardown. No HAR recording or upload: network captures could hold credentials.
       - name: e2e
         working-directory: web
         env:
