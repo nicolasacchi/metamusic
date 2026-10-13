@@ -221,6 +221,24 @@ describe("player store", () => {
     expect(el.currentTime).toBe(30);
   });
 
+  test("a start position survives the old source's metadata while the new links are fetched", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    el.duration = 200;
+    el.readyState = 1;
+    el.emit("loadedmetadata");
+    // jump to another track: the unlock load() re-reads the old src, whose metadata may arrive before the links
+    p.play("b", undefined, { startAt: 8 });
+    el.emit("loadedmetadata");
+    expect(el.src).toBe("/media/a.flac?exp=1");
+    expect(el.currentTime).toBe(0); // not applied to the old source
+    await flush();
+    expect(el.src).toBe("/media/b.flac?exp=1");
+    el.emit("loadedmetadata");
+    expect(el.currentTime).toBe(8);
+  });
+
   test("expired cached links are fetched again", async () => {
     const { p, fetched, flush, advance } = setup();
     p.play("a");

@@ -132,6 +132,29 @@ export function createOutbox(deps: OutboxDeps) {
     return r;
   };
 
+  // Events appended in this page life that no flush has settled and no beacon has carried. A pagehide
+  // handler cannot wait for storage, so onHide beacons these synchronously.
+  const fresh = new Map<string, ListenEvent>();
+
+  const sendBeacon = (events: ListenEvent[]) => {
+    for (let i = 0; i < events.length; i += BATCH) {
+      const json = JSON.stringify({ events: events.slice(i, i + BATCH) });
+      let ok: boolean;
+      try {
+        ok = deps.beacon(json);
+      } catch {
+        ok = false;
+      }
+      if (!ok) {
+        try {
+          deps.keepalive(json);
+        } catch {
+          /* nothing more to try; the next load flushes */
+        }
+      }
+    }
+  };
+
   const box = {
     dropped: 0,
 
@@ -144,6 +167,7 @@ export function createOutbox(deps: OutboxDeps) {
     },
 
     appendMany(events: ListenEvent[]): Promise<void> {
+      for (const e of events) fresh.set(e.id, e);
       return serial(async () => {
         await deps.store.put(events.map((event) => ({ event, beaconed: false })));
         const all = await deps.store.all();
@@ -187,6 +211,7 @@ export function createOutbox(deps: OutboxDeps) {
             if (r.kind === "retry") return;
             // ok: accepted, duplicate and rejected ids are all settled server-side; drop: never acceptable.
             await serial(() => deps.store.remove(rows.map((x) => x.event.id)));
+            for (const x of rows) fresh.delete(x.event.id);
             if (rows.length < BATCH) return;
           }
         } finally {
@@ -196,28 +221,22 @@ export function createOutbox(deps: OutboxDeps) {
       return flushing;
     },
 
-    /** pagehide / visibilitychange hidden: beacon what is not yet beaconed and mark it. */
+    /**
+     * pagehide / visibilitychange hidden: beacon what is not yet beaconed and mark it. The events of this
+     * page life go out synchronously (nothing after pagehide is guaranteed to run); rows left by earlier
+     * page lives follow from storage on a best-effort basis.
+     */
     onHide(): Promise<void> {
+      const mem = [...fresh.values()];
+      fresh.clear();
+      if (mem.length > 0) sendBeacon(mem);
+      const sent = new Set(mem.map((e) => e.id));
       return serial(async () => {
-        const rows = (await deps.store.all()).filter((r) => !r.beaconed);
-        for (let i = 0; i < rows.length; i += BATCH) {
-          const chunk = rows.slice(i, i + BATCH);
-          const json = JSON.stringify({ events: chunk.map((r) => r.event) });
-          let ok: boolean;
-          try {
-            ok = deps.beacon(json);
-          } catch {
-            ok = false;
-          }
-          if (!ok) {
-            try {
-              deps.keepalive(json);
-            } catch {
-              /* nothing more to try; the next load flushes */
-            }
-          }
-          await deps.store.put(chunk.map((r) => ({ ...r, beaconed: true })));
-        }
+        const rows = await deps.store.all();
+        const older = rows.filter((r) => !r.beaconed && !sent.has(r.event.id));
+        if (older.length > 0) sendBeacon(older.map((r) => r.event));
+        const mark = rows.filter((r) => !r.beaconed && (sent.has(r.event.id) || older.includes(r)));
+        if (mark.length > 0) await deps.store.put(mark.map((r) => ({ ...r, beaconed: true })));
       });
     },
   };

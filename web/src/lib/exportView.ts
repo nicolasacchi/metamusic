@@ -273,8 +273,10 @@ export function auditQuery(f: AuditFilters, cursor?: string): AuditQuery {
   if (!f.includeListen) q.exclude_op = [LISTEN_OP];
   if (f.since.trim()) q.since = f.since.trim();
   if (f.until.trim()) q.until = f.until.trim();
-  const s = Number(f.statusMin);
-  if (f.statusMin.trim() !== "" && Number.isInteger(s) && s >= 100 && s <= 599) q.status_min = s;
+  // bind:value on a number input yields a number (null when cleared), not the declared string
+  const raw = String(f.statusMin ?? "").trim();
+  const s = Number(raw);
+  if (raw !== "" && Number.isInteger(s) && s >= 100 && s <= 599) q.status_min = s;
   if (cursor) q.cursor = cursor;
   return q;
 }

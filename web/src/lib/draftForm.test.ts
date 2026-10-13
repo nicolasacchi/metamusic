@@ -15,6 +15,7 @@ import {
   saveDraft,
   toRequest,
   uploadRows,
+  failedRows,
   type Timers,
 } from "./draftForm";
 
@@ -159,6 +160,23 @@ describe("lint view", () => {
     } as never);
     expect(all.map((i) => i.severity)).toEqual(["error", "warning"]);
     expect(lintIssues(null)).toEqual([]);
+  });
+});
+
+describe("rejected upload rows", () => {
+  test("LINT_FAILED details become per-line error rows; anything else yields none", () => {
+    const body = {
+      code: "LINT_FAILED",
+      details: { items: [{ line: 3, errors: [{ code: "bad_json" }, { code: "bad", field: "seed" }], warnings: [] }, { line: 1, errors: [{ code: "x" }], warnings: [] }] },
+    };
+    expect(failedRows(body).map((r) => [r.line, r.state, r.text])).toEqual([
+      [1, "error", "x"],
+      [3, "error", "bad_json"],
+      [3, "error", "bad (seed)"],
+    ]);
+    expect(failedRows({ code: "X", details: {} })).toEqual([]);
+    expect(failedRows(undefined)).toEqual([]);
+    expect(failedRows({ details: { items: "no" } })).toEqual([]);
   });
 });
 

@@ -213,3 +213,14 @@ export function uploadRows(r: UploadResult): UploadRow[] {
   const order = { error: 0, warning: 1, created: 2 };
   return rows.sort((a, b) => a.line - b.line || order[a.state] - order[b.state]);
 }
+
+/** Per-line error rows of a rejected upload (422 LINT_FAILED carries `details.items`); [] for any other error. */
+export function failedRows(body: unknown): UploadRow[] {
+  const items = (body as { details?: { items?: unknown } } | undefined)?.details?.items;
+  if (!Array.isArray(items)) return [];
+  const rows: UploadRow[] = [];
+  for (const it of items as { line?: number; errors?: { code: string; field?: string }[] }[]) {
+    for (const e of it.errors ?? []) rows.push({ line: it.line ?? 0, state: "error", text: e.field ? `${e.code} (${e.field})` : e.code });
+  }
+  return rows.sort((a, b) => a.line - b.line);
+}

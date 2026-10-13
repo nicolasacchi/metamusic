@@ -110,7 +110,8 @@
 <style>
   .bar {
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
     align-items: center;
     flex: 1;
     min-width: 0;
@@ -124,7 +125,7 @@
     min-height: 2.5rem;
   }
   .mid {
-    flex: 1;
+    flex: 1 1 8rem;
     min-width: 0;
   }
   .title {

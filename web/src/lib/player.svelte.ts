@@ -112,6 +112,8 @@ export class Player {
   private cleanup: (() => void) | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
   private appliedExp = 0;
+  /** Track whose links were last applied to the element: only its metadata may consume a pending seek. */
+  private appliedTrack = "";
   /** Bumped on every track change so a slow async link fetch never clobbers a newer play. */
   private epoch = 0;
 
@@ -343,6 +345,7 @@ export class Player {
     const url = format === "flac" ? links.flac.url : links.mp3.url;
     this.appliedExp = Date.parse(links.expires_at);
     this.src = url;
+    this.appliedTrack = links.track_id;
     el.src = url;
     this.state.playing = !el.paused;
     if (this.autoplay) {
@@ -423,7 +426,8 @@ export class Player {
     // The MP3 loaded after a FLAC failure: server and network work, so the FLAC failure was a codec failure.
     if (this.probePending.delete(id) && this.state.format === "mp3") this.deps.device.recordFailedProbe();
     const el = this.el;
-    if (el && this.pendingSeek != null) {
+    // The unlock load() in begin() re-reads the previous track's source; its metadata is not ours.
+    if (el && this.pendingSeek != null && this.appliedTrack === id) {
       const t = this.pendingSeek;
       this.pendingSeek = null;
       this.seek(t);

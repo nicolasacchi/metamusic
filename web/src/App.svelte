@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { APP_ROUTES, createRouter } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
@@ -42,18 +43,22 @@
   }
 
   let audio: HTMLAudioElement;
-  $effect(() => {
-    player.attach(audio);
-    installDevice(player);
-    const offMediaSession = installMediaSession(player, audio);
-    const offListen = installListen(player);
-    return () => {
-      offListen();
-      offMediaSession();
-      player.attach(null);
-      router.destroy();
-    };
-  });
+  // Install once: untracked, because attach() writes player.el and the installers read player state;
+  // tracked, the effect would re-run itself forever (one device-probe request per iteration).
+  $effect(() =>
+    untrack(() => {
+      player.attach(audio);
+      installDevice(player);
+      const offMediaSession = installMediaSession(player, audio);
+      const offListen = installListen(player);
+      return () => {
+        offListen();
+        offMediaSession();
+        player.attach(null);
+        router.destroy();
+      };
+    }),
+  );
 </script>
 
 <div class="shell">

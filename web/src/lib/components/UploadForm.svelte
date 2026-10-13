@@ -2,7 +2,7 @@
   import { api } from "../../api/client";
   import { idempotentAction } from "../../api/idem";
   import type { components } from "../../api/schema";
-  import { uploadRows } from "../draftForm";
+  import { failedRows, uploadRows, type UploadRow } from "../draftForm";
 
   type Result = components["schemas"]["UploadResult"];
   let jsonl = $state("");
@@ -14,7 +14,8 @@
   let action: (() => Promise<{ data?: Result; message?: string }>) | null = null;
   let actionSig = "";
 
-  const rows = $derived(result ? uploadRows(result) : []);
+  let rejected = $state<UploadRow[]>([]);
+  const rows = $derived(result ? uploadRows(result) : rejected);
 
   async function pick(e: Event) {
     const f = (e.currentTarget as HTMLInputElement).files?.[0];
@@ -33,11 +34,14 @@
       actionSig = sig;
       action = idempotentAction(async (key) => {
         const r = await api.POST("/api/drafts/batch", { params: { header: { "Idempotency-Key": key } }, body });
-        return r.data ? { data: r.data } : { message: r.error?.message ?? "Upload failed" };
+        if (r.data) return { data: r.data };
+        rejected = failedRows(r.error);
+        return { message: r.error?.message ?? "Upload failed" };
       });
     }
     busy = true;
     error = "";
+    rejected = [];
     try {
       const r = await action();
       if (r.data) result = r.data;
@@ -62,6 +66,13 @@
 </form>
 
 {#if error}<p role="alert">{error}</p>{/if}
+{#if rejected.length > 0}
+  <ul data-testid="upload-rejected">
+    {#each rejected as r, n (n)}
+      <li data-testid="upload-row" data-state={r.state}>line {r.line}: <b>{r.state}</b> {r.text}</li>
+    {/each}
+  </ul>
+{/if}
 {#if result}
   <section data-testid="upload-result">
     <h2>Result</h2>

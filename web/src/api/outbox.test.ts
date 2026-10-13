@@ -148,6 +148,27 @@ describe("outbox", () => {
     expect(await box.pending()).toBe(0);
   });
 
+  test("hide beacons synchronously: events appended this page life need no storage round trip", async () => {
+    const { box, beacons } = setup({});
+    void box.append(ev()); // not awaited: still queued behind the store write
+    void box.append(ev());
+    const done = box.onHide();
+    // a pagehide handler gets no further tick: the beacon must already be out
+    expect(beacons).toHaveLength(1);
+    expect(JSON.parse(beacons[0]!).events).toHaveLength(2);
+    await done;
+    expect(beacons).toHaveLength(1); // not sent a second time from storage
+    expect(await box.pending()).toBe(2); // kept (beaconed) until a flush is acknowledged
+  });
+
+  test("events delivered by a flush are not beaconed on hide", async () => {
+    const { box, beacons } = setup({});
+    await box.append(ev());
+    await box.flush();
+    await box.onHide();
+    expect(beacons).toHaveLength(0);
+  });
+
   test("sendBeacon throwing or returning false falls back to keepalive fetch", async () => {
     const a = setup({
       beacon: () => {

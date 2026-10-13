@@ -151,6 +151,11 @@ describe("audit filters <-> query", () => {
     expect(auditFiltersFromQuery(q)).toEqual({ ...f, op: "rate_track, add_comment" });
     expect(auditFiltersFromQuery(auditQuery(defaultAuditFilters()))).toEqual(defaultAuditFilters());
   });
+  test("a number from a type=number input is accepted (Svelte binds numbers, null when empty)", () => {
+    const bound = (v: unknown) => ({ ...defaultAuditFilters(), statusMin: v as string });
+    expect(auditQuery(bound(400)).status_min).toBe(400);
+    expect(auditQuery(bound(null)).status_min).toBeUndefined();
+  });
   test("bad status_min is dropped", () => {
     expect(auditQuery({ ...defaultAuditFilters(), statusMin: "7" }).status_min).toBeUndefined();
   });
