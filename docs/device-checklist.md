@@ -43,4 +43,12 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M2a-6 playlist ZIP downloads on the phone; the MP3s show their current titles in the Files app
 - [ ] DC-M2a-7 revoking the device on the desktop => the phone shows the `/start` chooser on its next request
 
+## M2b
+
+- [ ] DC-M2b-1 iPhone (ringer on silent) and Android: a blind duel plays both clips in sync; toggling on a drum-heavy passage gives no flam, echo, click or gap
+- [ ] DC-M2b-2 24-bit FLAC clips decode in Safari (browser and installed PWA) and Chrome on Android; ten consecutive duels without a reload or crash
+- [ ] DC-M2b-3 the big toggle and verdict buttons work one-handed; locking the screen during a duel and returning resumes correctly
+- [ ] DC-M2b-4 the spectrogram is readable on a phone; a tap seeks the player
+- [ ] DC-M2b-5 the main player pauses when a duel starts and can be resumed afterwards
+
 ## Notes

@@ -2,12 +2,63 @@
 # Self-test for scripts/tools.sh (needs network):
 #  1. every pinned URL answers 2xx to HEAD (ffmpeg: release URL or its upstream fallback);
 #  2. a tampered sha256 makes tools.sh exit non-zero and leaves no binary;
-#  3. a second run is a no-op (nothing is downloaded again).
+#  3. a second run is a no-op (nothing is downloaded again);
+#  4. (M2b) the pinned bin/ffmpeg has every filter/encoder the clip and Tier A services require
+#     (same lists as RequireClips / RequireTierA), and the check itself fails on a fake ffmpeg that lacks one.
+# TOOLS_SELFTEST_CAPS_ONLY=1 runs only step 4 (no network).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fail() { echo "tools-selftest: FAIL: $*" >&2; exit 1; }
+
+# 4. capabilities. Lists mirror internal/analysis/ffmpeg/capabilities.go (RequireClips, RequireTierA).
+clip_filters="atrim asetpts afade aresample volume ebur128 ametadata"
+clip_encoders="flac"
+tiera_filters="asetnsamples astats silencedetect ametadata aformat showspectrumpic"
+tiera_encoders="png"
+# caps_missing BIN: prints "<group>: <kind> <name>" for each missing item (empty output = all present).
+caps_missing() {
+  local bin=$1 filters encoders n
+  filters=$("$bin" -hide_banner -filters 2>/dev/null) || { echo "ffmpeg: cannot list filters"; return 0; }
+  encoders=$("$bin" -hide_banner -encoders 2>/dev/null) || { echo "ffmpeg: cannot list encoders"; return 0; }
+  for n in $clip_filters; do grep -Eq "[[:space:]]$n[[:space:]]" <<<"$filters" || echo "RequireClips: filter $n"; done
+  for n in $clip_encoders; do grep -Eq "[[:space:]]$n[[:space:]]" <<<"$encoders" || echo "RequireClips: encoder $n"; done
+  for n in $tiera_filters; do grep -Eq "[[:space:]]$n[[:space:]]" <<<"$filters" || echo "RequireTierA: filter $n"; done
+  for n in $tiera_encoders; do grep -Eq "[[:space:]]$n[[:space:]]" <<<"$encoders" || echo "RequireTierA: encoder $n"; done
+}
+# fake ffmpeg: lists every required item except the ones named in $FAKE_MISSING (space separated).
+fake="$tmp/fake-ffmpeg"
+cat >"$fake" <<'EOF'
+#!/usr/bin/env bash
+miss=" ${FAKE_MISSING:-} "
+emit() { # kind names...
+  local kind=$1 n; shift
+  for n in "$@"; do case "$miss" in *" $n "*) ;; *) printf ' %s %s            fake\n' "$kind" "$n" ;; esac; done
+}
+case "$*" in
+  *-filters*) emit T.. atrim asetpts afade aresample volume ebur128 ametadata asetnsamples astats silencedetect aformat showspectrumpic ;;
+  *-encoders*) emit A....D flac; emit V....D png ;;
+esac
+EOF
+chmod +x "$fake"
+[ -z "$(caps_missing "$fake")" ] || fail "capability check rejects a complete fake ffmpeg: $(caps_missing "$fake")"
+for m in showspectrumpic astats silencedetect asetnsamples png ebur128 atrim flac; do
+  out=$(FAKE_MISSING=$m caps_missing "$fake")
+  grep -q " $m\$" <<<"$out" || fail "capability check did not flag missing $m: '$out'"
+done
+case "$(FAKE_MISSING=showspectrumpic caps_missing "$fake")" in RequireTierA:*) ;; *) fail "missing showspectrumpic not attributed to RequireTierA" ;; esac
+case "$(FAKE_MISSING=atrim caps_missing "$fake")" in RequireClips:*) ;; *) fail "missing atrim not attributed to RequireClips" ;; esac
+echo "tools-selftest: capability check flags a fake ffmpeg missing RequireClips/RequireTierA items"
+real=${TOOLS_SELFTEST_FFMPEG:-$root/bin/ffmpeg}
+if [ -x "$real" ]; then
+  missing=$(caps_missing "$real")
+  [ -z "$missing" ] || fail "pinned ffmpeg lacks required capabilities: $(tr '\n' ';' <<<"$missing")"
+  echo "tools-selftest: pinned ffmpeg has every clip and Tier A capability"
+elif [ "${TOOLS_SELFTEST_CAPS_ONLY:-}" = 1 ]; then
+  fail "no ffmpeg at $real (run make tools)"
+fi
+[ "${TOOLS_SELFTEST_CAPS_ONLY:-}" != 1 ] || { echo "tools-selftest: OK (capabilities only)"; exit 0; }
 
 # 1. URLs. Every printed URL must answer 2xx, including the repo release copy of ffmpeg.
 # Non-default escape hatch while the release is not uploaded yet: TOOLS_SELFTEST_ALLOW_UPSTREAM_ONLY=1

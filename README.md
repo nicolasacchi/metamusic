@@ -103,6 +103,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_FFMPEG` | ffmpeg binary (default `ffmpeg`, resolved on `PATH`). |
 | `MM_FLAC` | flac binary (default `flac`). |
 | `MM_METAFLAC` | metaflac binary (default `metaflac`). |
+| `MM_CLIP_CACHE_MB` | Size cap of the rendered-clip cache in MiB (default 4096, minimum 256). See the runbook. |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
 (`metamusic token create --name N --scopes read,write`).
