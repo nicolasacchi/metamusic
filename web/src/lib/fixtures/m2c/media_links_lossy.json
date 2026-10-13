@@ -1,0 +1,14 @@
+{
+  "track_id": "01900000-0000-7000-8000-000000000c03",
+  "expires_at": "2026-10-14T00:00:00Z",
+  "ttl_s": 43200,
+  "lossy": true,
+  "flac": null,
+  "mp3": {
+    "url": "/media/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.mp3?exp=1791000000&sig=c3ludGhldGljLXNpZw",
+    "bytes": 2452000,
+    "content_type": "audio/mpeg",
+    "bitrate_kbps": 320,
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}

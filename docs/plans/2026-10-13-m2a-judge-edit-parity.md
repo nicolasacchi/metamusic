@@ -164,7 +164,7 @@ These amend or refine the design of record; M2a-X1 copies them into the private 
 | D-M2a-12 | One current rating row per source (`human`, `agent`); a DB `CHECK` ties `source='human'` to principal kinds `human`/`device`. No rating history in M2a (the audit row records who changed it, never the value). | Rating isolation becomes a schema invariant, not only a code path. |
 | D-M2a-13 | Local-mode step-up for `/human/` is a server-rendered `/auth/step-up` form (password re-entry, 10 min); `/human/api/*` without a fresh step-up returns 403 `STEP_UP_REQUIRED` and the SPA navigates to the form. | Design §4.2 requires step-up in local mode; a server-rendered form avoids a private SPA endpoint (CLAUDE.md rule 1). |
 | D-M2a-14 | `x-mm` gains `idempotency` (`create`), `rate` (`heavy`) and `secret_fields`; only human-only create ops may declare secret fields, and the idempotency store nulls those fields (a replay returns metadata only). | Design §4.4 ("responses that carry a secret are stored redacted") made machine-checkable; `TestNoSecretLeak` uses the same list. |
-| D-M2a-15 | The gate writes the audit row after the handler returns, in its own transaction (a crash between the op's commit and the audit insert loses that row). M3 spend operations will write their audit row inside the op transaction. | Keeps every M2a handler free of audit plumbing; the window is milliseconds and no money moves in M2a. |
+| D-M2a-15 | The gate writes the audit row after the handler returns and before the response is delivered (rev 5), in its own transaction (a crash between the op's commit and the audit insert loses that row). M3 spend operations will write their audit row inside the op transaction. | Keeps every M2a handler free of audit plumbing; the window is milliseconds and no money moves in M2a. |
 | D-M2a-16 | A comment's section label is computed once, at creation, from timed sections only (`manual` > `measured` > `plan`) and stored; `section_source` has a `CHECK` that excludes `lyrics`. | §6: an LLM must never edit "chorus 1" on a guess; storing the label keeps old comments stable when M5 adds measured sections. |
 | D-M2a-17 | Minimal push notifications over ntfy (`MM_NTFY_URL` + optional secret `ntfy_token`): backup failed, device paired, token created. Messages are published as JSON (no user-chosen text in HTTP headers). | The operator supplies the publisher token at M2a (roadmap inputs); silent backup failures are the main risk this milestone adds. |
 | D-M2a-18 | When `search_tracks` has no `status` filter, `discarded` tracks are excluded (amends C19). | `update_track status=discarded` is the agent counterpart of purge; discarded takes must leave the default view. |
@@ -832,8 +832,17 @@ func New(o Options) http.Handler
    audit iff the principal is an agent (every call, reads included), or the op is human-only, or the op's
    scope is not `read`, or no op matched and the principal is an agent (op `-`). `error_code` = the
    `code` of a problem body (first 4 KiB parsed); `args_sha256` = the idempotency request hash (computed
-   for every audited call). Inserted with `context.WithoutCancel` and a 2 s timeout; failures are logged
-   (no row content) and do not change the response.
+   for every audited call). **Audit contract (rev 5): audit row visible before the response; inserts retried; a persistent failure surfaces in health.**
+   For audited registry ops (and create ops) the recorder buffers status, headers and body (cap 4 MiB; past it, or on a
+   handler `Flush`, the gate inserts the row first and then streams the rest unbuffered), inserts the row, and only then
+   releases the response, so a `get_audit` issued after any response always lists that call. Binary/streaming routes
+   (`mcp: exclude:binary`) and unmatched paths are not buffered; their row is still inserted with the same retries. The insert uses
+   `context.WithoutCancel` and retries with backoff (25 ms doubling to 500 ms) inside a 15 s total budget (not a 2 s timeout),
+   so transient writer contention (a backup, `-race`) cannot lose it. If it still fails the op has already committed, so the
+   original response is returned unchanged (never a fake failure or 503), the failure is logged at error level (no row
+   content) and `audit.Failures()` is incremented; the counter is exposed as `audit_failures` in `get_system_info` and
+   as `status:"degraded"` plus `audit_failures` on `/healthz` (still HTTP 200: a restart does not repair a gap). The same hold
+   makes the idempotency record durable before the response of a create op is delivered.
 2a. **Rate limit (charged first, rev 4):** for every non-anonymous principal, before the body is read, before the
    unmatched pass-through and before `Authorize`: classes = `agent` for agents, `human` for humans and devices,
    plus the `_heavy` class only when an op matched and `meta.Rate == "heavy"`. Refused ⇒ 429 `RATE_LIMITED` with
@@ -2995,3 +3004,13 @@ write the public copy of this plan and run `make gate` on it.
   modification of a frozen file; restore re-hashes everything; periodic snapshot verification is a later
   decision (with D7).
 
+---
+
+## Amendments by M2c (reference and lossy imports)
+
+M2c amends this plan additively: C32 drafts refuse a stub recipe's request id and a reference track as
+mother (`RECIPE_UNKNOWN`); C33 `songs.jsonl` export always excludes stub recipes (note
+`recipe_unknown_excluded`) and the playlist ZIP carries lossy masters unchanged; C34 backups need no
+change; C35 `/context` gains `track.recipe_known`/`lossy` and `recipe.known`/`note`; C40 the library
+gains the recipe and audio filters and badges; C41 the `tools/list` ceiling is re-baselined to 56 200
+bytes (measured 56 122); C42 `librarytest.FixtureM2c` adds a reference FLAC and a lossy reference.

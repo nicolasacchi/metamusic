@@ -140,5 +140,7 @@
     "plays": 0,
     "completion_rate": null,
     "last_played_at": null
-  }
+  },
+  "recipe_known": true,
+  "lossy": false
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
-  import { MAX_STYLE_TERMS, defaultSort, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
+  import { MAX_STYLE_TERMS, defaultFilters, defaultSort, isDirty, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
 
   type Facets = components["schemas"]["Facets"];
   interface Props {
@@ -79,20 +79,7 @@
     const v = (e.currentTarget as HTMLSelectElement).value;
     return v === "" ? null : v === "true";
   }
-  const dirty = $derived(
-    filters.q !== "" ||
-      filters.style.length > 0 ||
-      filters.status.length > 0 ||
-      filters.minDuration !== null ||
-      filters.maxDuration !== null ||
-      filters.recordedFrom !== "" ||
-      filters.recordedTo !== "" ||
-      filters.hasScore !== null ||
-      filters.truncated !== null ||
-      filters.minStars !== null ||
-      filters.unrated ||
-      filters.tag.length > 0,
-  );
+  const dirty = $derived(isDirty(filters));
 
   /** "" = any, "unrated", or "1".."5" (at least). */
   const starsValue = $derived(filters.unrated ? "unrated" : filters.minStars === null ? "" : String(filters.minStars));
@@ -152,6 +139,22 @@
       </select>
     </label>
     <label>
+      Recipe
+      <select name="recipe_known" value={filters.recipeKnown === null ? "" : String(filters.recipeKnown)} onchange={(e) => patch({ recipeKnown: tri(e) })} data-testid="filter-recipe">
+        <option value="">any</option>
+        <option value="true">known</option>
+        <option value="false">unknown</option>
+      </select>
+    </label>
+    <label>
+      Audio
+      <select name="lossy" value={filters.lossy === null ? "" : String(filters.lossy)} onchange={(e) => patch({ lossy: tri(e) })} data-testid="filter-audio">
+        <option value="">any</option>
+        <option value="false">lossless</option>
+        <option value="true">lossy</option>
+      </select>
+    </label>
+    <label>
       Stars
       <select name="min_stars" value={starsValue} onchange={onstars} data-testid="filter-stars">
         <option value="">any</option>
@@ -160,7 +163,7 @@
       </select>
     </label>
     {#if dirty}
-      <button type="button" onclick={() => { pending = false; clearTimeout(timer); onchange({ ...filters, q: "", status: [], style: [], minDuration: null, maxDuration: null, recordedFrom: "", recordedTo: "", hasScore: null, truncated: null, minStars: null, unrated: false, tag: [], sort: "recorded_desc" }); }}>Clear</button>
+      <button type="button" onclick={() => { pending = false; clearTimeout(timer); onchange(defaultFilters()); }}>Clear</button>
     {/if}
   </div>
 

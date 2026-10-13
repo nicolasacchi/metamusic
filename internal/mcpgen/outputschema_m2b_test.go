@@ -51,7 +51,7 @@ func fixtureJSON(t *testing.T, name string) map[string]any {
 func TestToolResultsConformToOutputSchema_M2b(t *testing.T) {
 	t.Parallel()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite}
-	r := servertest.New(t, servertest.Options{Fixture: true, Files: true, M2b: servertest.M2bOptions{Fixture: true}})
+	r := servertest.New(t, servertest.Options{Fixture: true, Files: true, M2c: true, M2b: servertest.M2bOptions{Fixture: true}})
 	httpSess, stdioSess := r.MCP(t, scopes...), r.Stdio(t, scopes...)
 	ctx := context.Background()
 

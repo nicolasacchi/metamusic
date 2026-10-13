@@ -16,16 +16,22 @@ const ignoreM2a = (keep: string[]) => M2A.filter((n) => !keep.includes(n)).map((
 // data-only, so they run on desktop Chrome and Firefox but not on the phones.
 const M2B = ["duels", "ears", "compare"];
 const ignoreM2b = (keep: string[]) => M2B.filter((n) => !keep.includes(n)).map((n) => `**/m2b-${n}.spec.ts`);
+// M2c: the reference/lossy spec runs on desktop Chrome and the Pixel 7 only (Firefox and the iPhone-sized project
+// add no coverage for badges, filters and the MP3 fallback; real iOS playback is in the device checklist).
+const M2C = ["reference"];
+const ignoreM2c = (keep: string[]) => M2C.filter((n) => !keep.includes(n)).map((n) => `**/m2c-${n}.spec.ts`);
 // The listen spec counts plays per seed track, and other specs also play seed tracks (auto-advance plays
 // "Syn song 02" and the track after it, the judge specs play their own track): any play of the listen track
 // between the spec's "before" and "after" reads as a duplicate. It therefore runs alone, as a second phase
 // ("listen-*" projects depend on every other project) with one track per project.
 const LISTEN = "**/m2a-listen.spec.ts";
 const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"])];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"])];
+const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([])];
+const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([])];
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"];
 
-// Skipped tests in a full run (26 at M2b), all intentional project scoping decided at run time with
+// Skipped tests in a full run (26 at M2b; M2c adds none: m2c-reference is excluded from the firefox and
+// iphone15 projects by config, so it never appears as a skip), all intentional project scoping decided at run time with
 // test.skip(<project predicate>, reason). None is a missing capability: the e2e server runs with the pinned
 // ffmpeg/metaflac from bin/ on PATH (scripts/e2e.sh, CI "media tools on PATH"), so Tier A analysis and
 // clips are always available, and nothing may skip on a missing tool.
@@ -54,7 +60,7 @@ export default defineConfig({
     { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
     // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
-    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
+    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
     { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...firefoxIgnore, LISTEN] },
     // phase 2: the listen spec alone (see LISTEN above)
     { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },

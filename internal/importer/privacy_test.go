@@ -16,6 +16,7 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+	"uuid"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -127,7 +128,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 		Clips:     clip.New(e.data, e.dataDir, mediatool.Tools{}, cliptest.NewAnalyzer(), lib, signer, clip.Options{CacheBytes: 1 << 20, Now: now}),
 		Duels:     duels.New(duels.Options{Store: e.st, Library: lib, Clips: cliptest.NewRenderer(), Signer: signer, Now: now}),
 		Ears:      ears.New(ears.Options{Store: e.st, Library: lib, Signer: signer, Now: now}),
-		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return "privacy-audit" }),
+		Listening: listen, Context: trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now), Audit: audit.NewStore(e.st, func() string { return uuid.NewV7().String() }),
 		DeviceStore: auth.NewDeviceStore(e.st, key, now, func() string { return "privacy-device" }),
 		Probe:       &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		MCPFactory: func(a huma.API, inner http.Handler) (http.Handler, error) {

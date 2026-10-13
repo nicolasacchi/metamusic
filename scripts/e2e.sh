@@ -10,7 +10,8 @@ fi
 (cd web && bun run build)
 
 mkdir -p bin covdata/e2e
-rm -rf covdata/e2e/*
+rm -rf covdata/e2e/* covdata/e2e.stamp
+stamp=$(scripts/source-stamp.sh) # sources the instrumented binary is built from
 CGO_ENABLED=0 go build -cover -covermode=atomic -coverpkg=./... -o bin/metamusic-e2e ./cmd/metamusic
 
 # chrome comes from the system install; firefox is fetched on demand.
@@ -24,3 +25,4 @@ rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
 (cd web && bun run e2e)
 
 go tool covdata percent -i="$root/covdata/e2e" || true
+echo "$stamp" >covdata/e2e.stamp # scripts/coverage-gate.sh refuses covdata/e2e once sources move on

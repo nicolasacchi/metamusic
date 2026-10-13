@@ -5,9 +5,11 @@ import (
 	"errors"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -40,7 +42,27 @@ done
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	waitExecutable(t, bin)
 	return bin, log
+}
+
+// waitExecutable returns once bin can be exec'd. A parallel test's fork may have inherited the write
+// descriptor of the script just written and holds it until its own exec, which fails ours with
+// "text file busy"; the window is short and closes for good once that child has exec'd (the
+// descriptor is closed in this process, so no later fork inherits it).
+func waitExecutable(t *testing.T, bin string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		err := exec.Command(bin, "-version").Run() //nolint:gosec // the fake tool this test just wrote
+		if err == nil || !errors.Is(err, syscall.ETXTBSY) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("fake tool %s stays busy: %v", bin, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 const okFilters = " ... ebur128 A->N EBU R128 scanner."

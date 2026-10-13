@@ -197,6 +197,7 @@
             "type": "string"
           },
           "bits_per_sample": {
+            "description": "Nominal (16) for a lossy master",
             "format": "int64",
             "type": "integer"
           },
@@ -1198,6 +1199,12 @@
             },
             "type": "array"
           },
+          "lossy": {
+            "type": "boolean"
+          },
+          "recipe_known": {
+            "type": "boolean"
+          },
           "request_id": {
             "type": "string"
           },
@@ -1230,7 +1237,9 @@
           "root_track_id",
           "duration_s",
           "tier",
-          "flags"
+          "flags",
+          "recipe_known",
+          "lossy"
         ],
         "type": "object"
       },
@@ -3388,45 +3397,6 @@
         ],
         "type": "object"
       },
-      "FlacLink": {
-        "additionalProperties": false,
-        "properties": {
-          "bits_per_sample": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "bytes": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "content_type": {
-            "examples": [
-              "audio/flac"
-            ],
-            "type": "string"
-          },
-          "sample_rate": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "sha256": {
-            "type": "string"
-          },
-          "url": {
-            "description": "Signed, relative URL; valid until expires_at",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "content_type",
-          "bytes",
-          "sha256",
-          "sample_rate",
-          "bits_per_sample"
-        ],
-        "type": "object"
-      },
       "FlagDiff": {
         "additionalProperties": false,
         "properties": {
@@ -4423,7 +4393,51 @@
             "type": "string"
           },
           "flac": {
-            "$ref": "#/components/schemas/FlacLink"
+            "additionalProperties": false,
+            "description": "null for a lossy track: there is no lossless file; never guess a FLAC URL",
+            "properties": {
+              "bits_per_sample": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "content_type": {
+                "examples": [
+                  "audio/flac"
+                ],
+                "type": "string"
+              },
+              "sample_rate": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "url": {
+                "description": "Signed, relative URL; valid until expires_at",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "content_type",
+              "bytes",
+              "sha256",
+              "sample_rate",
+              "bits_per_sample"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "lossy": {
+            "description": "The master is an MP3; mp3 points at it",
+            "type": "boolean"
           },
           "mp3": {
             "$ref": "#/components/schemas/MP3Link"
@@ -4442,6 +4456,7 @@
           "expires_at",
           "ttl_s",
           "flac",
+          "lossy",
           "mp3"
         ],
         "type": "object"
@@ -5353,6 +5368,12 @@
               "id": {
                 "type": "string"
               },
+              "lossy": {
+                "type": "boolean"
+              },
+              "recipe_known": {
+                "type": "boolean"
+              },
               "request_id": {
                 "type": "string"
               },
@@ -5373,7 +5394,9 @@
               "seed",
               "request_id",
               "root_track_id",
-              "duration_s"
+              "duration_s",
+              "recipe_known",
+              "lossy"
             ],
             "type": [
               "object",
@@ -5409,6 +5432,12 @@
               "id": {
                 "type": "string"
               },
+              "lossy": {
+                "type": "boolean"
+              },
+              "recipe_known": {
+                "type": "boolean"
+              },
               "request_id": {
                 "type": "string"
               },
@@ -5429,7 +5458,9 @@
               "seed",
               "request_id",
               "root_track_id",
-              "duration_s"
+              "duration_s",
+              "recipe_known",
+              "lossy"
             ],
             "type": [
               "object",
@@ -5867,6 +5898,11 @@
       "SystemOutBody": {
         "additionalProperties": false,
         "properties": {
+          "audit_failures": {
+            "description": "Audit rows lost since start after retries; non-zero means a gap in the audit trail",
+            "format": "int64",
+            "type": "integer"
+          },
           "auth_mode": {
             "type": "string"
           },
@@ -5896,7 +5932,8 @@
           "auth_mode",
           "schema_version",
           "started_at",
-          "uptime_s"
+          "uptime_s",
+          "audit_failures"
         ],
         "type": "object"
       },
@@ -6291,6 +6328,10 @@
           "listening": {
             "$ref": "#/components/schemas/ListeningStats"
           },
+          "lossy": {
+            "description": "The master is an MP3; bits_per_sample is nominal and there is no lossless file",
+            "type": "boolean"
+          },
           "open_comments": {
             "format": "int64",
             "type": "integer"
@@ -6309,6 +6350,10 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/RecipeInfo"
+          },
+          "recipe_known": {
+            "description": "false for a reference track: its recipe is a stub",
+            "type": "boolean"
           },
           "recorded_at": {
             "type": "string"
@@ -6447,7 +6492,9 @@
           "comments",
           "open_comments",
           "playlists",
-          "listening"
+          "listening",
+          "recipe_known",
+          "lossy"
         ],
         "type": "object"
       },
@@ -6731,6 +6778,10 @@
               "null"
             ]
           },
+          "lossy": {
+            "description": "The master is an MP3; there is no lossless file",
+            "type": "boolean"
+          },
           "open_comments": {
             "format": "int64",
             "type": "integer"
@@ -6740,6 +6791,10 @@
               "string",
               "null"
             ]
+          },
+          "recipe_known": {
+            "description": "false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother",
+            "type": "boolean"
           },
           "recorded_at": {
             "description": "RFC 3339 UTC",
@@ -6817,7 +6872,9 @@
           "critic_stars",
           "tags",
           "comments",
-          "open_comments"
+          "open_comments",
+          "recipe_known",
+          "lossy"
         ],
         "type": "object"
       },
@@ -9550,7 +9607,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag and open-comment filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -9703,6 +9760,26 @@
             "in": "query",
             "name": "has_open_comments",
             "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "false lists reference tracks (recipe unknown); true only tracks with a real recipe",
+            "explode": false,
+            "in": "query",
+            "name": "recipe_known",
+            "schema": {
+              "description": "false lists reference tracks (recipe unknown); true only tracks with a real recipe",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true lists tracks whose master is an MP3; false only lossless masters",
+            "explode": false,
+            "in": "query",
+            "name": "lossy",
+            "schema": {
+              "description": "true lists tracks whose master is an MP3; false only lossless masters",
               "type": "boolean"
             }
           },
@@ -10281,7 +10358,7 @@
     },
     "/api/tracks/{id}/media": {
       "get": {
-        "description": "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.",
+        "description": "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
         "operationId": "get_media_links",
         "parameters": [
           {

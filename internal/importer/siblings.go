@@ -1,7 +1,9 @@
 package importer
 
 import (
+	"regexp"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
@@ -53,6 +55,9 @@ func (b *builder) existingNodes() []*node {
 	out := make([]*node, 0, len(b.snap.Tracks))
 	for i := range b.snap.Tracks {
 		t := &b.snap.Tracks[i]
+		if t.Reference { // stubs never take part in seed families or mothers (D-M2c-8)
+			continue
+		}
 		out = append(out, &node{ex: t, reqID: byRecipe[t.RecipeID].RequestID, at: parseTS(t.RecordedAt), frames: t.FramesSHA256})
 	}
 	return out
@@ -63,8 +68,12 @@ func (b *builder) planLineage() {
 	exNodes := b.exNodes
 	var plNodes []*node
 	for _, t := range b.takes {
+		if t.reference() {
+			continue
+		}
 		plNodes = append(plNodes, &node{pl: t, reqID: t.recipe.reqID(), at: t.recordedAt, frames: t.g.members[0].frames})
 	}
+	b.planReferenceGroups()
 	trackByID := b.trackByID
 
 	// Sibling inference, per seed family; mapping overrides sit out.
@@ -131,8 +140,7 @@ func (b *builder) planLineage() {
 	}
 
 	// Mapping parent overrides.
-	for _, n := range plNodes {
-		t := n.pl
+	for _, t := range b.takes {
 		if !t.override() {
 			continue
 		}
@@ -140,9 +148,18 @@ func (b *builder) planLineage() {
 		if row.Parent == "-" {
 			continue
 		}
+		if t.reference() && b.groupByKey(row.Parent) == nil {
+			// a reference take can only descend from a file named by path or sha256: key (C61)
+			b.iss.warn(t.g.rep.e.ref(), row.Line, "reference_parent_unresolved", "mapping parent of a reference take must name an audio file")
+			continue
+		}
 		ref, ok := b.resolveParent(row.Parent, exNodes, plNodes, trackByID)
-		if !ok || (ref.planned == t) {
-			b.iss.warn(t.g.rep.e.ref(), row.Line, "parent_unresolved", "mapping parent names no unique take")
+		if !ok || (ref.planned == t) || b.isReferenceRef(ref) != t.reference() {
+			code := "parent_unresolved"
+			if t.reference() {
+				code = "reference_parent_unresolved"
+			}
+			b.iss.warn(t.g.rep.e.ref(), row.Line, code, "mapping parent names no unique take of the same kind")
 			continue
 		}
 		t.parent, t.rule = ref, "mapping"
@@ -278,4 +295,118 @@ func (r trackRef) label(b *builder) string {
 		return r.planned.g.rep.e.ref()
 	}
 	return r.existing
+}
+
+// isReferenceRef reports whether r points at a reference take (planned or stored).
+func (b *builder) isReferenceRef(r trackRef) bool {
+	if r.planned != nil {
+		return r.planned.reference()
+	}
+	if t := b.trackByID[r.existing]; t != nil {
+		return t.Reference
+	}
+	return false
+}
+
+// refGroupKey splits a reference title slug "<song>_p<N>" into its song key and ordinal.
+var refGroupRe = regexp.MustCompile(`^(.+)_p([0-9]+)$`)
+
+type refMember struct {
+	n  int
+	at time.Time
+	// sha orders ties; exactly one of pl / ex is set
+	sha string
+	pl  *plannedTake
+	ex  *library.SnapTrack
+}
+
+func refLess(a, b refMember) bool {
+	if a.n != b.n {
+		return a.n < b.n
+	}
+	if !a.at.Equal(b.at) {
+		return a.at.Before(b.at)
+	}
+	return a.sha < b.sha
+}
+
+// planReferenceGroups infers the lineage of lossy reference takes named "<song>_p<N>" (D-M2c-8): the
+// lowest ordinal is the root, every other member a child of it (rule reference_group). Stored lossy
+// reference tracks join through their slug; an existing root wins over planned members, and stored
+// lineage is never rewritten. Mapping parents override and sit out.
+func (b *builder) planReferenceGroups() {
+	groups := map[string][]refMember{}
+	ordinal := func(slug string) (string, int, bool) {
+		m := refGroupRe.FindStringSubmatch(slug)
+		if m == nil {
+			return "", 0, false
+		}
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			return "", 0, false
+		}
+		return m[1], n, true
+	}
+	for i := range b.snap.Tracks {
+		t := &b.snap.Tracks[i]
+		if !t.Reference || !t.Lossy {
+			continue
+		}
+		if key, n, ok := ordinal(t.Slug); ok {
+			groups[key] = append(groups[key], refMember{n: n, at: parseTS(t.RecordedAt), sha: t.MasterSHA256, ex: t})
+		}
+	}
+	for _, t := range b.takes {
+		if !t.reference() || !t.g.isMP3() || t.override() {
+			continue
+		}
+		if key, n, ok := ordinal(yue2.Slug(t.title)); ok {
+			groups[key] = append(groups[key], refMember{n: n, at: t.recordedAt, sha: t.g.rep.e.sha, pl: t})
+		}
+	}
+	keys := make([]string, 0, len(groups))
+	for k := range groups {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		ms := groups[k]
+		planned := 0
+		for _, m := range ms {
+			if m.pl != nil {
+				planned++
+			}
+		}
+		if planned == 0 || len(ms) < 2 {
+			continue
+		}
+		var root *refMember
+		for i := range ms { // an existing root wins over planned members
+			if ms[i].ex != nil && (root == nil || refLess(ms[i], *root)) {
+				root = &ms[i]
+			}
+		}
+		if root == nil {
+			for i := range ms {
+				if root == nil || refLess(ms[i], *root) {
+					root = &ms[i]
+				}
+			}
+		}
+		b.refGroups++
+		for _, m := range ms {
+			if m.pl == nil || (root.pl == m.pl) {
+				continue
+			}
+			if root.ex != nil {
+				m.pl.parent = trackRef{existing: root.ex.ID}
+				if m.n < root.n {
+					b.iss.warn(m.pl.g.rep.e.ref(), 0, "older_than_root", "attached to the existing lineage root")
+				}
+			} else {
+				m.pl.parent = trackRef{planned: root.pl}
+			}
+			m.pl.rule = "reference_group"
+		}
+	}
 }

@@ -171,7 +171,8 @@ func (d duelRow) window() Window {
 func (d duelRow) loudnessMatched() bool { return d.Match == "matched" || d.Match == "limited" }
 
 func brief(r library.TrackRef) *TrackBriefOrNull {
-	b := TrackBriefOrNull{ID: r.ID, Title: r.Title, Seed: r.Seed, RequestID: r.RequestID, RootTrackID: r.RootTrackID, DurationS: r.DurationS}
+	b := TrackBriefOrNull{ID: r.ID, Title: r.Title, Seed: r.Seed, RequestID: r.RequestID, RootTrackID: r.RootTrackID, DurationS: r.DurationS,
+		RecipeKnown: r.RecipeKnown, Lossy: r.Lossy}
 	return &b
 }
 

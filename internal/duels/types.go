@@ -115,6 +115,8 @@ type TrackBrief struct {
 	RequestID   string  `json:"request_id"`
 	RootTrackID string  `json:"root_track_id"`
 	DurationS   float64 `json:"duration_s"`
+	RecipeKnown bool    `json:"recipe_known"`
+	Lossy       bool    `json:"lossy"`
 }
 
 // Slot is one side of a duel. While a duel is unrevealed Track, GainDB and

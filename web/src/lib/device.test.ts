@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Player, type MediaLinks } from "./player.svelte";
 import { Device, type DeviceApi, type ProbeAudio, type ProbeInfo, type ProfileBody } from "./device.svelte";
 
 class FakeProbeAudio extends EventTarget implements ProbeAudio {
@@ -233,5 +234,34 @@ describe("device probe", () => {
   test("auto follows saveData/cellular through connection()", () => {
     const { dev } = setup();
     expect(dev.connection()).toBeUndefined();
+  });
+});
+
+describe("lossy playback (M2c)", () => {
+  test("lossy playback leaves quality alone and records no failed probe", async () => {
+    const { dev, puts } = setup();
+    await dev.boot();
+    const el = new EventTarget() as EventTarget & { src: string; paused: boolean; currentTime: number; duration: number; readyState: number; error: { code: number; message: string } | null; play(): Promise<void>; pause(): void; load(): void };
+    Object.assign(el, { src: "", paused: true, currentTime: 0, duration: NaN, readyState: 0, error: null, play: () => Promise.resolve(), pause() {}, load() {} });
+    const lossy: MediaLinks = {
+      track_id: "a",
+      expires_at: "2099-01-01T00:00:00Z",
+      ttl_s: 43200,
+      lossy: true,
+      flac: null,
+      mp3: { url: "/media/a.mp3?exp=1", bytes: 1, content_type: "audio/mpeg", bitrate_kbps: 320, sha256: "y" },
+    };
+    const p = new Player({ fetchLinks: async () => lossy, device: dev, now: () => Date.parse("2026-01-01T00:00:00Z") });
+    p.attach(el as unknown as HTMLAudioElement);
+    const before = puts.length;
+    p.play("a");
+    await tick();
+    el.error = { code: 4, message: "" };
+    el.dispatchEvent(new Event("error"));
+    el.dispatchEvent(new Event("loadedmetadata"));
+    await tick();
+    expect(p.state.format).toBe("mp3");
+    expect(dev.quality()).toBe("lossless");
+    expect(puts.slice(before).filter((x) => x.body.probe_result === "failed")).toHaveLength(0);
   });
 });

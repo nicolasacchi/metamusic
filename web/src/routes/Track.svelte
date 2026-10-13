@@ -16,6 +16,8 @@
   import MetricsCard from "../lib/components/MetricsCard.svelte";
   import EarsPanel from "../lib/components/EarsPanel.svelte";
   import LineageDuels from "../lib/components/LineageDuels.svelte";
+  import TrackBadges from "../lib/components/TrackBadges.svelte";
+  import RecipeUnknownPanel from "../lib/components/RecipeUnknownPanel.svelte";
 
   type Track = components["schemas"]["TrackDetail"];
   interface Props {
@@ -23,8 +25,10 @@
     /** `?t=` deep link ("72" or "1:12"). */
     t?: string;
     navigate?: (to: string, replace?: boolean) => void;
+    /** Pre-loaded detail (server-side rendering in unit tests; the page otherwise fetches it). */
+    initial?: Track;
   }
-  let { id, t = "", navigate }: Props = $props();
+  let { id, t = "", navigate, initial }: Props = $props();
 
   /** Router-less fallback (the router listens to popstate). */
   function defaultNavigate(to: string) {
@@ -32,7 +36,8 @@
     window.dispatchEvent(new PopStateEvent("popstate"));
   }
 
-  let track = $state<Track | null>(null);
+  // svelte-ignore state_referenced_locally
+  let track = $state<Track | null>(initial ?? null);
   let error = $state("");
   interface Level {
     data: number[];
@@ -149,6 +154,9 @@
 {:else}
   <article>
     <h1 data-testid="track-title">{track.title}</h1>
+    {#if !track.recipe_known || track.lossy}
+      <p class="badges" data-testid="track-badges"><TrackBadges recipeKnown={track.recipe_known} lossy={track.lossy} /></p>
+    {/if}
     <p class="meta muted">
       {fmt(track.duration_s)} · recorded {track.recorded_at.slice(0, 10)} · {track.status} · seed {track.recipe.seed}
       {#if track.bpm_declared} · {track.bpm_declared} BPM{/if}
@@ -181,10 +189,14 @@
     </div>
 
     <div class="grid">
-      <section>
-        <h2>Lyrics</h2>
-        <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
-      </section>
+      {#if track.recipe_known}
+        <section>
+          <h2>Lyrics</h2>
+          <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
+        </section>
+      {:else}
+        <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} />
+      {/if}
       <aside>
         <section class="card">
           <h2>Comments</h2>
@@ -205,11 +217,13 @@
           parentId={track.lineage.parent_track_id}
           navigate={(to) => (navigate ?? defaultNavigate)(to)}
         />
-        <section class="card">
-          <h2>Recipe</h2>
-          <p class="style" data-testid="recipe-style">{track.recipe.style}</p>
-          <p class="muted">request {track.recipe.request_id}</p>
-        </section>
+        {#if track.recipe_known}
+          <section class="card">
+            <h2>Recipe</h2>
+            <p class="style" data-testid="recipe-style">{track.recipe.style}</p>
+            <p class="muted">request {track.recipe.request_id}</p>
+          </section>
+        {/if}
         <section class="card">
           <h2>Lineage</h2>
           <p class="muted">
@@ -240,6 +254,9 @@
   }
   .meta {
     margin-top: 0;
+  }
+  .badges {
+    margin: 0.2rem 0;
   }
   .controls {
     display: flex;

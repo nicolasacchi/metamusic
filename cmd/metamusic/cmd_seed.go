@@ -23,6 +23,7 @@ type seedOpts struct {
 	seed    int64
 	force   bool // --force
 	viaDev  bool // invoked by `dev --seed-synthetic`
+	refs    bool // --references: the reference profile, imported with both reference flags (C66)
 }
 
 func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) string, s streams) error {
@@ -30,6 +31,7 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	profile := fs.String("profile", "dev", "dev or e2e")
 	seed := fs.Int64("seed", 1, "audio variant seed")
 	force := fs.Bool("force", false, "seed a data directory that is not marked MM_E2E=1")
+	references := fs.Bool("references", false, "also seed recipe-less reference tracks (unmatched FLACs and lossy MP3s)")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -43,7 +45,10 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	if err != nil {
 		return fatal(err)
 	}
-	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force}
+	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references}
+	if o.refs {
+		o.profile = synth.ProfileReference
+	}
 	if !cfg.E2E && !o.force {
 		return fatal(errors.New("seed-synthetic: refusing to seed a data directory that is not marked as an e2e/dev one: set MM_E2E=1, use `metamusic dev --seed-synthetic`, or pass --force"))
 	}
@@ -128,6 +133,7 @@ func seedSynthetic(ctx context.Context, cfg config.Config, st *store.Store, o se
 	}
 	im, err := importer.New(st, rt.lib, data, rt.pipe, importer.Options{
 		Inbox: ro, InboxLabel: "synthetic", MinAge: 0, Jobs: 2, Principal: seedPrincipal, Now: time.Now,
+		ReferenceUnmatched: o.refs, ReferenceLossy: o.refs,
 	})
 	if err != nil {
 		return err

@@ -65,7 +65,8 @@ func (s *Service) Compare(ctx context.Context, a, b string) (Comparison, error) 
 
 func side(st *state) Side {
 	return Side{TrackID: st.d.ID, Title: st.d.Title, Seed: st.d.Recipe.Seed, RequestID: st.d.Recipe.RequestID,
-		RootTrackID: st.d.Lineage.RootTrackID, DurationS: st.d.DurationS, Tier: st.tier, Flags: st.flagCodes()}
+		RootTrackID: st.d.Lineage.RootTrackID, DurationS: st.d.DurationS, Tier: st.tier, Flags: st.flagCodes(),
+		RecipeKnown: st.d.RecipeKnown, Lossy: st.d.Lossy}
 }
 
 // relation is D-M2b-20: how the two takes are related in the Operator Ledger (first match wins).
@@ -177,7 +178,8 @@ func recipeDiff(a, b *state) RecipeDiff {
 // when either has one, section times only when both are timed (the score-plan side decides the source).
 func compareBlindSpots(a, b *state) []string {
 	f := analysis.BlindSpotFacts{TierA: a.tier == "A" && b.tier == "A", HasSemantic: a.hasSemantic || b.hasSemantic,
-		Timed: a.d.Timed && b.d.Timed}
+		Timed: a.d.Timed && b.d.Timed,
+		Lossy: a.d.Lossy || b.d.Lossy}
 	if f.Timed {
 		src, conf := a.sectionSource()
 		if bs, bc := b.sectionSource(); bs == "plan" {

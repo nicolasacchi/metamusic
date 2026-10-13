@@ -80,6 +80,7 @@
       {:else}
         <span class="muted">{player.title}</span>
       {/if}
+      {#if player.state.noFlac}<span class="mp3chip" data-testid="player-mp3-chip" title="This track has no lossless file; its master is an MP3">MP3</span>{/if}
       {#if player.state.error}<span role="alert" class="err">{player.state.error}</span>{/if}
     </div>
     <Waveform
@@ -132,6 +133,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .mp3chip {
+    font-size: 0.7rem;
+    padding: 0 0.35rem;
+    margin-left: 0.4rem;
+    border: 1px solid #e0a030;
+    border-radius: 0.6rem;
+    color: #e0a030;
   }
   .judge {
     display: flex;

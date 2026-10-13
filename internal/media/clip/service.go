@@ -109,23 +109,26 @@ func (s *Service) cached(key string, sp Spec) (Object, bool, error) {
 }
 
 // workMaster hard-links the master into a fresh work dir and returns the
-// DataDir-relative and absolute work paths. The caller removes the dir.
-func (s *Service) workMaster(sp Spec) (rel, abs string, err error) {
+// DataDir-relative and absolute work paths and the master's file name inside it
+// (it keeps the master's extension, so an MP3 master stays master.mp3). The
+// caller removes the dir.
+func (s *Service) workMaster(sp Spec) (rel, abs, name string, err error) {
 	if err := s.data.MkdirAll("incoming", 0o755); err != nil {
-		return "", "", fmt.Errorf("clip: create incoming: %w", err)
+		return "", "", "", fmt.Errorf("clip: create incoming: %w", err)
 	}
 	rel = "incoming/clip-" + uuid.NewV7().String()
 	if err := s.data.Mkdir(rel, 0o700); err != nil {
-		return "", "", fmt.Errorf("clip: create work dir: %w", err)
+		return "", "", "", fmt.Errorf("clip: create work dir: %w", err)
 	}
-	if err := s.data.Link(sp.MasterPath, rel+"/master.flac"); err != nil {
+	name = "master" + path.Ext(sp.MasterPath)
+	if err := s.data.Link(sp.MasterPath, rel+"/"+name); err != nil {
 		_ = s.data.RemoveAll(rel)
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", "", library.ErrMediaUnavailable
+			return "", "", "", library.ErrMediaUnavailable
 		}
-		return "", "", fmt.Errorf("clip: link master: %w", err)
+		return "", "", "", fmt.Errorf("clip: link master: %w", err)
 	}
-	return rel, s.dataDir + "/" + rel, nil
+	return rel, s.dataDir + "/" + rel, name, nil
 }
 
 // Measure measures the loudness of the window of sp.
@@ -141,13 +144,13 @@ func (s *Service) Measure(ctx context.Context, sp Spec) (Measure, error) {
 	case <-ctx.Done():
 		return Measure{}, ctx.Err()
 	}
-	rel, abs, err := s.workMaster(sp)
+	rel, abs, master, err := s.workMaster(sp)
 	if err != nil {
 		return Measure{}, err
 	}
 	defer func() { _ = s.data.RemoveAll(rel) }()
 	st, en := sp.Samples()
-	m, err := s.an.WindowLoudness(ctx, abs+"/master.flac", st, en)
+	m, err := s.an.WindowLoudness(ctx, abs+"/"+master, st, en)
 	if err != nil {
 		slog.Error("clip measure failed", "err", redact.Error(err))
 		return Measure{}, internalErr("the clip window could not be measured")
@@ -204,12 +207,12 @@ func (s *Service) render(ctx context.Context, key string, sp Spec) (Object, erro
 	}
 	s.evict(ctx)
 
-	rel, abs, err := s.workMaster(sp)
+	rel, abs, master, err := s.workMaster(sp)
 	if err != nil {
 		return Object{}, err
 	}
 	defer func() { _ = s.data.RemoveAll(rel) }()
-	if err := s.opts.Render(ctx, abs+"/master.flac", abs+"/clip.flac", sp); err != nil {
+	if err := s.opts.Render(ctx, abs+"/"+master, abs+"/clip.flac", sp); err != nil {
 		slog.Error("clip render failed", "err", redact.Error(err))
 		return Object{}, internalErr("the clip could not be rendered")
 	}

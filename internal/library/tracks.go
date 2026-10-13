@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -43,6 +44,10 @@ type TrackSummary struct {
 	Tags         []string `json:"tags" nullable:"false" doc:"Effective tag names"`
 	Comments     int      `json:"comments"`
 	OpenComments int      `json:"open_comments"`
+
+	// M2c (C59)
+	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother"`
+	Lossy       bool `json:"lossy" doc:"The master is an MP3; there is no lossless file"`
 }
 
 // TrackPage is one page of search results.
@@ -65,6 +70,8 @@ type SearchParams struct {
 	Unrated                    bool     // no human rating row, or one with stars NULL
 	Tags                       []string // AND, normalised names
 	HasOpenComments            *bool
+	RecipeKnown                *bool // (r.engine <> 'unknown') = v (M2c)
+	Lossy                      *bool // t.lossy = v (M2c)
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -101,7 +108,8 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   (SELECT COUNT(*) FROM tracks c WHERE c.parent_track_id = t.id),
   hs.stars, ha.stars,
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
-  (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open')`
+  (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open'),
+  (r.engine <> 'unknown'), t.lossy`
 
 // the human and agent rating rows of a track (primary-key lookups)
 const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'`
@@ -109,6 +117,13 @@ const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source =
 // normTag lower-cases and space-collapses a tag name for filtering; the
 // judgments package owns the full NormalizeTag rule and stored names already
 // satisfy it, so a filter that normalises differently simply matches nothing.
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func normTag(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
 
 // searchQuery is the validated, compiled form of SearchParams.
@@ -239,6 +254,14 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 			cond = `NOT ` + cond
 		}
 		where += ` AND ` + cond
+	}
+	if p.RecipeKnown != nil {
+		where += ` AND (r.engine <> 'unknown') = ?`
+		*args = append(*args, boolInt(*p.RecipeKnown))
+	}
+	if p.Lossy != nil {
+		where += ` AND t.lossy = ?`
+		*args = append(*args, boolInt(*p.Lossy))
 	}
 	q.where = where
 	q.order = map[string]string{
@@ -389,7 +412,7 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 	)
 	if err := rows.Scan(&t.ID, &t.Title, &t.Status, &t.DurationS, &t.RecordedAt, &t.CreatedAt, &t.RequestID, &t.Seed, &style, &bpm,
 		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount,
-		&stars, &critic, &t.Comments, &t.OpenComments); err != nil {
+		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy); err != nil {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
@@ -557,7 +580,7 @@ type MP3Info struct {
 // AudioInfo is the frozen master's stream data.
 type AudioInfo struct {
 	SampleRate    int      `json:"sample_rate"`
-	BitsPerSample int      `json:"bits_per_sample"`
+	BitsPerSample int      `json:"bits_per_sample" doc:"Nominal (16) for a lossy master"`
 	Channels      int      `json:"channels"`
 	TotalSamples  int64    `json:"total_samples"`
 	MasterSHA256  string   `json:"master_sha256"`
@@ -682,6 +705,10 @@ type TrackDetail struct {
 	OpenComments int            `json:"open_comments"`
 	Playlists    []PlaylistRef  `json:"playlists" nullable:"false"`
 	Listening    ListeningStats `json:"listening"`
+
+	// M2c (C59)
+	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub"`
+	Lossy       bool `json:"lossy" doc:"The master is an MP3; bits_per_sample is nominal and there is no lossless file"`
 }
 
 func nb(n sql.NullInt64) *bool {
@@ -730,13 +757,13 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 	err := s.st.R.QueryRowContext(ctx, `SELECT t.id, t.title, t.slug, t.status, t.status_set_by, t.origin, t.recorded_at, t.created_at, t.duration_s,
 		t.sample_rate, t.bits_per_sample, t.channels, t.total_samples, t.master_sha256, t.master_bytes, t.audio_md5,
 		t.bpm_declared, t.root_track_id, t.parent_track_id, t.generation, t.truncated_abc, t.truncated_semantic, t.import_rule, t.import_run_id,
-		r.id, r.engine, r.request_id, r.style, r.lyrics, r.cot, r.seed, r.hash,
+		t.lossy, r.id, r.engine, r.request_id, r.style, r.lyrics, r.cot, r.seed, r.hash,
 		(SELECT COUNT(*) FROM recipe_sources rs WHERE rs.recipe_id = r.id)
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, id).
 		Scan(&d.ID, &d.Title, &d.Slug, &d.Status, &d.StatusSetBy, &d.Origin, &d.RecordedAt, &d.CreatedAt, &d.DurationS,
 			&d.Audio.SampleRate, &d.Audio.BitsPerSample, &d.Audio.Channels, &d.Audio.TotalSamples, &d.Audio.MasterSHA256, &d.Audio.MasterBytes, &d.Audio.AudioMD5,
 			&bpm, &d.Lineage.RootTrackID, &parent, &d.Lineage.Generation, &tabc, &tsem, &d.Import.Rule, &runID,
-			&recipeID, &d.Recipe.Engine, &d.Recipe.RequestID, &d.Recipe.Style, &d.Recipe.Lyrics, &d.Recipe.Cot, &d.Recipe.Seed, &d.Recipe.Hash, &d.Recipe.SourcesCount)
+			&d.Lossy, &recipeID, &d.Recipe.Engine, &d.Recipe.RequestID, &d.Recipe.Style, &d.Recipe.Lyrics, &d.Recipe.Cot, &d.Recipe.Seed, &d.Recipe.Hash, &d.Recipe.SourcesCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -744,6 +771,7 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		return d, fmt.Errorf("library: track: %w", err)
 	}
 	d.Recipe.ID = recipeID
+	d.RecipeKnown = RecipeKnownEngine(d.Recipe.Engine)
 	if bpm.Valid {
 		v := int(bpm.Int64)
 		d.BPMDeclared = &v
@@ -979,25 +1007,40 @@ type MP3Media struct {
 	BitrateKbps int    `json:"bitrate_kbps"`
 }
 
-// MediaSet is what get_media_links signs.
+// MediaSet is what get_media_links signs. Flac is nil for a lossy track (no
+// lossless file exists); MP3 is then the master itself.
 type MediaSet struct {
 	TrackID string
-	Flac    FlacMedia
+	Flac    *FlacMedia
 	MP3     MP3Media
+	Lossy   bool
 }
 
 // Media returns the media addresses of a track.
 func (s *Service) Media(ctx context.Context, trackID string) (MediaSet, error) {
 	m := MediaSet{TrackID: trackID}
-	err := s.st.R.QueryRowContext(ctx, `SELECT master_sha256, master_bytes, sample_rate, bits_per_sample FROM tracks WHERE id = ?`, trackID).
-		Scan(&m.Flac.SHA256, &m.Flac.Bytes, &m.Flac.SampleRate, &m.Flac.BitsPerSample)
+	var fl FlacMedia
+	var dur float64
+	var lossy int
+	err := s.st.R.QueryRowContext(ctx, `SELECT master_sha256, master_bytes, sample_rate, bits_per_sample, duration_s, lossy FROM tracks WHERE id = ?`, trackID).
+		Scan(&fl.SHA256, &fl.Bytes, &fl.SampleRate, &fl.BitsPerSample, &dur, &lossy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
 	if err != nil {
 		return m, err
 	}
-	m.Flac.ContentType = "audio/flac"
+	if lossy == 1 {
+		// D-M2c-7: the master is the MP3; the bitrate is what the file averages.
+		m.Lossy = true
+		m.MP3 = MP3Media{SHA256: fl.SHA256, ContentType: "audio/mpeg", Bytes: fl.Bytes}
+		if dur > 0 {
+			m.MP3.BitrateKbps = int(math.Round(float64(fl.Bytes) * 8 / dur / 1000))
+		}
+		return m, nil
+	}
+	fl.ContentType = "audio/flac"
+	m.Flac = &fl
 	err = s.st.R.QueryRowContext(ctx, `SELECT sha256, bytes FROM renditions WHERE track_id = ? AND kind = 'mp3_320'`, trackID).Scan(&m.MP3.SHA256, &m.MP3.Bytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrMediaUnavailable
@@ -1018,16 +1061,22 @@ func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, e
 	)
 	switch ext {
 	case "flac":
-		q, ct = `SELECT master_path, created_at FROM tracks WHERE master_sha256 = ?`, "audio/flac"
+		q, ct = `SELECT master_path, created_at FROM tracks WHERE master_sha256 = ? AND lossy = 0`, "audio/flac"
 	case "mp3":
-		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'mp3_320' AND sha256 = ? LIMIT 1`, "audio/mpeg"
+		// the MP3 rendition, or the master of a lossy track (D-M2c-7)
+		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'mp3_320' AND sha256 = ?
+			UNION ALL SELECT master_path, created_at FROM tracks WHERE lossy = 1 AND master_sha256 = ? LIMIT 1`, "audio/mpeg"
 	case "jpg":
 		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'spectrogram' AND sha256 = ? LIMIT 1`, "image/jpeg"
 	default:
 		return serve.Object{}, serve.ErrNotFound
 	}
 	var path, created string
-	err := s.st.R.QueryRowContext(ctx, q, sha).Scan(&path, &created)
+	args := []any{sha}
+	if ext == "mp3" {
+		args = append(args, sha)
+	}
+	err := s.st.R.QueryRowContext(ctx, q, args...).Scan(&path, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return serve.Object{}, serve.ErrNotFound
 	}

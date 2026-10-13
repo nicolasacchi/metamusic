@@ -210,11 +210,12 @@ func (s *Service) compute(ctx context.Context, ref library.TrackRef, p plan) (re
 		return failAll(codeIO), nil
 	}
 	defer func() { _ = s.o.Data.RemoveAll(work) }()
-	if err := s.o.Data.Link(ref.MasterPath, path.Join(work, "master.flac")); err != nil {
+	masterName := "master" + path.Ext(ref.MasterPath)
+	if err := s.o.Data.Link(ref.MasterPath, path.Join(work, masterName)); err != nil {
 		return failAll(codeIO), nil
 	}
 	workAbs := filepath.Join(abs, filepath.FromSlash(work))
-	master := filepath.Join(workAbs, "master.flac")
+	master := filepath.Join(workAbs, masterName)
 
 	if p.silence || p.clipping {
 		sil, clip, err := s.o.Analyzer.Signal(ctx, master, ref.SampleRate, ref.DurationS)

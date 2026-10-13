@@ -25,7 +25,10 @@ import (
 // call every session (next_duel, submit_duel, get_track_analysis, get_track_spectrogram) are first-class, and
 // create_duel, get_ladder and compare_tracks were demoted to mcp generic (call_operation) because the seven
 // M2b tools alone were 28 198 bytes, over the 16 000 byte rule.
-const toolsCeilingBytes = 55500
+//
+// M2c-B1 re-baselined 55500 -> 56200 (measured 56122, +814): the nullable flac link and lossy flag of
+// get_media_links, recipe_known/lossy on the first-class track shapes and two search_tracks parameters.
+const toolsCeilingBytes = 56200
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

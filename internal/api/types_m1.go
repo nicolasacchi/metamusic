@@ -42,7 +42,20 @@ type FlacLink struct {
 	BitsPerSample int    `json:"bits_per_sample"`
 }
 
-// MP3Link is a signed link to the MP3 rendition.
+// FlacLinkOrNull is a FlacLink that may be null (a lossy track has no lossless file).
+type FlacLinkOrNull FlacLink
+
+type flacLinkShape FlacLink
+
+// Schema implements huma.SchemaProvider: huma refuses nullable on an object $ref, so the
+// nullable object is rendered inline (the repo convention, see library.nullableObject).
+func (FlacLinkOrNull) Schema(r huma.Registry) *huma.Schema {
+	cp := *huma.SchemaFromType(r, reflect.TypeFor[flacLinkShape]())
+	cp.Nullable = true
+	return &cp
+}
+
+// MP3Link is a signed link to the MP3 rendition (the master itself for a lossy track).
 type MP3Link struct {
 	URL         string `json:"url" doc:"Signed, relative URL; valid until expires_at"`
 	ContentType string `json:"content_type" example:"audio/mpeg"`
@@ -53,11 +66,12 @@ type MP3Link struct {
 
 type mediaLinksOut struct {
 	Body struct {
-		TrackID   string   `json:"track_id"`
-		ExpiresAt string   `json:"expires_at" doc:"RFC 3339 UTC"`
-		TTLS      int64    `json:"ttl_s" doc:"Link lifetime granted to the caller, seconds"`
-		Flac      FlacLink `json:"flac"`
-		MP3       MP3Link  `json:"mp3"`
+		TrackID   string          `json:"track_id"`
+		ExpiresAt string          `json:"expires_at" doc:"RFC 3339 UTC"`
+		TTLS      int64           `json:"ttl_s" doc:"Link lifetime granted to the caller, seconds"`
+		Flac      *FlacLinkOrNull `json:"flac" doc:"null for a lossy track: there is no lossless file; never guess a FLAC URL"`
+		Lossy     bool            `json:"lossy" doc:"The master is an MP3; mp3 points at it"`
+		MP3       MP3Link         `json:"mp3"`
 	}
 }
 
@@ -92,6 +106,8 @@ type searchTracksIn struct {
 	Unrated         optParam[bool]    `query:"unrated" doc:"No human rating (or a cleared one); exclusive with min_stars"`
 	Tag             []string          `query:"tag,explode" nullable:"false" maxItems:"5" doc:"Repeatable tag; all must match"`
 	HasOpenComments optParam[bool]    `query:"has_open_comments"`
+	RecipeKnown     optParam[bool]    `query:"recipe_known" doc:"false lists reference tracks (recipe unknown); true only tracks with a real recipe"`
+	Lossy           optParam[bool]    `query:"lossy" doc:"true lists tracks whose master is an MP3; false only lossless masters"`
 	Sort            string            `query:"sort" enum:"recorded_desc,recorded_asc,duration_desc,duration_asc,title_asc,relevance,stars_desc" doc:"Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last"`
 	Limit           int               `query:"limit" minimum:"1" maximum:"100" default:"50"`
 	Cursor          string            `query:"cursor" doc:"Opaque cursor from next_cursor"`
@@ -156,9 +172,19 @@ func unavailable(component string) error {
 // libErr maps library errors to the problem model.
 func libErr(err error) error {
 	var ve *library.ValidationError
+	var ru *library.RecipeUnknownError
+	var lm *library.LossyMasterError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &ru):
+		return Err(http.StatusUnprocessableEntity, "RECIPE_UNKNOWN", "the recipe of this track is unknown (reference track)", map[string]any{"track_id": ru.TrackID})
+	case errors.As(err, &lm):
+		return Err(http.StatusUnprocessableEntity, "LOSSY_MASTER", "the master of this track is a lossy MP3", map[string]any{"track_id": lm.TrackID})
+	case errors.Is(err, library.ErrRecipeUnknown):
+		return Err(http.StatusUnprocessableEntity, "RECIPE_UNKNOWN", "the recipe of this track is unknown (reference track)", map[string]any{"track_id": ""})
+	case errors.Is(err, library.ErrLossyMaster):
+		return Err(http.StatusUnprocessableEntity, "LOSSY_MASTER", "the master of this track is a lossy MP3", map[string]any{"track_id": ""})
 	case errors.As(err, &ve):
 		return Err(http.StatusUnprocessableEntity, "VALIDATION_FAILED", ve.Error(), map[string]any{"field": ve.Field})
 	case errors.Is(err, library.ErrNotFound):

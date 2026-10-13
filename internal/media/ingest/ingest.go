@@ -20,7 +20,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 )
 
-type timeouts struct{ flacTest, metaflac, mp3 time.Duration }
+type timeouts struct{ flacTest, metaflac, mp3, decode time.Duration }
 
 // Pipeline ingests masters into DataDir.
 type Pipeline struct {
@@ -38,7 +38,7 @@ func New(data *os.Root, dataDir string, tools mediatool.Tools, an analysis.Analy
 		now = time.Now
 	}
 	return &Pipeline{data: data, dataDir: dataDir, tools: tools, an: an, now: now,
-		to: timeouts{flacTest: 120 * time.Second, metaflac: 30 * time.Second, mp3: 300 * time.Second}}
+		to: timeouts{flacTest: 120 * time.Second, metaflac: 30 * time.Second, mp3: 300 * time.Second, decode: 300 * time.Second}}
 }
 
 const maxToolOut = 1 << 20
@@ -297,7 +297,7 @@ func (p *Pipeline) Ingest(ctx context.Context, req Request) (res Result, err err
 	if beforeClaim != nil {
 		beforeClaim(req.TrackID)
 	}
-	masterRel, cerr2 := cl.claimMaster(rel("master.flac"), req.Slug, req.Seed, req.RecordedAt)
+	masterRel, cerr2 := cl.claimMaster(rel("master.flac"), req.Slug, req.Seed, req.RecordedAt, "flac")
 	if cerr2 != nil {
 		return Result{}, cerr2
 	}

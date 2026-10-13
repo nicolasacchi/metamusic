@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/library"
 )
 
 // takeArtifact is a file kept with a take.
@@ -45,7 +46,17 @@ type plannedTake struct {
 	root       trackRef
 	generation int
 	id         string // assigned at apply
+
+	ref *refPlan // non-nil for a reference take (recipe is nil then)
 }
+
+// refPlan is what a reference take writes in place of a recipe (C61): the stub recipe's identity.
+type refPlan struct {
+	slug, title, requestID, hash string
+}
+
+// reference reports whether the take is a recipe-less reference take.
+func (t *plannedTake) reference() bool { return t.ref != nil }
 
 // plannedDraft is the backlog draft of a recipe without a committed track.
 type plannedDraft struct {
@@ -109,6 +120,51 @@ func (b *builder) takeTitle(g *audioGroup, r *recipe) string {
 	return cutRunes(cand, 200)
 }
 
+// refTitle is the title of a reference take: mapping title > FLAC TITLE tag > humanised stem (C61).
+func (b *builder) refTitle(g *audioGroup) string {
+	cand := ""
+	switch {
+	case g.mapRow != nil && strings.TrimSpace(g.mapRow.Title) != "":
+		cand = g.mapRow.Title
+	case g.rep.tag("TITLE") != "":
+		cand = g.rep.tag("TITLE")
+	case utf8.ValidString(g.rep.stem):
+		cand = humanize(g.rep.stem)
+	}
+	cand = strings.TrimSpace(strings.Map(func(c rune) rune {
+		if c < 0x20 || c == 0x7f {
+			return ' '
+		}
+		return c
+	}, strings.ToValidUTF8(cand, "�")))
+	if cand == "" {
+		cand = "Track"
+	}
+	return cutRunes(cand, 200)
+}
+
+// planReference plans one reference take for g.
+func (b *builder) planReference(g *audioGroup) *plannedTake {
+	t := &plannedTake{g: g, recordedAt: g.rep.e.mtime.UTC().Truncate(time.Second)}
+	t.title = b.refTitle(g)
+	slug := yue2.Slug(t.title)
+	if slug == "" {
+		slug = yue2.Slug(g.rep.stem)
+	}
+	if slug == "" {
+		slug = "track"
+	}
+	t.slug = slug
+	reqID := library.ReferenceRequestID(slug, g.id)
+	_, hash, err := library.ReferenceStubJSON(reqID, t.title)
+	if err != nil { // unreachable: the stub is a fixed-shape object
+		b.iss.fail(g.rep.e.ref(), 0, "internal", "stub recipe could not be built")
+	}
+	t.ref = &refPlan{slug: slug, title: t.title, requestID: reqID, hash: hash}
+	g.title, g.take = t.title, t
+	return t
+}
+
 // placeTakes plans one track per matched, new identity.
 func (b *builder) placeTakes() {
 	for _, g := range b.groups {
@@ -121,6 +177,10 @@ func (b *builder) placeTakes() {
 			if row != nil && g.mapRow == nil {
 				g.mapRow = row
 			}
+		}
+		if g.status == "reference" {
+			b.takes = append(b.takes, b.planReference(g))
+			continue
 		}
 		if g.status != "new" {
 			continue
@@ -192,6 +252,9 @@ func (b *builder) placeScores() {
 		name := stemOf(e.path)
 		var hit []*plannedTake
 		for _, t := range b.takes {
+			if t.reference() {
+				continue
+			}
 			for _, m := range t.g.members {
 				if m.stem == name {
 					hit = append(hit, t)
@@ -203,7 +266,7 @@ func (b *builder) placeScores() {
 			if m := scoreSeedRe.FindStringSubmatch(name); m != nil {
 				if n, err := strconv.ParseInt(m[2], 10, 64); err == nil {
 					for _, t := range b.takes {
-						if t.recipe.reqID() == m[1] && t.recipe.seed() == n {
+						if !t.reference() && t.recipe.reqID() == m[1] && t.recipe.seed() == n {
 							hit = append(hit, t)
 						}
 					}
@@ -376,6 +439,9 @@ func (b *builder) planMothers() {
 	nodes := append([]*node{}, b.exNodes...)
 	var plNodes []*node
 	for _, t := range b.takes {
+		if t.reference() { // a stub can never be a draft's mother (C58)
+			continue
+		}
 		n := &node{pl: t, reqID: t.recipe.reqID(), at: t.recordedAt}
 		nodes = append(nodes, n)
 		plNodes = append(plNodes, n)
@@ -426,6 +492,9 @@ func (b *builder) planMothers() {
 // predictFulfilment marks the drafts the planned takes will fulfil.
 func (b *builder) predictFulfilment() {
 	for _, t := range b.takes {
+		if t.reference() { // a stub recipe fulfils no draft
+			continue
+		}
 		r := t.recipe
 		if r.draft != nil && !r.draft.fulfilled && !r.draft.edited {
 			r.draft.fulfilled = true

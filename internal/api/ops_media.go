@@ -21,7 +21,7 @@ func registerMedia(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_media_links", Method: "GET", Path: "/api/tracks/{id}/media",
 		Summary:     "Get signed media links",
-		Description: "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. Humans get 12 h links, agents 15 min.",
+		Description: "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *trackIDIn) (*mediaLinksOut, error) {
 			if d.Library == nil {
@@ -35,18 +35,20 @@ func registerMedia(a huma.API, d Deps) {
 				return nil, libErr(err)
 			}
 			ttl, bucket := serve.TTLFor(auth.FromContext(ctx))
-			fl := d.Signer.Sign(m.Flac.SHA256, "flac", ttl, bucket)
 			ml := d.Signer.Sign(m.MP3.SHA256, "mp3", ttl, bucket)
 			out := &mediaLinksOut{}
 			b := &out.Body
-			b.TrackID, b.TTLS = m.TrackID, int64(ttl.Seconds())
-			exp := fl.Expires
-			if ml.Expires.Before(exp) {
-				exp = ml.Expires
+			b.TrackID, b.TTLS, b.Lossy = m.TrackID, int64(ttl.Seconds()), m.Lossy
+			exp := ml.Expires
+			if m.Flac != nil {
+				fl := d.Signer.Sign(m.Flac.SHA256, "flac", ttl, bucket)
+				if fl.Expires.Before(exp) {
+					exp = fl.Expires
+				}
+				b.Flac = &FlacLinkOrNull{URL: fl.URL, ContentType: m.Flac.ContentType, Bytes: m.Flac.Bytes, SHA256: m.Flac.SHA256,
+					SampleRate: m.Flac.SampleRate, BitsPerSample: m.Flac.BitsPerSample}
 			}
 			b.ExpiresAt = exp.UTC().Format(time.RFC3339)
-			b.Flac = FlacLink{URL: fl.URL, ContentType: m.Flac.ContentType, Bytes: m.Flac.Bytes, SHA256: m.Flac.SHA256,
-				SampleRate: m.Flac.SampleRate, BitsPerSample: m.Flac.BitsPerSample}
 			b.MP3 = MP3Link{URL: ml.URL, ContentType: m.MP3.ContentType, Bytes: m.MP3.Bytes, SHA256: m.MP3.SHA256, BitrateKbps: m.MP3.BitrateKbps}
 			return out, nil
 		})

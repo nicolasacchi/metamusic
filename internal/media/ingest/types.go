@@ -25,6 +25,15 @@ type Request struct {
 	SourceSHA256                              string  // from the inventory; re-verified while copying
 	RecordedAt                                time.Time
 	Artifacts                                 []ArtifactSrc // result-dir files and/or score.abc (Name "score.abc")
+	// Reference marks a recipe-less FLAC take: the freeze writes MM_REFERENCE=1 in place of MM_SEED (D-M2c-12).
+	Reference bool
+}
+
+// LossyInfo is the decoded shape of a lossy (MP3) master; IngestLossy fills it.
+type LossyInfo struct {
+	SampleRate, Channels int
+	TotalSamples         uint64
+	DurationS            float64
 }
 
 // Rendition is a derived or kept file.
@@ -46,4 +55,5 @@ type Result struct {
 	ReplayGainDB, ReplayGainPeak                        float64
 	Artifacts                                           []Rendition // Kind "artifact"
 	Created                                             []string    // DataDir-relative paths THIS call claimed (step 14); Discard's only input
+	Lossy                                               *LossyInfo  // non-nil for IngestLossy results
 }

@@ -72,7 +72,8 @@ func skipID3(br *bufio.Reader) error {
 	if err != nil { // shorter than a tag header: nothing to skip
 		return nil //nolint:nilerr
 	}
-	if string(h[:3]) != "ID3" {
+	// Same validity rule as mp3info.Parse: a size byte with the high bit set is not a tag.
+	if string(h[:3]) != "ID3" || (h[6]|h[7]|h[8]|h[9])&0x80 != 0 {
 		return nil
 	}
 	size := int(h[6]&0x7f)<<21 | int(h[7]&0x7f)<<14 | int(h[8]&0x7f)<<7 | int(h[9]&0x7f)
@@ -109,6 +110,11 @@ func (s *Service) PlaylistZIP(ctx context.Context, p auth.Principal, playlistID 
 	ids := make([]string, 0, len(pl.Items))
 	for _, it := range pl.Items {
 		ids = append(ids, it.Track.ID)
+	}
+	// playlists.Service leaves TrackSummary.RecipeKnown unset, so the engine is read here
+	refs, err := s.referenceTracks(ctx, ids)
+	if err != nil {
+		return Export{}, err
 	}
 	var stars map[string]int
 	if s.o.Ratings != nil {
@@ -158,10 +164,14 @@ func (s *Service) PlaylistZIP(ctx context.Context, p auth.Principal, playlistID 
 			name = prefix + title + " (" + strconv.Itoa(n) + ").mp3"
 		}
 		used[name] = true
+		// a reference track has no real request id or seed (C62): MM_REFERENCE=1 takes their place
+		txxx := [][2]string{{"MM_TAKE_ID", t.ID}, {"MM_REQUEST_ID", t.RequestID}, {"MM_SEED", strconv.FormatInt(t.Seed, 10)}, {"MM_STATUS", t.Status}}
+		if refs[t.ID] {
+			txxx = [][2]string{{"MM_TAKE_ID", t.ID}, {"MM_REFERENCE", "1"}, {"MM_STATUS", t.Status}}
+		}
 		entries = append(entries, entry{
 			name: name, rend: r, title: plainText(t.Title), secs: int(math.Round(t.DurationS)), track: t.ID,
-			tag: id3.Tag{Title: t.Title, Artist: "metamusic", Album: pl.Name, Track: fmt.Sprintf("%d/%d", i+1, len(pl.Items)), Stars: stars[t.ID],
-				TXXX: [][2]string{{"MM_TAKE_ID", t.ID}, {"MM_REQUEST_ID", t.RequestID}, {"MM_SEED", strconv.FormatInt(t.Seed, 10)}, {"MM_STATUS", t.Status}}},
+			tag: id3.Tag{Title: t.Title, Artist: "metamusic", Album: pl.Name, Track: fmt.Sprintf("%d/%d", i+1, len(pl.Items)), Stars: stars[t.ID], TXXX: txxx},
 		})
 		info.Tracks = append(info.Tracks, ZIPEntry{TrackID: t.ID, Entry: name})
 	}
@@ -229,14 +239,17 @@ func (s *Service) PlaylistZIP(ctx context.Context, p auth.Principal, playlistID 
 	return s.record(ctx, p, f, "playlist_zip", filename, map[string]any{"playlist_id": pl.ID, "revision": pl.Revision}, nil, info)
 }
 
-// renditions returns the mp3_320 rendition rows of the playlist's tracks.
+// renditions returns the MP3 file of the playlist's tracks: the mp3_320 rendition, or the master of a
+// lossy track (whose own ID3v2 tag skipID3 strips before the generated one is prepended).
 func (s *Service) renditions(ctx context.Context, pl playlists.Playlist) (map[string]rendition, error) {
 	ids := make([]string, 0, len(pl.Items))
 	for _, it := range pl.Items {
 		ids = append(ids, it.Track.ID)
 	}
 	rows, err := s.o.Store.R.QueryContext(ctx, `SELECT track_id, path, bytes FROM renditions WHERE kind = 'mp3_320'
-		AND track_id IN (SELECT value FROM json_each(?))`, jsonArray(ids))
+		AND track_id IN (SELECT value FROM json_each(?))
+		UNION ALL SELECT id, master_path, master_bytes FROM tracks WHERE lossy = 1 AND id IN (SELECT value FROM json_each(?))`,
+		jsonArray(ids), jsonArray(ids))
 	if err != nil {
 		return nil, fmt.Errorf("exports: renditions: %w", err)
 	}
@@ -249,6 +262,25 @@ func (s *Service) renditions(ctx context.Context, pl playlists.Playlist) (map[st
 			return nil, err
 		}
 		out[id] = r
+	}
+	return out, rows.Err()
+}
+
+// referenceTracks returns the ids among ids whose recipe is a stub (reference tracks).
+func (s *Service) referenceTracks(ctx context.Context, ids []string) (map[string]bool, error) {
+	rows, err := s.o.Store.R.QueryContext(ctx, `SELECT t.id FROM tracks t JOIN recipes r ON r.id = t.recipe_id
+		WHERE r.engine = 'unknown' AND t.id IN (SELECT value FROM json_each(?))`, jsonArray(ids))
+	if err != nil {
+		return nil, fmt.Errorf("exports: reference tracks: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
 	}
 	return out, rows.Err()
 }

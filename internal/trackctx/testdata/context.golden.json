@@ -9,11 +9,14 @@
     "critic_verdict": "Synthetic critic note",
     "tags": [],
     "duration_s": 12,
+    "recipe_known": true,
+    "lossy": false,
     "recorded_at": "2026-10-01T12:00:00Z",
     "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000101"
   },
   "recipe": {
     "engine": "yue2",
+    "known": true,
     "hash": "31d27c5ce74c6e779c39e36f5bf2297068dd3a4c7b5142ec4027244bf71bc917",
     "request": {
       "id": "fx-luna",
@@ -157,7 +160,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 3295,
+    "chars": 3342,
     "limit": 24000,
     "truncated": []
   }

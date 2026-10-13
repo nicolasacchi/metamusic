@@ -18,17 +18,19 @@ type TrackRef struct {
 	MasterSHA256, MasterPath                         string // MasterPath is DataDir-relative
 	Status                                           string
 	RecordedAt                                       time.Time
+	Lossy                                            bool // the master is an MP3 (M2c)
+	RecipeKnown                                      bool // false for a reference track (M2c)
 }
 
 const trackRefSelect = `SELECT t.id, t.title, r.request_id, t.root_track_id, COALESCE(t.parent_track_id, ''), COALESCE(m.operator, ''),
-	r.seed, t.duration_s, t.sample_rate, t.channels, t.total_samples, t.master_sha256, t.master_path, t.status, t.recorded_at
+	r.seed, t.duration_s, t.sample_rate, t.channels, t.total_samples, t.master_sha256, t.master_path, t.status, t.recorded_at, t.lossy, (r.engine <> 'unknown')
 	FROM tracks t JOIN recipes r ON r.id = t.recipe_id LEFT JOIN mutations m ON m.child_track_id = t.id`
 
 func scanTrackRef(sc interface{ Scan(...any) error }) (TrackRef, error) {
 	var r TrackRef
 	var rec string
 	if err := sc.Scan(&r.ID, &r.Title, &r.RequestID, &r.RootTrackID, &r.ParentTrackID, &r.ParentOperator,
-		&r.Seed, &r.DurationS, &r.SampleRate, &r.Channels, &r.TotalSamples, &r.MasterSHA256, &r.MasterPath, &r.Status, &rec); err != nil {
+		&r.Seed, &r.DurationS, &r.SampleRate, &r.Channels, &r.TotalSamples, &r.MasterSHA256, &r.MasterPath, &r.Status, &rec, &r.Lossy, &r.RecipeKnown); err != nil {
 		return r, err
 	}
 	r.RecordedAt, _ = time.Parse(time.RFC3339, rec)

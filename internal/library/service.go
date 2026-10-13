@@ -1,5 +1,9 @@
 // Package library is the read/write service over recipes, tracks, drafts,
 // media, analyses, import runs and device profiles (C17).
+//
+// Reference tracks (M2c) are tracks whose recipe is a stub with engine 'unknown'. Their recipes.seed is
+// the placeholder 0, which is also a valid real seed: any code that reads seeds, groups tracks by
+// request id or offers a track as a mother must check RecipeKnown / recipe_known first.
 package library
 
 import (
@@ -94,7 +98,7 @@ var (
 )
 
 // Rules a take can be matched by (tracks.import_rule), plus 'job' for M3.
-var enumRule = []string{"mapping", "result_dir", "tag", "filename_id", "sidecar_json", "slug", "slug_seed", "title_slug", "job"}
+var enumRule = []string{"mapping", "result_dir", "tag", "filename_id", "sidecar_json", "slug", "slug_seed", "title_slug", "job", RuleReference}
 
 // SHA256Hex is the hex sha256 of b (exported for fixtures and importers).
 func SHA256Hex(b []byte) string { return sha256Hex(b) }

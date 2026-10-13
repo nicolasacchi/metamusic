@@ -2576,3 +2576,14 @@ privacy, `TestNoTestHelpersInBinary`); copy D-M1-1 … D-M1-10 into the private 
 - **Unterminated last lines:** a complete JSONL saved without a final newline is skipped (by design)
   until the newline is added; the warning names the file.
 
+---
+
+## Amendments by M2c (reference and lossy imports)
+
+M2c (`docs/plans/2026-10-13-m2c-reference-lossy.md`) amends this plan additively: D-M1-2 stays the
+default (a plain `import` never imports recipe-less audio) and gains two explicit opt-ins; C11 gains one
+column (`tracks.lossy`) and nine triggers (migration `0005_reference.sql`); C12 gains the recipe engine
+`unknown`; C14 gains `Analyzer.CountFrames`; C15 gains the reference tag set and `IngestLossy`; C16 gains
+standalone-MP3 candidates, the `reference` mapping target and per-song grouping; C17/C18 serve a lossy
+master as `.mp3` and `get_media_links` returns `flac: null` for it (C19); C22 never probes for a track
+without a lossless file.

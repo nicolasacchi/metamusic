@@ -66,7 +66,7 @@ func TestMigration0004_UpgradeFromM2a(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v != 4 {
+	if v, _ := s.UserVersion(ctx); v < 4 {
 		t.Fatalf("version=%d", v)
 	}
 	after := snap(s)

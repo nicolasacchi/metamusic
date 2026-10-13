@@ -206,7 +206,11 @@ func (s *Service) lintWith(ctx context.Context, items []yue2.LintItem, batch boo
 	if err != nil {
 		return yue2.LintReport{}, err
 	}
-	return yue2.Lint(items, batch, yue2.LintContext{KnownHash: known}), nil
+	rep := yue2.Lint(items, batch, yue2.LintContext{KnownHash: known})
+	if err := s.flagUnknown(ctx, &rep); err != nil {
+		return yue2.LintReport{}, err
+	}
+	return rep, nil
 }
 
 // Lint lints items with the duplicate check backed by the database. An item naming a DraftID is
@@ -378,6 +382,13 @@ func (s *Service) checkParent(ctx context.Context, id *string) error {
 	if !ok {
 		return invalid("parent_track_id", "no such track")
 	}
+	known, err := s.lib.RecipeKnown(ctx, *id)
+	if err != nil {
+		return fmt.Errorf("drafts: parent recipe: %w", err)
+	}
+	if !known {
+		return recipeUnknownError("parent_track_id", "the parent is a reference track whose recipe is unknown")
+	}
 	return nil
 }
 
@@ -429,6 +440,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in NewDraft) (li
 		return library.DraftDetail{}, err
 	}
 	if err := s.checkParent(ctx, in.ParentTrackID); err != nil {
+		return library.DraftDetail{}, err
+	}
+	if err := s.rejectUnknownID(ctx, parsed.Request.ID); err != nil {
 		return library.DraftDetail{}, err
 	}
 	coll, err := checkCollection(in.Collection)
@@ -493,6 +507,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Dr
 	if hasReq {
 		var err error
 		if parsed, warns, err = parseOne(in.Request); err != nil {
+			return library.DraftDetail{}, err
+		}
+		if err := s.rejectUnknownID(ctx, parsed.Request.ID); err != nil {
 			return library.DraftDetail{}, err
 		}
 	}

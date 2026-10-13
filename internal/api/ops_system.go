@@ -6,6 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 )
 
@@ -33,6 +34,7 @@ type systemOut struct {
 		SchemaVersion int    `json:"schema_version" doc:"SQLite migration level"`
 		StartedAt     string `json:"started_at" doc:"RFC 3339 UTC"`
 		UptimeS       int64  `json:"uptime_s"`
+		AuditFailures int64  `json:"audit_failures" doc:"Audit rows lost since start after retries; non-zero means a gap in the audit trail"`
 	}
 }
 
@@ -86,6 +88,7 @@ func registerSystem(a huma.API, d Deps) {
 			}
 			b.StartedAt = started.UTC().Format(time.RFC3339)
 			b.UptimeS = int64(now.Sub(started).Seconds())
+			b.AuditFailures = audit.Failures()
 			return out, nil
 		})
 }

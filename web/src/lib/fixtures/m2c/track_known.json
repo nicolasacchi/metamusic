@@ -1,0 +1,98 @@
+{
+  "id": "01900000-0000-7000-8000-000000000c01",
+  "title": "Syn known song",
+  "slug": "syn-known-song",
+  "status": "draft",
+  "status_set_by": "import",
+  "origin": "import",
+  "created_at": "2026-10-13T10:00:00Z",
+  "recorded_at": "2026-10-12T09:00:00Z",
+  "duration_s": 61.3,
+  "bpm_declared": 96,
+  "comments": 0,
+  "open_comments": 0,
+  "timed": false,
+  "score": null,
+  "style_terms": [
+    "synthetic",
+    "calm"
+  ],
+  "tags": [],
+  "sections": [],
+  "truncated": {
+    "abc": false,
+    "semantic": false
+  },
+  "lossy": false,
+  "recipe_known": true,
+  "recipe": {
+    "id": "syn_recipe_1",
+    "request_id": "syn_req_1",
+    "engine": "yue2",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seed": 4242,
+    "sources_count": 0,
+    "cot": "",
+    "style": "synthetic calm style",
+    "lyrics": "[verse]\nsynthetic line"
+  },
+  "import": {
+    "rule": "ranked",
+    "run_id": null
+  },
+  "audio": {
+    "audio_md5": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bits_per_sample": 16,
+    "channels": 2,
+    "master_bytes": 10800000,
+    "master_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "mp3": {
+      "bytes": 2452000,
+      "gain_db": -1.5,
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "sample_rate": 44100,
+    "total_samples": 2703330
+  },
+  "analysis": {
+    "loudness": {
+      "integrated_lufs": -14.2,
+      "lra_high_lufs": -10,
+      "lra_low_lufs": -18,
+      "lra_lu": 8,
+      "replaygain_track_gain_db": -3.8,
+      "sample_peak_dbfs": -1,
+      "short_term_1hz": null,
+      "short_term_max_lufs": -11,
+      "true_peak_dbtp": -0.8,
+      "version": "mm-loudness/1"
+    },
+    "spectrum": {
+      "bandwidth_hz": 20000,
+      "frames": 100,
+      "ref_db": -20,
+      "threshold_db": -60,
+      "version": "mm-spectrum/1"
+    }
+  },
+  "lineage": {
+    "generation": 0,
+    "inferred": null,
+    "operator": null,
+    "parent_track_id": null,
+    "root_track_id": "01900000-0000-7000-8000-000000000c01",
+    "rule": null,
+    "siblings": []
+  },
+  "listening": {
+    "completion_rate": null,
+    "last_played_at": null,
+    "plays": 0
+  },
+  "playlists": [],
+  "rating": {
+    "critic": null,
+    "human": null,
+    "track_id": "01900000-0000-7000-8000-000000000c01"
+  }
+}

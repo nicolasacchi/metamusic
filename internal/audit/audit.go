@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -239,4 +242,66 @@ func Created(ctx context.Context) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]string(nil), c.ids...)
+}
+
+var failures atomic.Int64
+
+// NoteFailure counts an audit row that could not be written after every retry.
+func NoteFailure() { failures.Add(1) }
+
+// Failures reports audit rows lost since process start; non-zero means the audit trail has a gap.
+func Failures() int64 { return failures.Load() }
+
+// Inserter is the write side of the audit log; *Store implements it.
+type Inserter interface {
+	Insert(ctx context.Context, e Entry) error
+}
+
+// Retry defaults and cap, shared by every caller of InsertRetrying.
+const (
+	DefaultBudget  = 15 * time.Second
+	DefaultBackoff = 25 * time.Millisecond
+	maxBackoff     = 500 * time.Millisecond
+)
+
+// InsertRetrying writes the row, retrying with doubling backoff (first delay `backoff`, cap
+// 500 ms) inside `budget`, detached from ctx cancellation. Constraint violations are permanent
+// and not retried. A persistent failure is logged at error level and counted (NoteFailure) so
+// the caller can still return the response of an effect that already committed.
+func InsertRetrying(ctx context.Context, ins Inserter, e Entry, budget, backoff time.Duration) {
+	if budget <= 0 {
+		budget = DefaultBudget
+	}
+	if backoff <= 0 {
+		backoff = DefaultBackoff
+	}
+	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
+	defer cancel()
+	delay := backoff
+	for {
+		err := ins.Insert(actx, e)
+		if err == nil {
+			return
+		}
+		if permanent(err) {
+			NoteFailure()
+			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
+			return
+		}
+		t := time.NewTimer(delay)
+		select {
+		case <-actx.Done():
+			t.Stop()
+			NoteFailure()
+			slog.Error("audit insert failed", "op", e.Op, "err", redact.Error(err))
+			return
+		case <-t.C:
+		}
+		delay = min(delay*2, maxBackoff)
+	}
+}
+
+// permanent reports errors a retry cannot cure (a constraint violation such as a duplicate id).
+func permanent(err error) bool {
+	return strings.Contains(err.Error(), "constraint failed")
 }
