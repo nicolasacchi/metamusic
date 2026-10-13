@@ -1,0 +1,48 @@
+name: worker-contract
+
+# Not a required check (C85): ~4 min of CPU torch + the real yue2 install. Runs when the worker or the
+# Go side of the engine contract changes, weekly (upstream drift), and on demand.
+on:
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'internal/engine/yue2/**'
+      - '.github/workflows/worker-contract.yml'
+      - 'scripts/worker-contract.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'internal/engine/yue2/**'
+      - '.github/workflows/worker-contract.yml'
+      - 'scripts/worker-contract.sh'
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: worker-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install uv (pinned version)
+        run: pipx install "uv==0.11.7"
+      - name: cache uv (keyed on the lock file and the Dockerfile that pins the yue2 commit)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: uv-contract-${{ runner.os }}-${{ hashFiles('worker/uv.lock', 'worker/Dockerfile') }}
+          restore-keys: uv-contract-${{ runner.os }}-
+      - name: contract tests
+        run: scripts/worker-contract.sh

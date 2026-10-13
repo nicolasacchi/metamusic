@@ -11,7 +11,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 # disk-backed TMPDIR adds ~10 s to `make check`. Override with TEST_TMPDIR=<dir>.
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing
+.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -73,7 +73,20 @@ routing:
 	$(LOOP) routing -- env MM_REQUIRE_ROUTING=1 CGO_ENABLED=0 go test -tags routing -count=1 ./deploy/traefik-contract/
 
 gate:
-	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/public-gate.sh'
+	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/ci-selftest.sh && scripts/deploy-preflight-selftest.sh && scripts/actions-pinned.sh && scripts/public-gate.sh'
+
+# Worker (Python, C83): unit tests with the 90 % coverage gate, no torch, no network.
+worker:
+	$(LOOP) worker -- sh -c 'cd worker && uv run pytest --cov=mmworker --cov-fail-under=90'
+
+# Worker contract tests against the real yue2 (CPU torch), same steps as the worker-contract workflow.
+contract:
+	$(LOOP) contract -- scripts/worker-contract.sh
+
+# PRINT-ONLY: the canary spends real money and is typed by the operator (M3-X3, after explicit approval).
+# This target never runs it; it prints the documented command.
+canary:
+	$(LOOP) canary -- echo 'operator step (M3-X3): metamusic runpod canary --url <PUBLIC_URL> --case main --max-usd 0.25 -- read docs/runbook.md first; never run without approval'
 
 hooks:
 	git config core.hooksPath .githooks

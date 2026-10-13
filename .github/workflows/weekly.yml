@@ -1,0 +1,27 @@
+name: weekly
+
+# RunPod management OpenAPI drift (C85). Failure opens nothing; it just fails the run. The weekly worker
+# contract run lives in worker-contract.yml.
+on:
+  schedule:
+    - cron: '43 5 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  runpod-openapi-drift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: management OpenAPI vs the canonicalised snapshot
+        run: |
+          snap=internal/provider/runpod/testdata/openapi.snapshot.json
+          [ -f "$snap" ] || { echo "no snapshot at $snap yet (recorded by the Provider lane / M3-X1)"; exit 1; }
+          curl -fsS --max-time 60 https://api.runpod.io/v2/openapi.json | jq -S . > "$RUNNER_TEMP/live.json"
+          jq -S . "$snap" | diff -u - "$RUNNER_TEMP/live.json"

@@ -1,0 +1,124 @@
+name: worker-image
+
+# Builds the RunPod worker image (worker/Dockerfile, build context worker/; C83.6, C85).
+#  - pull_request: build + in-image smoke WITHOUT pushing (the dry run of a workflow that exists only on
+#    a branch; workflow_dispatch cannot start it there).
+#  - push to main: build + smoke, then publish (push, attest, digest in the job summary).
+#  - workflow_dispatch (on main): the same as push.
+# The digest the endpoint uses is committed by hand in deploy/worker-image.digest (M3-X2); CI never edits it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-image.yml'
+  pull_request:
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-image.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: worker-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/nicolasacchi/metamusic-worker
+
+jobs:
+  build-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: free disk space (CUDA wheels are large; plain deletes, nothing third-party)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null || true
+          df -h /
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: build (no push)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: worker
+          file: worker/Dockerfile
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}:smoke
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=worker-image
+          cache-to: type=gha,scope=worker-image,mode=max
+      - name: smoke imports and absent packages
+        run: |
+          docker run --rm --entrypoint python "$IMAGE:smoke" -c "import transformers, yue2, mmworker"
+          if docker run --rm --entrypoint python "$IMAGE:smoke" -c "import torchvision" 2>/dev/null; then echo "torchvision must be absent"; exit 1; fi
+          if docker run --rm --entrypoint python "$IMAGE:smoke" -c "import torchaudio" 2>/dev/null; then echo "torchaudio must be absent"; exit 1; fi
+      - name: smoke torch CUDA build >= 12.8
+        run: |
+          docker run --rm --entrypoint python "$IMAGE:smoke" -c "import sys, torch; v = torch.version.cuda; print('torch.version.cuda =', v); sys.exit(0 if v and tuple(int(x) for x in v.split('.')[:2]) >= (12, 8) else 1)"
+      - name: smoke selftest mode
+        run: docker run --rm -e MODE=selftest "$IMAGE:smoke"
+
+  publish:
+    needs: build-smoke
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null || true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build and push (layers come from the build-smoke cache)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: worker
+          file: worker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:main
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          provenance: mode=max
+          cache-from: type=gha,scope=worker-image
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: digest to the job summary
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            echo "### worker image"
+            echo
+            echo "Digest for deploy/worker-image.digest (committed by hand in the M3-X2 PR):"
+            echo
+            echo '```'
+            echo "$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
