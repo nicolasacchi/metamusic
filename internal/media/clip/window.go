@@ -7,6 +7,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
+// maxRequestS bounds a requested second before rounding (no int64 overflow).
+const maxRequestS = 1e7
+
 // floorGrid is x (ms) rounded down to the 100 ms grid.
 func floorGrid(ms int64) int64 { return ms / GridMS * GridMS }
 
@@ -55,6 +58,9 @@ func ResolveWindow(durationS float64, fromS, toS *float64) (Window, error) {
 		if math.IsNaN(*fromS) || math.IsInf(*fromS, 0) || *fromS < 0 {
 			return Window{}, windowErr(d, lo, hi, "from_s must be a finite number of seconds >= 0")
 		}
+		if *fromS > maxRequestS {
+			return Window{}, windowErr(d, lo, hi, "from_s is beyond the end of the track")
+		}
 		from = roundGrid(*fromS)
 	} else {
 		from = DefaultWindow(durationS).StartMS
@@ -66,6 +72,9 @@ func ResolveWindow(durationS float64, fromS, toS *float64) (Window, error) {
 	if toS != nil {
 		if math.IsNaN(*toS) || math.IsInf(*toS, 0) {
 			return Window{}, windowErr(d, lo, hi, "to_s must be a finite number of seconds")
+		}
+		if *toS > maxRequestS {
+			return Window{}, windowErr(d, lo, hi, "to_s is beyond the end of the track")
 		}
 		to = roundGrid(*toS)
 	} else {

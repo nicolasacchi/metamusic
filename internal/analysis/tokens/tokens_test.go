@@ -1,7 +1,9 @@
 package tokens_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"math"
 	"math/rand/v2"
@@ -10,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis/npy"
 	"github.com/nicolasacchi/metamusic/internal/analysis/tokens"
@@ -260,5 +263,22 @@ func TestTokenLoops_Version(t *testing.T) {
 	t.Parallel()
 	if v := tokens.Version(); !strings.HasPrefix(v, "mm-token-loops/1 go") {
 		t.Errorf("version = %q", v)
+	}
+}
+
+func TestAnalyze_RejectsOversizeAndHonoursCancel(t *testing.T) {
+	t.Parallel()
+	start := time.Now()
+	_, err := tokens.Analyze(arr([]int{1, 2 << 20}, make([]int64, 2<<20)), 100)
+	if !errors.Is(err, tokens.ErrUnsupported) {
+		t.Fatalf("err = %v, want ErrUnsupported", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := tokens.AnalyzeContext(ctx, arr([]int{1, 5000}, randStream(3, 5000, 64)), 100); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("took %v", d)
 	}
 }

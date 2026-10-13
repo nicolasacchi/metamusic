@@ -20,6 +20,7 @@ export MM_E2E_BIN="${MM_E2E_BIN:-$root/bin/metamusic-e2e}"
 export GOCOVERDIR="$root/covdata/e2e"
 # the seeded e2e server finds the pinned ffmpeg/metaflac in bin/
 export PATH="$root/bin:$PATH"
+rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
 (cd web && bun run e2e)
 
 go tool covdata percent -i="$root/covdata/e2e" || true

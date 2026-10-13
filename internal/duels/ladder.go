@@ -281,7 +281,7 @@ func (s *Service) Ladder(ctx context.Context, q LadderQuery) (LadderPage, error)
 	if off < len(items) {
 		page.Items = append(page.Items, items[off:min(off+limit, len(items))]...)
 	}
-	if off+limit < len(items) {
+	if off < len(items)-limit {
 		c := offsetCursor(off + limit)
 		page.NextCursor = &c
 	}

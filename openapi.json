@@ -1376,6 +1376,7 @@
           "from_s": {
             "description": "Window start in seconds; default: about 30% into the shorter track",
             "format": "double",
+            "maximum": 86400,
             "minimum": 0,
             "type": "number"
           },
@@ -1385,6 +1386,7 @@
           },
           "to_s": {
             "format": "double",
+            "maximum": 86400,
             "minimum": 0,
             "type": "number"
           }
@@ -9953,6 +9955,7 @@
             "schema": {
               "description": "Window start in seconds (rounded to 0.1 s); default: about 30% into the track",
               "format": "double",
+              "maximum": 86400,
               "minimum": 0,
               "type": "number"
             }
@@ -9965,6 +9968,7 @@
             "schema": {
               "description": "Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter)",
               "format": "double",
+              "maximum": 86400,
               "minimum": 0,
               "type": "number"
             }

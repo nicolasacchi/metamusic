@@ -541,3 +541,43 @@ func (failingAnalyzer) ToolVersion() string { return "ffmpeg fail" }
 func (failingAnalyzer) WindowLoudness(context.Context, string, int64, int64) (clip.Measure, error) {
 	return clip.Measure{}, errors.New("secret path /data/x failed")
 }
+
+type slowAnalyzer struct {
+	cur, peak *atomic.Int32
+}
+
+func (slowAnalyzer) ToolVersion() string { return "slow" }
+func (a slowAnalyzer) WindowLoudness(context.Context, string, int64, int64) (clip.Measure, error) {
+	n := a.cur.Add(1)
+	for {
+		p := a.peak.Load()
+		if n <= p || a.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	time.Sleep(20 * time.Millisecond)
+	a.cur.Add(-1)
+	return clip.Measure{}, nil
+}
+
+func TestMeasure_HonoursRenderSlots(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	sp := e.fakeMaster(t, "slots")
+	var cur, peak atomic.Int32
+	s := clip.New(e.root, e.dir, mediatool.Tools{}, slowAnalyzer{&cur, &peak}, nil, nil, clip.Options{})
+	var wg sync.WaitGroup
+	for range 12 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := s.Measure(context.Background(), sp); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if p := peak.Load(); p > 2 {
+		t.Errorf("peak concurrent measures = %d, want <= 2", p)
+	}
+}

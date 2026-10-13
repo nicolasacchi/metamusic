@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { BASE_URL, HEADERS } from "./e2e/env";
+import { BASE_URL, HEADERS, OUTPUT_DIR } from "./e2e/env";
 
 // Chrome must autoplay without a prior gesture so specs can start playback programmatically
 // (the probe specs still use a real click, which exercises the gesture rule).
@@ -21,9 +21,12 @@ const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: OUTPUT_DIR,
   testMatch: "**/*.spec.ts",
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
+  // fewer workers than cores: the specs assert on real-time audio/layout and flake when starved
+  workers: process.env.CI ? 2 : "50%",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",

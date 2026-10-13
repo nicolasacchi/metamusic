@@ -41,8 +41,8 @@ type clipLinkOut struct{ Body ClipLink }
 
 type getClipIn struct {
 	ID        string            `path:"id" doc:"Track id"`
-	FromS     optParam[float64] `query:"from_s" minimum:"0" doc:"Window start in seconds (rounded to 0.1 s); default: about 30% into the track"`
-	ToS       optParam[float64] `query:"to_s" minimum:"0" doc:"Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter)"`
+	FromS     optParam[float64] `query:"from_s" minimum:"0" maximum:"86400" doc:"Window start in seconds (rounded to 0.1 s); default: about 30% into the track"`
+	ToS       optParam[float64] `query:"to_s" minimum:"0" maximum:"86400" doc:"Window end in seconds; the window must be 30-45 s long (or the whole track when it is shorter)"`
 	MatchLUFS optParam[float64] `query:"match_lufs" minimum:"-40" maximum:"-6" doc:"Attenuate the clip toward this integrated loudness; quieter windows are never boosted"`
 }
 
@@ -52,8 +52,8 @@ type createDuelIn struct {
 		ATrackID      string   `json:"a_track_id" minLength:"1"`
 		BTrackID      string   `json:"b_track_id" minLength:"1"`
 		Blind         *bool    `json:"blind,omitempty" doc:"Hide which slot holds which track until the human verdict (default true)"`
-		FromS         *float64 `json:"from_s,omitempty" minimum:"0" doc:"Window start in seconds; default: about 30% into the shorter track"`
-		ToS           *float64 `json:"to_s,omitempty" minimum:"0"`
+		FromS         *float64 `json:"from_s,omitempty" minimum:"0" maximum:"86400" doc:"Window start in seconds; default: about 30% into the shorter track"`
+		ToS           *float64 `json:"to_s,omitempty" minimum:"0" maximum:"86400"`
 		MatchLoudness *bool    `json:"match_loudness,omitempty" doc:"Attenuate the louder window to the quieter one (default true)"`
 	}
 }

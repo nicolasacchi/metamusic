@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -23,7 +24,8 @@ const (
 	windowS     = 10.0
 	hashBase    = 0x9E3779B97F4A7C15 // odd 64-bit multiplier
 	maxToken    = math.MaxUint32
-	minPeriodic = 2 // a periodic run must contain at least two full periods
+	maxTokens   = 1 << 20 // per-stream cap; real YuE streams are ~15k tokens
+	minPeriodic = 2       // a periodic run must contain at least two full periods
 )
 
 // Version is the stored analyses.version for token loops (D-M2b-11).
@@ -37,6 +39,12 @@ func r4(v float64) float64 { return math.Round(v*10000) / 10000 }
 // The time axis is the longest axis (ties: the last); the other axes are
 // flattened row-major into at most 16 streams.
 func Analyze(a npy.Array, durationS float64) (Report, error) {
+	return AnalyzeContext(context.Background(), a, durationS)
+}
+
+// AnalyzeContext is Analyze honouring cancellation; streams longer than
+// maxTokens are rejected with ErrUnsupported.
+func AnalyzeContext(ctx context.Context, a npy.Array, durationS float64) (Report, error) {
 	if !(durationS > 0) || math.IsInf(durationS, 0) {
 		return Report{}, errors.New("tokens: duration must be positive")
 	}
@@ -59,6 +67,9 @@ func Analyze(a npy.Array, durationS float64) (Report, error) {
 	n := a.Shape[axis]
 	if n == 0 {
 		return Report{}, fmt.Errorf("%w: empty time axis", ErrUnsupported)
+	}
+	if n > maxTokens {
+		return Report{}, fmt.Errorf("%w: %d tokens exceeds the %d cap", ErrUnsupported, n, maxTokens)
 	}
 	streams := total / n
 	if streams > maxStreams {
@@ -97,12 +108,16 @@ func Analyze(a npy.Array, durationS float64) (Report, error) {
 			}
 			toks[i] = uint32(v)
 		}
-		rep.Streams = append(rep.Streams, analyzeStream(si, toks, durationS))
+		st, err := analyzeStream(ctx, si, toks, durationS)
+		if err != nil {
+			return Report{}, err
+		}
+		rep.Streams = append(rep.Streams, st)
 	}
 	return rep, nil
 }
 
-func analyzeStream(index int, t []uint32, durationS float64) Stream {
+func analyzeStream(ctx context.Context, index int, t []uint32, durationS float64) (Stream, error) {
 	n := len(t)
 	tps := float64(n) / durationS
 	s := Stream{Index: index, NTokens: n, TokensPerS: r2(tps), Encoding: "u16le", GzipRatio10s: []float64{}}
@@ -119,8 +134,13 @@ func analyzeStream(index int, t []uint32, durationS float64) Stream {
 		grams[[4]uint32{t[i], t[i+1], t[i+2], t[i+3]}] = struct{}{}
 	}
 	s.Distinct4GramRatio = r4(float64(len(grams)) / float64(max(1, n-3)))
-	s.LongestRepeat = longestRepeat(t, tps)
-	s.PeriodicRun = periodicRun(t, tps)
+	var err error
+	if s.LongestRepeat, err = longestRepeat(ctx, t, tps); err != nil {
+		return s, err
+	}
+	if s.PeriodicRun, err = periodicRun(ctx, t, tps); err != nil {
+		return s, err
+	}
 	s.GzipRatio10s = gzipRatios(t, tps, s.Encoding)
 	if len(s.GzipRatio10s) > 0 {
 		sorted := slices.Clone(s.GzipRatio10s)
@@ -132,7 +152,7 @@ func analyzeStream(index int, t []uint32, durationS float64) Stream {
 		}
 		s.GzipRatioMin, s.GzipRatioMedian = &mn, &med
 	}
-	return s
+	return s, nil
 }
 
 // findRepeat returns the earliest-second pair (p1 < p2, p2-p1 >= l) of equal
@@ -163,7 +183,7 @@ func findRepeat(t []uint32, l int, pow uint64) (p1, p2 int, ok bool) {
 	return 0, 0, false
 }
 
-func longestRepeat(t []uint32, tps float64) Repeat {
+func longestRepeat(ctx context.Context, t []uint32, tps float64) (Repeat, error) {
 	n := len(t)
 	lo, hi := 0, n/2
 	var best Repeat
@@ -175,6 +195,9 @@ func longestRepeat(t []uint32, tps float64) Repeat {
 		return p
 	}
 	for lo < hi {
+		if err := ctx.Err(); err != nil {
+			return Repeat{}, err
+		}
 		mid := (lo + hi + 1) / 2
 		if p1, p2, ok := findRepeat(t, mid, powFor(mid)); ok {
 			lo = mid
@@ -183,15 +206,18 @@ func longestRepeat(t []uint32, tps float64) Repeat {
 			hi = mid - 1
 		}
 	}
-	return best
+	return best, nil
 }
 
-func periodicRun(t []uint32, tps float64) Periodic {
+func periodicRun(ctx context.Context, t []uint32, tps float64) (Periodic, error) {
 	n := len(t)
 	maxP := min(maxPeriod, max(1, int(math.Round(2*tps))))
 	var best Periodic
 	bestSpan, bestStart := 0, 0
 	for p := 1; p <= maxP && p < n; p++ {
+		if err := ctx.Err(); err != nil {
+			return Periodic{}, err
+		}
 		run, bestRun, end := 0, 0, 0
 		for i := p; i < n; i++ {
 			if t[i] == t[i-p] {
@@ -218,7 +244,7 @@ func periodicRun(t []uint32, tps float64) Periodic {
 	if bestSpan > 0 {
 		best.AtS = r3(float64(bestStart) / tps)
 	}
-	return best
+	return best, nil
 }
 
 func gzipRatios(t []uint32, tps float64, enc string) []float64 {

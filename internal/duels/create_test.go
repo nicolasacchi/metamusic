@@ -214,3 +214,15 @@ func TestCreateDuel_IDsAndPrincipal(t *testing.T) {
 	}
 	_ = lt.FixedNow
 }
+
+func TestCreateDuel_OpenLimit(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	in := duels.CreateInput{ATrackID: duelstest.TrackAlpha, BTrackID: duelstest.TrackBeta}
+	var err error
+	for i := 0; i < duels.MaxOpenDuels+2 && err == nil; i++ {
+		_, err = e.svc.Create(ctx, human, in)
+	}
+	asProblem(t, err, 409, "DUEL_LIMIT_REACHED")
+}

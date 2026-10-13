@@ -23,7 +23,7 @@ import (
 )
 
 // maxSemanticBytes caps the semantic.npy the token-loop analyzer reads (C49.3).
-const maxSemanticBytes = 64 << 20
+const maxSemanticBytes = 8 << 20
 
 // plan says which analyzers a track needs.
 type plan struct {
@@ -233,7 +233,7 @@ func (s *Service) compute(ctx context.Context, ref library.TrackRef, p plan) (re
 		}
 	}
 	if p.tokens {
-		m, code := s.tokenLoops(p.art, ref.DurationS)
+		m, code := s.tokenLoops(ctx, p.art, ref.DurationS)
 		if code != "" {
 			res.failed[anTokenLoops] = code
 		} else {
@@ -255,7 +255,7 @@ func (s *Service) compute(ctx context.Context, ref library.TrackRef, p plan) (re
 }
 
 // tokenLoops reads semantic.npy through the data root and measures it.
-func (s *Service) tokenLoops(art library.ArtifactRef, durationS float64) (*tokenMetrics, string) {
+func (s *Service) tokenLoops(ctx context.Context, art library.ArtifactRef, durationS float64) (*tokenMetrics, string) {
 	f, err := s.o.Data.Open(art.Path)
 	if err != nil {
 		return nil, codeIO
@@ -268,7 +268,7 @@ func (s *Service) tokenLoops(art library.ArtifactRef, durationS float64) (*token
 	case err != nil:
 		return nil, codeIO
 	}
-	rep, err := tokens.Analyze(arr, durationS)
+	rep, err := tokens.AnalyzeContext(ctx, arr, durationS)
 	if err != nil {
 		return nil, codeNPY
 	}

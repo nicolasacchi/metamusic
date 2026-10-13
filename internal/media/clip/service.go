@@ -133,6 +133,14 @@ func (s *Service) Measure(ctx context.Context, sp Spec) (Measure, error) {
 	if err := s.validate(sp); err != nil {
 		return Measure{}, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, renderTimeout)
+	defer cancel()
+	select {
+	case s.sem <- struct{}{}:
+		defer func() { <-s.sem }()
+	case <-ctx.Done():
+		return Measure{}, ctx.Err()
+	}
 	rel, abs, err := s.workMaster(sp)
 	if err != nil {
 		return Measure{}, err

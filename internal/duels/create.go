@@ -13,6 +13,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
+// MaxOpenDuels caps unexpired duels without a human verdict: each pins two clips.
+const MaxOpenDuels = 100
+
 // Create makes a duel (C48.1).
 func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateInput) (Duel, error) {
 	if s.unconfigured() {
@@ -23,6 +26,14 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateInput) 
 	}
 	if _, err := canJudge(p); err != nil {
 		return Duel{}, err
+	}
+	var open int
+	if err := s.o.Store.R.QueryRowContext(ctx, `SELECT count(*) FROM duels d WHERE d.expires_at > ?
+		AND NOT EXISTS (SELECT 1 FROM duel_verdicts h WHERE h.duel_id = d.id AND h.source = 'human')`, rfc(s.now())).Scan(&open); err != nil {
+		return Duel{}, fmt.Errorf("duels: count open: %w", err)
+	}
+	if open >= MaxOpenDuels {
+		return Duel{}, problem.E(409, "DUEL_LIMIT_REACHED", "too many open duels; judge or wait for some to expire", map[string]any{"open": open, "limit": MaxOpenDuels})
 	}
 	if in.ATrackID == in.BTrackID {
 		return Duel{}, problem.E(422, "DUEL_SAME_TRACK", "a duel needs two different tracks", map[string]any{"track_id": in.ATrackID})

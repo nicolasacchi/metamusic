@@ -2,6 +2,7 @@ package duels_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"os"
@@ -384,3 +385,11 @@ type toolOverride struct {
 }
 
 func (t toolOverride) ToolVersion() string { return t.tool }
+
+func TestLadder_HugeCursorRejected(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	c := base64.RawURLEncoding.EncodeToString([]byte(`{"o":9223372036854775807}`))
+	_, err := e.svc.Ladder(context.Background(), duels.LadderQuery{Cursor: c})
+	asProblem(t, err, 422, "VALIDATION_FAILED")
+}

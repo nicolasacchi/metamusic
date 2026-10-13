@@ -13,6 +13,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 )
 
+const maxCursorOffset = 1 << 31
+
 // offsetCursor / parseCursor: opaque base64url of {"o":<offset>}.
 func offsetCursor(n int) string {
 	b, _ := json.Marshal(struct {
@@ -29,7 +31,7 @@ func parseCursor(c string) (int, error) {
 	var v struct {
 		O int `json:"o"`
 	}
-	if err != nil || json.Unmarshal(b, &v) != nil || v.O < 0 {
+	if err != nil || json.Unmarshal(b, &v) != nil || v.O < 0 || v.O > maxCursorOffset {
 		return 0, invalid("cursor", "malformed cursor")
 	}
 	return v.O, nil
