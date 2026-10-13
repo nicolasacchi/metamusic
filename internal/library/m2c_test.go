@@ -190,3 +190,16 @@ func TestHandler_LossyRange(t *testing.T) {
 		t.Errorf("flac link with the lossy sha: %d", w.Code)
 	}
 }
+
+// TestRecoverSeam_Eligibility pins the M5 recover seam: a track is a recovery candidate
+// exactly when RecipeKnown is false, for lossless and lossy references alike.
+func TestRecoverSeam_Eligibility(t *testing.T) {
+	t.Parallel()
+	e := newEnvM2c(t)
+	for id, eligible := range map[string]bool{lt.TrackRefFlac: true, lt.TrackLossy: true, lt.TrackLuna: false} {
+		known, err := e.svc.RecipeKnown(context.Background(), id)
+		if err != nil || known == eligible {
+			t.Errorf("%s: RecipeKnown=%v err=%v, eligible=%v", id, known, err, eligible)
+		}
+	}
+}

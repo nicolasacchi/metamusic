@@ -616,7 +616,7 @@ is under 6 minutes nothing changes. Any new startup wait in tests tolerates `-co
 | Decision | Tests (all named below in the tasks; * = TestAcceptance) |
 |---|---|
 | D-M2c-1 | `TestMigration0005_StubShape`, `TestInsertReferenceRecipe`, `TestInsertTake_Reference`, `TestReferenceRequestID`, `TestAcceptance_M2c_ReferenceFlac*` |
-| D-M2c-2 | `TestReference_PlainImportIgnores`, `TestReference_FlagUnmatched`, `TestReference_AmbiguousNeverAuto`, `TestReference_MappingTarget`, `TestReference_SkipWins`, `TestCLI_ReferenceFlagsMismatch`, `TestDryRun_ListsRecipeLess` |
+| D-M2c-2 | `TestReference_PlainImportIgnores`, `TestReference_FlagUnmatched`, `TestReference_AmbiguousNeverAuto`, `TestReference_MappingTarget`, `TestReference_SkipWins`, `TestCLI_ReferenceFlags/plan_with_different_flags_is_a_usage_error`, `TestDryRun_ListsRecipeLess` |
 | D-M2c-3 | `TestIngestLossy_Freeze`, `TestIngestLossy_NoTagsNoRendition`, `TestMigration0005_LossyShape`, `TestMp3info_*`, `TestAcceptance_M2c_LossyPilot*` |
 | D-M2c-4 | `TestLossy_MappingNeedsReference`, `TestMigration0005_ReferenceRule` |
 | D-M2c-5 | `TestExport_ExcludesUnknownRecipe`, `TestExport_UnknownNote`, `TestZip_IncludesLossyAndReference` |

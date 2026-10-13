@@ -72,7 +72,8 @@ func skipID3(br *bufio.Reader) error {
 	if err != nil { // shorter than a tag header: nothing to skip
 		return nil //nolint:nilerr
 	}
-	if string(h[:3]) != "ID3" {
+	// Same validity rule as mp3info.Parse: a size byte with the high bit set is not a tag.
+	if string(h[:3]) != "ID3" || (h[6]|h[7]|h[8]|h[9])&0x80 != 0 {
 		return nil
 	}
 	size := int(h[6]&0x7f)<<21 | int(h[7]&0x7f)<<14 | int(h[8]&0x7f)<<7 | int(h[9]&0x7f)
