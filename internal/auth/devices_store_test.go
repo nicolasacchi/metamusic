@@ -43,6 +43,7 @@ var (
 )
 
 func TestPairing_CodeLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, clk := newDevices(t)
 	code, pc, err := ds.CreatePairingCode(ctx, human, "Phone")
@@ -118,6 +119,7 @@ func TestPairing_CodeLifecycle(t *testing.T) {
 }
 
 func TestPairing_CreateRules(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	for _, p := range []Principal{{Kind: KindAgent, ID: "t"}, {Kind: KindDevice, ID: "d"}, {Kind: KindAnonymous}} {
@@ -136,6 +138,7 @@ func TestPairing_CreateRules(t *testing.T) {
 }
 
 func TestPairing_SingleUse(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -170,6 +173,7 @@ func TestPairing_SingleUse(t *testing.T) {
 }
 
 func TestDevice_VerifySlidesExpiry(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, clk := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -235,6 +239,7 @@ func TestDevice_VerifySlidesExpiry(t *testing.T) {
 }
 
 func TestDevice_SurvivesThirteenHourGap(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, clk := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -254,6 +259,7 @@ func TestDevice_SurvivesThirteenHourGap(t *testing.T) {
 }
 
 func TestDevice_RevokeAndList(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, clk := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -288,6 +294,7 @@ func TestDevice_RevokeAndList(t *testing.T) {
 }
 
 func TestDevice_ScopesReadWriteOnly(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -306,6 +313,7 @@ func TestDevice_ScopesReadWriteOnly(t *testing.T) {
 }
 
 func TestDevice_NilReceiverSafe(t *testing.T) {
+	t.Parallel()
 	var d *DeviceStore
 	if _, err := d.VerifyDevice(context.Background(), "mmd_"+strings.Repeat("a", 52)); !errors.Is(err, ErrInvalidDevice) {
 		t.Fatalf("err = %v", err)

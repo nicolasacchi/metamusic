@@ -19,12 +19,14 @@ import (
 )
 
 func TestError_String(t *testing.T) {
+	t.Parallel()
 	if got := (&Error{409, "BACKUP_IN_PROGRESS", "x"}).Error(); got != "BACKUP_IN_PROGRESS: x" {
 		t.Fatal(got)
 	}
 }
 
 func TestErrnoName(t *testing.T) {
+	t.Parallel()
 	for want, err := range map[string]error{
 		"EXDEV": syscall.EXDEV, "EPERM": syscall.EPERM, "EMLINK": syscall.EMLINK, "EACCES": syscall.EACCES, "ERROR": errors.New("boom"),
 	} {
@@ -35,6 +37,7 @@ func TestErrnoName(t *testing.T) {
 }
 
 func TestValidMediaPath(t *testing.T) {
+	t.Parallel()
 	for p, want := range map[string]bool{
 		"audio/masters/a.flac": true, "takes/x/request.json": true, "derived/ab/abc.mp3": true,
 		"derived/exports/ab/x.zip": false, "../x": false, "/abs/x": false, "audio/masters/../../x": false,
@@ -47,6 +50,7 @@ func TestValidMediaPath(t *testing.T) {
 }
 
 func TestNew_Defaults(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	s := New(Options{Store: e.st, DataDir: e.data, BackupDir: e.bdir})
 	run, err := s.RunSync(context.Background(), "cli", auth.CLI)
@@ -70,6 +74,7 @@ func uuidLike(id string) (string, error) {
 }
 
 func TestCheckManifestPaths(t *testing.T) {
+	t.Parallel()
 	good := Manifest{DB: ManifestDB{Path: dbRel}, Files: []ManifestFile{
 		{Path: "audio/masters/a.flac", Kind: "master"}, {Path: "import/mapping.csv", Kind: "import"}, {Path: "export/songs.jsonl", Kind: "export"},
 	}}
@@ -95,6 +100,7 @@ func TestCheckManifestPaths(t *testing.T) {
 }
 
 func TestBackup_EmptyLibrary(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	st, err := store.Open(context.Background(), filepath.Join(dir, "metamusic.db"))
 	if err != nil {
@@ -123,6 +129,7 @@ func TestBackup_EmptyLibrary(t *testing.T) {
 }
 
 func TestBackup_ConflictingShaRows(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	if _, err := e.st.W.Exec(`UPDATE renditions SET path = (SELECT path FROM renditions ORDER BY rowid LIMIT 1), sha256 = 'ff'
 		WHERE rowid = (SELECT MAX(rowid) FROM renditions)`); err != nil {
@@ -135,6 +142,7 @@ func TestBackup_ConflictingShaRows(t *testing.T) {
 }
 
 func TestBackup_CancelledMidRun(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	e.svc.hook = func(stage, _ string) {
@@ -152,6 +160,7 @@ func TestBackup_CancelledMidRun(t *testing.T) {
 }
 
 func TestBackup_BackupDirNotCreatable(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	blocker := filepath.Join(t.TempDir(), "file")
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
@@ -165,6 +174,7 @@ func TestBackup_BackupDirNotCreatable(t *testing.T) {
 }
 
 func TestFileHelpers(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if _, _, err := hashFile(filepath.Join(dir, "missing")); err == nil {
 		t.Error("hashFile of a missing file")
@@ -216,6 +226,7 @@ func TestFileHelpers(t *testing.T) {
 }
 
 func TestList_SkipsIncompleteSnapshots(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	run, _, _ := e.run(t)
 	for _, d := range []string{"20250101T000000Z", "notasnapshot", ".20250101T000000Z.partial"} {
@@ -237,6 +248,7 @@ func TestList_SkipsIncompleteSnapshots(t *testing.T) {
 }
 
 func TestRestore_Branches(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	ctx := context.Background()
@@ -285,6 +297,7 @@ func TestRestore_Branches(t *testing.T) {
 }
 
 func TestRestore_FailureRemovesTarget(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	// Link succeeds for nothing and copying is impossible because the destination is a read-only directory.
@@ -316,6 +329,7 @@ func TestRestore_FailureRemovesTarget(t *testing.T) {
 }
 
 func TestScheduler_OffAndCancel(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { (&Scheduler{At: "off", Run: func(context.Context) { t.Error("ran") }}).Loop(ctx); close(done) }()
@@ -367,6 +381,7 @@ func failAt(t *testing.T, stage string, sabotage func(partial string)) Run {
 }
 
 func TestBackup_StepFailures(t *testing.T) {
+	t.Parallel()
 	if os.Getuid() == 0 {
 		t.Skip("permission checks do not bind root")
 	}
@@ -389,6 +404,7 @@ func TestBackup_StepFailures(t *testing.T) {
 }
 
 func TestBackup_ClosedStore(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "x.db"))
 	if err != nil {
@@ -410,6 +426,7 @@ func TestBackup_ClosedStore(t *testing.T) {
 }
 
 func TestBackup_BrokenTables(t *testing.T) {
+	t.Parallel()
 	for _, table := range []string{"artifacts", "renditions", "comments"} {
 		e := newEnv(t)
 		if _, err := e.st.W.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
@@ -426,6 +443,7 @@ func TestBackup_BrokenTables(t *testing.T) {
 }
 
 func TestRestore_UnreadableAndNested(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	ctx := context.Background()
@@ -466,6 +484,7 @@ func cloneSnapshot(t *testing.T, src string) string {
 }
 
 func TestRestore_WriteFailureCleansUp(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	for _, existing := range []bool{false, true} {
@@ -494,6 +513,7 @@ func TestRestore_WriteFailureCleansUp(t *testing.T) {
 }
 
 func TestRestore_CorruptDatabase(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	snap := cloneSnapshot(t, dir)
@@ -530,6 +550,7 @@ func hashBytes(b []byte) (string, int64, error) {
 }
 
 func TestHelpers_ErrorPaths(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if _, _, err := hashFile(dir); err == nil {
 		t.Error("hashFile of a directory")
@@ -547,6 +568,7 @@ type iotestErrReader struct{}
 func (iotestErrReader) Read([]byte) (int, error) { return 0, errors.New("read failed") }
 
 func TestScrubPaths_Deterministic(t *testing.T) {
+	t.Parallel()
 	s := &Service{o: Options{DataDir: "/a/d", BackupDir: "/a/d/b"}}
 	got := s.scrubPaths("open /a/d/b/x: denied; stat /a/d/db/y: gone")
 	if strings.Contains(got, "/a/d") || !strings.Contains(got, "<backup>/x") || !strings.Contains(got, "<data>/db/y") {

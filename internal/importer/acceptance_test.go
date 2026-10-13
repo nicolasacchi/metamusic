@@ -304,6 +304,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
 	code := m.Run()
 	cleanupMu.Lock()
 	for i := len(cleanupList) - 1; i >= 0; i-- {

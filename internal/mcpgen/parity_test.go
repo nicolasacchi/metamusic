@@ -228,6 +228,7 @@ func pathOperation(a huma.API, op api.OpInfo) *huma.Operation {
 }
 
 func TestNeedsFixture(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		method string
@@ -436,15 +437,18 @@ func runParity(t *testing.T, stdio bool) {
 // TestParityEveryOperation: every registered, non-excluded operation has a
 // case, and REST, MCP tools and call_operation agree on each.
 func TestParityEveryOperation(t *testing.T) {
+	t.Parallel()
 	runParity(t, false)
 }
 
 // TestParity_Stdio: the M0 and M1 cases are equal over REST, MCP and stdio.
 func TestParity_Stdio(t *testing.T) {
+	t.Parallel()
 	runParity(t, true)
 }
 
 func TestWhoamiPropagatesAgentPrincipal(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-7", auth.ScopeRead)
 	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "whoami"})
@@ -461,6 +465,7 @@ func TestWhoamiPropagatesAgentPrincipal(t *testing.T) {
 }
 
 func TestScopeEnforcedThroughMCP(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "w", auth.ScopeWrite) // no read
 	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "ping"})
@@ -473,6 +478,7 @@ func TestScopeEnforcedThroughMCP(t *testing.T) {
 }
 
 func TestAnonymousMCPIs401(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	for _, auth := range []string{"", "Bearer mmp_bogus"} {
 		req, _ := http.NewRequest("POST", r.url+"/mcp", strings.NewReader(`{}`))
@@ -496,6 +502,7 @@ func TestAnonymousMCPIs401(t *testing.T) {
 }
 
 func TestToolsListGolden(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "g", auth.ScopeRead))
 	res, err := sess.ListTools(context.Background(), nil)
@@ -544,6 +551,7 @@ func checkToolsListBudget(n int) error {
 }
 
 func TestToolsListBudgetFires(t *testing.T) {
+	t.Parallel()
 	if checkToolsListBudget(toolsListBaselineBytes) != nil {
 		t.Fatal("baseline size must pass")
 	}
@@ -553,6 +561,7 @@ func TestToolsListBudgetFires(t *testing.T) {
 }
 
 func TestWhoamiAcrossProtocolVersions(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-pv", auth.ScopeRead)
 	for _, ver := range []string{"", "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"} {
@@ -591,6 +600,7 @@ func TestWhoamiAcrossProtocolVersions(t *testing.T) {
 }
 
 func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-1", auth.ScopeRead)
 	tests := []struct {
@@ -629,6 +639,7 @@ func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
 // search_tracks?style=a&style=b over REST (repeated keys) equals the MCP call
 // {"style":["a","b"]}: array parameters are exploded on both faces.
 func TestParity_MultiValueQuery(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-mv", auth.ScopeRead)
 	sess := r.client(t, tok)
@@ -661,6 +672,7 @@ func TestParity_MultiValueQuery(t *testing.T) {
 // MCP output ends up in third-party transcripts: an agent never sees the
 // private reference metadata, only has_reference.
 func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-ref", auth.ScopeRead)
 	viaREST := r.rest(t, tok, "GET", "/api/drafts/"+lt.Draft1, nil).(map[string]any)

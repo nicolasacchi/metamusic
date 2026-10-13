@@ -54,6 +54,7 @@ func text(res *mcp.CallToolResult) string {
 }
 
 func TestToolListHonoursMCPMetadata(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	res, err := s.ListTools(context.Background(), nil)
 	if err != nil {
@@ -93,6 +94,7 @@ func TestToolListHonoursMCPMetadata(t *testing.T) {
 }
 
 func TestToolsDispatchParamsAndBodies(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	cases := []struct {
 		name string
@@ -119,6 +121,7 @@ func TestToolsDispatchParamsAndBodies(t *testing.T) {
 }
 
 func TestErrorsBecomeIsErrorWithProblemJSON(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	res := call(t, s, "add_note", map[string]any{"id": "7"}) // text missing
 	if !res.IsError {
@@ -131,6 +134,7 @@ func TestErrorsBecomeIsErrorWithProblemJSON(t *testing.T) {
 }
 
 func TestDescribeAndCallOperation(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	res := call(t, s, "describe_operation", map[string]any{"operation_id": "generic_op"})
 	if res.IsError {
@@ -152,6 +156,7 @@ func TestDescribeAndCallOperation(t *testing.T) {
 }
 
 func TestGenericRefusesExcludedAndUnknown(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	for _, id := range []string{"hidden_op", "nope", ""} {
 		for _, tool := range []string{"describe_operation", "call_operation"} {
@@ -167,6 +172,7 @@ func TestGenericRefusesExcludedAndUnknown(t *testing.T) {
 }
 
 func TestArrayQueryParamsReachHandlerIntact(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	for _, tool := range []string{"list_tags", "list_tags_x"} {
 		args := map[string]any{"tags": []string{"a", "b", "c"}}
@@ -190,6 +196,7 @@ func TestArrayQueryParamsReachHandlerIntact(t *testing.T) {
 }
 
 func TestNullOptionalParamIsAbsent(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	res := call(t, s, "get_item", map[string]any{"id": "n", "limit": nil, "idempotency_key": nil})
 	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "n|" {
@@ -202,6 +209,7 @@ func TestNullOptionalParamIsAbsent(t *testing.T) {
 }
 
 func TestOptionalBodyCanBeOmitted(t *testing.T) {
+	t.Parallel()
 	s := session(t)
 	res := call(t, s, "opt_body", map[string]any{})
 	if res.IsError || res.StructuredContent.(map[string]any)["id"] != "none" {
@@ -214,6 +222,7 @@ func TestOptionalBodyCanBeOmitted(t *testing.T) {
 }
 
 func TestHostHeaderNotRestricted(t *testing.T) {
+	t.Parallel()
 	a, mux := testAPI(t)
 	srv, err := NewServer(a, mux, "v0")
 	if err != nil {
@@ -237,6 +246,7 @@ func TestHostHeaderNotRestricted(t *testing.T) {
 }
 
 func TestServeCapsRecorderMemory(t *testing.T) {
+	t.Parallel()
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		chunk := make([]byte, 1<<20)
 		for i := 0; i < 64; i++ {

@@ -11,6 +11,7 @@ import (
 )
 
 func TestMigration0002_UpgradeFromM0(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p := filepath.Join(t.TempDir(), "mm.db")
 	raw, err := store.OpenRaw(p)

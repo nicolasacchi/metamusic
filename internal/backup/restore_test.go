@@ -30,6 +30,7 @@ func dirEmpty(t *testing.T, dir string) bool {
 }
 
 func TestRestore_RoundTrip(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.write(t, "import/mapping.csv", "a,b\n")
 	e.write(t, "import/reports/r1.json", `{"r":1}`)
@@ -88,6 +89,7 @@ func TestRestore_RoundTrip(t *testing.T) {
 }
 
 func TestRestore_RefusesNonEmptyTarget(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, _, dir := e.run(t)
 	into := t.TempDir()
@@ -109,6 +111,7 @@ func TestRestore_RefusesNonEmptyTarget(t *testing.T) {
 }
 
 func TestRestore_DetectsTamper(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.opts.Link = exdev // the snapshot holds its own copies, so tampering cannot touch the live file
 	e.svc = e.newService()
@@ -147,6 +150,7 @@ func TestRestore_DetectsTamper(t *testing.T) {
 }
 
 func TestRestore_MissingFile(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.opts.Link = exdev
 	e.svc = e.newService()
@@ -173,6 +177,7 @@ func TestRestore_MissingFile(t *testing.T) {
 }
 
 func TestRestore_NewerSchemaRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, m, dir := e.run(t)
 	m.SchemaVersion += 5
@@ -191,6 +196,7 @@ func TestRestore_NewerSchemaRefused(t *testing.T) {
 }
 
 func TestRestore_BadSnapshot(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	for name, setup := range map[string]func(dir string){
 		"not a snapshot": func(string) {},
@@ -219,6 +225,7 @@ func TestRestore_BadSnapshot(t *testing.T) {
 }
 
 func TestRestore_ImportFilesWritable(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.write(t, "import/mapping.csv", "x,y\n1,2\n")
 	_, _, dir := e.run(t)
@@ -245,6 +252,7 @@ func TestRestore_ImportFilesWritable(t *testing.T) {
 }
 
 func TestRestore_CopiesWhenLinkFails(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, m, dir := e.run(t)
 	o := restoreOpts(e)

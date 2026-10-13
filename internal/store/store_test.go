@@ -19,6 +19,7 @@ func open(t *testing.T) (*Store, string) {
 }
 
 func TestOpenMigratesAndReopens(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ms, err := loadMigrations()
 	if err != nil {
@@ -54,6 +55,7 @@ func TestOpenMigratesAndReopens(t *testing.T) {
 }
 
 func TestPragmas(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := open(t)
 	check := func(label string, q string, want any) {
@@ -83,6 +85,7 @@ func TestPragmas(t *testing.T) {
 }
 
 func TestConcurrentReadsWhileWriting(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := open(t)
 	var wg sync.WaitGroup

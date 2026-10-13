@@ -6,6 +6,7 @@ import (
 )
 
 func TestPrincipalHasAndContext(t *testing.T) {
+	t.Parallel()
 	if got := FromContext(context.Background()); got.Kind != KindAnonymous || got.Has(ScopeRead) {
 		t.Fatalf("absent principal = %+v, want anonymous without scopes", got)
 	}
@@ -17,6 +18,7 @@ func TestPrincipalHasAndContext(t *testing.T) {
 }
 
 func TestPrincipal_KeyAndActsAsHuman(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		p     Principal

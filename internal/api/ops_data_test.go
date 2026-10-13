@@ -45,6 +45,7 @@ func fetch(t *testing.T, r *servertest.Rig, link string, hdr ...string) (fetched
 }
 
 func TestPlaylists_REST(t *testing.T) {
+	t.Parallel()
 	r := judgRig(t)
 	human := r.Human(t)
 	agent, _ := r.Agent(t, rw...)
@@ -103,6 +104,7 @@ func TestPlaylists_REST(t *testing.T) {
 }
 
 func TestExports_REST(t *testing.T) {
+	t.Parallel()
 	r := judgRig(t)
 	agent, _ := r.Agent(t, rw...)
 
@@ -168,6 +170,7 @@ func TestExports_REST(t *testing.T) {
 }
 
 func TestExports_PlaylistZIP_REST(t *testing.T) {
+	t.Parallel()
 	r := judgRig(t)
 	human := r.Human(t)
 	c := human.Do(t, "POST", "/api/playlists/"+lt.PlaylistMix+"/exports", nil, "Idempotency-Key", "z1")
@@ -197,6 +200,7 @@ func TestExports_PlaylistZIP_REST(t *testing.T) {
 }
 
 func TestExports_Expired_REST(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Fixture: true, Files: true})
 	agent, _ := r.Agent(t, rw...)
 	c := agent.Do(t, "POST", "/api/exports/jsonl", map[string]any{"selection": "source", "source_path": "music/songs.jsonl"}, "Idempotency-Key", "e1")
@@ -217,6 +221,7 @@ func TestExports_Expired_REST(t *testing.T) {
 // TestExports_GetExportParity: an export made over REST reads back identically over REST, MCP and stdio
 // (same sha, same link at the fixed clock).
 func TestExports_GetExportParity(t *testing.T) {
+	t.Parallel()
 	r := judgRig(t)
 	agent, _ := r.Agent(t, rw...)
 	c := agent.Do(t, "POST", "/api/exports/jsonl", map[string]any{"selection": "drafts", "drafts": map[string]any{"origin": "jsonl_upload"}}, "Idempotency-Key", "g1")

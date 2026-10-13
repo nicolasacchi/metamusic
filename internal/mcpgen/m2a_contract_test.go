@@ -25,6 +25,7 @@ const toolsCeilingBytes = 40000
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.
 func TestToolsList_Ceiling(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "ceiling", auth.ScopeRead))
 	res, err := sess.ListTools(context.Background(), nil)
@@ -44,6 +45,7 @@ func TestToolsList_Ceiling(t *testing.T) {
 // TestToolsList_SlimOutputSchemas: advertised output schemas carry the result
 // shape only; descriptions stay available through describe_operation.
 func TestToolsList_SlimOutputSchemas(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "slim", auth.ScopeRead))
 	res, err := sess.ListTools(context.Background(), nil)
@@ -94,6 +96,7 @@ func TestToolsList_SlimOutputSchemas(t *testing.T) {
 // types against the schemas tools/list advertises: nullable fields are declared
 // nullable, and keys such as _budget and _links pass.
 func TestOutputSchemas_M2aShapes(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "shapes", auth.ScopeRead))
 	lres, err := sess.ListTools(context.Background(), nil)

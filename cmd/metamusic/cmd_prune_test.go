@@ -10,6 +10,7 @@ import (
 )
 
 func TestPruneIdempotency_RunsAtStartAndStops(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {

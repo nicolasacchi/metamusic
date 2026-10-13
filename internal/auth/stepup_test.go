@@ -58,6 +58,7 @@ func (s *stepRig) stepUp(next, pw string) *httptest.ResponseRecorder {
 }
 
 func TestLocalStepUp_HumanPaths(t *testing.T) {
+	t.Parallel()
 	s := newStepRig(t)
 
 	if rec := s.do("GET", "/api/tracks", ""); rec.Code != 200 {
@@ -105,6 +106,7 @@ func TestLocalStepUp_HumanPaths(t *testing.T) {
 }
 
 func TestLocalStepUp_NextIsConfined(t *testing.T) {
+	t.Parallel()
 	s := newStepRig(t)
 	for _, next := range []string{"//evil.example", "https://evil.example/human/x", "/human//x", `/human/\x`, "/human/x\r\nSet-Cookie: a=b",
 		"/human/x\x00", "/api/tracks", "", "human/x", "/human/\u0085x"} {
@@ -120,6 +122,7 @@ func TestLocalStepUp_NextIsConfined(t *testing.T) {
 }
 
 func TestLocalStepUp_Errors(t *testing.T) {
+	t.Parallel()
 	s := newStepRig(t)
 	// cross-site POST refused
 	r := httptest.NewRequest("POST", "/auth/step-up", strings.NewReader("password="+stepPW))
@@ -165,6 +168,7 @@ func TestLocalStepUp_Errors(t *testing.T) {
 }
 
 func TestLocalStepUp_FailureDelayAndNotRevealed(t *testing.T) {
+	t.Parallel()
 	s := newStepRig(t)
 	s.la.FailDelay = 50 * time.Millisecond
 	start := time.Now()

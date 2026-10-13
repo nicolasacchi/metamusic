@@ -109,6 +109,7 @@ var spaFS = fstest.MapFS{
 const wantCSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 
 func TestHealthz(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/healthz", nil))
 	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"status":"ok"}` {
@@ -117,6 +118,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestOpsHumanAndAgent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 
 	w := e.do(human(httptest.NewRequest("GET", "/api/ping", nil)))
@@ -143,6 +145,7 @@ func TestOpsHumanAndAgent(t *testing.T) {
 }
 
 func TestScopeEnforcement(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	tok := e.token(t, auth.ScopeWrite)
 	w := e.do(bearer(httptest.NewRequest("GET", "/api/me", nil), tok))
@@ -152,6 +155,7 @@ func TestScopeEnforcement(t *testing.T) {
 }
 
 func TestProblemStatuses(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	for _, tc := range []struct {
 		name   string
@@ -172,6 +176,7 @@ func TestProblemStatuses(t *testing.T) {
 }
 
 func TestOpenAPIServed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/api/openapi.json", nil)))
 	if w.Code != 200 || decode(t, w)["openapi"] == nil {
@@ -180,6 +185,7 @@ func TestOpenAPIServed(t *testing.T) {
 }
 
 func TestSPA(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/library/some-route", nil)))
 	if w.Code != 200 || w.Body.String() != "<html>spa</html>" {
@@ -217,6 +223,7 @@ func TestSPA(t *testing.T) {
 }
 
 func TestSPANotBuilt(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, fstest.MapFS{".gitkeep": {}}, nil)
 	w := e.do(human(httptest.NewRequest("GET", "/", nil)))
 	if w.Code != 503 || !strings.Contains(w.Body.String(), "UI not built") || w.Header().Get("Content-Security-Policy") != wantCSP {
@@ -225,6 +232,7 @@ func TestSPANotBuilt(t *testing.T) {
 }
 
 func TestMCPRouting(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(httptest.NewRequest("POST", "/mcp", nil)); w.Code != 404 {
 		t.Errorf("nil mcp: %d", w.Code)
@@ -252,6 +260,7 @@ func TestMCPRouting(t *testing.T) {
 }
 
 func TestAuthRoutesLocalOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(httptest.NewRequest("GET", "/auth/login", nil)); w.Code != 404 {
 		t.Errorf("proxy mode login = %d", w.Code)
@@ -264,6 +273,7 @@ func TestAuthRoutesLocalOnly(t *testing.T) {
 }
 
 func TestE2EServed(t *testing.T) {
+	t.Parallel()
 	// disabled unless E2E
 	e := newEnv(t, nil, spaFS, nil)
 	if w := e.do(human(httptest.NewRequest("GET", "/__e2e/served", nil))); w.Code == 200 && strings.HasPrefix(w.Body.String(), "[") {
@@ -291,6 +301,7 @@ func TestE2EServed(t *testing.T) {
 }
 
 func TestMCPFactoryShares(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {
@@ -344,6 +355,7 @@ func TestMCPFactoryShares(t *testing.T) {
 }
 
 func TestHTTPServer_OptionsWired(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {
@@ -420,6 +432,7 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 // TestHTTPServer_NilDevicesNoPanic: neither a nil verifier nor a nil
 // *DeviceStore may reach the middleware as a typed nil interface.
 func TestHTTPServer_NilDevicesNoPanic(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, t.TempDir()+"/t.db")
 	if err != nil {

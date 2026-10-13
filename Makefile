@@ -31,14 +31,20 @@ lint:
 check:
 	$(LOOP) check -- $(MAKE) --no-print-directory _check
 
+# Fast-loop only: the transpiled SQLite stack (modernc.org/*: sqlite, libc, memory) is compiled without
+# race/checkptr instrumentation. It is generated C-to-Go code with no project logic, and instrumenting it
+# cost about two thirds of suite CPU. Everything else (all of our code, database/sql, net/http) stays
+# under -race, and `make test` / `make cover` / CI keep full instrumentation everywhere.
+CHECK_GCFLAGS = -gcflags=modernc.org/...=-race=false
+
 # Internal: steps of `check` (run inside one metrics row). -short skips the heavy media-tool/acceptance
 # tiers (testtools.Require, TestAcceptance_*); `make test` and CI run them.
 _check:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	go vet ./...
 	$(GOLINT) run ./...
-	CGO_ENABLED=1 go test -race -short -shuffle=on ./...
-	@if [ -d web/node_modules ]; then cd web && bun run lint && bun run check && bun test; else echo "web/node_modules missing: skipping web checks"; fi
+	CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short -shuffle=on ./...
+	@scripts/web-check.sh
 
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh

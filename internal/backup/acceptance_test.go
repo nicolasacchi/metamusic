@@ -111,6 +111,7 @@ func restoredRig(t *testing.T, dataDir string) (*app.Services, bearer) {
 }
 
 func TestAcceptance_M2a_BackupRestoreEmptyDir(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("acceptance test (C23 tier)")
 	}
@@ -259,6 +260,7 @@ func (b bearer) rangeGet(t *testing.T, rel, rng string) (int, http.Header, []byt
 }
 
 func TestOps_Backups(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{Fixture: true, Files: true})
 	reader, _ := rig.Agent(t, auth.ScopeRead)
 	writer, _ := rig.Agent(t, auth.ScopeRead, auth.ScopeWrite)

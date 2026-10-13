@@ -14,6 +14,7 @@ import (
 )
 
 func TestDeviceStore_Defaults(t *testing.T) {
+	t.Parallel()
 	ds := NewDeviceStore(newStore(t), key, nil, func() string { return "id" })
 	if ds.now == nil {
 		t.Fatal("nil clock must default to time.Now")
@@ -25,6 +26,7 @@ func TestDeviceStore_Defaults(t *testing.T) {
 }
 
 func TestDeviceStore_NilStoreIsUnsupported(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	var nilDS *DeviceStore
 	for name, f := range map[string]func() error{
@@ -41,6 +43,7 @@ func TestDeviceStore_NilStoreIsUnsupported(t *testing.T) {
 }
 
 func TestDeviceStore_GetAndNormalize(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -62,6 +65,7 @@ func TestDeviceStore_GetAndNormalize(t *testing.T) {
 
 // With the database closed every operation reports an error instead of panicking.
 func TestDeviceStore_DatabaseErrors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -88,6 +92,7 @@ func TestDeviceStore_DatabaseErrors(t *testing.T) {
 }
 
 func TestDevice_CorruptRows(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ds, _ := newDevices(t)
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -101,6 +106,7 @@ func TestDevice_CorruptRows(t *testing.T) {
 }
 
 func TestPairing_HandlerErrors(t *testing.T) {
+	t.Parallel()
 	ds, _ := newDevices(t)
 	h := PairingHandler(PairingOptions{Cfg: config.Config{AuthMode: "proxy"}, Devices: ds, FailDelay: time.Millisecond})
 	post := func(body string) *httptest.ResponseRecorder {
@@ -147,6 +153,7 @@ func TestPairing_HandlerErrors(t *testing.T) {
 }
 
 func TestStepUp_FallbackClockAndErrors(t *testing.T) {
+	t.Parallel()
 	// a verifier without a clock falls back to wall time
 	p := Principal{Kind: KindHuman, StepUpAt: time.Now()}
 	if !stepUpFresh(fakeSessions{}, p) {
@@ -205,6 +212,7 @@ func TestStepUp_FallbackClockAndErrors(t *testing.T) {
 }
 
 func TestDeviceStore_WriteFailures(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name, ddl string
@@ -238,6 +246,7 @@ func TestDeviceStore_WriteFailures(t *testing.T) {
 }
 
 func TestDeviceStore_ListScanError(t *testing.T) {
+	t.Parallel()
 	ds, _ := newDevices(t)
 	ctx := context.Background()
 	code, _, _ := ds.CreatePairingCode(ctx, human, "Phone")
@@ -256,6 +265,7 @@ func TestDeviceStore_ListScanError(t *testing.T) {
 }
 
 func TestPairing_StartCookieLimitsAndNilDevices(t *testing.T) {
+	t.Parallel()
 	pr := newPairRig(t, "local", fakeSessions{})
 	ctx := context.Background()
 	code, _, _ := pr.ds.CreatePairingCode(ctx, human, "Phone")
@@ -291,6 +301,7 @@ func TestPairing_StartCookieLimitsAndNilDevices(t *testing.T) {
 }
 
 func TestStepUp_UpdateFailure(t *testing.T) {
+	t.Parallel()
 	s := newStepRig(t)
 	ctx := context.Background()
 	if _, err := s.la.st.W.Exec(`CREATE TRIGGER t BEFORE UPDATE OF step_up_at ON human_sessions BEGIN SELECT RAISE(ABORT,'no'); END`); err != nil {

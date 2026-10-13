@@ -192,6 +192,7 @@ func tool(t *testing.T, s *mcp.ClientSession, name string) *mcp.Tool {
 }
 
 func TestSchema_IdempotencyKeyOptionalForMCP(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	tl := tool(t, r.httpSession(t, p, ""), "t_create")
@@ -237,6 +238,7 @@ func TestSchema_IdempotencyKeyOptionalForMCP(t *testing.T) {
 }
 
 func TestSchema_IdempotentOpNeedsHeader(t *testing.T) {
+	t.Parallel()
 	s := &toolSpec{ID: "x", Input: map[string]any{"properties": map[string]any{}}}
 	if err := s.markIdempotent(); err == nil {
 		t.Fatal("a create op without the header parameter must be refused")
@@ -252,6 +254,7 @@ func createArgs(text string, extra map[string]any) map[string]any {
 }
 
 func TestDispatch_DerivedKeyBeforeRequiredCheck(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	res := call(t, r.httpSession(t, p, ""), "t_create", createArgs("a", nil))
@@ -265,6 +268,7 @@ func TestDispatch_DerivedKeyBeforeRequiredCheck(t *testing.T) {
 }
 
 func TestDispatch_DerivedIdempotencyKey(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	spec := &toolSpec{ID: "op", IdemCreate: true}
 	p := auth.Principal{Kind: auth.KindAgent, ID: "t1"}
@@ -294,6 +298,7 @@ func TestDispatch_DerivedIdempotencyKey(t *testing.T) {
 }
 
 func TestMCP_DerivedIdempotency(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	s := r.httpSession(t, p, "")
@@ -316,6 +321,7 @@ func TestMCP_DerivedIdempotency(t *testing.T) {
 }
 
 func TestHTTPServer_MCPDispatchesThroughGate(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	s := r.httpSession(t, p, "")
@@ -333,6 +339,7 @@ func TestHTTPServer_MCPDispatchesThroughGate(t *testing.T) {
 }
 
 func TestDispatch_ClientLabel_Stateless(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	call(t, r.httpSession(t, p, "test-client/1.0 (x)"), "t_create", createArgs("ua", nil))
@@ -343,6 +350,7 @@ func TestDispatch_ClientLabel_Stateless(t *testing.T) {
 }
 
 func TestDispatch_ClientLabel_Initialized(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	s := r.stdioSession(t, func(context.Context) (auth.Principal, error) { return p, nil }, &mcp.Implementation{Name: "c", Version: "2"})
@@ -354,6 +362,7 @@ func TestDispatch_ClientLabel_Initialized(t *testing.T) {
 }
 
 func TestNewStdioServer_RequiresPrincipal(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	if _, err := NewStdioServer(r.a, r.gated, StdioOptions{}); err == nil {
 		t.Fatal("a nil Principal must be refused")
@@ -361,6 +370,7 @@ func TestNewStdioServer_RequiresPrincipal(t *testing.T) {
 }
 
 func TestStdio_PrincipalErrors(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	for _, tc := range []struct {
 		err  error
@@ -382,6 +392,7 @@ func TestStdio_PrincipalErrors(t *testing.T) {
 }
 
 func TestDescribeOperation_ShowsGateMeta(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	res := call(t, r.httpSession(t, p, ""), "describe_operation", map[string]any{"operation_id": "t_create"})
@@ -392,6 +403,7 @@ func TestDescribeOperation_ShowsGateMeta(t *testing.T) {
 }
 
 func TestStdio_HumanOnlyOpsAreNotCallable(t *testing.T) {
+	t.Parallel()
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	s := r.stdioSession(t, func(context.Context) (auth.Principal, error) { return p, nil }, &mcp.Implementation{Name: "c", Version: "1"})

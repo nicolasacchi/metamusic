@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -75,6 +76,8 @@ var (
 // New starts a rig. Cleanup closes services (waiting for backups) before the
 // temporary directories are removed.
 func New(tb testing.TB, o Options) *Rig {
+	auth.UseCheapHashForTests() // argon2id at production cost dominates suite time; production default pinned in internal/auth
+	store.UseMigratedTemplateForTests()
 	tb.Helper()
 	ctx := context.Background()
 	mode := o.Mode
@@ -123,13 +126,18 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		o.Archive.CopyTo(tb, r.DataDir)
 	}
-	st, err := store.Open(ctx, filepath.Join(r.DataDir, "metamusic.db"))
+	dbPath := filepath.Join(r.DataDir, "metamusic.db")
+	seeded := false
+	if o.Fixture && clock.Now().Equal(librarytest.FixedNow) {
+		seeded = seedFixtureDB(tb, dbPath)
+	}
+	st, err := store.Open(ctx, dbPath)
 	if err != nil {
 		tb.Fatal(err)
 	}
 	r.Store = st
 	tb.Cleanup(func() { _ = st.Close() })
-	if o.Fixture {
+	if o.Fixture && !seeded {
 		librarytest.Fixture(tb, st, clock.Now())
 	}
 	if o.Files {
@@ -287,4 +295,45 @@ func (r *Rig) Stdio(tb testing.TB, scopes ...auth.Scope) *mcp.ClientSession {
 	}
 	tb.Cleanup(func() { _ = sess.Close() })
 	return sess
+}
+
+var (
+	fixtureDBOnce  sync.Once
+	fixtureDBImage []byte
+)
+
+// seedFixtureDB writes a database holding librarytest.Fixture at librarytest.FixedNow to path,
+// built once per process (the fixture is deterministic), so rigs do not replay hundreds of
+// inserts each. It reports false if the image is unavailable, in which case the caller inserts
+// the fixture itself.
+func seedFixtureDB(tb testing.TB, path string) bool {
+	tb.Helper()
+	fixtureDBOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "mm-servertest-fixture-")
+		if err != nil {
+			return
+		}
+		defer func() { _ = os.RemoveAll(dir) }()
+		p := filepath.Join(dir, "metamusic.db")
+		st, err := store.Open(context.Background(), p)
+		if err != nil {
+			return
+		}
+		librarytest.Fixture(tb, st, librarytest.FixedNow)
+		if _, err := st.W.ExecContext(context.Background(), `PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+			_ = st.Close()
+			return
+		}
+		if err := st.Close(); err != nil {
+			return
+		}
+		fixtureDBImage, _ = os.ReadFile(p) //nolint:gosec // our own temp dir
+	})
+	if fixtureDBImage == nil {
+		return false
+	}
+	if err := os.WriteFile(path, fixtureDBImage, 0o600); err != nil {
+		tb.Fatal(err)
+	}
+	return true
 }

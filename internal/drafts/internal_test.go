@@ -15,6 +15,7 @@ import (
 
 // TestDecorate_OneKnownHashQueryPerPage: a page of drafts costs one duplicate-check query.
 func TestDecorate_OneKnownHashQueryPerPage(t *testing.T) {
+	t.Parallel()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)

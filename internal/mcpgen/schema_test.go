@@ -147,6 +147,7 @@ func propNames(s *toolSpec) []string {
 }
 
 func TestSchemaParamsAndHeaders(t *testing.T) {
+	t.Parallel()
 	s := specs(t)["get_item"]
 	got := asMap(s.Input["properties"])
 	for _, want := range []string{"id", "limit", "idempotency_key"} {
@@ -178,6 +179,7 @@ func TestSchemaParamsAndHeaders(t *testing.T) {
 }
 
 func TestSchemaFlatBody(t *testing.T) {
+	t.Parallel()
 	s := specs(t)["add_note"]
 	if s.Body != bodyFlat {
 		t.Fatalf("body mode %v", s.Body)
@@ -197,6 +199,7 @@ func TestSchemaFlatBody(t *testing.T) {
 }
 
 func TestSchemaCollisionNestsBody(t *testing.T) {
+	t.Parallel()
 	s := specs(t)["collide"]
 	if s.Body != bodyNested {
 		t.Fatalf("body mode %v", s.Body)
@@ -233,6 +236,7 @@ func hasRefTo(v any, prefix string) bool {
 }
 
 func TestSchemaRefsInlined(t *testing.T) {
+	t.Parallel()
 	for id, s := range specs(t) {
 		if hasRefTo(s.Input, refPrefix) || hasRefTo(s.Output, refPrefix) {
 			t.Errorf("%s: component $ref left in schema", id)
@@ -248,6 +252,7 @@ func TestSchemaRefsInlined(t *testing.T) {
 }
 
 func TestSchemaNoDuplicateOrUnknownArgs(t *testing.T) {
+	t.Parallel()
 	registry := specsOf(t, api.New(http.NewServeMux(), api.Deps{}))
 	if len(registry) == 0 {
 		t.Fatal("real registry has no operations")
@@ -280,6 +285,7 @@ func TestSchemaNoDuplicateOrUnknownArgs(t *testing.T) {
 }
 
 func TestBuildRequest(t *testing.T) {
+	t.Parallel()
 	sp := specs(t)
 	req, bad := buildRequest(context.Background(), sp["get_item"],
 		json.RawMessage(`{"id":"a/b c","limit":3,"idempotency_key":"k1"}`))
@@ -307,6 +313,7 @@ func opDoc(params []any, body map[string]any) map[string]any {
 }
 
 func TestSchemaBodyParamDoesNotForceNesting(t *testing.T) {
+	t.Parallel()
 	op := opDoc([]any{map[string]any{"name": "body", "in": "query", "schema": map[string]any{"type": "string"}}},
 		map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}})
 	s, err := buildSpec("x", "POST", "/x", op, nil)
@@ -327,6 +334,7 @@ func TestSchemaBodyParamDoesNotForceNesting(t *testing.T) {
 }
 
 func TestSchemaParamSnakeCollisionErrors(t *testing.T) {
+	t.Parallel()
 	op := opDoc([]any{
 		map[string]any{"name": "idempotency_key", "in": "query", "schema": map[string]any{"type": "string"}},
 		map[string]any{"name": "Idempotency-Key", "in": "header", "schema": map[string]any{"type": "string"}},
@@ -337,6 +345,7 @@ func TestSchemaParamSnakeCollisionErrors(t *testing.T) {
 }
 
 func TestSchemaDanglingRefFails(t *testing.T) {
+	t.Parallel()
 	op := opDoc(nil, map[string]any{"$ref": refPrefix + "Missing"})
 	if _, err := buildSpec("x", "POST", "/x", op, map[string]any{}); err == nil {
 		t.Fatal("expected unresolvable $ref error")
@@ -344,6 +353,7 @@ func TestSchemaDanglingRefFails(t *testing.T) {
 }
 
 func TestSchemaDefsAttachedPerSide(t *testing.T) {
+	t.Parallel()
 	comps := map[string]any{"Node": map[string]any{"type": "object", "properties": map[string]any{
 		"kids": map[string]any{"type": "array", "items": map[string]any{"$ref": refPrefix + "Node"}}}}}
 	op := opDoc(nil, nil)
@@ -362,6 +372,7 @@ func TestSchemaDefsAttachedPerSide(t *testing.T) {
 }
 
 func TestBuildRequestRejectsDotPathSegments(t *testing.T) {
+	t.Parallel()
 	for _, v := range []string{".", "..", ""} {
 		_, bad := buildRequest(context.Background(), specs(t)["get_item"], json.RawMessage(`{"id":"`+v+`"}`))
 		if bad == nil || !bad.IsError {
@@ -371,6 +382,7 @@ func TestBuildRequestRejectsDotPathSegments(t *testing.T) {
 }
 
 func TestServeNon2xxIsError(t *testing.T) {
+	t.Parallel()
 	redirect := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/api", http.StatusTemporaryRedirect)
 	})

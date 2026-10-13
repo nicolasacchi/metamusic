@@ -38,6 +38,7 @@ func goodMeta() api.Meta {
 }
 
 func TestRegisterPanics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		op   func(*huma.Operation)
@@ -93,6 +94,7 @@ func TestRegisterPanics(t *testing.T) {
 }
 
 func TestRegisterOK(t *testing.T) {
+	t.Parallel()
 	a := newAPI()
 	api.Register(a, goodOp(), goodMeta(), h)
 	op := a.OpenAPI().Paths["/api/thing"].Get
@@ -108,6 +110,7 @@ func TestRegisterOK(t *testing.T) {
 }
 
 func TestEveryOpHasValidMeta(t *testing.T) {
+	t.Parallel()
 	a := api.New(http.NewServeMux(), api.Deps{Version: "x"})
 	if len(api.Operations(a)) < 3 {
 		t.Fatal("too few ops")
@@ -162,6 +165,7 @@ func serveAs(a huma.API, mux *http.ServeMux, p auth.Principal, method, path stri
 }
 
 func TestWrapperEnforcement(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	a := humago.New(mux, huma.DefaultConfig("t", "1"))
 	api.Register(a, goodOp(), goodMeta(), h)
@@ -207,6 +211,7 @@ type reqIn struct {
 
 // Authorization must happen before input is read, parsed or validated.
 func TestAuthBeforeInput(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	a := humago.New(mux, huma.DefaultConfig("t", "1"))
 	api.Register(a, huma.Operation{OperationID: "purge", Method: "GET", Path: "/human/api/purge", Summary: "s", Description: "d"},
@@ -258,6 +263,7 @@ func TestAuthBeforeInput(t *testing.T) {
 }
 
 func TestRegisterOK_M2aMeta(t *testing.T) {
+	t.Parallel()
 	a := newAPI()
 	op := goodOp()
 	op.OperationID, op.Method, op.Path = "mint_thing", "POST", "/human/api/mint"
@@ -272,6 +278,7 @@ func TestRegisterOK_M2aMeta(t *testing.T) {
 }
 
 func TestAuthorize_Exported(t *testing.T) {
+	t.Parallel()
 	read := api.Meta{Scope: auth.ScopeRead}
 	humanOnly := api.Meta{Scope: auth.ScopeRead, HumanOnly: true}
 	for _, tc := range []struct {

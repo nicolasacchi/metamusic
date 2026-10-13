@@ -58,6 +58,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
 	code := m.Run()
 	if tmplDir != "" {
 		_ = os.RemoveAll(tmplDir)
@@ -183,6 +184,7 @@ func mediaKinds(m Manifest) (n int) {
 }
 
 func TestBackup_ManifestComplete(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.write(t, "import/mapping.csv", "a,b\n")
 	e.write(t, "import/mapping.todo.csv", "c,d\n")
@@ -275,6 +277,7 @@ func TestBackup_ManifestComplete(t *testing.T) {
 }
 
 func TestBackup_HardlinksSameInode(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	run, m, dir := e.run(t)
 	media := mediaKinds(m)
@@ -297,6 +300,7 @@ func TestBackup_HardlinksSameInode(t *testing.T) {
 }
 
 func TestBackup_EXDEVFallbackCopiesAndVerifies(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.opts.Link = exdev
 	e.svc = e.newService()
@@ -322,6 +326,7 @@ func TestBackup_EXDEVFallbackCopiesAndVerifies(t *testing.T) {
 }
 
 func TestBackup_CopyCorruptionDetected(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.opts.Link = exdev
 	e.svc = e.newService()
@@ -363,6 +368,7 @@ func TestBackup_CopyCorruptionDetected(t *testing.T) {
 }
 
 func TestBackup_SnapshotSurvivesLiveMutation(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	_, m, dir := e.run(t)
 	var master ManifestFile
@@ -419,6 +425,7 @@ func TestBackup_SnapshotSurvivesLiveMutation(t *testing.T) {
 }
 
 func TestBackup_InProgressRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	gate := make(chan struct{})
 	reached := make(chan struct{})
@@ -453,6 +460,7 @@ func TestBackup_InProgressRefused(t *testing.T) {
 }
 
 func TestBackup_CrossProcessGuard(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	other := e.newService() // as the CLI `backup` next to a running `serve`
 	gate := make(chan struct{})
@@ -482,6 +490,7 @@ func TestBackup_CrossProcessGuard(t *testing.T) {
 }
 
 func TestBackup_StaleRunMarkedFailed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	old := lt.FixedNow.Add(-10 * time.Minute).Format(time.RFC3339)
 	if _, err := e.st.W.Exec(`INSERT INTO backup_runs(id, cause, principal_id, state, started_at, heartbeat_at)
@@ -508,6 +517,7 @@ func TestBackup_StaleRunMarkedFailed(t *testing.T) {
 }
 
 func TestBackup_FreshRunningRowBlocks(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	at := lt.FixedNow.Add(-30 * time.Second).Format(time.RFC3339)
 	if _, err := e.st.W.Exec(`INSERT INTO backup_runs(id, cause, principal_id, state, started_at, heartbeat_at)
@@ -522,6 +532,7 @@ func TestBackup_FreshRunningRowBlocks(t *testing.T) {
 }
 
 func TestBackup_SameSecondNamesDistinct(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	r1, _, _ := e.run(t) // complete, manifest read
 	r2, err := e.svc.RunSync(context.Background(), "scheduled", auth.CLI)
@@ -542,6 +553,7 @@ func TestBackup_SameSecondNamesDistinct(t *testing.T) {
 }
 
 func TestBackup_CloseWaits(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	gate := make(chan struct{})
 	reached := make(chan struct{})
@@ -582,6 +594,7 @@ func TestBackup_CloseWaits(t *testing.T) {
 }
 
 func TestBackup_CloseDeadlineAbortsRun(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	gate := make(chan struct{})
 	reached := make(chan struct{})
@@ -608,6 +621,7 @@ func TestBackup_CloseDeadlineAbortsRun(t *testing.T) {
 }
 
 func TestBackup_ExcludesExportsAndProbe(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.write(t, "derived/exports/ab/abcdef.jsonl", "x")
 	e.write(t, "derived/probe/probe-v1.flac", "x")
@@ -625,6 +639,7 @@ func TestBackup_ExcludesExportsAndProbe(t *testing.T) {
 }
 
 func TestBackup_MissingLiveFileFailsRun(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	var p string
 	if err := e.st.R.QueryRow(`SELECT master_path FROM tracks LIMIT 1`).Scan(&p); err != nil {
@@ -640,6 +655,7 @@ func TestBackup_MissingLiveFileFailsRun(t *testing.T) {
 }
 
 func TestBackup_RejectsPathsOutsideLayout(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	if _, err := e.st.W.Exec(`DROP TRIGGER renditions_no_delete`); err != nil {
 		t.Fatal(err)
@@ -654,6 +670,7 @@ func TestBackup_RejectsPathsOutsideLayout(t *testing.T) {
 }
 
 func TestBackup_RetentionAfterRun(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	loc := time.Local
 	// an old partial and a non-snapshot directory beside a stale snapshot chain
@@ -675,6 +692,7 @@ func TestBackup_RetentionAfterRun(t *testing.T) {
 }
 
 func TestBackup_ListEmptyAndBadCause(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	if _, err := e.svc.Start(context.Background(), "weird", auth.CLI); err == nil {
 		t.Fatal("bad cause accepted")
@@ -693,6 +711,7 @@ func TestBackup_ListEmptyAndBadCause(t *testing.T) {
 }
 
 func TestScheduleFor(t *testing.T) {
+	t.Parallel()
 	if s := ScheduleFor("off", lt.FixedNow, time.UTC); s.At != "off" || s.NextRunAt != nil {
 		t.Fatalf("%+v", s)
 	}
@@ -703,6 +722,7 @@ func TestScheduleFor(t *testing.T) {
 }
 
 func TestBackup_FailureNotifies(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.opts.Link = exdev
 	e.svc = e.newService()

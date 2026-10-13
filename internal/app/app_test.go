@@ -40,6 +40,7 @@ func build(t *testing.T, o app.Options) (*app.Services, *store.Store) {
 }
 
 func TestApp_BuildWiresGate(t *testing.T) {
+	t.Parallel()
 	s, _ := build(t, app.Options{})
 	sv := s.Server
 	if sv.Limiter == nil || sv.Audit == nil || sv.Idem == nil {
@@ -63,6 +64,7 @@ func TestApp_BuildWiresGate(t *testing.T) {
 }
 
 func TestApp_DefaultLimitsScaledByRateScale(t *testing.T) {
+	t.Parallel()
 	s, _ := build(t, app.Options{}) // RateScale 100 in build()
 	for i := 0; i < 6000; i++ {
 		if ok, _, _ := s.Limiter.Allow("agent:a", ratelimit.Agent); !ok {
@@ -77,6 +79,7 @@ func TestApp_DefaultLimitsScaledByRateScale(t *testing.T) {
 }
 
 func TestApp_OneClockEverywhere(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
 	s, st := build(t, app.Options{Now: func() time.Time { return now }, NewID: func() string { return "fixed-id" }})
 	if !s.Deps.Started.Equal(now) {
@@ -95,6 +98,7 @@ func TestApp_OneClockEverywhere(t *testing.T) {
 }
 
 func TestApp_GatedServesAndAudits(t *testing.T) {
+	t.Parallel()
 	s, st := build(t, app.Options{})
 	a, h := s.Gated()
 	if a == nil {
@@ -116,6 +120,7 @@ func TestApp_GatedServesAndAudits(t *testing.T) {
 // TestApp_BuildAllM2aServices: a full config yields every M2a field of api.Deps
 // and httpserver.Options; serve, mcp-stdio and servertest all come through Build.
 func TestApp_BuildAllM2aServices(t *testing.T) {
+	t.Parallel()
 	s, _ := build(t, app.Options{})
 	d, o := s.Deps, s.Server
 	deps := map[string]bool{
@@ -151,6 +156,7 @@ func TestApp_BuildAllM2aServices(t *testing.T) {
 // TestApp_NotifierFromConfig: no MM_NTFY_URL selects the no-op notifier; an
 // injected notifier wins.
 func TestApp_NotifierFromConfig(t *testing.T) {
+	t.Parallel()
 	s, _ := build(t, app.Options{})
 	if err := s.Server.Notify.Notify(context.Background(), notify.Message{Title: "x"}); err != nil {
 		t.Fatalf("default notifier must not fail: %v", err)

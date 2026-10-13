@@ -70,6 +70,7 @@ func checkPageHeaders(t *testing.T, rec *httptest.ResponseRecorder) {
 }
 
 func TestRateLimit_PairEndpoint(t *testing.T) {
+	t.Parallel()
 	pr := newPairRig(t, "proxy", nil)
 	ctx := context.Background()
 
@@ -151,6 +152,7 @@ func TestRateLimit_PairEndpoint(t *testing.T) {
 }
 
 func TestPairing_NoOptionalHooks(t *testing.T) {
+	t.Parallel()
 	ds, _ := newDevices(t)
 	h := PairingHandler(PairingOptions{Cfg: config.Config{AuthMode: "proxy", PublicURL: "http://x"}, Devices: ds, FailDelay: time.Millisecond})
 	code, _, _ := ds.CreatePairingCode(context.Background(), human, "P")
@@ -176,6 +178,7 @@ func TestPairing_NoOptionalHooks(t *testing.T) {
 }
 
 func TestStart_Chooser(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []string{"proxy", "local"} {
 		t.Run(mode, func(t *testing.T) {
 			pr := newPairRig(t, mode, fakeSessions{})

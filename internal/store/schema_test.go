@@ -67,6 +67,7 @@ func insertTrack(t *testing.T, s *Store, id, recipeID, title, frames string, tot
 }
 
 func TestMigration0002_Applies(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := open(t)
 	if v, err := s.UserVersion(ctx); err != nil || v < 2 {
@@ -97,6 +98,7 @@ func TestMigration0002_Applies(t *testing.T) {
 }
 
 func TestSchema_GrowingEnumsNotChecked(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	mustExec(t, s, `INSERT INTO recipes(id,engine,request_id,request_json,style,lyrics,seed,cot,hash,core_hash,created_by,created_at)
 		VALUES('r1','other','a','{"id":"a","seed":1}','s','l',1,'x','h','c','import',?)`, ts)
@@ -108,6 +110,7 @@ func TestSchema_GrowingEnumsNotChecked(t *testing.T) {
 }
 
 func TestRecipes_Checks(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	ins := func(reqID, js string, seed int64) error {
 		return exec(t, s, `INSERT INTO recipes(id,engine,request_id,request_json,style,lyrics,seed,cot,hash,core_hash,created_by,created_at)
@@ -122,6 +125,7 @@ func TestRecipes_Checks(t *testing.T) {
 }
 
 func TestTracks_AudioIdentityUnique(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	r := insertRecipe(t, s, "a", 1)
 	insertTrack(t, s, "t1", r, "One", "frames", 100)
@@ -142,6 +146,7 @@ func ftsCount(t *testing.T, s *Store, table, q string) int {
 }
 
 func TestFTS_SyncedByTriggers(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	r := insertRecipe(t, s, "a", 1)
 	insertTrack(t, s, "t1", r, "Vecchio titolo", "f", 100)

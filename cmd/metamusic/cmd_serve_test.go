@@ -17,6 +17,7 @@ import (
 // is refused by the handler (403), not by the nil-Media 404 fallback, and the
 // library-backed API answers for an authenticated caller.
 func TestServe_MediaAndLibraryWired(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "local")
 	code, tokOut, errs := do(t, env, "", "token", "create", "--name", "x", "--scopes", "read")
 	if code != 0 {

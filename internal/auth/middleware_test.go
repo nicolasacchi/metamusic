@@ -59,6 +59,7 @@ func run(mode string, r *http.Request) (*httptest.ResponseRecorder, Kind) {
 }
 
 func TestTrustMatrix(t *testing.T) {
+	t.Parallel()
 	paths := map[string]PathClass{"/healthz": ClassPublic, "/mcp": ClassMachine, "/api/x": ClassUI, "/": ClassUI}
 	authz := []string{"", "Bearer mmp_good", "Bearer mmp_bad", "Basic abc", "mmp_good"}
 	peers := []string{"10.1.2.3:5555", "192.0.2.1:5555"}
@@ -146,6 +147,7 @@ func TestTrustMatrix(t *testing.T) {
 }
 
 func TestUnauthenticatedResponses(t *testing.T) {
+	t.Parallel()
 	r := httptest.NewRequest("GET", "/api/x", nil)
 	r.Header.Set("Authorization", "Bearer mmp_bad")
 	rec, _ := run("proxy", r)
@@ -170,6 +172,7 @@ func TestUnauthenticatedResponses(t *testing.T) {
 }
 
 func TestRemoteHeadersIgnoredWithBearerAndLocal(t *testing.T) {
+	t.Parallel()
 	// valid bearer wins even if proxy headers are present and valid for another user
 	r := httptest.NewRequest("GET", "/api/x", nil)
 	r.RemoteAddr = "10.0.0.1:1"
@@ -182,6 +185,7 @@ func TestRemoteHeadersIgnoredWithBearerAndLocal(t *testing.T) {
 }
 
 func TestCrossOriginProtection(t *testing.T) {
+	t.Parallel()
 	mk := func(method, site, origin string) *http.Request {
 		r := httptest.NewRequest(method, "https://mm.example.com/api/x", nil)
 		r.RemoteAddr = "10.0.0.1:1"
@@ -252,6 +256,7 @@ func proxyReq(peer string) *http.Request {
 }
 
 func TestResolvedPrincipals(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("proxy")
 	_, p := runP(c, s, proxyReq("10.0.0.1:1"))
 	if p.Kind != KindHuman || p.Name != "alice" || p.ID != "alice" || p.Via != "proxy" || len(p.Scopes) != 4 {
@@ -266,6 +271,7 @@ func TestResolvedPrincipals(t *testing.T) {
 }
 
 func TestProxyEmptyEdgeSecret(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("proxy")
 	s.EdgeSecret = ""
 	r := proxyReq("10.0.0.1:1")
@@ -277,6 +283,7 @@ func TestProxyEmptyEdgeSecret(t *testing.T) {
 }
 
 func TestIPv4MappedPeerTrusted(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("proxy")
 	rec, p := runP(c, s, proxyReq("[::ffff:10.0.0.1]:1"))
 	if rec.Code != 200 || p.Kind != KindHuman {
@@ -285,6 +292,7 @@ func TestIPv4MappedPeerTrusted(t *testing.T) {
 }
 
 func TestSessionCookieRefreshed(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("local")
 	r := httptest.NewRequest("GET", "/api/x", nil)
 	r.AddCookie(&http.Cookie{Name: "__Host-mm_session", Value: "goodsess"})
@@ -319,6 +327,7 @@ func (errSessions) VerifySession(context.Context, string) (Principal, error) {
 }
 
 func TestInfrastructureErrorsAre500(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("local")
 	r := httptest.NewRequest("GET", "/api/x", nil)
 	r.Header.Set("Authorization", "Bearer mmp_whatever")
@@ -337,6 +346,7 @@ func TestInfrastructureErrorsAre500(t *testing.T) {
 }
 
 func TestBearerSchemeCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	for _, h := range []string{"bearer mmp_good", "BEARER mmp_good", "Bearer mmp_good"} {
 		r := httptest.NewRequest("GET", "/api/x", nil)
 		r.Header.Set("Authorization", h)
@@ -354,6 +364,7 @@ func TestBearerSchemeCaseInsensitive(t *testing.T) {
 }
 
 func TestPlantedDuplicateSessionCookieDoesNotShadow(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("local")
 	for _, order := range [][]string{{"bad", "goodsess"}, {"goodsess", "bad"}, {"bad", "bad2", "goodsess"}} {
 		r := httptest.NewRequest("GET", "/api/x", nil)
@@ -374,6 +385,7 @@ func TestPlantedDuplicateSessionCookieDoesNotShadow(t *testing.T) {
 }
 
 func TestHostPrefixedCookieOverHTTPS(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("local")
 	// the unprefixed name (which a sibling host could plant) is not accepted over https
 	r := httptest.NewRequest("GET", "/api/x", nil)
@@ -390,6 +402,7 @@ func (brokenSessions) VerifySession(context.Context, string) (Principal, error) 
 }
 
 func TestMiddleware_SessionStoreErrorIs500(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("local")
 	c.PublicURL = "http://mm.example.com"
 	h := Middleware(c, s, fakeTokens{}, brokenSessions{}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -405,6 +418,7 @@ func TestMiddleware_SessionStoreErrorIs500(t *testing.T) {
 }
 
 func TestTrustedPeer_Malformed(t *testing.T) {
+	t.Parallel()
 	pfx := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
 	for addr, want := range map[string]bool{"": false, "garbage": false, "10.1.2.3": false, "10.1.2.3:80": true, "[::ffff:10.1.2.3]:80": true, "11.0.0.1:80": false} {
 		if got := trustedPeer(addr, pfx); got != want {
@@ -414,6 +428,7 @@ func TestTrustedPeer_Malformed(t *testing.T) {
 }
 
 func TestTokenStore_ClosedStoreErrors(t *testing.T) {
+	t.Parallel()
 	st := newStore(t)
 	ts := NewTokenStore(st, key, time.Now)
 	_ = st.Close()

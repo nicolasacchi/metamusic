@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/store"
 	"os"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
 	code := m.Run()
 	archivetest.Cleanup()
 	os.Exit(code)

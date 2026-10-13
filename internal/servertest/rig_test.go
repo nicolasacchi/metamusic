@@ -2,6 +2,7 @@ package servertest_test
 
 import (
 	"context"
+	"github.com/nicolasacchi/metamusic/internal/store"
 	"os"
 	"strings"
 	"testing"
@@ -36,6 +37,7 @@ func auditRows(t *testing.T, r *servertest.Rig) []auditRow {
 }
 
 func TestServertest_DeterministicRigs(t *testing.T) {
+	t.Parallel()
 	run := func() ([]auditRow, any) {
 		r := servertest.New(t, servertest.Options{Fixture: true})
 		c, _ := r.Agent(t, auth.ScopeRead)
@@ -62,6 +64,7 @@ func TestServertest_DeterministicRigs(t *testing.T) {
 }
 
 func TestServertest_ClockAdvanceMovesEveryStore(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{})
 	c, _ := r.Agent(t, auth.ScopeRead)
 	before := c.OK(t, "GET", "/api/system", nil).(map[string]any)["uptime_s"].(float64)
@@ -83,6 +86,7 @@ func TestServertest_ClockAdvanceMovesEveryStore(t *testing.T) {
 }
 
 func TestServertest_Faces(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Fixture: true, Files: true})
 	h := r.Human(t)
 	if who := h.OK(t, "GET", "/api/me", nil).(map[string]any); who["kind"] != "human" {
@@ -101,6 +105,7 @@ func TestServertest_Faces(t *testing.T) {
 }
 
 func TestServertest_LocalHuman(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Mode: "local"})
 	h := r.Human(t)
 	if who := h.OK(t, "GET", "/api/me", nil).(map[string]any); who["kind"] != "human" || who["via"] != "local" {
@@ -109,6 +114,7 @@ func TestServertest_LocalHuman(t *testing.T) {
 }
 
 func TestServertest_ClientRecordsResponses(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{})
 	c, _ := r.Agent(t, auth.ScopeRead)
 	c.OK(t, "GET", "/api/ping", nil)
@@ -122,6 +128,7 @@ func TestServertest_ClientRecordsResponses(t *testing.T) {
 }
 
 func TestServertest_Canary(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Canary: true})
 	if r.Ntfy == nil || !strings.HasPrefix(r.Ntfy.URL, "http://") {
 		t.Fatalf("canary rig needs a fake ntfy server: %+v", r.Ntfy)
@@ -132,6 +139,7 @@ func TestServertest_Canary(t *testing.T) {
 }
 
 func TestNormalize(t *testing.T) {
+	t.Parallel()
 	in := map[string]any{"id": "x", "n": []any{map[string]any{"client": "c", "k": 1.0}}}
 	want := map[string]any{"id": "<masked>", "n": []any{map[string]any{"client": "<masked>", "k": 1.0}}}
 	if d := cmp.Diff(want, servertest.Normalize(in, "id", "client")); d != "" {
@@ -145,6 +153,7 @@ func TestNormalize(t *testing.T) {
 // TestServertest_ArchiveOption: a rig over an imported synthetic archive lists its tracks
 // and drafts, and the archive's template stays untouched by writes through the rig.
 func TestServertest_ArchiveOption(t *testing.T) {
+	t.Parallel()
 	tpl := archivetest.SyntheticArchive(t, "acceptance")
 	r := servertest.New(t, servertest.Options{Archive: &tpl})
 	h := r.Human(t)
@@ -163,6 +172,7 @@ func TestServertest_ArchiveOption(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
 	code := m.Run()
 	archivetest.Cleanup()
 	os.Exit(code)

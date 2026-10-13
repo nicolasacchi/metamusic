@@ -56,6 +56,7 @@ func testEnv(t *testing.T, mode string) map[string]string {
 }
 
 func TestOpenAPIGolden(t *testing.T) {
+	t.Parallel()
 	code, out, errs := do(t, nil, "", "openapi")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errs)
@@ -79,6 +80,7 @@ func TestOpenAPIGolden(t *testing.T) {
 }
 
 func TestVersionAndUsage(t *testing.T) {
+	t.Parallel()
 	if code, out, _ := do(t, nil, "", "version"); code != 0 || !strings.HasPrefix(out, "metamusic dev") {
 		t.Fatalf("%d %q", code, out)
 	}
@@ -91,6 +93,7 @@ func TestVersionAndUsage(t *testing.T) {
 }
 
 func TestServeRefusesWithoutAuth(t *testing.T) {
+	t.Parallel()
 	for _, env := range []map[string]string{{}, {"MM_AUTH": "nonsense"}} {
 		code, out, errs := do(t, env, "", "serve")
 		if code != 1 || out != "" || !strings.Contains(errs, "MM_AUTH") {
@@ -100,6 +103,7 @@ func TestServeRefusesWithoutAuth(t *testing.T) {
 }
 
 func TestServeMissingSecretNamesFile(t *testing.T) {
+	t.Parallel()
 	env := map[string]string{"MM_AUTH": "local", "MM_DATA_DIR": t.TempDir()}
 	code, _, errs := do(t, env, "", "serve")
 	if code != 1 || !strings.Contains(errs, "secret_key") {
@@ -108,6 +112,7 @@ func TestServeMissingSecretNamesFile(t *testing.T) {
 }
 
 func TestServeAndHealthcheck(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "local")
 	ctx, cancel := context.WithCancel(context.Background())
 	var out, errb syncBuf
@@ -155,6 +160,7 @@ func TestServeAndHealthcheck(t *testing.T) {
 }
 
 func TestTokenCreateAuthenticates(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "local")
 	if code, _, errs := do(t, env, "", "token", "create", "--scopes", "read"); code != 2 {
 		t.Fatalf("missing --name: %d %s", code, errs)
@@ -209,6 +215,7 @@ func TestTokenCreateAuthenticates(t *testing.T) {
 }
 
 func TestSetPassword(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "local")
 	if code, _, errs := do(t, env, "s3cret-pw-long\n", "user", "set-password", "--username", "bob"); code != 0 {
 		t.Fatalf("exit %d %s", code, errs)
@@ -231,6 +238,7 @@ func TestSetPassword(t *testing.T) {
 }
 
 func TestDevBootstrap(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	// MM_AUTH, MM_DATA_DIR and MM_SECRETS_DIR from the environment are ignored by dev.
 	env := map[string]string{"MM_DATA_DIR": t.TempDir(), "MM_SECRETS_DIR": t.TempDir(), "MM_ADDR": "127.0.0.1:0", "MM_AUTH": "proxy"}
@@ -255,6 +263,7 @@ func TestDevBootstrap(t *testing.T) {
 }
 
 func TestSetPasswordTooLong(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "local")
 	long := strings.Repeat("a", 4097) + "\n"
 	if code, _, errb := do(t, env, long, "user", "set-password", "--username", "bob"); code != 1 || !strings.Contains(errb, "exceeds") {

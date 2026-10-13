@@ -14,6 +14,7 @@ func m2aTrack(t *testing.T, s *Store) {
 }
 
 func TestMigration0003_Applies(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := open(t)
 	if v, err := s.UserVersion(ctx); err != nil || v < 3 {
@@ -49,6 +50,7 @@ func TestMigration0003_Applies(t *testing.T) {
 }
 
 func TestMigration0003_RatingSourceCheck(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	m2aTrack(t, s)
 	const q = `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1',?,3,?,'p','n',?,?)`
@@ -62,6 +64,7 @@ func TestMigration0003_RatingSourceCheck(t *testing.T) {
 }
 
 func TestMigration0003_CommentSectionSourceNeverLyrics(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	m2aTrack(t, s)
 	const q = `INSERT INTO comments(id,track_id,body,at_second,section_label,section_source,kind,state,source,principal_kind,principal_id,principal_name,created_at,updated_at)
@@ -75,6 +78,7 @@ func TestMigration0003_CommentSectionSourceNeverLyrics(t *testing.T) {
 }
 
 func TestMigration0003_DeviceScopes(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	const q = `INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at) VALUES(?,'phone','abcd1234',?,?,'ua','human:h',?,?)`
 	expectErr(t, exec(t, s, q, "d1", "h1", "read,write,generate", ts, ts), "CHECK")
@@ -85,6 +89,7 @@ func TestMigration0003_DeviceScopes(t *testing.T) {
 }
 
 func TestMigration0003_PlaylistCount(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	const q = `INSERT INTO playlists(id,name,items_json,items_count,created_by,updated_by,created_at,updated_at) VALUES(?,'pl',?,?,'h','h',?,?)`
 	expectErr(t, exec(t, s, q, "p1", `["a","b"]`, 1, ts, ts), "CHECK")
@@ -96,6 +101,7 @@ func TestMigration0003_PlaylistCount(t *testing.T) {
 }
 
 func TestMigration0003_AuditAppendOnly(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	mustExec(t, s, `INSERT INTO audit_log(id,at,principal_kind,principal_id,principal_name,transport,op,method,args_sha256,status,idempotency,duration_ms)
 		VALUES('a1',?,'agent','agent:x','x','rest','list_tracks','GET','h',200,'none',3)`, ts)
@@ -106,6 +112,7 @@ func TestMigration0003_AuditAppendOnly(t *testing.T) {
 }
 
 func TestMigration0003_DraftColumnDefaults(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	mustExec(t, s, `INSERT INTO recipe_drafts(id,origin,request_id,request_json,created_at,updated_at) VALUES('d1','import_backlog','dr','{}',?,?)`, ts, ts)
 	var rev int

@@ -10,6 +10,7 @@ import (
 )
 
 func TestRig_Device(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []string{"proxy", "local"} {
 		t.Run(mode, func(t *testing.T) {
 			r := servertest.New(t, servertest.Options{Mode: mode})
@@ -23,6 +24,7 @@ func TestRig_Device(t *testing.T) {
 }
 
 func TestRig_LocalHumanStepsUp(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Mode: "local"})
 	h := r.Human(t)
 	if resp := h.Do(t, "GET", "/human/api/devices", nil); resp.Status != 200 {
@@ -45,6 +47,7 @@ func TestRig_LocalHumanStepsUp(t *testing.T) {
 }
 
 func TestDevicePairsThroughHTTP(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{Canary: true})
 	dev, cookie := rig.DeviceWithCookie(t, "Pair HTTP")
 	if cookie == "" {
@@ -82,6 +85,7 @@ func TestDevicePairsThroughHTTP(t *testing.T) {
 }
 
 func TestSec_PairAuditTransportIsPair(t *testing.T) {
+	t.Parallel()
 	r := servertest.New(t, servertest.Options{Mode: "proxy"})
 	r.Device(t)
 	var tr string

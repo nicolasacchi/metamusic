@@ -37,6 +37,10 @@ const (
 	argonThreads = 2
 	argonKeyLen  = 32
 
+	// Test-only cost (see UseCheapHashForTests); never the default.
+	cheapArgonTime   = 1
+	cheapArgonMemory = 8 // KiB
+
 	SessionCookie     = "mm_session"
 	HostSessionCookie = "__Host-mm_session" // used when PublicURL is https: sibling hosts cannot plant or shadow it
 	maxSessionCookies = 4                   // duplicate session cookies examined per request
@@ -162,13 +166,30 @@ func (l *LocalAuth) withHasher(ctx context.Context, f func()) error {
 	return nil
 }
 
+// hashCost is the argon2id (time, memory KiB) used for NEW hashes. The production default is
+// argonTime/argonMemory; verification always uses the parameters stored in the PHC string.
+var hashCost = struct{ time, memory uint32 }{argonTime, argonMemory}
+
+// UseCheapHashForTests lowers the cost of newly created hashes so tests that log in many times
+// stay fast. It must be called from TestMain (or a test helper run before any hashing); the
+// production default is unchanged and pinned by TestProductionHashParams.
+func UseCheapHashForTests() {
+	cheapOnce.Do(func() { hashCost.time, hashCost.memory = cheapArgonTime, cheapArgonMemory })
+}
+
+var cheapOnce sync.Once
+
 func hashPassword(pw string) (string, error) {
+	return hashPasswordWith(pw, hashCost.time, hashCost.memory)
+}
+
+func hashPasswordWith(pw string, t, m uint32) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	sum := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
-	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, argonMemory, argonTime, argonThreads,
+	sum := argon2.IDKey([]byte(pw), salt, t, m, argonThreads, argonKeyLen)
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, m, t, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(sum)), nil
 }
 

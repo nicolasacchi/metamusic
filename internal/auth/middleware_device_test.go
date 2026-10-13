@@ -92,6 +92,7 @@ func setsDevice(rec *httptest.ResponseRecorder) bool {
 }
 
 func TestTrustMatrix_DeviceCookie(t *testing.T) {
+	t.Parallel()
 	f := newDeviceFixture(t)
 	for _, path := range []string{"/", "/api/tracks", "/human/tokens", "/human/api/tokens", "/mcp", "/media/x", "/start"} {
 		for _, state := range []string{"absent", "valid", "revoked", "expired", "garbage"} {
@@ -167,6 +168,7 @@ func TestTrustMatrix_DeviceCookie(t *testing.T) {
 // A valid device cookie under /human/ is ignored and never cleared; it keeps
 // authenticating "/" afterwards.
 func TestDeviceCookie_HumanPrefixLeavesCookieAlone(t *testing.T) {
+	t.Parallel()
 	f := newDeviceFixture(t)
 	for _, mode := range []string{"proxy", "local"} {
 		for _, path := range []string{"/human/tokens", "/human/api/tokens", "/human/"} {
@@ -186,6 +188,7 @@ func TestDeviceCookie_HumanPrefixLeavesCookieAlone(t *testing.T) {
 }
 
 func TestDeviceCookie_ReissuedOnlyWhenExpirySlid(t *testing.T) {
+	t.Parallel()
 	f := newDeviceFixture(t)
 	get := func() *httptest.ResponseRecorder {
 		r := httptest.NewRequest("GET", "/api/tracks", nil)
@@ -218,6 +221,7 @@ func TestDeviceCookie_ReissuedOnlyWhenExpirySlid(t *testing.T) {
 }
 
 func TestDeviceCookie_CrossOriginRefused(t *testing.T) {
+	t.Parallel()
 	f := newDeviceFixture(t)
 	r := httptest.NewRequest("POST", "/api/tracks", nil)
 	r.Header.Set("Sec-Fetch-Site", "cross-site")
@@ -229,6 +233,7 @@ func TestDeviceCookie_CrossOriginRefused(t *testing.T) {
 }
 
 func TestDeviceCookie_BearerWins(t *testing.T) {
+	t.Parallel()
 	f := newDeviceFixture(t)
 	r := httptest.NewRequest("GET", "/api/tracks", nil)
 	r.Header.Set("Authorization", "Bearer mmp_bad")
@@ -246,6 +251,7 @@ func (failingDevices) VerifyDevice(context.Context, string) (Principal, error) {
 }
 
 func TestDeviceCookie_InfrastructureErrorIs500(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("proxy")
 	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, failingDevices{})(http.NotFoundHandler())
 	r := httptest.NewRequest("GET", "/api/tracks", nil)
@@ -268,6 +274,7 @@ func (plainDevices) VerifyDevice(_ context.Context, ck string) (Principal, error
 }
 
 func TestDeviceCookie_PlainVerifier(t *testing.T) {
+	t.Parallel()
 	c, s := cfg("proxy")
 	var seen Kind
 	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, plainDevices{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

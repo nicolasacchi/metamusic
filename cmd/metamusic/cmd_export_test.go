@@ -37,6 +37,7 @@ func writeJSONL(t *testing.T, content string) string {
 const goodLine = `{"id":"syn-a","style":"pop","lyrics":"[verse]\nla la","cot":"full","seed":1}`
 
 func TestValidateBatch_ExitCodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		content string
@@ -69,6 +70,7 @@ func TestValidateBatch_ExitCodes(t *testing.T) {
 }
 
 func TestValidateBatch_AbcPathResolvedBesideFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "a.abc"), []byte("X:1\nK:C\nCDEF|\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -145,6 +147,7 @@ func recordedLines(t *testing.T, env map[string]string, path string) string {
 }
 
 func TestCLI_Export(t *testing.T) {
+	t.Parallel()
 	env, abcLine := exportEnv(t)
 
 	// --source to stdout equals the recorded bytes; the file's own duplicate id (fx-twin) makes the exit 1
@@ -206,6 +209,7 @@ func TestCLI_Export(t *testing.T) {
 }
 
 func TestCLI_ExportUsage(t *testing.T) {
+	t.Parallel()
 	env, _ := exportEnv(t)
 	for name, tc := range map[string]struct {
 		args []string
@@ -234,6 +238,7 @@ func TestCLI_ExportUsage(t *testing.T) {
 
 // TestCLI_ValidateBatch: the validator agrees with the exporter about its own output.
 func TestCLI_ValidateBatch(t *testing.T) {
+	t.Parallel()
 	env, _ := exportEnv(t)
 	for _, tc := range []struct {
 		args []string
@@ -324,6 +329,7 @@ func issueSet(file string, rep yue2.BatchReport) []string {
 }
 
 func TestAcceptance_M2a_ExportByteIdentical(t *testing.T) {
+	t.Parallel()
 	// acceptance profile: the original minus the one invalid line M1 skips; the abc_path row needs ABC files,
 	// so the bytes are read from the songs.jsonl inside --out DIR (the CLI refuses stdout then)
 	env := archiveEnv(t, "acceptance")
@@ -402,6 +408,7 @@ func TestAcceptance_M2a_ExportByteIdentical(t *testing.T) {
 }
 
 func TestAcceptance_M2a_ExportPassesBatchValidator(t *testing.T) {
+	t.Parallel()
 	validates := func(t *testing.T, env map[string]string, name string, args ...string) {
 		t.Helper()
 		dir := filepath.Join(t.TempDir(), "o")

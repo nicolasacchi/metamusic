@@ -12,6 +12,7 @@ import (
 )
 
 func TestFixture_RowCounts(t *testing.T) {
+	t.Parallel()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "f.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -38,6 +39,7 @@ func TestFixture_RowCounts(t *testing.T) {
 // MM_FIXTURE_DB=<path> it writes the fixture database (and its media files)
 // there; otherwise it only checks that the writer works in a temp dir.
 func TestWriteFixtureDB(t *testing.T) {
+	t.Parallel()
 	path := os.Getenv("MM_FIXTURE_DB")
 	if path == "" {
 		path = filepath.Join(t.TempDir(), "fixture", "metamusic.db")
@@ -50,6 +52,7 @@ func TestWriteFixtureDB(t *testing.T) {
 
 // TestLibrarytest_FixtureExtendsV2: Fixture is FixtureV2 plus the C42 M2a rows.
 func TestLibrarytest_FixtureExtendsV2(t *testing.T) {
+	t.Parallel()
 	count := func(st *store.Store, table string) int {
 		var n int
 		if err := st.R.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
@@ -108,6 +111,7 @@ func TestLibrarytest_FixtureExtendsV2(t *testing.T) {
 
 // TestWriteFiles_ArtifactFile: every artifacts row has its file, with a matching sha256.
 func TestWriteFiles_ArtifactFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	st, err := store.Open(context.Background(), filepath.Join(dir, "f.db"))
 	if err != nil {

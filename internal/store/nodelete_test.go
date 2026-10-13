@@ -45,6 +45,7 @@ func scanDeletes(t *testing.T, root string) (offenders []string, scanned int) {
 }
 
 func TestNoDeleteSQL(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)

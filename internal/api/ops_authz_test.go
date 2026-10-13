@@ -38,6 +38,7 @@ func respObj(t *testing.T, r *servertest.Response) map[string]any {
 }
 
 func TestTokenOps(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{Canary: true})
 	human := rig.Human(t)
 
@@ -133,6 +134,7 @@ func TestTokenOps(t *testing.T) {
 }
 
 func TestDeviceOps(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{})
 	human := rig.Human(t)
 
@@ -242,6 +244,7 @@ func anyStrings(v any) []string {
 }
 
 func TestDevice_ScopesReadWriteOnly(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{})
 	dev, cookie := rig.DeviceWithCookie(t, "Phone")
 	me := respObj(t, dev.Do(t, "GET", "/api/me", nil))
@@ -273,6 +276,7 @@ func asProblem(err error, target **api.Problem) bool {
 var humanOnlyOps = []string{"create_token", "revoke_token", "list_devices", "create_pairing_code", "revoke_device"}
 
 func TestHumanOnly_RefusedForAgentsDevicesStdio(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{})
 	agent, _ := rig.Agent(t, auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin)
 	dev := rig.Device(t)
@@ -310,6 +314,7 @@ func TestHumanOnly_RefusedForAgentsDevicesStdio(t *testing.T) {
 }
 
 func TestHumanOnly_NotFoundOffHumanPrefix(t *testing.T) {
+	t.Parallel()
 	rig := servertest.New(t, servertest.Options{})
 	human := rig.Human(t)
 	for _, path := range []string{"/api/tokens", "/api/devices", "/api/devices/pairing-codes"} {

@@ -77,6 +77,7 @@ func resultText(res *mcp.CallToolResult) string {
 }
 
 func TestMCPStdio_RequiresToken(t *testing.T) {
+	t.Parallel()
 	env, tok, id := offlineEnv(t)
 	noTok := map[string]string{}
 	for k, v := range env {
@@ -98,6 +99,7 @@ func TestMCPStdio_RequiresToken(t *testing.T) {
 }
 
 func TestMCPStdio_AgentPrincipal(t *testing.T) {
+	t.Parallel()
 	env, tok, _ := offlineEnv(t)
 	s, errb := stdioSession(t, env)
 	res := callTool(t, s, "whoami", nil)
@@ -123,6 +125,7 @@ func TestMCPStdio_AgentPrincipal(t *testing.T) {
 }
 
 func TestMCPStdio_RevokedMidSession(t *testing.T) {
+	t.Parallel()
 	env, tok, id := offlineEnv(t)
 	s, _ := stdioSession(t, env)
 	if res := callTool(t, s, "whoami", nil); res.IsError {
@@ -138,6 +141,7 @@ func TestMCPStdio_RevokedMidSession(t *testing.T) {
 }
 
 func TestCLI_OfflineCommandsWithoutMMAuth(t *testing.T) {
+	t.Parallel()
 	env, _, _ := offlineEnv(t)
 	if env["MM_AUTH"] != "" {
 		t.Fatal("MM_AUTH must be unset for this test")
@@ -164,6 +168,7 @@ func TestCLI_OfflineCommandsWithoutMMAuth(t *testing.T) {
 // TestCLI_MCPStdio_Smoke (heavy) drives the real binary over a command
 // transport: tools/list equals the HTTP tools/list and whoami is an agent.
 func TestCLI_MCPStdio_Smoke(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("heavy: builds and runs the binary")
 	}

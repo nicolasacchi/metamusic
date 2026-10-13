@@ -61,6 +61,7 @@ func leakRig(t *testing.T, e2e bool) (http.Handler, string) {
 }
 
 func TestE2ELeakScanner(t *testing.T) {
+	t.Parallel()
 	h, tok := leakRig(t, true)
 	do := func(method, path string, hdr map[string]string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, nil)
@@ -107,6 +108,7 @@ func TestE2ELeakScanner(t *testing.T) {
 }
 
 func TestE2ELeakScanner_CleanRunIsEmptyList(t *testing.T) {
+	t.Parallel()
 	h, _ := leakRig(t, true)
 	r := httptest.NewRequest("GET", "/__e2e/leaks", nil)
 	r.RemoteAddr = "127.0.0.1:5555"
@@ -120,6 +122,7 @@ func TestE2ELeakScanner_CleanRunIsEmptyList(t *testing.T) {
 }
 
 func TestE2ELeakScanner_OffIs404AndUnwrapped(t *testing.T) {
+	t.Parallel()
 	h, tok := leakRig(t, false)
 	r := httptest.NewRequest("GET", "/__e2e/leaks", nil)
 	r.RemoteAddr = "127.0.0.1:5555"
@@ -141,6 +144,7 @@ func TestE2ELeakScanner_OffIs404AndUnwrapped(t *testing.T) {
 }
 
 func TestHTTPServer_GateWiring(t *testing.T) {
+	t.Parallel()
 	st, err := store.Open(context.Background(), t.TempDir()+"/t.db")
 	if err != nil {
 		t.Fatal(err)

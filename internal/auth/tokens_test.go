@@ -27,6 +27,7 @@ func newStore(t *testing.T) *store.Store {
 var key = []byte("0123456789abcdef0123456789abcdef")
 
 func TestTokenLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, err := ts.Create(ctx, "agent1", []Scope{ScopeRead, ScopeWrite})
@@ -62,6 +63,7 @@ func TestTokenLifecycle(t *testing.T) {
 }
 
 func TestTokenVerifyRejects(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	for _, bad := range []string{"", "mmp_", "mmp_abc", "xxx_" + strings.Repeat("a", 52), "mmp_" + strings.Repeat("a", 52)} {
@@ -78,6 +80,7 @@ func TestTokenVerifyRejects(t *testing.T) {
 }
 
 func TestTokenInfoHasNoHash(t *testing.T) {
+	t.Parallel()
 	typ := reflect.TypeOf(TokenInfo{})
 	for i := 0; i < typ.NumField(); i++ {
 		if strings.Contains(strings.ToLower(typ.Field(i).Name), "hash") {
@@ -108,6 +111,7 @@ func TestTokenInfoHasNoHash(t *testing.T) {
 }
 
 func TestTokenCreateValidation(t *testing.T) {
+	t.Parallel()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	tests := []struct {
 		name   string
@@ -131,6 +135,7 @@ func TestTokenCreateValidation(t *testing.T) {
 }
 
 func TestTokenIDIsUUIDv7AndOrdered(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	var ids []string
@@ -153,6 +158,7 @@ func TestTokenIDIsUUIDv7AndOrdered(t *testing.T) {
 }
 
 func TestTokenLastUsedThrottled(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
@@ -189,6 +195,7 @@ func TestTokenLastUsedThrottled(t *testing.T) {
 }
 
 func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, _ := ts.Create(ctx, "n", []Scope{ScopeRead})
@@ -209,6 +216,7 @@ func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
 }
 
 func TestTokenStore_InjectedClock(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
 	ts := NewTokenStore(newStore(t), key, func() time.Time { return now })
@@ -236,6 +244,7 @@ func TestTokenStore_InjectedClock(t *testing.T) {
 }
 
 func TestTokenStore_Get(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ts := NewTokenStore(newStore(t), key, time.Now)
 	plain, id, err := ts.Create(ctx, "getme", []Scope{ScopeRead, ScopeWrite})

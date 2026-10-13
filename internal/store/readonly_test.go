@@ -43,6 +43,7 @@ func closedWAL(t *testing.T) string {
 }
 
 func TestOpenReadOnly_MissingDB(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	_, err := OpenReadOnly(context.Background(), filepath.Join(dir, "mm.db"))
 	if !errors.Is(err, ErrNoDatabase) {
@@ -54,6 +55,7 @@ func TestOpenReadOnly_MissingDB(t *testing.T) {
 }
 
 func TestOpenReadOnly_ClosedWALCreatesNothing(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p := closedWAL(t)
 	dir := filepath.Dir(p)
@@ -79,6 +81,7 @@ func TestOpenReadOnly_ClosedWALCreatesNothing(t *testing.T) {
 }
 
 func TestOpenReadOnly_LiveWriter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	w, p := open(t)
 	mustExec(t, w, `INSERT INTO settings(key,value) VALUES('k','v')`)
@@ -103,6 +106,7 @@ func TestOpenReadOnly_LiveWriter(t *testing.T) {
 }
 
 func TestOpenReadOnly_SchemaMismatch(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p1 := filepath.Join(t.TempDir(), "v1.db")
 	w, err := OpenRaw(p1)
@@ -127,6 +131,7 @@ func TestOpenReadOnly_SchemaMismatch(t *testing.T) {
 }
 
 func TestOpenReadOnly_WritesFail(t *testing.T) {
+	t.Parallel()
 	for _, live := range []bool{false, true} {
 		var p string
 		if live {

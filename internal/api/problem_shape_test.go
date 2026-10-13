@@ -18,6 +18,7 @@ import (
 )
 
 func TestProblem_ShapesAgree(t *testing.T) {
+	t.Parallel()
 	details := map[string]any{"n": float64(7), "s": "x"}
 	mux := http.NewServeMux()
 	a := humago.New(mux, api.HumaConfig())

@@ -11,6 +11,7 @@ const modulePath = "github.com/nicolasacchi/metamusic/"
 // TestNoTestHelpersInBinary fails if the shipped binary links a test-only
 // helper package of this module, or any module package that imports "testing".
 func TestNoTestHelpersInBinary(t *testing.T) {
+	t.Parallel()
 	out, err := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}} {{join .Imports \" \"}}", ".").Output()
 	if err != nil {
 		t.Fatalf("go list: %v", err)

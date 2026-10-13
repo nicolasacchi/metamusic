@@ -68,6 +68,7 @@ func ids(p playlists.Playlist) []string {
 }
 
 func TestPlaylists_Revision(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	p, err := e.svc.Create(ctx, human, playlists.NewPlaylist{Name: "  Night  ", Description: "d", TrackIDs: []string{lt.TrackCitta, lt.TrackLuna}})
@@ -118,6 +119,7 @@ func TestPlaylists_Revision(t *testing.T) {
 }
 
 func TestPlaylists_Limit(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	many := slices.Repeat([]string{lt.TrackLuna}, 1001)
@@ -136,6 +138,7 @@ func TestPlaylists_Limit(t *testing.T) {
 }
 
 func TestPlaylists_ListHidden(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	got, err := e.svc.List(ctx, false)

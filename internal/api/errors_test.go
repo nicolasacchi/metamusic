@@ -25,6 +25,7 @@ type echoIn struct {
 }
 
 func TestProblemShape(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("t", "1")
 	cfg.CreateHooks = nil
@@ -87,6 +88,7 @@ func TestProblemShape(t *testing.T) {
 }
 
 func TestInnerMuxProblems(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	api.New(mux, api.Deps{Version: "x"})
 	for _, tc := range []struct {
@@ -108,6 +110,7 @@ func TestInnerMuxProblems(t *testing.T) {
 }
 
 func TestProblem5xxLogRedacted(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	old := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
@@ -140,6 +143,7 @@ func TestProblem5xxLogRedacted(t *testing.T) {
 }
 
 func TestDeps_NewIDFunc(t *testing.T) {
+	t.Parallel()
 	if id := (api.Deps{}).NewIDFunc()(); len(id) != 36 || id[14] != '7' {
 		t.Fatalf("default id %q is not a UUIDv7", id)
 	}

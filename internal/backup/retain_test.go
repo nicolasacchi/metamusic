@@ -24,6 +24,7 @@ func berlin(t *testing.T) *time.Location {
 func snapName(t time.Time) string { return t.UTC().Format("20060102T150405Z") }
 
 func TestRetain_Table(t *testing.T) {
+	t.Parallel()
 	loc := berlin(t)
 	now := time.Date(2026, 10, 13, 12, 0, 0, 0, loc) // a Tuesday
 
@@ -108,6 +109,7 @@ func TestRetain_Table(t *testing.T) {
 }
 
 func TestSnapshotName(t *testing.T) {
+	t.Parallel()
 	at := time.Date(2026, 10, 13, 1, 30, 0, 0, time.UTC)
 	taken := map[string]bool{}
 	for i, want := range []string{"20261013T013000Z", "20261013T013000Z-2", "20261013T013000Z-3"} {
@@ -120,6 +122,7 @@ func TestSnapshotName(t *testing.T) {
 }
 
 func TestNextRun_Table(t *testing.T) {
+	t.Parallel()
 	loc := berlin(t)
 	at := func(y int, m time.Month, d, h, mi int) time.Time { return time.Date(y, m, d, h, mi, 0, 0, loc) }
 	tests := []struct {
@@ -156,6 +159,7 @@ func TestNextRun_Table(t *testing.T) {
 }
 
 func TestScheduler_LoopSynctest(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		var calls atomic.Int32
 		start := time.Now()

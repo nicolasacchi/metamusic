@@ -42,6 +42,7 @@ func snapshotsIn(t *testing.T, dir string) []string {
 }
 
 func TestCLI_BackupList(t *testing.T) {
+	t.Parallel()
 	env := backupEnv(t)
 	code, out, errs := do(t, env, "", "backup", "list")
 	if code != 0 || !strings.Contains(out, "0 snapshot(s)") || !strings.Contains(out, "1 recent run(s)") {
@@ -64,6 +65,7 @@ func TestCLI_BackupList(t *testing.T) {
 }
 
 func TestCLI_BackupTo(t *testing.T) {
+	t.Parallel()
 	env := backupEnv(t)
 	to := filepath.Join(t.TempDir(), "elsewhere")
 	if code, out, errs := do(t, env, "", "backup", "--to", to); code != 0 {
@@ -85,6 +87,7 @@ func TestCLI_BackupTo(t *testing.T) {
 }
 
 func TestCLI_BackupNoDatabase(t *testing.T) {
+	t.Parallel()
 	env := testEnv(t, "proxy")
 	if code, _, errs := do(t, env, "", "backup"); code != 2 || !strings.Contains(errs, "no database") {
 		t.Fatalf("%d %q", code, errs)
@@ -92,6 +95,7 @@ func TestCLI_BackupNoDatabase(t *testing.T) {
 }
 
 func TestCLI_Restore(t *testing.T) {
+	t.Parallel()
 	env := backupEnv(t)
 	if code, _, errs := do(t, env, "", "backup"); code != 0 {
 		t.Fatalf("backup: %d %q", code, errs)

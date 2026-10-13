@@ -123,6 +123,7 @@ var m1Ops = []opWant{
 }
 
 func TestOps_RegisteredWithMeta(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	a := api.New(mux, api.Deps{})
 	byID := map[string]api.OpInfo{}
@@ -173,6 +174,7 @@ func TestOps_RegisteredWithMeta(t *testing.T) {
 }
 
 func TestOps_NilDepsUnavailable(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	api.New(mux, api.Deps{}) // zero Deps must register every op without panicking
 	r := &rig{mux: mux}
@@ -221,6 +223,7 @@ func TestOps_NilDepsUnavailable(t *testing.T) {
 }
 
 func TestSearchTracks_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/tracks")
 	if m["total"] != float64(5) || m["next_cursor"] != nil {
@@ -259,6 +262,7 @@ func TestSearchTracks_REST(t *testing.T) {
 }
 
 func TestGetTrackAndFacetsAndPeaks_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/tracks/"+lt.TrackLuna)
 	if m["title"] != "Luna Park" || m["timed"] != true || m["audio"].(map[string]any)["mp3"] == nil {
@@ -281,6 +285,7 @@ func TestGetTrackAndFacetsAndPeaks_REST(t *testing.T) {
 }
 
 func TestGetMediaLinks_TTLByPrincipal(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	path := "/api/tracks/" + lt.TrackLuna + "/media"
 	// fixture clock: 2026-10-06T12:00:00Z
@@ -318,6 +323,7 @@ func TestGetMediaLinks_TTLByPrincipal(t *testing.T) {
 }
 
 func TestGetMediaLinks_MediaUnavailable(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	// a track without renditions answers 409 MEDIA_UNAVAILABLE
 	ctx := context.Background()
@@ -342,6 +348,7 @@ func TestGetMediaLinks_MediaUnavailable(t *testing.T) {
 }
 
 func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	id := r.get(t, agent, "/api/drafts")["items"].([]any)[0].(map[string]any)["id"].(string)
 	h := r.get(t, human, "/api/drafts/"+id)
@@ -368,6 +375,7 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 }
 
 func TestWhoami_Device(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	dev := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
 	m := r.get(t, dev, "/api/me")
@@ -385,6 +393,7 @@ func TestWhoami_Device(t *testing.T) {
 }
 
 func TestListDrafts_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/drafts")
 	if m["total"] != float64(6) || m["groups_total"] != float64(2) {
@@ -400,6 +409,7 @@ func TestListDrafts_REST(t *testing.T) {
 }
 
 func TestGetStats_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/stats")
 	tr := m["tracks"].(map[string]any)
@@ -412,6 +422,7 @@ func TestGetStats_REST(t *testing.T) {
 }
 
 func TestDeviceProfile_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	body := `{"label":"Phone","user_agent":"UA","quality":"auto","quality_source":"default","probe_result":"none","flac_can_play":"","probe_version":1}`
 	w := r.call(agent, "PUT", "/api/device-profiles/phone-abcdef01", body)
@@ -442,6 +453,7 @@ func TestDeviceProfile_REST(t *testing.T) {
 }
 
 func TestImportRuns_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	runs := r.get(t, agent, "/api/imports")
 	if len(runs["items"].([]any)) != 1 {
@@ -459,6 +471,7 @@ func TestImportRuns_REST(t *testing.T) {
 }
 
 func TestDeviceProbe_REST(t *testing.T) {
+	t.Parallel()
 	r := newRig(t)
 	m := r.get(t, agent, "/api/device-probe")
 	u, _ := url.Parse(m["url"].(string))
@@ -472,6 +485,7 @@ func TestDeviceProbe_REST(t *testing.T) {
 }
 
 func TestSystemInfoUsesDepsNow(t *testing.T) {
+	t.Parallel()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)

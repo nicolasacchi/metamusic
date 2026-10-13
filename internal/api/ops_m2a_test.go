@@ -73,6 +73,7 @@ func newTestAPI(t *testing.T) (huma.API, *http.ServeMux) {
 }
 
 func TestOps_M2aRegisteredWithMeta(t *testing.T) {
+	t.Parallel()
 	if len(m2aOps) != 32 {
 		t.Fatalf("the C38 table has %d rows, want 32", len(m2aOps))
 	}
@@ -139,6 +140,7 @@ func pathOperation(a huma.API, op api.OpInfo) *huma.Operation {
 }
 
 func TestOps_CreateOpsDeclareIdempotencyKey(t *testing.T) {
+	t.Parallel()
 	a, _ := newTestAPI(t)
 	for _, op := range api.Operations(a) {
 		o := pathOperation(a, op)
@@ -168,6 +170,7 @@ func TestOps_CreateOpsDeclareIdempotencyKey(t *testing.T) {
 }
 
 func TestOps_BodyLimits(t *testing.T) {
+	t.Parallel()
 	a, _ := newTestAPI(t)
 	const gateMax = 8 * mib // gate.defaultMaxBody
 	for _, w := range m2aOps {
@@ -186,6 +189,7 @@ func TestOps_BodyLimits(t *testing.T) {
 }
 
 func TestOps_RawRequestSchema(t *testing.T) {
+	t.Parallel()
 	a, _ := newTestAPI(t)
 	b, err := api.OpenAPIJSON(a)
 	if err != nil {
@@ -222,6 +226,7 @@ func TestOps_RawRequestSchema(t *testing.T) {
 // TestRawRequest_KeepsTokens: a RawRequest reaches the handler as the client's
 // exact bytes (seed 2^53 and 1e3 survive; a float64 round trip would lose them).
 func TestRawRequest_KeepsTokens(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	a := humago.New(mux, api.HumaConfig())
 	var got string
@@ -248,6 +253,7 @@ func TestRawRequest_KeepsTokens(t *testing.T) {
 }
 
 func TestRefFor_Table(t *testing.T) {
+	t.Parallel()
 	humanP := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}
 	deviceP := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone"}
 	agentP := auth.Principal{Kind: auth.KindAgent, ID: "t1", Name: "bot"}
@@ -280,6 +286,7 @@ func TestRefFor_Table(t *testing.T) {
 // TestOps_M2aStubsAnswer501: with zero Deps every stub still registers and
 // answers 501 NOT_IMPLEMENTED naming its task (a human principal is allowed all of them).
 func TestOps_M2aStubsAnswer501(t *testing.T) {
+	t.Parallel()
 	_, mux := newTestAPI(t)
 	r := &rig{mux: mux}
 	raw := `{"request":{"id":"x"}}`

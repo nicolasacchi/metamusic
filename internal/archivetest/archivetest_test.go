@@ -12,6 +12,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	store.UseMigratedTemplateForTests()
 	code := m.Run()
 	archivetest.Cleanup()
 	os.Exit(code)
@@ -32,6 +33,7 @@ func count(t *testing.T, dir, q string) int {
 }
 
 func TestSyntheticArchive_ImportedOnce(t *testing.T) {
+	t.Parallel()
 	a := archivetest.SyntheticArchive(t, "acceptance")
 	b := archivetest.SyntheticArchive(t, "acceptance")
 	if a != b {

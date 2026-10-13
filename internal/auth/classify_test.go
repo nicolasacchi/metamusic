@@ -3,6 +3,7 @@ package auth
 import "testing"
 
 func TestClassify(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		path string
 		want PathClass

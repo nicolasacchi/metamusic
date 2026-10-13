@@ -31,7 +31,7 @@ func TestPasswordRoundTrip(t *testing.T) {
 	if err := la.st.R.QueryRowContext(ctx, `SELECT password_hash FROM human_account`).Scan(&h); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(h, "$argon2id$v=19$m=65536,t=3,p=2$") {
+	if !strings.HasPrefix(h, "$argon2id$v=19$m=8,t=1,p=2$") {
 		t.Fatalf("hash = %q", h)
 	}
 	if _, err := la.Login(ctx, "alice", "wrong"); !errors.Is(err, ErrBadCredentials) {
@@ -170,6 +170,7 @@ func TestLoginHandlers(t *testing.T) {
 }
 
 func TestFailureDelay(t *testing.T) {
+	t.Parallel()
 	la := newLocal(t, "http://x")
 	la.FailDelay = 50 * time.Millisecond
 	_ = la.SetPassword(context.Background(), "a", "bbbbbbbbbbbb")
@@ -389,6 +390,7 @@ func TestSetPasswordRejectsShort(t *testing.T) {
 // Parallel bad logins must not beat the failure budget: failures are answered
 // one at a time (FailDelay each) and excess attempts are refused with 503.
 func TestParallelBadLoginsAreThrottled(t *testing.T) {
+	t.Parallel()
 	la := newLocal(t, "http://x")
 	la.FailDelay = 100 * time.Millisecond
 	_ = la.SetPassword(context.Background(), "alice", "pw-pw-pw-pw-pw")
@@ -430,6 +432,7 @@ func TestParallelBadLoginsAreThrottled(t *testing.T) {
 }
 
 func TestFailureBackoffGrowsAndResets(t *testing.T) {
+	t.Parallel()
 	la := newLocal(t, "http://x")
 	la.FailDelay = 10 * time.Millisecond
 	synctest.Test(t, func(t *testing.T) {
@@ -577,6 +580,7 @@ func TestVerifySession_ErrorPaths(t *testing.T) {
 }
 
 func TestLocalAuth_UseClock(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	la := newLocal(t, "http://x")
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -592,5 +596,25 @@ func TestLocalAuth_UseClock(t *testing.T) {
 	now = now.Add(30 * 24 * time.Hour)
 	if _, err := la.VerifySession(ctx, cv); !errors.Is(err, ErrInvalidSession) {
 		t.Fatalf("session must expire by the injected clock: %v", err)
+	}
+}
+
+// TestProductionHashParams pins the production argon2id cost (the suite runs with the cheap test
+// cost from TestMain) and proves a hash made at production cost verifies and is what new hashes
+// use by default.
+func TestProductionHashParams(t *testing.T) {
+	t.Parallel()
+	if argonTime != 3 || argonMemory != 64*1024 || argonThreads != 2 || argonKeyLen != 32 {
+		t.Fatalf("production argon2id params changed: t=%d m=%d p=%d", argonTime, argonMemory, argonThreads)
+	}
+	h, err := hashPasswordWith("correct horse battery", argonTime, argonMemory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(h, "$argon2id$v=19$m=65536,t=3,p=2$") {
+		t.Fatalf("hash = %q", h)
+	}
+	if !checkPassword(h, "correct horse battery") || checkPassword(h, "wrong") {
+		t.Fatal("production-cost hash does not verify")
 	}
 }

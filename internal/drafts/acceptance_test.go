@@ -13,6 +13,7 @@ import (
 // varianti_import draft is listed, editable and free of lint errors; editing one lyric line bumps the
 // revision and the edited request still lints clean. Repeated through MCP with an agent token.
 func TestAcceptance_M2a_VariantiDraftsEditableLintClean(t *testing.T) {
+	t.Parallel()
 	tpl := archivetest.SyntheticArchive(t, "acceptance")
 	r := servertest.New(t, servertest.Options{Archive: &tpl})
 	human := r.Human(t)

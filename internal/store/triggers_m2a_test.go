@@ -3,6 +3,7 @@ package store
 import "testing"
 
 func TestTriggers_M2a(t *testing.T) {
+	t.Parallel()
 	s, _ := open(t)
 	m2aTrack(t, s)
 	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1','human',4,'human','human:h','h',?,?)`, ts, ts)

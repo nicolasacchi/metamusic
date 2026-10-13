@@ -102,6 +102,7 @@ func problem(t *testing.T, err error, status int, code string) *exports.Error {
 var songs = export.Selection{Kind: "source", SourcePath: "music/songs.jsonl"}
 
 func TestDBSource_Contract(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	src := exports.NewDBSource(e.st, e.lib, e.pls)
@@ -221,6 +222,7 @@ func TestDBSource_Contract(t *testing.T) {
 }
 
 func TestExports_ContentAddressed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	a, err := e.svc.JSONL(ctx, human, songs, "")
@@ -281,6 +283,7 @@ func TestExports_ContentAddressed(t *testing.T) {
 }
 
 func TestExports_InlineContentThreshold(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	small, err := e.svc.JSONL(ctx, human, songs, "my songs")
@@ -311,6 +314,7 @@ func TestExports_InlineContentThreshold(t *testing.T) {
 }
 
 func TestExports_LinkTTLByPrincipal(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	a, err := e.svc.JSONL(ctx, agent, songs, "")
@@ -344,6 +348,7 @@ func TestExports_LinkTTLByPrincipal(t *testing.T) {
 }
 
 func TestExports_Sweep(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	old, err := e.svc.JSONL(ctx, human, songs, "")
@@ -378,6 +383,7 @@ func TestExports_Sweep(t *testing.T) {
 }
 
 func TestExports_Bundle(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	abc := "X:1\nT:t\nM:4/4\nL:1/8\nK:C\nCDEF|]\n"
@@ -450,6 +456,7 @@ func readZip(t *testing.T, b []byte) (names []string, files map[string][]byte) {
 }
 
 func TestZipExport_CurrentTagsID3(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	title := "Luna Park (renamed)"
@@ -519,6 +526,7 @@ func mustMP3Path(t *testing.T, e *env, track string) string {
 }
 
 func TestZipExport_Deterministic(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	a, err := e.svc.PlaylistZIP(ctx, human, lt.PlaylistMix)
@@ -541,6 +549,7 @@ func TestZipExport_Deterministic(t *testing.T) {
 }
 
 func TestZipExport_MissingMP3(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	// Citta's rendition row goes away from the export's view: file removed, Luna's row kept.
@@ -579,6 +588,7 @@ func noWorkDirs(t *testing.T, e *env) {
 }
 
 func TestZipExport_Caps(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	many := slices.Repeat([]string{lt.TrackLuna}, 201)
@@ -610,6 +620,7 @@ func TestZipExport_Caps(t *testing.T) {
 }
 
 func TestZipExport_EntryNamesFlat(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
 	titles := map[string]string{
