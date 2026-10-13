@@ -36,9 +36,6 @@ type Options struct {
 	Ladder  ladder.Options // zero => defaults
 }
 
-// Service is the duels service. STUB(M2b-J2): every method answers errors.ErrUnsupported until M2b-J2.
-type Service struct{ o Options }
-
 // CreateInput is the create_duel request. Blind and MatchLoudness are pointers
 // so an explicit false is honoured (nil => true; C53).
 type CreateInput struct {
