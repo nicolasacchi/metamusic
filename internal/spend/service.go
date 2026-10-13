@@ -1,18 +1,14 @@
 // Package spend is the money core of generation: quote math, confirmation tokens, estimates, caps,
-// the append-only ledger and approvals (M3 C72). M3-B2 lands the constructor and its options so the
-// wiring can be frozen; M3-B3 replaces the stubs.
+// the append-only ledger and approvals (M3 C72).
 package spend
 
 import (
-	"errors"
+	"context"
 	"io"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
-
-// ErrNotImplemented marks a STUB(M3-B3) body.
-var ErrNotImplemented = errors.New("spend: not implemented (STUB(M3-B3))")
 
 // Options builds a Service.
 type Options struct {
@@ -22,6 +18,7 @@ type Options struct {
 	Rand       io.Reader        // confirmation tokens; nil => crypto/rand
 	ConfirmKey []byte           // HMAC key of the stored token hash (derived, C68)
 	Location   *time.Location   // calendar boundaries of the caps; nil => time.Local
+	Observer   Observer         // test hook: called after every committed ledger transaction
 }
 
 // Service owns every spend SQL statement.
@@ -32,6 +29,8 @@ type Service struct {
 	rand  io.Reader
 	key   []byte
 	loc   *time.Location
+
+	ledger *Ledger
 }
 
 // New builds the service.
@@ -42,5 +41,9 @@ func New(o Options) *Service {
 	if o.Location == nil {
 		o.Location = time.Local
 	}
-	return &Service{st: o.Store, now: o.Now, newID: o.NewID, rand: o.Rand, key: o.ConfirmKey, loc: o.Location}
+	s := &Service{st: o.Store, now: o.Now, newID: o.NewID, rand: o.Rand, key: o.ConfirmKey, loc: o.Location}
+	s.ledger = newLedger(o.Now, o.Observer, func(ctx context.Context, who string) (Usage, error) {
+		return s.Usage(ctx, s.st.R, who, s.now())
+	})
+	return s
 }
