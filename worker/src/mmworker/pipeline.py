@@ -44,9 +44,17 @@ class _Yue2Adapter:  # pragma: no cover - exercised by the contract job and the 
         self.weights = weights
 
     def request_kwargs(self, request: dict[str, Any]) -> dict[str, Any]:
-        import yue2  # noqa: PLC0415
+        # request_kwargs lives in yue2.cli (it is what `yue2 batch` calls); SongRequest construction inside
+        # _request is what actually validates the values, and it does not touch self (contract-tested).
+        from pathlib import Path  # noqa: PLC0415
 
-        return dict(yue2.request_kwargs(request))
+        from yue2.cli import request_kwargs  # noqa: PLC0415
+        from yue2.pipeline import YuE2Pipeline  # noqa: PLC0415
+
+        kwargs = dict(request_kwargs(request, Path("/nonexistent-request-dir")))
+        YuE2Pipeline._request(None, **{k: v for k, v in kwargs.items()
+                                       if k not in {"abc_sampling", "semantic_sampling"}})
+        return kwargs
 
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Result:
         return self._pipe(cancelled=cancelled, **kwargs)

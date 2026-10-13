@@ -1,0 +1,85 @@
+{
+  "source": "Go ValidateBatch (ModeYuE2); regenerate with go test ./internal/engine/yue2 -run TestWriteBatchContractCases -update",
+  "cases": [
+    {
+      "name": "valid minimal",
+      "accept": true
+    },
+    {
+      "name": "valid full",
+      "accept": true
+    },
+    {
+      "name": "valid cot off",
+      "accept": true
+    },
+    {
+      "name": "valid metadata",
+      "accept": true
+    },
+    {
+      "name": "valid tags alias",
+      "accept": true
+    },
+    {
+      "name": "CRLF residue",
+      "accept": true
+    },
+    {
+      "name": "unknown key fatal",
+      "accept": false
+    },
+    {
+      "name": "bad json",
+      "accept": false
+    },
+    {
+      "name": "not object",
+      "accept": false
+    },
+    {
+      "name": "duplicate keys last wins",
+      "accept": true
+    },
+    {
+      "name": "missing lyrics",
+      "accept": false
+    },
+    {
+      "name": "missing style",
+      "accept": false
+    },
+    {
+      "name": "bad cot",
+      "accept": false
+    },
+    {
+      "name": "seed negative",
+      "accept": false
+    },
+    {
+      "name": "seed string",
+      "accept": false
+    },
+    {
+      "name": "seed bool",
+      "accept": false
+    },
+    {
+      "name": "id unsafe",
+      "accept": false
+    },
+    {
+      "name": "cfg_scale too high",
+      "accept": false
+    },
+    {
+      "name": "abc with cot off",
+      "accept": false
+    },
+    {
+      "name": "abc and abc_path",
+      "accept": false
+    }
+  ]
+}
