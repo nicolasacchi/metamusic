@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Placeholder: M2a-W2 replaces this page. The route is already registered in App.svelte.
+  import UploadForm from "../lib/components/UploadForm.svelte";
 </script>
 
+<p><a href="/backlog">← Backlog</a></p>
 <h1>Upload drafts</h1>
-<p class="muted" data-testid="placeholder">Coming soon.</p>
+<UploadForm />
