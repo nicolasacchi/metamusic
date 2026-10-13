@@ -19,6 +19,8 @@
   const params = $derived(new SvelteURLSearchParams(search));
   const q = $derived(params.get("q") ?? "");
   const collection = $derived(params.get("collection") ?? "");
+  const ORIGINS = ["import_backlog", "varianti_import", "editor", "agent", "jsonl_upload"] as const;
+  const origin = $derived(params.get("origin") ?? "");
   const rawStatus = $derived(params.get("status"));
   const status = $derived<Status>(rawStatus === "fulfilled" || rawStatus === "archived" ? rawStatus : "backlog");
 
@@ -35,13 +37,15 @@
   let seq = 0;
   let qInput = $derived(q);
 
-  function commit(next: { q?: string; collection?: string; status?: Status }) {
+  function commit(next: { q?: string; collection?: string; status?: Status; origin?: string }) {
     const p = new SvelteURLSearchParams();
     const nq = next.q ?? q;
     const nc = next.collection ?? collection;
     const ns = next.status ?? status;
+    const no = next.origin ?? origin;
     if (nq) p.set("q", nq);
     if (nc) p.set("collection", nc);
+    if (no) p.set("origin", no);
     if (ns !== "backlog") p.set("status", ns);
     const s = p.toString();
     navigate("/backlog" + (s ? "?" + s : ""), false);
@@ -53,7 +57,7 @@
     error = "";
     try {
       const r = await api.GET("/api/drafts", {
-        params: { query: { status, limit: PAGE, ...(q ? { q } : {}), ...(collection ? { collection } : {}), ...(cursor ? { cursor } : {}) } },
+        params: { query: { status, limit: PAGE, ...(q ? { q } : {}), ...(collection ? { collection } : {}), ...(origin ? { origin } : {}), ...(cursor ? { cursor } : {}) } },
       });
       if (mine !== seq) return;
       if (!r.data) {
@@ -74,6 +78,7 @@
   $effect(() => {
     void q;
     void collection;
+    void origin;
     void status;
     cursors = [undefined];
     starts = [0];
@@ -125,6 +130,7 @@
 </script>
 
 <h1>Backlog</h1>
+<p><a href="/backlog/new">New draft</a> · <a href="/backlog/upload">Upload JSONL</a></p>
 
 <form class="filters" onsubmit={submit} role="search" aria-label="Filter drafts">
   <label>Search <input type="search" bind:value={qInput} maxlength="200" data-testid="backlog-q" /></label>
@@ -135,6 +141,13 @@
       {#each collections as c (c.name)}
         <option value={c.name}>{c.name} ({c.drafts})</option>
       {/each}
+    </select>
+  </label>
+  <label>
+    Origin
+    <select value={origin} onchange={(e) => commit({ origin: e.currentTarget.value })} data-testid="backlog-origin">
+      <option value="">All</option>
+      {#each ORIGINS as o (o)}<option value={o}>{o}</option>{/each}
     </select>
   </label>
   <label>
@@ -160,6 +173,8 @@
           <li data-testid="draft-row" data-draft-id={d.id}>
             <a href="/backlog/{d.id}">{d.label ?? d.request_id}</a>
             <span class="muted">{d.request_id}</span>
+            {#if d.lint.errors > 0}<span class="badge err" data-testid="lint-errors">{d.lint.errors} errors</span>{/if}
+            {#if d.lint.warnings > 0}<span class="badge warn" data-testid="lint-warnings">{d.lint.warnings} warnings</span>{/if}
             {#each d.collections as c (c)}<span class="badge">{c}</span>{/each}
             <div class="style">{d.style_excerpt}</div>
           </li>
@@ -203,6 +218,12 @@
   .style {
     font-size: 0.8rem;
     opacity: 0.7;
+  }
+  .err {
+    color: #e66;
+  }
+  .warn {
+    color: #db5;
   }
   .badge {
     font-size: 0.7rem;

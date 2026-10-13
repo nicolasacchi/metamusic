@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pinPositions } from "../comments";
   import { peaksToColumns } from "../peaks";
 
   interface Props {
@@ -11,11 +12,22 @@
     bits?: number;
     height?: number;
     label?: string;
+    /** Timed comment markers; clicking one calls `onpin(id)`. */
+    pins?: { id: string; t: number; kind: string }[];
+    onpin?: (id: string) => void;
   }
-  let { peaks, duration, current, onseek, bits = 8, height = 48, label = "Waveform" }: Props = $props();
+  let { peaks, duration, current, onseek, bits = 8, height = 48, label = "Waveform", pins = [], onpin }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let cssWidth = $state(0);
+
+  const placed = $derived(
+    pinPositions(
+      pins.map((p) => ({ id: p.id, at_second: p.t, kind: p.kind as "note" })),
+      duration,
+      cssWidth,
+    ),
+  );
 
   const pxWidth = $derived(Math.max(1, Math.floor(cssWidth * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1))));
   const cols = $derived(peaks && cssWidth > 0 ? peaksToColumns(peaks, Math.floor(peaks.length / 2), pxWidth) : []);
@@ -83,12 +95,46 @@
     onkeydown={onkey}
     style:height="{height}px"
   ></canvas>
+  {#each placed as p (p.id)}
+    <button
+      type="button"
+      class="pin {pins.find((x) => x.id === p.id)?.kind ?? ''}"
+      style:left="{p.x}px"
+      aria-label="Comment at {Math.floor(p.t / 60)}:{String(Math.floor(p.t % 60)).padStart(2, '0')}"
+      data-testid="comment-pin"
+      onclick={() => onpin?.(p.id)}
+    ></button>
+  {/each}
 </div>
 
 <style>
   .wf {
+    position: relative;
     width: 100%;
     min-width: 0;
+  }
+  .pin {
+    position: absolute;
+    top: 0;
+    width: 0.6rem;
+    height: 0.6rem;
+    margin-left: -0.3rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #6ab0f2;
+    cursor: pointer;
+  }
+  .pin.fix {
+    background: #f27a6a;
+  }
+  .pin.keep {
+    background: #7fd68a;
+  }
+  .pin::after {
+    content: "";
+    position: absolute;
+    inset: -0.55rem;
   }
   canvas {
     width: 100%;

@@ -5,6 +5,10 @@ describe("time", () => {
   test("parseT", () => {
     expect(parseT("72")).toBe(72);
     expect(parseT("1:12")).toBe(72);
+    expect(parseT("72.0")).toBe(72);
+    expect(parseT("1:12.5")).toBe(72.5);
+    expect(parseT("72.")).toBeNull();
+    expect(parseT("1:75.5")).toBeNull();
     expect(parseT("bad")).toBeNull();
     expect(parseT("")).toBeNull();
     expect(parseT("-3")).toBeNull();

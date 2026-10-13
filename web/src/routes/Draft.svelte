@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from "../api/client";
   import type { components } from "../api/schema";
+  import DraftEditor from "../lib/components/DraftEditor.svelte";
 
   type Draft = components["schemas"]["DraftDetail"];
   let { id }: { id: string } = $props();
@@ -39,25 +40,9 @@
     <p>Fulfilled by <a href="/tracks/{draft.fulfilled_by_track_id}">this track</a>.</p>
   {/if}
 
-  <h2>Style</h2>
-  <p data-testid="draft-style">{draft.request.style}</p>
-  <p class="muted">seed {draft.request.seed}</p>
-  {#if draft.request.cot}
-    <h2>Chain of thought</h2>
-    <p class="pre">{draft.request.cot}</p>
-  {/if}
-
-  <h2>Lyrics</h2>
-  <div data-testid="draft-sections">
-    {#each draft.sections as s (s.idx)}
-      <section class="sec">
-        <h3>{s.label || s.kind}</h3>
-        {#each s.lines as line, i (i)}<div class="line">{line}</div>{/each}
-      </section>
-    {:else}
-      <p class="muted">No lyric structure.</p>
-    {/each}
-  </div>
+  {#key draft.id + ":" + draft.revision + ":" + draft.status}
+    <DraftEditor {draft} onupdate={(d) => (draft = d)} />
+  {/key}
 
   {#if draft.reference}
     <h2>Reference</h2>
@@ -85,17 +70,6 @@
 {/if}
 
 <style>
-  .pre {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .line {
-    overflow-wrap: anywhere;
-  }
-  h3 {
-    font-size: 0.95rem;
-    margin: 0.75rem 0 0.2rem;
-  }
   .badge {
     font-size: 0.7rem;
     border: 1px solid #3a322b;

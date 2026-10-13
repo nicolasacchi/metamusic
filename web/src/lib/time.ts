@@ -4,9 +4,9 @@ export function fmt(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** Parses "72" or "1:12" into seconds; null when malformed. */
+/** Parses "72", "72.0", "1:12" or "1:12.5" into seconds; null when malformed. */
 export function parseT(v: string): number | null {
-  const m = /^(?:(\d+):([0-5]?\d)|(\d+))$/.exec(v.trim());
+  const m = /^(?:(\d+):([0-5]?\d(?:\.\d+)?)|(\d+(?:\.\d+)?))$/.exec(v.trim());
   if (!m) return null;
   return m[3] !== undefined ? Number(m[3]) : Number(m[1]) * 60 + Number(m[2]);
 }

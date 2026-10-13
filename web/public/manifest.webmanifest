@@ -1,7 +1,7 @@
 {
   "name": "metamusic",
   "short_name": "metamusic",
-  "start_url": "/",
+  "start_url": "/start",
   "scope": "/",
   "display": "standalone",
   "background_color": "#14110f",

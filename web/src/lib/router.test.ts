@@ -56,3 +56,43 @@ describe("isServerPath", () => {
     for (const p of ["/", "/settings", "/apix", "/mcpx", "/mediax", "/manifest.webmanifestx"]) expect(isServerPath(p)).toBe(false);
   });
 });
+
+describe("human and pairing pages", () => {
+  test("/human, /start and /pair are server paths, never client-routed", () => {
+    for (const p of ["/human", "/human/tokens", "/human/devices", "/start", "/pair", "/pair/x"]) expect(isServerPath(p)).toBe(true);
+    for (const p of ["/humane", "/started", "/pairs"]) expect(isServerPath(p)).toBe(false);
+  });
+});
+
+import { APP_ROUTES } from "./router";
+
+describe("APP_ROUTES (C40)", () => {
+  const cases: [string, string, Record<string, string>?][] = [
+    ["/", "home"],
+    ["/tracks/abc", "track", { id: "abc" }],
+    ["/backlog", "backlog"],
+    ["/backlog/new", "draft-new"],
+    ["/backlog/upload", "draft-upload"],
+    ["/backlog/d1", "draft", { id: "d1" }],
+    ["/playlists", "playlists"],
+    ["/playlists/p1", "playlist", { id: "p1" }],
+    ["/export", "export"],
+    ["/import", "import"],
+    ["/settings", "settings"],
+    ["/settings/backups", "settings-backups"],
+    ["/settings/audit", "settings-audit"],
+    ["/human/tokens", "human-tokens"],
+    ["/human/devices", "human-devices"],
+  ];
+  for (const [path, name, params] of cases) {
+    test(path, () => {
+      const m = matchRoute(APP_ROUTES, path);
+      expect(m?.route.name).toBe(name);
+      if (params) expect(m?.params).toEqual(params);
+    });
+  }
+  test("unknown paths are 404", () => {
+    expect(matchRoute(APP_ROUTES, "/human")).toBeNull();
+    expect(matchRoute(APP_ROUTES, "/nope")).toBeNull();
+  });
+});

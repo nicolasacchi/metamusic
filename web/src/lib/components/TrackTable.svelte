@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
   import { fmt } from "../time";
+  import { judge } from "../judge.svelte";
 
   type Track = components["schemas"]["TrackSummary"];
   interface Props {
@@ -9,6 +10,18 @@
     onplay: (id: string) => void;
   }
   let { tracks, playingId = "", onplay }: Props = $props();
+
+  // A rating or status changed in this session shows at once, before the next fetch.
+  function stars(t: Track): number | null {
+    return judge.get(t.id)?.stars ?? t.stars;
+  }
+  function statusOf(t: Track): string {
+    return judge.get(t.id)?.status ?? t.status;
+  }
+  function tagsOf(t: Track): string[] {
+    const j = judge.get(t.id);
+    return j ? j.tags.map((x) => x.name) : t.tags;
+  }
 
   function lufs(v: number | null): string {
     return v === null ? "—" : v.toFixed(1);
@@ -22,6 +35,9 @@
         <th scope="col"><span class="sr">Play</span></th>
         <th scope="col">Title</th>
         <th scope="col">Style</th>
+        <th scope="col">Stars</th>
+        <th scope="col">Status</th>
+        <th scope="col">Tags</th>
         <th scope="col" class="num">BPM</th>
         <th scope="col" class="num">Length</th>
         <th scope="col" class="num">LUFS</th>
@@ -38,10 +54,17 @@
           <td>
             <a href="/tracks/{t.id}" data-testid="track-link">{t.title}</a>
             {#if t.truncated}<span class="badge bad" title="The generation stream was cut short">truncated</span>{/if}
-            {#if t.status !== "draft"}<span class="badge">{t.status}</span>{/if}
           </td>
           <td class="terms">
             {#each t.style_terms.slice(0, 5) as term (term)}<span class="chip">{term}</span>{/each}
+          </td>
+          <td class="stars" data-testid="row-stars" aria-label={stars(t) === null ? "Unrated" : `${stars(t)} stars`}>
+            {#if stars(t) === null}<span class="muted">—</span>{:else}{"★".repeat(stars(t) ?? 0)}{/if}
+            {#if t.critic_stars !== null}<span class="muted critic" title="Critic (agent) rating">critic {t.critic_stars}</span>{/if}
+          </td>
+          <td data-testid="row-status">{statusOf(t)}</td>
+          <td class="terms">
+            {#each tagsOf(t) as tag (tag)}<span class="chip">{tag}</span>{/each}
           </td>
           <td class="num">{t.bpm_declared ?? "—"}</td>
           <td class="num">{fmt(t.duration_s)}</td>
@@ -52,7 +75,7 @@
           <td class="num">{t.children_count > 0 ? t.children_count : ""}</td>
         </tr>
       {:else}
-        <tr><td colspan="8" class="muted">No tracks match.</td></tr>
+        <tr><td colspan="11" class="muted">No tracks match.</td></tr>
       {/each}
     </tbody>
   </table>
@@ -100,6 +123,15 @@
   }
   .badge.ok {
     background: #2a4a2c;
+  }
+  .stars {
+    white-space: nowrap;
+    color: #f2a65a;
+  }
+  .critic {
+    font-size: 0.7rem;
+    margin-left: 0.3rem;
+    color: inherit;
   }
   .sr {
     position: absolute;

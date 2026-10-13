@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { createRouter, type Route } from "./lib/router";
+  import { APP_ROUTES, createRouter } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
+  import { dismissToast, toasts } from "./lib/judge.svelte";
   import { installDevice } from "./lib/device.svelte";
   import { installMediaSession } from "./lib/mediaSession";
+  import { installListen } from "./lib/listen.svelte";
+  import { createNav } from "./lib/nav";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
@@ -12,18 +15,25 @@
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
+  import DraftNew from "./routes/DraftNew.svelte";
+  import DraftUpload from "./routes/DraftUpload.svelte";
+  import Playlists from "./routes/Playlists.svelte";
+  import Playlist from "./routes/Playlist.svelte";
+  import Export from "./routes/Export.svelte";
+  import SettingsBackups from "./routes/SettingsBackups.svelte";
+  import SettingsAudit from "./routes/SettingsAudit.svelte";
+  import HumanTokens from "./routes/HumanTokens.svelte";
+  import HumanDevices from "./routes/HumanDevices.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
-  const routes: Route[] = [
-    { pattern: "/", name: "home" },
-    { pattern: "/tracks/:id", name: "track" },
-    { pattern: "/backlog", name: "backlog" },
-    { pattern: "/backlog/:id", name: "draft" },
-    { pattern: "/import", name: "import" },
-    { pattern: "/settings", name: "settings" },
-  ];
-  const router = createRouter(routes);
+  const router = createRouter(APP_ROUTES);
   const audioId = randomId();
+  // /human/* is always a full-page load so the server's second-factor / step-up check runs first.
+  const nav = createNav({ assign: (u) => location.assign(u), route: (u) => router.navigate(u) });
+  const humanClick = (e: MouseEvent) => {
+    const href = (e.currentTarget as HTMLAnchorElement).getAttribute("href") ?? "";
+    nav.onLinkClick(e, href);
+  };
   // The router's query map collapses repeated keys; the library needs the raw string.
   // The argument only makes the call re-run on every navigation.
   function searchOf(_loc: unknown): string {
@@ -36,7 +46,9 @@
     player.attach(audio);
     installDevice(player);
     const offMediaSession = installMediaSession(player, audio);
+    const offListen = installListen(player);
     return () => {
+      offListen();
       offMediaSession();
       player.attach(null);
       router.destroy();
@@ -50,8 +62,12 @@
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
       <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/playlists" aria-current={$router.route?.name === "playlists" || $router.route?.name === "playlist" ? "page" : undefined}>Playlists</a>
+      <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
+      <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
     </nav>
   </header>
 
@@ -65,10 +81,30 @@
       {/key}
     {:else if $router.route?.name === "backlog"}
       <Backlog search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "draft-new"}
+      <DraftNew />
+    {:else if $router.route?.name === "draft-upload"}
+      <DraftUpload />
     {:else if $router.route?.name === "draft"}
       {#key $router.params.id}
         <Draft id={$router.params.id ?? ""} />
       {/key}
+    {:else if $router.route?.name === "playlists"}
+      <Playlists />
+    {:else if $router.route?.name === "playlist"}
+      {#key $router.params.id}
+        <Playlist id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "export"}
+      <Export />
+    {:else if $router.route?.name === "settings-backups"}
+      <SettingsBackups />
+    {:else if $router.route?.name === "settings-audit"}
+      <SettingsAudit />
+    {:else if $router.route?.name === "human-tokens"}
+      <HumanTokens />
+    {:else if $router.route?.name === "human-devices"}
+      <HumanDevices />
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}
@@ -77,6 +113,15 @@
       <NotFound />
     {/if}
   </main>
+
+  <div class="toasts" role="status" aria-live="polite">
+    {#each toasts as t (t.id)}
+      <div class="toast" data-testid="toast">
+        {t.message}
+        <button type="button" aria-label="Dismiss" onclick={() => dismissToast(t.id)}>×</button>
+      </div>
+    {/each}
+  </div>
 
   <footer class="player" aria-label="Player">
     <PlayerBar {player} />
@@ -133,6 +178,26 @@
     position: sticky;
     bottom: 0;
     background: #1d1814;
+  }
+  .toasts {
+    position: fixed;
+    right: 1rem;
+    bottom: 7rem;
+    display: grid;
+    gap: 0.4rem;
+    z-index: 10;
+  }
+  .toast {
+    background: #5a2a22;
+    border: 1px solid #a02a1f;
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.7rem;
+  }
+  .toast button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
   }
   .player audio {
     display: none;
