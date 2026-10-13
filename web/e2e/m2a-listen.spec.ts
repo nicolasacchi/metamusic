@@ -1,10 +1,10 @@
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 import { allTracks, apiJSON, audioTime, tap, type Item } from "./helpers";
 
-// One seed track per project: plays are counted per track and the projects run in parallel.
+// One seed track per project (this spec runs alone in the listen-* projects, see playwright.config.ts): plays are counted per track and the projects run in parallel.
 async function listenTrack(request: APIRequestContext, info: TestInfo): Promise<Item> {
   const all = (await allTracks(request)).filter((x) => x.title.startsWith("Syn song")).sort((x, y) => (x.title === y.title ? (x.id < y.id ? -1 : 1) : x.title < y.title ? -1 : 1));
-  const i = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"].indexOf(info.project.name);
+  const i = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"].indexOf(info.project.name.replace(/^listen-/, ""));
   const t = all[Math.max(0, i)];
   if (!t) throw new Error("seed track missing");
   return t;

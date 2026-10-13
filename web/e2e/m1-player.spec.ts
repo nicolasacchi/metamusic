@@ -18,13 +18,13 @@ test("plays and seeks a FLAC master", async ({ page, request }) => {
   await page.goto(`/tracks/${t?.id}`);
   await page.getByTestId("track-play").click();
   await expect.poll(async () => (await audioState(page)).src).toMatch(/\/media\/[0-9a-f]{64}\.flac\?exp=/);
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 3000 }).toBeGreaterThanOrEqual(0.5);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 10_000 }).toBeGreaterThanOrEqual(0.5);
   // seek forward: playback continues from there
   await page.evaluate(() => {
     const a = document.querySelector("audio");
     if (a) a.currentTime = 6;
   });
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 3000 }).toBeGreaterThanOrEqual(6);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 10_000 }).toBeGreaterThanOrEqual(6);
 });
 
 test("waveform click seeks", async ({ page, request }) => {

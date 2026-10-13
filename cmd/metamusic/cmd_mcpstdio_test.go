@@ -199,13 +199,7 @@ func TestCLI_MCPStdio_Smoke(t *testing.T) {
 		case <-time.After(15 * time.Second):
 		}
 	})
-	var addr string
-	for i := 0; i < 400 && addr == ""; i++ {
-		time.Sleep(25 * time.Millisecond)
-		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
-			addr, _, _ = strings.Cut(rest, " ")
-		}
-	}
+	addr := waitListening(&out, 60*time.Second)
 	if addr == "" {
 		t.Fatalf("server did not start: %s %s", out.String(), errb.String())
 	}

@@ -143,11 +143,13 @@ test.describe("ladder", () => {
     const { root, child } = await siblings(request);
     const duel = await createDuel(request, root.id, child.id);
     await decide(request, duel.id, "a");
-    await page.goto(`/ladder?root=${root.id}`);
     const table = page.getByTestId("ladder-table");
-    await expect(table).toBeVisible();
-    // other projects add verdicts concurrently: compare against a fresh API read, reloading on a race
+    // Other projects add verdicts to this lineage concurrently, and the page reads the ladder once when it
+    // loads. Each attempt therefore reloads the page first and compares it with an API read taken after the
+    // load; a verdict landing in between makes that attempt fail and the next reload picks it up.
     await expect(async () => {
+      await page.goto(`/ladder?root=${root.id}`);
+      await expect(table).toBeVisible();
       const api = await ladder(request, root.id);
       const rows = table.locator("tbody tr");
       await expect(rows).toHaveCount(api.items.length);

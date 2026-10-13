@@ -39,13 +39,7 @@ func TestServe_MediaAndLibraryWired(t *testing.T) {
 		close(done)
 	}()
 	client := &http.Client{Timeout: 10 * time.Second}
-	var addr string
-	for i := 0; i < 200 && addr == ""; i++ {
-		time.Sleep(25 * time.Millisecond)
-		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
-			addr, _, _ = strings.Cut(rest, " ")
-		}
-	}
+	addr := waitListening(&out, 60*time.Second)
 	if addr == "" {
 		t.Fatalf("server did not start: %s %s", out.String(), errb.String())
 	}

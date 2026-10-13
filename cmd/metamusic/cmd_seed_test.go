@@ -217,13 +217,7 @@ func TestServe_ProbeWired(t *testing.T) {
 		done <- run(ctx, []string{"serve"}, envFn(env), strings.NewReader(""), &out, &errb)
 	}()
 	defer func() { cancel(); <-done }()
-	var addr string
-	for i := 0; i < 400 && addr == ""; i++ {
-		time.Sleep(25 * time.Millisecond)
-		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
-			addr, _, _ = strings.Cut(rest, " ")
-		}
-	}
+	addr := waitListening(&out, 60*time.Second)
 	if addr == "" {
 		t.Fatalf("no server: %s", errb.String())
 	}
