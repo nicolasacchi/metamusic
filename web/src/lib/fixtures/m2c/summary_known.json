@@ -1,0 +1,30 @@
+{
+  "id": "01900000-0000-7000-8000-000000000c01",
+  "title": "Syn known song",
+  "bandwidth_hz": 20000,
+  "bpm_declared": 96,
+  "children_count": 0,
+  "comments": 0,
+  "open_comments": 0,
+  "created_at": "2026-10-13T10:00:00Z",
+  "critic_stars": null,
+  "duration_s": 61.3,
+  "has_score": false,
+  "integrated_lufs": -14.2,
+  "lossy": false,
+  "recipe_known": true,
+  "parent_track_id": null,
+  "recorded_at": "2026-10-12T09:00:00Z",
+  "request_id": "syn_req_1",
+  "root_track_id": "01900000-0000-7000-8000-000000000c01",
+  "seed": 4242,
+  "stars": null,
+  "status": "draft",
+  "style_terms": [
+    "synthetic",
+    "calm"
+  ],
+  "tags": [],
+  "timed": false,
+  "truncated": false
+}

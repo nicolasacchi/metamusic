@@ -91,6 +91,8 @@ export class Player {
     current: 0,
     duration: 0,
     format: "flac" as Format,
+    /** The current track has no lossless file (lossy reference): it plays its MP3 master, whatever the device quality. */
+    noFlac: false,
     error: "",
   });
 
@@ -303,6 +305,7 @@ export class Player {
     s.queue = q;
     s.index = q.indexOf(trackId);
     s.trackId = trackId;
+    s.noFlac = false;
     s.error = "";
     s.current = opts.startAt ?? 0;
     s.duration = 0;
@@ -343,6 +346,7 @@ export class Player {
     // A track without a lossless file (flac === null: a lossy reference) always plays its MP3 link.
     const format = links.flac ? this.formatFor(links.track_id) : "mp3";
     this.state.format = format;
+    this.state.noFlac = !links.flac;
     const url = format === "flac" && links.flac ? links.flac.url : links.mp3.url;
     this.appliedExp = Date.parse(links.expires_at);
     this.src = url;
@@ -446,6 +450,7 @@ export class Player {
     this.epoch++;
     s.index += 1;
     s.trackId = nextId;
+    s.noFlac = false;
     s.current = 0;
     s.duration = 0;
     this.pendingSeek = null;

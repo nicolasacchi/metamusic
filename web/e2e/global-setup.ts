@@ -67,8 +67,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   };
   // Specs read the seed archive (byte-identity export check); workers inherit this from the setup process.
   process.env.MM_E2E_SEED_DIR = join(dataDir, "inbox-synthetic");
-  // Seed the synthetic library (C22): synchronous, same env; a failed seed fails the whole setup.
-  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e"], { env, stdio: ["ignore", "ignore", "inherit"] });
+  // Seed the synthetic library (C22) plus the M2c reference and lossy takes (C66): synchronous, same env; a failed seed fails the whole setup.
+  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references"], { env, stdio: ["ignore", "ignore", "inherit"] });
   if (seed.status !== 0) {
     rmSync(root, { recursive: true, force: true });
     throw new Error(`seed-synthetic failed (exit ${seed.status ?? seed.signal ?? "unknown"}${seed.error ? `: ${seed.error.message}` : ""})`);

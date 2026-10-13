@@ -626,3 +626,44 @@ describe("player store review fixes", () => {
     expect(el.log).toContain("play");
   });
 });
+
+describe("lossy tracks (M2c)", () => {
+  const lossyLinks = (id: string): MediaLinks => ({
+    track_id: id,
+    expires_at: new Date(T0 + 12 * 3600_000).toISOString(),
+    ttl_s: 12 * 3600,
+    lossy: true,
+    flac: null,
+    mp3: { url: `/media/${id}.mp3?exp=1`, bytes: 1, content_type: "audio/mpeg", bitrate_kbps: 320, sha256: "y" },
+  });
+
+  test("lossy track plays mp3 and never probes", async () => {
+    const { p, el, flush, failed } = setup("lossless");
+    p.configure({ fetchLinks: async (id) => lossyLinks(id) });
+    p.play("a");
+    await flush();
+    expect(el.src).toBe("/media/a.mp3?exp=1");
+    expect(p.state.format).toBe("mp3");
+    expect(p.state.noFlac).toBe(true);
+    // A decode failure of the mp3 must not enter the FLAC fallback machinery.
+    el.fail(4);
+    el.emit("loadedmetadata");
+    await flush();
+    expect(failed).toHaveLength(0);
+    expect(p.state.error).toBe("Playback error");
+    expect((p as unknown as { forceMp3: Set<string> }).forceMp3.size).toBe(0);
+    expect((p as unknown as { probePending: Set<string> }).probePending.size).toBe(0);
+  });
+
+  test("noFlac follows the track: a lossless track clears it", async () => {
+    const { p, flush } = setup("lossless");
+    p.configure({ fetchLinks: async (id) => (id === "a" ? lossyLinks(id) : links(id)) });
+    p.play("a", ["a", "b"]);
+    await flush();
+    expect(p.state.noFlac).toBe(true);
+    p.play("b", ["a", "b"]);
+    await flush();
+    expect(p.state.noFlac).toBe(false);
+    expect(p.state.format).toBe("flac");
+  });
+});

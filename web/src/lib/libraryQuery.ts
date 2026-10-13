@@ -19,6 +19,10 @@ export interface Filters {
   recordedTo: string;
   hasScore: boolean | null;
   truncated: boolean | null;
+  /** false = reference tracks only (no recipe); true = tracks with a recipe; null = any. */
+  recipeKnown: boolean | null;
+  /** true = MP3 masters only; false = lossless only; null = any. */
+  lossy: boolean | null;
   /** Human stars at least (1-5); null = no filter. Exclusive with `unrated`. */
   minStars: number | null;
   unrated: boolean;
@@ -37,11 +41,33 @@ export function defaultFilters(): Filters {
     recordedTo: "",
     hasScore: null,
     truncated: null,
+    recipeKnown: null,
+    lossy: null,
     minStars: null,
     unrated: false,
     tag: [],
     sort: "recorded_desc",
   };
+}
+
+/** Any filter other than the sort is active (drives the Clear button). */
+export function isDirty(f: Filters): boolean {
+  return (
+    f.q !== "" ||
+    f.style.length > 0 ||
+    f.status.length > 0 ||
+    f.minDuration !== null ||
+    f.maxDuration !== null ||
+    f.recordedFrom !== "" ||
+    f.recordedTo !== "" ||
+    f.hasScore !== null ||
+    f.truncated !== null ||
+    f.recipeKnown !== null ||
+    f.lossy !== null ||
+    f.minStars !== null ||
+    f.unrated ||
+    f.tag.length > 0
+  );
 }
 
 /** The server's default sort: relevance when q is set, else newest first. */
@@ -71,6 +97,8 @@ export function parseFilters(search: string | URLSearchParams): Filters {
   f.recordedTo = p.get("recorded_to") ?? "";
   f.hasScore = bool(p.get("has_score"));
   f.truncated = bool(p.get("truncated"));
+  f.recipeKnown = bool(p.get("recipe_known"));
+  f.lossy = bool(p.get("lossy"));
   f.unrated = p.get("unrated") === "true";
   const ms = num(p.get("min_stars"));
   f.minStars = !f.unrated && ms !== null && Number.isInteger(ms) && ms >= 1 && ms <= 5 ? ms : null;
@@ -91,6 +119,8 @@ function pairs(f: Filters): [string, string][] {
   if (f.recordedTo) out.push(["recorded_to", f.recordedTo]);
   if (f.hasScore !== null) out.push(["has_score", String(f.hasScore)]);
   if (f.truncated !== null) out.push(["truncated", String(f.truncated)]);
+  if (f.recipeKnown !== null) out.push(["recipe_known", String(f.recipeKnown)]);
+  if (f.lossy !== null) out.push(["lossy", String(f.lossy)]);
   if (f.unrated) out.push(["unrated", "true"]);
   else if (f.minStars !== null) out.push(["min_stars", String(f.minStars)]);
   for (const t of f.tag) out.push(["tag", t]);
@@ -117,6 +147,8 @@ export function toApiQuery(f: Filters): SearchQuery {
   if (f.recordedTo) q.recorded_to = f.recordedTo;
   if (f.hasScore !== null) q.has_score = f.hasScore;
   if (f.truncated !== null) q.truncated = f.truncated;
+  if (f.recipeKnown !== null) q.recipe_known = f.recipeKnown;
+  if (f.lossy !== null) q.lossy = f.lossy;
   if (f.unrated) q.unrated = true;
   else if (f.minStars !== null) q.min_stars = f.minStars;
   if (f.tag.length) q.tag = f.tag;

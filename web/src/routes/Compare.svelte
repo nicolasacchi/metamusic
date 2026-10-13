@@ -2,6 +2,7 @@
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import { compareView } from "../lib/compareView";
+  import TrackBadges from "../lib/components/TrackBadges.svelte";
 
   interface Props {
     a?: string;
@@ -39,7 +40,7 @@
   <p class="muted">Loading…</p>
 {:else}
   <p>
-    <a href="/tracks/{cmp.a.track_id}">{cmp.a.title}</a> (A, seed {cmp.a.seed}) vs <a href="/tracks/{cmp.b.track_id}">{cmp.b.title}</a> (B, seed {cmp.b.seed})
+    <a href="/tracks/{cmp.a.track_id}">{cmp.a.title}</a> <TrackBadges recipeKnown={cmp.a.recipe_known} lossy={cmp.a.lossy} /> (A, seed {cmp.a.seed}) vs <a href="/tracks/{cmp.b.track_id}">{cmp.b.title}</a> <TrackBadges recipeKnown={cmp.b.recipe_known} lossy={cmp.b.lossy} /> (B, seed {cmp.b.seed})
     — <span data-testid="relation">{v.relation}</span>
   </p>
   <table data-testid="deltas">

@@ -1,9 +1,10 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { SEED_RECIPE_TRACKS, SEED_TRACKS } from "./env";
 
 const TITLES = ["Syn ears clip", "Syn ears gap", "Syn ears loop", "Syn song 01 s1001", "Syn song 01 s2001", "Syn song 02", "Syn song 03", "Syn song 04", "Syn song 05"];
 
 async function listTitles(request: APIRequestContext): Promise<string[]> {
-  const r = await request.get("/api/tracks?limit=50");
+  const r = await request.get("/api/tracks?limit=50&recipe_known=true");
   expect(r.ok()).toBeTruthy();
   return ((await r.json()) as { items: { title: string }[] }).items.map((t) => t.title);
 }
@@ -12,14 +13,15 @@ test("seeded titles are listed", async ({ page, request }) => {
   expect((await listTitles(request)).sort()).toEqual(TITLES);
   await page.goto("/");
   const rows = page.getByTestId("track-row");
-  await expect(rows).toHaveCount(TITLES.length);
+  expect(TITLES).toHaveLength(SEED_RECIPE_TRACKS);
+  await expect(rows).toHaveCount(SEED_TRACKS);
   for (const t of TITLES) await expect(page.getByTestId("track-link").filter({ hasText: new RegExp(`^${t}$`) })).toBeVisible();
-  await expect(page.getByTestId("library-counts")).toContainText("9 tracks");
+  await expect(page.getByTestId("library-counts")).toContainText(`${SEED_TRACKS} tracks`);
 });
 
 test("q search is accent-insensitive", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(9);
+  await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
   await page.getByTestId("filter-q").fill("Sýn sóng 03");
   await expect(page).toHaveURL(/[?&]q=/);
   await expect(page.getByTestId("track-row")).toHaveCount(1);
@@ -35,13 +37,13 @@ test("two style facets select the AND of both terms", async ({ page }) => {
     body.style_terms.push({ term: "ambient", count: 1 });
     await route.fulfill({ response: res, json: body });
   });
-  await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(9);
+  await page.goto("/?recipe_known=true");
+  await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
   const facets = page.getByTestId("style-facets");
 
   await facets.getByRole("button", { name: /^synthetic pop/ }).click();
   await expect(facets.getByRole("button", { name: /^synthetic pop/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("track-row")).toHaveCount(9);
+  await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
 
   const req = page.waitForRequest((r) => {
     const u = new URL(r.url());
@@ -57,8 +59,8 @@ test("two style facets select the AND of both terms", async ({ page }) => {
 });
 
 test("duration filter and URL restore on back/forward", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByTestId("track-row")).toHaveCount(9);
+  await page.goto("/?recipe_known=true");
+  await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
 
   await page.getByTestId("style-facets").getByRole("button", { name: /^synthetic pop/ }).click();
   await expect(page).toHaveURL(/style=synthetic/);
@@ -74,7 +76,7 @@ test("duration filter and URL restore on back/forward", async ({ page }) => {
   await page.goBack();
   await expect(page).toHaveURL(/style=synthetic/);
   await expect(page).not.toHaveURL(/min_duration_s/);
-  await expect(page.getByTestId("track-row")).toHaveCount(9);
+  await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
   await expect(page.locator('input[name="min"]')).toHaveValue("");
 
   await page.goForward();
