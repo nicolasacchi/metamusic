@@ -1,0 +1,31 @@
+[project]
+name = "metamusic-worker"
+version = "0.1.0"
+description = "RunPod serverless worker for metamusic (mm.worker/1 contract)"
+readme = "README.md"
+requires-python = "==3.12.*"
+# Runtime deps: runpod only. There is deliberately NO yue2 extra: uv locks every extra, which would pull
+# yue2 and torch into uv.lock. The Dockerfile and the contract job install yue2-infer explicitly.
+dependencies = ["runpod==1.12.0"]
+
+[dependency-groups]
+dev = ["pytest", "pytest-timeout", "pytest-cov", "jsonschema", "numpy", "soundfile"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mmworker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 60
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["mmworker"]
+omit = ["*/mmworker/__main__.py"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:"]

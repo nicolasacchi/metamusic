@@ -1,0 +1,40 @@
+{
+  "full": [
+    "abc_tokens.npy",
+    "audio.flac",
+    "config.json",
+    "latent.npy",
+    "plan.json",
+    "plan_manifest.json",
+    "prefix.npy",
+    "request.json",
+    "result.json",
+    "score.abc",
+    "semantic.npy"
+  ],
+  "melody": [
+    "abc_tokens.npy",
+    "audio.flac",
+    "config.json",
+    "latent.npy",
+    "plan.json",
+    "plan_manifest.json",
+    "prefix.npy",
+    "request.json",
+    "result.json",
+    "score.abc",
+    "semantic.npy"
+  ],
+  "off": [
+    "abc_tokens.npy",
+    "audio.flac",
+    "config.json",
+    "latent.npy",
+    "plan.json",
+    "plan_manifest.json",
+    "prefix.npy",
+    "request.json",
+    "result.json",
+    "semantic.npy"
+  ]
+}
