@@ -53,6 +53,8 @@ export interface PlayerDeps {
   now(): number;
   /** Resolves display metadata for a track (title/album); optional. */
   fetchMeta?(trackId: string): Promise<{ title: string; album: string } | null>;
+  /** Warms the first bytes of a signed media URL (the next track) so the swap at `ended` starts quickly. */
+  warm?(url: string): void;
 }
 
 export interface PlayOptions {
@@ -62,6 +64,16 @@ export interface PlayOptions {
   startAt?: number;
   /** false: load paused (deep link). Default true. */
   autoplay?: boolean;
+  /** Fetches more queue entries (the next list page); asked when the queue is about to run out. */
+  more?: () => Promise<string[]>;
+}
+
+/** A playback diagnostic; the listen recorder turns it into an outbox event (kinds autoplay_blocked|stall_end|advance|error). */
+export interface PlayerDiag {
+  kind: "autoplay_blocked" | "stall_end" | "advance" | "error";
+  detail?: string;
+  track_id: string;
+  pos_ms: number;
 }
 
 interface CacheEntry {
@@ -75,6 +87,12 @@ const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 // Contract: cache until expires_at - 10 min. Deviation: never more than half the TTL, so short-TTL
 // links (agents, tests) are not considered expired the moment they are minted. Equal for the 12 h human TTL.
 const MARGIN_MS = 10 * 60_000;
+/** Watchdog: `ended` did not fire although playback sits at the end (Android Firefox, range-served FLAC). */
+const END_EPS_S = 0.3;
+const END_STALL_MS = 1500;
+const WATCHDOG_MS = 500;
+const STALL_REPORT_MS = 500;
+const PREFETCH_AT = 0.8;
 const LOADING_TITLE = "Loading…";
 const FALLBACK_TITLE = "Untitled track";
 
@@ -94,6 +112,10 @@ export class Player {
     /** The current track has no lossless file (lossy reference): it plays its MP3 master, whatever the device quality. */
     noFlac: false,
     error: "",
+    /** play() was refused (autoplay policy): the queue position is kept and the next interaction resumes. */
+    pendingPlay: false,
+    /** The queue played out: nothing is next (visible state, Media Session `none`). */
+    endOfQueue: false,
   });
 
   /* Non-reactive bookkeeping: nothing renders from these collections. */
@@ -118,6 +140,20 @@ export class Player {
   private appliedTrack = "";
   /** Bumped on every track change so a slow async link fetch never clobbers a newer play. */
   private epoch = 0;
+  /** The current play already advanced/ended: `ended`, the watchdog and a late event act once. */
+  private finished = false;
+  private lastPos = 0;
+  private lastProgressAt = 0;
+  private stallStart: number | null = null;
+  private prefetchedAt = -1;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private playCause = "user";
+  /** Explicit "play next" entries sitting right after the current track. */
+  private queuedNext = 0;
+  private source: (() => Promise<string[]>) | null = null;
+  private sourceBusy = false;
+  private sourceDone = false;
+  private stopActivation: (() => void) | null = null;
 
   constructor(deps: PlayerDeps) {
     this.deps = deps;
@@ -139,17 +175,28 @@ export class Player {
     const offs = [
       on("loadedmetadata", () => this.onLoadedMetadata()),
       on("durationchange", () => this.syncDuration()),
-      on("timeupdate", () => (this.state.current = el.currentTime || 0)),
-      on("seeked", () => (this.state.current = el.currentTime || 0)),
-      on("play", () => (this.state.playing = true)),
+      on("timeupdate", () => this.onTimeUpdate()),
+      on("seeked", () => {
+        this.state.current = el.currentTime || 0;
+        this.finished = false;
+      }),
+      on("play", () => this.onPlay()),
+      on("waiting", () => {
+        if (this.wantPlay && this.stallStart === null) this.stallStart = this.deps.now();
+      }),
       on("playing", () => {
+        this.endStall();
         this.state.playing = true;
+        this.state.pendingPlay = false;
         this.state.error = "";
         this.reminted.delete(this.state.trackId);
         if (!this.meta.has(this.state.trackId) && this.title === FALLBACK_TITLE) this.syncMeta(this.state.trackId);
         this.prefetchNext();
       }),
-      on("pause", () => (this.state.playing = false)),
+      on("pause", () => {
+        this.state.playing = false;
+        this.stallStart = null;
+      }),
       // The media load algorithm (src change, load()) pauses the element without a `pause` event.
       on("emptied", () => (this.state.playing = !el.paused)),
       on("abort", () => (this.state.playing = !el.paused)),
@@ -162,7 +209,93 @@ export class Player {
     } catch {
       /* optional API */
     }
-    this.cleanup = () => offs.forEach((f) => f());
+    this.timer = setInterval(() => this.tick(), WATCHDOG_MS);
+    (this.timer as { unref?: () => void }).unref?.();
+    this.cleanup = () => {
+      offs.forEach((f) => f());
+      this.stopActivation?.();
+      this.stopActivation = null;
+      if (this.timer) clearInterval(this.timer);
+      this.timer = null;
+    };
+  }
+
+  /**
+   * Resume a refused play() on the next user interaction or when the page becomes visible again
+   * (Firefox Android may refuse play() after the screen was off). Returns a cleanup.
+   */
+  watchActivation(doc: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState">): () => void {
+    this.stopActivation?.();
+    const act = () => {
+      if (this.state.pendingPlay) this.resume();
+    };
+    const vis = () => {
+      if (doc.visibilityState !== "visible") return;
+      this.tick();
+      act();
+    };
+    const types = ["click", "keydown", "touchend"];
+    for (const t of types) doc.addEventListener(t, act, true);
+    doc.addEventListener("visibilitychange", vis);
+    const stop = () => {
+      for (const t of types) doc.removeEventListener(t, act, true);
+      doc.removeEventListener("visibilitychange", vis);
+    };
+    this.stopActivation = stop;
+    return () => {
+      stop();
+      if (this.stopActivation === stop) this.stopActivation = null;
+    };
+  }
+
+  /** Playback intent (wantPlay), for the Media Session playbackState. */
+  get playIntent(): boolean {
+    return this.wantPlay;
+  }
+
+  get hasNext(): boolean {
+    return this.state.index + 1 < this.state.queue.length;
+  }
+
+  /** Insert a track right after the current one (after earlier "play next" entries). */
+  playNext(trackId: string) {
+    const s = this.state;
+    if (!s.trackId) {
+      this.load(trackId, [trackId]);
+      return;
+    }
+    if (trackId === s.trackId) return;
+    const q = [...s.queue];
+    const at = q.indexOf(trackId);
+    let index = s.index;
+    if (at !== -1) {
+      q.splice(at, 1);
+      if (at < index) index--;
+      else if (at <= index + this.queuedNext) this.queuedNext--;
+    }
+    q.splice(index + 1 + this.queuedNext, 0, trackId);
+    this.queuedNext++;
+    s.queue = q;
+    s.index = index;
+    this.prefetchNext();
+    this.notify();
+  }
+
+  /** Append a track to the end of the queue. */
+  enqueue(trackId: string) {
+    const s = this.state;
+    if (!s.trackId) {
+      this.load(trackId, [trackId]);
+      return;
+    }
+    if (!s.queue.includes(trackId)) s.queue = [...s.queue, trackId];
+    this.prefetchNext();
+    this.notify();
+  }
+
+  setQueueSource(more: (() => Promise<string[]>) | null) {
+    this.source = more;
+    this.sourceDone = false;
   }
 
   /** Start playing a track (optionally with a queue it belongs to). Must be called from a user gesture. */
@@ -205,6 +338,22 @@ export class Player {
     this.deps.device.onGesture?.();
     this.wantPlay = true;
     this.autoplay = true;
+    this.playCause = "resume";
+    this.finished = false;
+    if (this.state.pendingPlay) {
+      this.state.pendingPlay = false;
+      this.state.error = "";
+    }
+    // Play after the end of the queue restarts the last track from its beginning. A stream the watchdog ended
+    // (no native `ended`, so play() would not wrap around) otherwise resumes its last fraction of a second and
+    // immediately ends again, which re-shows "End of queue" right after the tap.
+    if (this.state.endOfQueue) {
+      this.pendingSeek = null;
+      this.lastPos = 0;
+      this.lastProgressAt = this.deps.now();
+      this.seek(0);
+    }
+    this.state.endOfQueue = false;
     if (el.error || (el.readyState === 0 && !this.cached(this.state.trackId))) {
       // Errored element (failed FLAC and MP3), or nothing was ever fetched (preload=none) and the
       // links expired meanwhile: apply/mint a source again instead of play()ing a dead element.
@@ -227,7 +376,10 @@ export class Player {
 
   next() {
     const s = this.state;
-    if (s.index + 1 < s.queue.length) this.goto(s.index + 1);
+    if (s.index + 1 < s.queue.length) {
+      if (this.queuedNext > 0) this.queuedNext--;
+      this.goto(s.index + 1);
+    }
   }
 
   prev() {
@@ -302,11 +454,19 @@ export class Player {
     const s = this.state;
     this.epoch++;
     const q = queue && queue.includes(trackId) ? [...queue] : queue ? [trackId] : s.queue.includes(trackId) ? s.queue : [trackId];
+    if (queue || !s.queue.includes(trackId)) {
+      this.queuedNext = 0;
+      this.setQueueSource(opts.more ?? null);
+    }
     s.queue = q;
     s.index = q.indexOf(trackId);
     s.trackId = trackId;
     s.noFlac = false;
     s.error = "";
+    s.pendingPlay = false;
+    s.endOfQueue = false;
+    this.finished = false;
+    this.playCause = "user";
     s.current = opts.startAt ?? 0;
     s.duration = 0;
     this.pendingSeek = opts.startAt != null && opts.startAt > 0 ? opts.startAt : null;
@@ -318,6 +478,7 @@ export class Player {
     if (opts.title && opts.album !== undefined) this.meta.set(trackId, { title: opts.title, album: opts.album });
     this.syncMeta(trackId, opts.title);
     this.begin(trackId);
+    this.notify();
   }
 
   /** Synchronous when links are cached (required for `ended` and gesture-bound play()). */
@@ -367,9 +528,13 @@ export class Player {
   private fail(e: unknown) {
     // Autoplay rejections are routine (user gesture lost); media errors arrive via `error`.
     if (e instanceof DOMException && e.name === "NotAllowedError") {
-      this.wantPlay = false;
+      // Keep the intent and the queue position: the next interaction, Media Session action or
+      // visibilitychange resumes (watchActivation / resume()).
       this.state.playing = false;
-      this.state.error = "Tap play to start";
+      this.state.pendingPlay = true;
+      this.state.error = "Tap to continue";
+      this.diag("autoplay_blocked", `cause=${this.playCause}`);
+      this.notify();
       return;
     }
     if (e instanceof DOMException && e.name === "AbortError") {
@@ -411,12 +576,105 @@ export class Player {
     return p;
   }
 
-  private prefetchNext() {
+  private prefetchNext(warm = false) {
     const s = this.state;
     const id = s.queue[s.index + 1];
     if (id !== undefined) {
-      void this.links(id);
+      // cached(): an expired entry is dropped, so this refreshes a link past its half-life.
+      void this.links(id).then((l) => {
+        if (warm && l && id === s.queue[s.index + 1]) {
+          const fmt = l.flac ? this.formatFor(id) : "mp3";
+          this.deps.warm?.(fmt === "flac" && l.flac ? l.flac.url : l.mp3.url);
+        }
+      });
       void this.loadMeta(id);
+    }
+    if (s.index + 1 >= s.queue.length - 1) this.extendQueue();
+  }
+
+  private extendQueue() {
+    const src = this.source;
+    if (!src || this.sourceBusy || this.sourceDone) return;
+    this.sourceBusy = true;
+    void src()
+      .then((ids) => {
+        if (src !== this.source) return;
+        const add = ids.filter((i) => !this.state.queue.includes(i));
+        if (ids.length === 0) this.sourceDone = true;
+        if (add.length) this.state.queue = [...this.state.queue, ...add];
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (src === this.source) this.sourceBusy = false;
+      });
+  }
+
+  private onTimeUpdate() {
+    const el = this.el;
+    if (!el) return;
+    const t = el.currentTime || 0;
+    this.state.current = t;
+    this.observe(t);
+    const d = el.duration;
+    // Refresh/warm the next link well before the end so `ended` never has to await.
+    if (Number.isFinite(d) && d > 0 && t / d >= PREFETCH_AT && this.prefetchedAt !== this.epoch) {
+      this.prefetchedAt = this.epoch;
+      this.prefetchNext(true);
+    }
+  }
+
+  private observe(t: number) {
+    if (t !== this.lastPos) {
+      this.lastPos = t;
+      this.lastProgressAt = this.deps.now();
+    }
+  }
+
+  private onPlay() {
+    const el = this.el;
+    this.state.playing = true;
+    this.state.endOfQueue = false;
+    const d = el?.duration;
+    // A replay from the start re-arms the end handling; a play event right at the end (resume at the
+    // end) must not, or the same end would be handled twice.
+    if (!(d !== undefined && Number.isFinite(d) && d > 0 && d - (el?.currentTime ?? 0) < 1)) this.finished = false;
+  }
+
+  private endStall() {
+    if (this.stallStart === null) return;
+    const ms = this.deps.now() - this.stallStart;
+    this.stallStart = null;
+    if (ms >= STALL_REPORT_MS) this.diag("stall_end", `ms=${Math.round(ms)}`);
+  }
+
+  /** Watchdog (500 ms interval, also on visibilitychange): `ended` did not fire at the end of the stream. */
+  tick() {
+    const el = this.el;
+    const id = this.state.trackId;
+    if (!el || !id || this.finished || !this.wantPlay || this.appliedTrack !== id) return;
+    const t = el.currentTime || 0;
+    this.observe(t);
+    const d = el.duration;
+    if (!Number.isFinite(d) || !(d > 0) || d - t > END_EPS_S) return;
+    if (this.deps.now() - this.lastProgressAt >= END_STALL_MS) this.advance("watchdog");
+  }
+
+  private notify() {
+    try {
+      this.el?.dispatchEvent(new Event("mm:state"));
+    } catch {
+      /* no DOM */
+    }
+  }
+
+  private diag(kind: PlayerDiag["kind"], detail?: string, trackId = this.state.trackId, pos?: number) {
+    if (!trackId) return;
+    const p = pos ?? this.el?.currentTime ?? 0;
+    const d: PlayerDiag = { kind, ...(detail ? { detail } : {}), track_id: trackId, pos_ms: Math.max(0, Math.round((Number.isFinite(p) ? p : 0) * 1000)) };
+    try {
+      this.el?.dispatchEvent(new CustomEvent("mm:diag", { detail: d }));
+    } catch {
+      /* no DOM */
     }
   }
 
@@ -440,26 +698,61 @@ export class Player {
   }
 
   private onEnded() {
-    this.state.playing = false;
+    // An `ended` that arrives while the next track's source is not applied yet is the old stream's.
+    if (this.appliedTrack !== this.state.trackId) return;
+    // A late `ended` of the stream the watchdog already advanced past: the element now holds the next
+    // source, whose `ended` is false (a real end of the current source always reads true).
+    if (this.el?.ended === false) return;
+    this.advance("ended");
+  }
+
+  /** The current track is over (native `ended`, or the watchdog): act exactly once per play. */
+  private advance(reason: "ended" | "watchdog") {
+    const el = this.el;
     const s = this.state;
+    const id = s.trackId;
+    if (this.finished || !id) return;
+    this.finished = true;
+    const pos = el?.currentTime ?? 0;
+    // Before anything changes: the listen recorder completes the track that just ended (a track change
+    // between listeners would otherwise reset it and the `complete` event would be lost).
+    try {
+      el?.dispatchEvent(new Event("mm:finish"));
+    } catch {
+      /* no DOM */
+    }
+    this.diag("advance", `reason=${reason}`, id, pos);
+    s.playing = false;
     const nextId = s.queue[s.index + 1];
     if (nextId === undefined) {
       this.wantPlay = false;
+      s.endOfQueue = true;
+      s.pendingPlay = false;
+      if (reason === "watchdog") el?.pause();
+      this.notify();
       return;
     }
+    if (this.queuedNext > 0) this.queuedNext--;
     this.epoch++;
     s.index += 1;
     s.trackId = nextId;
     s.noFlac = false;
     s.current = 0;
     s.duration = 0;
+    s.pendingPlay = false;
+    s.error = "";
     this.pendingSeek = null;
     this.autoplay = true;
     this.wantPlay = true;
+    this.playCause = "advance";
+    this.finished = false;
+    this.lastPos = 0;
+    this.lastProgressAt = this.deps.now();
     this.probePending.delete(nextId);
     this.reminted.delete(nextId);
     this.syncMeta(nextId);
     this.begin(nextId);
+    this.notify();
   }
 
   private onError() {
@@ -467,6 +760,7 @@ export class Player {
     const code = el?.error?.code;
     const id = this.state.trackId;
     if (!el || !id) return;
+    this.diag("error", `code=${code ?? 0},fmt=${this.state.format}${/MediaSink/i.test(el.error?.message ?? "") ? ",sink=1" : ""}`);
     // Firefox reports a failing audio output (no device, e.g. headless CI) as MEDIA_ERR_DECODE with this message
     // after decoding already worked, and keeps the media clock running. It says nothing about the codec: do not
     // fall back to MP3, record a failed probe, or touch playback state.
@@ -545,6 +839,14 @@ async function getTrackRef(id: string): Promise<TrackRef | null> {
   return r.data ? { title: r.data.title, rootId: r.data.lineage?.root_track_id ?? null } : null;
 }
 
+// One hidden element warms the first bytes (metadata) of the next track's signed URL; it is never played.
+let warmEl: HTMLAudioElement | null = null;
+function warm(url: string) {
+  if (typeof Audio === "undefined") return;
+  warmEl ??= Object.assign(new Audio(), { preload: "metadata", muted: true });
+  if (warmEl.src !== new URL(url, location.href).href) warmEl.src = url;
+}
+
 export const player = new Player({
   fetchLinks: async (id) => {
     const r = await api.GET("/api/tracks/{id}/media", { params: { path: { id } } });
@@ -553,6 +855,7 @@ export const player = new Player({
   device: localDevice,
   now: () => Date.now(),
   fetchMeta: (id) => resolveMeta(id, getTrackRef),
+  warm,
 });
 
 session.configure({ isPlaying: () => player.state.playing });

@@ -22,6 +22,12 @@ make tools      # download pinned golangci-lint, gitleaks, ffmpeg (LGPL, linux/a
                 # metaflac comes from the system flac package, else is built from the pinned xiph source
 ```
 
+Heavy suites (check, test, race, cover, e2e) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
+slots, default 1; `MM_HEAVY_LOCK=0` disables) and memory-capped (`MM_HEAVY_MEM`, default 20G, via
+`systemd-run --user --scope`) by `scripts/loop`, because concurrent race suites triggered systemd-oomd.
+Agents must run whole-repo race suites only through `make`; single-package
+`go test -race ./internal/x/` is fine.
+
 Every `make` target runs through `scripts/loop`, which appends a metrics row (no command lines,
 paths or secrets) to the shared `metrics/loop.jsonl` (gitignored). This project is also an
 experiment in how well Go suits LLM-driven development — do not bypass the wrapper.

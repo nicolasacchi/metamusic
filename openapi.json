@@ -4169,6 +4169,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "detail": {
+            "description": "Diagnostic kinds only: short token string such as code=4,fmt=flac or ms=2500",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9_:=.,-]+$",
+            "type": "string"
+          },
           "device_id": {
             "type": "string"
           },
@@ -4189,12 +4195,17 @@
             "type": "string"
           },
           "kind": {
+            "description": "start|segment|seek|complete|skip are listening; autoplay_blocked|stall_end|advance|error are client playback diagnostics (never counted as plays)",
             "enum": [
               "start",
               "segment",
               "seek",
               "complete",
-              "skip"
+              "skip",
+              "autoplay_blocked",
+              "stall_end",
+              "advance",
+              "error"
             ],
             "type": "string"
           },
@@ -8990,7 +9001,7 @@
     },
     "/api/listen-events": {
       "post": {
-        "description": "Records player events (start, segment, seek, complete, skip) with client-generated ids; re-sending an id is harmless.",
+        "description": "Records player events (start, segment, seek, complete, skip) and client playback diagnostics (autoplay_blocked, stall_end, advance, error) with client-generated ids; re-sending an id is harmless.",
         "operationId": "log_listen_events",
         "requestBody": {
           "content": {

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { api } from "../api/client";
   import type { components } from "../api/schema";
+  import { trackPageQueue } from "../lib/queue";
   import { player } from "../lib/player.svelte";
   import { fmt, parseT } from "../lib/time";
   import { judge, createTagSuggestions } from "../lib/judge.svelte";
@@ -107,7 +109,7 @@
     const tr = track;
     const start = parseT(t);
     if (!tr || tr.id !== id || start === null) return;
-    player.load(id, [id], { title: tr.title, startAt: start, autoplay: false });
+    player.load(id, untrack(() => trackPageQueue(id, player.state.queue, tr.lineage.siblings)), { title: tr.title, startAt: start, autoplay: false });
     navigate?.(`/tracks/${encodeURIComponent(id)}`, true);
   });
 
@@ -138,7 +140,7 @@
       if (!player.state.playing) player.toggle();
       return;
     }
-    player.play(id, [id], { title: track.title, ...(startAt !== undefined ? { startAt } : {}) });
+    player.play(id, trackPageQueue(id, player.state.queue, track.lineage.siblings), { title: track.title, ...(startAt !== undefined ? { startAt } : {}) });
   }
   function seek(s: number) {
     if (isCurrent) player.seek(s);

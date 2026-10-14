@@ -106,13 +106,31 @@
     })();
   });
 
+  /**
+   * Playing from the list queues the visible order (the earlier rows stay reachable with Previous) and the
+   * player asks for the next page before the queue runs out, so a long list does not stop at the page end.
+   */
   function play(id: string) {
     const t = tracks.find((x) => x.id === id);
+    let cursor = nextCursor;
+    const f = filters;
     player.play(
       id,
       tracks.map((x) => x.id),
-      t ? { title: t.title } : {},
+      {
+        ...(t ? { title: t.title } : {}),
+        more: async () => {
+          if (!cursor) return [];
+          const r = await api.GET("/api/tracks", { params: { query: { ...toApiQuery(f), limit: PAGE, cursor } } });
+          if (!r.data) throw new Error("page failed");
+          cursor = r.data.next_cursor;
+          return r.data.items.map((x) => x.id);
+        },
+      },
     );
+  }
+  function playNext(id: string) {
+    player.playNext(id);
   }
 </script>
 
@@ -134,7 +152,7 @@
 
 {#if error}<p role="alert">{error}</p>{/if}
 <div aria-busy={loading}>
-  <TrackTable {tracks} playingId={player.state.trackId} onplay={play} />
+  <TrackTable {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} />
 </div>
 <Pager {page} offset={starts[page] ?? 0} count={tracks.length} {total} busy={loading} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
 

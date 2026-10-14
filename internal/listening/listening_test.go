@@ -197,3 +197,47 @@ func TestListen_ConcurrentDuplicateDeliveries(t *testing.T) {
 		t.Fatalf("plays = %+v err=%v, want %d more than %d", got, err, ids, basePlays.Plays)
 	}
 }
+
+// Playback diagnostics (autoplay_blocked, stall_end, advance, error) carry a short detail token, are
+// stored, and never count as plays or completions.
+func TestListen_Diagnostics(t *testing.T) {
+	t.Parallel()
+	s, st := newSvc(t)
+	ctx := context.Background()
+	str := func(v string) *string { return &v }
+	diag := func(n int, kind string, detail *string) listening.Event {
+		e := ev(n, kind)
+		e.FromMS, e.ToMS, e.Detail = i64(1000), i64(1000), detail
+		return e
+	}
+	evs := []listening.Event{
+		diag(1, "autoplay_blocked", str("cause=advance")),
+		diag(2, "stall_end", str("ms=2500")),
+		diag(3, "advance", str("reason=watchdog")),
+		diag(4, "error", str("code=4,fmt=flac")),
+		diag(5, "error", nil),
+		diag(6, "advance", str("Reason=Title With Spaces")), // charset
+		diag(7, "advance", str("0123456789012345678901234567890123456789012345678901234567890123456789")), // too long
+		diag(8, "start", str("cause=x")), // detail only on diagnostic kinds
+	}
+	acc, _, rej, err := s.Log(ctx, human, "web", evs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []listening.Rejected{{ID: id(6), Code: "bad_detail"}, {ID: id(7), Code: "bad_detail"}, {ID: id(8), Code: "bad_detail"}}
+	if diff := cmp.Diff(want, rej); diff != "" || acc != 5 {
+		t.Fatalf("accepted %d rejected (-want +got):\n%s", acc, diff)
+	}
+	var d *string
+	if err := st.R.QueryRow(`SELECT detail FROM listen_events WHERE id = ?`, id(4)).Scan(&d); err != nil || d == nil || *d != "code=4,fmt=flac" {
+		t.Errorf("stored detail %v %v", d, err)
+	}
+	before, _ := s.Stats(ctx, lt.TrackLuna)
+	if _, _, _, err := s.Log(ctx, human, "web", []listening.Event{diag(30, "error", str("code=3"))}); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := s.Stats(ctx, lt.TrackLuna)
+	if after.Plays != before.Plays || (before.CompletionRate == nil) != (after.CompletionRate == nil) {
+		t.Errorf("diagnostics changed stats: %+v -> %+v", before, after)
+	}
+}

@@ -73,7 +73,7 @@ func TestMigration0005_UpgradeFromM2b(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v != 5 {
+	if v, _ := s.UserVersion(ctx); v < 5 {
 		t.Fatalf("version=%d", v)
 	}
 	after := snap(s)

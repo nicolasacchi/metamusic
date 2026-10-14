@@ -9,8 +9,10 @@
     tracks: readonly Track[];
     playingId?: string;
     onplay: (id: string) => void;
+    /** Insert after the current track in the queue. */
+    onplaynext?: (id: string) => void;
   }
-  let { tracks, playingId = "", onplay }: Props = $props();
+  let { tracks, playingId = "", onplay, onplaynext }: Props = $props();
 
   // A rating or status changed in this session shows at once, before the next fetch.
   function stars(t: Track): number | null {
@@ -51,6 +53,9 @@
         <tr data-testid="track-row" data-track-id={t.id} class:playing={t.id === playingId}>
           <td>
             <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}>▶</button>
+            {#if onplaynext}
+              <button type="button" class="play" aria-label="Queue {t.title} next" title="Play next" onclick={() => onplaynext(t.id)}>⤵</button>
+            {/if}
           </td>
           <td>
             <a href="/tracks/{t.id}" data-testid="track-link">{t.title}</a>

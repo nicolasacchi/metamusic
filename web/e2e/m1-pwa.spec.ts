@@ -54,18 +54,20 @@ test("media session handlers and metadata", async ({ page, request }) => {
       orig(action, handler);
     };
   });
-  const id = await trackId(request, "Syn song 03");
+  const id = await trackId(request, "Syn song 01 s1001");
   await page.goto(`/tracks/${id}`);
   await page.getByTestId("track-play").click();
   await expect.poll(() => now(page), { timeout: 5000 }).toBeGreaterThan(0.2);
   const handlers = await page.evaluate(() => (window as unknown as { __msHandlers: Record<string, string> }).__msHandlers);
+  // "Syn song 01 s1001" has a sibling take, so the queue has a next track and nexttrack stays registered
+  // (a track without a next one withdraws it, see m3-autoadvance.spec.ts).
   for (const a of ["play", "pause", "previoustrack", "nexttrack", "seekto"]) expect(handlers[a], a).toBe("fn");
   for (const a of ["seekforward", "seekbackward"]) expect(handlers[a] ?? "null", a).toBe("null");
   const meta = await page.evaluate(() => {
     const m = navigator.mediaSession.metadata;
     return m ? { title: m.title, artist: m.artist, album: m.album, artwork: m.artwork.map((a) => a.src) } : null;
   });
-  expect(meta?.title).toBe("Syn song 03");
+  expect(meta?.title).toBe("Syn song 01 s1001");
   expect(meta?.artist).toBe("metamusic");
   expect(meta?.artwork.join(",")).toContain("/icons/icon-512.png");
 });
