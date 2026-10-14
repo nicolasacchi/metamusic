@@ -161,6 +161,12 @@ func TestOps_StubsAnswer501(t *testing.T) {
 	for _, w := range m3Ops {
 		res := m3Call(r, w)
 		d, _ := res.body["details"].(map[string]any)
+		if w.lane == "M3-B4" { // implemented by the Generation lane: behaviour is covered by its own tests
+			if res.code == 501 && res.body["code"] == "NOT_IMPLEMENTED" {
+				t.Errorf("%s: still a stub", w.id)
+			}
+			continue
+		}
 		if res.code != 501 || res.body["code"] != "NOT_IMPLEMENTED" || d["stub"] != w.lane {
 			t.Errorf("%s: %d %v, want 501 NOT_IMPLEMENTED stub %s", w.id, res.code, res.body, w.lane)
 		}
@@ -267,7 +273,13 @@ func TestNullablePatch_SchemasM3(t *testing.T) {
 	var s []string
 	for _, ok := range []string{`{"mode":"lyric_edit","patch":{"abc":null}}`, `{"mode":"lyric_edit","patch":{"abc":"X:1"}}`, `{"mode":"style_edit","patch":{"cfg_scale":null}}`} {
 		rec := r.callWith(gen, "POST", "/api/tracks/x/variants/estimate", ok)
-		if rec.Code == 422 || rec.Code == 400 {
+		var body struct {
+			Details struct {
+				Errors []any `json:"errors"`
+			} `json:"details"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		if rec.Code == 400 || (rec.Code == 422 && len(body.Details.Errors) > 0) { // a schema refusal, not a service answer
 			s = append(s, ok)
 		}
 	}

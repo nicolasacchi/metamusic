@@ -1,17 +1,15 @@
 // Package generation turns estimate items into takes (lineage + engine + lint), freezes an estimate and
 // runs the create, approve and reject transactions (M3 C71, C72.4, C72.6). It imports neither jobs nor
 // api: the runner is woken through the injected Wake func and the response body is encoded by a callback
-// the operation supplies (TestImportGraph_M3). M3-B2 freezes the constructor and the method set; M3-B4
-// replaces the STUB bodies.
+// the operation supplies (TestImportGraph_M3). It imports no engine implementation either: requests are
+// parsed, patched and linted through lineage, and the engine is used through the engine.Engine interface.
 package generation
 
 import (
-	"context"
-	"errors"
 	"io"
 	"time"
+	"uuid"
 
-	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
@@ -21,9 +19,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
-
-// ErrNotImplemented marks a STUB(M3-B4) body.
-var ErrNotImplemented = errors.New("generation: not implemented (STUB(M3-B4))")
 
 // Options builds a Service.
 type Options struct {
@@ -56,27 +51,21 @@ func New(o Options) *Service {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.NewID == nil {
+		o.NewID = func() string { return uuid.NewV7().String() }
+	}
 	return &Service{o: o}
 }
 
 // OptString is a tri-state patch string: absent, JSON null (remove) or a value (set).
-type OptString struct {
-	Set, Null bool
-	Value     string
-}
+type OptString = lineage.OptString
 
 // OptNumber is the numeric twin of OptString.
-type OptNumber struct {
-	Set, Null bool
-	Value     float64
-}
+type OptNumber = lineage.OptNumber
 
-// Patch edits a base recipe (C71.1); nil pointers keep the base value.
-type Patch struct {
-	Style, Lyrics, Cot *string
-	ABC                OptString
-	CFGScale           OptNumber
-}
+// Patch edits a base recipe (C71.1); nil pointers keep the base value. It is lineage's type: the planner
+// applies it, and generation never imports the engine implementation.
+type Patch = lineage.Patch
 
 // Item is the one input shape behind every create path (C71.1). Recipe holds the exact client bytes.
 type Item struct {
@@ -138,6 +127,9 @@ type CapFit struct {
 	WouldExceed []string // "batch" | "monthly" | "daily"
 }
 
+// Pot is one cap with its use (month and day of an estimate's budget block).
+type Pot struct{ Cap, Used, Left money.MicroUSD }
+
 // Estimate is a frozen estimate with its single-use confirmation token (shown once).
 type Estimate struct {
 	ID, Token        string
@@ -148,17 +140,15 @@ type Estimate struct {
 	ETAS             int
 	PricePerHour     money.MicroUSD
 	PriceObservedAt  *time.Time
+	GPUPools         []string
 	Items            []PlannedItem
 	Warnings         []Warning
 	RequiresApproval bool
 	ApprovalReasons  []string
 	Budget           CapFit
+	Month, Day       Pot
+	BatchCap         money.MicroUSD
 	Provider         provider.State
-}
-
-// Estimate expands items into takes, costs them and stores the frozen estimate. STUB(M3-B4).
-func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn) (Estimate, error) {
-	return Estimate{}, ErrNotImplemented
 }
 
 // CreateIn is a create request (C72.4). VariantTrackID is set by create_variant.
@@ -167,48 +157,55 @@ type CreateIn struct {
 	VariantTrackID        *string
 }
 
-// Created is what a create transaction wrote.
+// Created is a batch as the create, approve and reject operations answer it: what the create transaction
+// wrote, read back inside that transaction (so the stored idempotent body and the live answer are one
+// value), or what an approval changed.
 type Created struct {
 	BatchID, State, ApprovalState string
 	JobIDs                        []string
 	Takes                         int
 	Expected, Max, Ceiling        money.MicroUSD
 	CreatedAt                     time.Time
+
+	Via, EstimateID string
+	Rationale       *string
+	FinishedAt      *time.Time
+	CreatedBy       Actor
+	Counts          Counts
+	Reserved        money.MicroUSD
+	Settled         money.MicroUSD
+	Outstanding     money.MicroUSD
+	Reconciled      bool
+	Approval        ApprovalView
+	Jobs            []JobView
 }
 
-// Create runs the create transaction. encode renders the response body inside the transaction (so the
-// idempotency row stores the exact bytes) and is supplied by the operation. STUB(M3-B4).
-func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, encode func(Created) (status int, body []byte, err error)) (Created, error) {
-	return Created{}, ErrNotImplemented
+// Actor is a principal reference as stored (Principal.Key plus the kind and display name).
+type Actor struct{ Key, Kind, Name string }
+
+// Counts counts a batch's jobs by state class (C81 BatchCounts).
+type Counts struct{ Awaiting, Queued, Running, Completed, Truncated, Failed, Cancelled, Expired int }
+
+// JobView is one job of a batch (C81 JobSummary).
+type JobView struct {
+	ID, BatchID, State, Title, RequestID, Operator string
+	TakeIndex                                      int
+	Seed                                           int64
+	Outcome, ErrorCode                             *string
+	ParentTrackID, DraftID, TrackID                *string
+	CreatedAt, UpdatedAt                           time.Time
+	Expected                                       money.MicroUSD
+	Display                                        *money.MicroUSD
+	Basis                                          string
 }
 
 // ApprovalView is the approval row of a batch (C81 ApprovalStatus).
 type ApprovalView struct {
 	BatchID, State, Via, Reason, DecidedBy string
+	Decider                                Actor // DecidedBy as a reference; zero while pending
 	Reasons                                []string
 	DecidedAt                              *time.Time
 	ExpiresAt                              time.Time
 	LastRequestedAt, NextRequestAllowedAt  *time.Time
 	Notified                               bool
-}
-
-// Approval reads the approval of a batch. STUB(M3-B4).
-func (s *Service) Approval(ctx context.Context, p auth.Principal, batchID string) (ApprovalView, error) {
-	return ApprovalView{}, ErrNotImplemented
-}
-
-// RequestApproval pushes the approval request for a pending batch (creator only; rate-limited to one
-// push per 10 minutes). STUB(M3-B4).
-func (s *Service) RequestApproval(ctx context.Context, p auth.Principal, batchID string) (ApprovalView, error) {
-	return ApprovalView{}, ErrNotImplemented
-}
-
-// Approve approves a pending batch (human-only) and wakes the runner. STUB(M3-B4).
-func (s *Service) Approve(ctx context.Context, p auth.Principal, batchID, reason string) (Created, error) {
-	return Created{}, ErrNotImplemented
-}
-
-// Reject rejects a pending batch, releasing its reservation in the same transaction. STUB(M3-B4).
-func (s *Service) Reject(ctx context.Context, p auth.Principal, batchID, reason string) (Created, error) {
-	return Created{}, ErrNotImplemented
 }

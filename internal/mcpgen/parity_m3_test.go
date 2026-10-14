@@ -7,8 +7,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// placeholderToken has the shape of a confirmation token; M3-B4 replaces the stubs, after which the
-// create cases read the real token from the estimate case before them.
+// placeholderToken has the shape of a confirmation token; a create case reads the real token from the
+// estimate case before it (prev) and falls back to this one.
 var placeholderToken = "mmc_" + strings.Repeat("a", 52)
 
 // tokenFrom reads the confirmation token of the previous case on the same rig, else the placeholder.
@@ -24,16 +24,21 @@ func tokenFrom(prev map[string]any) string {
 // the lane then removes Status and fills the arguments. Rigs run the fake backend with the runner idle,
 // so a create stops at queued and no job ever runs during parity.
 var m3Cases = []ParityCase{
-	{Op: "estimate_generation", Status: 501, Args: fixedArgs(map[string]any{"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 3}}})},
-	{Op: "create_generation", Status: 501, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+	{Op: "estimate_generation", Masks: estimateMasks, Args: fixedArgs(map[string]any{"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 3}}})},
+	{Op: "create_generation", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		return map[string]any{"confirmation_token": tokenFrom(prev), "rationale": "parity"}
 	}},
-	{Op: "estimate_variant", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "mode": "new_seed", "n_seeds": 3})},
-	{Op: "create_variant", Status: 501, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+	{Op: "estimate_variant", Masks: estimateMasks, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "mode": "new_seed", "n_seeds": 3})},
+	{Op: "create_variant", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		return map[string]any{"id": lt.TrackLuna, "confirmation_token": tokenFrom(prev)}
 	}},
-	{Op: "request_approval", Status: 501, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting})},
-	{Op: "get_approval_status", Status: 501, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting})},
+	// the batch the create_variant case just made belongs to the rig's own agent; the ids differ per rig
+	{Op: "request_approval", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+		return map[string]any{"id": idFrom(prev, "id")}
+	}},
+	{Op: "get_approval_status", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+		return map[string]any{"id": idFrom(prev, "batch_id")}
+	}},
 	{Op: "list_batches", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_batch", Status: 501, Args: fixedArgs(map[string]any{"id": lt.BatchDone})},
 	{Op: "cancel_batch", Status: 501, SkipGeneric: true, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting, "reason": "parity"})},
@@ -41,11 +46,27 @@ var m3Cases = []ParityCase{
 	{Op: "get_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobDone})},
 	{Op: "wait_for_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobDone, "timeout_s": 0})},
 	{Op: "cancel_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobAwaiting1, "reason": "parity"})},
-	{Op: "get_budget", Status: 501},
-	{Op: "get_spend", Status: 501, Args: fixedArgs(map[string]any{"month": "2026-10"})},
-	{Op: "list_ledger", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_budget", Masks: moneyMasks},
+	{Op: "get_spend", Masks: moneyMasks, Args: fixedArgs(map[string]any{"month": "2026-10"})},
+	{Op: "list_ledger", Masks: moneyMasks, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_provider_status", Status: 501},
-	{Op: "get_lineage", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "get_lineage", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+}
+
+// Ids drawn from a rig's id sequence (which the audit rows of the calls advance), token ids and the
+// references built from them legitimately differ between faces and rigs.
+var (
+	estimateMasks = []string{"estimate_id", "confirmation_token"}
+	batchMasks    = []string{"id", "batch_id", "estimate_id", "created_by", "decided_by", "confirmation_token"}
+	moneyMasks    = []string{"id", "batch_id", "job_id", "principal", "created_by", "updated_by", "tokens"}
+)
+
+// idFrom reads an id the previous case answered (a batch), else the fixture's awaiting batch.
+func idFrom(prev map[string]any, key string) string {
+	if s, ok := prev[key].(string); ok && s != "" {
+		return s
+	}
+	return lt.BatchAwaiting
 }
 
 func init() {
