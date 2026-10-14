@@ -1,0 +1,9 @@
+{
+  "_note": "PLACEHOLDERS until M3-X4 records the real canary: the friendly fake's defaults must equal what the canary measured (C78.1).",
+  "measured": false,
+  "cold_start_s": 3,
+  "idle_s": 20,
+  "kill_latency_ms": 1500,
+  "workers_per_job": 1,
+  "idle_billed": true
+}

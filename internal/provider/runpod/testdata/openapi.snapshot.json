@@ -1,0 +1,583 @@
+{
+  "components": {
+    "schemas": {
+      "BillingRecord": {
+        "description": "Half-open hourly buckets; amounts inclusive of platform charges.",
+        "properties": {
+          "cpuAmount": {
+            "type": "number"
+          },
+          "diskAmount": {
+            "type": "number"
+          },
+          "endTime": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "feeAmount": {
+            "deprecated": true,
+            "description": "Always 0.",
+            "type": "number"
+          },
+          "gpuAmount": {
+            "type": "number"
+          },
+          "serverlessId": {
+            "type": "string"
+          },
+          "startTime": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalAmount": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "CreateEndpointRequest": {
+        "properties": {
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "flashboot": {
+            "enum": [
+              "OFF",
+              "FLASHBOOT",
+              "PRIORITY_FLASHBOOT"
+            ],
+            "type": "string"
+          },
+          "gpu": {
+            "$ref": "#/components/schemas/Gpu"
+          },
+          "image": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scaling": {
+            "$ref": "#/components/schemas/Scaling"
+          },
+          "timeout": {
+            "default": 300000,
+            "description": "Per-request execution timeout in milliseconds.",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "QUEUE",
+              "LOAD_BALANCER"
+            ],
+            "type": "string"
+          },
+          "workers": {
+            "$ref": "#/components/schemas/Workers"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "scaling"
+        ],
+        "type": "object"
+      },
+      "Endpoint": {
+        "properties": {
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "flashboot": {
+            "type": "string"
+          },
+          "gpu": {
+            "$ref": "#/components/schemas/Gpu"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requestUrls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "scaling": {
+            "properties": {
+              "queueDelay": {
+                "type": "number"
+              },
+              "requestCount": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "timeout": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "workers": {
+            "$ref": "#/components/schemas/Workers"
+          }
+        },
+        "type": "object"
+      },
+      "Gpu": {
+        "properties": {
+          "allowedCudaVersions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "count": {
+            "default": 1,
+            "type": "integer"
+          },
+          "excludedTypes": {
+            "description": "Catalog GPU type ids. They must lie inside the listed pools, else 400. A PATCH that sends pools without excludedTypes clears them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "minCudaVersion": {
+            "description": "Mutually exclusive with a non-empty allowedCudaVersions.",
+            "example": "12.8",
+            "type": "string"
+          },
+          "pools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "GpuType": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pool": {
+            "type": "string"
+          },
+          "price": {
+            "properties": {
+              "community": {
+                "type": "number"
+              },
+              "secure": {
+                "type": "number"
+              },
+              "serverless": {
+                "description": "Per-GPU list price per hour; discounts are not reflected. Absent when the type is in no serverless pool available to the caller.",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "Problem": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "errors": {
+            "items": {},
+            "type": "array"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Scaling": {
+        "discriminator": {
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ScalingQueueDelay"
+          },
+          {
+            "$ref": "#/components/schemas/ScalingRequestCount"
+          }
+        ]
+      },
+      "ScalingQueueDelay": {
+        "properties": {
+          "queueDelay": {
+            "minimum": 0.5,
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "QUEUE_DELAY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "queueDelay"
+        ],
+        "type": "object"
+      },
+      "ScalingRequestCount": {
+        "properties": {
+          "requestCount": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "REQUEST_COUNT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "requestCount"
+        ],
+        "type": "object"
+      },
+      "UpdateEndpointRequest": {
+        "properties": {
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "flashboot": {
+            "enum": [
+              "OFF",
+              "FLASHBOOT",
+              "PRIORITY_FLASHBOOT"
+            ],
+            "type": "string"
+          },
+          "gpu": {
+            "$ref": "#/components/schemas/Gpu"
+          },
+          "image": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scaling": {
+            "$ref": "#/components/schemas/Scaling"
+          },
+          "timeout": {
+            "description": "Per-request execution timeout in milliseconds.",
+            "type": "integer"
+          },
+          "workers": {
+            "$ref": "#/components/schemas/Workers"
+          }
+        },
+        "type": "object"
+      },
+      "Worker": {
+        "properties": {
+          "gpuTypeId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "isStale": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "description": "null until started",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "Falls back to the pod lifecycle when the queue view is unavailable.",
+            "type": "string"
+          },
+          "uptimeSeconds": {
+            "description": "null until placed",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "Workers": {
+        "properties": {
+          "idleTimeout": {
+            "description": "Seconds a worker stays idle before stopping. Rejected (and omitted) for queue endpoints scaling on REQUEST_COUNT.",
+            "type": "integer"
+          },
+          "max": {
+            "default": 3,
+            "type": "integer"
+          },
+          "min": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "RECONSTRUCTED SUBSET (M3-B8). The lane that wrote this file had no permission to call the RunPod API, so it encodes only the facts the M3 plan (C77.2) takes from the public spec fetched 2026-10-12. M3-X2 replaces it with the real document, canonicalised with jq -S; TestClient_ManagementFieldsInSnapshot then re-validates every field the client uses.",
+    "title": "RunPod REST API v2 (management subset)",
+    "version": "2.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v2/billing/serverless": {
+      "get": {
+        "operationId": "billingServerless",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "serverlessId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "startTime and endTime are snapped to bucket bounds; lastN ends with the in-progress bucket.",
+            "in": "query",
+            "name": "bucketSize",
+            "schema": {
+              "default": "day",
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month",
+                "year"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "startTime",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endTime",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillingRecord"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/v2/catalog/gpus": {
+      "get": {
+        "operationId": "listGpus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GpuType"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "401": {
+            "description": "bearer token required"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/serverless": {
+      "get": {
+        "operationId": "listServerless",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Endpoint"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "ok"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createServerless",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEndpointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Endpoint"
+                }
+              }
+            },
+            "description": "created"
+          }
+        }
+      }
+    },
+    "/v2/serverless/{id}": {
+      "get": {
+        "operationId": "getServerless",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Endpoint"
+                }
+              }
+            },
+            "description": "ok"
+          }
+        }
+      },
+      "patch": {
+        "description": "Update an endpoint. Nested objects (workers, gpu, scaling) are described as partial updates; `idleTimeout` is listed under scaling in this description.",
+        "operationId": "updateServerless",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEndpointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Endpoint"
+                }
+              }
+            },
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/v2/serverless/{id}/workers": {
+      "get": {
+        "operationId": "listWorkers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Worker"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "ok"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.runpod.io"
+    }
+  ]
+}
