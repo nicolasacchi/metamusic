@@ -841,6 +841,7 @@ func (e *propEnv) finalReconcile() {
 		// placed in a quiet window that does not cross the month (C76.5 step 4: no such B, so wait): its month
 		// and everything after it stay outstanding. That is conservative for the caps and is pinned by
 		// TestBilling_BatchStraddlingMonthEndWaits; the end-state assertions below do not apply to such a timeline.
+		// OPEN DESIGN DECISION D-M3-37 (plan): a blocker for M3-X1, which resolves it and deletes this skip.
 		e.t.Logf("seed %d: a batch straddles a month end; reconciliation waits by design (see TestBilling_BatchStraddlingMonthEndWaits)", e.seed)
 		return
 	}
@@ -986,7 +987,7 @@ func (e *propEnv) straddlesMonthEnd() bool {
 // calendar-month end: no window can close (a window never crosses the month, and the batch is not quiet by
 // the month end), so the batch stays outstanding, holding its reserve against the caps, and the stalled push
 // names it after 72 h. The property suite found this; the behaviour is conservative (never an overspend) but a
-// straddling batch blocks reconciliation of its month and of everything after it until the design resolves it.
+// straddling batch blocks reconciliation of its month and of everything after it until the design resolves it (D-M3-37 in the plan: an open decision and a blocker for M3-X1, which replaces this test with the specified behaviour).
 func TestBilling_BatchStraddlingMonthEndWaits(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)

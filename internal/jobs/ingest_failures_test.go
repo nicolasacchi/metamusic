@@ -27,7 +27,7 @@ func TestIngestBridge_EveryDatabaseCallMayFail(t *testing.T) {
 		ctl.disarm()
 		return b, id, err
 	}
-	count := &failCtl{}
+	count := &failCtl{rows: true, scans: true}
 	if _, _, err := attempt(t, count, 0); err != nil {
 		t.Fatalf("the clean call: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestIngestBridge_EveryDatabaseCallMayFail(t *testing.T) {
 	for k := int64(1); k <= total; k += stride {
 		t.Run(fmt.Sprintf("call %d", k), func(t *testing.T) {
 			t.Parallel()
-			b, id, err := attempt(t, &failCtl{}, k)
+			b, id, err := attempt(t, &failCtl{rows: true, scans: true}, k)
 			tracks := b.count(`SELECT COUNT(*) FROM tracks`)
 			if err == nil {
 				if tracks != 1 || id == "" || len(b.tracksOnDisk()) != 1 {

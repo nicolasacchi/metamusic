@@ -21,6 +21,8 @@ type failCtl struct {
 	n     atomic.Int64
 	at    atomic.Int64 // 0 = count only
 	fired atomic.Bool
+	rows  bool // also fail Close of result sets (set before use; the sweeps of read paths turn it on)
+	scans bool // also make a row unreadable: its first column holds a value no Scan can convert
 }
 
 func (c *failCtl) arm(at int64) {
@@ -80,9 +82,41 @@ func (c *failConn) QueryContext(ctx context.Context, q string, args []driver.Nam
 		return nil, errInjected
 	}
 	if e, ok := c.Conn.(driver.QueryerContext); ok {
-		return e.QueryContext(ctx, q, args)
+		rows, err := e.QueryContext(ctx, q, args)
+		if err != nil {
+			return nil, err
+		}
+		if !c.ctl.rows && !c.ctl.scans {
+			return rows, nil
+		}
+		return &failRows{Rows: rows, ctl: c.ctl}, nil
 	}
 	return nil, driver.ErrSkip
+}
+
+// failRows fails Close, the way a result set whose cursor cannot be released does: the code reads rows.Close()'s error.
+type failRows struct {
+	driver.Rows
+	ctl *failCtl
+}
+
+// Next hands out a row whose first column no destination accepts, so rows.Scan fails (the code reads that error).
+func (r *failRows) Next(dest []driver.Value) error {
+	if err := r.Rows.Next(dest); err != nil {
+		return err
+	}
+	if r.ctl.scans && len(dest) > 0 && r.ctl.hit() {
+		dest[0] = make(chan int)
+	}
+	return nil
+}
+
+func (r *failRows) Close() error {
+	if r.ctl.hit() {
+		_ = r.Rows.Close()
+		return errInjected
+	}
+	return r.Rows.Close()
 }
 
 func (c *failConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {

@@ -124,7 +124,7 @@ func TestReconciler_EveryDatabaseCallMayFail(t *testing.T) {
 	if testing.Short() {
 		t.Skip("heavy: one rig per database call of every scenario")
 	}
-	for _, sc := range reconScenarios() {
+	for si, sc := range reconScenarios() {
 		t.Run(sc.name, func(t *testing.T) {
 			t.Parallel()
 			base, batch := sc.build(t)
@@ -144,7 +144,7 @@ func TestReconciler_EveryDatabaseCallMayFail(t *testing.T) {
 				ctl.disarm()
 				return r, rec, err
 			}
-			count := &failCtl{}
+			count := &failCtl{rows: true, scans: true}
 			_, _, err := run(t, count, 0)
 			if err != nil {
 				t.Fatalf("the clean pass: %v", err)
@@ -155,12 +155,12 @@ func TestReconciler_EveryDatabaseCallMayFail(t *testing.T) {
 			}
 			stride := int64(1)
 			if raceEnabled {
-				stride = 4
+				stride = 8
 			}
-			for k := int64(1); k <= total; k += stride {
+			for k := 1 + int64(si)%stride; k <= total; k += stride { // each scenario starts at its own offset: scenarios share code, so the strides together cover more calls
 				t.Run(fmt.Sprintf("call %d", k), func(t *testing.T) {
 					t.Parallel()
-					r, rec, _ := run(t, &failCtl{}, k)
+					r, rec, _ := run(t, &failCtl{rows: true, scans: true}, k)
 					r.assertSafe(batch)
 					r.hold(r.run)
 					if err := rec.Pass(t.Context()); err != nil && !errors.Is(err, store.ErrLeaseLost) {

@@ -13,7 +13,7 @@ wf="$root/.github/workflows"
 chk "ci.yml has no paths: key" '! grep -Eq "^[[:space:]]*paths(-ignore)?:" "$wf/ci.yml"'
 chk "ci.yml has the worker-py job" 'grep -Eq "^  worker-py:" "$wf/ci.yml"'
 chk "worker-py runs pytest with the 90 gate" 'grep -q -- "--cov-fail-under=90" "$wf/ci.yml"'
-chk "go-media timeout is 10 min" 'awk "/^  go-media:/{f=1;next} /^  [a-z]/{f=0} f && /timeout-minutes:/{print \$2}" "$wf/ci.yml" | grep -qx 10'
+chk "go-media timeout is 20 min" 'awk "/^  go-media:/{f=1;next} /^  [a-z]/{f=0} f && /timeout-minutes:/{print \$2}" "$wf/ci.yml" | grep -qx 20'
 chk "worker-contract.yml triggers on PR and push with worker paths" \
   'grep -q "pull_request:" "$wf/worker-contract.yml" && grep -q "worker/\*\*" "$wf/worker-contract.yml" && grep -q "schedule:" "$wf/worker-contract.yml" && grep -q "workflow_dispatch:" "$wf/worker-contract.yml"'
 chk "worker-contract.yml delegates to scripts/worker-contract.sh" 'grep -q "scripts/worker-contract.sh" "$wf/worker-contract.yml"'

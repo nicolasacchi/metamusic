@@ -20,4 +20,4 @@ case "$tier" in
   *) echo "ci-go-test: unknown tier $tier" >&2; exit 2 ;;
 esac
 [ "${#pkgs[@]}" -gt 0 ] || { echo "ci-go-test: no packages for tier $tier" >&2; exit 2; }
-exec go test -race -shuffle=on -cover "${pkgs[@]}" -args -test.gocoverdir="$(cd "$cov" && pwd)"
+exec go test -timeout 18m -race -shuffle=on -cover "${pkgs[@]}" -args -test.gocoverdir="$(cd "$cov" && pwd)"

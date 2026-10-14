@@ -107,7 +107,7 @@ func TestService_EveryDatabaseCallMayFail(t *testing.T) {
 				adm := r.admin(provider.ModeFake, true, func(o *ProviderOptions) { o.Sweep = rec.Snapshot })
 				return r, r.service(t.Context()), adm
 			}
-			count := &failCtl{}
+			count := &failCtl{rows: true, scans: true}
 			r, svc, adm := build(t, count)
 			count.arm(0)
 			if err := c.run(r, svc, adm); err != nil {
@@ -121,7 +121,7 @@ func TestService_EveryDatabaseCallMayFail(t *testing.T) {
 			for k := int64(1); k <= total; k++ {
 				t.Run(fmt.Sprintf("call %d", k), func(t *testing.T) {
 					t.Parallel()
-					ctl := &failCtl{}
+					ctl := &failCtl{rows: true, scans: true}
 					r, svc, adm := build(t, ctl)
 					ctl.arm(k)
 					_ = c.run(r, svc, adm) // an error or a result: never a panic

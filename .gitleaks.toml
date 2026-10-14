@@ -27,3 +27,9 @@ id = "metamusic-runpod-key"
 description = "RunPod key assignment (RUNPOD_*KEY=value, runpod.env format)"
 regex = '''(?i)RUNPOD_[A-Z_]*KEY\s*[=:]\s*\S{8,}'''
 keywords = ["runpod_"]
+
+# Synthetic key fixtures in Go tests (the loaders under test need the assignment format); real files live
+# outside the repo under secrets/.
+[[rules.allowlists]]
+description = "synthetic RunPod key fixtures in Go tests"
+paths = ['''(^|/)[^/]+_test\.go$''']

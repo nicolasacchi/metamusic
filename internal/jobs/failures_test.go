@@ -234,6 +234,10 @@ func failureScenarios() []failureScenario {
 	}
 }
 
+// pollHeavy names the scenarios that exercise the status-following paths of poll.go; the race-mode sweep fails
+// every third call of them instead of every eighth.
+var pollHeavy = map[string]bool{"lost with evidence": true, "requeue": true, "queue expiry": true, "provider failure": true, "running seen": true}
+
 func (r *rig) onSubmitOnce() {
 	inner := r.submitFn
 	r.mu.Lock()
@@ -285,13 +289,13 @@ func TestRunner_EveryDatabaseCallMayFail(t *testing.T) {
 	if testing.Short() {
 		t.Skip("heavy: one rig per database call of every scenario")
 	}
-	for _, sc := range failureScenarios() {
+	for si, sc := range failureScenarios() {
 		t.Run(sc.name, func(t *testing.T) {
 			t.Parallel()
 			// how many calls does the tick make?
 			base, batch := sc.build(t)
 			fz := base.freeze()
-			ctl := &failCtl{}
+			ctl := &failCtl{rows: true, scans: true}
 			r := fz.thaw(t, ctl)
 			ctl.arm(0)
 			_, _ = r.run.Step(t.Context())
@@ -303,12 +307,15 @@ func TestRunner_EveryDatabaseCallMayFail(t *testing.T) {
 			}
 			stride := int64(1)
 			if raceEnabled {
-				stride = 4 // the race detector makes each rig several times slower; plain `go test` fails every call
+				stride = 8 // (rows closing count as calls too) the race detector makes each rig several times slower; plain `go test` fails every call
+				if pollHeavy[sc.name] {
+					stride = 3 // the poll paths are where most storage-error branches live
+				}
 			}
-			for k := int64(1); k <= total; k += stride {
+			for k := 1 + int64(si)%stride; k <= total; k += stride { // each scenario starts at its own offset: scenarios share code, so the strides together cover more calls
 				t.Run(fmt.Sprintf("call %d", k), func(t *testing.T) {
 					t.Parallel()
-					ctl := &failCtl{}
+					ctl := &failCtl{rows: true, scans: true}
 					r := fz.thaw(t, ctl)
 					ctl.arm(k)
 					_, _ = r.run.Step(t.Context())

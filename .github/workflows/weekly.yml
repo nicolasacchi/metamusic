@@ -25,3 +25,22 @@ jobs:
           [ -f "$snap" ] || { echo "no snapshot at $snap yet (recorded by the Provider lane / M3-X1)"; exit 1; }
           curl -fsS --max-time 60 https://api.runpod.io/v2/openapi.json | jq -S . > "$RUNNER_TEMP/live.json"
           jq -S . "$snap" | diff -u - "$RUNNER_TEMP/live.json"
+
+  spend-property:
+    # The long run of the spend property suite (C86.3): the CI default is a few timelines, this is 300.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: spend property suite, 300 timelines
+        env:
+          MM_PROPERTY_TIMELINES: "300"
+        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/jobs

@@ -629,8 +629,6 @@ func classifySubmit(err error) *submitFailure {
 	}
 	if ok {
 		switch code {
-		case "EDGE_BLOCKED":
-			return &submitFailure{kind: failRefused, code: CodeEdgeBlocked, trip: true, text: text}
 		case "UNAUTHORIZED", "FORBIDDEN":
 			return &submitFailure{kind: failRefused, code: CodeProviderAuth, trip: true, text: text}
 		case "BAD_REQUEST":
