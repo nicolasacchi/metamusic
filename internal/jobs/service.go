@@ -128,9 +128,3 @@ type WaitResult struct {
 	Job               Job
 	Changed, TimedOut bool
 }
-
-// Wait returns at once when the job's state differs from sinceState or is terminal, else blocks on the
-// hub or a 1 s DB re-check until timeout, request cancellation or server shutdown (C75.8). STUB(M3-B5).
-func (s *Service) Wait(ctx context.Context, p auth.Principal, id, sinceState string, timeout time.Duration) (WaitResult, error) {
-	return WaitResult{}, ErrNotImplemented
-}
