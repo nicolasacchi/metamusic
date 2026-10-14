@@ -60,4 +60,54 @@ chk "svelte-check human errors counted, warnings not" 'jq -e ".compile_errors==1
 MM_LANE=Upper "$root/scripts/loop" check -- true >/dev/null
 chk "lane lower-cased" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"upper\"" >/dev/null'
 chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+
+# heavy targets: machine-wide lock, wait_ms, nesting, scope fallback
+export MM_HEAVY_LOCK_FILE="$tmp/heavy.lock" MM_HEAVY_SCOPE=0
+unset MM_HEAVY_HELD MM_HEAVY_LOCK MM_HEAVY_SLOTS
+now() { date +%s%N; }
+par2() { # run two heavy 1s sleeps concurrently, print elapsed ms
+  local t0 t1
+  t0=$(now)
+  "$root/scripts/loop" test -- sleep 1 >/dev/null 2>&1 &
+  "$root/scripts/loop" race -- sleep 1 >/dev/null 2>&1 &
+  wait
+  t1=$(now)
+  echo $(((t1 - t0) / 1000000))
+}
+: >"$MM_METRICS_FILE"
+el=$(par2)
+chk "1 slot serialises heavy runs (>=2s, got ${el}ms)" '[ "$el" -ge 1950 ]'
+chk "wait_ms recorded for the waiter" '[ "$(jq -s "map(.wait_ms) | max" "$MM_METRICS_FILE")" -ge 700 ]'
+chk "wall_ms excludes the wait" '[ "$(jq -s "map(.wall_ms) | max" "$MM_METRICS_FILE")" -lt 1700 ]'
+chk "wait_ms rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+chk "legacy row without wait_ms validates" 'echo "{\"ts\":\"2026-01-01T00:00:00Z\",\"target\":\"check\",\"wall_ms\":1,\"exit\":0,\"compile_errors\":0,\"failing_tests\":0,\"sha\":\"abc1234\",\"lane\":\"main\",\"cache\":\"warm\"}" | jq -e -f "$root/scripts/metrics-row.jq" >/dev/null'
+: >"$MM_METRICS_FILE"
+el=$(MM_HEAVY_SLOTS=2 par2)
+chk "2 slots run in parallel (<1.8s, got ${el}ms)" '[ "$el" -lt 1800 ]'
+el=$(MM_HEAVY_LOCK=0 par2)
+chk "MM_HEAVY_LOCK=0 skips the lock (<1.8s, got ${el}ms)" '[ "$el" -lt 1800 ]'
+# nested loop invocation under a held slot must not deadlock
+rc=0
+timeout 20 "$root/scripts/loop" check -- "$root/scripts/loop" test -- true >/dev/null 2>&1 || rc=$?
+chk "nested heavy invocation does not deadlock" '[ "$rc" = 0 ]'
+# systemd path: fake systemd-run/systemctl on PATH prove the scope command line
+fake="$tmp/fakebin"
+mkdir -p "$fake"
+printf '#!/bin/sh\necho running\n' >"$fake/systemctl"
+printf '#!/bin/sh\necho "$@" >"%s/sdrun.args"\nwhile [ "$1" != "--" ]; do shift; done; shift; exec "$@"\n' "$tmp" >"$fake/systemd-run"
+chmod +x "$fake/systemctl" "$fake/systemd-run"
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 MM_HEAVY_MEM=7G "$root/scripts/loop" test -- true >/dev/null 2>&1
+chk "scope applied with MemoryMax and no swap" 'grep -q -- "--user --scope --quiet --collect -p MemoryMax=7G -p MemorySwapMax=0" "$tmp/sdrun.args"'
+rm -f "$tmp/sdrun.args"
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" lint -- true >/dev/null 2>&1
+chk "non-heavy target is not scoped" '[ ! -e "$tmp/sdrun.args" ]'
+printf '#!/bin/sh\necho offline\nexit 1\n' >"$fake/systemctl"
+rc=0
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" test -- sh -c 'exit 5' >/dev/null 2>&1 || rc=$?
+chk "no user manager: direct fallback runs, rc kept" '[ "$rc" = 5 ] && [ ! -e "$tmp/sdrun.args" ]'
+printf '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done; shift; "$@"; exit 137\n' >"$fake/systemd-run"
+printf '#!/bin/sh\necho running\n' >"$fake/systemctl"
+rc=0
+out=$(PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" test -- true 2>&1) || rc=$?
+chk "OOM-kill keeps non-zero exit and prints hint" '[ "$rc" = 137 ] && echo "$out" | grep -q "killed by MemoryMax=20G; raise MM_HEAVY_MEM"'
 exit $fail
