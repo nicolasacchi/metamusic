@@ -345,6 +345,21 @@ func (r *Runner) followTerminal(ctx context.Context, tx *sql.Tx, f store.LeaseFe
 		o.cancel = append(o.cancel, others...)
 		return r.moveJob(ctx, tx, f, j, StateTransferring, Event{AttemptID: a.ID, Name: EvCompletedRemote}, set("state_deadline_at", store.FormatTime(f.Now.Add(transferNoCompleted))))
 	case provider.Failed, provider.TimedOut, provider.Cancelled:
+		if j.CancelRequestedAt != nil {
+			// The cancel intent landed after the cancel phase looked at this job: the attempt was closed
+			// (the worker's start poll got 410) or cancelled, and no result can be kept. The user asked for
+			// the stop, so this is a cancel (row 14 then 22), not a worker failure.
+			others, err := liveOthers(ctx, tx, j.ID, a.ID)
+			if err != nil {
+				return err
+			}
+			o.cancel = append(o.cancel, others...)
+			if err := r.moveJob(ctx, tx, f, j, StateCancelling, Event{AttemptID: a.ID, Name: EvCancelRequested, Code: CodeCancelledByUser}, set("error_code", CodeCancelledByUser),
+				set("state_deadline_at", store.FormatTime(f.Now.Add(cancelUnconfirm)))); err != nil {
+				return err
+			}
+			return r.conclude(ctx, tx, f, j, o.b)
+		}
 		code, text := terminalCode(o.st)
 		ev := Event{AttemptID: a.ID, Name: EvFailed, Code: code}
 		if o.st.State == provider.Cancelled {

@@ -512,3 +512,19 @@ func TestRunner_IngestTimeoutWaitsForItsAttempts(t *testing.T) {
 	}
 	r.wantState(job, StateFailed)
 }
+
+// A cancel intent that lands while the runner is polling closes the attempt (the worker's start poll gets 410
+// and stops), so the provider reports a failed run while the job still shows generating. The user asked for
+// the stop: the job ends cancelled, not failed WORKER_LOST.
+func TestRunner_CancelIntentLandsDuringPollThenWorkerStops(t *testing.T) {
+	t.Parallel()
+	r, _, job, _ := generating(t)
+	ref := r.refOf(job, 1)
+	r.setStatus(ref, provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1000), ErrorText: "ATTEMPT_CLOSED: the attempt was closed"})
+	r.pollHook = func() { r.cancelIntent(job) }
+	r.advance(31 * time.Second)
+	r.step()
+	r.pollHook = nil
+	r.wantState(job, StateCancelled)
+	r.wantCode(job, CodeCancelledByUser)
+}

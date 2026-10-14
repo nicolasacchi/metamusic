@@ -158,6 +158,7 @@ type rig struct {
 	revertFn  func(d []provider.Drift) error
 	quoteFn   func() (provider.Quote, error)
 	pollErr   error
+	pollHook  func() // runs inside Poll, before it answers: lets a test land an event mid-observation
 	cancelErr error
 	caps      provider.Capabilities
 	billCalls [][2]time.Time
@@ -281,6 +282,9 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			r.polls[ref.ID]++
+			if r.pollHook != nil {
+				r.pollHook()
+			}
 			if r.pollErr != nil {
 				return provider.RemoteStatus{}, r.pollErr
 			}
