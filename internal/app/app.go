@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -31,7 +32,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
+	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -181,7 +184,15 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 
 	wake := &wakeRef{}
-	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake)
+	var pipe *ingest.Pipeline // the generation ingest bridge's master pipeline (nil without ffmpeg)
+	if media.Analyzer != nil {
+		abs, err := filepath.Abs(cfg.DataDir)
+		if err != nil {
+			return nil, err
+		}
+		pipe = ingest.New(data, abs, mediatool.Tools{FFmpeg: cfg.FFmpeg, FLAC: cfg.FLAC, Metaflac: cfg.Metaflac}, media.Analyzer, now)
+	}
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears)
 	if err != nil {
 		return nil, err
 	}

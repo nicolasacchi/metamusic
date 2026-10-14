@@ -40,6 +40,7 @@ func mcpStdio(ctx context.Context, getenv func(string) string, s streams, tr mcp
 	if err != nil {
 		return fatal(err)
 	}
+	cfg.Runner = false // never builds a runner, never takes the lease (C79); Wake stays nil-safe
 	sec, err := config.LoadSecrets(cfg.SecretsDir, "local")
 	if err != nil {
 		return fatal(err)

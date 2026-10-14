@@ -1,24 +1,29 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync/atomic"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
+	"github.com/nicolasacchi/metamusic/internal/media/ingest"
+	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
@@ -45,6 +50,10 @@ type M3Options struct {
 	Shutdown context.Context
 	// Log is the logger of the runner and the reconciler; nil => slog.Default().
 	Log *slog.Logger
+	// Live marks a process that serves real traffic (serve, dev): the runner gets the claim preflight (D-M3-33)
+	// and the fake backend gets a simulated worker that talks to the upload handlers in process. Rigs leave it
+	// false and drive the runner and the fake worker themselves.
+	Live bool
 }
 
 // Backend identifies the active provider backend of a process.
@@ -73,7 +82,7 @@ func (c clockFromNow) NewTimer(d time.Duration) clock.Timer { return clock.Real.
 
 // selectBackend implements the MM_BACKEND choice (C68): none => no backend; fake => the in-process fake;
 // runpod => the serverless backend when runpod.env is present, no backend (keys_absent) when it is not.
-func selectBackend(cfg config.Config, o M3Options, clk clock.Clock) (backendInfo, error) {
+func selectBackend(cfg config.Config, o M3Options, clk clock.Clock, ups *upload.Service) (backendInfo, error) {
 	switch cfg.Backend {
 	case config.BackendFake:
 		if o.Backend != nil {
@@ -84,6 +93,14 @@ func selectBackend(cfg config.Config, o M3Options, clk clock.Clock) (backendInfo
 			fo = *o.Fake
 		}
 		fo.Clock = clk
+		if o.Live && fo.Worker == nil && ups != nil {
+			fo.Worker = fake.NewSimWorker(fake.SimWorkerOptions{
+				Uploader: fake.HandlerUploader{UploadHandler: ups.Handler(), StartHandler: ups.StartHandler()},
+				Clock:    clk,
+				Tools:    mediatool.Tools{FFmpeg: cfg.FFmpeg, FLAC: cfg.FLAC, Metaflac: cfg.Metaflac},
+				Weights:  yue2.Weights,
+			})
+		}
 		if cfg.FakeBackend != "" && cfg.FakeBackend != "fast" && fo.Speed.Slow == 0 {
 			if d, ok := cutPrefix(cfg.FakeBackend, "slow:"); ok {
 				if dur, err := time.ParseDuration(d); err == nil {
@@ -169,16 +186,18 @@ type m3Services struct {
 // default row, the leaf services and, when a backend exists and the runner is enabled, an unstarted
 // runner and reconciler. Nothing here calls a backend method.
 func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *store.Store, data *os.Root, lib *library.Service, notifier notify.Notifier,
-	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef) (*m3Services, error) {
+	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service) (*m3Services, error) {
 	clk := o.Clock
 	if clk == nil {
 		clk = clockFromNow{now}
 	}
-	bi, err := selectBackend(cfg, o, clk)
+	m := &m3Services{Hub: jobs.NewHub()}
+	m.Uploads = upload.NewService(upload.ServiceOptions{Data: data, Signer: upload.NewSigner(sec.Key), Store: st, Clock: clk, NewID: newID, PublicURL: cfg.PublicURL, Wake: wake.call})
+	bi, err := selectBackend(cfg, o, clk, m.Uploads)
 	if err != nil {
 		return nil, err
 	}
-	m := &m3Services{Backend: bi.b, Fake: bi.fake, Hub: jobs.NewHub()}
+	m.Backend, m.Fake = bi.b, bi.fake
 	name := ""
 	if bi.b != nil {
 		name = bi.b.Name()
@@ -198,24 +217,32 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 	})
-	m.Uploads = upload.NewService(upload.ServiceOptions{Data: data, Signer: upload.NewSigner(sec.Key), Store: st, Clock: clk, NewID: newID, PublicURL: cfg.PublicURL, Wake: wake.call})
-	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate})
+	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
 
 	if bi.b != nil && cfg.Runner {
-		ing := o.Ingest
-		if ing == nil {
-			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Library: lib, Lineage: m.Lineage, Store: st, Clock: clk, NewID: newID})
-		}
 		log := o.Log
 		if log == nil {
 			log = slog.Default()
+		}
+		ing := o.Ingest
+		if ing == nil {
+			if pipe == nil {
+				log.Warn("generation ingest unavailable: ffmpeg tools missing; finished takes will fail INGEST_FAILED")
+			}
+			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Pipeline: pipe, Library: lib, Ears: ears, Lineage: m.Lineage, Spend: m.Spend,
+				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log})
+		}
+		var pre func(context.Context, int64) error
+		if o.Live {
+			pre = livePreflight(cfg, bi, m.Uploads)
 		}
 		owner := instanceID(rnd)
 		m.Runner = jobs.NewRunner(jobs.RunnerOptions{
 			Store: st, Backend: bi.b, Engines: engines, Spend: m.Spend, Uploads: m.Uploads, Ingest: ing, Notify: notifier, Hub: m.Hub,
 			Clock: clk, NewID: newID, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, Expect: provider.WorkerExpect{Weights: yue2.Weights}, Log: log,
+			Preflight: pre,
 		})
 		m.Reconciler = jobs.NewReconciler(jobs.ReconcilerOptions{
 			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID,
@@ -226,4 +253,48 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		wake.set(m.Runner.Wake)
 	}
 	return m, nil
+}
+
+// livePreflight is the runner's claim preflight (D-M3-33). Against the serverless backend the upload route
+// is probed through the public URL, because the worker's PUT arrives that way. The fake backend's simulated
+// worker never leaves the process, so the same probe goes straight into the upload handler: the route check
+// stays meaningful and a dev address that is not reachable from itself does not stall every claim.
+func livePreflight(cfg config.Config, bi backendInfo, ups *upload.Service) func(context.Context, int64) error {
+	po := jobs.PreflightOptions{DataDir: cfg.DataDir, PublicURL: cfg.PublicURL}
+	if bi.fake != nil && ups != nil {
+		po.HTTP = &http.Client{Transport: handlerTransport{ups.Handler()}, Timeout: 5 * time.Second}
+	}
+	return jobs.NewPreflight(po)
+}
+
+// handlerTransport serves a request with an http.Handler in process.
+type handlerTransport struct{ h http.Handler }
+
+type memResponse struct {
+	hdr  http.Header
+	code int
+	body bytes.Buffer
+}
+
+func (m *memResponse) Header() http.Header { return m.hdr }
+func (m *memResponse) WriteHeader(c int) {
+	if m.code == 0 {
+		m.code = c
+	}
+}
+func (m *memResponse) Write(b []byte) (int, error) {
+	m.WriteHeader(http.StatusOK)
+	return m.body.Write(b)
+}
+
+func (t handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.RequestURI = r.URL.RequestURI()
+	rec := &memResponse{hdr: http.Header{}}
+	t.h.ServeHTTP(rec, r)
+	if rec.code == 0 {
+		rec.code = http.StatusOK
+	}
+	return &http.Response{StatusCode: rec.code, Status: http.StatusText(rec.code), Header: rec.hdr, Proto: "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
+		Body: io.NopCloser(&rec.body), Request: r}, nil
 }
