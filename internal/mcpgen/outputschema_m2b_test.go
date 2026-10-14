@@ -80,7 +80,7 @@ func TestToolResultsConformToOutputSchema_M2b(t *testing.T) {
 		for face, sess := range map[string]*mcp.ClientSession{"http": httpSess, "stdio": stdioSess} {
 			var args map[string]any
 			if c.Args != nil {
-				args = c.Args(r)
+				args = c.Args(r, nil)
 			}
 			res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: c.Op, Arguments: args})
 			if err != nil {

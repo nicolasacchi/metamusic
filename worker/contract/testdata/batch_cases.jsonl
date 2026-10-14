@@ -1,0 +1,20 @@
+{"id":"a","style":"s","lyrics":"l"}
+{"id":"a","style":"s","lyrics":"l","cot":"melody","seed":7,"abc":"X:1","cfg_scale":1.5}
+{"id":"a","style":"s","lyrics":"l","cot":"off","seed":0}
+{"id":"a","style":"s","lyrics":"l","lang":"en","eval_index":3,"clip_id":"c"}
+{"id":"a","tags":"s","lyrics":"l"}
+{"id":"a","style":"s","lyrics":"l"}
+{"id":"a","style":"s","lyrics":"l","title":"t"}
+{not json
+[1]
+{"id":"a","id":"b","style":"s","lyrics":"l"}
+{"id":"a","style":"s"}
+{"id":"a","lyrics":"l"}
+{"id":"a","style":"s","lyrics":"l","cot":"half"}
+{"id":"a","style":"s","lyrics":"l","seed":-1}
+{"id":"a","style":"s","lyrics":"l","seed":"1"}
+{"id":"a","style":"s","lyrics":"l","seed":true}
+{"id":"../x","style":"s","lyrics":"l"}
+{"id":"a","style":"s","lyrics":"l","cfg_scale":21}
+{"id":"a","style":"s","lyrics":"l","cot":"off","abc":"X:1"}
+{"id":"a","style":"s","lyrics":"l","abc":"X:1","abc_path":"a.abc"}

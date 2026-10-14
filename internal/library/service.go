@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 	"uuid"
 
@@ -29,6 +30,8 @@ type Service struct {
 	// track_tags), so FixtureV2 can build a real schema-version-2 database for
 	// the upgrade test. Tests only; see UseLegacyV2Schema.
 	legacyV2 bool
+	// tables caches tables known to exist (hasTable); schema-gated writes ask it (D-M3-35).
+	tables sync.Map
 }
 
 // New builds a Service. data may be nil for callers that never read files

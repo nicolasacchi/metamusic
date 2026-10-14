@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -31,7 +32,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/runpodtest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -228,7 +231,7 @@ func scriptRest(t *testing.T, r *servertest.Rig, c *servertest.Client, st *uiSta
 		if !ok {
 			continue
 		}
-		path, body, headers := restArgs(t, r.API, op, uiScript[id](st))
+		path, body, headers := restArgs(t, r.API, op, scriptArgs(id, st))
 		if op.Meta.Idempotency == "create" {
 			headers = append(headers, "Idempotency-Key", fmt.Sprintf("leak-%s-%d", tag, i))
 		}
@@ -256,7 +259,7 @@ func scriptMCP(t *testing.T, r *servertest.Rig, l *leaks, s *mcp.ClientSession, 
 	b, _ := json.Marshal(lt)
 	l.scan(face+" tools/list", string(b))
 	for _, id := range append(slices.Clone(uiOrder), "get_audit") {
-		args := uiScript[id](st)
+		args := scriptArgs(id, st)
 		for _, generic := range []bool{!tools[id], true} {
 			res, err := s.CallTool(context.Background(), &mcp.CallToolParams{Name: map[bool]string{true: "call_operation", false: id}[generic],
 				Arguments: map[bool]any{true: map[string]any{"operation_id": id, "arguments": args}, false: args}[generic]})
@@ -681,7 +684,7 @@ func TestNoSecretLeak(t *testing.T) {
 	trackID, timedID := track(t, human, false), track(t, human, true)
 	state := func() *uiState {
 		d := obj(obj(human.OK(t, "GET", "/api/drafts?limit=1", nil))["items"].([]any)[0])["id"].(string)
-		return &uiState{track: trackID, timed: timedID, draft: d, duel: "01900000-0000-7000-8000-000000000b01"}
+		return &uiState{track: trackID, timed: timedID, draft: d, mother: trackID, duel: "01900000-0000-7000-8000-000000000b01"}
 	}
 
 	agentTok, _, err := r.Services.Tokens.Create(context.Background(), "leak-agent", all4)
@@ -873,5 +876,209 @@ func TestNoSecretLeak(t *testing.T) {
 	l.flush()
 	if l.scanned < 200 {
 		t.Errorf("only %d texts were scanned; the exercise is too thin", l.scanned)
+	}
+}
+
+// resultText renders an MCP tool result as the client saw it.
+func resultText(res *mcp.CallToolResult) string {
+	b, _ := json.Marshal(res)
+	return string(b)
+}
+
+// TestNoSecretLeak_M3: the generation path leaks no RunPod key, confirmation token, upload signature or provider
+// reference. Runs the serverless backend over runpodtest with the production wiring, drives a human batch, an
+// agent batch that needs approval (push), a terminated job and the MCP and stdio faces, then scans every
+// response, the OpenAPI document and the docs page, the stored tables, the captured logs and the ntfy bodies.
+// Allowed hits: each confirmation token in exactly its issuing estimate response; upload URLs and provider
+// references only where the provider itself received or issued them.
+func TestNoSecretLeak_M3(t *testing.T) {
+	if testing.Short() {
+		t.Skip("heavy acceptance test")
+	}
+	logs := captureLogs(t)
+	tpl := archivetest.SyntheticArchive(t, "acceptance")
+	caps := spend.DefaultCaps
+	caps.AutoApproveTakes = 0 // every agent batch needs the operator
+	p := newProvRig(t, "runpod", tpl, servertest.Options{Canary: true, Caps: &caps})
+	r := p.Rig
+	l := newLeaks(t)
+	l.add("secret_key", keyForms(canaryRigKey)...)
+	l.add("edge_secret", canaryEdge)
+	l.add("ntfy_token", canaryNtfy)
+	l.add("operator_password", canaryPassword)
+	l.add("runpod-jobs-key", p.keys.Jobs)
+	l.add("runpod-read-key", p.keys.Read)
+	l.add("runpod-write-key", p.keys.Write)
+	l.add("runpod-admin-key", "rp-admin-"+strings.Repeat("d", 8)) // never given to the process; it must not appear either
+
+	human := r.Human(t)
+	agentTok, _, err := r.Services.Tokens.Create(context.Background(), "m3-leak", []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.add("pat", agentTok)
+	agent := servertest.Bearer(r, agentTok)
+	mcpSess := mcpWithToken(t, r, agentTok)
+	stdio := r.Stdio(t, auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate)
+	mother := knownMother(t, r)
+	var results []recorded // MCP and stdio results, with the issuing-estimate allowance
+	var tokens []string    // every confirmation token, in the response that issued it
+
+	// 1. the operator's batch, run to completion
+	est := obj(human.OK(t, "POST", "/api/tracks/"+mother+"/variants/estimate", map[string]any{"mode": "new_seed", "n_seeds": 1}))
+	tokens = append(tokens, est["confirmation_token"].(string))
+	resp := human.Do(t, "POST", "/human/api/generations", map[string]any{"confirmation_token": est["confirmation_token"], "rationale": "leak"}, "Idempotency-Key", "leak-h1")
+	if resp.Status != 201 {
+		t.Fatalf("human create: %d %s", resp.Status, resp.Body)
+	}
+	done := obj(arr(obj(resp.JSON(t))["jobs"])[0])["id"].(string)
+	pump(t, r, func() bool { s, _ := jobState(t, r, done); return terminalJob(s) })
+
+	// 2. an agent batch awaiting approval: the push goes to ntfy; the operator approves
+	est = obj(agent.OK(t, "POST", "/api/generations/estimate", map[string]any{"items": []any{map[string]any{"mode": "new_seed", "parent_track_id": mother, "n_seeds": 1}}}))
+	tokens = append(tokens, est["confirmation_token"].(string))
+	resp = agent.Do(t, "POST", "/api/generations", map[string]any{"confirmation_token": est["confirmation_token"]}, "Idempotency-Key", "leak-a1")
+	if resp.Status != 201 {
+		t.Fatalf("agent create: %d %s", resp.Status, resp.Body)
+	}
+	ab := obj(resp.JSON(t))
+	batch := ab["id"].(string)
+	agent.OK(t, "POST", "/api/batches/"+batch+"/approval-request", nil)
+	human.OK(t, "POST", "/human/api/batches/"+batch+"/approve", map[string]any{"reason": "ok"})
+	agentJob := obj(arr(ab["jobs"])[0])["id"].(string)
+	pump(t, r, func() bool { s, _ := jobState(t, r, agentJob); return terminalJob(s) })
+
+	// 3. a terminated job (held in the provider queue)
+	p.rp.NextJob(runpodtest.Behavior{Hold: true})
+	_, held := startVariant(t, r, mother, "", "leak-h2")
+	pump(t, r, func() bool { s, _ := jobState(t, r, held); return inFlight(s) })
+	human.OK(t, "POST", "/api/jobs/"+held+"/cancel", map[string]any{"reason": "leak check"})
+	pump(t, r, func() bool { s, _ := jobState(t, r, held); return terminalJob(s) })
+
+	// 4. the MCP and stdio faces
+	for face, sess := range map[string]*mcp.ClientSession{"mcp": mcpSess, "stdio": stdio} {
+		e := rawTool(t, sess, "estimate_variant", map[string]any{"id": mother, "mode": "new_seed", "n_seeds": 1}, false)
+		results = append(results, recorded{leakClient{name: face}, servertest.Response{Method: "CALL", Path: "estimate_variant", Status: 200, Body: []byte(resultText(e))}})
+		if tok, _ := obj(decodeStructured(t, e))["confirmation_token"].(string); tok != "" {
+			tokens = append(tokens, tok)
+		}
+		for _, c := range []struct {
+			op   string
+			args map[string]any
+		}{
+			{"get_job", map[string]any{"id": done}}, {"list_jobs", map[string]any{"limit": 20}}, {"get_batch", map[string]any{"id": batch}},
+			{"list_batches", map[string]any{"limit": 20}}, {"get_budget", nil}, {"get_spend", nil}, {"list_ledger", map[string]any{"limit": 50}},
+			{"get_provider_status", nil}, {"get_lineage", map[string]any{"id": mother}}, {"get_approval_status", map[string]any{"id": batch}},
+		} {
+			res := rawTool(t, sess, c.op, c.args, true)
+			results = append(results, recorded{leakClient{name: face}, servertest.Response{Method: "CALL", Path: c.op, Status: 200, Body: []byte(resultText(res))}})
+		}
+	}
+	// REST reads, the schema and the docs
+	for _, c := range []*servertest.Client{human, agent} {
+		for _, path := range []string{"/api/jobs?limit=50", "/api/jobs/" + done, "/api/jobs/" + held, "/api/batches?limit=50", "/api/batches/" + batch, "/api/budget",
+			"/api/spend", "/api/ledger?limit=100", "/api/provider/status", "/api/tracks/" + mother + "/lineage", "/api/openapi.json", "/api/docs"} {
+			c.Do(t, "GET", path, nil)
+		}
+	}
+	if resp := agent.Do(t, "GET", "/api/jobs/"+done, nil); strings.Contains(string(resp.Body), "/worker/v1/uploads/") || strings.Contains(string(resp.Body), "/worker/v1/attempts/") {
+		t.Error("get_job holds an upload or start URL")
+	}
+
+	// the provider's side: upload signatures and references are learned from what it received and issued
+	sigRe := regexp.MustCompile(`sig=([A-Za-z0-9_-]{16,})`)
+	var providerSeen strings.Builder
+	for _, rq := range p.rp.Requests() {
+		providerSeen.Write(rq.Body)
+		for _, m := range sigRe.FindAllStringSubmatch(string(rq.Body), -1) {
+			l.add("upload-signature", m[1])
+		}
+	}
+	if !strings.Contains(providerSeen.String(), "/worker/v1/uploads/") {
+		t.Fatal("the provider received no upload URL: the test learned no signature")
+	}
+	rows, err := r.Store.R.Query(`SELECT ref, announced_ref FROM job_attempts`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := 0
+	for rows.Next() {
+		var ref, ann sql.NullString
+		if err := rows.Scan(&ref, &ann); err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range []string{ref.String, ann.String} {
+			if len(v) >= 8 {
+				l.add("provider-ref", v)
+				refs++
+			}
+		}
+	}
+	_ = rows.Close()
+	if refs == 0 {
+		t.Fatal("no provider reference of 8 or more characters to scan for")
+	}
+
+	// scan the responses; each token is allowed in the one response that issued it
+	for _, tok := range tokens {
+		l.add("confirmation-token", tok)
+	}
+	for _, lc := range []leakClient{{name: "human", c: human}, {name: "agent", c: agent}} {
+		for _, resp := range lc.c.Responses() {
+			var allowed []string
+			if strings.HasSuffix(strings.SplitN(resp.Path, "?", 2)[0], "/estimate") {
+				var m map[string]any
+				_ = json.Unmarshal(resp.Body, &m)
+				if tok, _ := m["confirmation_token"].(string); tok != "" {
+					allowed = append(allowed, tok)
+				}
+			}
+			l.scan(fmt.Sprintf("response of %s %s %s (status %d)", lc.name, resp.Method, strings.SplitN(resp.Path, "?", 2)[0], resp.Status), responseText(resp, ""), allowed...)
+		}
+	}
+	for _, rc := range results {
+		var allowed []string
+		if rc.resp.Path == "estimate_variant" {
+			var m map[string]any
+			_ = json.Unmarshal(rc.resp.Body, &m)
+			// the result carries the token once in structuredContent and once as text content
+			if sc := obj(m["structuredContent"]); sc != nil {
+				if tok, _ := sc["confirmation_token"].(string); tok != "" {
+					allowed = append(allowed, tok)
+				}
+			}
+		}
+		l.scan(fmt.Sprintf("%s result of %s", rc.cli.name, rc.resp.Path), string(rc.resp.Body), allowed...)
+	}
+
+	// stored state: no table outside job_attempts holds a provider reference; nothing holds a key or a signature
+	waitBackupsIdle(t, agent)
+	tables := dumpTables(t, r.Store.R, "audit_log", "idempotency", "job_events", "ledger", "provider_trips", "estimates", "batches", "jobs", "approvals",
+		"provider_state", "worker_meter", "tracks", "recipes", "mutations", "env_fingerprints", "billing_windows", "billing_buckets")
+	for name, text := range tables {
+		l.scan("table "+name, text)
+	}
+	attempts := dumpTables(t, r.Store.R, "job_attempts")["job_attempts"]
+	// job_attempts is where the references belong: it is scanned for every other canary
+	noRefs := &leaks{t: t, seen: map[string]bool{}}
+	for _, s := range l.secrets {
+		if s.kind != "provider-ref" {
+			noRefs.add(s.kind, s.value)
+		}
+	}
+	noRefs.check("table job_attempts", attempts)
+
+	l.scan("captured logs", logs.String())
+	for i, nr := range r.Ntfy.Requests() {
+		l.scan(fmt.Sprintf("ntfy request %d body", i), nr.Body)
+		l.scan(fmt.Sprintf("ntfy request %d path", i), nr.Path)
+	}
+	scanDir(t, l, "rig backups", r.BackupDir)
+	l.flush()
+	if l.scanned < 30 {
+		t.Errorf("scanned only %d texts", l.scanned)
+	}
+	if len(r.Ntfy.Requests()) == 0 {
+		t.Error("no ntfy request was captured: the approval push was not exercised")
 	}
 }

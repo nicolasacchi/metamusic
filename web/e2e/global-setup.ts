@@ -30,6 +30,27 @@ async function stop(child: ChildProcess): Promise<void> {
   clearTimeout(timer);
 }
 
+/**
+ * The agent of the approval spec (C86.5): a read+write+generate PAT made through the human create_token op, and a
+ * per-token auto-approve limit of one take so that every agent batch of two or more takes waits for the operator.
+ * Workers inherit the token through process.env (never written to disk or logged).
+ */
+async function createAgentToken(): Promise<void> {
+  const post = async (method: "POST" | "PUT", path: string, body: unknown, key?: string) => {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: { ...HEADERS, "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${method} ${path} -> ${res.status} ${await res.text()}`);
+    return (await res.json()) as Record<string, unknown>;
+  };
+  const tok = await post("POST", "/human/api/tokens", { name: "e2e-agent", scopes: ["read", "write", "generate"] }, `e2e-setup-${randomBytes(6).toString("hex")}`);
+  if (typeof tok.token !== "string" || typeof tok.id !== "string") throw new Error("create_token returned no token");
+  process.env.MM_E2E_AGENT_TOKEN = tok.token;
+  await post("PUT", "/human/api/spend/caps", { tokens: [{ token_id: tok.id, auto_approve_takes: 1, auto_approve_micro_usd: null, daily_budget_micro_usd: null }] });
+}
+
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const bin = resolve(process.env.MM_E2E_BIN ?? resolve(import.meta.dirname, "../../bin/metamusic-e2e"));
   if (!existsSync(bin)) throw new Error(`e2e binary not found at ${bin} (set MM_E2E_BIN)`);
@@ -64,6 +85,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     // the schedule is off so a backup only ever runs when a spec asks for it.
     MM_RATE_SCALE: "100",
     MM_BACKUP_AT: "off",
+    // M3 (C86.5): the fake backend finishes a take in about a second; specs steer slower ones with "fake:slow=<s>" in the style.
+    MM_BACKEND: "fake",
+    MM_FAKE_BACKEND: "fast",
   };
   // Specs read the seed archive (byte-identity export check); workers inherit this from the setup process.
   process.env.MM_E2E_SEED_DIR = join(dataDir, "inbox-synthetic");
@@ -94,6 +118,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   } catch (e) {
     await cleanup();
     if (spawnError) throw new Error(`failed to start e2e server: ${spawnError.message}`, { cause: e });
+    throw e;
+  }
+
+  try {
+    await createAgentToken();
+  } catch (e) {
+    await cleanup();
     throw e;
   }
 

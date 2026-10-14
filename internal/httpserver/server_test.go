@@ -28,6 +28,7 @@ const edge = "edgesecret"
 type env struct {
 	h      http.Handler
 	tokens *auth.TokenStore
+	st     *store.Store
 }
 
 func newEnv(t *testing.T, mutate func(*config.Config), spa fstestFS, mcp http.Handler) *env {
@@ -57,7 +58,7 @@ func newEnv(t *testing.T, mutate func(*config.Config), spa fstestFS, mcp http.Ha
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &env{h: h, tokens: tokens}
+	return &env{h: h, tokens: tokens, st: st}
 }
 
 type fstestFS = fstest.MapFS
@@ -138,8 +139,12 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	}
 	w = e.do(bearer(httptest.NewRequest("GET", "/api/system", nil), tok))
 	m = decode(t, w)
+	wantSchema, verr := e.st.UserVersion(context.Background())
+	if verr != nil || wantSchema < 5 {
+		t.Fatalf("user_version = %d, %v", wantSchema, verr)
+	}
 	if w.Code != 200 || m["version"] != "v-test" || m["commit"] != "abc123" || m["auth_mode"] != "proxy" ||
-		m["schema_version"] != float64(6) || m["started_at"] == "" {
+		m["schema_version"] != float64(wantSchema) || m["started_at"] == "" {
 		t.Fatalf("system %d %v", w.Code, m)
 	}
 }

@@ -21,7 +21,7 @@ var (
 const usage = `usage: metamusic <command>
 
 commands:
-  serve                          run the server (requires MM_AUTH=proxy|local)
+  serve [--runner=false]         run the server (requires MM_AUTH=proxy|local); --runner=false serves HTTP only
   dev                            serve in local-auth mode with data in ./data/dev
   openapi                        print the OpenAPI document
   healthcheck                    GET /healthz on MM_ADDR; exit 0 when healthy
@@ -46,7 +46,9 @@ commands:
                                  fill a dev or e2e data directory with a generated library
   analyze [--track ID]... [--force] [--dry-run] [--jobs N] [--json]
                                  run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it
-dev flags: --data-dir DIR  --seed-synthetic
+  runpod probe|provision|status|arm|disarm|reset-trip|canary
+                                 operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
+dev flags: --data-dir DIR  --seed-synthetic  --fake-provider (default true)
 
 import exit codes: 0 ok, 1 per-file errors, 2 usage or fatal, 3 PLAN_CHANGED, 4 IMPORT_IN_PROGRESS
 `
@@ -86,7 +88,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 	case "healthcheck":
 		err = cmdHealthcheck(ctx, getenv, s)
 	case "serve":
-		err = cmdServe(ctx, getenv, s)
+		err = cmdServe(ctx, rest, getenv, s)
 	case "dev":
 		err = cmdDev(ctx, rest, getenv, s)
 	case "token":
@@ -109,6 +111,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdSeedSynthetic(ctx, rest, getenv, s)
 	case "analyze":
 		err = cmdAnalyze(ctx, rest, getenv, s)
+	case "runpod":
+		err = cmdRunPod(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 	default:

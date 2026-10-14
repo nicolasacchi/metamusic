@@ -98,6 +98,7 @@ type rigOpts struct {
 	maxBody int64
 	wrap    func(gate.Auditor) gate.Auditor // injectable audit sink
 	budget  time.Duration
+	extra   func(r *rig, a huma.API) // registers more operations (M3 tests)
 }
 
 func newRig(t *testing.T, o rigOpts) *rig {
@@ -190,6 +191,9 @@ func newRig(t *testing.T, o rigOpts) *rig {
 			return o, nil
 		})
 
+	if o.extra != nil {
+		o.extra(r, a)
+	}
 	var sink gate.Auditor = r.audit
 	if o.wrap != nil {
 		sink = o.wrap(r.audit)
@@ -958,7 +962,9 @@ func TestAudit_WriterBusyBeyondTwoSeconds(t *testing.T) {
 }
 
 func TestAudit_PersistentFailureKeepsResponse(t *testing.T) {
-	t.Parallel()
+	// Deliberately not parallel: audit.Failures is a process-global counter and
+	// parallel tests (e.g. PermanentErrorNotRetried) also bump it. A serial test
+	// runs while every parallel test is paused, so the delta is exact.
 	r := newRig(t, rigOpts{budget: 60 * time.Millisecond, wrap: func(gate.Auditor) gate.Auditor {
 		return auditFunc(func(context.Context, audit.Entry) error { return fmt.Errorf("disk gone") })
 	}})

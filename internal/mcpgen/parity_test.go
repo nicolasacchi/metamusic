@@ -121,8 +121,11 @@ func structured(t *testing.T, res *mcp.CallToolResult) any {
 // arguments (built per rig so cases can refer to rig-specific ids), and the
 // response keys that legitimately differ between faces (token ids, ...).
 type ParityCase struct {
-	Op          string
-	Args        func(*servertest.Rig) map[string]any
+	Op string
+	// Args builds the tool arguments for one rig. prev is the raw (unmasked) response of the previous case on
+	// the same rig, so a create_* case reads the confirmation token of its estimate_* case (C86.1); rigs
+	// answer different tokens only when their call counts differ, and tokens stay masked in the compared output.
+	Args        func(r *servertest.Rig, prev map[string]any) map[string]any
 	Masks       []string
 	SkipGeneric bool   // do not repeat the call through call_operation (non-replayable mutations)
 	Last        bool   // runs after every other case (ops that end a principal)
@@ -130,8 +133,8 @@ type ParityCase struct {
 	Variant     string // distinguishes several cases of one operation (e.g. inline and not)
 }
 
-func fixedArgs(m map[string]any) func(*servertest.Rig) map[string]any {
-	return func(*servertest.Rig) map[string]any { return m }
+func fixedArgs(m map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	return func(*servertest.Rig, map[string]any) map[string]any { return m }
 }
 
 // parityCases holds a case for every tool or generic operation that is not a
@@ -417,25 +420,30 @@ func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name 
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M2b: servertest.M2bOptions{Fixture: true}}
+	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
 	var stdioSess *mcp.ClientSession
+	var rc *servertest.Rig
 	if stdio {
-		rc := servertest.New(t, opts)
+		rc = servertest.New(t, opts)
 		stdioSess = rc.Stdio(t, scopes...)
 	}
 	script := parityScript(t, ra.API)
 	if len(script.cases) == 0 {
 		t.Fatal("no operations exercised")
 	}
+	var prevA, prevB, prevC map[string]any
 	for i, c := range script.cases {
 		op := script.ops[c.Op]
-		var args map[string]any
-		if c.Args != nil {
-			args = c.Args(ra)
+		argsFor := func(r *servertest.Rig, prev map[string]any) map[string]any {
+			if c.Args == nil {
+				return nil
+			}
+			return c.Args(r, prev)
 		}
+		args := argsFor(ra, prevA)
 		path, body, headers := restRequest(t, ra.API, op, args)
 		if op.Meta.Idempotency == "create" {
 			headers = append(headers, "Idempotency-Key", fmt.Sprintf("parity-%d", i))
@@ -445,31 +453,57 @@ func runParity(t *testing.T, stdio bool) {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
 		}
 		restJSON := resp.JSON(t)
+		prevA, _ = restJSON.(map[string]any)
 		isImage := op.Meta.MCPImage && c.Status == 0
 		if isImage {
 			restJSON = withoutImageData(restJSON) // MCP never carries data_base64 in structured content
 		}
 		want := servertest.Normalize(restJSON, c.Masks...)
-		sessions := map[string]*mcp.ClientSession{"mcp": mcpSess}
-		if stdio {
-			sessions["stdio"] = stdioSess
+		type face struct {
+			sess *mcp.ClientSession
+			rig  *servertest.Rig
+			prev *map[string]any
 		}
-		for face, sess := range sessions {
+		faces := map[string]face{"mcp": {mcpSess, rb, &prevB}}
+		if stdio {
+			faces["stdio"] = face{stdioSess, rc, &prevC}
+		}
+		for name, f := range faces {
+			fargs := argsFor(f.rig, *f.prev)
+			res, toolName := mcpRaw(t, f.sess, op, fargs, false)
 			if isImage {
-				res, _ := mcpRaw(t, sess, op, args, false)
-				checkImageParity(t, op.ID+"/"+face, resp.JSON(t), res)
+				checkImageParity(t, op.ID+"/"+name, resp.JSON(t), res)
 			}
-			if diff := cmp.Diff(want, mcpCall(t, sess, op, args, false, c.Masks, c.Status != 0)); diff != "" {
-				t.Errorf("%s: REST vs %s mismatch (-rest +%s):\n%s", op.ID, face, face, diff)
+			*f.prev = rawResult(t, res)
+			if diff := cmp.Diff(want, normalizeResult(t, res, op, toolName, c.Masks, c.Status != 0)); diff != "" {
+				t.Errorf("%s: REST vs %s mismatch (-rest +%s):\n%s", op.ID, name, name, diff)
 			}
 			if op.Meta.MCP == "tool" && !c.SkipGeneric {
 				// Replays (derived key) or idempotent writes: the generic route must agree too.
-				if diff := cmp.Diff(want, mcpCall(t, sess, op, args, true, c.Masks, c.Status != 0)); diff != "" {
-					t.Errorf("%s: REST vs %s call_operation mismatch:\n%s", op.ID, face, diff)
+				if diff := cmp.Diff(want, mcpCall(t, f.sess, op, fargs, true, c.Masks, c.Status != 0)); diff != "" {
+					t.Errorf("%s: REST vs %s call_operation mismatch:\n%s", op.ID, name, diff)
 				}
 			}
 		}
 	}
+}
+
+// rawResult is the unmasked structured result of a tool call (the problem body of a tool error).
+func rawResult(t *testing.T, res *mcp.CallToolResult) map[string]any {
+	t.Helper()
+	if res.IsError {
+		if len(res.Content) > 0 {
+			if tc, ok := res.Content[0].(*mcp.TextContent); ok {
+				var v map[string]any
+				if json.Unmarshal([]byte(tc.Text), &v) == nil {
+					return v
+				}
+			}
+		}
+		return nil
+	}
+	m, _ := structured(t, res).(map[string]any)
+	return m
 }
 
 // TestParityEveryOperation: every registered, non-excluded operation has a
@@ -585,7 +619,12 @@ func TestToolsListGolden(t *testing.T) {
 //
 // M2c-B1 re-baseline 130984 -> 132866: recipe_known/lossy on the track, media-link and duel/compare shapes, the
 // nullable flac link and two search_tracks parameters (no tool added or demoted).
-const toolsListBaselineBytes = 132866
+//
+// M3-B2 re-baseline 132866 -> 207451: seven first-class M3 tools (estimate_generation, create_generation, estimate_variant,
+// create_variant, wait_for_job, get_job, cancel_job) with full output schemas; the other sixteen M3 operations are
+// generic (D-M3-36 demoted get_budget, list_jobs, get_batch and request_approval), and the track, draft and stats
+// shapes gained the C81.1 fields.
+const toolsListBaselineBytes = 207451
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {

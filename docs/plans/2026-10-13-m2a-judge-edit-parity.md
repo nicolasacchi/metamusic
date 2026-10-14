@@ -249,6 +249,12 @@ anything else falls back to verified copies (C34).
   ```
 - `internal/notify` — C37.
 
+**C25 addendum (M3-B1):** `internal/redact` also masks `Cookie:`/`Set-Cookie:` lines and the RunPod endpoint id in
+job-API paths (`/v2/<endpoint>/run`, `/v2/endpoints/<endpoint>`); `redact.WithEndpoint(id)` returns a value
+`Redactor` that also replaces the configured id literally anywhere (no process global). New leaf packages
+`internal/money` and `internal/clock` (+ test-only `clock/clocktest`), `store.FormatTime`/`ParseTime` and
+`store.LeaseFence`. See the M3 plan, C68 and C80.
+
 ### C26. Principals, devices, pairing and step-up (amends M0 C3)
 
 ```go
@@ -699,6 +705,10 @@ BEGIN SELECT RAISE(ABORT, 'backup_runs: frozen column'); END;
   `backup_runs_one_running` while another process runs a backup ⇒ `BACKUP_IN_PROGRESS` (C34).
 - Idempotency `Begin`, `Extend`, `Complete`, `Release`: the exact forms in C29.
 
+**C27 addendum (M3-B1):** the two assertions that hard-coded the schema version (`internal/httpserver/server_test.go`
+healthz `schema_version`, `internal/store/schema_m2c_test.go`) now compare with the store's `user_version` /
+`>= 5`; migration `0007_generate.sql` (schema version 7) adds the M3 tables. See the M3 plan, C69.
+
 ### C28. Registry amendments (amends M0 C4, M1 C19)
 
 > M2b-B2 addendum: `Meta` gains `MCPImage` (after `SecretFields`); `Deps` gains `Duels`, `Ears` and `Clips` (concrete pointers; a nil one
@@ -763,6 +773,9 @@ URL use `Cfg.PublicURL`. No new problem code exists for 413: every body cap answ
 | `STEP_UP_REQUIRED` | 403 | local mode, `/human/` without a fresh step-up |
 | `NOT_A_TOKEN` / `NOT_A_DEVICE` | 403 | `revoke_own_token` / `revoke_own_device` called by another principal kind |
 | `NOT_IMPLEMENTED` | 501 | `STUB(M2a-…)` handlers during Stage 2 only (none at X1) |
+
+**C28 addendum (M3-B1):** `api.Meta.AliasOf`, the `spend`/`approve`/alias registration rules and `ValidateAliases`
+(see the M3 plan, C80).
 
 ### C29. The gate: audit, authorize, rate limit, idempotency (`internal/gate`, `internal/audit`, `internal/idem`, `internal/ratelimit`)
 
@@ -889,6 +902,12 @@ func New(o Options) http.Handler
 
 Idempotency rows are pruned hourly by `serve`. Gate logs one slog line per request: method, path
 (never the query), op, status, principal kind, duration.
+
+**C29 addendum (M3-B1):** `idem.Begun.Gen` (the lease generation), `idem.CompleteTx`, `idem.WithKey/KeyFrom`,
+`idem.Marks` (`WithMarks`/`MarksFrom`: mutable flags the gate installs before the handler), `audit.Entry.CostMicroUSD`,
+`audit.InsertTx`, `audit.WithPending/PendingFrom`, `audit.SystemEntry`/`SystemOps` (D-M3-22) and `reqinfo.Runner`,
+`auth.System(name)`. The gate audits in `commit()` only `if audited && !marks.Audited()` and skips `Idem.Complete` when
+`marks.Completed()`; replays are still audited by the gate. See the M3 plan, C80 and D-M3-21.
 
 ### C30. MCP adapter, transport marks and `mcp-stdio` (amends M0 C5)
 
@@ -1506,6 +1525,10 @@ parse as snapshot names (`<yyyymmddThhmmssZ>` with an optional `-N`) are ever to
 5. Print the counts and the next step (`MM_DATA_DIR=<dir>`; secrets are not part of backups — the same
    `secret_key` keeps tokens, sessions and devices valid, a new one invalidates them).
 
+**C34 addendum (M3-B1):** restore will disarm every `provider_state` row, turn live attempts into `unknown` and require a
+billing reconciliation before re-arming (M3 plan, C76.7, D-M3-31). The table exists since migration 0007 (M3-B1); the
+behaviour lands with M3-B6.
+
 ### C35. The `/context` bundle (`internal/trackctx`)
 
 > M2b-B3 amendment (C51.8): `perception` is built by `ears.Perception` (same keys and order; `tier`, `flags` and
@@ -1571,6 +1594,11 @@ state=open kind=fix)" (`list_comments` is a generic op, so the hint names the ge
   a comment (add_comment) — you cannot hear: see perception.blind_spots".
 - Links: signed with `TTLFor(principal)` (15 min for agents), absolute with `PublicURL`.
 
+**C35 addendum (M3-B2):** the `provenance` block of the bundle will carry `cost` (`{micro_usd, usd, basis}|null`, replacing `cost_usd`),
+`env` and `job_id`, and `next_actions` gains a lowest-priority generation hint under a cap of five entries; the shapes are frozen
+in M3-B2 and the bundle code and goldens change in M3-B6. See the M3 plan, C81.1.
+
+
 ### C36. Listen events (`internal/listening`)
 
 ```go
@@ -1607,6 +1635,10 @@ paired: <name>"), token created (3, "Token created: <name> (<scopes>)"). Bodies 
 codes, cookies or URLs with query strings (`TestNotify_NoSecretsInMessages`); a name containing
 `\r\n`, NUL or U+0085 is delivered sanitised (`TestNotify_ControlCharsInNames`). `MM_NTFY_URL` empty ⇒
 `Nop`.
+
+**C37 addendum (M3-B1):** `notify.Message` gains `Actions []notify.Action` (`{Action: "view", Label, URL}`, at most
+`notify.MaxActions` = 3), published as ntfy's JSON `actions` array; entries with a non-`view` action, an empty label or URL,
+or control characters in the URL are dropped. See the M3 plan, C82.
 
 ### C38. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case; types in `internal/api/types_m2a.go`)
 
@@ -1766,6 +1798,11 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
   `internal/api/ops_drafts.go` into `ops_drafts_m2a.go` (same operationIds, paths and meta), so the
   Stage-2 Drafts lane owns every draft op file and never edits an M1 file.
 
+**C38 addendum (M3-B2):** the registry holds 81 operations after M3 (58 + the 23 of M3 C81; `TestRegistry_OpCount`).
+`TestOps_CreateOpsDeclareIdempotencyKey` now also covers the three spend operations; the M3 operations live in
+`ops_generation_m3.go`, `ops_budget_m3.go`, `ops_jobs_m3.go` and `ops_provider_m3.go` with types in `types_m3.go`.
+
+
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
 
 > M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
@@ -1833,6 +1870,15 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
   - `restore --from SNAPSHOT --into DIR` (C34; exit 0 / 1 verification failure / 2 usage or non-empty target).
 - `token create`, `token revoke` and `user set-password` (M0) write audit rows and switch to
   `config.LoadOffline`; output unchanged.
+
+**C39 addendum (M3-B2):** `app.Options` gains `Rand` (confirmation tokens and runner instance ids) and `M3 M3Options` (clock, backend,
+fake and RunPod overrides, ingester, shutdown context); `app.Services` gains `Lineage`, `Spend`, `Generation`, `Jobs`, `Provider`,
+`Uploads`, `Backend`, `Fake`, `Gate`, `Runner`, `Reconciler`; `api.Deps` and `httpserver.Options` gain `Generation`, `Spend`, `Jobs`,
+`Provider`, `Lineage` (and `Uploads`, `BaseContext` for the server). `Build` selects the backend from `MM_BACKEND`, writes the
+`provider_state` default row once (the fake armed, the serverless backend disarmed, by `system:default`) and builds, never starts,
+the runner and the reconciler; the generation-enabled state is `provider.Gate.State`, computed from local facts only. The worker
+routes `/worker/v1/uploads/` and `/worker/v1/attempts/` are mounted by `httpserver` (ClassMachine). See the M3 plan, C68 and C74.
+
 
 ### C40. Web (`web/`; amends M1 C22)
 
@@ -1957,6 +2003,11 @@ and an `mcp-stdio` example reading `MM_TOKEN` from the environment), `revoke_tok
 **Lint and tests.** ESLint bans (M0) unchanged; `sendBeacon`, `fetch` and `indexedDB` appear only under
 `src/api/` (`no-restricted-globals` gains `indexedDB` outside `src/api/**`). `svelte/no-at-html-tags`
 stays an error; comment bodies, tags, titles and verdicts render as text.
+
+**C40 addendum (M3-B2):** `web/src/api/schema.d.ts` is regenerated with the 23 M3 operations and the amended shapes; the M3 routes
+(`/human/generate`, `/human/confirm/:batch`, `/human/spend`, `/jobs`, `/jobs/:id`, `/batches/:id`, `/lineage/:id`) are built by the
+Web lane (M3-W1..W3).
+
 
 ### C41. Tooling, CI, routing, coverage (amends M1 C23/C24)
 
@@ -2092,6 +2143,13 @@ stays an error; comment bodies, tags, titles and verdicts render as text.
   instead of importing again.
 - `make fixture-db` (M1) keeps working and now includes the M2a rows.
 
+**C42 addendum (M3-B2):** `servertest.Options` gains `Backend` (`none`|`fake`), `Runner`, `FakeSpeed`, `Fake`, `Caps`, `M3`
+(`librarytest.FixtureM3`), `Rand` and `Ingest`; `Rig` gains `Fake`, `Backend`, `Runner`, `Reconciler`; `servertest.SeededReader(seed)`
+gives every rig the same token sequence. `ParityCase.Args` is now `func(r *servertest.Rig, prev map[string]any) map[string]any` (`prev` is
+the raw response of the previous case on the same rig; `fixedArgs` ignores it) and the parity rigs run `Backend: "fake"` with the
+runner idle. New helpers: `librarytest.FixtureM3`/`ApplyM3`/`SeedJob`, `archivetest.GenerateArchive`, `providertest`, `synth.FLACUncalibrated`.
+
+
 ---
 
 ## Acceptance mapping (roadmap M2a → named tests)
@@ -2158,6 +2216,10 @@ only the stubs in its own `internal/api/ops_*.go` files and owns its packages (B
 the ownership in C42 (B2b creates, B4b extends the fixture, B9 implements `Device()` and local
 step-up; everyone else adds cases, not helpers). Exceptions to "only its own files" are named in each
 task's **Files** (B6: `internal/media/serve/handler.go`; B9: `internal/auth/**`).
+
+**C42 addendum (M3-B1):** `servertest.Clock` is a type alias of `clocktest.Manual` (`internal/clock/clocktest`, added to
+`TestNoTestHelpersInBinary`); `servertest.NewClock(t time.Time)` is unchanged, `Now/Advance/Set` keep their meaning and
+`Advance`/`Set` now also fire due `NewTimer` timers in deadline order. See the M3 plan, C68.
 
 ### Task M2a-B1: config, principals, leaf packages, migration 0003, registry meta
 

@@ -1315,6 +1315,16 @@ func WriteFixtureDB(tb testing.TB, path string) // `make fixture-db` (go test -r
 // NOTE: this needs serve() to construct library.Service and serve.Signer; see the B4 Done line.
 ```
 
+**C17 addendum (M3-B2):** `InsertRecipe(ctx, tx, p, createdBy)` replaces the importer's implicit `'import'` (every M1 caller
+passes `"import"`), writes the `recipe_keys` row in the same transaction when the schema has the table (version 6) and, for any
+`createdBy` other than `import`, returns `ErrRecipeExists` (with the existing id) unless the row was created now. `NewTake` gains
+`Origin` (`""`/`import` or `job`), `StatusSetBy`, `JobID`, `EnvID`; `NewMutation` gains `Params`, `JobID`, `RecipePatchJSON` and the
+operators `reroll_seed`, `same_seed_edit`, `lyric_edit`, `style_edit`, `from_draft`, `compose_new` (the last two may have no parent).
+The M3 columns appear in the `tracks`/`mutations` INSERT only for job takes, so `FixtureV2`, `Fixture` and `FixtureM2c` still build
+schema 2-5 databases; the score of a job take has `source = 'job'`, and `InsertTake` skips the importer's draft fulfilment for
+`origin = 'job'` (D-M3-35). See the M3 plan, C71.7 and C81.1.
+
+
 ### C18. Media URLs and handler: `internal/media/serve`
 
 > M2b-B1 addendum: the path regex is `^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`; `Service.Resolve` (C17) answers `jpg` from `renditions(kind='spectrogram')` as `image/jpeg`.
@@ -1464,6 +1474,13 @@ raised through `huma.NewError` to `INTERNAL` and hides its message, so `UNAVAILA
 fields (zero values until M2a-B4b/B5 fill them); `list_drafts` and `get_draft` moved to
 `internal/api/ops_drafts_m2a.go` (same ids, paths, metadata) and call `drafts.Decorate`/`DecorateDetail`; the
 reference gate of `get_draft` is `ActsAsHuman()`; `whoami` `kind` lists `device`.
+
+**C19 addendum (M3-B2):** `TrackSummary` gains `origin`, `cost_display_micro_usd` and `cost_display_usd` (null for imported takes);
+`TrackDetail` gains `generation` (`{job_id, batch_id, operator, rationale, cost, env}`, null for imported takes), both with the
+new `Env`, `GenerationCost` and `GenerationInfo` shapes of `internal/library/types_m3.go`; `DraftSummary`/`DraftDetail` gain
+`in_flight` and `generated_takes`; `Stats` gains `generation` and `breakdown`. The fields are frozen in `openapi.json` at M3-B2;
+the queries that fill them (and the `search_tracks` `origin` filter) land in M3-B6. See the M3 plan, C81.1.
+
 
 ### C20. HTTP server and CLI additions
 

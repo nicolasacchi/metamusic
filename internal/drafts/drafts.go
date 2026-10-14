@@ -538,6 +538,15 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Dr
 	if cerr := classify(cur.status, cur.revision, in.Revision); cerr != nil {
 		return library.DraftDetail{}, cerr
 	}
+	// A draft that a non-terminal job renders is frozen until the job ends (M3 C81.1). SQL only: this
+	// package never imports jobs.
+	var live int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs WHERE draft_id = ? AND state NOT IN ('completed','failed','cancelled','expired')`, id).Scan(&live); err != nil {
+		return library.DraftDetail{}, fmt.Errorf("drafts: live jobs: %w", err)
+	}
+	if live > 0 {
+		return library.DraftDetail{}, &Error{Status: 409, Code: "DRAFT_IN_FLIGHT", Msg: "a job is rendering this draft; wait for it to end", Details: map[string]any{}}
+	}
 	reqID, reqJSON, groupKey := cur.requestID, cur.reqJSON, cur.groupKey
 	if hasReq {
 		reqID, reqJSON = parsed.Request.ID, string(parsed.Canonical)

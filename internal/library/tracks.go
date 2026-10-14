@@ -15,6 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/analysis"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/money"
 )
 
 // TrackSummary is one row of the library list.
@@ -48,6 +49,13 @@ type TrackSummary struct {
 	// M2c (C59)
 	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub; it cannot be re-rendered or used as a mother"`
 	Lossy       bool `json:"lossy" doc:"The master is an MP3; there is no lossless file"`
+
+	// M3 (C81.1)
+	Origin              string  `json:"origin" doc:"import or job"`
+	CostDisplayMicroUSD *int64  `json:"cost_display_micro_usd" doc:"Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes"`
+	CostDisplayUSD      *string `json:"cost_display_usd"`
+
+	jobID string // the job of a generated take (not part of the response)
 }
 
 // TrackPage is one page of search results.
@@ -70,8 +78,9 @@ type SearchParams struct {
 	Unrated                    bool     // no human rating row, or one with stars NULL
 	Tags                       []string // AND, normalised names
 	HasOpenComments            *bool
-	RecipeKnown                *bool // (r.engine <> 'unknown') = v (M2c)
-	Lossy                      *bool // t.lossy = v (M2c)
+	RecipeKnown                *bool    // (r.engine <> 'unknown') = v (M2c)
+	Lossy                      *bool    // t.lossy = v (M2c)
+	Origin                     []string // import | job (M3, C81.1)
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -109,7 +118,7 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   hs.stars, ha.stars,
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open'),
-  (r.engine <> 'unknown'), t.lossy`
+  (r.engine <> 'unknown'), t.lossy, t.origin, t.job_id`
 
 // the human and agent rating rows of a track (primary-key lookups)
 const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'`
@@ -158,6 +167,11 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 	}
 	if p.MinStars != nil && p.Unrated {
 		return q, invalid("unrated", "cannot be combined with min_stars")
+	}
+	for _, o := range p.Origin {
+		if !oneOf(o, "import", "job") {
+			return q, invalid("origin", "unknown origin %q", o)
+		}
 	}
 	if p.Sort != "" && !oneOf(p.Sort, trackSorts...) {
 		return q, invalid("sort", "unknown sort %q", p.Sort)
@@ -263,6 +277,12 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 		where += ` AND t.lossy = ?`
 		*args = append(*args, boolInt(*p.Lossy))
 	}
+	if len(p.Origin) > 0 {
+		where += ` AND t.origin IN (` + placeholders(len(p.Origin)) + `)`
+		for _, o := range p.Origin {
+			*args = append(*args, o)
+		}
+	}
 	q.where = where
 	q.order = map[string]string{
 		"recorded_desc": `t.recorded_at DESC, t.id DESC`,
@@ -311,6 +331,9 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	if err := s.fillTags(ctx, sums); err != nil {
 		return TrackPage{}, err
 	}
+	if err := s.fillCosts(ctx, sums); err != nil {
+		return TrackPage{}, err
+	}
 	for _, sum := range sums {
 		if !pg.add(sizeOf(sum)) {
 			more = true
@@ -349,6 +372,25 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 		out = append(out, id)
 	}
 	return out, rows.Err()
+}
+
+// fillCosts sets the displayed cost of the generated takes of a page (C81.1); imported takes keep null.
+func (s *Service) fillCosts(ctx context.Context, sums []TrackSummary) error {
+	for i := range sums {
+		if sums[i].jobID == "" {
+			continue
+		}
+		c, err := JobCost(ctx, s.st.R, sums[i].jobID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		v, u := c.Display, money.MicroUSD(c.Display).USD()
+		sums[i].CostDisplayMicroUSD, sums[i].CostDisplayUSD = &v, &u
+	}
+	return nil
 }
 
 // fillTags sets the effective tag names of each summary (one query per page).
@@ -409,13 +451,15 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		parent              sql.NullString
 		hasScore, timedFlag bool
 		stars, critic       sql.NullInt64
+		jobID               sql.NullString
 	)
 	if err := rows.Scan(&t.ID, &t.Title, &t.Status, &t.DurationS, &t.RecordedAt, &t.CreatedAt, &t.RequestID, &t.Seed, &style, &bpm,
 		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount,
-		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy); err != nil {
+		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy, &t.Origin, &jobID); err != nil {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
+	t.jobID = jobID.String
 	terms, _ := yue2.StyleTerms(style)
 	if terms == nil {
 		terms = []string{}
@@ -709,6 +753,9 @@ type TrackDetail struct {
 	// M2c (C59)
 	RecipeKnown bool `json:"recipe_known" doc:"false for a reference track: its recipe is a stub"`
 	Lossy       bool `json:"lossy" doc:"The master is an MP3; bits_per_sample is nominal and there is no lossless file"`
+
+	// M3 (C81.1)
+	Generation *GenerationInfo `json:"generation" doc:"How the take was generated; null for imported takes"`
 }
 
 func nb(n sql.NullInt64) *bool {
@@ -794,6 +841,11 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 	}
 	if err := s.judgmentExtras(ctx, &d); err != nil {
 		return d, err
+	}
+	if d.Origin == "job" {
+		if d.Generation, err = GenerationOf(ctx, s.st.R, id); err != nil {
+			return d, err
+		}
 	}
 	return d, nil
 }
@@ -1086,3 +1138,122 @@ func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, e
 	mt, _ := time.Parse(time.RFC3339, created)
 	return serve.Object{RelPath: path, ContentType: ct, ETag: sha, ModTime: mt}, nil
 }
+
+// rowQuerier is the read side of *sql.DB and *sql.Tx.
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// JobCostInfo is the displayed cost of a generated take (D-M3-17): its provisional execution cost plus its
+// share (ceiling of settled overhead over the batch's takes) of the overhead settled at batch end,
+// `reconciled` once billing matched the batch, `estimate` while nothing was settled.
+type JobCostInfo struct {
+	Expected, Display int64
+	Basis             string // estimate | provisional | reconciled
+}
+
+// JobCost reads the cost of one job from the ledger.
+func JobCost(ctx context.Context, x rowQuerier, jobID string) (JobCostInfo, error) {
+	var c JobCostInfo
+	var state string
+	var takes int
+	var reconciled bool
+	var execSettled, rows, overhead int64
+	err := x.QueryRowContext(ctx, `SELECT j.expected_micro_usd, j.state, b.n_takes, b.reconciled_at IS NOT NULL,
+		(SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE job_id = j.id AND kind = 'settle'),
+		(SELECT COUNT(*) FROM ledger WHERE job_id = j.id AND kind = 'settle'),
+		(SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE batch_id = b.id AND kind = 'settle' AND reason = 'overhead')
+		FROM jobs j JOIN batches b ON b.id = j.batch_id WHERE j.id = ?`, jobID).
+		Scan(&c.Expected, &state, &takes, &reconciled, &execSettled, &rows, &overhead)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c, ErrNotFound
+	}
+	if err != nil {
+		return c, fmt.Errorf("library: job cost: %w", err)
+	}
+	share := int64(0)
+	if takes > 0 {
+		share = (overhead + int64(takes) - 1) / int64(takes)
+	}
+	terminal := state == "completed" || state == "failed" || state == "cancelled" || state == "expired"
+	switch {
+	case rows == 0 && !terminal:
+		c.Display, c.Basis = c.Expected, "estimate"
+	case reconciled:
+		c.Display, c.Basis = execSettled+share, "reconciled"
+	case rows == 0 && state == "completed":
+		c.Display, c.Basis = c.Expected, "estimate"
+	default:
+		c.Display, c.Basis = execSettled+share, "provisional"
+	}
+	return c, nil
+}
+
+// EnvByID reads an environment fingerprint; nil when the id is empty or unknown.
+func EnvByID(ctx context.Context, x rowQuerier, envID string) (*Env, error) {
+	if envID == "" {
+		return nil, nil
+	}
+	var e Env
+	var weights, detail string
+	err := x.QueryRowContext(ctx, `SELECT env_id, engine, pkg_version, code_commit, weights_json, decoder, backend, gpu_class, image_digest, detail_json FROM env_fingerprints WHERE env_id = ?`, envID).
+		Scan(&e.EnvID, &e.Engine, &e.PkgVersion, &e.CodeCommit, &weights, &e.Decoder, &e.Backend, &e.GPUClass, &e.ImageDigest, &detail)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("library: env fingerprint: %w", err)
+	}
+	if err := json.Unmarshal([]byte(weights), &e.Weights); err != nil || e.Weights == nil {
+		e.Weights = map[string]string{}
+	}
+	_ = json.Unmarshal([]byte(detail), &e.Detail)
+	return &e, nil
+}
+
+// GenerationOf reads how a take was generated; nil for imported takes (C81.1).
+func GenerationOf(ctx context.Context, x rowQuerier, trackID string) (*GenerationInfo, error) {
+	var g GenerationInfo
+	var jobID, envID, rationale, mutation sql.NullString
+	err := x.QueryRowContext(ctx, `SELECT t.job_id, t.env_id, j.batch_id, j.operator, j.mutation_json FROM tracks t JOIN jobs j ON j.id = t.job_id WHERE t.id = ? AND t.origin = 'job'`, trackID).
+		Scan(&jobID, &envID, &g.BatchID, &g.Operator, &mutation)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("library: generation of %s: %w", trackID, err)
+	}
+	g.JobID = jobID.String
+	var m struct {
+		Rationale *string `json:"rationale"`
+	}
+	if json.Unmarshal([]byte(mutation.String), &m) == nil && m.Rationale != nil {
+		rationale = sql.NullString{String: *m.Rationale, Valid: true}
+	}
+	if rationale.Valid {
+		g.Rationale = &rationale.String
+	}
+	c, err := JobCost(ctx, x, g.JobID)
+	if err != nil {
+		return nil, err
+	}
+	g.Cost = &GenerationCost{DisplayMicroUSD: c.Display, DisplayUSD: money.MicroUSD(c.Display).USD(), Basis: c.Basis}
+	if g.Env, err = EnvByID(ctx, x, envID.String); err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
+// HasProvider reports whether a generation provider is configured (a provider_state row exists), the
+// default test behind the generation hint of the context bundle.
+func (s *Service) HasProvider(ctx context.Context) (bool, error) {
+	var n int
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_state`).Scan(&n); err != nil {
+		return false, fmt.Errorf("library: provider state: %w", err)
+	}
+	return n > 0, nil
+}
+
+// Slug is the filename-safe form of a title (D-M1-3); callers that may not import the engine
+// implementation (the job ingest bridge) use it instead of yue2.Slug.
+func Slug(s string) string { return yue2.Slug(s) }

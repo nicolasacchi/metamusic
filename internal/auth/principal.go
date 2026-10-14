@@ -41,6 +41,13 @@ type Principal struct {
 // CLI is the principal of command-line actions (audit rows only).
 var CLI = Principal{Kind: KindSystem, ID: "cli", Name: "cli", Via: "cli"}
 
+// System is the principal of background actors such as "runner", "reconciler"
+// and "job" (audit and ledger rows only; it carries no scopes, M3 D-M3-22).
+// Key() is "system:<name>".
+func System(name string) Principal {
+	return Principal{Kind: KindSystem, ID: name, Name: name, Via: "system"}
+}
+
 // Key is the stable identity stored in principal_id columns, rate-limit keys
 // and idempotency keys: "human:<id>", "device:<id>", "agent:<id>", "system:cli";
 // "" for anonymous.

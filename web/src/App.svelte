@@ -31,6 +31,13 @@
   import Duel from "./routes/Duel.svelte";
   import Ladder from "./routes/Ladder.svelte";
   import Compare from "./routes/Compare.svelte";
+  import HumanGenerate from "./routes/HumanGenerate.svelte";
+  import HumanConfirm from "./routes/HumanConfirm.svelte";
+  import HumanSpend from "./routes/HumanSpend.svelte";
+  import Jobs from "./routes/Jobs.svelte";
+  import Job from "./routes/Job.svelte";
+  import Lineage from "./routes/Lineage.svelte";
+  import Batch from "./routes/Batch.svelte";
   import NotFound from "./routes/NotFound.svelte";
 
   const router = createRouter(APP_ROUTES);
@@ -88,6 +95,8 @@
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
+      <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
     </nav>
@@ -137,6 +146,28 @@
       <HumanTokens />
     {:else if $router.route?.name === "human-devices"}
       <HumanDevices />
+    {:else if $router.route?.name === "human-generate"}
+      <HumanGenerate />
+    {:else if $router.route?.name === "human-confirm"}
+      {#key $router.params.batch}
+        <HumanConfirm batch={$router.params.batch ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "human-spend"}
+      <HumanSpend />
+    {:else if $router.route?.name === "jobs"}
+      <Jobs />
+    {:else if $router.route?.name === "job"}
+      {#key $router.params.id}
+        <Job id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "batch"}
+      {#key $router.params.id}
+        <Batch id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "lineage"}
+      {#key $router.params.id}
+        <Lineage id={$router.params.id ?? ""} />
+      {/key}
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}

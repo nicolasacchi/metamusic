@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config is the process configuration, derived from MM_* environment variables.
@@ -37,6 +38,19 @@ type Config struct {
 
 	// M2b (C43).
 	ClipCacheMB int64 // MM_CLIP_CACHE_MB, default 4096, minimum 256
+
+	// M3 (C68).
+	Backend         string        // MM_BACKEND: "none" (default) | "fake" | "runpod"
+	Runner          bool          // MM_RUNNER, default true; `serve --runner=false` overrides; mcp-stdio forces false
+	FakeBackend     string        // MM_FAKE_BACKEND: "" | "fast" | "slow:<duration>"; only with Backend=fake
+	JobMaxRuntime   time.Duration // MM_JOB_MAX_RUNTIME, default 15m, 30s..45m (D-M3-16)
+	KillSlackS      int           // MM_KILL_SLACK_S, default 15, 0..120
+	JobTTL          time.Duration // MM_JOB_TTL, default 2h, 10m..24h
+	ColdStartS      int           // MM_COLD_START_S, default 180, 30..900
+	PriceMarginPPM  int64         // MM_PRICE_MARGIN_PPM, default 100000, 0..1000000
+	BillingLag      time.Duration // MM_BILLING_LAG, default 6h, 1h..72h
+	ResidualHold    time.Duration // MM_RESIDUAL_HOLD, default 48h, 1h..720h
+	RunPodRecordDir string        // MM_RUNPOD_RECORD_DIR, default "" (fixture recording); existing dir outside DataDir
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -85,6 +99,9 @@ func load(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if err := loadM2b(&c, getenv); err != nil {
+		return Config{}, err
+	}
+	if err := loadM3(&c, getenv); err != nil {
 		return Config{}, err
 	}
 	return c, nil

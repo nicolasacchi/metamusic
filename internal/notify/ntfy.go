@@ -26,6 +26,19 @@ type Message struct {
 	Priority    int // 1..5
 	Tags        []string
 	Click       string
+	// Actions are ntfy "view" buttons (M3 C82): at most MaxActions, label and URL required. Bodies and
+	// URLs never carry tokens, query strings, endpoint ids, keys or refs; callers pass console and page URLs.
+	Actions []Action
+}
+
+// MaxActions is the most buttons one notification carries.
+const MaxActions = 3
+
+// Action is one ntfy button. Only the "view" action (open a URL) is supported.
+type Action struct {
+	Action string // "view"; empty means "view"
+	Label  string
+	URL    string
 }
 
 // Notifier publishes messages.
@@ -52,6 +65,7 @@ type ntfy struct {
 const (
 	maxTitleRunes   = 200
 	maxMessageRunes = 1000
+	maxLabelRunes   = 40
 )
 
 // clean replaces C0/C1 controls (incl. CR, LF, NUL, U+0085) with spaces and caps the rune count.
@@ -78,6 +92,13 @@ type ntfyPayload struct {
 	Priority int      `json:"priority,omitempty"`
 	Tags     []string `json:"tags,omitempty"`
 	Click    string   `json:"click,omitempty"`
+	Actions  []action `json:"actions,omitempty"`
+}
+
+type action struct {
+	Action string `json:"action"`
+	Label  string `json:"label"`
+	URL    string `json:"url"`
 }
 
 // Notify implements Notifier.
@@ -105,6 +126,16 @@ func (n *ntfy) Notify(ctx context.Context, m Message) error {
 	}
 	if m.Click != "" && !strings.ContainsFunc(m.Click, unicode.IsControl) {
 		p.Click = m.Click
+	}
+	for _, a := range m.Actions {
+		if len(p.Actions) == MaxActions {
+			break
+		}
+		label := strings.TrimSpace(clean(a.Label, maxLabelRunes))
+		if (a.Action != "" && a.Action != "view") || label == "" || a.URL == "" || strings.ContainsFunc(a.URL, unicode.IsControl) {
+			continue
+		}
+		p.Actions = append(p.Actions, action{Action: "view", Label: label, URL: a.URL})
 	}
 	raw, err := json.Marshal(p)
 	if err != nil {

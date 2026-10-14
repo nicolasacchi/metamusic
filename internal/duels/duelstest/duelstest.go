@@ -91,7 +91,7 @@ func Fixture(tb testing.TB, st *store.Store, dataDir string, fx lt.Fixtures, now
 		raw, _ := json.Marshal(map[string]any{"id": t.reqID, "style": "synthetic, duel fixture", "lyrics": "[Verse]\nla la\n[Chorus]\nsing it", "cot": "full", "seed": t.seed})
 		p, err := yue2.ParseRequest(raw, yue2.ParseOptions{})
 		must(tb, err)
-		rid, _, err := svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := svc.InsertRecipe(ctx, tx, p, "import")
 		must(tb, err)
 		_, err = svc.InsertRecipeSource(ctx, tx, rid, library.SourceRef{Path: "music/songs.jsonl", Line: 100 + i, Raw: p.Canonical, RawKind: "jsonl_line"}, lt.RunID)
 		must(tb, err)

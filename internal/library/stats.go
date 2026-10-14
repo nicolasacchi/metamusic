@@ -5,7 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
+	"time"
+
+	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // Stats is the library overview.
@@ -23,6 +28,10 @@ type Stats struct {
 	Playlists      int            `json:"playlists"`
 	DraftsByOrigin map[string]int `json:"drafts_by_origin"`
 	Backups        BackupStats    `json:"backups"`
+
+	// M3 (C81.1)
+	Generation GenerationStats `json:"generation"`
+	Breakdown  Breakdown       `json:"breakdown"`
 }
 
 // TrackStats counts tracks.
@@ -106,7 +115,9 @@ func (s *Service) countBy(ctx context.Context, q string) (map[string]int, error)
 
 // Stats computes the overview in a handful of aggregate queries.
 func (s *Service) Stats(ctx context.Context) (Stats, error) {
-	st := Stats{DraftsByOrigin: map[string]int{}, Judgments: JudgmentStats{StarsHist: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}}}
+	st := Stats{Generation: GenerationStats{JobsByState: map[string]int{}, SpendMonthUSD: "0", OutstandingUSD: "0"},
+		Breakdown:      Breakdown{ByStyleTerm: []BreakdownTerm{}, BySeed: []BreakdownSeed{}},
+		DraftsByOrigin: map[string]int{}, Judgments: JudgmentStats{StarsHist: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}}}
 	r := s.st.R
 	var err error
 	if st.Tracks.ByStatus, err = s.countBy(ctx, `SELECT status, COUNT(*) FROM tracks GROUP BY status`); err != nil {
@@ -185,7 +196,91 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 	if err := s.judgmentStats(ctx, &st); err != nil {
 		return st, err
 	}
+	if err := s.generationStats(ctx, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+// monthBoundsOf is the calendar month of now in the process time zone.
+func monthBoundsOf(now time.Time) (from, to time.Time) {
+	l := now.In(time.Local)
+	m0 := time.Date(l.Year(), l.Month(), 1, 0, 0, 0, 0, time.Local)
+	return m0, m0.AddDate(0, 1, 0)
+}
+
+// generationStats fills the generation block and the Phase-3 breakdown (C81.1). Reference tracks (stub
+// recipes, engine unknown) are excluded from both lists: their seed 0 is a placeholder (D-M3-34).
+func (s *Service) generationStats(ctx context.Context, st *Stats) error {
+	r := s.st.R
+	var err error
+	if st.Generation.JobsByState, err = s.countBy(ctx, `SELECT state, COUNT(*) FROM jobs GROUP BY state`); err != nil {
+		return fmt.Errorf("library: stats jobs: %w", err)
+	}
+	from, to := monthBoundsOf(s.now())
+	m0, m1 := store.FormatTime(from), store.FormatTime(to)
+	if err := r.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks WHERE origin = 'job' AND created_at >= ? AND created_at < ?`,
+		ts(from), ts(to)).Scan(&st.Generation.TakesMonth); err != nil {
+		return fmt.Errorf("library: stats takes: %w", err)
+	}
+	var settled, outstanding int64
+	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger
+		WHERE (kind = 'settle' AND at >= ?1 AND at < ?2) OR (kind = 'bill' AND window_start >= ?1 AND window_start < ?2)`, m0, m1).Scan(&settled); err != nil {
+		return fmt.Errorf("library: stats spend: %w", err)
+	}
+	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(v), 0) FROM (SELECT MAX(0, SUM(CASE kind WHEN 'reserve' THEN micro_usd WHEN 'settle' THEN -micro_usd
+		WHEN 'release' THEN -micro_usd ELSE 0 END)) AS v FROM ledger WHERE batch_id IS NOT NULL GROUP BY batch_id)`).Scan(&outstanding); err != nil {
+		return fmt.Errorf("library: stats outstanding: %w", err)
+	}
+	st.Generation.SpendMonthMicroUSD, st.Generation.SpendMonthUSD = settled, money.MicroUSD(settled).USD()
+	st.Generation.OutstandingMicroUSD, st.Generation.OutstandingUSD = outstanding, money.MicroUSD(outstanding).USD()
+
+	terms, err := r.QueryContext(ctx, `SELECT x.term, COUNT(DISTINCT t.id), COUNT(h.stars), AVG(h.stars) FROM track_style_terms x
+		JOIN tracks t ON t.id = x.track_id JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine <> 'unknown'
+		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
+		GROUP BY x.term ORDER BY COUNT(DISTINCT t.id) DESC, x.term LIMIT 30`)
+	if err != nil {
+		return fmt.Errorf("library: stats terms: %w", err)
+	}
+	for terms.Next() {
+		var b BreakdownTerm
+		var mean sql.NullFloat64
+		if err := terms.Scan(&b.Term, &b.Tracks, &b.Rated, &mean); err != nil {
+			_ = terms.Close()
+			return err
+		}
+		b.MeanStars = meanOf(mean)
+		st.Breakdown.ByStyleTerm = append(st.Breakdown.ByStyleTerm, b)
+	}
+	if err := terms.Close(); err != nil {
+		return err
+	}
+	seeds, err := r.QueryContext(ctx, `SELECT rc.seed, COUNT(t.id), COUNT(h.stars), AVG(h.stars) FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine <> 'unknown'
+		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
+		GROUP BY rc.seed HAVING COUNT(t.id) >= 2 ORDER BY COUNT(t.id) DESC, rc.seed LIMIT 30`)
+	if err != nil {
+		return fmt.Errorf("library: stats seeds: %w", err)
+	}
+	defer seeds.Close()
+	for seeds.Next() {
+		var b BreakdownSeed
+		var mean sql.NullFloat64
+		if err := seeds.Scan(&b.Seed, &b.Tracks, &b.Rated, &mean); err != nil {
+			return err
+		}
+		b.MeanStars = meanOf(mean)
+		st.Breakdown.BySeed = append(st.Breakdown.BySeed, b)
+	}
+	return seeds.Err()
+}
+
+// meanOf rounds a mean of stars to two decimals; nil when nothing was rated.
+func meanOf(n sql.NullFloat64) *float64 {
+	if !n.Valid {
+		return nil
+	}
+	v := math.Round(n.Float64*100) / 100
+	return &v
 }
 
 // judgmentStats fills the M2a counters of Stats (C38).

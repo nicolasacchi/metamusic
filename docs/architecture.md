@@ -103,6 +103,31 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
 - **Refusals**: stub recipes are excluded from `songs.jsonl` exports and refused by lint, draft
   creation and as mothers, in Go and in the database (`RECIPE_UNKNOWN`).
 
+## Generation (M3)
+
+- **Operations**: estimating and creating generations, batches, approvals, jobs, spend caps and the
+  provider state are registry operations like everything else (REST, MCP and the web client derive from
+  them). A create takes a short-lived confirmation token minted by the estimate that quoted it; the cost
+  shown is the cost reserved.
+- **Money**: integer micro-USD everywhere. Spend is checked against per-period caps before any submit;
+  an agent batch over its limits waits for a human approval (`/human/confirm/<batch>`, second factor).
+  Spend caps and arming the provider are human-only operations.
+- **Backends**: `none` (default: generation disabled), `fake` (in-process simulation, no network, used by
+  `dev` and the tests) and `runpod`. The RunPod backend starts disarmed; arming, disarming and resetting a
+  trip are deliberate human acts (`/human/api/provider/state` or the CLI). A tripped provider cancels live
+  attempts, purges the queue and scales the endpoint to zero workers; only a human resets it.
+- **Runner**: one process holds the lease and submits, polls and settles attempts; reads (`mcp-stdio`)
+  never run it. Whether generation is enabled is computed from local rows and key presence, never from
+  the network.
+- **Worker**: a container image (built by CI, pinned by digest) runs the YuE2 engine behind a small HTTP
+  contract. Results come back through HMAC-signed upload URLs on `/worker/v1/...`, which the edge routes
+  like media: no forward-auth, no access log, no compression, identity headers stripped.
+- **Lineage**: every generated track records its parent, its mutation (new seed, edited lyrics, ...) and
+  its job; recipes are immutable, so every change is a new track. Stub recipes and lossy masters are
+  refused as mothers.
+- **Keys**: RunPod keys live in a separate file in the secrets dir and are scoped (jobs, read, write); the
+  all-access admin key is used only by `runpod provision` from an operator-provided file.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

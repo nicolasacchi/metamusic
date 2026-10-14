@@ -124,6 +124,7 @@ func WriteFiles(tb testing.TB, dataDir string) {
 		}
 	}
 	writeRefFiles(tb, dataDir)
+	writeJobFiles(tb, dataDir)
 }
 
 func mustParse(tb testing.TB, raw string) yue2.Parsed {
@@ -167,7 +168,7 @@ func FixtureV2(tb testing.TB, st *store.Store, now time.Time) Fixtures {
 	for i, t := range fxTracks {
 		tx := begin(tb, st)
 		p := mustParse(tb, reqJSON(t.requestID, t.style, t.lyrics, t.seed))
-		rid, _, err := svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := svc.InsertRecipe(ctx, tx, p, "import")
 		check(tb, err)
 		fx.Recipes = append(fx.Recipes, rid)
 		_, err = svc.InsertRecipeSource(ctx, tx, rid, library.SourceRef{Path: "music/songs.jsonl", Line: i + 1, Raw: p.Canonical, RawKind: "jsonl_line"}, RunID)
@@ -210,7 +211,7 @@ func FixtureV2(tb testing.TB, st *store.Store, now time.Time) Fixtures {
 	for i, d := range fxDrafts {
 		style, lyrics := "synth pop, 100 bpm", "[Verse 1]\nline one\n[Chorus]\nline two\n[Bridge]\nline three"
 		p := mustParse(tb, reqJSON(d.reqID, style, lyrics, d.seed))
-		rid, _, err := svc.InsertRecipe(ctx, tx, p)
+		rid, _, err := svc.InsertRecipe(ctx, tx, p, "import")
 		check(tb, err)
 		fx.Recipes = append(fx.Recipes, rid)
 		_, err = svc.InsertRecipeSource(ctx, tx, rid, library.SourceRef{Path: "music/backlog-variants.jsonl", Line: i + 1, Raw: p.Canonical, RawKind: "jsonl_line"}, RunID)

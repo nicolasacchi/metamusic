@@ -7,6 +7,7 @@
   import LibraryFilters from "../lib/components/LibraryFilters.svelte";
   import Pager from "../lib/components/Pager.svelte";
   import TrackTable from "../lib/components/TrackTable.svelte";
+  import { composeIntent, mayGenerate, startGeneration, templateIntent, toggled, validateIntent, type VariantMode } from "../lib/genIntent";
 
   type Whoami = components["schemas"]["WhoamiOutBody"];
   type Ping = components["schemas"]["PingOutBody"];
@@ -106,6 +107,17 @@
     })();
   });
 
+  // Selection mode (C84.2): known lossless mothers for a template edit (2..50), or a new song.
+  let selecting = $state(false);
+  let selected = $state<Set<string>>(new Set());
+  let templateMode = $state<VariantMode>("style_edit");
+  const canGen = $derived(me !== null && mayGenerate(me));
+  const intent = $derived(templateIntent([...selected], templateMode));
+  const selError = $derived(selected.size === 0 ? "" : (validateIntent(intent) ?? ""));
+  function toGenerate(i: ReturnType<typeof templateIntent>) {
+    startGeneration(sessionStorage, i, (to) => location.assign(to));
+  }
+
   /**
    * Playing from the list queues the visible order (the earlier rows stay reachable with Previous) and the
    * player asks for the next page before the queue runs out, so a long list does not stop at the page end.
@@ -150,13 +162,43 @@
 
 <LibraryFilters {filters} {facets} onchange={commit} />
 
+{#if canGen}
+  <div class="gen" data-testid="library-generate">
+    <button type="button" onclick={() => toGenerate(composeIntent())} data-testid="new-song">New song</button>
+    <button type="button" aria-pressed={selecting} onclick={() => { selecting = !selecting; selected = new Set(); }} data-testid="select-mode">
+      {selecting ? "Cancel selection" : "Select tracks"}
+    </button>
+    {#if selecting}
+      <label>
+        Template
+        <select bind:value={templateMode} data-testid="template-mode">
+          <option value="style_edit">Edit style/BPM</option>
+          <option value="lyric_edit">Edit lyrics</option>
+          <option value="same_seed_edit">Same seed edit</option>
+          <option value="new_seed">New seed</option>
+        </select>
+      </label>
+      <button type="button" disabled={selected.size < 2 || selError !== ""} onclick={() => toGenerate(intent)} data-testid="template-edit">Template edit… ({selected.size})</button>
+      {#if selError}<span role="alert" data-testid="selection-error">{selError}</span>{/if}
+      {#if selected.size === 0}<span class="muted">Reference and lossy tracks cannot be selected: recipe unknown.</span>{/if}
+    {/if}
+  </div>
+{/if}
+
 {#if error}<p role="alert">{error}</p>{/if}
 <div aria-busy={loading}>
-  <TrackTable {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} />
+  <TrackTable {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} selected={selecting ? selected : null} onselect={(id, on) => (selected = toggled(selected, id, on))} />
 </div>
 <Pager {page} offset={starts[page] ?? 0} count={tracks.length} {total} busy={loading} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
 
 <style>
+  .gen {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin: 0.5rem 0;
+  }
   .strip {
     display: flex;
     flex-wrap: wrap;

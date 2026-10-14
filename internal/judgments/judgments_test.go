@@ -87,7 +87,7 @@ func addTake(t *testing.T, e *env, n int, dur float64, parent string) string {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	rid, _, err := e.lib.InsertRecipe(ctx, tx, p)
+	rid, _, err := e.lib.InsertRecipe(ctx, tx, p, "import")
 	if err != nil {
 		t.Fatal(err)
 	}

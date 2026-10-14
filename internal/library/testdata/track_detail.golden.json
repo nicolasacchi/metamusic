@@ -142,5 +142,6 @@
     "last_played_at": null
   },
   "recipe_known": true,
-  "lossy": false
+  "lossy": false,
+  "generation": null
 }

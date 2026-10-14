@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/canonjson"
@@ -33,6 +34,10 @@ type Begun struct {
 	Status      int
 	ContentType string
 	Body        []byte
+	// Gen is the lease generation of a Proceed: the created_at Begin's upsert wrote (second-granular
+	// RFC 3339). A reclaim needs lease_until <= now, i.e. at least Lease (2 min) later, so two
+	// generations of one key never share a value; CompleteTx is fenced by it (M3 C80).
+	Gen string
 }
 
 // TTLs and the pending-row lease.
@@ -90,7 +95,7 @@ RETURNING created_at`,
 		if err := tx.Commit(); err != nil {
 			return Begun{}, err
 		}
-		return Begun{Outcome: Proceed}, nil
+		return Begun{Outcome: Proceed, Gen: created}, nil
 	case !errors.Is(err, sql.ErrNoRows):
 		return Begun{}, err
 	}
@@ -227,4 +232,102 @@ func Redact(body []byte, fields []string) []byte {
 		return body
 	}
 	return bytes.TrimRight(buf.Bytes(), "\n")
+}
+
+// ErrLeaseLost reports that CompleteTx found the pending row reclaimed by another request, or already completed.
+// The handler rolls back and answers 409 IDEMPOTENCY_IN_PROGRESS. (Not store.ErrLeaseLost, which is the
+// runner lease.)
+var ErrLeaseLost = errors.New("idem: idempotency lease lost")
+
+// CompleteTx stores the response of the pending row generation gen inside the caller's transaction, so
+// the response is replayable exactly when the effect it describes committed (M3 C80, D-M3-21). Zero rows
+// updated means the key was reclaimed (a new created_at) or completed: ErrLeaseLost. On success it sets
+// the gate's Completed mark; the handler clears marks on any error path (Marks.Reset).
+func CompleteTx(ctx context.Context, tx *sql.Tx, principalKey, key, gen string, status int, contentType string, body []byte) error {
+	if body == nil {
+		body = []byte{}
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE idempotency SET state = 'done', status = ?, content_type = ?, response = ?
+WHERE principal_key = ? AND key = ? AND state = 'pending' AND created_at = ?`,
+		status, contentType, body, principalKey, key, gen)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrLeaseLost
+	}
+	MarksFrom(ctx).MarkCompleted()
+	return nil
+}
+
+type reqKeyCtx struct{}
+
+type reqKey struct{ principalKey, key, gen string }
+
+// WithKey records the idempotency identity the gate began for this request; create operations read it
+// with KeyFrom to call CompleteTx.
+func WithKey(ctx context.Context, principalKey, key, gen string) context.Context {
+	return context.WithValue(ctx, reqKeyCtx{}, reqKey{principalKey, key, gen})
+}
+
+// KeyFrom returns the principal key, idempotency key and lease generation set by the gate for a create
+// operation; ok is false outside a gated create (for example a direct service test).
+func KeyFrom(ctx context.Context) (principalKey, key, gen string, ok bool) {
+	k, ok := ctx.Value(reqKeyCtx{}).(reqKey)
+	return k.principalKey, k.key, k.gen, ok
+}
+
+// Marks are mutable flags the gate installs before calling a handler. A context.WithValue made inside the
+// handler could never reach the gate, so CompleteTx and audit.InsertTx set fields of the struct the gate
+// already holds. They are set only after the statement succeeded; because the handler's transaction may
+// still roll back, the handler clears them on every error path (Reset).
+type Marks struct {
+	completed atomic.Bool
+	audited   atomic.Bool
+}
+
+type marksCtx struct{}
+
+// WithMarks installs a fresh Marks; the gate calls it before invoking the handler.
+func WithMarks(ctx context.Context) (context.Context, *Marks) {
+	m := &Marks{}
+	return context.WithValue(ctx, marksCtx{}, m), m
+}
+
+// MarksFrom returns the installed Marks, or nil (every method is nil-safe).
+func MarksFrom(ctx context.Context) *Marks {
+	m, _ := ctx.Value(marksCtx{}).(*Marks)
+	return m
+}
+
+// Completed reports whether CompleteTx stored the response.
+func (m *Marks) Completed() bool { return m != nil && m.completed.Load() }
+
+// Audited reports whether audit.InsertTx wrote the audit row.
+func (m *Marks) Audited() bool { return m != nil && m.audited.Load() }
+
+// MarkCompleted is set by CompleteTx.
+func (m *Marks) MarkCompleted() {
+	if m != nil {
+		m.completed.Store(true)
+	}
+}
+
+// MarkAudited is set by audit.InsertTx.
+func (m *Marks) MarkAudited() {
+	if m != nil {
+		m.audited.Store(true)
+	}
+}
+
+// Reset clears both marks (deferred rollback of a spend operation).
+func (m *Marks) Reset() {
+	if m != nil {
+		m.completed.Store(false)
+		m.audited.Store(false)
+	}
 }

@@ -28,7 +28,13 @@ import (
 //
 // M2c-B1 re-baselined 55500 -> 56200 (measured 56122, +814): the nullable flac link and lossy flag of
 // get_media_links, recipe_known/lossy on the first-class track shapes and two search_tracks parameters.
-const toolsCeilingBytes = 56200
+//
+// M3-B2 (D-M3-36) re-baselined 56200 -> 87300 (measured 87295, +31 173, 32 tools): seven first-class M3 tools whose
+// output schemas (Estimate, Batch, Job) are ~3 KB each plus the generation/env fields of the track shapes. D-M3-36
+// demoted get_budget, list_jobs, get_batch and request_approval to generic and shortened every M3 description to
+// 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
+// steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
+const toolsCeilingBytes = 87300
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

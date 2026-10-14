@@ -45,6 +45,12 @@ type Node struct {
 	Children []Node `json:"children,omitempty"`
 }
 type treeIn struct{ Body Node }
+
+// spendIn is a create op's input: spend operations are idempotent creates (M3 C80).
+type spendIn struct {
+	Key  string `header:"Idempotency-Key" required:"false" doc:"Dedup key"`
+	Body Node
+}
 type treeOut struct{ Body Node }
 
 func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
@@ -57,7 +63,7 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 		return api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: mcp, UI: "none:test"}
 	}
 	spend := m("tool")
-	spend.Cost = "spend"
+	spend.Cost, spend.Scope, spend.Idempotency = "spend", auth.ScopeGenerate, "create" // M3 C80: spend ops are generate-scope creates
 	op := func(id, method, path string) huma.Operation {
 		return huma.Operation{OperationID: id, Method: method, Path: path, Summary: "S " + id, Description: "D " + id}
 	}
@@ -82,7 +88,7 @@ func testAPI(t *testing.T) (huma.API, *http.ServeMux) {
 	api.Register(a, op("tree", "POST", "/api/tree"), m("tool"),
 		func(ctx context.Context, in *treeIn) (*treeOut, error) { return &treeOut{Body: in.Body}, nil })
 	api.Register(a, op("spend_op", "POST", "/api/spend"), spend,
-		func(ctx context.Context, in *treeIn) (*treeOut, error) { return &treeOut{Body: in.Body}, nil })
+		func(ctx context.Context, in *spendIn) (*treeOut, error) { return &treeOut{Body: in.Body}, nil })
 	api.Register(a, op("generic_op", "GET", "/api/generic/{id}"), m("generic"),
 		func(ctx context.Context, in *itemIn) (*itemOut, error) {
 			out := &itemOut{}

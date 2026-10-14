@@ -3,6 +3,7 @@ package audit
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,8 +11,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -41,6 +45,11 @@ type Entry struct {
 	Idempotency string
 	CreatedIDs  []string
 	Duration    time.Duration
+	// CostMicroUSD is the money the action caused or reserved: the batch ceiling for spend operations,
+	// the amount of D-M3-22 for runner:* and reconciler:* rows, else 0.
+	CostMicroUSD money.MicroUSD
+	// ID overrides the generated row id (tests); empty means the store's generator, or a UUIDv7 for InsertTx.
+	ID string
 }
 
 // Row is a stored audit row as listed.
@@ -94,8 +103,18 @@ type Store struct {
 // NewStore builds a Store; newID must yield time-ordered ids (UUIDv7).
 func NewStore(st *store.Store, newID func() string) *Store { return &Store{st: st, newID: newID} }
 
-// Insert appends one row.
-func (s *Store) Insert(ctx context.Context, e Entry) error {
+// insertSQL is the one INSERT text shared by Store.Insert and InsertTx.
+const insertSQL = `INSERT INTO audit_log
+(id, at, principal_kind, principal_id, principal_name, transport, client, op, method, args_sha256,
+ status, error_code, cost_micro_usd, idempotency, created_ids_json, duration_ms)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+
+// execer is the write side shared by *sql.DB and *sql.Tx.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func insertRow(ctx context.Context, x execer, id string, e Entry) error {
 	ids := e.CreatedIDs
 	if ids == nil {
 		ids = []string{}
@@ -116,14 +135,49 @@ func (s *Store) Insert(ctx context.Context, e Entry) error {
 	if kind == "" {
 		kind = string(auth.KindAnonymous)
 	}
-	pid := e.Principal.Key()
-	_, err = s.st.W.ExecContext(ctx, `INSERT INTO audit_log
-(id, at, principal_kind, principal_id, principal_name, transport, client, op, method, args_sha256,
- status, error_code, cost_micro_usd, idempotency, created_ids_json, duration_ms)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`,
-		s.newID(), e.At.UTC().Format(time.RFC3339), kind, pid, e.Principal.Name, string(e.Transport), e.Client,
-		e.Op, e.Method, e.ArgsSHA256, e.Status, code, idem, string(idsJSON), e.Duration.Milliseconds())
+	_, err = x.ExecContext(ctx, insertSQL,
+		id, e.At.UTC().Format(time.RFC3339), kind, e.Principal.Key(), e.Principal.Name, string(e.Transport), e.Client,
+		e.Op, e.Method, e.ArgsSHA256, e.Status, code, int64(e.CostMicroUSD), idem, string(idsJSON), e.Duration.Milliseconds())
 	return err
+}
+
+// Insert appends one row.
+func (s *Store) Insert(ctx context.Context, e Entry) error {
+	id := e.ID
+	if id == "" {
+		id = s.newID()
+	}
+	return insertRow(ctx, s.st.W, id, e)
+}
+
+// InsertTx appends the row inside the caller's transaction, so the audit row exists exactly when the
+// effect it records committed (M3 C80, D-M3-21). It sets the gate's Audited mark; the gate then skips
+// its own insert. The handler clears marks on every error path (idem.Marks.Reset).
+func InsertTx(ctx context.Context, tx *sql.Tx, e Entry) error {
+	id := e.ID
+	if id == "" {
+		id = uuid.NewV7().String()
+	}
+	if err := insertRow(ctx, tx, id, e); err != nil {
+		return err
+	}
+	idem.MarksFrom(ctx).MarkAudited()
+	return nil
+}
+
+type pendingKey struct{}
+
+// WithPending stores the gate's precomputed entry (principal, transport, client, op, method, args sha,
+// idempotency outcome so far) for a handler that audits in its own transaction.
+func WithPending(ctx context.Context, e Entry) context.Context {
+	return context.WithValue(ctx, pendingKey{}, e)
+}
+
+// PendingFrom returns the gate's precomputed entry. The handler completes it (status, idempotency
+// "stored", created ids, measured duration, cost) and passes it to InsertTx.
+func PendingFrom(ctx context.Context) (Entry, bool) {
+	e, ok := ctx.Value(pendingKey{}).(Entry)
+	return e, ok
 }
 
 // List returns audit rows newest first with a keyset cursor on id.

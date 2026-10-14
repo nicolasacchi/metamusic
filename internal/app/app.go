@@ -5,8 +5,10 @@ package app
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -21,18 +23,27 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/gate"
+	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
 	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
+	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
+	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
+	"github.com/nicolasacchi/metamusic/internal/upload"
 )
 
 // Options tunes Build; every field is optional.
@@ -52,6 +63,11 @@ type Options struct {
 	// DuelClips, when set, receives the renderer duels would use (nil when clips are unavailable)
 	// and returns the one they use instead: a spy, or a fake in lanes without a clip service.
 	DuelClips func(duels.ClipRenderer) duels.ClipRenderer
+	// Rand is the source of confirmation tokens and runner instance ids; nil => crypto/rand. Rigs inject a
+	// seeded deterministic reader so the parity rigs mint identical sequences (C86.1).
+	Rand io.Reader
+	// M3 (C39 amended): generation services, backend selection and test injection points.
+	M3 M3Options
 }
 
 // Services is everything Build wires.
@@ -75,6 +91,21 @@ type Services struct {
 	Clips *clip.Service
 	Duels *duels.Service
 	Ears  *ears.Service
+
+	// M3 services. Backend is nil for MM_BACKEND=none and for runpod without runpod.env; Runner and
+	// Reconciler are built (never started) when a backend exists and cfg.Runner is true: serve starts
+	// them, tests drive them. Wake is the nil-safe nudge generation and upload call after a commit.
+	Lineage    *lineage.Service
+	Spend      *spend.Service
+	Generation *generation.Service
+	Jobs       *jobs.Service
+	Provider   *jobs.ProviderAdmin
+	Uploads    *upload.Service
+	Backend    provider.Backend
+	Fake       *fake.Backend // set when the backend is the in-process fake
+	Gate       *provider.Gate
+	Runner     *jobs.Runner
+	Reconciler *jobs.Reconciler
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -152,7 +183,23 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		resolvers = append(resolvers, media.Clips)
 	}
 
+	wake := &wakeRef{}
+	var pipe *ingest.Pipeline // the generation ingest bridge's master pipeline (nil without ffmpeg)
+	if media.Analyzer != nil {
+		abs, err := filepath.Abs(cfg.DataDir)
+		if err != nil {
+			return nil, err
+		}
+		pipe = ingest.New(data, abs, mediatool.Tools{FFmpeg: cfg.FFmpeg, FLAC: cfg.FLAC, Metaflac: cfg.Metaflac}, media.Analyzer, now)
+	}
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Services{
+		Lineage: m3.Lineage, Spend: m3.Spend, Generation: m3.Generation, Jobs: m3.Jobs, Provider: m3.Provider, Uploads: m3.Uploads,
+		Backend: m3.Backend, Fake: m3.Fake, Gate: m3.Gate, Runner: m3.Runner, Reconciler: m3.Reconciler,
 		Tokens:  tokens,
 		Local:   local,
 		Devices: devices,
@@ -174,6 +221,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Audit: s.Audit, Devices: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
+		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
@@ -183,6 +231,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Devices: devices, DeviceStore: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
+		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads,
+		BaseContext: o.M3.Shutdown,
 	}
 	return s, nil
 }

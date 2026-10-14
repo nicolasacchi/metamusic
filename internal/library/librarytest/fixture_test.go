@@ -146,3 +146,67 @@ func TestWriteFiles_ArtifactFile(t *testing.T) {
 		t.Errorf("artifact rows: %d", n)
 	}
 }
+
+// TestFixture_M3Rows pins the C86.2 counts of FixtureM3.
+func TestFixture_M3Rows(t *testing.T) {
+	t.Parallel()
+	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "f.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	fx := FixtureM3(t, st, FixedNow)
+	count := func(q string, a ...any) int {
+		var n int
+		if err := st.R.QueryRow(q, a...).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return n
+	}
+	for table, want := range map[string]int{
+		"estimates": 3, "batches": 3, "approvals": 3, "jobs": 4, "job_attempts": 1, "ledger": 11, "billing_windows": 1, "billing_buckets": 1,
+		"env_fingerprints": 1, "provider_state": 1, "spend_caps": 1, "rtf_stats": 3,
+	} {
+		if got := count(`SELECT COUNT(*) FROM ` + table); got != want {
+			t.Errorf("%s: %d rows, want %d", table, got, want)
+		}
+	}
+	if got := count(`SELECT COUNT(*) FROM mutations WHERE job_id IS NOT NULL AND operator = 'reroll_seed' AND parent_track_id = ?`, TrackLuna); got != 1 {
+		t.Errorf("job mutations = %d", got)
+	}
+	if got := count(`SELECT COUNT(*) FROM tracks WHERE origin = 'job' AND job_id = ? AND env_id = ?`, JobDone, EnvFixture); got != 1 {
+		t.Errorf("job tracks = %d", got)
+	}
+	// recipe_keys: one per yue2 recipe, none for stubs.
+	if y, k := count(`SELECT COUNT(*) FROM recipes WHERE engine = 'yue2'`), count(`SELECT COUNT(*) FROM recipe_keys`); y != k {
+		t.Errorf("yue2 recipes %d, recipe_keys %d", y, k)
+	}
+	if got := count(`SELECT COUNT(*) FROM recipe_keys k JOIN recipes r ON r.id = k.recipe_id WHERE r.engine <> 'yue2'`); got != 0 {
+		t.Errorf("recipe_keys of stubs = %d", got)
+	}
+	if got := count(`SELECT COUNT(*) FROM batches WHERE state = 'awaiting_confirmation' AND principal_kind = 'agent'`); got != 1 {
+		t.Errorf("awaiting agent batches = %d", got)
+	}
+	if got := count(`SELECT COUNT(*) FROM jobs WHERE error_code = 'NO_CAPACITY' AND state = 'failed'`); got != 1 {
+		t.Errorf("failed jobs = %d", got)
+	}
+	if len(fx.Tracks) != 8 || !slices.Contains(fx.Tracks, TrackJobChild) {
+		t.Errorf("tracks %v", fx.Tracks)
+	}
+	// every batch's ledger balances: settle + release never exceeds reserve (C72.5 invariant).
+	rows, err := st.R.Query(`SELECT batch_id, SUM(CASE kind WHEN 'reserve' THEN micro_usd WHEN 'settle' THEN -micro_usd WHEN 'release' THEN -micro_usd ELSE 0 END) FROM ledger WHERE batch_id IS NOT NULL GROUP BY batch_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b string
+		var outstanding int64
+		if err := rows.Scan(&b, &outstanding); err != nil {
+			t.Fatal(err)
+		}
+		if outstanding < 0 {
+			t.Errorf("batch %s over-released: %d", b, outstanding)
+		}
+	}
+}

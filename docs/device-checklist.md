@@ -57,4 +57,11 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M2c-2 a lossy track and a FLAC reference in one blind duel play in sync and at matched loudness
 - [ ] DC-M2c-3 the "recipe unknown" and "lossy reference" badges are readable on the phone and the library filters find the track
 
+## M3
+
+- [ ] DC-M3-1 an agent batch's ntfy "Review" action opens `/human/confirm/<batch>` on the phone, passes 2FA and approves the batch
+- [ ] DC-M3-2 the three-click new-seed variant works on iPhone and Android: the child appears under its source and plays
+- [ ] DC-M3-3 terminating a running job from a paired phone (device principal, write scope) shows it `cancelled`
+- [ ] DC-M3-4 the trip banner and the "Set max workers to 0" push arrive on the phone (provoked with the fake backend's `fake:stuck_worker` on a dev instance)
+
 ## Notes

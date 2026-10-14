@@ -67,7 +67,7 @@ jobs:
 
   go-media:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -106,6 +106,32 @@ jobs:
           name: covdata-unit-media
           path: covdata/unit
           retention-days: 1
+
+  worker-py:
+    # Python worker unit tests (C83.5): no torch, no network, no path filter (≈ 1 min). The slow contract
+    # tests against the real yue2 live in worker-contract.yml.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install uv (pinned version; the runner image ships python and pipx)
+        working-directory: .
+        run: pipx install "uv==0.11.7"
+      - name: cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('worker/uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+      - run: uv sync --frozen --group dev
+      - run: uv run pytest --cov=mmworker --cov-fail-under=90
 
   lint:
     runs-on: ubuntu-24.04

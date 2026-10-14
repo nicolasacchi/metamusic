@@ -6,8 +6,11 @@ package servertest
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	mrand "math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -33,11 +36,17 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/ears/earstest"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/provider/fake"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/runpodtest"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/testtools"
 )
@@ -54,6 +63,50 @@ type Options struct {
 	Limits  ratelimit.Config      // nil => effectively unlimited
 	Canary  bool                  // canary secret_key / edge_secret / ntfy_token / human username; ntfy fake server
 	M2b     M2bOptions            // duels, Ears and clips (C55)
+
+	// M3 (C86.1). Backend selects the generation backend: "none" (default) | "fake". The serverless
+	// backend over runpodtest arrives with M3-B8.
+	Backend string
+	// Runner starts the runner and the reconciler. The default (false) leaves them built but idle: tests drive
+	// Rig.Runner.Step / Drain and Rig.Reconciler.Pass themselves, so parity rigs never run a job.
+	Runner    bool
+	FakeSpeed fake.Speed    // the fake backend's queue and run durations
+	Caps      *spend.Caps   // global caps written before the services start (nil => the migration defaults)
+	M3        bool          // plus the M3 rows of librarytest.FixtureM3; requires Fixture and M2c
+	Rand      io.Reader     // confirmation tokens and instance ids; nil => SeededReader(1), identical in every rig
+	Ingest    jobs.Ingester // replaces the production ingest bridge (a stub ingester)
+	Fake      *fake.Options // replaces the fake backend's options entirely (adversarial switches, permissions)
+	// RunPod selects the serverless backend over a runpodtest server (Backend must be "" or "runpod"): the rig
+	// writes a synthetic runpod.env, points the backend at the server and arms the provider. Rig.Fake is nil.
+	RunPod *RunPodOptions
+}
+
+// RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
+// when it purges finished jobs.
+type RunPodOptions struct {
+	Server     *runpodtest.Server
+	Keys       runpodtest.KeySet
+	EndpointID string // default "ep-canary-0000" (runpodtest's default)
+	Disarmed   bool   // leave the provider disarmed (the production default)
+}
+
+// SeededReader is a deterministic random source: two readers of one seed return the same bytes, so the
+// parity rigs mint identical confirmation-token sequences.
+func SeededReader(seed uint64) io.Reader {
+	var k [32]byte
+	binary.LittleEndian.PutUint64(k[:], seed)
+	return &lockedReader{r: mrand.NewChaCha8(k)}
+}
+
+type lockedReader struct {
+	mu sync.Mutex
+	r  *mrand.ChaCha8
+}
+
+func (l *lockedReader) Read(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.r.Read(p)
 }
 
 // M2bOptions tunes the M2b services of a rig.
@@ -83,8 +136,16 @@ type Rig struct {
 	Services                *app.Services
 	Ntfy                    *FakeNtfy
 
+	// M3 (C86.1). Fake is the in-process backend when Options.Backend is "fake"; Runner and Reconciler are
+	// built whenever a backend exists (started only with Options.Runner).
+	Fake       *fake.Backend
+	Backend    provider.Backend
+	Runner     *jobs.Runner
+	Reconciler *jobs.Reconciler
+
 	edge, humanUser, mode string
 	password              string
+	rebuild               func(seed uint64) (*app.Services, error)
 	gatedAPI              huma.API
 	stdioHandler          http.Handler
 }
@@ -142,6 +203,24 @@ func New(tb testing.TB, o Options) *Rig {
 		TrustedUsers:   []string{r.humanUser},
 		DataDir:        r.DataDir, SecretsDir: filepath.Join(root, "secrets"), BackupDir: r.BackupDir,
 		BackupAt: "off", FFmpeg: "ffmpeg", FLAC: "flac", Metaflac: "metaflac", RateScale: 1,
+		// M3 defaults (C68)
+		Backend: config.BackendNone, Runner: true, JobMaxRuntime: 15 * time.Minute, KillSlackS: 15, JobTTL: 2 * time.Hour,
+		ColdStartS: 180, PriceMarginPPM: 100_000, BillingLag: 6 * time.Hour, ResidualHold: 48 * time.Hour,
+	}
+	switch o.Backend {
+	case "", "none":
+		if o.RunPod != nil {
+			cfg.Backend = config.BackendRunPod
+		}
+	case "fake":
+		cfg.Backend = config.BackendFake
+	case "runpod":
+		if o.RunPod == nil {
+			tb.Fatal("servertest: Backend runpod needs Options.RunPod")
+		}
+		cfg.Backend = config.BackendRunPod
+	default:
+		tb.Fatalf("servertest: unknown backend %q (the serverless backend over runpodtest arrives with M3-B8)", o.Backend)
 	}
 	if r.Ntfy != nil {
 		cfg.NtfyURL = r.Ntfy.URL + "/mm-test"
@@ -173,6 +252,19 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyM2c(tb, st, clock.Now())
 	}
+	if o.M3 {
+		if !o.Fixture || !o.M2c {
+			tb.Fatal("servertest: M3 requires Fixture and M2c")
+		}
+		librarytest.ApplyM3(tb, st, clock.Now())
+	}
+	if o.Caps != nil {
+		c := o.Caps
+		if _, err := st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd=?, batch_micro_usd=?, human_daily_micro_usd=?, agent_daily_micro_usd=?, auto_approve_takes=?, auto_approve_micro_usd=?, updated_by='system:test', updated_at=? WHERE id = 1`,
+			int64(c.MonthlyMicro), int64(c.BatchMicro), int64(c.HumanDailyMicro), int64(c.AgentDailyMicro), c.AutoApproveTakes, int64(c.AutoApproveMicro), store.FormatTime(clock.Now())); err != nil {
+			tb.Fatal(err)
+		}
+	}
 	if o.Files {
 		librarytest.WriteFiles(tb, r.DataDir)
 	}
@@ -199,6 +291,28 @@ func New(tb testing.TB, o Options) *Rig {
 		Now: clock.Now, NewID: idSequence(o.IDSeed), Limits: limits, Version: "v-test", Commit: "abc123",
 		Probe:    &mediaserve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
 		SlotCoin: o.M2b.SlotCoin,
+		Rand:     o.Rand,
+		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
+	}
+	if ao.Rand == nil {
+		ao.Rand = SeededReader(1)
+	}
+	if o.Fake == nil {
+		ao.M3.Fake = &fake.Options{Speed: o.FakeSpeed}
+	}
+	if rp := o.RunPod; rp != nil {
+		ep := rp.EndpointID
+		if ep == "" {
+			ep = "ep-canary-0000"
+		}
+		env := "RUNPOD_JOBS_KEY=" + rp.Keys.Jobs + "\nRUNPOD_READ_KEY=" + rp.Keys.Read + "\nRUNPOD_WRITE_KEY=" + rp.Keys.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+		if err := os.MkdirAll(cfg.SecretsDir, 0o700); err != nil {
+			tb.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(cfg.SecretsDir, "runpod.env"), []byte(env), 0o600); err != nil {
+			tb.Fatal(err)
+		}
+		ao.M3.RunPod = &runpod.BackendOptions{MgmtBase: rp.Server.URL, JobsBase: rp.Server.URL}
 	}
 	if ao.SlotCoin == nil {
 		ao.SlotCoin = Alternating()
@@ -231,6 +345,29 @@ func New(tb testing.TB, o Options) *Rig {
 		svc.Server.Duels, svc.Server.Ears, svc.Server.Clips = svc.Duels, svc.Ears, svc.Clips
 	}
 	r.Services = svc
+	r.rebuild = func(seed uint64) (*app.Services, error) {
+		ao2 := ao
+		ao2.Rand = SeededReader(seed)
+		ao2.M3.Backend = svc.Backend // the provider outlives the process: the same backend instance
+		return app.Build(ctx, cfg, sec, st, dataRoot, ao2)
+	}
+	if o.RunPod != nil && !o.RunPod.Disarmed {
+		if _, err := st.W.ExecContext(ctx, `UPDATE provider_state SET armed = 1, changed_by = 'system:test' WHERE backend = ?`, provider.BackendRunPod); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	r.Fake, r.Backend, r.Runner, r.Reconciler = svc.Fake, svc.Backend, svc.Runner, svc.Reconciler
+	if o.Runner {
+		if svc.Runner == nil {
+			tb.Fatal("servertest: Runner needs a backend")
+		}
+		rctx, cancel := context.WithCancel(ctx)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); _ = svc.Runner.Run(rctx) }()
+		go func() { defer wg.Done(); _ = svc.Reconciler.Run(rctx) }()
+		tb.Cleanup(func() { cancel(); wg.Wait() })
+	}
 	if o.M2b.Backfill {
 		if _, err := svc.Ears.Backfill(ctx, ears.BackfillOptions{}); err != nil && !errors.Is(err, errors.ErrUnsupported) {
 			tb.Fatalf("servertest: ears backfill: %v", err)
@@ -293,6 +430,29 @@ func idSequence(seed string) func() string {
 	return func() string {
 		return fmt.Sprintf("%s0000-0000-7000-8000-%012x", seed, n.Add(1))
 	}
+}
+
+// NewProcess builds a second set of services over the rig's store, data directory and backend, as a restarted
+// server process would: its own runner instance (a different owner id, from seed) and reconciler, nothing
+// started. Close runs at test cleanup. The first process's runner is not stopped: leave it idle (Options.Runner
+// false) and let its lease lapse by advancing the clock.
+func (r *Rig) NewProcess(tb testing.TB, seed uint64) *app.Services {
+	tb.Helper()
+	if r.rebuild == nil {
+		tb.Fatal("servertest: NewProcess before New returned")
+	}
+	svc, err := r.rebuild(seed)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		cctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := svc.Close(cctx); err != nil {
+			tb.Errorf("servertest: closing the second process: %v", err)
+		}
+	})
+	return svc
 }
 
 // Human is a REST client for the operator: proxy headers in proxy mode, a

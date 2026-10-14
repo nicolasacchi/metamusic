@@ -2,12 +2,23 @@
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import DraftEditor from "../lib/components/DraftEditor.svelte";
+  import { draftsIntent, mayGenerate, startGeneration, type Viewer } from "../lib/genIntent";
+  import { fetchViewer } from "../lib/viewer";
 
   type Draft = components["schemas"]["DraftDetail"];
   let { id }: { id: string } = $props();
 
   let draft = $state<Draft | null>(null);
   let error = $state("");
+  let me = $state<Viewer | null>(null);
+
+  $effect(() => {
+    void fetchViewer().then((v) => (me = v));
+  });
+
+  function generate(draftId: string) {
+    startGeneration(sessionStorage, draftsIntent([draftId]), (to) => location.assign(to));
+  }
 
   $effect(() => {
     const mine = id;
@@ -35,6 +46,9 @@
   </p>
   {#if draft.collections.length}
     <p>{#each draft.collections as c (c)}<span class="badge">{c}</span>{/each}</p>
+  {/if}
+  {#if mayGenerate(me) && draft.status !== "archived"}
+    <p><button type="button" onclick={() => generate(draft?.id ?? "")} data-testid="generate-draft">Generate this draft</button></p>
   {/if}
   {#if draft.fulfilled_by_track_id}
     <p>Fulfilled by <a href="/tracks/{draft.fulfilled_by_track_id}">this track</a>.</p>

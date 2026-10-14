@@ -1,0 +1,15 @@
+# Applies to `docker build -f worker/Dockerfile worker/` (BuildKit per-Dockerfile ignore file).
+# The image gets the package only: no tests, no contract job, no caches, no virtualenv, no lock for dev deps.
+.venv
+.pytest_cache
+.coverage
+.coverage.*
+**/__pycache__
+**/*.pyc
+tests
+contract
+uv.lock
+Dockerfile
+Dockerfile.dockerignore
+**/*.env
+**/runpod*.env

@@ -128,7 +128,7 @@ func TestDBSource_Contract(t *testing.T) {
 		t.Fatal(perr)
 	}
 	tx, _ := e.st.W.BeginTx(ctx, nil)
-	rid, _, err := e.lib.InsertRecipe(ctx, tx, p)
+	rid, _, err := e.lib.InsertRecipe(ctx, tx, p, "import")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestExports_Bundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx, _ := e.st.W.BeginTx(ctx, nil)
-	rid, _, _ := e.lib.InsertRecipe(ctx, tx, p)
+	rid, _, _ := e.lib.InsertRecipe(ctx, tx, p, "import")
 	_, _ = e.lib.InsertRecipeSource(ctx, tx, rid, library.SourceRef{Path: "music/abc.jsonl", Line: 1, Raw: raw, RawKind: "jsonl_line"}, lt.RunID)
 	_ = tx.Commit()
 	x, err := e.svc.JSONL(ctx, human, export.Selection{Kind: "source", SourcePath: "music/abc.jsonl"}, "")

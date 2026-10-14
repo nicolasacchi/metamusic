@@ -39,3 +39,11 @@ func TestContextRoundTrip(t *testing.T) {
 		t.Fatalf("client = %q (must be sanitised on entry)", got)
 	}
 }
+
+func TestTransport_Runner(t *testing.T) {
+	t.Parallel()
+	ctx := WithTransport(context.Background(), Runner)
+	if tr, ok := TransportFrom(ctx); !ok || tr != "runner" {
+		t.Fatalf("transport = %q, %v", tr, ok)
+	}
+}

@@ -7,8 +7,14 @@ services:
     # Once a registry image is published, replace build/image with:
     # image: ghcr.io/nicolasacchi/metamusic:latest
     restart: unless-stopped
+    # a running job's settlement and the runner's shutdown drain (30 s) fit well inside this
+    stop_grace_period: 90s
     environment:
       MM_AUTH: local
+      # Generation backend: "none" (default; estimates and creates answer GENERATION_DISABLED) |
+      # "fake" (local simulation, no spend) | "runpod". RunPod keys never go through compose
+      # environment or env_file: they live in the secrets dir as runpod.env (see below).
+      MM_BACKEND: none
       MM_PUBLIC_URL: http://localhost:8080
       MM_SECRETS_DIR: /run/secrets
       MM_DATA_DIR: /state/data
@@ -30,6 +36,8 @@ services:
     secrets:
       - secret_key
       # - ntfy_token   # optional; also declare it under the top-level secrets below
+      # - runpod.env   # only with MM_BACKEND=runpod; scoped keys only (never the admin key); also
+      #                # declare it under the top-level secrets below
     read_only: true
     tmpfs:
       - /tmp
@@ -42,12 +50,18 @@ services:
 #   (umask 077; mkdir -p deploy/secrets && openssl rand -hex 32 > deploy/secrets/secret_key)
 # Optional ntfy publisher token: create deploy/secrets/ntfy_token the same way, then add it to the
 # service "secrets" list and to the top-level "secrets" map below.
+# RunPod keys (MM_BACKEND=runpod only): create deploy/secrets/runpod.env (mode 600) holding the scoped
+# jobs, read and write keys and the console URL, add "runpod.env" to the service "secrets" list and
+# to the top-level map below. The all-access admin key is never mounted: it is used by
+# "metamusic runpod provision" from an operator-provided file and deleted afterwards.
 # After "up", create the human account (password read from stdin):
 #   printf '%s\n' "$PW" | docker compose -f deploy/compose.example.yml exec -T metamusic \
 #     metamusic user set-password --username <you>
 secrets:
   secret_key:
     file: ./secrets/secret_key
+  # runpod.env:
+  #   file: ./secrets/runpod.env
 
 # Data and backups share the one /state volume (data/ and backup/) so snapshots hardlink
 # masters instead of copying them. A bind mount works too if both directories are on it.

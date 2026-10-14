@@ -22,13 +22,17 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
@@ -68,6 +72,14 @@ type Deps struct {
 	Duels *duels.Service
 	Ears  *ears.Service
 	Clips *clip.Service
+
+	// M3 (C81). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
+	// (the component names are generation, spend, jobs, provider and lineage).
+	Generation *generation.Service
+	Spend      *spend.Service
+	Jobs       *jobs.Service
+	Provider   *jobs.ProviderAdmin
+	Lineage    *lineage.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -179,11 +191,16 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerDuels(a, d)
 	registerClips(a, d)
 	registerEars(a, d)
+	registerGenerationM3(a, d)
+	registerBudgetM3(a, d)
+	registerJobsM3(a, d)
+	registerProviderM3(a, d)
 	registerAudit(a, d)
 	registerTokens(a, d)
 	registerPairedDevices(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
+	ValidateAliases(a)
 	return a
 }
 

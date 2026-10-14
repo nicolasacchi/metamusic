@@ -221,6 +221,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		client = reqinfo.SanitizeClient(r.UserAgent())
 	}
 	ctx = audit.WithCollector(reqinfo.WithClient(reqinfo.WithTransport(ctx, tr), client))
+	// Mutable marks (M3 C80): idem.CompleteTx and audit.InsertTx set them from inside the handler's
+	// transaction; a context.WithValue made there could never reach this function.
+	ctx, marks := idem.WithMarks(ctx)
 
 	audited := p.Kind == auth.KindAgent ||
 		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead))
@@ -252,7 +255,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			entry.ErrorCode = problemCode(rec.head.Bytes())
 		}
 		entry.CreatedIDs = audit.Created(ctx)
-		if audited {
+		if audited && !marks.Audited() { // an operation that audited in its own transaction wrote the row
 			g.insertAudit(ctx, entry)
 		}
 	}
@@ -308,11 +311,13 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body = b
 		r.Body = io.NopCloser(bytes.NewReader(b))
 	}
-	r = r.WithContext(ctx)
 	if audited || create {
 		sha, _ := idem.RequestSHA(opID, r.Method, r.URL.EscapedPath(), r.URL.Query(), body)
 		entry.ArgsSHA256 = sha
 	}
+	// The precomputed entry, for handlers that audit in their own transaction (audit.PendingFrom).
+	ctx = audit.WithPending(ctx, entry)
+	r = r.WithContext(ctx)
 
 	// 3. No operation matched: the mux's own not-found handler answers.
 	if !matched {
@@ -335,7 +340,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.Inner.ServeHTTP(rec, r)
 		return
 	}
-	g.serveIdempotent(rec, r, info, p, &entry, body)
+	g.serveIdempotent(rec, r, info, p, &entry, marks)
 }
 
 // insertAudit writes the row, retrying with backoff inside AuditBudget, detached from request
@@ -346,7 +351,7 @@ func (g *gate) insertAudit(ctx context.Context, e audit.Entry) {
 	audit.InsertRetrying(ctx, g.Audit, e, g.AuditBudget, g.AuditBackoff)
 }
 
-func (g *gate) serveIdempotent(rec *recorder, r *http.Request, info api.OpInfo, p auth.Principal, entry *audit.Entry, body []byte) {
+func (g *gate) serveIdempotent(rec *recorder, r *http.Request, info api.OpInfo, p auth.Principal, entry *audit.Entry, marks *idem.Marks) {
 	ctx := r.Context()
 	key := r.Header.Get("Idempotency-Key")
 	derivedKey, hasDerived := idem.DerivedFrom(ctx)
@@ -426,9 +431,17 @@ func (g *gate) serveIdempotent(rec *recorder, r *http.Request, info api.OpInfo, 
 		}
 	}()
 
+	// The handler of a spend operation finds its idempotency identity (and the lease generation Begin
+	// returned) here and completes the row inside its own transaction (idem.CompleteTx).
+	r = r.WithContext(idem.WithKey(ctx, pk, key, begun.Gen))
 	rec.capture = true
 	g.Inner.ServeHTTP(rec, r)
 	finished = true
+
+	if marks.Completed() { // stored in the operation's transaction: the response is already replayable
+		entry.Idempotency = audit.IdemStored
+		return
+	}
 
 	status := rec.status
 	if status == 0 {

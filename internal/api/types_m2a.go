@@ -30,6 +30,10 @@ type PrincipalRef = auth.PrincipalRef
 // (an agent) sees the operator as {human, "human", "human"} and a device as
 // {device, <key>, "device"}. Handlers never build references by hand.
 func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
+	// system:* keys (runner, reconciler, billing, cli, job) render the same for every viewer (M3 D-M3-22).
+	if strings.HasPrefix(key, string(auth.KindSystem)+":") {
+		return PrincipalRef{Kind: string(auth.KindSystem), ID: key, Name: strings.TrimPrefix(key, string(auth.KindSystem)+":")}
+	}
 	if viewer.ActsAsHuman() {
 		return PrincipalRef{Kind: kind, ID: key, Name: name}
 	}

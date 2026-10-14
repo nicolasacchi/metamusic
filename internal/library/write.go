@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 )
 
 // SourceRef is one occurrence of a recipe in the inbox.
@@ -46,12 +47,18 @@ type NewArtifact struct {
 	Bytes              int64
 }
 
-// NewMutation links a take to its parent (inferred siblings in M1).
+// NewMutation links a take to its parent: inferred siblings at import (M1) and
+// the Operator Ledger edges of generated takes (M3, C71.5).
 type NewMutation struct {
-	Operator  string // inferred_sibling
+	Operator  string // inferred_sibling | reroll_seed | same_seed_edit | lyric_edit | style_edit | from_draft | compose_new
 	Inferred  bool
-	Rule      string // same_request_id | seed_family | mapping | reference_group
+	Rule      string // same_request_id | seed_family | mapping | reference_group (inferred_sibling only)
 	Rationale string
+	// M3 (D-M3-35): written only for job takes. Params becomes params_json (plus "job_id"),
+	// RecipePatchJSON the recipe_patch_json column ("" => NULL).
+	Params          map[string]any
+	JobID           string
+	RecipePatchJSON string
 }
 
 // Fulfilment reports which drafts an InsertTake fulfilled.
@@ -102,6 +109,12 @@ type NewTake struct {
 	// source/frames/master hashes) and allows only a peaks rendition.
 	Lossy bool
 
+	// M3 (D-M3-35). Origin is "" or "import" for imported takes and "job" for generated ones; the
+	// columns below are written only for job takes so older-schema fixtures keep building.
+	Origin       string
+	StatusSetBy  string // default "import" (job takes: "system:job")
+	JobID, EnvID string
+
 	// Out, when non-nil, receives the fulfilled drafts.
 	Out *Fulfilment
 }
@@ -111,15 +124,45 @@ func execTx(ctx context.Context, tx *sql.Tx, q string, a ...any) error {
 	return err
 }
 
-// InsertRecipe stores a recipe once (by canonical hash).
-func (s *Service) InsertRecipe(ctx context.Context, tx *sql.Tx, p yue2.Parsed) (id string, created bool, err error) {
+// ErrRecipeExists is returned by InsertRecipe for a non-import caller whose recipe is already stored:
+// a job recipe is always a new row (reuse goes through the draft path, never through an insert).
+var ErrRecipeExists = errors.New("library: recipe already exists")
+
+// hasTable reports whether the connected database has the named table. Positive answers are cached;
+// a negative one is re-asked, because an upgrade test migrates a database after the Service exists.
+func (s *Service) hasTable(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	if _, ok := s.tables.Load(name); ok {
+		return true, nil
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&n); err != nil {
+		return false, fmt.Errorf("library: probe table %s: %w", name, err)
+	}
+	if n == 0 {
+		return false, nil
+	}
+	s.tables.Store(name, struct{}{})
+	return true, nil
+}
+
+// InsertRecipe stores a recipe once (by canonical hash) on behalf of createdBy ("import" for the
+// importer, the principal key for a job recipe) and, when the schema has recipe_keys (version 6),
+// the recipe's content and render keys (C71.7). Any createdBy other than "import" gets
+// ErrRecipeExists (with the existing id) unless the row was created now.
+func (s *Service) InsertRecipe(ctx context.Context, tx *sql.Tx, p yue2.Parsed, createdBy string) (id string, created bool, err error) {
+	if createdBy == "" {
+		return "", false, invalid("created_by", "created_by is required")
+	}
 	r := p.Request
 	rid := s.newID()
 	err = tx.QueryRowContext(ctx, `INSERT INTO recipes(id, engine, request_id, request_json, style, lyrics, seed, cot,
 		sampling_json, hash, core_hash, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,NULL,?,?,?,?)
 		ON CONFLICT(hash) DO NOTHING RETURNING id`,
-		rid, "yue2", r.ID, string(p.Canonical), r.Style, r.Lyrics, r.Seed, r.Cot, p.Hash, p.CoreHash, "import", s.nowStr()).Scan(&id)
+		rid, "yue2", r.ID, string(p.Canonical), r.Style, r.Lyrics, r.Seed, r.Cot, p.Hash, p.CoreHash, createdBy, s.nowStr()).Scan(&id)
 	if err == nil {
+		if err := s.insertRecipeKeys(ctx, tx, id, p.Canonical); err != nil {
+			return "", false, err
+		}
 		return id, true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -128,7 +171,27 @@ func (s *Service) InsertRecipe(ctx context.Context, tx *sql.Tx, p yue2.Parsed) (
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM recipes WHERE hash = ?`, p.Hash).Scan(&id); err != nil {
 		return "", false, fmt.Errorf("library: find recipe: %w", err)
 	}
+	if createdBy != "import" {
+		return id, false, ErrRecipeExists
+	}
 	return id, false, nil
+}
+
+// insertRecipeKeys writes the recipe_keys row of a yue2 recipe in the recipe's transaction.
+func (s *Service) insertRecipeKeys(ctx context.Context, tx *sql.Tx, recipeID string, canonical []byte) error {
+	ok, err := s.hasTable(ctx, tx, "recipe_keys")
+	if err != nil || !ok {
+		return err
+	}
+	content, render := lineage.Keys(canonical)
+	if content == "" || render == "" {
+		return fmt.Errorf("library: recipe keys of %s: request is not an object", recipeID)
+	}
+	if err := execTx(ctx, tx, `INSERT INTO recipe_keys(recipe_id, content_hash, render_hash) VALUES (?,?,?) ON CONFLICT(recipe_id) DO NOTHING`,
+		recipeID, content, render); err != nil {
+		return fmt.Errorf("library: insert recipe keys: %w", err)
+	}
+	return nil
 }
 
 // InsertRecipeSource records one occurrence; repeated calls are no-ops.
@@ -245,6 +308,9 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if err := validateReferenceTake(t); err != nil {
 		return err
 	}
+	if err := validateJobTake(t); err != nil {
+		return err
+	}
 	var reqID, style, lyrics, coreHash string
 	if err := tx.QueryRowContext(ctx, `SELECT request_id, style, lyrics, core_hash FROM recipes WHERE id = ?`, t.RecipeID).
 		Scan(&reqID, &style, &lyrics, &coreHash); err != nil {
@@ -270,13 +336,27 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if t.Lossy {
 		lossyCol, lossyArg = ", lossy", ",1"
 	}
+	// The M3 columns (v6) are written only for job takes, for the same reason (D-M3-35).
+	origin, setBy := "import", "import"
+	args := []any{t.ID, t.Slug, t.Title, t.RecipeID, nullStr(t.ParentTrackID), root, t.Generation}
+	jobCols, jobArgs := "", ""
+	if t.isJob() {
+		origin, setBy = "job", t.StatusSetBy
+		if setBy == "" {
+			setBy = "system:job"
+		}
+		jobCols, jobArgs = ", job_id, env_id", ",?,?"
+	}
+	args = append(args, setBy, origin,
+		t.DurationS, t.SampleRate, t.BitsPerSample, t.Channels, t.TotalSamples, t.MasterPath, t.MasterSHA256, t.MasterBytes, t.SourceSHA256, t.FramesSHA256, t.AudioMD5,
+		boolPtr(t.TruncatedABC), boolPtr(t.TruncatedSemantic), bpmArg, t.ImportRule, runArg, ts(t.RecordedAt), now)
+	if t.isJob() {
+		args = append(args, nullStr(t.JobID), nullStr(t.EnvID))
+	}
 	if err := execTx(ctx, tx, `INSERT INTO tracks(id, slug, title, recipe_id, parent_track_id, root_track_id, generation, status, status_set_by, origin,
 		duration_s, sample_rate, bits_per_sample, channels, total_samples, master_path, master_sha256, master_bytes, source_sha256, frames_sha256, audio_md5,
-		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at`+lossyCol+`)
-		VALUES (?,?,?,?,?,?,?,'draft','import','import',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?`+lossyArg+`)`,
-		t.ID, t.Slug, t.Title, t.RecipeID, nullStr(t.ParentTrackID), root, t.Generation,
-		t.DurationS, t.SampleRate, t.BitsPerSample, t.Channels, t.TotalSamples, t.MasterPath, t.MasterSHA256, t.MasterBytes, t.SourceSHA256, t.FramesSHA256, t.AudioMD5,
-		boolPtr(t.TruncatedABC), boolPtr(t.TruncatedSemantic), bpmArg, t.ImportRule, runArg, ts(t.RecordedAt), now); err != nil {
+		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at`+lossyCol+jobCols+`)
+		VALUES (?,?,?,?,?,?,?,'draft',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?`+lossyArg+jobArgs+`)`, args...); err != nil {
 		return fmt.Errorf("library: insert track: %w", err)
 	}
 	for _, term := range terms {
@@ -307,21 +387,8 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 		return err
 	}
 	if t.Mutation != nil {
-		m := t.Mutation
-		if t.ParentTrackID == "" || !oneOf(m.Operator, "inferred_sibling") {
-			return invalid("mutation", "operator %q needs a parent", m.Operator)
-		}
-		pj, err := jsonString(map[string]string{"rule": m.Rule})
-		if err != nil {
+		if err := s.insertMutation(ctx, tx, t, now); err != nil {
 			return err
-		}
-		inf := 0
-		if m.Inferred {
-			inf = 1
-		}
-		if err := execTx(ctx, tx, `INSERT INTO mutations(id, parent_track_id, child_track_id, operator, inferred, params_json, rationale, principal_id, created_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`, s.newID(), t.ParentTrackID, t.ID, m.Operator, inf, pj, nullStr(m.Rationale), t.PrincipalID, now); err != nil {
-			return fmt.Errorf("library: insert mutation: %w", err)
 		}
 	}
 	if t.ParentTrackID != "" && !s.legacyV2 {
@@ -336,7 +403,106 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if t.Reference {
 		return nil // a stub recipe never fulfils a draft (C59)
 	}
+	if t.isJob() {
+		return nil // a generated take never fulfils an imported draft; the job path marks its own draft (D-M3-35)
+	}
 	return s.fulfil(ctx, tx, t, coreHash, now)
+}
+
+func (t NewTake) isJob() bool { return t.Origin == "job" }
+
+func scoreSource(t NewTake) string {
+	if t.isJob() {
+		return "job"
+	}
+	return "import"
+}
+
+// enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import.
+var enumOperator = []string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new"}
+
+// rootlessOperators may record an edge without a parent (a draft with no mother, a composed song).
+var rootlessOperators = []string{"from_draft", "compose_new"}
+
+// validateJobTake enforces the Go side of the job-take shape.
+func validateJobTake(t NewTake) error {
+	switch t.Origin {
+	case "", "import":
+		if t.JobID != "" || t.EnvID != "" {
+			return invalid("job_id", "only job takes carry a job or environment")
+		}
+		if t.StatusSetBy != "" && t.StatusSetBy != "import" {
+			return invalid("status_set_by", "only job takes set status_set_by")
+		}
+		if t.Mutation != nil && t.Mutation.Operator != "inferred_sibling" {
+			return invalid("mutation", "operator %q needs a job take", t.Mutation.Operator)
+		}
+	case "job":
+		if t.JobID == "" {
+			return invalid("job_id", "a job take needs its job")
+		}
+		if t.Reference || t.Lossy {
+			return invalid("origin", "a job take is never a reference take")
+		}
+	default:
+		return invalid("origin", "unknown origin %q", t.Origin)
+	}
+	if m := t.Mutation; m != nil {
+		if !oneOf(m.Operator, enumOperator...) {
+			return invalid("mutation", "unknown operator %q", m.Operator)
+		}
+		if m.Operator == "inferred_sibling" && (t.ParentTrackID == "" || t.isJob()) {
+			return invalid("mutation", "operator %q needs an imported take with a parent", m.Operator)
+		}
+		if m.Operator != "inferred_sibling" && t.ParentTrackID == "" && !oneOf(m.Operator, rootlessOperators...) {
+			return invalid("mutation", "operator %q needs a parent", m.Operator)
+		}
+	}
+	return nil
+}
+
+// insertMutation writes the Operator Ledger row of a take (inferred at import, planned for a job).
+func (s *Service) insertMutation(ctx context.Context, tx *sql.Tx, t NewTake, now string) error {
+	m := t.Mutation
+	if !t.isJob() {
+		pj, err := jsonString(map[string]string{"rule": m.Rule})
+		if err != nil {
+			return err
+		}
+		inf := 0
+		if m.Inferred {
+			inf = 1
+		}
+		if err := execTx(ctx, tx, `INSERT INTO mutations(id, parent_track_id, child_track_id, operator, inferred, params_json, rationale, principal_id, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`, s.newID(), t.ParentTrackID, t.ID, m.Operator, inf, pj, nullStr(m.Rationale), t.PrincipalID, now); err != nil {
+			return fmt.Errorf("library: insert mutation: %w", err)
+		}
+		return nil
+	}
+	params := map[string]any{}
+	for k, v := range m.Params {
+		params[k] = v
+	}
+	params["job_id"] = m.JobID
+	if m.JobID == "" {
+		params["job_id"] = t.JobID
+	}
+	pj, err := jsonString(params) // encoding/json sorts map keys: stable bytes
+	if err != nil {
+		return err
+	}
+	jobID := m.JobID
+	if jobID == "" {
+		jobID = t.JobID
+	}
+	if m.RecipePatchJSON != "" && !json.Valid([]byte(m.RecipePatchJSON)) {
+		return invalid("mutation", "recipe_patch_json is not JSON")
+	}
+	if err := execTx(ctx, tx, `INSERT INTO mutations(id, parent_track_id, child_track_id, operator, inferred, params_json, rationale, principal_id, created_at, job_id, recipe_patch_json)
+		VALUES (?,?,?,?,0,?,?,?,?,?,?)`, s.newID(), nullStr(t.ParentTrackID), t.ID, m.Operator, pj, nullStr(m.Rationale), t.PrincipalID, now, jobID, nullStr(m.RecipePatchJSON)); err != nil {
+		return fmt.Errorf("library: insert mutation: %w", err)
+	}
+	return nil
 }
 
 // zeroMD5 is the audio_md5 of a take whose master has no STREAMINFO (lossy).
@@ -445,7 +611,7 @@ func (s *Service) insertScoreAndSections(ctx context.Context, tx *sql.Tx, t NewT
 		al = 1
 	}
 	if err := execTx(ctx, tx, `INSERT INTO scores(track_id, abc_path, abc_sha256, bars, meter, q, bpm, seconds_per_bar, aligned, source, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,'import',?)`, t.ID, "takes/"+t.ID+"/score.abc", sha256Hex(t.ScoreABC), sc.Bars, sc.Meter, q, bpm, spb, al, now); err != nil {
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`, t.ID, "takes/"+t.ID+"/score.abc", sha256Hex(t.ScoreABC), sc.Bars, sc.Meter, q, bpm, spb, al, scoreSource(t), now); err != nil {
 		return fmt.Errorf("library: insert score: %w", err)
 	}
 	if !aligned {

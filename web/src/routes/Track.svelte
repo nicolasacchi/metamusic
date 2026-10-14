@@ -20,6 +20,10 @@
   import LineageDuels from "../lib/components/LineageDuels.svelte";
   import TrackBadges from "../lib/components/TrackBadges.svelte";
   import RecipeUnknownPanel from "../lib/components/RecipeUnknownPanel.svelte";
+  import GenerateButton from "../lib/components/GenerateButton.svelte";
+  import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
+  import type { Viewer } from "../lib/genIntent";
+  import { fetchViewer } from "../lib/viewer";
 
   type Track = components["schemas"]["TrackDetail"];
   interface Props {
@@ -29,8 +33,16 @@
     navigate?: (to: string, replace?: boolean) => void;
     /** Pre-loaded detail (server-side rendering in unit tests; the page otherwise fetches it). */
     initial?: Track;
+    /** The caller (unit tests pass it; the page otherwise asks /api/me once). */
+    viewer?: Viewer | null;
   }
-  let { id, t = "", navigate, initial }: Props = $props();
+  let { id, t = "", navigate, initial, viewer = null }: Props = $props();
+  // svelte-ignore state_referenced_locally
+  let me = $state<Viewer | null>(viewer);
+  $effect(() => {
+    if (viewer) return;
+    void fetchViewer().then((v) => (me = v));
+  });
 
   /** Router-less fallback (the router listens to popstate). */
   function defaultNavigate(to: string) {
@@ -169,6 +181,7 @@
         {isCurrent && player.state.playing ? "Pause" : "Play"}
       </button>
       <span class="time" data-testid="track-time">{fmt(position)} / {fmt(duration)}</span>
+      <GenerateButton trackId={id} recipeKnown={track.recipe_known} lossy={track.lossy} {me} />
     </div>
 
     <div class="wave" bind:clientWidth={width}>
@@ -219,6 +232,15 @@
           parentId={track.lineage.parent_track_id}
           navigate={(to) => (navigate ?? defaultNavigate)(to)}
         />
+        {#if track.generation}
+          <ProvenancePanel
+            trackId={id}
+            generation={track.generation}
+            parentId={track.lineage.parent_track_id}
+            truncated={track.truncated}
+            navigate={(to) => (navigate ?? defaultNavigate)(to)}
+          />
+        {/if}
         {#if track.recipe_known}
           <section class="card">
             <h2>Recipe</h2>
@@ -228,6 +250,7 @@
         {/if}
         <section class="card">
           <h2>Lineage</h2>
+          <p><a href="/lineage/{id}" data-testid="lineage-link">Full lineage tree</a></p>
           <p class="muted">
             generation {track.lineage.generation}{track.lineage.inferred ? " (inferred)" : ""}
             {#if track.lineage.parent_track_id}

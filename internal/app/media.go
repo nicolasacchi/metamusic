@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/analysis"
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -42,6 +43,9 @@ type Media struct {
 	Clips                      *clip.Service
 	Ears                       *ears.Service
 	ClipsMissing, TierAMissing error
+	// Analyzer is the ffmpeg-backed analyzer the generation ingest pipeline uses; nil when ffmpeg is missing
+	// or the inputs were injected (MediaOptions), in which case the ingest bridge has no pipeline.
+	Analyzer analysis.Analyzer
 }
 
 // defaultClipCacheMB applies to config literals that leave ClipCacheMB at 0 (the servertest rig).
@@ -74,6 +78,7 @@ func NewMedia(ctx context.Context, cfg config.Config, st *store.Store, data *os.
 		default:
 			m.ClipsMissing, m.TierAMissing = f.RequireClips(), f.RequireTierA()
 			win, tier = f, f
+			m.Analyzer = f
 		}
 	}
 	if m.ClipsMissing != nil {

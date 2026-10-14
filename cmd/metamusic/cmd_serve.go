@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -100,12 +101,25 @@ func writeDevSecrets(dir string) error {
 	return nil
 }
 
-func cmdServe(ctx context.Context, getenv func(string) string, s streams) error {
+func cmdServe(ctx context.Context, args []string, getenv func(string) string, s streams) error {
+	fs := newFlags("serve", s)
+	runner := fs.Bool("runner", true, "run the generation runner and reconciler in this process (MM_RUNNER); --runner=false serves HTTP only")
+	if err := fs.Parse(args); err != nil {
+		return usageError(err.Error())
+	}
+	if fs.NArg() > 0 {
+		return usageError("serve takes no arguments")
+	}
+	var off bool
+	fs.Visit(func(f *flag.Flag) { off = off || (f.Name == "runner" && !*runner) })
 	b, err := boot(ctx, getenv, false)
 	if err != nil {
 		return err
 	}
 	defer b.close()
+	if off {
+		b.cfg.Runner = false
+	}
 	return serve(ctx, b, s)
 }
 
@@ -155,9 +169,16 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	// Every service, the gate and api.Deps come from one constructor (C39).
 	svc, err := app.Build(ctx, b.cfg, b.sec, b.st, root, app.Options{
 		Probe: ensureProbe(ctx, b.cfg, root, s), Version: version, Commit: commit,
+		// ctx ends when shutdown starts: it is the server's base context, so in-flight long-polls return.
+		M3: app.M3Options{Shutdown: ctx, Live: true},
 	})
 	if err != nil {
 		return err
+	}
+	if n, err := svc.Lineage.BackfillRecipeKeys(ctx); err != nil {
+		slog.Warn("recipe key backfill failed", "err", redact.Error(err))
+	} else if n > 0 {
+		slog.Info("recipe keys backfilled", "rows", n)
 	}
 	if n := sweepWorkDirs(root, time.Now(), workDirMaxAge); n > 0 {
 		slog.Info("swept stale work directories", "removed", n)
@@ -205,6 +226,18 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		go func() { defer pruned.Done(); sch.Loop(pruneCtx) }()
 	}
 	defer func() { stopPrune(); pruned.Wait() }()
+	runCtx, stopRun := context.WithCancel(ctx)
+	var running sync.WaitGroup
+	// stopRunner stops claiming and waits for the ingest pool and the lease release (Runner.Run's own drain).
+	stopRunner := func() { stopRun(); running.Wait() }
+	defer stopRunner()
+	if svc.Runner != nil && svc.Reconciler != nil {
+		running.Add(2)
+		go func() { defer running.Done(); _ = svc.Runner.Run(runCtx) }()
+		go func() { defer running.Done(); _ = svc.Reconciler.Run(runCtx) }()
+	} else {
+		slog.Info("runner not started", "reason", runnerOffReason(b.cfg, svc))
+	}
 	ln, err := net.Listen("tcp", b.cfg.Addr)
 	if err != nil {
 		return err
@@ -218,7 +251,10 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		return err
 	case <-ctx.Done():
 	}
-	sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Shutdown (C79): stop claiming, the base context is already cancelled (long-polls return), drain HTTP for
+	// 30 s while the runner drains its ingest pool, then release the lease.
+	stopRun()
+	sctx, cancel := context.WithTimeout(context.Background(), shutdownDrain)
 	defer cancel()
 	if err := srv.Shutdown(sctx); err != nil {
 		return err
@@ -227,6 +263,22 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		return err
 	}
 	return nil
+}
+
+// shutdownDrain is how long in-flight HTTP requests get at shutdown (compose stop_grace_period is 90 s).
+const shutdownDrain = 30 * time.Second
+
+// runnerOffReason names why serve did not start the runner, for the log line.
+func runnerOffReason(cfg config.Config, svc *app.Services) string {
+	switch {
+	case !cfg.Runner:
+		return "runner_disabled"
+	case cfg.Backend == config.BackendNone:
+		return "backend_none"
+	case svc.Backend == nil:
+		return "keys_absent"
+	}
+	return "no_runner"
 }
 
 // ensureProbe makes sure the device-probe FLAC exists under derived/probe and
@@ -274,6 +326,7 @@ func ensureProbe(ctx context.Context, cfg config.Config, root *os.Root, s stream
 func cmdDev(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("dev", s)
 	dir := fs.String("data-dir", "./data/dev", "dev data directory (MM_DATA_DIR and MM_SECRETS_DIR are ignored)")
+	fakeProv := fs.Bool("fake-provider", true, "use the in-process fake backend (MM_BACKEND=fake) unless MM_BACKEND is set")
 	seed := fs.Bool("seed-synthetic", false, "generate and import a synthetic library when the library has no tracks")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
@@ -282,6 +335,9 @@ func cmdDev(ctx context.Context, args []string, getenv func(string) string, s st
 		"MM_AUTH":        "local",
 		"MM_DATA_DIR":    *dir,
 		"MM_SECRETS_DIR": filepath.Join(*dir, "secrets"),
+	}
+	if *fakeProv && getenv("MM_BACKEND") == "" {
+		over["MM_BACKEND"] = "fake"
 	}
 	env := func(k string) string {
 		if v, ok := over[k]; ok {

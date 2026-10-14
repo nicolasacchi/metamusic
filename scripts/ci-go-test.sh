@@ -8,8 +8,8 @@ tier=${1:?tier fast|media}
 cov=${2:?covdata dir}
 media=(
   ./cmd/metamusic ./internal/acceptance ./internal/analysis/ffmpeg ./internal/analysis/spectro
-  ./internal/archivetest ./internal/importer ./internal/media/clip ./internal/media/ingest
-  ./internal/servertest ./internal/synth
+  ./internal/archivetest ./internal/importer ./internal/jobs ./internal/media/clip ./internal/media/ingest
+  ./internal/provider/fake ./internal/servertest ./internal/synth
 )
 mkdir -p "$cov"
 case "$tier" in
@@ -20,4 +20,4 @@ case "$tier" in
   *) echo "ci-go-test: unknown tier $tier" >&2; exit 2 ;;
 esac
 [ "${#pkgs[@]}" -gt 0 ] || { echo "ci-go-test: no packages for tier $tier" >&2; exit 2; }
-exec go test -race -shuffle=on -cover "${pkgs[@]}" -args -test.gocoverdir="$(cd "$cov" && pwd)"
+exec go test -timeout 18m -race -shuffle=on -cover "${pkgs[@]}" -args -test.gocoverdir="$(cd "$cov" && pwd)"

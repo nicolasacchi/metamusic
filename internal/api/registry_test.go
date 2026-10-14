@@ -73,6 +73,18 @@ func TestRegisterPanics(t *testing.T) {
 			m.HumanOnly, m.UI, m.MCP, m.Idempotency, m.SecretFields = true, "none:x", "exclude:human-only", "create", []string{"Token"}
 		}},
 		{"human path not human only", func(o *huma.Operation) { o.Path = "/human/api/x" }, nil},
+		// M3 C80
+		{"spend without create", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Scope = "spend", auth.ScopeGenerate }},
+		{"spend on GET", nil, func(m *api.Meta) { m.Cost, m.Scope = "spend", auth.ScopeGenerate }},
+		{"spend without generate scope", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Idempotency = "spend", "create" }},
+		{"approve without human-only", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Cost, m.Scope = "approve", auth.ScopeAdmin }},
+		{"alias without human-only", nil, func(m *api.Meta) { m.AliasOf = "do_thing" }},
+		{"alias human-only but tool", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.AliasOf = true, "none:x", "exclude:other", "do_thing"
+		}},
+		{"alias bad target id", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
+			m.HumanOnly, m.UI, m.MCP, m.AliasOf = true, "none:x", "exclude:human-only", "Do-Thing"
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,6 +142,10 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				MCP       string     `json:"mcp"`
 				UI        string     `json:"ui"`
 				HumanOnly bool       `json:"human_only"`
+				// M3 (C80): the spend and alias rules read these.
+				Idempotency string `json:"idempotency"`
+				Rate        string `json:"rate"`
+				AliasOf     string `json:"alias_of"`
 			} `json:"x-mm"`
 		} `json:"paths"`
 	}
@@ -144,8 +160,9 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				t.Errorf("%s %s: x-mm missing", method, path)
 				continue
 			}
-			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly}
-			hop := huma.Operation{OperationID: op.OperationID, Path: path, Summary: op.Summary, Description: op.Description}
+			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly,
+				Idempotency: op.XMM.Idempotency, Rate: op.XMM.Rate, AliasOf: op.XMM.AliasOf}
+			hop := huma.Operation{OperationID: op.OperationID, Method: strings.ToUpper(method), Path: path, Summary: op.Summary, Description: op.Description}
 			if err := api.ValidateMeta(hop, m); err != nil {
 				t.Errorf("%s %s: %v", method, path, err)
 			}
@@ -308,4 +325,15 @@ func TestAuthorize_Exported(t *testing.T) {
 			t.Errorf("%s: err = %v, want code %s", tc.name, err, tc.code)
 		}
 	}
+}
+
+func TestRegisterSpendAndApproveOK(t *testing.T) {
+	t.Parallel()
+	a := newAPI()
+	op := goodOp()
+	op.OperationID, op.Method, op.Path = "spend_thing", "POST", "/api/spend"
+	api.Register(a, op, api.Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", UI: "none:x", Idempotency: "create"}, h)
+	hop := goodOp()
+	hop.OperationID, hop.Method, hop.Path = "approve_thing", "POST", "/human/api/approve"
+	api.Register(a, hop, api.Meta{Scope: auth.ScopeAdmin, Cost: "approve", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true}, h)
 }

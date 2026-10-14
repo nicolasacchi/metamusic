@@ -86,4 +86,28 @@ rc=0; out=$(COVERAGE_SOURCE_STAMP=bbbbbbbbbbbb "$gate" --thresholds "$tmp/th" "$
 [ "$rc" != 4 ] || fail "unstamped dir refused as stale: $out"
 # --profile is never stamp-checked
 COVERAGE_SOURCE_STAMP=x "$gate" --profile "$tmp/high.txt" --thresholds "$tmp/th" >/dev/null 2>&1 || fail "profile mode should skip the stamp check"
+# M3 patterns (nested path, decimals-free) are accepted by the grammar and enforced per package
+cat >"$tmp/th3" <<'T'
+internal/spend             95
+internal/provider/runpod   90
+internal/provider/fake     85
+T
+cat >"$tmp/m3.txt" <<P
+mode: atomic
+$m/internal/spend/a.go:1.1,2.2 96 1
+$m/internal/spend/a.go:3.1,4.2 4 0
+$m/internal/provider/runpod/r.go:1.1,2.2 90 1
+$m/internal/provider/runpod/r.go:3.1,4.2 10 0
+$m/internal/provider/fake/f.go:1.1,2.2 85 1
+$m/internal/provider/fake/f.go:3.1,4.2 15 0
+P
+"$gate" --profile "$tmp/m3.txt" --thresholds "$tmp/th3" >/dev/null 2>&1 || fail "M3 patterns at threshold should pass"
+sed -i 's/ 96 1/ 90 1/; s/ 4 0/ 10 0/' "$tmp/m3.txt"
+rc=0; out=$("$gate" --profile "$tmp/m3.txt" --thresholds "$tmp/th3" 2>&1) || rc=$?
+[ "$rc" = 1 ] || fail "M3 spend below 95: want exit 1, got $rc: $out"
+grep -q 'internal/spend' <<<"$out" || fail "output does not name internal/spend: $out"
+# the committed thresholds file parses in full (patterns exist or the gate says so by name, never a grammar error)
+rc=0; out=$("$gate" --profile "$tmp/high.txt" --thresholds "$root/coverage.thresholds" 2>&1) || rc=$?
+! grep -q 'unknown threshold pattern\|bad thresholds line' <<<"$out" || fail "coverage.thresholds grammar: $out"
+
 echo "coverage-gate-selftest: ok"

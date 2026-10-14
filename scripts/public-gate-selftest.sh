@@ -325,6 +325,28 @@ for f in a.aac a.aif a.aiff a.webm a.mp4 a.mka a.wma a.7z a.tar a.tar.gz a.rar a
   expect "forbidden name $f blocked" 1 --staged
   reset
 done
+# M3: RunPod key files and key assignments (values built at runtime; this file holds no such literal)
+for f in runpod.env runpod-admin.env secrets/runpod.env; do
+  mkdir -p "$(dirname "$f")"; echo x > "$f"; git add -f "$f"
+  expect "staged $f blocked" 1 --staged
+  contains "staged $f blocked reason" "forbidden path: $f"
+  reset
+done
+kv="RUNPOD_""JOBS_""KEY"
+printf '%s=%s\n' "$kv" "abcdefghijk" > notes.txt; git add notes.txt
+expect "RunPod key assignment (11 chars) blocked" 1 --staged
+contains "RunPod key rule" "metamusic-runpod-key"
+reset
+printf '%s: %s\n' "runpod_admin_key" "abcdefghijk" > notes.txt; git add notes.txt
+expect "RunPod key assignment (yaml, lowercase) blocked" 1 --staged
+reset
+printf '%s=%s\n' "$kv" "short" > notes.txt; git add notes.txt
+expect "RunPod key name with a short value passes" 0 --staged
+reset
+printf 'the %s variable names the jobs key\n' "$kv" > notes.txt; git add notes.txt
+expect "RunPod key name in prose passes" 0 --staged
+reset
+
 # an allow-listed icon is a real PNG; a fake one is not
 mkdir -p web/public/icons
 printf '\211PNG\r\n\032\n\0\0\0\rIHDR' > web/public/icons/ok.png; git add web/public/icons/ok.png
