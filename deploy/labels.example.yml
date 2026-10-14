@@ -41,7 +41,9 @@ services:
       - traefik.http.routers.mm-agent.rule=Host(`mm.example.com`) && (Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/`) || Path(`/oauth/token`) || Path(`/oauth/register`) || Path(`/oauth/revoke`) || Path(`/api/openapi.json`))
       - traefik.http.routers.mm-agent.priority=100
       - traefik.http.routers.mm-agent.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker
-      # Subsonic, signed media, worker uploads: credentials ride in URLs, so no access log, no compress
+      # Subsonic, signed media, and the worker routes /worker/v1/uploads/<id> and
+      # /worker/v1/attempts/<id>/start (HMAC-signed URLs, called by RunPod from outside, so no
+      # Authelia): credentials ride in URLs, so no access log, no compress. Nothing else is needed.
       - traefik.http.routers.mm-media.entrypoints=websecure
       - traefik.http.routers.mm-media.tls=true
       - traefik.http.routers.mm-media.tls.certresolver=myresolver

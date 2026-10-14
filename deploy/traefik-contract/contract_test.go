@@ -315,6 +315,8 @@ func TestRoutingContract(t *testing.T) {
 			{"/media/x", nil, "mm-media"},
 			{"/rest/x", nil, "mm-media"},
 			{"/worker/x", nil, "mm-media"},
+			{"/worker/v1/uploads/x", nil, "mm-media"},
+			{"/worker/v1/attempts/x/start", nil, "mm-media"},
 			{"/mcp", nil, "mm-agent"},
 			{"/mcp/x", nil, "mm-agent"},
 			{"/.well-known/oauth-protected-resource/mcp", nil, "mm-agent"},
@@ -401,6 +403,8 @@ func TestRoutingContract(t *testing.T) {
 			{"/auth/step-up", cookie("mm_dev=x"), "mm-ui", true},
 			{"/media/x", cookie("mm_dev=x"), "mm-media", false},
 			{"/mcp", cookie("mm_dev=x"), "mm-agent", false},
+			{"/human/api/generations", cookie("mm_dev=x"), "mm-ui", true},
+			{"/worker/v1/uploads/x", cookie("mm_dev=x"), "mm-media", false},
 		}
 		for _, c := range deviceCases {
 			before := e.stubCalls()
@@ -448,6 +452,7 @@ func TestRoutingContract(t *testing.T) {
 			hdr  http.Header
 		}{
 			{"/media/x", nil}, {"/rest/x", nil}, {"/worker/x", nil}, {"/mcp", nil},
+			{"/worker/v1/uploads/x", nil}, {"/worker/v1/attempts/x/start", nil},
 			{"/oauth/token", nil}, {"/.well-known/x", nil}, {"/api/openapi.json", nil},
 			{"/api/tracks", bearer()}, {"/manifest.webmanifest", nil}, {"/icons/a.png", nil},
 		}
@@ -545,6 +550,45 @@ func TestRoutingContract(t *testing.T) {
 		}
 	})
 
+	t.Run("m3 spend and provider ops need a second factor", func(t *testing.T) {
+		xhr := http.Header{"X-Requested-With": {"XMLHttpRequest"}}
+		ops := []struct{ method, path string }{
+			{http.MethodPost, "/human/api/batches/x/approve"},
+			{http.MethodPost, "/human/api/generations"},
+			{http.MethodPut, "/human/api/spend/caps"},
+			{http.MethodPost, "/human/api/provider/state"},
+		}
+		for _, o := range ops {
+			before := e.stubCalls()
+			if r := e.do(o.method, o.path, merge(session("one"), xhr)); r.Status != http.StatusUnauthorized {
+				t.Errorf("%s %s at one factor: status %d, want 401", o.method, o.path, r.Status)
+			}
+			r := e.do(o.method, o.path, session("two"))
+			if r.Status != http.StatusOK || r.router() != "mm-ui" {
+				t.Errorf("%s %s at two factors: status %d router %q, want 200 mm-ui", o.method, o.path, r.Status, r.router())
+			}
+			if n := e.stubCalls(); n != before+2 {
+				t.Errorf("%s %s: forward-auth calls = %d, want 2", o.method, o.path, n-before)
+			}
+		}
+	})
+
+	t.Run("worker routes skip forward-auth and are not logged or compressed", func(t *testing.T) {
+		for _, path := range []string{"/worker/v1/uploads/x", "/worker/v1/attempts/x/start"} {
+			before := e.stubCalls()
+			r := e.do(http.MethodPost, path+"?size=5000", http.Header{"Accept-Encoding": {"gzip"}})
+			if r.router() != "mm-media" || r.Status != http.StatusOK {
+				t.Errorf("POST %s: router %q status %d, want mm-media 200", path, r.router(), r.Status)
+			}
+			if enc := r.Header.Get("Content-Encoding"); enc != "" {
+				t.Errorf("POST %s: Content-Encoding %q", path, enc)
+			}
+			if n := e.stubCalls(); n != before {
+				t.Errorf("POST %s: reached forward-auth (%d calls)", path, n-before)
+			}
+		}
+	})
+
 	t.Run("xhr session loss", func(t *testing.T) {
 		xhr := http.Header{"X-Requested-With": {"XMLHttpRequest"}}
 		if r := e.do(http.MethodGet, "/api/tracks", xhr); r.Status != http.StatusUnauthorized || r.router() != "mm-ui" {
@@ -574,6 +618,7 @@ func TestRoutingContract(t *testing.T) {
 
 	t.Run("media access log is off", func(t *testing.T) {
 		e.do(http.MethodGet, "/media/canary-path?sig=canary-sig", nil)
+		e.do(http.MethodPost, "/worker/v1/attempts/canary-attempt/start?sig=canary-wsig", nil)
 		e.do(http.MethodGet, "/poscontrol-ui", session("two"))
 		deadline := time.Now().Add(10 * time.Second)
 		var logs string
@@ -586,7 +631,8 @@ func TestRoutingContract(t *testing.T) {
 		if !strings.Contains(logs, "poscontrol-ui") {
 			t.Fatal("positive control: mm-ui request missing from the access log")
 		}
-		if strings.Contains(logs, "canary-sig") || strings.Contains(logs, "canary-path") {
+		if strings.Contains(logs, "canary-sig") || strings.Contains(logs, "canary-path") ||
+			strings.Contains(logs, "canary-wsig") || strings.Contains(logs, "canary-attempt") {
 			t.Error("a /media/ request was access-logged")
 		}
 	})

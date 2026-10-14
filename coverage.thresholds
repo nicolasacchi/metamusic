@@ -7,3 +7,11 @@ internal/gate           95
 internal/idem           95
 internal/ratelimit      95
 internal/ladder         95
+internal/spend          95
+internal/jobs           95
+internal/upload         95
+internal/money          95
+internal/generation     90
+internal/lineage        90
+internal/provider/runpod 90
+internal/provider/fake  85

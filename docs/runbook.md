@@ -108,3 +108,75 @@ without tags and without an MP3 rendition; there is never a FLAC link (`get_medi
 and loudness, bandwidth and clipping are measured on a decode, so they are not comparable with FLAC takes.
 Both kinds can be rated, commented, tagged, put in playlists (a playlist ZIP carries the MP3 master behind a
 fresh ID3 tag), compared in duels and backed up. The library filters on both (`recipe_known`, `lossy`).
+
+## Generation and RunPod (M3)
+
+Hostnames below are placeholders (`mm.example.com`). Never paste a key into a command line, a ticket or a
+chat; keys are read from files.
+
+### Order of a first activation
+
+1. `metamusic runpod probe --schema` (no keys): no drift against the committed management API snapshot.
+2. `metamusic runpod provision --image <ref@sha256:...> --dry-run`, review the plan, then provision with the
+   endpoint **inactive** (`workers.max = 0`) from a file holding the all-access key
+   (`--admin-env FILE`). Only `provision` reads that key.
+3. Create the scoped keys in the RunPod console (jobs, read, write) and put them in `runpod.env` in the
+   secrets dir (mode 600). `runpod.env` must not hold the all-access key; `serve` refuses to start if it does.
+4. `metamusic runpod probe --keys` records which key may call what.
+5. `metamusic runpod provision --activate --max 1`, then **delete the admin key file**.
+6. Start with `MM_BACKEND=runpod`. The provider starts disarmed: estimates work, creates answer
+   `PROVIDER_DISARMED`. Check `metamusic runpod status`.
+7. `metamusic runpod arm --endpoint-name <name> --reason TEXT` once the cached quote is fresh.
+8. The canary (`make canary` prints the command) is run only by the operator and only with explicit
+   approval; it spends real money. Never run it unattended.
+
+Without `runpod.env` the server runs with generation disabled (`GENERATION_DISABLED`, reason `keys_absent`)
+and everything else works.
+
+### Manual kill switch
+
+`metamusic runpod provision --deactivate` sets `workers.max = 0` (needs the admin key file again). If that
+key is not at hand, set "max workers" to 0 on the endpoint in the RunPod console, then
+`metamusic runpod disarm --reason TEXT`.
+
+### Trip and restoring `workers.max`
+
+A trip cancels live attempts, purges the queue and tries to scale the endpoint to zero workers. If the
+write key cannot do that, a critical notification tells you to set max workers to 0 in the console.
+
+The admin key file is deleted after activation, so **restoring `workers.max` after a trip's ScaleToZero is
+a manual step**. Either:
+
+- provide the admin key file again and run `metamusic runpod provision --activate --max N`, or
+- set max workers in the console;
+
+then `metamusic runpod reset-trip --reason TEXT` and arm again. Nothing re-enables spending by itself, and
+an agent cannot arm or reset.
+
+### Deploying
+
+Order: **disarm, drain, deploy, arm.**
+
+1. `metamusic runpod disarm --reason TEXT`.
+2. Drain: `scripts/deploy-preflight.sh` refuses (non-zero) while any attempt is live; wait until
+   `metamusic runpod status` shows none. `--force` skips the check and is for emergencies only.
+3. Deploy (the container's `stop_grace_period` is 90 s).
+4. Arm again (step 7 above).
+
+### Restore rule
+
+A restored database is always disarmed (`reason = restored`) and its unfinished attempts become
+`unknown`. Arming is refused (`RECONCILE_REQUIRED`) until one billing reconciliation covered the time
+since the snapshot. With billing unreadable, `metamusic runpod arm --after-restore --reason TEXT` is the
+explicit, audited acknowledgment.
+
+### Billing check
+
+`metamusic runpod status` shows the billing summary and the meter summary. Compare the billed amount with
+the reserved amount per batch; billed above reserved is a bug to report, not to ignore. Residual amounts
+are released after the hold period when billing is not readable.
+
+### Upload directory
+
+Received worker uploads of jobs that ended without a take are removed 24 h after the job's end.
+`incoming/` is never part of a backup.

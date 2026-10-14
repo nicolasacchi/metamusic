@@ -8,8 +8,8 @@ tier=${1:?tier fast|media}
 cov=${2:?covdata dir}
 media=(
   ./cmd/metamusic ./internal/acceptance ./internal/analysis/ffmpeg ./internal/analysis/spectro
-  ./internal/archivetest ./internal/importer ./internal/media/clip ./internal/media/ingest
-  ./internal/servertest ./internal/synth
+  ./internal/archivetest ./internal/importer ./internal/jobs ./internal/media/clip ./internal/media/ingest
+  ./internal/provider/fake ./internal/servertest ./internal/synth
 )
 mkdir -p "$cov"
 case "$tier" in
