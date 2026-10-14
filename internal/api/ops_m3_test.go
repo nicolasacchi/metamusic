@@ -159,6 +159,9 @@ func TestOps_StubsAnswer501(t *testing.T) {
 	t.Parallel()
 	r := m3Rig(t, fullM3Deps())
 	for _, w := range m3Ops {
+		if implementedOps[w.id] { // a lane replaced the stub: its behaviour is covered by that lane's tests
+			continue
+		}
 		res := m3Call(r, w)
 		d, _ := res.body["details"].(map[string]any)
 		if w.lane == "M3-B4" { // implemented by the Generation lane: behaviour is covered by its own tests

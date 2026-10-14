@@ -39,17 +39,17 @@ var m3Cases = []ParityCase{
 	{Op: "get_approval_status", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		return map[string]any{"id": idFrom(prev, "batch_id")}
 	}},
-	{Op: "list_batches", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_batch", Status: 501, Args: fixedArgs(map[string]any{"id": lt.BatchDone})},
-	{Op: "cancel_batch", Status: 501, SkipGeneric: true, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting, "reason": "parity"})},
-	{Op: "list_jobs", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobDone})},
-	{Op: "wait_for_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobDone, "timeout_s": 0})},
-	{Op: "cancel_job", Status: 501, Args: fixedArgs(map[string]any{"id": lt.JobAwaiting1, "reason": "parity"})},
+	{Op: "list_batches", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_batch", Args: fixedArgs(map[string]any{"id": lt.BatchDone})},
+	{Op: "cancel_batch", Status: 403, SkipGeneric: true, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting, "reason": "parity"})},
+	{Op: "list_jobs", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_job", Args: fixedArgs(map[string]any{"id": lt.JobDone})},
+	{Op: "wait_for_job", Args: fixedArgs(map[string]any{"id": lt.JobDone, "timeout_s": 0})},
+	{Op: "cancel_job", Status: 403, Args: fixedArgs(map[string]any{"id": lt.JobAwaiting1, "reason": "parity"})},
 	{Op: "get_budget", Masks: moneyMasks},
 	{Op: "get_spend", Masks: moneyMasks, Args: fixedArgs(map[string]any{"month": "2026-10"})},
 	{Op: "list_ledger", Masks: moneyMasks, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_provider_status", Status: 501},
+	{Op: "get_provider_status"},
 	{Op: "get_lineage", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
 }
 

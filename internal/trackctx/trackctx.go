@@ -123,7 +123,7 @@ const recipeUnknownNote = "recipe unknown: this is a reference track; no style, 
 var order = map[string][]string{
 	"track":      {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
 	"recipe":     {"engine", "known", "hash", "request", "note"},
-	"provenance": {"origin", "import_rule", "truncated", "cost_usd", "env"},
+	"provenance": {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
 	"score":      {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"lineage":    {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
 	"judgments":  {"comments", "comments_total", "open_fix", "ladder"},
@@ -399,6 +399,7 @@ type Builder struct {
 	abc       func(ctx context.Context, trackID string) (string, error)
 	per       PerceptionSource
 	str       StrengthSource
+	gen       func(ctx context.Context) bool
 }
 
 // PerceptionSource builds the perception block of a track; *ears.Service implements it (C51.8).
@@ -428,6 +429,24 @@ func New(lib *library.Service, j *judgments.Service, l *listening.Service, signe
 		now = time.Now
 	}
 	return &Builder{lib: lib, j: j, l: l, signer: signer, publicURL: strings.TrimRight(publicURL, "/"), now: now}
+}
+
+// maxNextActions caps next_actions (C81.1).
+const maxNextActions = 5
+
+// generationHint is the next action that points an agent at the variant tools (free to estimate).
+const generationHint = "try a new-seed variant: estimate_variant mode=new_seed n_seeds=3 (the estimate is free; spending needs create_variant)"
+
+// UseGeneration sets the test for "generation is enabled" (the provider gate). Without one, generation counts
+// as enabled when the database knows a provider (the fake or the serverless backend is configured).
+func (b *Builder) UseGeneration(enabled func(ctx context.Context) bool) { b.gen = enabled }
+
+func (b *Builder) generationEnabled(ctx context.Context) bool {
+	if b.gen != nil {
+		return b.gen(ctx)
+	}
+	ok, err := b.lib.HasProvider(ctx)
+	return err == nil && ok
 }
 
 // UseScoreABC sets the reader of a track's score.abc text, used for include=score.
@@ -589,8 +608,18 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			tsem = *d.Truncated.Semantic
 		}
 	}
+	var cost, env, jobID any
+	if g := d.Generation; g != nil {
+		jobID = g.JobID
+		if g.Cost != nil {
+			cost = newOmap("micro_usd", g.Cost.DisplayMicroUSD, "usd", g.Cost.DisplayUSD, "basis", g.Cost.Basis)
+		}
+		if g.Env != nil {
+			env = g.Env
+		}
+	}
 	out.Provenance = map[string]any{"origin": d.Origin, "import_rule": d.Import.Rule, "truncated": newOmap("abc", tabc, "semantic", tsem),
-		"cost_usd": nil, "env": nil}
+		"cost": cost, "env": env, "job_id": jobID}
 
 	// score
 	if sc := d.Score; sc != nil {
@@ -744,6 +773,11 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	}
 	if d.Truncated != nil && (d.Truncated.ABC != nil && *d.Truncated.ABC || d.Truncated.Semantic != nil && *d.Truncated.Semantic) {
 		na = append(na, "the take is truncated (abc/semantic): prefer a shorter arrangement")
+	}
+	// The generation hint has the lowest priority: at most maxNextActions entries, the critique last, so
+	// the hint is the entry that is dropped when every conditional entry applies (C81.1).
+	if d.RecipeKnown && p.Has(auth.ScopeGenerate) && b.generationEnabled(ctx) && len(na)+2 <= maxNextActions {
+		na = append(na, generationHint)
 	}
 	na = append(na, "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots")
 	out.NextActions = na

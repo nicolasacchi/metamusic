@@ -41,18 +41,19 @@ func newUploadsEnv(base context.Context, t *testing.T, withUploads bool, probe h
 	return h, tokens
 }
 
-// TestHTTPServer_UploadsMounted: both worker routes are ClassMachine (no principal needed); the stubs
-// answer 501 problem+json until M3-B5, and an unwired server answers 404.
+// TestHTTPServer_UploadsMounted: both worker routes are ClassMachine (no principal needed): the capability
+// is the authorisation, so a link without a valid signature answers 403 problem+json; an unwired server
+// answers 404.
 func TestHTTPServer_UploadsMounted(t *testing.T) {
 	t.Parallel()
 	h, _ := newUploadsEnv(noBase, t, true, nil)
-	for _, tc := range []struct{ method, path string }{
-		{"PUT", "/worker/v1/uploads/0190aaaa-0000-7000-8000-000000000001?exp=1&sig=x"},
-		{"POST", "/worker/v1/attempts/0190aaaa-0000-7000-8000-000000000002/start?exp=1&sig=x"},
+	for _, tc := range []struct{ method, path, code string }{
+		{"PUT", "/worker/v1/uploads/0190aaaa-0000-7000-8000-000000000001?exp=1&sig=x", "UPLOAD_LINK_INVALID"},
+		{"POST", "/worker/v1/attempts/0190aaaa-0000-7000-8000-000000000002/start?exp=1&sig=x", "ATTEMPT_LINK_INVALID"},
 	} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, strings.NewReader("x"))) // no principal, no credentials
-		if w.Code != http.StatusNotImplemented || w.Header().Get("Content-Type") != "application/problem+json" || !strings.Contains(w.Body.String(), `"NOT_IMPLEMENTED"`) {
+		if w.Code != http.StatusForbidden || w.Header().Get("Content-Type") != "application/problem+json" || !strings.Contains(w.Body.String(), `"`+tc.code+`"`) {
 			t.Errorf("%s %s: %d %q %s", tc.method, tc.path, w.Code, w.Header().Get("Content-Type"), w.Body)
 		}
 	}

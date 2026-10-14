@@ -35,8 +35,9 @@
       "abc": null,
       "semantic": null
     },
-    "cost_usd": null,
-    "env": null
+    "cost": null,
+    "env": null,
+    "job_id": null
   },
   "score": {
     "source": "import",
@@ -160,7 +161,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 3342,
+    "chars": 3352,
     "limit": 24000,
     "truncated": []
   }

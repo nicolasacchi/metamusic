@@ -198,6 +198,9 @@ func Restore(ctx context.Context, from, into string, o RestoreOptions) (rep Rest
 		WHERE id=? AND state='running'`, filepath.Base(filepath.Clean(from)), now, stats, man.ID); err != nil {
 		return rep, err
 	}
+	if err := DisarmAfterRestore(ctx, st, o.Now(), o.NewID); err != nil {
+		return rep, err
+	}
 	sum := sha256.Sum256([]byte(man.ID))
 	if err := audit.NewStore(st, o.NewID).Insert(ctx, audit.Entry{
 		At: o.Now(), Principal: auth.CLI, Transport: reqinfo.Transport("cli"), Client: "metamusic",
@@ -290,4 +293,40 @@ func copyVerified(root *os.Root, rel, dst, want string, mode os.FileMode) error 
 		return fmt.Errorf("the copy of %s does not match its recorded sha256", rel)
 	}
 	return os.Chmod(dst, mode)
+}
+
+// DisarmAfterRestore is the C76.7 step of a restore (D-M3-31), in one transaction: every provider_state
+// row is disarmed with reason `restored` and restored_at = now, and every `pending` or `submitted`
+// attempt becomes `unknown`, settled by its time bound and never assumed lost or finished. Arming is then
+// refused until one billing reconciliation covers the restore (jobs.ArmCheck). The audit row
+// `cli:restore-disarm` is written in the same transaction.
+func DisarmAfterRestore(ctx context.Context, st *store.Store, now time.Time, newID func() string) error {
+	if newID == nil {
+		newID = func() string { return uuid.NewV7().String() }
+	}
+	ts := store.FormatTime(now)
+	tx, err := st.W.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `UPDATE provider_state SET armed = 0, reason = 'restored', changed_by = 'system:cli', changed_at = ?, restored_at = ?`, ts, ts)
+	if err != nil {
+		return fmt.Errorf("backup: disarm providers: %w", err)
+	}
+	disarmed, _ := res.RowsAffected()
+	res, err = tx.ExecContext(ctx, `UPDATE job_attempts SET state = 'unknown' WHERE state IN ('pending','submitted')`)
+	if err != nil {
+		return fmt.Errorf("backup: unknown attempts: %w", err)
+	}
+	attempts, _ := res.RowsAffected()
+	e, err := audit.SystemEntry("cli:restore-disarm", now, map[string]any{"providers": disarmed, "attempts": attempts}, 0, 0, false)
+	if err != nil {
+		return err
+	}
+	e.ID = newID()
+	if err := audit.InsertTx(ctx, tx, e); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
