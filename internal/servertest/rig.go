@@ -43,6 +43,8 @@ import (
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/runpodtest"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -74,6 +76,18 @@ type Options struct {
 	Rand      io.Reader     // confirmation tokens and instance ids; nil => SeededReader(1), identical in every rig
 	Ingest    jobs.Ingester // replaces the production ingest bridge (a stub ingester)
 	Fake      *fake.Options // replaces the fake backend's options entirely (adversarial switches, permissions)
+	// RunPod selects the serverless backend over a runpodtest server (Backend must be "" or "runpod"): the rig
+	// writes a synthetic runpod.env, points the backend at the server and arms the provider. Rig.Fake is nil.
+	RunPod *RunPodOptions
+}
+
+// RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
+// when it purges finished jobs.
+type RunPodOptions struct {
+	Server     *runpodtest.Server
+	Keys       runpodtest.KeySet
+	EndpointID string // default "ep-canary-0000" (runpodtest's default)
+	Disarmed   bool   // leave the provider disarmed (the production default)
 }
 
 // SeededReader is a deterministic random source: two readers of one seed return the same bytes, so the
@@ -131,6 +145,7 @@ type Rig struct {
 
 	edge, humanUser, mode string
 	password              string
+	rebuild               func(seed uint64) (*app.Services, error)
 	gatedAPI              huma.API
 	stdioHandler          http.Handler
 }
@@ -194,8 +209,16 @@ func New(tb testing.TB, o Options) *Rig {
 	}
 	switch o.Backend {
 	case "", "none":
+		if o.RunPod != nil {
+			cfg.Backend = config.BackendRunPod
+		}
 	case "fake":
 		cfg.Backend = config.BackendFake
+	case "runpod":
+		if o.RunPod == nil {
+			tb.Fatal("servertest: Backend runpod needs Options.RunPod")
+		}
+		cfg.Backend = config.BackendRunPod
 	default:
 		tb.Fatalf("servertest: unknown backend %q (the serverless backend over runpodtest arrives with M3-B8)", o.Backend)
 	}
@@ -277,6 +300,20 @@ func New(tb testing.TB, o Options) *Rig {
 	if o.Fake == nil {
 		ao.M3.Fake = &fake.Options{Speed: o.FakeSpeed}
 	}
+	if rp := o.RunPod; rp != nil {
+		ep := rp.EndpointID
+		if ep == "" {
+			ep = "ep-canary-0000"
+		}
+		env := "RUNPOD_JOBS_KEY=" + rp.Keys.Jobs + "\nRUNPOD_READ_KEY=" + rp.Keys.Read + "\nRUNPOD_WRITE_KEY=" + rp.Keys.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+		if err := os.MkdirAll(cfg.SecretsDir, 0o700); err != nil {
+			tb.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(cfg.SecretsDir, "runpod.env"), []byte(env), 0o600); err != nil {
+			tb.Fatal(err)
+		}
+		ao.M3.RunPod = &runpod.BackendOptions{MgmtBase: rp.Server.URL, JobsBase: rp.Server.URL}
+	}
 	if ao.SlotCoin == nil {
 		ao.SlotCoin = Alternating()
 	}
@@ -308,6 +345,17 @@ func New(tb testing.TB, o Options) *Rig {
 		svc.Server.Duels, svc.Server.Ears, svc.Server.Clips = svc.Duels, svc.Ears, svc.Clips
 	}
 	r.Services = svc
+	r.rebuild = func(seed uint64) (*app.Services, error) {
+		ao2 := ao
+		ao2.Rand = SeededReader(seed)
+		ao2.M3.Backend = svc.Backend // the provider outlives the process: the same backend instance
+		return app.Build(ctx, cfg, sec, st, dataRoot, ao2)
+	}
+	if o.RunPod != nil && !o.RunPod.Disarmed {
+		if _, err := st.W.ExecContext(ctx, `UPDATE provider_state SET armed = 1, changed_by = 'system:test' WHERE backend = ?`, provider.BackendRunPod); err != nil {
+			tb.Fatal(err)
+		}
+	}
 	r.Fake, r.Backend, r.Runner, r.Reconciler = svc.Fake, svc.Backend, svc.Runner, svc.Reconciler
 	if o.Runner {
 		if svc.Runner == nil {
@@ -382,6 +430,29 @@ func idSequence(seed string) func() string {
 	return func() string {
 		return fmt.Sprintf("%s0000-0000-7000-8000-%012x", seed, n.Add(1))
 	}
+}
+
+// NewProcess builds a second set of services over the rig's store, data directory and backend, as a restarted
+// server process would: its own runner instance (a different owner id, from seed) and reconciler, nothing
+// started. Close runs at test cleanup. The first process's runner is not stopped: leave it idle (Options.Runner
+// false) and let its lease lapse by advancing the clock.
+func (r *Rig) NewProcess(tb testing.TB, seed uint64) *app.Services {
+	tb.Helper()
+	if r.rebuild == nil {
+		tb.Fatal("servertest: NewProcess before New returned")
+	}
+	svc, err := r.rebuild(seed)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		cctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := svc.Close(cctx); err != nil {
+			tb.Errorf("servertest: closing the second process: %v", err)
+		}
+	})
+	return svc
 }
 
 // Human is a REST client for the operator: proxy headers in proxy mode, a

@@ -40,6 +40,8 @@ func mcpWithToken(t *testing.T, r *servertest.Rig, tok string) *mcp.ClientSessio
 // uiState carries ids between the steps of the scripted agent session.
 type uiState struct {
 	track, timed, draft, playlist, comment, export, run, duel string
+	// M3: a mother with a known recipe, the token of the last estimate, the batch and the job it created
+	mother, token, batch, job string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -136,6 +138,42 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"id": s.track, "inline": false}
 	},
 	"compare_tracks": func(s *uiState) map[string]any { return map[string]any{"a": s.track, "b": s.timed} },
+
+	// M3 (C86.1): the spend ops are driven estimate first, then create with the returned token (spendScript).
+	"estimate_generation": func(s *uiState) map[string]any {
+		return map[string]any{"items": []map[string]any{{"mode": "new_seed", "parent_track_id": s.mother, "n_seeds": 2}}}
+	},
+	"estimate_variant": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.mother, "mode": "new_seed", "n_seeds": 2}
+	},
+	"list_batches":        func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_batch":           func(s *uiState) map[string]any { return map[string]any{"id": s.batch} },
+	"list_jobs":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_job":             func(s *uiState) map[string]any { return map[string]any{"id": s.job} },
+	"wait_for_job":        func(s *uiState) map[string]any { return map[string]any{"id": s.job, "timeout_s": 0} },
+	"cancel_job":          func(s *uiState) map[string]any { return map[string]any{"id": s.job, "reason": "scripted"} },
+	"cancel_batch":        func(s *uiState) map[string]any { return map[string]any{"id": s.batch, "reason": "scripted"} },
+	"get_budget":          func(*uiState) map[string]any { return nil },
+	"get_spend":           func(*uiState) map[string]any { return nil },
+	"list_ledger":         func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_provider_status": func(*uiState) map[string]any { return nil },
+	"get_lineage":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+}
+
+// spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
+// create_generation_human): each is called right after the estimate whose token it spends.
+var spendScript = map[string]func(s *uiState) map[string]any{
+	"create_variant": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.mother, "confirmation_token": s.token, "rationale": "scripted"}
+	},
+}
+
+// scriptArgs returns the scripted arguments of an operation, from uiScript or spendScript.
+func scriptArgs(id string, s *uiState) map[string]any {
+	if f, ok := uiScript[id]; ok {
+		return f(s)
+	}
+	return spendScript[id](s)
 }
 
 // uiOrder is the order of the scripted session: reads of the archive first, then writes, then reads of
@@ -150,6 +188,9 @@ var uiOrder = []string{
 	"list_device_profiles", "put_device_profile", "get_device_probe", "list_tokens", "list_backups", "create_backup",
 	"create_duel", "next_duel", "get_duel", "list_duels", "submit_duel", "get_ladder",
 	"get_track_analysis", "get_track_spectrogram", "compare_tracks",
+	// M3: estimate first, then create with the returned token, then read and cancel what it made
+	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
+	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
 }
 
 // afterStep records the ids later steps need.
@@ -164,6 +205,13 @@ func (s *uiState) afterStep(op string, res any) {
 		s.export, _ = m["id"].(string)
 	case "create_draft":
 		s.draft, _ = m["id"].(string)
+	case "estimate_variant", "estimate_generation":
+		s.token, _ = m["confirmation_token"].(string)
+	case "create_variant":
+		s.batch, _ = m["id"].(string)
+		if jobs, _ := m["jobs"].([]any); len(jobs) > 0 {
+			s.job, _ = jobs[0].(map[string]any)["id"].(string)
+		}
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
@@ -178,7 +226,7 @@ func (s *uiState) afterStep(op string, res any) {
 // TestAcceptance_M2a_AgentPerformsEveryUIAction: an agent with a read+write PAT
 // does, over streamable HTTP MCP, everything the web UI does.
 func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
-	r := archiveRig(t, servertest.Options{M2b: servertest.M2bOptions{Media: true, Backfill: true}})
+	r := archiveRig(t, servertest.Options{Backend: "fake", M2b: servertest.M2bOptions{Media: true, Backfill: true}})
 	var required []api.OpInfo
 	for _, op := range api.Operations(r.API) {
 		m := op.Meta
@@ -207,7 +255,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	}
 
 	tok, agentID, err := r.Services.Tokens.Create(context.Background(), "ui-agent",
-		[]auth.Scope{auth.ScopeRead, auth.ScopeWrite})
+		[]auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,6 +263,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	st := &uiState{duel: "01900000-0000-7000-8000-000000000b01"}
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
+	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
+		t.Fatal(err)
+	}
 	st.draft = obj(obj(h.OK(t, "GET", "/api/drafts?limit=1", nil))["items"].([]any)[0])["id"].(string)
 
 	for _, op := range required {
@@ -224,8 +275,17 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	}
 	var called []string
 	for _, id := range uiOrder {
-		op := have[id]
-		args := uiScript[id](st)
+		op, ok := have[id]
+		script := uiScript[id]
+		if !ok { // a spend op without a UI route
+			for _, o := range api.Operations(r.API) {
+				if o.ID == id {
+					op = o
+				}
+			}
+			script = spendScript[id]
+		}
+		args := script(st)
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)
 		if raw.IsError {
@@ -268,7 +328,27 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if len(gotOps) == len(want)-1 {
 		want = called // the audit row of the listing itself is written after the listing
 	}
-	if d := cmp.Diff(want, gotOps); d != "" {
+	// Spend and cancel operations write their audit row inside their own transaction (C80), with an id
+	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
+	// compared without them; their presence is compared as a set.
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true}
+	split := func(ops []string) (rest, tx []string) {
+		for _, o := range ops {
+			if inTx[o] {
+				tx = append(tx, o)
+			} else {
+				rest = append(rest, o)
+			}
+		}
+		slices.Sort(tx)
+		return rest, tx
+	}
+	wantRest, wantTx := split(want)
+	gotRest, gotTx := split(gotOps)
+	if d := cmp.Diff(wantRest, gotRest); d != "" {
 		t.Errorf("audit trail differs from the call order (-called +audited):\n%s", d)
+	}
+	if d := cmp.Diff(wantTx, gotTx); d != "" {
+		t.Errorf("in-transaction audit rows differ (-called +audited):\n%s", d)
 	}
 }

@@ -617,10 +617,16 @@ func classifySubmit(err error) *submitFailure {
 	switch {
 	case errors.Is(err, provider.ErrEndpointNotFound):
 		return &submitFailure{kind: failRetry, status: "NOT_FOUND", trip: true, text: text}
-	case errors.Is(err, provider.ErrAccess):
-		return &submitFailure{kind: failRefused, code: CodeProviderAuth, trip: true, text: text}
 	}
 	code, _, ra, ok := errShape(err)
+	// An edge block (Cloudflare 1010) is also an access error, but it is reported as its own code: the
+	// remedy differs (the User-Agent or the edge rules, not the key).
+	if ok && code == "EDGE_BLOCKED" {
+		return &submitFailure{kind: failRefused, code: CodeEdgeBlocked, trip: true, text: text}
+	}
+	if errors.Is(err, provider.ErrAccess) {
+		return &submitFailure{kind: failRefused, code: CodeProviderAuth, trip: true, text: text}
+	}
 	if ok {
 		switch code {
 		case "EDGE_BLOCKED":
