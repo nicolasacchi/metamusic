@@ -13,7 +13,6 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
-	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -58,8 +57,6 @@ func tsPtr(t *time.Time) *string {
 	s := tsOut(*t)
 	return &s
 }
-
-func usd(m money.MicroUSD) string { return m.USD() }
 
 // keyKind splits a principal key ("human:nik", "agent:tok") into its kind and id.
 func keyKind(key string) (kind, id string) {

@@ -39,10 +39,10 @@ var m3Cases = []ParityCase{
 	{Op: "get_approval_status", Masks: batchMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		return map[string]any{"id": idFrom(prev, "batch_id")}
 	}},
-	{Op: "list_batches", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "list_batches", Masks: batchMasks, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_batch", Args: fixedArgs(map[string]any{"id": lt.BatchDone})},
 	{Op: "cancel_batch", Status: 403, SkipGeneric: true, Args: fixedArgs(map[string]any{"id": lt.BatchAwaiting, "reason": "parity"})},
-	{Op: "list_jobs", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "list_jobs", Masks: batchMasks, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_job", Args: fixedArgs(map[string]any{"id": lt.JobDone})},
 	{Op: "wait_for_job", Args: fixedArgs(map[string]any{"id": lt.JobDone, "timeout_s": 0})},
 	{Op: "cancel_job", Status: 403, Args: fixedArgs(map[string]any{"id": lt.JobAwaiting1, "reason": "parity"})},
