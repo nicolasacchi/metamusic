@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
-	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -287,6 +286,5 @@ func (r *Runner) warnUnconfirmed(j jobRec) {
 	if done {
 		return
 	}
-	r.queueNote(notify.Message{Title: "Cancel not confirmed yet", Priority: 4,
-		Body: "The provider has not confirmed a cancel for five minutes.", Click: r.o.PublicURL + "/jobs/" + j.ID})
+	r.queueNote(NoteCancelNotConfirmed(r.o.PublicURL, j.ID))
 }

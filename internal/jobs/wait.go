@@ -47,6 +47,9 @@ func (s *Service) readWaitJob(ctx context.Context, id string) (Job, error) {
 // Wait returns at once when the job's state differs from sinceState or is terminal, else blocks on the
 // hub or a 1 s database re-check until timeout (0 to 55 s), request cancellation or server shutdown (C75.8).
 func (s *Service) Wait(ctx context.Context, _ auth.Principal, id, sinceState string, timeout time.Duration) (WaitResult, error) {
+	if err := s.wired(); err != nil {
+		return WaitResult{}, err
+	}
 	timeout = min(max(timeout, 0), MaxWait)
 	ch, cancel := s.o.Hub.Subscribe()
 	defer cancel()
@@ -59,10 +62,10 @@ func (s *Service) Wait(ctx context.Context, _ auth.Principal, id, sinceState str
 			return WaitResult{}, err
 		}
 		if IsTerminal(j.State) || j.State != sinceState {
-			return WaitResult{Job: j, Changed: true}, nil
+			return s.result(ctx, id, true, false)
 		}
 		if timeout == 0 {
-			return WaitResult{Job: j, TimedOut: true}, nil
+			return s.result(ctx, id, false, true)
 		}
 		recheck := s.o.Clock.NewTimer(recheckEvery)
 		select {
@@ -89,5 +92,14 @@ func (s *Service) last(ctx context.Context, id, since string) (WaitResult, error
 		return WaitResult{}, err
 	}
 	changed := IsTerminal(j.State) || j.State != since
-	return WaitResult{Job: j, Changed: changed, TimedOut: !changed}, nil
+	return s.result(ctx, id, changed, !changed)
+}
+
+// result reads the full job for the answer of a wait.
+func (s *Service) result(ctx context.Context, id string, changed, timedOut bool) (WaitResult, error) {
+	j, err := s.fullJob(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		err = fmt.Errorf("jobs: job %s: %w", id, sql.ErrNoRows)
+	}
+	return WaitResult{Job: j, Changed: changed, TimedOut: timedOut}, err
 }

@@ -227,7 +227,8 @@ func TestRunner_AuditRows(t *testing.T) {
 			t.Fatal(err)
 		}
 		counts[op]++
-		if !strings.HasSuffix(who, "system:runner") || tr != "runner" || status != 200 {
+		actor := "system:" + strings.SplitN(op, ":", 2)[0]
+		if !strings.HasSuffix(who, actor) || tr != "runner" || status != 200 {
 			t.Errorf("%s: %s %s %d", op, who, tr, status)
 		}
 		if op == "runner:topup" && cost != int64(money.ForSeconds(201, testPrice)) {

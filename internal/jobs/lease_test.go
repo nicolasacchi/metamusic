@@ -116,10 +116,16 @@ func scanWrites(t *testing.T, dir string) []sqlWrites {
 func TestSQL_LeasePredicate(t *testing.T) {
 	t.Parallel()
 	writes := 0
+	// Operations record intents from any request (D-M3-3): cancel intents and provider state changes are not
+	// runner writes, run in the operation's own transaction and are applied by the lease holder.
+	intents := map[string]bool{"CancelJob": true, "CancelBatch": true, "Update": true}
 	for _, w := range scanWrites(t, ".") {
 		writes += w.writes
 		if w.mentionsLease {
 			continue // acquire, heartbeat (also renews job leases under the predicate) and releaseLease
+		}
+		if intents[w.fn] && (w.file == "service.go" || w.file == "provider.go") {
+			continue
 		}
 		if w.fenc < w.writes {
 			t.Errorf("%s: %s has %d writes but renders the lease predicate %d times", w.file, w.fn, w.writes, w.fenc)

@@ -120,7 +120,9 @@ func (s *Service) ListDrafts(ctx context.Context, p DraftParams) (DraftPage, err
 	}
 	rows, err := s.st.R.QueryContext(ctx, `SELECT d.id, d.request_id, d.group_key, d.label, d.origin, d.status,
 		json_extract(d.request_json, '$.seed'), json_extract(d.request_json, '$.cot'), json_extract(d.request_json, '$.style'),
-		json_extract(d.request_json, '$.lyrics'), d.parent_track_id, d.fulfilled_by_track_id, d.revision, d.created_by, d.updated_by`+from+where+
+		json_extract(d.request_json, '$.lyrics'), d.parent_track_id, d.fulfilled_by_track_id, d.revision, d.created_by, d.updated_by,
+		EXISTS(SELECT 1 FROM jobs j WHERE j.draft_id = d.id AND j.state NOT IN ('completed','failed','cancelled','expired')),
+		(SELECT COUNT(*) FROM tracks t WHERE t.job_id IN (SELECT j.id FROM jobs j WHERE j.draft_id = d.id))`+from+where+
 		` ORDER BY d.group_key, d.request_id, d.id LIMIT ? OFFSET ?`, append(args, limit, off)...)
 	if err != nil {
 		return page, fmt.Errorf("library: list drafts: %w", err)
@@ -130,12 +132,12 @@ func (s *Service) ListDrafts(ctx context.Context, p DraftParams) (DraftPage, err
 		var d DraftSummary
 		var gk, lb, par, ful sql.NullString
 		var style, lyrics string
-		if err := rows.Scan(&d.ID, &d.RequestID, &gk, &lb, &d.Origin, &d.Status, &d.Seed, &d.Cot, &style, &lyrics, &par, &ful, &d.Revision, &d.CreatedBy, &d.UpdatedBy); err != nil {
+		if err := rows.Scan(&d.ID, &d.RequestID, &gk, &lb, &d.Origin, &d.Status, &d.Seed, &d.Cot, &style, &lyrics, &par, &ful, &d.Revision, &d.CreatedBy, &d.UpdatedBy, &d.InFlight, &d.GeneratedTakes); err != nil {
 			_ = rows.Close()
 			return page, err
 		}
 		d.GroupKey, d.Label, d.ParentTrackID, d.FulfilledByTrackID = ptrStr(gk), ptrStr(lb), ptrStr(par), ptrStr(ful)
-		d.Editable = d.Status != "fulfilled"
+		d.Editable = d.Status != "fulfilled" && !d.InFlight
 		d.StyleExcerpt = excerpt(style, 120)
 		d.StyleTerms, _ = yue2.StyleTerms(style)
 		if d.StyleTerms == nil {
@@ -293,6 +295,12 @@ func (s *Service) Draft(ctx context.Context, id string, withReference bool) (Dra
 	}
 	d.GroupKey, d.Label, d.ParentTrackID, d.FulfilledByTrackID = ptrStr(gk), ptrStr(lb), ptrStr(par), ptrStr(ful)
 	d.Editable = d.Status != "fulfilled"
+	if err := s.st.R.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM jobs j WHERE j.draft_id = ?1 AND j.state NOT IN ('completed','failed','cancelled','expired')),
+		(SELECT COUNT(*) FROM tracks t WHERE t.job_id IN (SELECT j.id FROM jobs j WHERE j.draft_id = ?1))`, id).Scan(&d.InFlight, &d.GeneratedTakes); err != nil {
+		return d, fmt.Errorf("library: draft jobs: %w", err)
+	}
+	d.Editable = d.Editable && !d.InFlight
 	if err := json.Unmarshal([]byte(reqJSON), &d.Request); err != nil {
 		return d, fmt.Errorf("library: draft request: %w", err)
 	}

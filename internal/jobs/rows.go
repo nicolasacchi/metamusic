@@ -40,7 +40,7 @@ type attRec struct {
 	TerminalBasis               string
 	TerminalAt                  *time.Time
 	Settled                     bool
-	WorkerKey                   string
+	WorkerKey, ImageDigest      string
 }
 
 func (a attRec) live() bool {
@@ -132,19 +132,19 @@ func queryJobs(ctx context.Context, x q, where string, args ...any) ([]jobRec, e
 }
 
 const attCols = `id, job_id, n, backend, state, ref, announced_ref, submitted_at, window_ends_at, price_pph_micro_usd, remote_status,
-	in_progress_seen, requeue_seen, last_queued_at, announced_at, execution_ms, terminal_basis, terminal_at, settled, worker_key`
+	in_progress_seen, requeue_seen, last_queued_at, announced_at, execution_ms, terminal_basis, terminal_at, settled, worker_key, image_digest`
 
 func scanAtt(sc rowScanner) (attRec, error) {
 	var a attRec
-	var ref, annRef, remote, lastQ, annAt, basis, termAt, wk sql.NullString
+	var ref, annRef, remote, lastQ, annAt, basis, termAt, wk, img sql.NullString
 	var sub, win string
 	var price int64
 	var prog, req, settled int
 	var exec sql.NullInt64
-	if err := sc.Scan(&a.ID, &a.JobID, &a.N, &a.Backend, &a.State, &ref, &annRef, &sub, &win, &price, &remote, &prog, &req, &lastQ, &annAt, &exec, &basis, &termAt, &settled, &wk); err != nil {
+	if err := sc.Scan(&a.ID, &a.JobID, &a.N, &a.Backend, &a.State, &ref, &annRef, &sub, &win, &price, &remote, &prog, &req, &lastQ, &annAt, &exec, &basis, &termAt, &settled, &wk, &img); err != nil {
 		return a, err
 	}
-	a.Ref, a.AnnouncedRef, a.RemoteStatus, a.TerminalBasis, a.WorkerKey = ref.String, annRef.String, remote.String, basis.String, wk.String
+	a.Ref, a.AnnouncedRef, a.RemoteStatus, a.TerminalBasis, a.WorkerKey, a.ImageDigest = ref.String, annRef.String, remote.String, basis.String, wk.String, img.String
 	a.SubmittedAt, a.WindowEndsAt, a.Price = mustT(sub), mustT(win), money.MicroUSD(price)
 	a.InProgressSeen, a.RequeueSeen, a.Settled = prog == 1, req == 1, settled == 1
 	a.LastQueuedAt, a.AnnouncedAt, a.TerminalAt = parseT(lastQ), parseT(annAt), parseT(termAt)

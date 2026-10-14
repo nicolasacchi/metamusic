@@ -226,5 +226,5 @@ func (r *Runner) batchSummary(ctx context.Context, x q, b batchRec, settled mone
 		body += fmt.Sprintf(", %d cancelled", cancelled)
 	}
 	body += " - " + settled.Display() + " provisional"
-	return notify.Message{Title: "Batch done", Body: body, Priority: 3, Click: r.o.PublicURL + "/batches/" + b.ID}, nil
+	return NoteBatchDone(r.o.PublicURL, b.ID, body), nil
 }

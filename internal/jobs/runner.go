@@ -129,6 +129,10 @@ func NewRunner(o RunnerOptions) *Runner {
 	}
 }
 
+// UseMeter wires the worker-lifetime meter after the reconciler is built (the reconciler needs the runner,
+// the runner asks the meter); call it before Run.
+func (r *Runner) UseMeter(m BatchMeter) { r.o.Meter = m }
+
 // Wake nudges the runner without blocking; other packages see it only as an injected func().
 func (r *Runner) Wake() {
 	select {

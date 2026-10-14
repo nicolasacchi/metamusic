@@ -2,14 +2,16 @@ package jobs
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"slices"
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/provider/providertest"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/upload"
@@ -143,12 +145,24 @@ func (r *rig) winnerOf(job string) string {
 	return w
 }
 
-// sortedKeys is a small helper for deterministic iteration.
-func sortedKeys[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-	return out
+func sha256Sum(b []byte) [32]byte { return sha256.Sum256(b) }
+
+// newNamedBackend is a scripted backend of the rig's behaviour under another provider name.
+func newNamedBackend(r *rig, name string) *providertest.Backend {
+	return providertest.New(name, providertest.Script{
+		Capabilities: &r.caps,
+		Quote: func(context.Context) (provider.Quote, error) {
+			r.mu.Lock()
+			fn := r.quoteFn
+			r.mu.Unlock()
+			if fn != nil {
+				return fn()
+			}
+			return providertest.GoodQuote(name, r.clk.Now()), nil
+		},
+	})
 }
+
+func goodQuoteFor(name string, at time.Time) provider.Quote { return providertest.GoodQuote(name, at) }
+
+func auth0CLI() auth.Principal { return auth.CLI }

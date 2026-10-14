@@ -1,0 +1,152 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000000108",
+    "title": "Luna · s1102",
+    "status": "draft",
+    "stars": null,
+    "critic_stars": null,
+    "critic_verdict": null,
+    "tags": [],
+    "duration_s": 6,
+    "recipe_known": true,
+    "lossy": false,
+    "recorded_at": "2026-10-06T06:05:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000108"
+  },
+  "recipe": {
+    "engine": "yue2",
+    "known": true,
+    "hash": "c2af29b4e5d06dff46c1c181b11e2c46845799c03a404997c08f8a2fa85a4927",
+    "request": {
+      "id": "fx-luna-s1102",
+      "style": "synth pop, 100 bpm",
+      "lyrics": "[Verse 1]\nline one\n[Chorus]\nline two",
+      "cot": "full",
+      "seed": 1102,
+      "abc_present": false,
+      "cfg_scale": null
+    }
+  },
+  "provenance": {
+    "origin": "job",
+    "import_rule": "job",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost": {
+      "micro_usd": 30216,
+      "usd": "0.030216",
+      "basis": "reconciled"
+    },
+    "env": {
+      "env_id": "env_fixture0000001",
+      "engine": "yue2",
+      "pkg_version": "2.0.0",
+      "code_commit": "abcdef0",
+      "weights": {
+        "fixture/stage1": "rev1",
+        "fixture/stage2": "rev2"
+      },
+      "decoder": "rtn_v1",
+      "backend": "fake",
+      "gpu_class": "RTX 4090",
+      "image_digest": "sha256:fixture",
+      "detail": {
+        "gpu_name": "Fixture GPU",
+        "cuda": "12.8",
+        "torch": "2.10",
+        "worker_build": "fixture",
+        "python": "3.12"
+      }
+    },
+    "job_id": "01900000-0000-7000-8000-000000000108"
+  },
+  "score": null,
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000000101",
+        "title": "Luna Park"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000000108",
+        "title": "Luna · s1102"
+      }
+    ],
+    "operator": "reroll_seed",
+    "inferred": false,
+    "rule": null,
+    "rationale": null,
+    "children": [],
+    "siblings": 1
+  },
+  "judgments": {
+    "comments": [],
+    "comments_total": 0,
+    "open_fix": 0,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -14,
+    "true_peak_db": -1.2,
+    "lra_lu": 5,
+    "bandwidth_hz": 16000,
+    "sections": [
+      {
+        "label": "verse",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      },
+      {
+        "label": "chorus",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      }
+    ],
+    "timed": false,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "silence, clipping and token loops (Tier A not run yet)",
+      "section times unknown (no aligned score)"
+    ]
+  },
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
+  },
+  "_links": {
+    "stream": {
+      "mp3": "https://mm.example.com/media/29bc434e6ac4445b52325d9c605e0531ff41992c99882d5220b2ed24e3c5c6f3.mp3?exp=1791288900\u0026sig=CXq8OX63_XsRrlQyq5DjAAhIRwQx0iJ01WkBCtMqsU4",
+      "flac": "https://mm.example.com/media/205f9de7760e5a4a1933629306e095b750419d522021406cf6877b075d53e9bc.flac?exp=1791288900\u0026sig=mwNLL3txht04ImYPrckI_SHA8qWDjw8AsmJ8WYlVISo",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "spectrogram": null,
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000000108/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000000108"
+  },
+  "next_actions": [
+    "ask the human to rate this take (rate_track)",
+    "section times need a score: refer to sections by lyrics, not by time",
+    "try a new-seed variant: estimate_variant mode=new_seed n_seeds=3 (the estimate is free; spending needs create_variant)",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 3122,
+    "limit": 24000,
+    "truncated": []
+  }
+}

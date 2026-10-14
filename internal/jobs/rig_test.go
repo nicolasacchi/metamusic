@@ -74,13 +74,16 @@ type stubIngest struct {
 	block   chan struct{} // when non-nil, IngestTake waits for it to close
 	entered chan struct{}
 	last    []upload.Received
+	lastJob JobRow
+	lastAtt AttemptRow
+	lastOut provider.Output
 	env     string // env_id written on the track (needs an env_fingerprints row)
 }
 
 func (s *stubIngest) IngestTake(ctx context.Context, job JobRow, att AttemptRow, files []upload.Received, out provider.Output) (string, error) {
 	s.mu.Lock()
 	s.calls++
-	s.last = files
+	s.last, s.lastJob, s.lastAtt, s.lastOut = files, job, att, out
 	block, entered, err := s.block, s.entered, s.err
 	s.n++
 	n := s.n
@@ -146,6 +149,21 @@ type rig struct {
 	dbPath   string
 	mods     []rigOpt
 	fail     *failCtl // when set, the store goes through failing connectors
+
+	// scripted reconciler-side backend behaviour (nil => the default of providertest)
+	sweepFn   func() (provider.SweepReport, error)
+	billingFn func(from, to time.Time) ([]provider.BillBucket, error)
+	purgeFn   func() error
+	scaleFn   func() error
+	revertFn  func(d []provider.Drift) error
+	quoteFn   func() (provider.Quote, error)
+	pollErr   error
+	cancelErr error
+	caps      provider.Capabilities
+	billCalls [][2]time.Time
+	purges    int
+	scales    int
+	reverts   [][]provider.Drift
 }
 
 type rigOpt func(*rig, *RunnerOptions)
@@ -189,9 +207,66 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 		status: map[string]provider.RemoteStatus{}, cancels: map[string]int{}, polls: map[string]int{}}
 	r.ing = &stubIngest{st: st}
 	r.sp = spend.New(spend.Options{Store: st, Now: r.clk.Now, NewID: r.newID, ConfirmKey: []byte("test-key"), Location: time.UTC})
+	r.caps = provider.Capabilities{ScaleToZero: true, RevertDrift: true, Billing: "hour"}
 	r.be = providertest.New(provider.BackendFake, providertest.Script{
+		Capabilities: &r.caps,
 		Quote: func(context.Context) (provider.Quote, error) {
+			r.mu.Lock()
+			fn := r.quoteFn
+			r.mu.Unlock()
+			if fn != nil {
+				return fn()
+			}
 			return providertest.GoodQuote(provider.BackendFake, r.clk.Now()), nil
+		},
+		Sweep: func(context.Context) (provider.SweepReport, error) {
+			r.mu.Lock()
+			fn := r.sweepFn
+			r.mu.Unlock()
+			if fn != nil {
+				return fn()
+			}
+			return provider.SweepReport{ObservedAt: r.clk.Now()}, nil
+		},
+		Billing: func(_ context.Context, from, to time.Time) ([]provider.BillBucket, error) {
+			r.mu.Lock()
+			fn := r.billingFn
+			r.billCalls = append(r.billCalls, [2]time.Time{from, to})
+			r.mu.Unlock()
+			if fn != nil {
+				return fn(from, to)
+			}
+			return nil, nil
+		},
+		PurgeQueue: func(context.Context) error {
+			r.mu.Lock()
+			fn := r.purgeFn
+			r.purges++
+			r.mu.Unlock()
+			if fn != nil {
+				return fn()
+			}
+			return nil
+		},
+		ScaleToZero: func(context.Context) error {
+			r.mu.Lock()
+			fn := r.scaleFn
+			r.scales++
+			r.mu.Unlock()
+			if fn != nil {
+				return fn()
+			}
+			return nil
+		},
+		RevertDrift: func(_ context.Context, d []provider.Drift) error {
+			r.mu.Lock()
+			fn := r.revertFn
+			r.reverts = append(r.reverts, d)
+			r.mu.Unlock()
+			if fn != nil {
+				return fn(d)
+			}
+			return nil
 		},
 		Submit: func(_ context.Context, spec provider.TakeSpec) (provider.Ref, error) {
 			r.mu.Lock()
@@ -206,6 +281,9 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			r.polls[ref.ID]++
+			if r.pollErr != nil {
+				return provider.RemoteStatus{}, r.pollErr
+			}
 			if s, ok := r.status[ref.ID]; ok {
 				return s, nil
 			}
@@ -214,8 +292,9 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 		Cancel: func(_ context.Context, ref provider.Ref) error {
 			r.mu.Lock()
 			r.cancels[ref.ID]++
+			err := r.cancelErr
 			r.mu.Unlock()
-			return nil
+			return err
 		},
 	})
 	r.opts = RunnerOptions{
@@ -310,6 +389,11 @@ type batchSpec struct {
 	ceiling    int64
 	backend    string // default fake
 	source     string // jobs.source_track_id
+	recipe     string // default testRecipe
+	draft      string // jobs.draft_id
+	operator   string // default reroll_seed
+	mutation   string // jobs.mutation_json, default {}
+	rationale  string // batches.rationale
 }
 
 type seeded struct {
@@ -342,6 +426,19 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 	if sp.backend == "" {
 		sp.backend = "fake"
 	}
+	if sp.recipe == "" {
+		sp.recipe = testRecipe
+	}
+	if sp.operator == "" {
+		sp.operator = "reroll_seed"
+	}
+	if sp.mutation == "" {
+		sp.mutation = "{}"
+	}
+	var rationale any
+	if sp.rationale != "" {
+		rationale = sp.rationale
+	}
 	kind := "human"
 	if len(sp.principal) > 6 && sp.principal[:6] == "agent:" {
 		kind = "agent"
@@ -361,8 +458,8 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 	}
 	r.exec(`INSERT INTO batches(id,estimate_id,principal_id,principal_kind,principal_name,via,engine,backend,n_takes,rationale,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,attempt_overhead_s,kill_slack_s,
-		workers_max,idle_s,state,created_at) VALUES(?,?,?,?,?,'api','yue2',?,?,NULL,10,?,0,?,690000,200,15,?,20,?,?)`,
-		s.Batch, est, sp.principal, kind, "n", sp.backend, sp.jobs, sp.ceiling, sp.ceiling, sp.workersMax, state, ts)
+		workers_max,idle_s,state,created_at) VALUES(?,?,?,?,?,'api','yue2',?,?,?,10,?,0,?,690000,200,15,?,20,?,?)`,
+		s.Batch, est, sp.principal, kind, "n", sp.backend, sp.jobs, rationale, sp.ceiling, sp.ceiling, sp.workersMax, state, ts)
 	if state == "awaiting_confirmation" {
 		r.exec(`INSERT INTO approvals(batch_id,state,reasons,created_at,expires_at) VALUES(?,'pending','["takes_over_limit"]',?,?)`, s.Batch, ts, exp)
 	} else {
@@ -379,10 +476,14 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 		if sp.source != "" {
 			src = sp.source
 		}
-		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,source_track_id,operator,mutation_json,title,expected_audio_s,expected_s,
+		var draft any
+		if sp.draft != "" {
+			draft = sp.draft
+		}
+		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,source_track_id,draft_id,operator,mutation_json,title,expected_audio_s,expected_s,
 			timeout_s,expected_micro_usd,reserved_micro_usd,state,next_attempt_at,queued_at,created_at,updated_at)
-			VALUES(?,?,?,'generate','yue2',?,?,?,'reroll_seed','{}','T',216,96,?,10,?,?,?,?,?,?)`,
-			id, s.Batch, i, sp.backend, testRecipe, src, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts)
+			VALUES(?,?,?,'generate','yue2',?,?,?,?,?,?,'T',216,96,?,10,?,?,?,?,?,?)`,
+			id, s.Batch, i, sp.backend, sp.recipe, src, draft, sp.operator, sp.mutation, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts)
 		bid, jid, p := s.Batch, id, sp.principal
 		if err := r.sp.RunTx(r.t.Context(), func(tx *sql.Tx) error {
 			return r.sp.Ledger().Append(r.t.Context(), tx, spend.Entry{Kind: spend.KindReserve, MicroUSD: take, BatchID: &bid, JobID: &jid, PrincipalID: p, Reason: "take"})
@@ -533,10 +634,12 @@ type deliverOpts struct {
 	truncated   [2]bool
 	badTrunc    bool // truncated dict with a wrong key set
 	noAudioSec  bool
-	allOptional bool            // also upload the optional artifacts
-	claim       map[string]bool // artifacts reported in the output but never uploaded
-	forgeTake   bool            // the output names another take
-	unreported  map[string]bool // artifacts uploaded but left out of the output
+	allOptional bool              // also upload the optional artifacts
+	claim       map[string]bool   // artifacts reported in the output but never uploaded
+	forgeTake   bool              // the output names another take
+	unreported  map[string]bool   // artifacts uploaded but left out of the output
+	bodies      map[string][]byte // artifact bodies (default: a synthetic text)
+	e2e         float64           // timings.e2e_seconds of the output
 }
 
 func digestHeader(b []byte) string {
@@ -584,6 +687,10 @@ func (r *rig) deliver(spec provider.TakeSpec, o deliverOpts) provider.Output {
 		n := json.Number("215.8")
 		out.AudioSeconds = &n
 	}
+	if o.e2e > 0 {
+		n := json.Number(fmt.Sprint(o.e2e))
+		out.Timings = map[string]*json.Number{"e2e_seconds": &n}
+	}
 	if o.badTrunc {
 		out.Truncated = map[string]bool{"abc": false}
 	}
@@ -596,6 +703,9 @@ func (r *rig) deliver(spec provider.TakeSpec, o deliverOpts) provider.Output {
 			continue
 		}
 		body := []byte("synthetic " + name + " " + spec.AttemptID)
+		if b, ok := o.bodies[name]; ok {
+			body = b
+		}
 		if code := r.put(spec.Uploads[name].URL, body); code != http.StatusCreated {
 			r.t.Fatalf("upload %s: status %d (job %s attempt %s: %v)", name, code, r.str(`SELECT state FROM jobs WHERE id = ?`, spec.JobID),
 				r.str(`SELECT state FROM job_attempts WHERE id = ?`, spec.AttemptID), r.events(spec.JobID))

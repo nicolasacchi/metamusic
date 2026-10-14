@@ -12,7 +12,6 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/money"
-	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/spend"
@@ -475,9 +474,7 @@ func (r *Runner) warnIdleDrift(b batchRec, liveIdle int) {
 	if done {
 		return
 	}
-	r.queueNote(notify.Message{Title: "Endpoint drift: idle timeout", Priority: 4,
-		Body:  fmt.Sprintf("The endpoint idle timeout is %d s, above the %d s of a running batch; its reserves use the larger value.", liveIdle, b.IdleS),
-		Click: r.o.PublicURL + "/jobs"})
+	r.queueNote(NoteIdleDrift(r.o.PublicURL, liveIdle, b.IdleS))
 }
 
 // preflightPasses runs the D-M3-33 preflight at most every 60 s and reports a failure once per check.
@@ -527,7 +524,7 @@ func (r *Runner) preflightFailed(ctx context.Context, err error, candidate strin
 	if check == "route" {
 		why = "upload route down"
 	}
-	_ = r.o.Notify.Notify(ctx, notify.Message{Title: "Generation paused: " + why, Priority: 4, Body: "Queued takes wait until the check passes.", Click: r.o.PublicURL + "/jobs"})
+	_ = r.o.Notify.Notify(ctx, NotePreflightFailing(r.o.PublicURL, why))
 }
 
 // ---- submit ----

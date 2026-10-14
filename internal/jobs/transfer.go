@@ -3,9 +3,11 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -362,6 +364,9 @@ func (r *Runner) dispatchIngest(ctx context.Context) error {
 
 // ingestJob runs the Ingester for a verified job and records row 20 or row 21.
 func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
+	if done, err := r.completeCommitted(ctx, jobID); done || err != nil {
+		return err
+	}
 	var j jobRec
 	var att attRec
 	var files []upload.Received
@@ -401,7 +406,8 @@ func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
 	if err := r.fault(FaultMidIngest); err != nil {
 		return err
 	}
-	track, ierr := r.o.Ingest.IngestTake(ctx, j.JobRow, AttemptRow{ID: att.ID, JobID: att.JobID, State: att.State, N: att.N, WindowEndsAt: att.WindowEndsAt}, files, out)
+	track, ierr := r.o.Ingest.IngestTake(WithLeaseOwner(ctx, r.o.Owner), j.JobRow,
+		AttemptRow{ID: att.ID, JobID: att.JobID, State: att.State, N: att.N, WindowEndsAt: att.WindowEndsAt, WorkerKey: att.WorkerKey, ImageDigest: att.ImageDigest}, files, out)
 	err := r.tx(ctx, func(tx *sql.Tx) error {
 		f := r.fence()
 		cur, err := loadJob(ctx, tx, jobID)
@@ -416,7 +422,10 @@ func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
 		}
 		var dup *DuplicateAudioError
 		var ing *IngestFailedError
+		var cv *ContractViolation
 		switch {
+		case errors.As(ierr, &cv):
+			return r.failIngest(ctx, tx, f, &cur, Event{AttemptID: att.ID, Name: EvFailed, Code: cv.Code, Detail: map[string]any{"text": cv.Text}})
 		case errors.As(ierr, &dup):
 			return r.failIngest(ctx, tx, f, &cur, Event{AttemptID: att.ID, Name: EvDuplicateAudio, Code: CodeDuplicateAudio, Detail: map[string]any{"track_id": dup.TrackID}})
 		case errors.As(ierr, &ing):
@@ -426,6 +435,35 @@ func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
 		}
 	})
 	return skipStale(err)
+}
+
+// completeCommitted finishes a job whose take transaction committed before the process stopped (the bridge
+// writes the track and consumes the uploads in one transaction; the job row follows in the runner's own).
+func (r *Runner) completeCommitted(ctx context.Context, jobID string) (bool, error) {
+	var track string
+	var abc, sem sql.NullInt64
+	var dur float64
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT id, truncated_abc, truncated_semantic, duration_s FROM tracks WHERE job_id = ?`, jobID).Scan(&track, &abc, &sem, &dur)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	n := json.Number(strconv.FormatFloat(dur, 'f', -1, 64))
+	out := provider.Output{AudioSeconds: &n, Truncated: map[string]bool{"abc": abc.Int64 == 1, "semantic": sem.Int64 == 1}}
+	err = r.tx(ctx, func(tx *sql.Tx) error {
+		f := r.fence()
+		cur, err := loadJob(ctx, tx, jobID)
+		if err != nil {
+			return err
+		}
+		if cur.State != StateIngesting {
+			return nil
+		}
+		return r.completeJob(ctx, tx, f, &cur, track, out)
+	})
+	return true, skipStale(err)
 }
 
 // failIngest records a failed ingest (row 21): the event now, the failure at once when no attempt can still
@@ -513,7 +551,7 @@ func (r *Runner) phaseDeadlines(ctx context.Context, _ *StepReport) error {
 		return err
 	}
 	for _, j := range stuck {
-		if err := skipStale(r.adoptJob(ctx, j.ID)); err != nil {
+		if _, err := r.adoptJob(ctx, j.ID); skipStale(err) != nil {
 			return err
 		}
 	}

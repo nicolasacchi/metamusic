@@ -124,6 +124,18 @@ const adoptSQL = `UPDATE jobs SET lease_owner=?, lease_expires_at=?, updated_at=
 // crash between claim and submit outcome left: a `pending` attempt (the /run may have gone out) becomes an
 // `unknown` ghost and its job goes back to the queue behind an ambiguous top-up (C76.1, row 9).
 func (r *Runner) adopt(ctx context.Context, rep *StepReport) error {
+	_, err := r.adoptJobs(ctx)
+	return err
+}
+
+// Adopted is one job taken over from a dead runner.
+type Adopted struct {
+	JobID  string
+	Ghosts int
+}
+
+// adoptJobs is adopt returning what it took over (the reconciler audits it, C76.1).
+func (r *Runner) adoptJobs(ctx context.Context) ([]Adopted, error) {
 	f := r.fence()
 	exp := r.leaseExpiry()
 	var adopted []string
@@ -145,18 +157,21 @@ func (r *Runner) adopt(ctx context.Context, rep *StepReport) error {
 		return rows.Err()
 	})
 	if err != nil {
-		return fmt.Errorf("jobs: adopt: %w", err)
+		return nil, fmt.Errorf("jobs: adopt: %w", err)
 	}
+	var out []Adopted
 	for _, id := range adopted {
-		if err := r.adoptJob(ctx, id); err != nil {
-			return err
+		g, err := r.adoptJob(ctx, id)
+		if err != nil {
+			return out, err
 		}
+		out = append(out, Adopted{JobID: id, Ghosts: g})
 	}
-	return nil
+	return out, nil
 }
 
-func (r *Runner) adoptJob(ctx context.Context, id string) error {
-	return r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
+func (r *Runner) adoptJob(ctx context.Context, id string) (ghosts int, err error) {
+	err = r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
 		f := r.fence()
 		j, err := loadJob(ctx, tx, id)
 		if err != nil {
@@ -166,7 +181,7 @@ func (r *Runner) adoptJob(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		ghosts := 0
+		ghosts = 0
 		for _, a := range atts {
 			if a.State != "pending" {
 				continue
@@ -192,6 +207,7 @@ func (r *Runner) adoptJob(ctx context.Context, id string) error {
 		}
 		return r.requeueAfterSubmit(ctx, tx, f, &j, b, nil, "adopted")
 	})
+	return ghosts, err
 }
 
 // setAttempt updates observation columns of a live attempt under the lease predicate. set is a fixed SQL

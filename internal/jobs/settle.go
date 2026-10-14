@@ -154,6 +154,13 @@ func (r *Runner) phaseCloseWindows(ctx context.Context, rep *StepReport) error {
 			if err := r.finishAttempt(ctx, tx, f, &j, b, &a, basisTimeBound, nil, "time_bound", false); err != nil {
 				return err
 			}
+			var settled int64
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE attempt_id = ? AND kind = 'settle'`, a.ID).Scan(&settled); err != nil {
+				return err
+			}
+			if err := r.auditTx(ctx, tx, f, "reconciler:settle_time_bound", map[string]any{"job": j.ID, "attempt": a.ID}, money.MicroUSD(settled)); err != nil {
+				return err
+			}
 			switch j.State {
 			case StateCancelling, StateFailing:
 				return r.conclude(ctx, tx, f, &j, b)
