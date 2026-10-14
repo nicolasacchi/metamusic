@@ -120,3 +120,19 @@ func TestIdem_KeyAndMarksContext(t *testing.T) {
 		t.Fatal("independent flags expected")
 	}
 }
+
+func TestIdem_CompleteTx_ClosedTransactionErrors(t *testing.T) {
+	t.Parallel()
+	_, _, st := newIdem(t)
+	ctx := context.Background()
+	tx, err := st.W.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if err := idem.CompleteTx(ctx, tx, "agent:a", "k", "gen", 200, "application/json", nil); err == nil {
+		t.Fatal("CompleteTx on a finished transaction must fail, never report success")
+	}
+}

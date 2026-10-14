@@ -836,15 +836,6 @@ func (e *propEnv) finalReconcile() {
 			break
 		}
 	}
-	if e.straddlesMonthEnd() {
-		// A batch whose activity [created, finished + idle + 120 s] crosses a calendar-month end can never be
-		// placed in a quiet window that does not cross the month (C76.5 step 4: no such B, so wait): its month
-		// and everything after it stay outstanding. That is conservative for the caps and is pinned by
-		// TestBilling_BatchStraddlingMonthEndWaits; the end-state assertions below do not apply to such a timeline.
-		// OPEN DESIGN DECISION D-M3-37 (plan): a blocker for M3-X1, which resolves it and deletes this skip.
-		e.t.Logf("seed %d: a batch straddles a month end; reconciliation waits by design (see TestBilling_BatchStraddlingMonthEndWaits)", e.seed)
-		return
-	}
 	if n := e.r.count(`SELECT COUNT(*) FROM batches WHERE reconciled_at IS NULL AND state IN ('active','finished')`); n != 0 {
 		e.failf("%d batches not reconciled after the final reconciliation\n%s", n, e.dumpBatches())
 	}
@@ -954,41 +945,11 @@ func (e *propEnv) dumpBatches() string {
 	return out
 }
 
-// straddlesMonthEnd reports whether some batch that reached the provider was active across a month end.
-func (e *propEnv) straddlesMonthEnd() bool {
-	rows, err := e.r.st.R.Query(`SELECT b.created_at, b.finished_at, b.idle_s FROM batches b
-		WHERE EXISTS (SELECT 1 FROM job_attempts a JOIN jobs j ON j.id = a.job_id WHERE j.batch_id = b.id AND a.state <> 'rejected')`)
-	if err != nil {
-		return false
-	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var cr string
-		var fin sql.NullString
-		var idle int
-		if err := rows.Scan(&cr, &fin, &idle); err != nil {
-			return false
-		}
-		c := mustT(cr)
-		end := e.r.clk.Now()
-		if fin.Valid {
-			end = mustT(fin.String)
-		}
-		end = end.Add(time.Duration(idle)*time.Second + windowQuiet)
-		_, m1 := monthBounds(c)
-		if end.After(m1) {
-			return true
-		}
-	}
-	return false
-}
-
-// TestBilling_BatchStraddlingMonthEndWaits pins what C76.5 step 4 does with a batch that is active across a
-// calendar-month end: no window can close (a window never crosses the month, and the batch is not quiet by
-// the month end), so the batch stays outstanding, holding its reserve against the caps, and the stalled push
-// names it after 72 h. The property suite found this; the behaviour is conservative (never an overspend) but a
-// straddling batch blocks reconciliation of its month and of everything after it until the design resolves it (D-M3-37 in the plan: an open decision and a blocker for M3-X1, which replaces this test with the specified behaviour).
-func TestBilling_BatchStraddlingMonthEndWaits(t *testing.T) {
+// TestBilling_BatchStraddlingMonthEnd pins D-M3-37: a batch active across a calendar-month end does not block
+// reconciliation. The pre-boundary window closes at the month boundary without it (its spend counts in the
+// month of the window start and its reserve bounds the window), the batch's provisional cost is carried into
+// the following window, and the two bill rows add up to billed minus provisional, once.
+func TestBilling_BatchStraddlingMonthEnd(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	created := time.Date(2026, 10, 31, 23, 40, 0, 0, time.UTC)
@@ -1000,11 +961,22 @@ func TestBilling_BatchStraddlingMonthEndWaits(t *testing.T) {
 	})
 	rec := r.recon()
 	r.mustPass(rec)
-	if r.windows() != 0 || r.str(`SELECT COALESCE(reconciled_at,'') FROM batches WHERE id = ?`, s.Batch) != "" {
-		t.Fatalf("a window closed through a month end the batch straddles (windows %d)", r.windows())
+	r.mustPass(rec)
+	if got := r.windows(); got != 2 {
+		t.Fatalf("windows %d, want 2", got)
 	}
-	if r.outstanding(s.Batch) == 0 {
-		t.Error("the straddling batch was released")
+	if got := r.str(`SELECT group_concat(window_start || ' b' || batches || ' ' || billed_micro_usd || ' ' || verdict, '; ') FROM (SELECT * FROM billing_windows ORDER BY window_start)`); got !=
+		"2026-10-31T23:00:00.000Z b0 10000 ok; 2026-11-01T00:00:00.000Z b1 10000 ok" {
+		t.Errorf("windows %q", got)
+	}
+	if r.str(`SELECT COALESCE(reconciled_at,'') FROM batches WHERE id = ?`, s.Batch) == "" {
+		t.Error("the straddling batch was never reconciled")
+	}
+	if got := r.outstanding(s.Batch); got != 0 {
+		t.Errorf("outstanding %d", got)
+	}
+	if got := r.count(`SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE kind = 'bill'`); got != 0 {
+		t.Errorf("bill rows sum %d, want billed - provisional = 0", got)
 	}
 }
 

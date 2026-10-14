@@ -291,6 +291,11 @@ func (r *Reconciler) windowEnd(ctx context.Context, now, start time.Time, batche
 				break
 			}
 		}
+		if b.Equal(monthCap) {
+			// D-M3-37: the month boundary closes the window even when a batch straddles it; closeWindow carries
+			// that batch (its provisional cost and release) into the following window.
+			return b, true, nil
+		}
 		ok := true
 		for _, bt := range batches {
 			if !bt.created.Before(b) || bt.submitted == 0 {
@@ -334,13 +339,21 @@ func (r *Reconciler) closeWindow(ctx context.Context, now time.Time) (bool, erro
 	if err != nil || !ok {
 		return false, err
 	}
-	var in []billBatch
+	var in, carried []billBatch
 	for _, b := range batches {
-		if b.finished != nil && b.created.Before(end) {
+		if !b.created.Before(end) {
+			continue
+		}
+		switch {
+		case b.finished != nil && (b.submitted == 0 || !b.finished.Add(time.Duration(b.idleS)*time.Second+windowQuiet).After(end)):
 			in = append(in, b)
+		case b.submitted > 0:
+			// D-M3-37: active across the month end that bounds this window. It is neither billed against nor
+			// released here; its reserve still bounds the window's compute and the following window settles it.
+			carried = append(carried, b)
 		}
 	}
-	if len(in) == 0 {
+	if len(in) == 0 && len(carried) == 0 {
 		return false, nil
 	}
 	sum, buckets, err := r.latestBuckets(ctx, r.o.Store.R, start, end)
@@ -354,6 +367,13 @@ func (r *Reconciler) closeWindow(ctx context.Context, now time.Time) (bool, erro
 			return false, err
 		}
 		provisional, reserved = provisional+p, reserved+rs
+	}
+	for _, b := range carried {
+		var rs int64
+		if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE batch_id = ? AND kind = 'reserve'`, b.id).Scan(&rs); err != nil {
+			return false, err
+		}
+		reserved += rs
 	}
 	verdict := "ok"
 	switch {
