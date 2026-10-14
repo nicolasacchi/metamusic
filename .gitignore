@@ -39,3 +39,6 @@ covdata/
 .public-gate-patterns
 metrics/loop.jsonl
 .playwright-mcp/
+__pycache__/
+*.pyc
+.pytest_cache/
