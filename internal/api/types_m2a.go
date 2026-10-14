@@ -167,11 +167,12 @@ type listenEventIn struct {
 	ID        string  `json:"id" doc:"Client-generated UUID (UUIDv7); re-sending the same id is harmless"`
 	TrackID   string  `json:"track_id"`
 	SessionID string  `json:"session_id"`
-	Kind      string  `json:"kind" enum:"start,segment,seek,complete,skip"`
+	Kind      string  `json:"kind" enum:"start,segment,seek,complete,skip,autoplay_blocked,stall_end,advance,error" doc:"start|segment|seek|complete|skip are listening; autoplay_blocked|stall_end|advance|error are client playback diagnostics (never counted as plays)"`
 	FromMS    *int64  `json:"from_ms,omitempty" minimum:"0"`
 	ToMS      *int64  `json:"to_ms,omitempty" minimum:"0"`
 	Format    *string `json:"format,omitempty" enum:"flac,mp3"`
 	DeviceID  *string `json:"device_id,omitempty"`
+	Detail    *string `json:"detail,omitempty" maxLength:"64" pattern:"^[a-z0-9_:=.,-]+$" doc:"Diagnostic kinds only: short token string such as code=4,fmt=flac or ms=2500"`
 	ClientAt  string  `json:"client_at" format:"date-time"`
 }
 

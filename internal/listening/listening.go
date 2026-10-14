@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ type Listening = library.ListeningStats
 type Event struct {
 	ID, TrackID, SessionID, Kind string
 	FromMS, ToMS                 *int64
-	Format, DeviceID             *string
+	Format, DeviceID, Detail     *string
 	ClientAt                     time.Time
 }
 
@@ -50,8 +51,12 @@ func New(st *store.Store, now func() time.Time) *Service {
 }
 
 var (
-	kinds   = []string{"start", "segment", "seek", "complete", "skip"}
-	sources = []string{"web", "api", "mcp", "stdio"}
+	kinds = []string{"start", "segment", "seek", "complete", "skip", "autoplay_blocked", "stall_end", "advance", "error"}
+	// diagKinds are client playback diagnostics: stored for diagnosing real-device sessions, never counted
+	// as plays or completions.
+	diagKinds = []string{"autoplay_blocked", "stall_end", "advance", "error"}
+	detailRE  = regexp.MustCompile(`^[a-z0-9_:=.,-]{1,64}$`)
+	sources   = []string{"web", "api", "mcp", "stdio"}
 )
 
 const (
@@ -74,6 +79,9 @@ func (s *Service) validate(e Event, dur int64, ok bool) string {
 	}
 	if n := len(e.SessionID); n < 8 || n > 64 {
 		return "bad_session"
+	}
+	if e.Detail != nil && (!slices.Contains(diagKinds, e.Kind) || !detailRE.MatchString(*e.Detail)) {
+		return "bad_detail"
 	}
 	if e.Format != nil && *e.Format != "flac" && *e.Format != "mp3" {
 		return "bad_format"
@@ -136,8 +144,8 @@ func (s *Service) Log(ctx context.Context, p auth.Principal, src string, evs []E
 			continue
 		}
 		res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO listen_events
-(id, track_id, session_id, kind, from_ms, to_ms, format, device_id, source, principal_kind, principal_id, client_at, received_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, strings.ToLower(e.ID), e.TrackID, e.SessionID, e.Kind, e.FromMS, e.ToMS, e.Format, e.DeviceID, src, kind, p.Key(),
+(id, track_id, session_id, kind, from_ms, to_ms, format, device_id, detail, source, principal_kind, principal_id, client_at, received_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, strings.ToLower(e.ID), e.TrackID, e.SessionID, e.Kind, e.FromMS, e.ToMS, e.Format, e.DeviceID, e.Detail, src, kind, p.Key(),
 			e.ClientAt.UTC().Format(time.RFC3339), received)
 		if err != nil {
 			return 0, 0, nil, fmt.Errorf("listening: insert: %w", err)

@@ -3,7 +3,11 @@
 export interface MSPlayer {
   title: string;
   album: string;
-  state: { trackId: string };
+  state: { trackId: string; endOfQueue?: boolean; pendingPlay?: boolean };
+  /** A next track exists (undefined: assume yes). */
+  hasNext?: boolean;
+  /** The user wants playback (survives the element being paused during a src swap). */
+  playIntent?: boolean;
   prev(): void;
   next(): void;
   seek(s: number): void;
@@ -14,6 +18,7 @@ export interface MSPlayer {
 export interface MSEnv {
   mediaSession?: {
     metadata: unknown;
+    playbackState?: string;
     setActionHandler(action: string, h: ((d: { seekTime?: number }) => void) | null): void;
     setPositionState(s?: { duration: number; position: number; playbackRate: number }): void;
   };
@@ -50,7 +55,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     set("play", () => player.resume());
     set("pause", () => player.pause());
     set("previoustrack", () => player.prev());
-    set("nexttrack", () => player.next());
+    set("nexttrack", player.hasNext === false ? null : () => player.next());
     set("seekto", (d) => {
       if (typeof d.seekTime === "number") player.seek(d.seekTime);
     });
@@ -80,6 +85,40 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     }
   };
 
+  const clearPosition = () => {
+    try {
+      ms.setPositionState();
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  /** playbackState drives the Android notification: stale values show the wrong transport button. */
+  const state = () => {
+    const st = player.state;
+    let v: string;
+    if (st.endOfQueue) v = "none";
+    else if (st.pendingPlay) v = "paused";
+    else v = (player.playIntent ?? !el.paused) ? "playing" : "paused";
+    try {
+      ms.playbackState = v;
+    } catch {
+      /* optional */
+    }
+  };
+
+  let shown = player.state.trackId;
+  /** Player state changed (track transition, queue edit, blocked autoplay, end of queue). */
+  const onState = () => {
+    register();
+    if (player.state.trackId !== shown) {
+      shown = player.state.trackId;
+      clearPosition();
+      metadata();
+    }
+    state();
+  };
+
   const onLoaded = () => {
     register();
     metadata();
@@ -88,6 +127,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   const onPlaying = () => {
     register();
     metadata();
+    state();
   };
   const onSeeked = () => position();
   const onTime = () => {
@@ -107,6 +147,9 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   el.addEventListener("mm:meta", metadata);
   el.addEventListener("seeked", onSeeked);
   el.addEventListener("timeupdate", onTime);
+  const transport = ["play", "pause", "ended", "emptied"] as const;
+  for (const t of transport) el.addEventListener(t, state);
+  el.addEventListener("mm:state", onState);
   env.doc.addEventListener("visibilitychange", onVisible);
   env.win.addEventListener("pageshow", onPageShow);
   return () => {
@@ -115,6 +158,8 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     el.removeEventListener("mm:meta", metadata);
     el.removeEventListener("seeked", onSeeked);
     el.removeEventListener("timeupdate", onTime);
+    for (const t of transport) el.removeEventListener(t, state);
+    el.removeEventListener("mm:state", onState);
     env.doc.removeEventListener("visibilitychange", onVisible);
     env.win.removeEventListener("pageshow", onPageShow);
   };

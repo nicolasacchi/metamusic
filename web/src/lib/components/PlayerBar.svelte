@@ -71,7 +71,7 @@
       onclick={() => player.toggle()}
       disabled={!player.state.trackId}>{player.state.playing ? "⏸" : "▶"}</button
     >
-    <button type="button" aria-label="Next" onclick={() => player.next()} disabled={player.state.index + 1 >= player.state.queue.length}>⏭</button>
+    <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}>⏭</button>
   </div>
   <div class="mid">
     <div class="title">
@@ -81,7 +81,15 @@
         <span class="muted">{player.title}</span>
       {/if}
       {#if player.state.noFlac}<span class="mp3chip" data-testid="player-mp3-chip" title="This track has no lossless file; its master is an MP3">MP3</span>{/if}
-      {#if player.state.error}<span role="alert" class="err">{player.state.error}</span>{/if}
+    </div>
+    <div class="status">
+        {#if player.state.pendingPlay}
+          <button type="button" class="continue" data-testid="player-continue" onclick={() => player.resume()}>Tap to continue</button>
+        {:else if player.state.error}
+          <span role="alert" class="err">{player.state.error}</span>
+        {:else if player.state.endOfQueue}
+          <span class="muted" data-testid="player-end" role="status">End of queue</span>
+        {/if}
     </div>
     <Waveform
       {peaks}
@@ -162,8 +170,14 @@
     padding: 0.6rem;
     z-index: 5;
   }
+  .status:empty {
+    display: none;
+  }
+  .continue {
+    min-height: 2.5rem;
+    padding: 0 0.75rem;
+  }
   .err {
-    margin-left: 0.5rem;
     color: #ff9a7a;
   }
   .time {

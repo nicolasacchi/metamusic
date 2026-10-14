@@ -25,10 +25,24 @@ const ignoreM2c = (keep: string[]) => M2C.filter((n) => !keep.includes(n)).map((
 // between the spec's "before" and "after" reads as a duplicate. It therefore runs alone, as a second phase
 // ("listen-*" projects depend on every other project) with one track per project.
 const LISTEN = "**/m2a-listen.spec.ts";
+// M3 auto-advance: the refused-play, watchdog and queue specs run on desktop Chrome, the Pixel 7 and two Android-Firefox
+// profiles (Firefox user agent, phone viewport, touch); the other projects add nothing.
+const M3 = "**/m3-autoadvance.spec.ts";
+// Firefox (Android) blocks audio autoplay by default (media.autoplay.default=1); policy 0 lets a play() after the
+// first activation through, policy 2 only accepts a play() made synchronously inside the input handler (every
+// play() after an await, and the one in `ended`, is refused). Real devices ran sticky activation (the telemetry
+// shows auto-advance working at times); the strict project proves the player degrades to "tap to continue".
+const androidFirefox = (policy: number) => ({
+  ...devices["Desktop Firefox"],
+  userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0",
+  viewport: { width: 412, height: 915 },
+  hasTouch: true,
+  launchOptions: { firefoxUserPrefs: { "media.autoplay.default": 1, "media.autoplay.blocking_policy": policy } },
+});
 const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"])];
-const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([])];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([])];
-const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"];
+const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([]), M3];
+const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), M3];
+const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];
 
 // Skipped tests in a full run (26 at M2b; M2c adds none: m2c-reference is excluded from the firefox and
 // iphone15 projects by config, so it never appears as a skip), all intentional project scoping decided at run time with
@@ -59,6 +73,8 @@ export default defineConfig({
   projects: [
     { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
+    { name: "firefox-android", use: androidFirefox(0), testMatch: M3 },
+    { name: "firefox-android-strict", use: androidFirefox(2), testMatch: M3, grep: /strict autoplay/ },
     // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
     { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
     { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...firefoxIgnore, LISTEN] },
