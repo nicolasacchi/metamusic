@@ -962,7 +962,9 @@ func TestAudit_WriterBusyBeyondTwoSeconds(t *testing.T) {
 }
 
 func TestAudit_PersistentFailureKeepsResponse(t *testing.T) {
-	t.Parallel()
+	// Deliberately not parallel: audit.Failures is a process-global counter and
+	// parallel tests (e.g. PermanentErrorNotRetried) also bump it. A serial test
+	// runs while every parallel test is paused, so the delta is exact.
 	r := newRig(t, rigOpts{budget: 60 * time.Millisecond, wrap: func(gate.Auditor) gate.Auditor {
 		return auditFunc(func(context.Context, audit.Entry) error { return fmt.Errorf("disk gone") })
 	}})
