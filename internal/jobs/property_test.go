@@ -757,7 +757,13 @@ func (e *propEnv) run() {
 			e.takeOver()
 		}
 		if ghost != nil && tick == ghostAt+3 {
-			if _, err := ghost.Step(e.ctx); err == nil || (!errors.Is(err, ErrNotHolder) && !errors.Is(err, store.ErrLeaseLost) && !errors.Is(err, errCrash)) {
+			// fenced only while a newer owner holds an unexpired lease; once the takeover instance crashed before
+			// ever acquiring and the lease lapsed, the ghost legitimately acquires it (single-holder behaviour)
+			owner := e.r.str(`SELECT owner FROM runner_lease WHERE id = 1`)
+			exp := e.r.str(`SELECT expires_at FROM runner_lease WHERE id = 1`)
+			fenced := owner != "" && owner != ghost.o.Owner && exp > store.FormatTime(e.r.clk.Now())
+			_, err := ghost.Step(e.ctx)
+			if fenced && (err == nil || (!errors.Is(err, ErrNotHolder) && !errors.Is(err, store.ErrLeaseLost) && !errors.Is(err, errCrash))) {
 				e.failf("the paused runner stepped after its lease was taken over: %v", err)
 			}
 		}

@@ -524,3 +524,30 @@ func TestCreateVariant_WrongEstimateShape(t *testing.T) {
 		t.Errorf("create_generation: %v", err)
 	}
 }
+
+// A lost 201: the owner retries with a fresh idempotency key and learns which batch consumed the token
+// (409 CONFIRMATION_INVALID with details.batch_id); another principal learns nothing. No second batch.
+func TestCreate_ConsumedTokenSamePrincipalReturnsBatch(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	e := r.est(human, newSeedItem(lt.TrackLuna, 1))
+	ctx, _, _ := r.gatedCtx(human, "k-first")
+	c, err := r.svc.Create(ctx, human, generation.CreateIn{Token: e.Token, Via: spend.ViaHumanCreate}, encode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx2, _, _ := r.gatedCtx(human, "k-fresh")
+	_, err = r.svc.Create(ctx2, human, generation.CreateIn{Token: e.Token, Via: spend.ViaHumanCreate}, encode)
+	pe := wantProblem(t, err, 409, "CONFIRMATION_INVALID")
+	if pe.Details["reason"] != "consumed" || pe.Details["batch_id"] != c.BatchID {
+		t.Errorf("same principal: %v", pe.Details)
+	}
+	_, err = r.create(other, e, spend.ViaAPI)
+	pe = wantProblem(t, err, 409, "CONFIRMATION_INVALID")
+	if _, ok := pe.Details["batch_id"]; ok {
+		t.Errorf("other principal saw the batch: %v", pe.Details)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM batches WHERE estimate_id = ?`, e.ID); n != 1 {
+		t.Errorf("%d batches", n)
+	}
+}
