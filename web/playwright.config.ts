@@ -25,12 +25,23 @@ const ignoreM2c = (keep: string[]) => M2C.filter((n) => !keep.includes(n)).map((
 // between the spec's "before" and "after" reads as a duplicate. It therefore runs alone, as a second phase
 // ("listen-*" projects depend on every other project) with one track per project.
 const LISTEN = "**/m2a-listen.spec.ts";
-const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"])];
+// M3 (C86.5): the generation specs add tracks, jobs and spend rows to the shared library, which the count-based specs
+// (m1-library, m1-pwa, m1-import, the audit and export specs) must never see. Every M3 project is therefore a third
+// phase that depends on phase 1 and on the listen projects. The desktop project runs every M3 spec except m3-spend;
+// m3-variant and m3-jobs also run on the phones, one project after the other (they share two fake workers); m3-spend
+// changes the caps and the arming for everyone, so it runs alone after every other project.
+const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend"];
+const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
+const M3_SPECS = "**/m3-*.spec.ts";
+const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
 const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([])];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([])];
+const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([])];
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"];
+const phase2 = ["listen-chrome", "listen-chrome-pixel7", "listen-chrome-iphone15", "listen-firefox"];
+const before3 = [...phase1, ...phase2];
+const mobileM3 = ignoreM3(["variant", "jobs"]);
 
-// Skipped tests in a full run (26 at M2b; M2c adds none: m2c-reference is excluded from the firefox and
+// Skipped tests in a full run (26 at M2b; M2c and M3 add none: m2c-reference is excluded from the firefox and
 // iphone15 projects by config, so it never appears as a skip), all intentional project scoping decided at run time with
 // test.skip(<project predicate>, reason). None is a missing capability: the e2e server runs with the pinned
 // ffmpeg/metaflac from bin/ on PATH (scripts/e2e.sh, CI "media tools on PATH"), so Tier A analysis and
@@ -57,7 +68,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN] },
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, M3_SPECS] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
     // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
     { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
@@ -67,5 +78,10 @@ export default defineConfig({
     { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
     { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
     { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
+    // phase 3: the M3 specs (see M3 above)
+    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage"]), dependencies: before3 },
+    { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
+    { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
+    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: ignoreM3(["spend"]), dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
   ],
 });
