@@ -11,6 +11,7 @@ class FakeAudio extends EventTarget {
   set src(v: string) {
     this._src = v;
     this.paused = true;
+    this.ended = this.ended === undefined ? undefined : false;
     this.currentTime = 0;
     this.duration = NaN;
     queueMicrotask(() => this.emit("emptied"));
@@ -18,6 +19,8 @@ class FakeAudio extends EventTarget {
   currentTime = 0;
   duration = NaN;
   paused = true;
+  /** HTMLMediaElement.ended; undefined = not modelled (tests that emit a bare `ended`). */
+  ended: boolean | undefined = undefined;
   readyState = 0;
   error: { code: number; message: string } | null = null;
   playImpl: () => Promise<void> = () => Promise.resolve();
@@ -366,6 +369,50 @@ describe("end-of-track watchdog (c)", () => {
     expect(p.state.trackId).toBe("b");
     el.emit("ended"); // belongs to a, whose element was already swapped
     expect(p.state.trackId).toBe("b");
+  });
+
+  test("a watchdog advance completes the finished track before the track changes, and a late real ended does not touch the next one", async () => {
+    const { p, el, advance } = await playing(["a", "b", "c"]);
+    const out: ListenEvent[] = [];
+    let seq = 0;
+    const h: { rec?: ReturnType<typeof createRecorder> } = {};
+    // installListen's $effect: sync() runs as soon as the track changes
+    const origBegin = (p as unknown as { begin(id: string): void }).begin.bind(p);
+    (p as unknown as { begin(id: string): void }).begin = (id) => {
+      h.rec?.sync();
+      origBegin(id);
+    };
+    h.rec = createRecorder({
+      player: p,
+      emit: (e) => void out.push(e),
+      sessionId: "session-1",
+      deviceId: () => undefined,
+      id: () => `id${++seq}`,
+      now: () => new Date(T0),
+    });
+    el.emit("play");
+    el.currentTime = 99.95;
+    el.emit("timeupdate");
+    p.tick();
+    advance(1600);
+    p.tick(); // watchdog advance a -> b
+    expect(p.state.trackId).toBe("b");
+    expect(out.map((e) => [e.kind, e.track_id])).toEqual([
+      ["start", "a"],
+      ["segment", "a"],
+      ["complete", "a"],
+      ["advance", "a"],
+    ]);
+    // b starts playing, then the real `ended` of a's stream finally arrives
+    el.ended = false;
+    el.duration = 100;
+    el.currentTime = 0.4;
+    el.emit("play");
+    el.emit("playing");
+    el.emit("ended");
+    expect(p.state.trackId).toBe("b");
+    expect(out.filter((e) => e.kind === "complete")).toHaveLength(1);
+    expect(out.filter((e) => e.kind === "advance")).toHaveLength(1);
   });
 
   test("the watchdog at the last track ends the queue once", async () => {

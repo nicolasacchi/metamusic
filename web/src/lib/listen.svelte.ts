@@ -14,6 +14,7 @@ export interface PlayerLike {
 }
 
 interface ElLike extends EventTarget {
+  ended?: boolean;
   currentTime: number;
   duration: number;
 }
@@ -136,6 +137,8 @@ export function createRecorder(deps: RecorderDeps) {
       if (playing) segStart = to;
     },
     ended() {
+      // A late `ended` of a stream the player's watchdog already finished belongs to the previous track.
+      if (el?.ended === false) return;
       // The player has usually advanced to the next track already: finish the one we were recording.
       finish();
     },

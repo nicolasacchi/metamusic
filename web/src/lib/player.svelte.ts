@@ -691,6 +691,9 @@ export class Player {
   private onEnded() {
     // An `ended` that arrives while the next track's source is not applied yet is the old stream's.
     if (this.appliedTrack !== this.state.trackId) return;
+    // A late `ended` of the stream the watchdog already advanced past: the element now holds the next
+    // source, whose `ended` is false (a real end of the current source always reads true).
+    if (this.el?.ended === false) return;
     this.advance("ended");
   }
 

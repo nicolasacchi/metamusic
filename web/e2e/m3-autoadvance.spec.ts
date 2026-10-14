@@ -133,6 +133,11 @@ test("a stream whose ended never fires still advances (watchdog), once, with one
   // not advanced twice
   await page.waitForTimeout(2500);
   await expect(bar.getByRole("link", { name: list[8]!.title })).toBeVisible();
+  // The outbox persists asynchronously: the first IndexedDB open of a fresh Firefox profile can take seconds
+  // under load, and every event queued meanwhile only becomes visible afterwards. Wait for the burst, then
+  // assert exactness (the earlier 2.5 s wait and the poll tail make a duplicate show up too).
+  await expect.poll(async () => (await kinds()).filter((k) => k === "complete").length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+  await page.waitForTimeout(1000);
   const all = await kinds();
   expect(all.filter((k) => k === "complete")).toHaveLength(1);
   expect(all.filter((k) => k === "advance")).toHaveLength(1);
