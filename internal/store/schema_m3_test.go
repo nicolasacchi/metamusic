@@ -9,7 +9,7 @@ import (
 
 var createRE = regexp.MustCompile(`(?im)^CREATE\s+(?:UNIQUE\s+)?(TABLE|INDEX|TRIGGER)\s+(\w+)`)
 
-func TestMigration0006_Applies(t *testing.T) {
+func TestMigration0007_Applies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _ := open(t)
@@ -17,16 +17,16 @@ func TestMigration0006_Applies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ms) < 6 || ms[5].name != "0006_generate.sql" {
+	if len(ms) < 7 || ms[6].name != "0007_generate.sql" {
 		t.Fatalf("migration 6 = %v", ms[len(ms)-1].name)
 	}
-	if v, err := s.UserVersion(ctx); err != nil || v < 6 || v != len(ms) {
+	if v, err := s.UserVersion(ctx); err != nil || v < 7 || v != len(ms) {
 		t.Fatalf("version=%d migrations=%d err=%v", v, len(ms), err)
 	}
 	// every table, index and trigger of the migration exists (the list is read from the DDL itself, so a
 	// drive-by edit of one side cannot pass); the counts pin the contract's inventory.
 	counts := map[string]int{}
-	for _, m := range createRE.FindAllStringSubmatch(ms[5].sql, -1) {
+	for _, m := range createRE.FindAllStringSubmatch(ms[6].sql, -1) {
 		typ, name := strings.ToLower(m[1]), m[2]
 		counts[typ]++
 		var c int
@@ -63,7 +63,7 @@ func TestMigration0006_Applies(t *testing.T) {
 			t.Errorf("%s rows = %d, want %d", tbl, n, want)
 		}
 	}
-	// the M2c triggers still fire on top of 0006
+	// the M2c triggers still fire on top of 0007
 	insertStub(t, s, "st")
 	expectErr(t, exec(t, s, `UPDATE recipes SET engine='yue2'`), "recipes: immutable")
 	expectErr(t, exec(t, s, stubInsert, "r-bad", "bad", `{"extra":1,"id":"bad","seed":0,"title":"t"}`, "h-bad", "h-bad"), "recipes: unknown-engine shape")

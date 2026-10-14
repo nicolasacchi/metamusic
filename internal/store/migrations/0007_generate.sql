@@ -1,4 +1,4 @@
--- 0006_generate.sql — M3: caps, estimates, batches, approvals, jobs, attempts, events, uploads,
+-- 0007_generate.sql — M3: caps, estimates, batches, approvals, jobs, attempts, events, uploads,
 -- ledger, billing windows and buckets, worker meter, recipe keys, env fingerprints, RTF stats,
 -- runner lease, provider state.
 

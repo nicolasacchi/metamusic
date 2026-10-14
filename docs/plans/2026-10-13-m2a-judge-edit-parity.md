@@ -707,7 +707,7 @@ BEGIN SELECT RAISE(ABORT, 'backup_runs: frozen column'); END;
 
 **C27 addendum (M3-B1):** the two assertions that hard-coded the schema version (`internal/httpserver/server_test.go`
 healthz `schema_version`, `internal/store/schema_m2c_test.go`) now compare with the store's `user_version` /
-`>= 5`; migration `0006_generate.sql` (schema version 6) adds the M3 tables. See the M3 plan, C69.
+`>= 5`; migration `0007_generate.sql` (schema version 7) adds the M3 tables. See the M3 plan, C69.
 
 ### C28. Registry amendments (amends M0 C4, M1 C19)
 
@@ -1526,7 +1526,7 @@ parse as snapshot names (`<yyyymmddThhmmssZ>` with an optional `-N`) are ever to
    `secret_key` keeps tokens, sessions and devices valid, a new one invalidates them).
 
 **C34 addendum (M3-B1):** restore will disarm every `provider_state` row, turn live attempts into `unknown` and require a
-billing reconciliation before re-arming (M3 plan, C76.7, D-M3-31). The table exists since migration 0006 (M3-B1); the
+billing reconciliation before re-arming (M3 plan, C76.7, D-M3-31). The table exists since migration 0007 (M3-B1); the
 behaviour lands with M3-B6.
 
 ### C35. The `/context` bundle (`internal/trackctx`)

@@ -11,9 +11,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// TestMigration0006_UpgradeFromM2c opens a schema-5 library with the M2c fixture rows, lets store.Open apply
-// 0006, and checks that every earlier row is unchanged, tokens still verify and the new columns are NULL.
-func TestMigration0006_UpgradeFromM2c(t *testing.T) {
+// TestMigration0007_UpgradeFromM2d opens a schema-6 library (listen_events.detail from the auto-advance hotfix, the
+// production schema) with the M2c fixture rows, lets store.Open apply exactly 0007, and checks that every earlier row is unchanged, tokens still verify and the new columns are NULL.
+func TestMigration0007_UpgradeFromM2d(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	p := filepath.Join(t.TempDir(), "mm.db")
@@ -21,17 +21,17 @@ func TestMigration0006_UpgradeFromM2c(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MigrateTo(ctx, raw, 5); err != nil {
+	if err := store.MigrateTo(ctx, raw, 6); err != nil {
 		t.Fatal(err)
 	}
-	v5 := &store.Store{W: raw, R: raw}
+	v6 := &store.Store{W: raw, R: raw}
 	key := []byte("0123456789abcdef0123456789abcdef")
-	plain, _, err := auth.NewTokenStore(v5, key, time.Now).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
+	plain, _, err := auth.NewTokenStore(v6, key, time.Now).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
 	if err != nil {
 		t.Fatal(err)
 	}
-	librarytest.FixtureM2c(t, v5, librarytest.FixedNow)
-	if v, _ := v5.UserVersion(ctx); v != 5 {
+	librarytest.FixtureM2c(t, v6, librarytest.FixedNow)
+	if v, _ := v6.UserVersion(ctx); v != 6 {
 		t.Fatalf("setup version=%d", v)
 	}
 	snap := func(s *store.Store) []string {
@@ -58,7 +58,11 @@ func TestMigration0006_UpgradeFromM2c(t *testing.T) {
 		}
 		return out
 	}
-	before := snap(v5)
+	var gen int
+	if err := v6.R.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE name IN ('jobs','spend_caps')`).Scan(&gen); err != nil || gen != 0 {
+		t.Fatalf("schema 6 already has M3 tables: %d %v", gen, err)
+	}
+	before := snap(v6)
 	for i, b := range before {
 		if b == "" && i != 7 {
 			t.Fatalf("snapshot %d empty: fixture too thin", i)
@@ -71,8 +75,12 @@ func TestMigration0006_UpgradeFromM2c(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v < 6 {
-		t.Fatalf("version=%d", v)
+	if v, _ := s.UserVersion(ctx); v != 7 {
+		t.Fatalf("version=%d, want 7", v)
+	}
+	var detail int
+	if err := s.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('listen_events') WHERE name='detail'`).Scan(&detail); err != nil || detail != 1 {
+		t.Fatalf("listen_events.detail after upgrade: %d %v", detail, err)
 	}
 	after := snap(s)
 	for i := range before {

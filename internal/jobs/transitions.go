@@ -11,7 +11,7 @@ type Transition struct {
 	Rows     []string
 }
 
-// Transitions is the 34-pair job transition table. It equals the job_transitions table of migration 0006
+// Transitions is the 34-pair job transition table. It equals the job_transitions table of migration 0007
 // (TestTransitions_GoEqualsSQL); the Go guard and the SQL trigger refuse everything else.
 var Transitions = []Transition{
 	{StateAwaiting, StateQueued, []string{"1"}},
