@@ -71,7 +71,9 @@
       installDevice(player);
       const offMediaSession = installMediaSession(player, audio);
       const offListen = installListen(player);
+      const offActivation = player.watchActivation(document);
       return () => {
+        offActivation();
         offListen();
         offMediaSession();
         player.attach(null);

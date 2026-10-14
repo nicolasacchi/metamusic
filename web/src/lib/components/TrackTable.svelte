@@ -13,8 +13,10 @@
     /** Selection mode (C84.2): a checkbox column; reference and lossy rows are disabled. */
     selected?: ReadonlySet<string> | null;
     onselect?: (id: string, on: boolean) => void;
+    /** Insert after the current track in the queue. */
+    onplaynext?: (id: string) => void;
   }
-  let { tracks, playingId = "", onplay, selected = null, onselect }: Props = $props();
+  let { tracks, playingId = "", onplay, selected = null, onselect, onplaynext }: Props = $props();
 
   // A rating or status changed in this session shows at once, before the next fetch.
   function stars(t: Track): number | null {
@@ -70,6 +72,9 @@
           {/if}
           <td>
             <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}>▶</button>
+            {#if onplaynext}
+              <button type="button" class="play" aria-label="Queue {t.title} next" title="Play next" onclick={() => onplaynext(t.id)}>⤵</button>
+            {/if}
           </td>
           <td>
             <a href="/tracks/{t.id}" data-testid="track-link">{t.title}</a>

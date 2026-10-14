@@ -14,6 +14,7 @@ export interface PlayerLike {
 }
 
 interface ElLike extends EventTarget {
+  ended?: boolean;
   currentTime: number;
   duration: number;
 }
@@ -44,12 +45,12 @@ export function createRecorder(deps: RecorderDeps) {
   let heard = 0; // seconds in closed segments of the current track
   let duration = 0;
 
-  function emit(kind: ListenEvent["kind"], extra: Partial<ListenEvent>) {
+  function emit(kind: ListenEvent["kind"], extra: Partial<ListenEvent>, trackId = track) {
     const dev = deps.deviceId();
     const fmt = deps.player.state.format;
     deps.emit({
       id: deps.id(),
-      track_id: track,
+      track_id: trackId,
       session_id: deps.sessionId,
       kind,
       ...(fmt === "flac" || fmt === "mp3" ? { format: fmt } : {}),
@@ -136,20 +137,37 @@ export function createRecorder(deps: RecorderDeps) {
       if (playing) segStart = to;
     },
     ended() {
+      // A late `ended` of a stream the player's watchdog already finished belongs to the previous track.
+      if (el?.ended === false) return;
       // The player has usually advanced to the next track already: finish the one we were recording.
-      const end = dur() > 0 ? dur() : pos();
-      lastPos = end;
-      playing = false;
-      closeSegment(end);
-      if (started && !completed) {
-        completed = true;
-        emit("complete", { to_ms: ms(end) });
-      }
+      finish();
+    },
+    // The player announces the end of a play (native `ended` or its watchdog) before it changes track, so a
+    // track change that races the native event (installListen's effect) cannot swallow the `complete`.
+    "mm:finish"() {
+      finish();
+    },
+    "mm:diag"(e: Event) {
+      const d = (e as CustomEvent<{ kind: ListenEvent["kind"]; detail?: string; track_id: string; pos_ms: number }>).detail;
+      if (!d) return;
+      emit(d.kind, { from_ms: d.pos_ms, to_ms: d.pos_ms, ...(d.detail ? { detail: d.detail } : {}) }, d.track_id);
     },
     loadedmetadata() {
       duration = dur();
     },
   };
+
+  function finish() {
+    if (completed) return; // the player's mm:finish already completed this play
+    const end = dur() > 0 ? dur() : pos();
+    lastPos = end;
+    playing = false;
+    closeSegment(end);
+    if (started) {
+      completed = true;
+      emit("complete", { to_ms: ms(end) });
+    }
+  }
 
   const offs: (() => void)[] = [];
   if (el) {

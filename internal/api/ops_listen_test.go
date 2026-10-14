@@ -165,3 +165,30 @@ func TestListen_BeaconQueryFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestListen_DiagnosticKinds(t *testing.T) {
+	t.Parallel()
+	r := judgRig(t)
+	human := r.Human(t)
+	adv := listenEvent(40, lt.TrackLuna, "advance")
+	adv["detail"] = "reason=watchdog"
+	blocked := listenEvent(41, lt.TrackLuna, "autoplay_blocked")
+	blocked["detail"] = "cause=advance"
+	resp := human.Do(t, "POST", "/api/listen-events", map[string]any{"events": []any{adv, blocked}})
+	if got := obj(t, resp.JSON(t)); resp.Status != 200 || got["accepted"] != 2.0 {
+		t.Fatalf("diagnostics: %d %s", resp.Status, resp.Body)
+	}
+	// the schema bounds the detail token
+	bad := listenEvent(42, lt.TrackLuna, "error")
+	bad["detail"] = "Has Spaces"
+	if resp := human.Do(t, "POST", "/api/listen-events", map[string]any{"events": []any{bad}}); resp.Status != 422 {
+		t.Fatalf("bad detail: %d %s", resp.Status, resp.Body)
+	}
+	// a detail on a listening kind is a per-event rejection
+	start := listenEvent(43, lt.TrackLuna, "start")
+	start["detail"] = "x=1"
+	got := obj(t, human.Do(t, "POST", "/api/listen-events", map[string]any{"events": []any{start}}).JSON(t))
+	if rj := got["rejected"].([]any); len(rj) != 1 || obj(t, rj[0])["code"] != "bad_detail" {
+		t.Fatalf("detail on start: %v", got)
+	}
+}

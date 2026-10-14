@@ -731,7 +731,7 @@ export interface paths {
         put?: never;
         /**
          * Log listen events
-         * @description Records player events (start, segment, seek, complete, skip) with client-generated ids; re-sending an id is harmless.
+         * @description Records player events (start, segment, seek, complete, skip) and client playback diagnostics (autoplay_blocked, stall_end, advance, error) with client-generated ids; re-sending an id is harmless.
          */
         post: operations["log_listen_events"];
         delete?: never;
@@ -3241,6 +3241,8 @@ export interface components {
         ListenEventIn: {
             /** Format: date-time */
             client_at: string;
+            /** @description Diagnostic kinds only: short token string such as code=4,fmt=flac or ms=2500 */
+            detail?: string;
             device_id?: string;
             /** @enum {string} */
             format?: "flac" | "mp3";
@@ -3248,8 +3250,11 @@ export interface components {
             from_ms?: number;
             /** @description Client-generated UUID (UUIDv7); re-sending the same id is harmless */
             id: string;
-            /** @enum {string} */
-            kind: "start" | "segment" | "seek" | "complete" | "skip";
+            /**
+             * @description start|segment|seek|complete|skip are listening; autoplay_blocked|stall_end|advance|error are client playback diagnostics (never counted as plays)
+             * @enum {string}
+             */
+            kind: "start" | "segment" | "seek" | "complete" | "skip" | "autoplay_blocked" | "stall_end" | "advance" | "error";
             session_id: string;
             /** Format: int64 */
             to_ms?: number;

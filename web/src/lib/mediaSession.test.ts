@@ -11,6 +11,7 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
   const win = new EventTarget() as unknown as MSEnv["win"] & EventTarget;
   const ms = {
     metadata: null as unknown,
+    playbackState: "none" as string,
     setActionHandler(a: string, h: unknown) {
       handlers.set(a, h);
       sets.push({ action: a, h });
@@ -37,7 +38,9 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
   const player = {
     title: "T",
     album: "Alb",
-    state: { trackId: "a" },
+    hasNext: true,
+    playIntent: undefined as boolean | undefined,
+    state: { trackId: "a", endOfQueue: false, pendingPlay: false },
     prev: () => void calls.push("prev"),
     next: () => void calls.push("next"),
     seek: (s: number) => void calls.push("seek:" + s),
@@ -54,7 +57,7 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
     win,
     now: () => t,
   });
-  return { ms, el, handlers, sets, positions, calls, doc, win, cleanup, tick: (n: number) => (t += n) };
+  return { player, ms, el, handlers, sets, positions, calls, doc, win, cleanup, tick: (n: number) => (t += n) };
 }
 
 describe("mediaSession", () => {
@@ -150,5 +153,59 @@ describe("mediaSession", () => {
       { doc: new EventTarget() as never, win: new EventTarget() as never },
     );
     off();
+  });
+
+  test("playbackState follows the transport: playing, paused, none at the end of the queue", () => {
+    const { ms, el, player } = setup();
+    el.dispatchEvent(new Event("playing"));
+    expect(ms.playbackState).toBe("playing");
+    el.paused = true;
+    el.dispatchEvent(new Event("pause"));
+    expect(ms.playbackState).toBe("paused");
+    el.paused = false;
+    el.dispatchEvent(new Event("play"));
+    expect(ms.playbackState).toBe("playing");
+    // a blocked autoplay is a paused session, not a playing one
+    player.state.pendingPlay = true;
+    el.dispatchEvent(new Event("mm:state"));
+    expect(ms.playbackState).toBe("paused");
+    player.state.pendingPlay = false;
+    player.state.endOfQueue = true;
+    el.dispatchEvent(new Event("mm:state"));
+    expect(ms.playbackState).toBe("none");
+  });
+
+  test("the transition to the next track keeps the session playing while the next source loads", () => {
+    const { ms, el, player } = setup();
+    el.dispatchEvent(new Event("playing"));
+    player.playIntent = true;
+    el.paused = true; // src swapped: the element is paused until play() takes effect
+    el.dispatchEvent(new Event("mm:state"));
+    expect(ms.playbackState).toBe("playing");
+  });
+
+  test("nexttrack is withdrawn when nothing is next and restored when something is", () => {
+    const { handlers, el, player } = setup();
+    player.hasNext = false;
+    el.dispatchEvent(new Event("mm:state"));
+    expect(handlers.get("nexttrack")).toBeNull();
+    player.hasNext = true;
+    el.dispatchEvent(new Event("mm:state"));
+    expect(typeof handlers.get("nexttrack")).toBe("function");
+  });
+
+  test("a track change clears the stale position and refreshes the metadata", () => {
+    const { ms, el, player, positions } = setup();
+    el.dispatchEvent(new Event("loadedmetadata"));
+    const n = positions.length;
+    const before = ms.metadata;
+    player.state.trackId = "b";
+    el.dispatchEvent(new Event("mm:state"));
+    expect(positions.length).toBe(n + 1);
+    expect(positions.at(-1)).toBeUndefined();
+    expect(ms.metadata).not.toBe(before);
+    // an unrelated state change does not clear it again
+    el.dispatchEvent(new Event("mm:state"));
+    expect(positions.length).toBe(n + 1);
   });
 });
