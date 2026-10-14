@@ -344,6 +344,15 @@ export class Player {
       this.state.pendingPlay = false;
       this.state.error = "";
     }
+    // Play after the end of the queue restarts the last track from its beginning. A stream the watchdog ended
+    // (no native `ended`, so play() would not wrap around) otherwise resumes its last fraction of a second and
+    // immediately ends again, which re-shows "End of queue" right after the tap.
+    if (this.state.endOfQueue) {
+      this.pendingSeek = null;
+      this.lastPos = 0;
+      this.lastProgressAt = this.deps.now();
+      this.seek(0);
+    }
     this.state.endOfQueue = false;
     if (el.error || (el.readyState === 0 && !this.cached(this.state.trackId))) {
       // Errored element (failed FLAC and MP3), or nothing was ever fetched (preload=none) and the

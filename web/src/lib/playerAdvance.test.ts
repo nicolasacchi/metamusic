@@ -141,6 +141,23 @@ describe("queue semantics", () => {
     expect(p.state.endOfQueue).toBe(true);
   });
 
+  test("play after a watchdog end (no native ended) restarts the last track from 0 and does not end again", async () => {
+    const { p, el } = await playing(["a"]);
+    el.duration = 100;
+    el.currentTime = 99.5;
+    el.ended = false; // the stream never reported ended: only the watchdog got us here
+    (p as unknown as { advance(r: string): void }).advance("watchdog");
+    expect(p.state.endOfQueue).toBe(true);
+    expect(el.paused).toBe(true);
+    p.resume();
+    expect(p.state.endOfQueue).toBe(false);
+    expect(el.currentTime).toBe(0);
+    expect(p.state.current).toBe(0);
+    // a watchdog tick right after the tap must not end it again
+    p.tick();
+    expect(p.state.endOfQueue).toBe(false);
+  });
+
   test("play next inserts right after the current track and is played first", async () => {
     const { p, el, flush } = await playing(["a", "b", "c"]);
     p.playNext("z");
