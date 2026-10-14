@@ -200,11 +200,12 @@ func TestChaos_SubmitErrors(t *testing.T) {
 
 func TestChaos_QueueExpiryResubmitThenNoCapacity(t *testing.T) {
 	t.Parallel()
-	// a short TTL keeps the seven expiries (and the backoffs 1, 2, 4 ... minutes between them) inside a few hundred ticks
+	// a short TTL keeps the seven expiries (and the backoffs 1, 2, 4 ... minutes between them) inside about a hundred
+	// one-minute ticks (a coarser tick is still finer than every timer involved: the TTL is 5 minutes)
 	e := chaosEnv(t, func(o *RunnerOptions) { o.TTL = 5 * time.Minute })
 	s := e.seedBatch("fake:queue_expire=99", 3, 60)
 	first := s.Jobs[0]
-	e.drive(2000, 20*time.Second, func() bool {
+	e.drive(700, 60*time.Second, func() bool {
 		return e.jobTerminal(first)() && e.r.count(`SELECT COUNT(*) FROM jobs WHERE batch_id = ? AND state NOT IN ('completed','failed','cancelled','expired')`, s.Batch) == 0
 	})
 	e.r.wantState(first, StateFailed)

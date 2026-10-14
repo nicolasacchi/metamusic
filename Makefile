@@ -9,6 +9,11 @@ COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 # Go test scratch (t.TempDir) goes to tmpfs when available: the suites fsync heavily and a
 # disk-backed TMPDIR adds ~10 s to `make check`. Override with TEST_TMPDIR=<dir>.
+# Per-package `go test` timeout for the full-instrumentation targets (test, race, cover). Go's 10 min default is a
+# hang detector, but internal/jobs (property + chaos suites) needs ~7.5 min of wall on an idle 8-core host because the
+# transpiled SQLite stack under -race costs ~10x (schema parse per connection), and every package of `./...` runs at once,
+# so a busy host pushes it past 10 min with nothing wrong. 30 min still catches a real hang.
+TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
 .PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
@@ -23,10 +28,10 @@ openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
 
 test:
-	$(LOOP) test -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on ./...
+	$(LOOP) test -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -timeout $(TEST_TIMEOUT) ./...
 
 race:
-	$(LOOP) race -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on ./...
+	$(LOOP) race -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -timeout $(TEST_TIMEOUT) ./...
 
 lint:
 	$(LOOP) lint -- $(GOLINT) run ./...
@@ -61,7 +66,7 @@ e2e:
 # (refused as stale if sources changed since: covdata/e2e.stamp);
 # scripts/coverage-gate.sh enforces coverage.thresholds (C23).
 cover:
-	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'
+	$(LOOP) cover -- sh -c 'rm -rf covdata/unit && mkdir -p covdata/unit && TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -timeout $(TEST_TIMEOUT) -cover ./... -args -test.gocoverdir="$$PWD/covdata/unit" && scripts/coverage-gate-selftest.sh && scripts/coverage-gate.sh covdata/unit $$(test -d covdata/e2e && echo covdata/e2e)'
 
 # Seeds the dev data dir with the synthetic archive (needs the seed-synthetic command, M1-B9).
 seed:

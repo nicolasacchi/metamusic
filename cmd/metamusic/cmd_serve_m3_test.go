@@ -49,7 +49,7 @@ func startCmd(t *testing.T, env map[string]string, args ...string) (addr string,
 		}
 	}
 	t.Cleanup(func() { stop() })
-	for deadline := time.Now().Add(90 * time.Second); time.Now().Before(deadline); time.Sleep(25 * time.Millisecond) {
+	for deadline := time.Now().Add(startDeadline); time.Now().Before(deadline); time.Sleep(25 * time.Millisecond) {
 		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
 			a, _, _ := strings.Cut(rest, " ")
 			return a, out, errb, stop
@@ -431,3 +431,9 @@ func TestServe_ShutdownReturnsLongPolls(t *testing.T) {
 		t.Fatal("wait_for_job did not return after shutdown")
 	}
 }
+
+// startDeadline bounds how long a test waits for `dev` to listen. Seeding renders and analyses audio: ~15-20 s of CPU
+// under -race on an idle host, but whole-repo runs execute every package at once, so on a busy host the same work
+// stretches several-fold (90 s was exceeded in `make cover`). It bounds real work that scales with load; it is not
+// a sleep tuned to make a test pass, and a genuine hang still fails.
+const startDeadline = 5 * time.Minute

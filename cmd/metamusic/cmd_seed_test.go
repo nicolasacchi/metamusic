@@ -130,7 +130,7 @@ func startDev(t *testing.T, env map[string]string, args ...string) (addr string,
 	go func() {
 		done <- run(ctx, append([]string{"dev"}, args...), envFn(env), strings.NewReader(""), out, &errb)
 	}()
-	for deadline := time.Now().Add(90 * time.Second); addr == "" && time.Now().Before(deadline); time.Sleep(25 * time.Millisecond) {
+	for deadline := time.Now().Add(startDeadline); addr == "" && time.Now().Before(deadline); time.Sleep(25 * time.Millisecond) {
 		if _, rest, ok := strings.Cut(out.String(), "listening on http://"); ok {
 			addr, _, _ = strings.Cut(rest, " ")
 		}
