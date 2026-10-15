@@ -34,9 +34,17 @@ const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
-const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
+// L1 (C100.7): the Board, Song, Sounds and Muse specs change Muses, ratings, Picks, proposals and duels while the Reconciler
+// derives Songs, so they are a fourth phase after every M3 project (m3-spend included); phases 1-3 never pick them up
+// (testMatch is **/*.spec.ts). Desktop Chrome and Firefox run all four specs (layout and data only); the Pixel 7 runs
+// board and song (the phone requirement); the three projects run one after the other.
+const L1 = ["board", "song", "sounds", "muse"];
+const ignoreL1 = (keep: string[]) => L1.filter((n) => !keep.includes(n)).map((n) => `**/l1-${n}.spec.ts`);
+const L1_SPECS = "**/l1-*.spec.ts";
+const L1_ALL = ignoreL1([]);
+const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([]), ...L1_ALL];
 const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([]), AUTOADV];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), AUTOADV];
+const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), ...L1_ALL, AUTOADV];
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];
 const phase2 = ["listen-chrome", "listen-chrome-pixel7", "listen-chrome-iphone15", "listen-firefox"];
 const before3 = [...phase1, ...phase2];
@@ -82,7 +90,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([]), ...L1_ALL] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
     { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
     { name: "firefox-android-strict", use: androidFirefox(2), testMatch: AUTOADV, grep: /strict autoplay/ },
@@ -99,5 +107,9 @@ export default defineConfig({
     { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
     { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
     { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
+    // phase 4: the L1 specs (see L1 above)
+    { name: "l1-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: L1_SPECS, dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend"] },
+    { name: "l1-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: L1_SPECS, dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend", "l1-chrome"] },
+    { name: "l1-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: L1_SPECS, testIgnore: ignoreL1(["board", "song"]), dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend", "l1-chrome", "l1-firefox"] },
   ],
 });
