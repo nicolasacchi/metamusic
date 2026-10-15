@@ -222,15 +222,15 @@ func TestCLI_ArmAfterRestore(t *testing.T) {
 	if armed, _, _ := r.providerRow(t); armed != 0 {
 		t.Fatal("armed before a reconciliation covered the restore")
 	}
-	// billing none (the committed key-capabilities.json is unprobed) + the explicit acknowledgment
-	if code, out, errs := rp(t, r.env, append(args, "--after-restore")...); code != 0 {
-		t.Fatalf("--after-restore: %d %s %s", code, out, errs)
+	// the committed key-capabilities.json says billing is readable, so --after-restore is not an
+	// acknowledgment that applies: only a reconciled billing window covers the restore
+	if code, _, errs := rp(t, r.env, append(args, "--after-restore")...); code != 3 || !strings.Contains(errs, "RECONCILE_REQUIRED") {
+		t.Fatalf("--after-restore with readable billing: %d %s", code, errs)
 	}
-	if armed, _, _ := r.providerRow(t); armed != 1 {
-		t.Error("not armed")
+	if armed, _, _ := r.providerRow(t); armed != 0 {
+		t.Fatal("armed by --after-restore although billing is readable")
 	}
-	// a billing window ending after the restore also covers it (no flag needed)
-	r.exec(t, `UPDATE provider_state SET armed = 0 WHERE backend = ?`, provider.BackendRunPod)
+	// a billing window ending after the restore covers it (no flag needed)
 	r.exec(t, `INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at)
 		VALUES (?,?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?)`, store.FormatTime(rpNow.Add(time.Hour)), store.FormatTime(rpNow.Add(2*time.Hour)), store.FormatTime(rpNow.Add(3*time.Hour)))
 	if code, out, errs := rp(t, r.env, args...); code != 0 {
@@ -641,4 +641,67 @@ func TestCLI_ProvisionWithoutEndpointID(t *testing.T) {
 	if code == 0 || !strings.Contains(errs, "runpod-admin.env") || strings.Contains(out+errs, r.keys.Admin) {
 		t.Errorf("admin key in runpod.env: %d %s %s", code, out, errs)
 	}
+}
+
+// liveAttempts decodes `runpod status --json` and returns the live_attempts field, failing when it is
+// absent or not an array (scripts/deploy-preflight.sh fails closed on that).
+func liveAttempts(t *testing.T, r *rpRig) []any {
+	t.Helper()
+	code, out, errs := rp(t, r.env, "status", "--json")
+	if code != 0 {
+		t.Fatalf("status: %d %s %s", code, out, errs)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatal(err)
+	}
+	la, ok := m["live_attempts"].([]any)
+	if !ok {
+		t.Fatalf("live_attempts missing or not an array: %s", out)
+	}
+	return la
+}
+
+func TestCLI_RunPodStatusLiveAttempts(t *testing.T) {
+	t.Parallel()
+	t.Run("keys absent, no database", func(t *testing.T) {
+		t.Parallel()
+		r := newRPRigNoDB(t)
+		if err := os.Remove(filepath.Join(r.sec, "runpod.env")); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.Remove(filepath.Join(r.sec, "runpod-admin.env"))
+		code, out, _ := rp(t, r.env, "status", "--json")
+		if code != 0 || !strings.Contains(out, `"keys_absent": true`) {
+			t.Skipf("status without runpod.env is not supported here: %d %s", code, out)
+		}
+		if la := liveAttempts(t, r); len(la) != 0 {
+			t.Errorf("want none: %v", la)
+		}
+	})
+	t.Run("keys present, nothing in flight", func(t *testing.T) {
+		t.Parallel()
+		r := newRPRig(t)
+		if la := liveAttempts(t, r); len(la) != 0 {
+			t.Errorf("want none: %v", la)
+		}
+	})
+	t.Run("one live attempt", func(t *testing.T) {
+		t.Parallel()
+		r := newRPRig(t)
+		st := r.db(t)
+		librarytest.FixtureM3(t, st, rpNow)
+		seed := librarytest.SeedJob(t, st, rpNow, librarytest.JobSeed{Name: "live"})
+		r.exec(t, `INSERT INTO job_attempts(id, job_id, n, backend, state, ref, submitted_at, window_ends_at, price_pph_micro_usd, created_at)
+			VALUES ('att-live',?,1,'fake','submitted','ref-live',?,?,690000,?)`, seed.JobID, store.FormatTime(rpNow), store.FormatTime(rpNow.Add(time.Hour)), store.FormatTime(rpNow))
+		r.exec(t, `INSERT INTO job_attempts(id, job_id, n, backend, state, ref, submitted_at, window_ends_at, price_pph_micro_usd, terminal_basis, terminal_at, created_at)
+			VALUES ('att-done',?,2,'fake','done','ref-done',?,?,690000,'provider',?,?)`, seed.JobID, store.FormatTime(rpNow), store.FormatTime(rpNow.Add(time.Hour)), store.FormatTime(rpNow), store.FormatTime(rpNow))
+		la := liveAttempts(t, r)
+		if len(la) != 1 {
+			t.Fatalf("want exactly the submitted attempt: %v", la)
+		}
+		if m := la[0].(map[string]any); m["id"] != "att-live" || m["state"] != "submitted" {
+			t.Errorf("%v", m)
+		}
+	})
 }

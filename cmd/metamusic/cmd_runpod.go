@@ -396,6 +396,16 @@ type statusView struct {
 	KeysAbsent    bool           `json:"keys_absent,omitempty"`
 	Errors        []string       `json:"errors,omitempty"`
 	Job           *jobStatusView `json:"job,omitempty"`
+	// LiveAttempts is always present (empty when none, or when there is no database): the attempts in a
+	// state that may still spend (pending, submitted, unknown). scripts/deploy-preflight.sh reads it.
+	LiveAttempts []liveAttemptView `json:"live_attempts"`
+}
+
+type liveAttemptView struct {
+	ID    string `json:"id"`
+	JobID string `json:"job_id"`
+	N     int    `json:"n"`
+	State string `json:"state"`
 }
 
 type tripView struct {
@@ -457,7 +467,7 @@ func cmdRunPodStatus(ctx context.Context, args []string, getenv func(string) str
 	if err != nil {
 		return fatal(err)
 	}
-	v := statusView{Backend: provider.BackendRunPod, Database: "absent", KeysAbsent: !e.haveKeys}
+	v := statusView{Backend: provider.BackendRunPod, Database: "absent", KeysAbsent: !e.haveKeys, LiveAttempts: []liveAttemptView{}}
 	var st *store.Store
 	if _, serr := os.Stat(filepath.Join(e.cfg.DataDir, "metamusic.db")); serr == nil {
 		if st, err = store.Open(ctx, filepath.Join(e.cfg.DataDir, "metamusic.db")); err != nil {
@@ -525,6 +535,21 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 		return err
 	}
 	v.Meter = map[string]any{"lifetimes": lifetimes, "uptime_s": secs}
+	lrows, err := db.QueryContext(ctx, `SELECT id, job_id, n, state FROM job_attempts WHERE state IN ('pending','submitted','unknown') ORDER BY submitted_at, id`)
+	if err != nil {
+		return err
+	}
+	for lrows.Next() {
+		var la liveAttemptView
+		if err := lrows.Scan(&la.ID, &la.JobID, &la.N, &la.State); err != nil {
+			_ = lrows.Close()
+			return err
+		}
+		v.LiveAttempts = append(v.LiveAttempts, la)
+	}
+	if err := lrows.Close(); err != nil {
+		return err
+	}
 	if jobID == "" {
 		return nil
 	}
