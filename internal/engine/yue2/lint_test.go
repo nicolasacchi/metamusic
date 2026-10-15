@@ -216,3 +216,61 @@ func TestLint_RunsOnCanonical(t *testing.T) {
 		t.Errorf("raw line: %+v", raw.Errors)
 	}
 }
+
+// verses returns n 4-line verses: at the default 100 bpm each is 8 bars of 2.4 s, plus a 9.6 s tail.
+func verses(n int) string { return strings.Repeat("[Verse]\n"+goodVerse, n) }
+
+func TestLint_DurationTargets(t *testing.T) {
+	tg := &DurationTargets{MinS: 180, TargetMinS: 240, TargetMaxS: 300}
+	rows := []struct {
+		name    string
+		targets *DurationTargets
+		verses  int
+		want    []string
+		est     float64
+	}{
+		{"nil targets never warn", nil, 3, nil, 67.2},
+		{"under min", tg, 3, []string{"duration_under_target"}, 67.2},
+		{"just under min", tg, 8, []string{"duration_under_target"}, 163.2},
+		{"at min but below the band", tg, 9, []string{"duration_outside_target"}, 182.4},
+		{"band start", tg, 12, nil, 240},
+		{"inside band", tg, 14, nil, 278.4},
+		{"band end", tg, 15, nil, 297.6},
+		{"above the band", tg, 16, []string{"duration_outside_target"}, 316.8},
+		{"above the band and the cap", tg, 20, []string{"duration_outside_target", "duration_over_cap"}, 393.6},
+	}
+	for _, tc := range rows {
+		it := Lint([]LintItem{{Request: mkReq("d", "english, 100 bpm", verses(tc.verses))}}, false, LintContext{Targets: tc.targets}).Items[0]
+		var got []string
+		for _, c := range warnCodes(it) {
+			if strings.HasPrefix(c, "duration_") {
+				got = append(got, c)
+			}
+		}
+		sort.Strings(tc.want)
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: duration warnings %v, want %v (estimate %.1f)", tc.name, got, tc.want, it.EstimatedDurationS)
+		}
+		if d := it.EstimatedDurationS - tc.est; d > 0.05 || d < -0.05 {
+			t.Errorf("%s: estimate %.1f, want %.1f (fix the row)", tc.name, it.EstimatedDurationS, tc.est)
+		}
+	}
+	// the values travel in details, and the issue names the lyrics field
+	it := Lint([]LintItem{{Request: mkReq("d", "english, 100 bpm", verses(3))}}, false, LintContext{Targets: tg}).Items[0]
+	var w Issue
+	for _, x := range it.Warnings {
+		if x.Code == "duration_under_target" {
+			w = x
+		}
+	}
+	want := map[string]any{"estimated_s": 67.2, "min_s": 180, "target_min_s": 240, "target_max_s": 300}
+	if w.Severity != "warning" || w.Field != "lyrics" || !reflect.DeepEqual(w.Details, want) {
+		t.Errorf("under-target issue: %+v, want details %v", w, want)
+	}
+	it = Lint([]LintItem{{Request: mkReq("d", "english, 100 bpm", verses(16))}}, false, LintContext{Targets: tg}).Items[0]
+	for _, x := range it.Warnings {
+		if x.Code == "duration_outside_target" && !reflect.DeepEqual(x.Details, map[string]any{"estimated_s": 316.8, "min_s": 180, "target_min_s": 240, "target_max_s": 300}) {
+			t.Errorf("outside-target details: %v", x.Details)
+		}
+	}
+}
