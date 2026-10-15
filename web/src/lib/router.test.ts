@@ -115,3 +115,18 @@ describe("M3 routes (C84)", () => {
     expect(name("/human/spend")).toBe("human-spend");
   });
 });
+
+describe("L1 routes", () => {
+  test("the four new routes match, specific before parametric", async () => {
+    const { APP_ROUTES } = await import("./router");
+    const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+    expect(name("/board")).toBe("board");
+    expect(name("/muses/m1")).toBe("muse");
+    expect(matchRoute(APP_ROUTES, "/muses/m1")?.params).toEqual({ id: "m1" });
+    expect(name("/songs/s1")).toBe("song");
+    expect(name("/sounds")).toBe("sounds");
+    expect(name("/muses")).toBeUndefined();
+    expect(name("/songs")).toBeUndefined();
+    expect(isServerPath("/board")).toBe(false);
+  });
+});

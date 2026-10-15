@@ -22,6 +22,10 @@ export interface RouterState extends Location {
 export const APP_ROUTES: Route[] = [
   { pattern: "/", name: "home" },
   { pattern: "/tracks/:id", name: "track" },
+  { pattern: "/board", name: "board" },
+  { pattern: "/muses/:id", name: "muse" },
+  { pattern: "/songs/:id", name: "song" },
+  { pattern: "/sounds", name: "sounds" },
   { pattern: "/backlog", name: "backlog" },
   { pattern: "/backlog/new", name: "draft-new" },
   { pattern: "/backlog/upload", name: "draft-upload" },

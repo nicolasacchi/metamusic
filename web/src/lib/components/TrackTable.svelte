@@ -78,7 +78,7 @@
           </td>
           <td>
             <a href="/tracks/{t.id}" data-testid="track-link">{t.title}</a>
-            <TrackBadges recipeKnown={t.recipe_known} lossy={t.lossy} />
+            <TrackBadges recipeKnown={t.recipe_known} lossy={t.lossy} isPick={(t as { is_pick?: boolean }).is_pick === true} />
             {#if t.truncated}<span class="badge bad" title="The generation stream was cut short">truncated</span>{/if}
           </td>
           <td class="terms">

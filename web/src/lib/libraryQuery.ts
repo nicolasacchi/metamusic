@@ -1,7 +1,8 @@
 // Library filters <-> URL query string (back/forward restores filters) and the search_tracks params.
 import type { operations } from "../api/schema";
 
-export type SearchQuery = NonNullable<operations["search_tracks"]["parameters"]["query"]>;
+// `is_pick` is a library read amendment (D-L1-21) that the generated client types learn at integration.
+export type SearchQuery = NonNullable<operations["search_tracks"]["parameters"]["query"]> & { is_pick?: boolean };
 export type Sort = NonNullable<SearchQuery["sort"]>;
 export type Status = NonNullable<SearchQuery["status"]>[number];
 
@@ -26,6 +27,8 @@ export interface Filters {
   /** Human stars at least (1-5); null = no filter. Exclusive with `unrated`. */
   minStars: number | null;
   unrated: boolean;
+  /** Only takes that are their Song's current Pick. */
+  isPick: boolean;
   tag: string[];
   sort: Sort;
 }
@@ -45,6 +48,7 @@ export function defaultFilters(): Filters {
     lossy: null,
     minStars: null,
     unrated: false,
+    isPick: false,
     tag: [],
     sort: "recorded_desc",
   };
@@ -66,6 +70,7 @@ export function isDirty(f: Filters): boolean {
     f.lossy !== null ||
     f.minStars !== null ||
     f.unrated ||
+    f.isPick ||
     f.tag.length > 0
   );
 }
@@ -100,6 +105,7 @@ export function parseFilters(search: string | URLSearchParams): Filters {
   f.recipeKnown = bool(p.get("recipe_known"));
   f.lossy = bool(p.get("lossy"));
   f.unrated = p.get("unrated") === "true";
+  f.isPick = p.get("is_pick") === "true";
   const ms = num(p.get("min_stars"));
   f.minStars = !f.unrated && ms !== null && Number.isInteger(ms) && ms >= 1 && ms <= 5 ? ms : null;
   f.tag = [...new Set(p.getAll("tag").filter(Boolean))];
@@ -123,6 +129,7 @@ function pairs(f: Filters): [string, string][] {
   if (f.lossy !== null) out.push(["lossy", String(f.lossy)]);
   if (f.unrated) out.push(["unrated", "true"]);
   else if (f.minStars !== null) out.push(["min_stars", String(f.minStars)]);
+  if (f.isPick) out.push(["is_pick", "true"]);
   for (const t of f.tag) out.push(["tag", t]);
   if (f.sort !== defaultSort(f.q)) out.push(["sort", f.sort]);
   return out;
@@ -151,6 +158,7 @@ export function toApiQuery(f: Filters): SearchQuery {
   if (f.lossy !== null) q.lossy = f.lossy;
   if (f.unrated) q.unrated = true;
   else if (f.minStars !== null) q.min_stars = f.minStars;
+  if (f.isPick) q.is_pick = true;
   if (f.tag.length) q.tag = f.tag;
   if (f.sort !== defaultSort(f.q)) q.sort = f.sort;
   return q;
