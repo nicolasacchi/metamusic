@@ -44,3 +44,22 @@ jobs:
         env:
           MM_PROPERTY_TIMELINES: "300"
         run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/jobs
+
+  provenance-property:
+    # The long run of the provenance property suite (C101.3): the CI default is 60 sequences, this is 300.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: provenance property suite, 300 sequences
+        env:
+          MM_PROPERTY_SEQS: "300"
+        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/provenance

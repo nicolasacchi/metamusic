@@ -64,4 +64,9 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M3-3 terminating a running job from a paired phone (device principal, write scope) shows it `cancelled`
 - [ ] DC-M3-4 the trip banner and the "Set max workers to 0" push arrive on the phone (provoked with the fake backend's `fake:stuck_worker` on a dev instance)
 
+## L1
+
+- [ ] DC-L1-1 pin a Pick from a paired phone: the Pick badge moves to the pinned take and the history shows the pin; unpinning restores the derived Pick
+- [ ] DC-L1-2 the Board is usable on a phone: horizontal scroll works, targets are at least 44 px, and selection and the Estimate hand-off reach the generate page
+
 ## Notes
