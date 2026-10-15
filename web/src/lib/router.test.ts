@@ -115,3 +115,18 @@ describe("M3 routes (C84)", () => {
     expect(name("/human/spend")).toBe("human-spend");
   });
 });
+
+describe("M4a routes (C115)", () => {
+  test("/offline is an SPA route; connectors and subsonic are /human pages", () => {
+    const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+    expect(name("/offline")).toBe("offline");
+    expect(name("/human/connectors")).toBe("human-connectors");
+    expect(name("/human/subsonic")).toBe("human-subsonic");
+    expect(isServerPath("/human/connectors")).toBe(true);
+    expect(isServerPath("/human/subsonic")).toBe(true);
+    expect(isServerPath("/offline")).toBe(false);
+  });
+  test("the worker script and the Subsonic API are server paths", () => {
+    for (const p of ["/sw.js", "/rest/ping.view"]) expect(isServerPath(p)).toBe(true);
+  });
+});

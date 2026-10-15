@@ -1708,6 +1708,8 @@ position and record a failed probe (C22.3). Format = device effective format (`l
 handler (setting `currentTime` earlier is ignored on iOS); if the track is already current, it seeks
 immediately.
 
+> **M4a amendment (W1):** before minting links the player asks the offline store (`PlayerDeps.local`): a complete local file and a controlling service worker give `src = /media/<sha>.<ext>` with no `get_media_links` call; any media error on it marks the file suspect and mints one signed link at the same position (M4a C115.4).
+
 **C22.2 Media Session:** metadata `{title, artist: "metamusic", album: <root title>, artwork:
 [/icons/icon-512.png 512x512]}`; handlers `play`, `pause`, `previoustrack`, `nexttrack`, `seekto`;
 `seekforward`/`seekbackward` set to `null`; `setPositionState` on `loadedmetadata`, `seeked`, and
@@ -1733,6 +1735,8 @@ is offered again on the next gesture (at most 3 attempts per `probe_version`, co
 `localStorage`). Settings shows the probe result, the quality selector (Lossless / High / Auto only
 when `navigator.connection` exists), data estimates (FLAC ≈ 11 MB/min, MP3 ≈ 2.4 MB/min) and
 `list_device_profiles`.
+
+> **M4a amendment (W1):** `offline.svelte.ts` reads the player's effective device format (`Player.deviceFormat()`) to choose the file it downloads; a local-source playback error never records a failed probe (M4a C115.3/C115.4).
 
 **C22.4 Session loss (D-M1-5; M1-W1 records this in the M0 document).** It replaces M0's behaviour in
 `web/src/api/client.ts`: the openapi-fetch middleware reloads on any 401 response and on a `TypeError`
@@ -1765,6 +1769,8 @@ worker in M1. M0 already ships the manifest link (no `crossorigin`), `theme-colo
 `start_url`, `display`, colours and icons `icon-192.png`, `icon-512.png`, `icon.svg`; M1 adds `scope`,
 a dedicated 180×180 `apple-touch-icon.png` and a maskable 512 PNG (`icons/icon-512-maskable.png`). The
 privacy gate rejects binary blobs except real PNGs under `web/public/icons/`, so icons go only there.
+
+> **M4a amendment (W1):** a service worker now exists: `/sw.js` is built by a second Vite build (`web/vite.sw.config.ts`), registered by `src/api/swRegister.ts` in a secure context only (a refused registration is logged and ignored) and specified in M4a C115.1.
 
 Playwright config additions: Chrome `--autoplay-policy=no-user-gesture-required` on M0's three Chrome
 projects (`chrome`, `chrome-pixel7`, `chrome-iphone15` — the last is an iPhone 15 viewport on Chrome);

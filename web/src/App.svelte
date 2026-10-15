@@ -38,7 +38,10 @@
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
+  import Offline from "./routes/Offline.svelte";
   import NotFound from "./routes/NotFound.svelte";
+  import { offline } from "./lib/offline.svelte";
+  import { applyUpdate, watchForUpdate } from "./api/swRegister";
 
   const router = createRouter(APP_ROUTES);
   const audioId = randomId();
@@ -61,6 +64,21 @@
     void $router.path;
     void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
   });
+
+  // A new service worker is waiting: offer the update (C115.1); never forced.
+  let waitingWorker = $state<ServiceWorkerRegistration | null>(null);
+  $effect(() =>
+    untrack(() => {
+      const onReg = (e: Event) => watchForUpdate((e as CustomEvent<ServiceWorkerRegistration>).detail, (r) => (waitingWorker = r));
+      window.addEventListener("mm:sw-registered", onReg);
+      // Offline badge: the set is fetched (never downloaded) so the nav can show downloaded/total.
+      if (offline.available) {
+        void offline.refresh();
+        void offline.refreshSet();
+      }
+      return () => window.removeEventListener("mm:sw-registered", onReg);
+    }),
+  );
 
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
@@ -95,15 +113,26 @@
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      {#if offline.available}
+        <a href="/offline" aria-current={$router.route?.name === "offline" ? "page" : undefined} data-testid="nav-offline">Offline{#if offline.badge}<span class="badge" data-testid="offline-badge">{offline.badge}</span>{/if}</a>
+      {/if}
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
+      <a href="/human/connectors" onclick={humanClick} aria-current={$router.route?.name === "human-connectors" ? "page" : undefined}>Connectors</a>
+      <a href="/human/subsonic" onclick={humanClick} aria-current={$router.route?.name === "human-subsonic" ? "page" : undefined}>Subsonic</a>
     </nav>
   </header>
 
   <main>
     <SessionBanner />
+    {#if waitingWorker}
+      <p class="update" role="status" data-testid="sw-update">
+        A new version is available.
+        <button type="button" onclick={() => waitingWorker && applyUpdate(waitingWorker)}>Reload to update</button>
+      </p>
+    {/if}
     {#if $router.route?.name === "home"}
       <Library search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "track"}
@@ -168,6 +197,14 @@
       {#key $router.params.id}
         <Lineage id={$router.params.id ?? ""} />
       {/key}
+    {:else if $router.route?.name === "offline"}
+      <Offline />
+    {:else if $router.route?.name === "human-connectors"}
+      <!-- placeholder: M4a-W3 fills this page (full-page navigation; the server renders /human/*) -->
+      <h1>Connectors</h1>
+    {:else if $router.route?.name === "human-subsonic"}
+      <!-- placeholder: M4a-W3 fills this page -->
+      <h1>Subsonic clients</h1>
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}
@@ -235,6 +272,12 @@
     background: #f2a65a;
     color: #14110f;
     font-size: 0.75rem;
+  }
+  .update {
+    margin: 0 0 1rem;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid #3a322b;
+    border-radius: 0.4rem;
   }
   main {
     min-width: 0;

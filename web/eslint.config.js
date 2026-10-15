@@ -4,7 +4,7 @@ import ts from "typescript-eslint";
 import svelte from "eslint-plugin-svelte";
 import globals from "globals";
 
-const banned = ["fetch", "XMLHttpRequest", "EventSource", "indexedDB"];
+const banned = ["fetch", "XMLHttpRequest", "EventSource", "indexedDB", "caches"];
 
 export default defineConfig(
   { ignores: ["dist/", "node_modules/", "src/api/schema.d.ts", "playwright-report/", "test-results/"] },
