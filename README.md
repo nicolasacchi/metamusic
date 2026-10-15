@@ -7,7 +7,7 @@ are all derived from that registry.
 
 One Go binary embeds a Svelte 5 SPA. GPU work runs on RunPod Serverless.
 
-Status: milestone M1 (import and listen: library, media serving, player, archive import). See [docs/plans/2026-10-12-roadmap.md](docs/plans/2026-10-12-roadmap.md)
+Status: milestone M4a in progress (remote agents and mobile: hosted connectors, Subsonic clients, offline PWA) on top of M1 to M3 (import and listen, judge and edit, duels, generation). See [docs/plans/2026-10-12-roadmap.md](docs/plans/2026-10-12-roadmap.md)
 and [docs/architecture.md](docs/architecture.md).
 
 ## Quick start (development)
@@ -104,6 +104,15 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_FLAC` | flac binary (default `flac`). |
 | `MM_METAFLAC` | metaflac binary (default `metaflac`). |
 | `MM_CLIP_CACHE_MB` | Size cap of the rendered-clip cache in MiB (default 4096, minimum 256). See the runbook. |
+| `MM_BACKEND` | Generation backend: `none` (default), `fake` (local simulation, no spend) or `runpod`. See the runbook. |
+| `MM_RUNNER` | Job runner on/off (default on; `serve --runner=false` overrides). |
+| `MM_FAKE_BACKEND` | With `MM_BACKEND=fake` only: `fast` or `slow:<duration>`. |
+| `MM_RUNPOD_RECORD_DIR` | Optional existing directory outside `MM_DATA_DIR` for recorded provider fixtures. |
+| `MM_E2E` | `1` enables the E2E-only test hooks; never set in production. |
+| `MM_OIDC_ISSUER` | Issuer URL of the OpenID Connect provider for hosted connectors (claude.ai, ChatGPT); unset disables them. Needs an `https://` `MM_PUBLIC_URL`, `MM_OIDC_CLIENTS` and `MM_TRUSTED_USERS`. See `docs/connectors.md`. |
+| `MM_OIDC_CLIENTS` | Allow-listed connector clients as `<client_id>=<label>[,...]`; only these may connect. |
+| `MM_OIDC_JWKS_URL` | Optional override of the provider's signing-key URL (default: discovered from the issuer). |
+| `MM_OIDC_SCOPES` | Scopes advertised and required for connectors (default `openid metamusic`; must contain `metamusic`). |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
 (`metamusic token create --name N --scopes read,write`).

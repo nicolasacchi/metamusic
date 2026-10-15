@@ -64,4 +64,15 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M3-3 terminating a running job from a paired phone (device principal, write scope) shows it `cancelled`
 - [ ] DC-M3-4 the trip banner and the "Set max workers to 0" push arrive on the phone (provoked with the fake backend's `fake:stuck_worker` on a dev instance)
 
+## M4a
+
+- [ ] DC-M4a-1 claude.ai web: add the custom connector (MCP URL and client id only), sign in with two factors, accept the consent page; "search my tracks for X" runs `search_tracks`; a requested comment appears on the track page authored by the client label
+- [ ] DC-M4a-2 claude.ai mobile: the connector works after sign-in on the phone; a session the next day works without a new login (if not, set `MM_OIDC_SCOPES="openid offline_access metamusic"` and repeat; record which setting works)
+- [ ] DC-M4a-3 ChatGPT (if the account has connectors): predefined client; the same two calls
+- [ ] DC-M4a-4 Amperfy on iPhone: create a client on `/human/subsonic` (token login), stream format Raw; a 24-bit/48 kHz master plays and seeks; pause 15 minutes then resume and seek works; rating shows as human stars; starring sets final
+- [ ] DC-M4a-5 Symfonium or Tempus on Android: API key login; the full sync finishes; an offline album download works; a bookmark with a note becomes a timestamped comment
+- [ ] DC-M4a-6 installed PWA on iPhone and Android: sync the offline set on Wi-Fi, airplane mode, relaunch from the home screen: `/offline` opens and plays with seeking; record the `storage.persist()` result
+- [ ] DC-M4a-7 Media Session: the lock screen shows the generated cover art
+- [ ] DC-M4a-8 revoking the connector on `/human/connectors`: the next tool call fails and the request log shows 403 `CONNECTOR_REVOKED`; restoring works again
+
 ## Notes
