@@ -444,7 +444,7 @@ func parseScopes(csv string) ([]auth.Scope, error) {
 // startupSettle seeds the Sound taxonomy (the taxonomy exists before any Sound is computed) and runs the first Settle,
 // waiting while another process holds the lease (a restarting server whose predecessor is still draining).
 func startupSettle(ctx context.Context, svc *app.Services) error {
-	if err := svc.Sounds.EnsureSeed(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) { // ErrUnsupported until L1-B6
+	if err := svc.Sounds.EnsureSeed(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
 		return fmt.Errorf("sound taxonomy seed: %w", err)
 	}
 	for {

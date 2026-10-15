@@ -142,7 +142,9 @@
       "diction and intelligibility",
       "melody and harmony adherence to the score",
       "section times are score-plan estimates (confidence 0.7)"
-    ]
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
   },
   "listening": {
     "plays": 2,
@@ -164,7 +166,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 3390,
+    "chars": 3431,
     "limit": 24000,
     "truncated": []
   }

@@ -74,7 +74,9 @@
       "melody and harmony adherence to the score",
       "silence, clipping and token loops (Tier A not run yet)",
       "section times unknown (no aligned score)"
-    ]
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
   },
   "listening": {
     "plays": 0,
@@ -97,7 +99,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 2325,
+    "chars": 2366,
     "limit": 24000,
     "truncated": []
   }

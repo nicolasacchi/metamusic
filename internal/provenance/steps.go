@@ -25,19 +25,3 @@ type SoundStep interface {
 type pickSweeper interface {
 	Sweep(ctx context.Context) (picks.Changes, error)
 }
-
-// nopPicks and nopSounds stand in until the real steps are wired (L1-B7 wires them in app.Build): the structural
-// core is complete and testable without them.
-type nopPicks struct{}
-
-func (nopPicks) RecomputeTx(context.Context, *sql.Tx, store.Env, []string, map[string]ladder.Strength) (picks.Changes, error) {
-	return picks.Changes{}, nil
-}
-
-type nopSounds struct{}
-
-func (nopSounds) ComputeTx(context.Context, *sql.Tx, store.Env, []string, []string) (sounds.Changes, error) {
-	return sounds.Changes{}, nil
-}
-
-func (nopSounds) SweepStaleTx(context.Context, *sql.Tx, store.Env, int) (int, error) { return 0, nil }

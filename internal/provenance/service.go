@@ -20,8 +20,8 @@ type Options struct {
 	Muses    *muses.Service
 	Songs    *songs.Service
 	Sessions *sessions.Service
-	Picks    PickStep  // nil => nopPicks
-	Sounds   SoundStep // nil => nopSounds
+	Picks    PickStep  // nil: the step is skipped (structural-core tests)
+	Sounds   SoundStep // nil: the step is skipped
 	Ladder   picks.Ladder
 	Now      func() time.Time
 	NewID    func() string
@@ -44,12 +44,6 @@ type Service struct {
 
 // New builds the Service.
 func New(o Options) *Service {
-	if o.Picks == nil {
-		o.Picks = nopPicks{}
-	}
-	if o.Sounds == nil {
-		o.Sounds = nopSounds{}
-	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}

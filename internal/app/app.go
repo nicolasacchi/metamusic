@@ -218,7 +218,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		return nil, err
 	}
 
-	l1 := buildL1(st, now, newID, ds, o.L1)
+	l1 := buildL1(st, now, newID, ds, media.Ears, o.L1)
 	ctxb.UseLibrary(libraryReader{l1.SongView})
 	lib.UseMuseCounter(func(ctx context.Context) (int, error) {
 		p, err := l1.Muses.List(ctx, muses.ListFilter{Limit: 1})

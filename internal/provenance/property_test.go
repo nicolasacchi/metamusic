@@ -12,7 +12,7 @@ import (
 
 // TestProperty_ProvenanceInvariants drives seeded random sequences of source-table writes (drafts and refs, mothers set
 // and cleared, roots and children, drafts fulfilled, ratings, status changes, duel verdicts) with a Settle every few steps
-// and at the end. The oracle: Verify is empty and a further Settle changes nothing. MM_PROPERTY_SEQS overrides the 60
+// and at the end. Picks and Sounds are enabled. The oracle: Verify is empty and a further Settle changes nothing. MM_PROPERTY_SEQS overrides the 60
 // sequences (the weekly job runs 300); -short runs 6 so make check stays fast.
 func TestProperty_ProvenanceInvariants(t *testing.T) {
 	t.Parallel()
@@ -39,7 +39,7 @@ type draftState struct {
 
 func runSequence(t *testing.T, seed uint64) {
 	rng := rand.New(rand.NewPCG(seed, seed*7919+1))
-	w := newWorld(t)
+	w := newWorld(t, realSteps(t)) // picks and sounds enabled: Verify also checks the event chain and Sound freshness
 	sc := w.sc
 	var drafts []*draftState
 	var roots, tracks []string

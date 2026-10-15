@@ -9,46 +9,103 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
-	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
 // l1Cases covers the 16 L1 operations that have an MCP face (6 tools, 10 generic); pin_pick and dismiss_pick_proposal
-// have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Until the
-// owning lane fills a handler all three faces must answer the same 501 problem (C101.2); the lane then removes Status
-// and builds the arguments from the rig's L1 rows. L1-B5 took over the Muse, Song, Session and Board cases: this runner's
-// rig has no L1 rows (L1 false), so the list and Board cases agree on an empty library, create_muse creates one Muse and
-// the id-addressed cases agree on the same 404 problem. L1-B7 enriches them with the settled L1 rig.
+// have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Every
+// face runs against its own settled L1 rig, so REST = MCP tool = generic = stdio after normalisation (C101.2).
 var l1Cases = []ParityCase{
-	{Op: "list_muses", Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "list_muses", Args: settledArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse", Args: museArgs(nil)},
 	{Op: "create_muse", Masks: []string{"id", "created_by"}, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
-	{Op: "update_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
-	{Op: "assign_muse_songs", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
-	{Op: "list_songs", Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "update_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
+	{Op: "update_muse", SkipGeneric: true, Masks: []string{"updated_at"}, Args: museArgs(map[string]any{"title": "Synthetic Muse 901"})},
+	{Op: "assign_muse_songs", Args: func(r *servertest.Rig, _ map[string]any) map[string]any {
+		settle(r)
+		return map[string]any{"id": oneID(r, `SELECT id FROM muses ORDER BY id LIMIT 1`), "song_ids": []string{oneID(r, `SELECT id FROM songs WHERE retired_at IS NULL ORDER BY id LIMIT 1`)}}
+	}},
+	{Op: "list_songs", Args: settledArgs(map[string]any{"limit": 10})},
+	{Op: "get_song", Args: songArgs(nil)},
+	{Op: "update_song", SkipGeneric: true, Masks: []string{"updated_at"}, Args: songArgs(map[string]any{"title": "Synthetic Song 901"})},
 	{Op: "propose_pick", Args: proposeArgs, Masks: []string{"id", "song_id", "proposed_by"}}, // ids come from each rig's own sequence
-	{Op: "list_pick_events", Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "list_sessions", Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "update_session", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
-	{Op: "search_sounds", Args: fixedArgs(map[string]any{"limit": 0})}, // counts only: the Song page is list_songs (L1-B5)
-	{Op: "get_sound_taxonomy", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "list_pick_events", Args: settledArgs(map[string]any{"limit": 10})},
+	{Op: "list_sessions", Args: settledArgs(map[string]any{"limit": 10})},
+	{Op: "update_session", SkipGeneric: true, Masks: []string{"updated_at"}, Args: func(r *servertest.Rig, _ map[string]any) map[string]any {
+		settle(r)
+		return map[string]any{"id": oneID(r, `SELECT id FROM sessions ORDER BY id LIMIT 1`), "revision": 1, "name": "Synthetic Session 901"}
+	}},
+	{Op: "search_sounds", Args: settledArgs(map[string]any{"limit": 0})}, // counts only: the Song page is list_songs
+	{Op: "get_sound_taxonomy", Args: settledArgs(map[string]any{"limit": 10})},
 	{Op: "map_sound_term", Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
-	{Op: "get_muse_board", Masks: []string{"id"}, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse_board", Masks: []string{"id"}, Args: settledArgs(map[string]any{"limit": 10})},
 }
 
-// proposeArgs proposes the non-Pick take of the first Song with two live takes in the rig's base fixture (the Reconciler
-// builds the Songs structurally; the Pick of a settled Song is its newest take, so the oldest is proposed). The rigs are
-// identical, so the three faces see the same ids.
-func proposeArgs(r *servertest.Rig, _ map[string]any) map[string]any {
+func settle(r *servertest.Rig) {
+	if err := r.Services.Sounds.EnsureSeed(context.Background()); err != nil {
+		panic(err)
+	}
 	if _, err := r.Provenance.Settle(context.Background()); err != nil {
 		panic(err)
 	}
+}
+
+func oneID(r *servertest.Rig, q string) string {
+	var id string
+	if err := r.Store.R.QueryRow(q).Scan(&id); err != nil {
+		panic(err)
+	}
+	return id
+}
+
+// settledArgs returns m after settling the rig, so read cases compare the derived rows on every face.
+func settledArgs(m map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	return func(r *servertest.Rig, _ map[string]any) map[string]any { settle(r); return m }
+}
+
+func withID(id string, extra map[string]any) map[string]any {
+	out := map[string]any{"id": id}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
+}
+
+// museArgs addresses the first Muse of the settled rig; extra adds update fields (revision 1 is the backfilled row's).
+func museArgs(extra map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	return func(r *servertest.Rig, _ map[string]any) map[string]any {
+		settle(r)
+		m := withID(oneID(r, `SELECT id FROM muses ORDER BY id LIMIT 1`), extra)
+		if extra != nil {
+			m["revision"] = 1
+		}
+		return m
+	}
+}
+
+func songArgs(extra map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	return func(r *servertest.Rig, _ map[string]any) map[string]any {
+		settle(r)
+		m := withID(oneID(r, `SELECT id FROM songs WHERE retired_at IS NULL ORDER BY id LIMIT 1`), extra)
+		if extra != nil {
+			var rev int
+			if err := r.Store.R.QueryRow(`SELECT revision FROM songs WHERE id = ?`, m["id"]).Scan(&rev); err != nil {
+				panic(err)
+			}
+			m["revision"] = rev // assign_muse_songs ran first and bumped it
+		}
+		return m
+	}
+}
+
+// proposeArgs proposes a non-Pick take of the first Song with two live takes in the rig's base fixture. The rigs are
+// identical, so the three faces see the same ids.
+func proposeArgs(r *servertest.Rig, _ map[string]any) map[string]any {
+	settle(r)
 	var song, take string
-	err := r.Store.R.QueryRow(`SELECT ts.song_id, (SELECT t.id FROM take_songs x JOIN tracks t ON t.id = x.track_id WHERE x.song_id = ts.song_id
-		AND t.status <> 'discarded' ORDER BY t.recorded_at LIMIT 1)
-		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE t.status <> 'discarded' GROUP BY ts.song_id HAVING COUNT(*) >= 2 ORDER BY ts.song_id LIMIT 1`).Scan(&song, &take)
+	err := r.Store.R.QueryRow(`SELECT ts.song_id, (SELECT t.id FROM take_songs x JOIN tracks t ON t.id = x.track_id
+		WHERE x.song_id = ts.song_id AND t.status <> 'discarded' AND t.id <> sp.take_id ORDER BY t.recorded_at, t.id LIMIT 1)
+		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id JOIN song_picks sp ON sp.song_id = ts.song_id
+		WHERE t.status <> 'discarded' GROUP BY ts.song_id HAVING COUNT(*) >= 2 ORDER BY ts.song_id LIMIT 1`).Scan(&song, &take)
 	if err != nil {
 		panic(err)
 	}

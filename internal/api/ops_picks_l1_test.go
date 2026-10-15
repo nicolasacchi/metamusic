@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -31,6 +32,21 @@ func picksRig(t *testing.T) (r *servertest.Rig, song string, takes []string) {
 	if len(takes) < 2 {
 		t.Fatalf("fixture has no Song with two takes")
 	}
+	// The settled Song already has a derived Pick: list its non-Pick takes first, the Pick last, so takes[0] can be
+	// proposed or pinned (proposing the current Pick is a 409 ALREADY_PICK).
+	var pick string
+	if err := r.Store.R.QueryRow(`SELECT take_id FROM song_picks WHERE song_id = ?`, song).Scan(&pick); err != nil {
+		t.Fatal(err)
+	}
+	slices.SortStableFunc(takes, func(a, b string) int {
+		switch {
+		case a == pick && b != pick:
+			return 1
+		case b == pick && a != pick:
+			return -1
+		}
+		return 0
+	})
 	return r, song, takes
 }
 

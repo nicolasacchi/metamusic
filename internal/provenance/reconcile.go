@@ -13,6 +13,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -298,18 +299,22 @@ func (s *Service) phaseB(ctx context.Context, epoch int64, keys []Key, a *phaseA
 		return false, err
 	}
 	env := s.env()
-	pc, err := s.o.Picks.RecomputeTx(ctx, tx, env, a.affected, strengths)
-	if err != nil {
-		return false, err
+	var pc picks.Changes
+	if s.o.Picks != nil { // nil: the structural core only (tests of the Song/Muse/Session phase)
+		if pc, err = s.o.Picks.RecomputeTx(ctx, tx, env, a.affected, strengths); err != nil {
+			return false, err
+		}
 	}
 	a.rep.PickEvents, a.rep.PickRefreshed = pc.Events, pc.Refreshed
 	soundSongs := slices.Clone(a.affected)
 	soundSongs = append(soundSongs, pc.Songs...)
 	slices.Sort(soundSongs)
 	soundSongs = slices.Compact(soundSongs)
-	sc, err := s.o.Sounds.ComputeTx(ctx, tx, env, a.tracks, soundSongs)
-	if err != nil {
-		return false, err
+	var sc sounds.Changes
+	if s.o.Sounds != nil {
+		if sc, err = s.o.Sounds.ComputeTx(ctx, tx, env, a.tracks, soundSongs); err != nil {
+			return false, err
+		}
 	}
 	a.rep.SoundsComputed = sc.Takes + sc.Songs
 
@@ -349,6 +354,14 @@ func (s *Service) Sweep(ctx context.Context) error {
 		return err
 	}
 	defer s.release(epoch)
+	if s.o.Sounds == nil {
+		if sw, ok := s.o.Picks.(pickSweeper); ok {
+			if _, err := sw.Sweep(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
+				return err
+			}
+		}
+		return nil
+	}
 	if sw, ok := s.o.Picks.(pickSweeper); ok {
 		if _, err := sw.Sweep(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
 			return err

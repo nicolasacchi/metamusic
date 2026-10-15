@@ -134,7 +134,7 @@ var order = map[string][]string{
 	"score":      {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"lineage":    {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
 	"judgments":  {"comments", "comments_total", "open_fix", "ladder"},
-	"perception": {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots"},
+	"perception": {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"},
 	"listening":  {"plays", "completion_rate", "last_played_at"},
 	"_links":     {"stream", "spectrogram", "comments", "track"},
 }
@@ -747,7 +747,8 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			secs[i] = newOmap("label", s.Label, "start", s.Start, "end", s.End, "source", s.Source, "confidence", s.Confidence)
 		}
 		out.Perception = map[string]any{"tier": p.Tier, "lufs_i": p.LUFSI, "true_peak_db": p.TruePeakDB, "lra_lu": p.LRALU,
-			"bandwidth_hz": p.BandwidthHz, "sections": secs, "timed": p.Timed, "flags": nonNil(p.Flags), "blind_spots": nonNil(p.BlindSpots)}
+			"bandwidth_hz": p.BandwidthHz, "sections": secs, "timed": p.Timed, "flags": nonNil(p.Flags), "blind_spots": nonNil(p.BlindSpots),
+			"tempo_bpm": p.TempoBPM, "tempo_confidence": p.TempoConfidence}
 	}
 
 	// listening

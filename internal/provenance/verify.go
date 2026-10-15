@@ -97,7 +97,7 @@ func (s *Service) Verify(ctx context.Context) ([]Anomaly, error) {
 	if err := s.verifySoundValues(ctx, tx, &out); err != nil {
 		return nil, err
 	}
-	if _, nop := s.o.Picks.(nopPicks); !nop && pending == 0 {
+	if s.o.Picks != nil && pending == 0 {
 		if err := s.verifyPicks(ctx, tx, &out); err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func (s *Service) Verify(ctx context.Context) ([]Anomaly, error) {
 			return nil, err
 		}
 	}
-	if _, nop := s.o.Sounds.(nopSounds); !nop && pending == 0 {
+	if s.o.Sounds != nil && pending == 0 {
 		if err := add("sound_stale", `SELECT s.id FROM songs s WHERE s.retired_at IS NULL AND s.hidden_at IS NULL AND NOT EXISTS
 			(SELECT 1 FROM sound_state ss WHERE ss.subject_kind = 'song' AND ss.subject_id = s.id
 			   AND ss.taxonomy_version = (SELECT COALESCE(MAX(version), 0) FROM sound_taxonomy_versions))`); err != nil {

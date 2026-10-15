@@ -75,7 +75,9 @@
       "analysed from a lossy MP3 decode: bandwidth, clipping and true peak are not comparable with FLAC takes",
       "silence, clipping and token loops (Tier A not run yet)",
       "section times unknown (no aligned score)"
-    ]
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
   },
   "listening": {
     "plays": 0,
@@ -97,7 +99,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 2245,
+    "chars": 2286,
     "limit": 24000,
     "truncated": []
   }

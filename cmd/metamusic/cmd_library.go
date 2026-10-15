@@ -7,17 +7,38 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
+	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // newProvenance builds the Reconciler a CLI process settles with. It owns its own lease owner: a server running on the
-// same database holds the lease under another one (D-L1-35). The Picks and Sounds steps join with L1-B7; until then the
-// CLI derives the structural rows (Songs, Muses from refs, Sessions) like the server does.
+// same database holds the lease under another one (D-L1-35). It runs the same real picks and sounds steps as the
+// server, with a read-only duels ladder (no media), so a CLI settle and a server settle derive identical rows.
 func newProvenance(st *store.Store) *provenance.Service {
-	return provenance.New(provenance.Options{Store: st, Now: time.Now, Owner: fmt.Sprintf("cli-%d", os.Getpid())})
+	now := time.Now
+	newID := func() string { return uuid.NewV7().String() }
+	ds := duels.New(duels.Options{Store: st, Library: library.New(st, nil, now), Now: now, NewID: newID})
+	return provenance.New(provenance.Options{
+		Store: st, Muses: muses.New(st, now, newID), Songs: songs.New(st, now, newID), Sessions: sessions.New(st, now),
+		Picks: picks.New(st, ds, now, newID), Sounds: sounds.New(st, now, newID), Ladder: ds,
+		Now: now, NewID: newID, Owner: fmt.Sprintf("cli-%d", os.Getpid()),
+	})
+}
+
+// ensureTaxonomy applies the code seed of the Sound taxonomy (idempotent), as serve does at startup, so a CLI settle
+// computes Sounds against the same taxonomy.
+func ensureTaxonomy(ctx context.Context, st *store.Store) error {
+	return sounds.New(st, time.Now, func() string { return uuid.NewV7().String() }).EnsureSeed(ctx)
 }
 
 // settleCLI drains the queue when this process can take the settle lease and otherwise only reports the queue: with a
@@ -25,6 +46,9 @@ func newProvenance(st *store.Store) *provenance.Service {
 // fails the calling command (import, seed-synthetic): a database that could not be settled is reported, not hidden.
 func settleCLI(ctx context.Context, st *store.Store) string {
 	prov := newProvenance(st)
+	if err := ensureTaxonomy(ctx, st); err != nil {
+		return "Library model: failed (" + err.Error() + "); run `metamusic library reconcile`"
+	}
 	rep, err := prov.Settle(ctx)
 	switch {
 	case errors.Is(err, provenance.ErrSettleBusy):
@@ -93,6 +117,9 @@ func cmdLibraryReconcile(ctx context.Context, args []string, getenv func(string)
 	if *dry {
 		fmt.Fprintf(s.out, "queue: %s (dry-run: nothing written)\n", provenance.FormatQueue(q))
 		return nil
+	}
+	if err := ensureTaxonomy(ctx, st); err != nil {
+		return fatal(err)
 	}
 	rep, err := prov.Settle(ctx)
 	switch {

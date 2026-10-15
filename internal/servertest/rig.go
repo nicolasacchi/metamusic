@@ -619,11 +619,14 @@ func applyM2bFixture(tb testing.TB, st *store.Store, data *os.Root, dataDir stri
 	earstest.Fixture(tb, st, data, librarytest.Fixtures{}, now)
 }
 
-// Settle drains the Reconciler queue (and sweeps, a no-op until the Picks and Sounds steps are wired) and returns the
+// Settle seeds the Sound taxonomy as serve does at startup, drains the Reconciler queue, sweeps, and returns the
 // report. It fails the test on an error; rigs never start Run unless Options.Reconcile is set, so tests that need the
 // derived rows call it after the fixture or after a write.
 func (r *Rig) Settle(tb testing.TB) provenance.Report {
 	tb.Helper()
+	if err := r.Services.Sounds.EnsureSeed(context.Background()); err != nil {
+		tb.Fatalf("servertest: taxonomy seed: %v", err)
+	}
 	rep, err := r.Provenance.Settle(context.Background())
 	if err != nil {
 		tb.Fatalf("servertest: settle: %v", err)
