@@ -1176,6 +1176,8 @@ draft:syn-song-01-v2,,,,syn-song-01
   pre-filled for every unmatched/ambiguous audio and every varianti draft with `mother_not_found` or
   `mother_ambiguous`.
 
+> **M4a amendment (M1):** `library_orphans` also skips the caches `derived/covers/` and `derived/dl/` (alongside `derived/probe`, `derived/clips` and `derived/exports`); neither is backed up (M4a C110).
+
 **C16.7 Inventory / report** (`format: "mm.inventory/1"`):
 - `report_id` = UUIDv7 (for an applied run also `import_runs.id`).
 - `plan_digest` = hex sha256 of the canonical JSON (sorted keys and arrays) of everything apply would
@@ -1384,6 +1386,8 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
 ### C19. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case)
 
 > **M4a amendment (B2):** `get_media_links` gains `cover` (`{url_512, url_1024, expires_at}`, null while no cover service is wired; M4a C113).
+>
+> **M4a amendment (M1):** `cover` signs `/media/<key>.png` for 512 and 1024 px (human 12 h, agent 15 min), rendering into the cache on demand, writing nothing to the database; a cover failure degrades to `cover: null` and never fails the audio links.
 
 | OperationID | Method + path | Scope | MCP | UI | Output (abridged; full types in `internal/api/types_m1.go`) |
 |---|---|---|---|---|---|

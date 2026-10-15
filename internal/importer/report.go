@@ -282,8 +282,13 @@ func (im *Importer) WriteDryRun(inv *Inventory) (DryRunFiles, error) {
 	return out, nil
 }
 
+// cacheDirs are rebuildable caches under derived/ that the orphan scan skips (M2b clips, M4a covers and downloads).
+var cacheDirs = map[string]bool{
+	"derived/probe": true, "derived/clips": true, "derived/exports": true, "derived/covers": true, "derived/dl": true,
+}
+
 // libraryOrphans lists files under audio/masters and derived that no track or rendition references.
-// Cache directories (derived/probe, derived/clips, derived/exports) are never reported.
+// Cache directories (derived/probe, derived/clips, derived/exports, derived/covers, derived/dl) are never reported.
 func (im *Importer) libraryOrphans(masters, derived map[string]bool) []string {
 	out := []string{}
 	if im.data == nil {
@@ -296,7 +301,7 @@ func (im *Importer) libraryOrphans(masters, derived map[string]bool) []string {
 				return nil //nolint:nilerr // a missing or unreadable tree has no orphans to report
 			}
 			if d.IsDir() {
-				if p == "derived/probe" || p == "derived/clips" || p == "derived/exports" {
+				if cacheDirs[p] {
 					return fs.SkipDir
 				}
 				return nil
