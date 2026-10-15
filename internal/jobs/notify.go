@@ -34,9 +34,22 @@ func NoteProviderTripped(publicURL, reason, actions string) notify.Message {
 
 // NoteManualScaleToZero is "manual scale-to-zero needed" (priority 5, rotating_light): the app cannot change
 // the endpoint, so the operator does it in the console.
-func NoteManualScaleToZero(consoleURL string) notify.Message {
+//
+// maxWorkers is the endpoint's workers.max as the last sweep saw it (nil: unknown) and live the number of
+// workers still up. When max is already 0 the alert says so: the remaining workers have to be stopped
+// (terminated) in the console, setting max again changes nothing.
+func NoteManualScaleToZero(consoleURL string, maxWorkers *int, live int) notify.Message {
+	body := "The app cannot change the endpoint; open the console"
+	if maxWorkers != nil && *maxWorkers == 0 {
+		body += ". workers.max is already 0"
+		if live > 0 {
+			body += fmt.Sprintf(" but %d worker(s) are still up: terminate them", live)
+		}
+	} else if live > 0 {
+		body += fmt.Sprintf(" (%d worker(s) are up)", live)
+	}
 	return notify.Message{Title: "Set max workers to 0 now", Priority: 5, Tags: []string{"rotating_light"},
-		Body: "The app cannot change the endpoint; open the console", Click: consoleURL,
+		Body: body, Click: consoleURL,
 		Actions: []notify.Action{{Action: "view", Label: "Open console", URL: consoleURL}}}
 }
 
@@ -57,6 +70,14 @@ func NoteMeterExceeds(publicURL string) notify.Message {
 func NoteWorkersNotZero(publicURL string) notify.Message {
 	return notify.Message{Title: "Workers still running", Priority: 4,
 		Body: "A worker is still up after the last batch finished and no attempt is live.", Click: page(publicURL, "/jobs")}
+}
+
+// NoteInitializingSlow is "a worker has been INITIALIZING for 30 min" (priority 3, warning only: an
+// initializing worker is not billed and never trips the provider).
+func NoteInitializingSlow(publicURL string, minutes int) notify.Message {
+	return notify.Message{Title: "Worker still initializing", Priority: 3,
+		Body:  fmt.Sprintf("A worker has been INITIALIZING for %d min (image pull or model download). It is not billed.", minutes),
+		Click: page(publicURL, "/jobs")}
 }
 
 // NoteCancelNotConfirmed is "cancel not confirmed after 5 min" (priority 4).

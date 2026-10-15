@@ -3635,6 +3635,8 @@ export interface components {
                 idle: number;
                 /** Format: int64 */
                 initializing: number;
+                /** @description RFC 3339 UTC; null unless a worker is initializing */
+                initializing_since: string | null;
                 observed_at: string;
                 /** Format: int64 */
                 running: number;

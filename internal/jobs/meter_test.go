@@ -39,8 +39,15 @@ func TestSettle_OverheadFromMeter(t *testing.T) {
 	if got := r.att(job, 1).WorkerKey; got != workerKey(meterKey, "w1") {
 		t.Fatalf("worker key %q", got)
 	}
+	// uptime_s is billable seconds accumulated from observations: 10 s on the first look, then 120 s more
+	r.sweep(worker("w1", "RUNNING", upt(10), t0))
+	r.mustPass(rec)
+	r.advance(120 * time.Second)
 	r.sweep(worker("w1", "RUNNING", upt(130), t0))
 	r.mustPass(rec)
+	if got := r.count(`SELECT uptime_s FROM worker_meter`); got != 130 {
+		t.Fatalf("billable seconds %d, want 130", got)
+	}
 	out := r.deliver(spec, deliverOpts{})
 	st := completed(out, 60000)
 	st.WorkerID = "w1"
@@ -103,10 +110,13 @@ func TestReconciler_MeterTrip(t *testing.T) {
 	if r.count(`SELECT COUNT(*) FROM provider_trips`) != 0 {
 		t.Fatal("tripped inside the reservation")
 	}
-	// the worker has now billed far more than the batch reserved (cold start twice as long as allowed)
-	r.advance(30 * time.Second)
-	r.sweep(worker("w1", "RUNNING", upt(3600), t0))
-	r.mustPass(rec)
+	// the worker keeps running far past what the batch reserved (cold start twice as long as allowed):
+	// billable time accrues per observation, so the trip comes once the RUNNING seconds exceed the reserve
+	for el := 100; el < 3600 && r.count(`SELECT COUNT(*) FROM provider_trips`) == 0; el += 30 {
+		r.advance(30 * time.Second)
+		r.sweep(worker("w1", "RUNNING", upt(el+30), t0))
+		r.mustPass(rec)
+	}
 	if got := r.openTripReason(); got != TripMeterExceeds {
 		t.Fatalf("trip %q", got)
 	}

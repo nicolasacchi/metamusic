@@ -193,7 +193,8 @@ func TestProvision_CreateBodyValid(t *testing.T) {
 	}
 	env := body["env"].(map[string]any)
 	if env["MODE"] != "serverless" || env["HF_HUB_OFFLINE"] != "1" || env[yue2.Env3BRevision] != yue2.Weights[yue2.WeightsRepo3B] ||
-		env[yue2.EnvVAERevision] != yue2.Weights[yue2.WeightsRepoVAE] || env["MM_YUE2_VAE_DIR"] != runpod.ImageVAEDir {
+		env[yue2.EnvVAERevision] != yue2.Weights[yue2.WeightsRepoVAE] || env["MM_YUE2_VAE_DIR"] != runpod.ImageVAEDir ||
+		env[yue2.Env3BDir] != runpod.CachedModelDir {
 		t.Errorf("env = %v", env)
 	}
 	// the type is not patchable: UpdateEndpointRequest has no such property, the desired spec never patches it
@@ -341,6 +342,24 @@ func TestProvision_IdempotentDiff(t *testing.T) {
 	opts.Image = ""
 	if res, err = runpod.Provision(bg(), c, opts); err != nil || res.Action != "none" {
 		t.Fatalf("no-image run: %+v %v", res, err)
+	}
+}
+
+func TestProvision_3BDirDriftIsRepaired(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	c := provClient(t, e)
+	opts := runpod.ProvisionOptions{Desired: desiredCfg(), Weights: yue2.Weights, Image: testDigest}
+	if res, err := runpod.Provision(bg(), c, opts); err != nil || !res.Applied {
+		t.Fatalf("first run: %+v %v", res, err)
+	}
+	e.srv.SetEndpoint(func(ep map[string]any) { delete(ep["env"].(map[string]any), yue2.Env3BDir) })
+	res, err := runpod.Provision(bg(), c, opts)
+	if err != nil || res.Action != "patch" || !slices.Equal(res.Diff, []string{"env"}) {
+		t.Fatalf("drift run: %+v %v", res, err)
+	}
+	if got := e.srv.Endpoint()["env"].(map[string]any)[yue2.Env3BDir]; got != runpod.CachedModelDir {
+		t.Errorf("%s = %v", yue2.Env3BDir, got)
 	}
 }
 

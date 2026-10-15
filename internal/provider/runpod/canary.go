@@ -118,6 +118,14 @@ func NewCanarySpec(c CanaryCase, day time.Time, n int) (CanarySpec, error) {
 // is within the per-case limit.
 func CeilingAllowed(ceiling, limit money.MicroUSD) bool { return ceiling > 0 && ceiling <= limit }
 
+// DefaultCanaryStartTimeout is the default of `runpod canary --start-timeout`: a cold start with the one-time
+// image pull (~7.7 GB, not billed by RunPod) takes longer than ColdStartS + 120 s, which aborted the first
+// real canary (2026-10-15).
+const DefaultCanaryStartTimeout = 12 * time.Minute
+
+// defaultConfirmWindow bounds the wait for zero workers after an aborted start.
+const defaultConfirmWindow = 2 * time.Minute
+
 // CanaryOptions drives one canary case over REST with MM_TOKEN (a PAT with read + write + generate).
 type CanaryOptions struct {
 	BaseURL string
@@ -131,9 +139,17 @@ type CanaryOptions struct {
 	N       int            // sequence number in the request id (default 1)
 	Log     io.Writer      // progress lines; nil = none
 	// Timing knobs; zero values are the production ones.
-	WaitS           int           // wait_for_job long-poll, default 25
-	SweepEvery      time.Duration // provider status polling, default 10 s
-	AbortAfter      time.Duration // not generating after this long => abort; default ColdStartS + 120 s
+	WaitS      int           // wait_for_job long-poll, default 25
+	SweepEvery time.Duration // provider status polling, default 10 s
+	// StartTimeout is the start window: a job not generating after this long is cancelled and the canary
+	// aborts (default DefaultCanaryStartTimeout). The first cold start includes a one-time image pull of
+	// about 7.7 GB, which RunPod does not bill.
+	StartTimeout time.Duration
+	// AbortAfter, when set, overrides StartTimeout (tests).
+	AbortAfter time.Duration
+	// ConfirmWindow is how long, after an abort, the canary waits for the worker count to reach 0 (default
+	// 2 minutes).
+	ConfirmWindow   time.Duration
 	AfterCancelWait time.Duration // terminate: second worker observation, default 60 s
 }
 
@@ -457,7 +473,10 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	id := c.rep.JobID
 	abortAfter := c.o.AbortAfter
 	if abortAfter <= 0 {
-		abortAfter = time.Duration(prov.ColdStartS+120) * time.Second
+		abortAfter = c.o.StartTimeout
+	}
+	if abortAfter <= 0 {
+		abortAfter = DefaultCanaryStartTimeout
 	}
 	// a job that never ends is cancelled rather than waited for: its own limits plus ten minutes
 	overall := abortAfter + time.Duration(prov.MaxRuntimeS+prov.KillSlackS)*time.Second + 10*time.Minute
@@ -518,8 +537,8 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		}
 		if !cancelled && !job.pastStarting() && c.o.Clock.Now().Sub(started) > abortAfter {
 			_ = c.cancelJob(id)
-			c.logf("the job was not generating within %s: cancelled. Run `metamusic runpod provision --deactivate` to stop the endpoint.", abortAfter)
-			return c.finish("aborted", ExitAborted, "the job did not reach generating within %s (state %s); cancelled. Run `metamusic runpod provision --deactivate`", abortAfter, job.State)
+			c.logf("the job was not generating within %s: cancelled; confirming that the workers stop", abortAfter)
+			return c.abortStart(abortAfter, job.State, meas)
 		}
 		if c.o.Clock.Now().Sub(started) > overall {
 			_ = c.cancelJob(id)
@@ -557,6 +576,38 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		}
 	}
 	return c.finish("pass", ExitPass, "")
+}
+
+// abortStart is the end of an expired start window: the job is already cancelled; wait (fresh context, an
+// interrupted run still confirms) until the worker count is 0, else say exactly what to run by hand.
+func (c *canary) abortStart(window time.Duration, state string, meas map[string]any) *CanaryReport {
+	confirm := c.o.ConfirmWindow
+	if confirm <= 0 {
+		confirm = defaultConfirmWindow
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), confirm+30*time.Second)
+	defer cancel()
+	deadline := c.o.Clock.Now().Add(confirm)
+	live := -1
+	for {
+		live = c.liveWorkers(ctx)
+		if live == 0 || !c.o.Clock.Now().Before(deadline) {
+			break
+		}
+		if c.sleep(ctx, c.o.SweepEvery) != nil {
+			break
+		}
+	}
+	meas["workers_after_cancel"] = live
+	if live == 0 {
+		return c.finish("aborted", ExitAborted, "the job did not reach generating within %s (state %s); cancelled, workers are 0", window, state)
+	}
+	what := fmt.Sprintf("%d workers still up", live)
+	if live < 0 {
+		what = "the worker count could not be read"
+	}
+	c.logf("%s %s after the cancel: stop the endpoint by hand with `metamusic runpod provision --deactivate` and check `metamusic runpod status`", what, confirm)
+	return c.finish("aborted", ExitAborted, "the job did not reach generating within %s (state %s); cancelled, but %s. Run `metamusic runpod provision --deactivate` now and check `metamusic runpod status`", window, state, what)
 }
 
 func (c *canary) liveWorkers(ctx context.Context) int {

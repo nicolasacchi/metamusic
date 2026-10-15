@@ -111,7 +111,9 @@ type restStub struct {
 	patches   []string
 	// providerAfter replaces the provider answer after the job reached a terminal wait
 	providerAfter map[string]any
-	terminalSeen  bool
+	// providerAfterCancel replaces the provider answer once the job was cancelled
+	providerAfterCancel map[string]any
+	terminalSeen        bool
 }
 
 func baseProvider() map[string]any {
@@ -165,6 +167,9 @@ func (s *restStub) serve(w http.ResponseWriter, r *http.Request) {
 	switch key {
 	case "GET /api/provider":
 		p := s.provider
+		if s.cancelled && s.providerAfterCancel != nil {
+			p = s.providerAfterCancel
+		}
 		if s.terminalSeen && s.providerAfter != nil {
 			p = s.providerAfter
 		}
@@ -359,8 +364,62 @@ func TestCanary_AbortsWhenNeverGenerating(t *testing.T) {
 	if !s.cancelled {
 		t.Error("the job was not cancelled")
 	}
-	if !strings.Contains(rep.Reason, "runpod provision --deactivate") {
-		t.Errorf("reason %q lacks the deactivate hint", rep.Reason)
+	if !strings.Contains(rep.Reason, "workers are 0") {
+		t.Errorf("reason %q does not confirm zero workers", rep.Reason)
+	}
+}
+
+func withWorkers(running int) map[string]any {
+	p := baseProvider()
+	p["workers"] = map[string]any{"running": running, "idle": 0, "initializing": 0}
+	return p
+}
+
+func TestCanary_StartWindowDefaultIsTwelveMinutes(t *testing.T) {
+	t.Parallel()
+	if runpod.DefaultCanaryStartTimeout != 12*time.Minute {
+		t.Errorf("default start timeout %s", runpod.DefaultCanaryStartTimeout)
+	}
+}
+
+func TestCanary_StartWindowExpiryCancelsAndConfirmsWorkersZero(t *testing.T) {
+	t.Parallel()
+	s := newRestStub(t, job("queued", nil), job("starting", nil))
+	s.provider = withWorkers(1)
+	s.providerAfterCancel = withWorkers(0)
+	o := canaryOpts(s, runpod.CaseMain)
+	o.AbortAfter = 0
+	o.StartTimeout = 150 * time.Millisecond
+	o.ConfirmWindow = 2 * time.Second
+	rep, err := runpod.RunCanary(context.Background(), o)
+	if err != nil || rep.Exit != runpod.ExitAborted {
+		t.Fatalf("rep %+v err %v", rep, err)
+	}
+	if !s.cancelled {
+		t.Error("the job was not cancelled")
+	}
+	if !strings.Contains(rep.Reason, "workers are 0") || strings.Contains(rep.Reason, "still up") {
+		t.Errorf("reason %q does not confirm zero workers", rep.Reason)
+	}
+	if rep.Measured["workers_after_cancel"] != 0 {
+		t.Errorf("measured %v", rep.Measured)
+	}
+}
+
+func TestCanary_StartWindowExpiryWithWorkersStillUpPrintsTheManualCommand(t *testing.T) {
+	t.Parallel()
+	s := newRestStub(t, job("queued", nil), job("starting", nil))
+	s.provider = withWorkers(1) // the worker keeps crash-looping after the cancel
+	o := canaryOpts(s, runpod.CaseMain)
+	o.AbortAfter = 0
+	o.StartTimeout = 100 * time.Millisecond
+	o.ConfirmWindow = 100 * time.Millisecond
+	rep, err := runpod.RunCanary(context.Background(), o)
+	if err != nil || rep.Exit != runpod.ExitAborted {
+		t.Fatalf("rep %+v err %v", rep, err)
+	}
+	if !strings.Contains(rep.Reason, "still up") || !strings.Contains(rep.Reason, "metamusic runpod provision --deactivate") {
+		t.Errorf("reason %q", rep.Reason)
 	}
 }
 

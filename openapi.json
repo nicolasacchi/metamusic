@@ -7556,6 +7556,13 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "initializing_since": {
+                "description": "RFC 3339 UTC; null unless a worker is initializing",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "observed_at": {
                 "type": "string"
               },
@@ -7578,7 +7585,8 @@
               "initializing",
               "throttled",
               "unhealthy",
-              "observed_at"
+              "observed_at",
+              "initializing_since"
             ],
             "type": [
               "object",

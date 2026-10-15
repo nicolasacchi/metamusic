@@ -159,6 +159,44 @@ def test_vae_from_the_image_snapshot_never_asks_the_hub(tmp_path: Path, monkeypa
     assert socket_guard == []
 
 
+def test_3b_from_the_runpod_cache_is_a_local_directory_and_never_asks_the_hub(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, socket_guard: list) -> None:
+    """resolve_3b's output (RunPod's cached-model layouts) is accepted by yue2's loader as `model=`: a local
+    directory short-circuits the hub entirely (storage.resolve_model), so no download call and no socket."""
+    import huggingface_hub
+    from yue2 import YuE2Pipeline
+
+    from mmworker import pipeline
+    from mmworker.pipeline import resolve_3b
+
+    store = tmp_path / "store"
+    snap = store / "m-a-p" / "YuE2-3B" / PIN_3B
+    snap.mkdir(parents=True)
+    (snap / "config.json").write_text("{}")
+    (snap / "model-00001-of-00001.safetensors").write_bytes(b"w")
+    vol = tmp_path / "vol"
+    monkeypatch.setattr(pipeline, "MODEL_STORE", store)
+    monkeypatch.setattr(pipeline, "VOLUME_HUB", vol)
+    vae = tmp_path / "vae"
+    vae.mkdir()
+    model = resolve_3b({}, "m-a-p/YuE2-3B", PIN_3B)
+    built: list[Path] = []
+
+    def never(*a, **k):  # noqa: ANN002, ANN003, ANN202
+        raise AssertionError("the hub was asked")
+
+    def init(self, model_dir, vae_dir, **kwargs):  # noqa: ANN001, ANN003
+        built.append(Path(model_dir))
+        self.load_timing = {}
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", never)
+    monkeypatch.setattr(YuE2Pipeline, "__init__", init)
+    YuE2Pipeline.from_pretrained(model=model, vae=str(vae), revision=PIN_3B, vae_revision=PIN_VAE,
+                                 device="cpu", local_files_only=True, progress=False)
+    assert built == [snap.resolve()]
+    assert socket_guard == []
+
+
 def test_offline_raises_fast_and_opens_no_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                                  socket_guard: list) -> None:
     import huggingface_hub.constants as hc

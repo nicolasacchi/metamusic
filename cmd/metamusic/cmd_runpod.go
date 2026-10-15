@@ -39,7 +39,12 @@ const runpodUsage = `usage: metamusic runpod <command>
   disarm --reason TEXT
   reset-trip --reason TEXT
   canary --url URL [--max-usd 0.25] [--case main|cot-full|terminate|timeout|kill-switch]
-         [--verify-billing BATCH] [--keep]    scripted agent over REST with MM_TOKEN (read + write + generate)
+         [--verify-billing BATCH] [--keep] [--start-timeout 12m]
+                                              scripted agent over REST with MM_TOKEN (read + write + generate)
+
+canary --start-timeout: how long the job may take to start generating (default 12m). The first cold start
+includes a one-time image pull of about 7.7 GB, which RunPod does not bill. When the window expires the
+canary cancels the job and waits for the workers to reach 0 (or prints the manual command) before exiting.
 
 canary exit codes: 0 pass, 1 fail, 2 usage, 3 refused (cost or disarmed), 4 aborted
 `
@@ -903,6 +908,8 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	cs := fs.String("case", "main", "main|cot-full|terminate|timeout|kill-switch")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")
+	startTimeout := fs.Duration("start-timeout", runpod.DefaultCanaryStartTimeout,
+		"how long the job may take to start generating; the first cold start includes a one-time ~7.7 GB image pull (not billed by RunPod)")
 	if err := fs.Parse(args); err != nil {
 		return exitError{code: runpod.ExitUsage, err: errors.New(err.Error())}
 	}
@@ -923,7 +930,10 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	if token == "" {
 		return usage("MM_TOKEN is not set (a PAT with read + write + generate)")
 	}
-	o := runpod.CanaryOptions{BaseURL: *urlFlag, Token: token, MaxUSD: limit, Keep: *keep, Log: s.err}
+	if *startTimeout <= 0 {
+		return usage("--start-timeout must be a positive duration")
+	}
+	o := runpod.CanaryOptions{BaseURL: *urlFlag, Token: token, MaxUSD: limit, Keep: *keep, Log: s.err, StartTimeout: *startTimeout}
 	var rep *runpod.CanaryReport
 	if *verify != "" {
 		rep, err = runpod.VerifyBilling(ctx, o, *verify)
