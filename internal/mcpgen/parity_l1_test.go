@@ -1,0 +1,129 @@
+package mcpgen_test
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/nicolasacchi/metamusic/internal/auth"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+)
+
+// l1Cases covers the 16 L1 operations that have an MCP face (7 tools, 9 generic); pin_pick and dismiss_pick_proposal
+// have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Until the
+// owning lane fills a handler all three faces must answer the same 501 problem (C101.2); the lane then removes Status
+// and builds the arguments from the rig's L1 rows. The ids below are shaped like the fixture's; a stub reads none.
+var l1Cases = []ParityCase{
+	{Op: "list_muses", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "create_muse", Status: 501, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
+	{Op: "update_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
+	{Op: "assign_muse_songs", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
+	{Op: "list_songs", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "update_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
+	{Op: "propose_pick", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "take_id": lt.TrackCitta, "rationale": "parity"})},
+	{Op: "list_pick_events", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "list_sessions", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "update_session", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
+	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
+	{Op: "get_muse_board", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+}
+
+func init() {
+	parityCases = append(parityCases, l1Cases...)
+}
+
+// l1Tools are the first-class L1 tools (D-L1-20).
+var l1Tools = []string{"list_muses", "get_muse", "create_muse", "list_songs", "get_song", "propose_pick", "search_sounds"}
+
+// TestParity_L1Cases: a case exists for each of the 16 ops with an MCP face, and for no other (the runner itself fails
+// on a missing case by name, TestParityEveryOperation).
+func TestParity_L1Cases(t *testing.T) {
+	t.Parallel()
+	if len(l1Cases) != 16 {
+		t.Fatalf("%d L1 parity cases, want 16", len(l1Cases))
+	}
+	seen := map[string]bool{}
+	for _, c := range l1Cases {
+		if seen[c.Op] {
+			t.Errorf("duplicate case for %s", c.Op)
+		}
+		seen[c.Op] = true
+		if c.Op == "pin_pick" || c.Op == "dismiss_pick_proposal" {
+			t.Errorf("%s has no MCP face and must not have a parity case", c.Op)
+		}
+	}
+}
+
+// TestToolsList_L1Budget: the seven first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
+// M2b/M3 rule); the demotion order list_songs, search_sounds, create_muse, get_muse applies otherwise. It prints the
+// measurement.
+func TestToolsList_L1Budget(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	sess := r.client(t, r.token(t, "l1-budget", auth.ScopeRead))
+	res, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{}
+	for _, n := range l1Tools {
+		want[n] = true
+	}
+	total, found := 0, 0
+	for _, tl := range res.Tools {
+		if want[tl.Name] {
+			b, err := json.Marshal(tl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			total += len(b)
+			found++
+		}
+	}
+	t.Logf("the %d L1 tools take %d compact bytes of tools/list (rule: 16 000)", found, total)
+	if found != len(l1Tools) {
+		t.Fatalf("found %d of the %d L1 tools in tools/list", found, len(l1Tools))
+	}
+	if total > 16000 {
+		t.Errorf("the L1 tools take %d bytes, over 16 000: demote list_songs, search_sounds, create_muse, get_muse in that order", total)
+	}
+}
+
+// TestOps_HumanJudgment_NoMCP: pin_pick and dismiss_pick_proposal are human judgment (D-L1-11): neither is a tool nor
+// reachable through call_operation.
+func TestOps_HumanJudgment_NoMCP(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	sess := r.client(t, r.token(t, "l1-judgment", auth.ScopeRead, auth.ScopeWrite))
+	tools, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tl := range tools.Tools {
+		if tl.Name == "pin_pick" || tl.Name == "dismiss_pick_proposal" {
+			t.Errorf("%s must not be listed", tl.Name)
+		}
+	}
+	for _, op := range []string{"pin_pick", "dismiss_pick_proposal"} {
+		res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": op, "arguments": map[string]any{"id": "x"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var txt string
+		for _, c := range res.Content {
+			if tc, ok := c.(*mcp.TextContent); ok {
+				txt += tc.Text
+			}
+		}
+		if !res.IsError || !strings.Contains(txt, "NOT_FOUND") {
+			t.Errorf("call_operation(%s) must answer NOT_FOUND: %+v %s", op, res.IsError, txt)
+		}
+	}
+}

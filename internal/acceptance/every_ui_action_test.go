@@ -42,6 +42,26 @@ type uiState struct {
 	track, timed, draft, playlist, comment, export, run, duel string
 	// M3: a mother with a known recipe, the token of the last estimate, the batch and the job it created
 	mother, token, batch, job string
+	// L1: ids of a Song, a Muse and a session, read from list_songs, create_muse and list_sessions
+	song, muse, session string
+}
+
+// l1Stubs lists the L1 operations whose handlers are still the 501 stubs of L1-B2. Each is scripted like any other
+// operation (the derived UI set still requires an entry) but its call is expected to answer NOT_IMPLEMENTED; every
+// lane removes its ids when it lands the real handler, after which the call must succeed. L1-B7 empties the map.
+var l1Stubs = map[string]bool{
+	"list_muses": true, "get_muse": true, "create_muse": true, "update_muse": true, "assign_muse_songs": true,
+	"get_song": true, "update_song": true, "list_pick_events": true, "list_sessions": true, "update_session": true,
+	"search_sounds": true, "get_sound_taxonomy": true, "map_sound_term": true, "get_muse_board": true,
+	"list_songs": true, // not a UI operation: scripted only to learn a Song id
+}
+
+// orID returns v, or a placeholder id while the L1 stubs have not produced a real one.
+func orID(v, placeholder string) string {
+	if v != "" {
+		return v
+	}
+	return placeholder
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -158,11 +178,41 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"list_ledger":         func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"get_provider_status": func(*uiState) map[string]any { return nil },
 	"get_lineage":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+
+	// L1 (C101.2): the 14 operations with a UI route and an MCP face.
+	"list_muses": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_muse":   func(s *uiState) map[string]any { return map[string]any{"id": orID(s.muse, "unknown-muse")} },
+	"create_muse": func(*uiState) map[string]any {
+		return map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"}
+	},
+	"update_muse": func(s *uiState) map[string]any {
+		return map[string]any{"id": orID(s.muse, "unknown-muse"), "revision": 1, "title": "Synthetic Muse 901"}
+	},
+	"assign_muse_songs": func(s *uiState) map[string]any {
+		return map[string]any{"id": orID(s.muse, "unknown-muse"), "song_ids": []string{orID(s.song, "unknown-song")}}
+	},
+	"get_song": func(s *uiState) map[string]any { return map[string]any{"id": orID(s.song, "unknown-song")} },
+	"update_song": func(s *uiState) map[string]any {
+		return map[string]any{"id": orID(s.song, "unknown-song"), "revision": 1, "title": "Scripted song"}
+	},
+	"list_pick_events": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"list_sessions":    func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"update_session": func(s *uiState) map[string]any {
+		return map[string]any{"id": orID(s.session, "unknown-session"), "revision": 1, "name": "Scripted session"}
+	},
+	"search_sounds":      func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_sound_taxonomy": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"map_sound_term": func(*uiState) map[string]any {
+		return map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}}
+	},
+	"get_muse_board": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
 // create_generation_human): each is called right after the estimate whose token it spends.
 var spendScript = map[string]func(s *uiState) map[string]any{
+	// L1: list_songs has no UI route (the Sound browser lists Songs through search_sounds); the script calls it to learn a Song id.
+	"list_songs": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"create_variant": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.mother, "confirmation_token": s.token, "rationale": "scripted"}
 	},
@@ -191,6 +241,9 @@ var uiOrder = []string{
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
+	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them
+	"list_songs", "create_muse", "list_muses", "get_muse", "update_muse", "list_sessions", "update_session", "get_song", "update_song",
+	"assign_muse_songs", "list_pick_events", "search_sounds", "get_sound_taxonomy", "map_sound_term", "get_muse_board",
 }
 
 // afterStep records the ids later steps need.
@@ -211,6 +264,18 @@ func (s *uiState) afterStep(op string, res any) {
 		s.batch, _ = m["id"].(string)
 		if jobs, _ := m["jobs"].([]any); len(jobs) > 0 {
 			s.job, _ = jobs[0].(map[string]any)["id"].(string)
+		}
+	case "list_songs":
+		if items, _ := m["items"].([]any); len(items) > 0 {
+			s.song, _ = items[0].(map[string]any)["id"].(string)
+		}
+	case "create_muse":
+		if id, _ := m["id"].(string); id != "" {
+			s.muse = id
+		}
+	case "list_sessions":
+		if items, _ := m["items"].([]any); len(items) > 0 {
+			s.session, _ = items[0].(map[string]any)["id"].(string)
 		}
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
@@ -288,6 +353,13 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		args := script(st)
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)
+		if l1Stubs[id] { // a stub of an L1 lane that has not landed yet: it must say so, and the script moves on
+			if !raw.IsError || !strings.Contains(textOf(raw), "NOT_IMPLEMENTED") {
+				t.Fatalf("%s: still listed as an L1 stub but answered %+v", id, raw)
+			}
+			called = append(called, id)
+			continue
+		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
 		}
@@ -319,7 +391,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}
-		if s, _ := row["status"].(float64); int(s)/100 != 2 {
+		if s, _ := row["status"].(float64); int(s)/100 != 2 && !l1Stubs[row["op"].(string)] {
 			t.Errorf("audit row %v has status %v", row["op"], row["status"])
 		}
 		gotOps = append(gotOps, row["op"].(string))
@@ -351,4 +423,15 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if d := cmp.Diff(wantTx, gotTx); d != "" {
 		t.Errorf("in-transaction audit rows differ (-called +audited):\n%s", d)
 	}
+}
+
+// textOf joins the text content of a tool result.
+func textOf(res *mcp.CallToolResult) string {
+	var b strings.Builder
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			b.WriteString(tc.Text)
+		}
+	}
+	return b.String()
 }

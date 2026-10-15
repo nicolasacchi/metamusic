@@ -400,6 +400,7 @@ type Builder struct {
 	per       PerceptionSource
 	str       StrengthSource
 	gen       func(ctx context.Context) bool
+	lib1      LibraryReader // L1 (C98): nil => the song, muse and sounds sections are null
 }
 
 // PerceptionSource builds the perception block of a track; *ears.Service implements it (C51.8).

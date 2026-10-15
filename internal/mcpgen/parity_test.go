@@ -624,7 +624,10 @@ func TestToolsListGolden(t *testing.T) {
 // create_variant, wait_for_job, get_job, cancel_job) with full output schemas; the other sixteen M3 operations are
 // generic (D-M3-36 demoted get_budget, list_jobs, get_batch and request_approval), and the track, draft and stats
 // shapes gained the C81.1 fields.
-const toolsListBaselineBytes = 207451
+//
+// L1-B2 re-baselined 207451 -> 243029 (+35 578): the seven first-class L1 tools with their full output schemas
+// (SongView, MuseDetail, SoundSearch, ...) and the L1 fields of the track shapes' neighbours; no other tool changed.
+const toolsListBaselineBytes = 243029
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {

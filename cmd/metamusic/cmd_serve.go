@@ -31,6 +31,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
@@ -43,6 +44,7 @@ type booted struct {
 	st     *store.Store
 	tokens *auth.TokenStore
 	local  *auth.LocalAuth
+	l1     app.L1Options // test seams of the Reconciler (BeforeSettle, FaultAfterPhaseA); zero in production
 }
 
 func (b *booted) close() { _ = b.st.Close() }
@@ -69,7 +71,7 @@ func boot(ctx context.Context, getenv func(string) string, ensureSecrets bool) (
 	if err != nil {
 		return nil, err
 	}
-	return &booted{cfg, sec, st, auth.NewTokenStore(st, sec.Key, time.Now), auth.NewLocalAuth(st, sec.Key, cfg.PublicURL)}, nil
+	return &booted{cfg: cfg, sec: sec, st: st, tokens: auth.NewTokenStore(st, sec.Key, time.Now), local: auth.NewLocalAuth(st, sec.Key, cfg.PublicURL)}, nil
 }
 
 func randHex(n int) (string, error) {
@@ -171,6 +173,7 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		Probe: ensureProbe(ctx, b.cfg, root, s), Version: version, Commit: commit,
 		// ctx ends when shutdown starts: it is the server's base context, so in-flight long-polls return.
 		M3: app.M3Options{Shutdown: ctx, Live: true},
+		L1: b.l1,
 	})
 	if err != nil {
 		return err
@@ -238,10 +241,18 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	} else {
 		slog.Info("runner not started", "reason", runnerOffReason(b.cfg, svc))
 	}
+	// Startup order (C95.3): store opened and migrated (boot) -> app.Build -> taxonomy seed -> the first Settle (waiting while
+	// another process holds the lease) -> net.Listen -> Run. There is no readiness flag: the listener simply is not open
+	// until the derived model is consistent, inside the image HEALTHCHECK window.
+	if err := startupSettle(ctx, svc); err != nil {
+		return err
+	}
 	ln, err := net.Listen("tcp", b.cfg.Addr)
 	if err != nil {
 		return err
 	}
+	running.Add(1)
+	go func() { defer running.Done(); svc.Provenance.Run(runCtx) }()
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
@@ -428,4 +439,31 @@ func parseScopes(csv string) ([]auth.Scope, error) {
 		}
 	}
 	return out, nil
+}
+
+// startupSettle seeds the Sound taxonomy (the taxonomy exists before any Sound is computed) and runs the first Settle,
+// waiting while another process holds the lease (a restarting server whose predecessor is still draining).
+func startupSettle(ctx context.Context, svc *app.Services) error {
+	if err := svc.Sounds.EnsureSeed(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) { // ErrUnsupported until L1-B6
+		return fmt.Errorf("sound taxonomy seed: %w", err)
+	}
+	for {
+		rep, err := svc.Provenance.Settle(ctx)
+		switch {
+		case err == nil:
+			if rep.KeysProcessed > 0 {
+				slog.Info("library model settled", "keys", rep.KeysProcessed, "songs_created", rep.SongsCreated, "muses_created", rep.MusesCreated, "sessions_created", rep.SessionsCreated)
+			}
+			return nil
+		case errors.Is(err, provenance.ErrSettleBusy):
+			slog.Info("waiting for the settle lease")
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+		default:
+			return fmt.Errorf("startup settle: %w", err)
+		}
+	}
 }

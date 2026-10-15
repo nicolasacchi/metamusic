@@ -312,7 +312,7 @@ Import-graph rules (`TestImportGraph_L1` over a new `l1Rules` table in `internal
 - `picks` imports `ladder` (pure types) but not `duels`: the ladder arrives through the interface
   `picks.Ladder` (same method set as `ears.Judgments.Strengths`), wired in `app.Build`.
 
-`store` gains one tiny shared type, `store.Env{Now time.Time; NewID func() string; Actor string}`
+`store` gains one tiny shared type, `store.Env{Now time.Time; NewID func() string; Actor string; Log *slog.Logger}` (`Log` is the ids-only logger of the structural reconcile, nil = `slog.Default()`; added by L1-B3 for the `song_muse_carried` record)
 (`internal/store/env.go`), which every Reconciler-called function takes; the packages alias it (`type Env =
 store.Env`). It also gains `store.ParseInstant` (tolerant RFC 3339 parse, D-L1-34) and `store.SongStateSQL` (the shared Song state/queued-jobs SQL fragment, C90.4); `textfold` gains `Norm` (D-L1-33).
 
@@ -1136,9 +1136,10 @@ contain titles or Muse text.
 type Key struct{ Kind, SourceKey, Name, StartedAt string; EndedAt *string }
 func EnsureTx(ctx context.Context, tx *sql.Tx, env Env, k Key) (id string, created bool, err error)  // get-or-create by SourceKey; refreshes started/ended of auto sessions, never name
 func AddMembersTx(ctx context.Context, tx *sql.Tx, env Env, sessionID, memberKind string, ids []string) (added int, err error)
-func SyncRunsTx(ctx, tx, env, runIDs []string) error
-func SyncCollectionsTx(ctx, tx, env, names []string) error
-func SyncBatchesTx(ctx, tx, env, batchIDs []string) error
+type Stats struct{ Created, MembersAdded int }                      // what a sync wrote, for the Reconciler report (L1-B3)
+func SyncRunsTx(ctx, tx, env, runIDs []string) (Stats, error)
+func SyncCollectionsTx(ctx, tx, env, names []string) (Stats, error)
+func SyncBatchesTx(ctx, tx, env, batchIDs []string) (Stats, error)
 func New(st *store.Store, now func() time.Time) *Service
 func (s *Service) List(ctx context.Context, f ListFilter) (Page, error)           // Kind, Q, IncludeHidden, Limit, Cursor
 func (s *Service) Update(ctx context.Context, p auth.Principal, id string, patch Patch) (Session, error) // Revision, Name, Hidden

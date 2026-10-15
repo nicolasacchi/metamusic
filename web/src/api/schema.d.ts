@@ -148,6 +148,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Muse Board
+         * @description The grid of Muses (rows) by angles (columns) with Song counts or chips, filtered by session, angle, state or Sound facets, row-paged under a 90 000-byte page cap; the Unassigned row has its own cursor.
+         */
+        get: operations["get_muse_board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/budget": {
         parameters: {
             query?: never;
@@ -760,6 +780,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/muses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Muses
+         * @description Muses (inspirations: a reference title and artist, or a brief) with their Song counts by state; q is a phrase-prefix search over title, artist and brief. Hidden Muses only with include_hidden.
+         */
+        get: operations["list_muses"];
+        put?: never;
+        /**
+         * Create a Muse
+         * @description Creates a reference Muse (title, optional artist) or a brief Muse (short title and free text). A reference whose normalised title and artist already exist answers 409 MUSE_EXISTS with the existing id.
+         */
+        post: operations["create_muse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/muses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Muse
+         * @description One Muse with its coverage (Songs by state), its angles and its Songs.
+         */
+        get: operations["get_muse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a Muse
+         * @description Changes a Muse's title, artist or brief, or hides it, under optimistic locking: send the revision you read.
+         */
+        patch: operations["update_muse"];
+        trace?: never;
+    };
+    "/api/muses/{id}/songs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign a Muse to Songs
+         * @description Assigns the Muse to 1..200 Songs, all or nothing; an assignment is never overwritten by the index backfill.
+         */
+        post: operations["assign_muse_songs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pick-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pick events
+         * @description The append-only feed of Pick changes (initial, pin, unpin, ladder, stars, newest, emptied), ascending by an integer cursor; pass the previous page's cursor as after.
+         */
+        get: operations["list_pick_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pick-proposals/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss a Pick proposal
+         * @description The operator closes an open proposal as dismissed. Refused with 403 HUMAN_ONLY for agents.
+         */
+        post: operations["dismiss_pick_proposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ping": {
         parameters: {
             query?: never;
@@ -882,6 +1010,190 @@ export interface paths {
          * @description Checks up to 200 requests against the protocol rules and the songwriting rules (sections, line counts, repeat markers, language, estimated duration, duplicates). Read-only; nothing is stored.
          */
         post: operations["lint_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sessions
+         * @description Sessions (an import run, a draft collection or a generation batch) newest first, with their draft, take and Song counts.
+         */
+        get: operations["list_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a session
+         * @description Renames or hides a session under optimistic locking: send the revision you read.
+         */
+        patch: operations["update_session"];
+        trace?: never;
+    };
+    "/api/songs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Songs
+         * @description Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.
+         */
+        get: operations["list_songs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Song
+         * @description One Song with its Muse, takes, current Pick and proposals, recent Pick events, Sound facets and sessions. With by=draft or by=track the id is a draft or take id. A retired Song answers 200 with retired_into.
+         */
+        get: operations["get_song"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a Song
+         * @description Renames a Song, sets or clears its angle and Muse, or hides it, under optimistic locking: send the revision you read. A cleared angle is never refilled by the backfill.
+         */
+        patch: operations["update_song"];
+        trace?: never;
+    };
+    "/api/songs/{id}/pick-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a Pick
+         * @description An agent suggests which take should be the Song's Pick, with a rationale; one open proposal per agent per Song (a new one supersedes it). Only the operator can pin a Pick.
+         */
+        post: operations["propose_pick"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Pin or unpin a Pick
+         * @description The operator pins a take as the Song's Pick (optionally accepting an open proposal) or unpins it with take_id null. Refused with 403 HUMAN_ONLY for agents.
+         */
+        put: operations["pin_pick"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sound-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Map Sound terms
+         * @description Adds or removes up to 50 style-term mappings as one new taxonomy version and recomputes the affected Songs before answering.
+         */
+        post: operations["map_sound_term"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sounds/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Sounds
+         * @description Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.
+         */
+        get: operations["search_sounds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sounds/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Sound taxonomy
+         * @description The effective mapping of style terms to facet values with the version history, or with unmapped=true the most frequent style terms no mapping matches.
+         */
+        get: operations["get_sound_taxonomy"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1584,6 +1896,15 @@ export interface components {
             /** @description auto, human_create, web or expiry; null while pending */
             via: string | null;
         };
+        AssignMuseSongsInBody: {
+            song_ids: string[] | null;
+        };
+        AssignResult: {
+            /** Format: int64 */
+            assigned: number;
+            /** Format: int64 */
+            unchanged: number;
+        };
         AudioInfo: {
             audio_md5: string;
             /**
@@ -1799,6 +2120,62 @@ export interface components {
             takes: number;
             /** @enum {string} */
             via: "api" | "human_create";
+        };
+        Board: {
+            columns: components["schemas"]["BoardColumn"][];
+            generated_at: string;
+            next_cursor: string | null;
+            rows: components["schemas"]["BoardRow"][];
+            /** Format: int64 */
+            taxonomy_version: number;
+            totals: components["schemas"]["BoardTotals"];
+        };
+        BoardCell: {
+            angle: string | null;
+            /** @description Empty unless detail=chips */
+            chips: components["schemas"]["SongChip"][];
+        };
+        BoardColumn: {
+            angle: string | null;
+            /** Format: int64 */
+            songs: number;
+        };
+        BoardCounts: {
+            /** Format: int64 */
+            draft: number;
+            /** Format: int64 */
+            judged: number;
+            /** Format: int64 */
+            picked: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            rendered: number;
+        };
+        BoardRow: {
+            cells: components["schemas"]["BoardCell"][];
+            chips_more: boolean;
+            counts: components["schemas"]["BoardCounts"];
+            muse: components["schemas"]["MuseRef"];
+            next_unassigned_cursor: string | null;
+            /** Format: int64 */
+            songs_total: number;
+        };
+        BoardTotals: {
+            /** Format: int64 */
+            draft: number;
+            /** Format: int64 */
+            judged: number;
+            /** Format: int64 */
+            muses: number;
+            /** Format: int64 */
+            picked: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            rendered: number;
+            /** Format: int64 */
+            songs: number;
         };
         Breakdown: {
             /** @description Seeds used by at least two tracks, top 30 */
@@ -2162,6 +2539,15 @@ export interface components {
             match_loudness?: boolean;
             /** Format: double */
             to_s?: number;
+        };
+        CreateMuseInBody: {
+            /** @description Reference Muses only */
+            artist?: string;
+            /** @description Brief Muses only */
+            brief?: string;
+            /** @enum {string} */
+            kind: "reference" | "brief";
+            title: string;
         };
         CreatePairingInBody: {
             /** @description Label of the device being paired */
@@ -2772,6 +3158,16 @@ export interface components {
             missing_mp3: string[];
             tracks: components["schemas"]["ExportZIPEntry"][];
         };
+        FacetValueCount: {
+            /** Format: int64 */
+            count: number;
+            /**
+             * Format: int64
+             * @description tempo_band only: Songs whose requested and measured tempo disagree
+             */
+            mismatches?: number;
+            value: string;
+        };
         Facets: {
             duration_s: components["schemas"]["Range"];
             recorded_at: components["schemas"]["TimeRange"];
@@ -3307,6 +3703,36 @@ export interface components {
             /** @description Signed, relative URL; valid until expires_at */
             url: string;
         };
+        MapEntry: {
+            /** @enum {string} */
+            facet: "genre_family" | "era" | "vocal" | "mood" | "language";
+            /** @enum {string} */
+            op: "add" | "remove";
+            term: string;
+            value: string;
+        };
+        MapRecomputed: {
+            /** Format: int64 */
+            songs: number;
+            /** Format: int64 */
+            takes: number;
+        };
+        MapResult: {
+            /** Format: int64 */
+            mappings_applied: number;
+            recomputed: components["schemas"]["MapRecomputed"];
+            /** Format: int64 */
+            unchanged: number;
+            /**
+             * Format: int64
+             * @description The new taxonomy version; null when every mapping was already effective
+             */
+            version: number | null;
+        };
+        MapSoundTermInBody: {
+            mappings: components["schemas"]["MapEntry"][] | null;
+            note?: string;
+        };
         MediaLinksOutBody: {
             /** @description RFC 3339 UTC */
             expires_at: string;
@@ -3333,6 +3759,87 @@ export interface components {
              * @description Link lifetime granted to the caller, seconds
              */
             ttl_s: number;
+        };
+        Muse: {
+            artist: string | null;
+            brief: string | null;
+            created_by: string;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            kind: "reference" | "brief";
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            source: "recipe_refs" | "human" | "agent";
+            title: string;
+            updated_at: string;
+        };
+        MuseAngleCount: {
+            angle: string | null;
+            /** Format: int64 */
+            songs: number;
+        };
+        MuseCoverage: {
+            /** Format: int64 */
+            draft: number;
+            /** Format: int64 */
+            judged: number;
+            /** Format: int64 */
+            picked: number;
+            /** Format: int64 */
+            queued_jobs: number;
+            /** Format: int64 */
+            rendered: number;
+            /** Format: int64 */
+            songs: number;
+        };
+        MuseDetail: {
+            angles: components["schemas"]["MuseAngleCount"][];
+            coverage: components["schemas"]["MuseCoverage"];
+            muse: components["schemas"]["Muse"];
+            songs: components["schemas"]["SongSummary"][];
+            /** Format: int64 */
+            songs_total: number;
+        };
+        MuseRef: {
+            artist: string | null;
+            id: string;
+            kind: string;
+            title: string;
+        };
+        MuseSummary: {
+            artist: string | null;
+            brief: string | null;
+            created_by: string;
+            /** Format: int64 */
+            draft: number;
+            hidden: boolean;
+            id: string;
+            /** Format: int64 */
+            judged: number;
+            /** @enum {string} */
+            kind: "reference" | "brief";
+            /** Format: int64 */
+            picked: number;
+            /** Format: int64 */
+            queued_jobs: number;
+            /** Format: int64 */
+            rendered: number;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            songs: number;
+            /** @enum {string} */
+            source: "recipe_refs" | "human" | "agent";
+            title: string;
+            updated_at: string;
+        };
+        MusesOutBody: {
+            items: components["schemas"]["MuseSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
         };
         NextDuel: {
             duel: {
@@ -3431,6 +3938,71 @@ export interface components {
             peaks: components["schemas"]["Waveform"];
             track_id: string;
         };
+        PickEvent: {
+            actor: components["schemas"]["PrincipalRef"];
+            at: string;
+            /** Format: int64 */
+            cursor: number;
+            evidence: Record<string, never>;
+            /** @enum {string} */
+            from_source: "none" | "pinned" | "ladder" | "stars" | "newest";
+            from_take_id: string | null;
+            id: string;
+            /** @enum {string} */
+            reason: "initial" | "pin" | "unpin" | "pin_ineligible" | "pin_restored" | "ladder" | "stars" | "newest" | "emptied";
+            /** Format: int64 */
+            seq: number;
+            song_id: string;
+            /** @enum {string} */
+            to_source: "none" | "pinned" | "ladder" | "stars" | "newest";
+            to_take_id: string | null;
+        };
+        PickEventsOutBody: {
+            items: components["schemas"]["PickEvent"][];
+            /** Format: int64 */
+            next_cursor: number | null;
+        };
+        PickProposal: {
+            created_at: string;
+            decided_at: string | null;
+            decided_by: string | null;
+            id: string;
+            proposed_by: components["schemas"]["PrincipalRef"];
+            rationale: string;
+            song_id: string;
+            /** @enum {string} */
+            state: "open" | "accepted" | "dismissed" | "superseded" | "expired";
+            take_id: string;
+        };
+        PickView: {
+            changed_at: string;
+            /** @description mm.pick/1 evidence */
+            evidence: Record<string, never>;
+            last_event_id: string;
+            /** Format: int64 */
+            open_proposals: number;
+            pending: boolean;
+            pin_ineligible: boolean;
+            pinned_at: string | null;
+            pinned_by: components["schemas"]["PrincipalRef"];
+            pinned_take_id: string | null;
+            /** Format: int64 */
+            seq: number;
+            /** @enum {string} */
+            source: "none" | "pinned" | "ladder" | "stars" | "newest";
+            take_id: string | null;
+        };
+        PinPickInBody: {
+            /** @description An open proposal for this take to accept */
+            proposal_id?: string;
+            /** @description The take to pin, or null to unpin */
+            take_id: string | null;
+        };
+        PinResult: {
+            changed: boolean;
+            pick: components["schemas"]["PickView"];
+            proposal: components["schemas"]["PickProposal"];
+        };
         PingOutBody: {
             /** @description Always true */
             ok: boolean;
@@ -3507,6 +4079,10 @@ export interface components {
             };
             /** @description Human-readable message */
             message: string;
+        };
+        ProposePickInBody: {
+            rationale: string;
+            take_id: string;
         };
         ProviderBrief: {
             armed: boolean;
@@ -3693,6 +4269,29 @@ export interface components {
             /** Format: int64 */
             b: number;
         };
+        SessionSummary: {
+            /** Format: int64 */
+            drafts: number;
+            ended_at: string | null;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            kind: "import" | "upload" | "batch" | "night";
+            name: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            songs: number;
+            started_at: string;
+            /** Format: int64 */
+            takes: number;
+        };
+        SessionsOutBody: {
+            items: components["schemas"]["SessionSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
         SetSpendCapsInBody: {
             /** Format: int64 */
             agent_daily_micro_usd?: number;
@@ -3752,6 +4351,138 @@ export interface components {
                 seed: number;
                 title: string;
             } | null;
+        };
+        SongChip: {
+            /** @description Only when state is draft */
+            draft_id: string | null;
+            id: string;
+            pick_source: string | null;
+            pick_take_id: string | null;
+            queued: boolean;
+            /** @enum {string} */
+            state: "draft" | "rendered" | "judged" | "picked";
+            /** Format: int64 */
+            takes: number;
+            tempo_mismatch: boolean;
+            title: string;
+        };
+        SongCore: {
+            angle: string | null;
+            /** @enum {string|null} */
+            angle_source: "reference" | "request_id" | "manual" | "cleared" | null;
+            archived: boolean;
+            created_at: string;
+            draft_id: string | null;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            origin: "draft" | "root";
+            /** Format: int64 */
+            queued_jobs: number;
+            retired: boolean;
+            retired_into: string | null;
+            /** Format: int64 */
+            revision: number;
+            root_track_id: string | null;
+            root_track_ids: string[];
+            /** @enum {string} */
+            state: "draft" | "rendered" | "judged" | "picked";
+            title: string;
+            updated_at: string;
+        };
+        SongDraft: {
+            group_key: string | null;
+            id: string;
+            label: string;
+            request_id: string;
+            /** Format: int64 */
+            revision: number;
+            status: string;
+        };
+        SongLineage: {
+            /** Format: int64 */
+            children_total: number;
+            /** Format: int64 */
+            generations: number;
+            root_track_id: string;
+        };
+        SongPickRef: {
+            /** @enum {string} */
+            source: "pinned" | "ladder" | "stars" | "newest";
+            take_id: string;
+        };
+        SongSession: {
+            id: string;
+            kind: string;
+            name: string;
+        };
+        SongSounds: {
+            facets: {
+                [key: string]: components["schemas"]["SoundFacetEntry"][] | null;
+            };
+            /** Format: int64 */
+            taxonomy_version: number;
+            tempo: components["schemas"]["TempoDetail"];
+            unmapped: string[];
+        };
+        SongSummary: {
+            angle: string | null;
+            archived: boolean;
+            draft_id: string | null;
+            hidden: boolean;
+            id: string;
+            muse_id: string | null;
+            /** Format: int64 */
+            open_proposals: number;
+            pick: components["schemas"]["SongPickRef"];
+            /** Format: int64 */
+            queued_jobs: number;
+            root_track_id: string | null;
+            /** @enum {string} */
+            state: "draft" | "rendered" | "judged" | "picked";
+            /** Format: int64 */
+            takes: number;
+            title: string;
+            updated_at: string;
+        };
+        SongView: {
+            draft: components["schemas"]["SongDraft"];
+            events: components["schemas"]["PickEvent"][];
+            lineage: components["schemas"]["SongLineage"];
+            muse: components["schemas"]["MuseRef"];
+            pending: boolean;
+            pick: components["schemas"]["PickView"];
+            proposals: components["schemas"]["PickProposal"][];
+            sessions: components["schemas"]["SongSession"][];
+            song: components["schemas"]["SongCore"];
+            sounds: components["schemas"]["SongSounds"];
+            takes: components["schemas"]["TakeCard"][];
+            /** Format: int64 */
+            takes_total: number;
+        };
+        SongsOutBody: {
+            items: components["schemas"]["SongSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        SoundFacetEntry: {
+            origin: string;
+            value: string;
+        };
+        SoundSearch: {
+            facets: {
+                [key: string]: components["schemas"]["FacetValueCount"][] | null;
+            };
+            next_cursor: string | null;
+            selected: {
+                [key: string]: string[] | null;
+            };
+            songs: components["schemas"]["SongSummary"][];
+            /** Format: int64 */
+            taxonomy_version: number;
+            /** Format: int64 */
+            total: number;
         };
         SpectrogramInfo: {
             available: boolean;
@@ -3970,6 +4701,43 @@ export interface components {
             /** Format: int64 */
             inherited: number;
         };
+        TakeCard: {
+            cost_display_usd: string | null;
+            /** Format: int64 */
+            critic_stars: number | null;
+            /** Format: double */
+            duration_s: number;
+            /** @description Ears flag codes */
+            flags: string[];
+            /** Format: int64 */
+            generation: number;
+            has_ears: boolean;
+            id: string;
+            is_pick: boolean;
+            ladder: components["schemas"]["TakeLadder"];
+            lossy: boolean;
+            origin: string;
+            parent_track_id: string | null;
+            pinned: boolean;
+            recipe_known: boolean;
+            recorded_at: string;
+            /**
+             * Format: int64
+             * @description Human stars
+             */
+            stars: number | null;
+            status: string;
+            tempo: components["schemas"]["TakeTempo"];
+            title: string;
+        };
+        TakeLadder: {
+            /** Format: int64 */
+            n_duels: number;
+            /** Format: double */
+            sd: number;
+            /** Format: double */
+            u: number;
+        };
         TakePlan: {
             draft_id: string | null;
             /** Format: int64 */
@@ -3987,6 +4755,49 @@ export interface components {
             /** Format: int64 */
             timeout_s: number;
             title: string;
+        };
+        TakeTempo: {
+            /** Format: double */
+            measured_bpm: number | null;
+            /** Format: double */
+            requested_bpm: number | null;
+        };
+        TaxonomyItem: {
+            facet: string;
+            /** Format: int64 */
+            since_version: number;
+            term: string;
+            value: string;
+        };
+        TaxonomyPage: {
+            /** Format: int64 */
+            current_version: number;
+            items: components["schemas"]["TaxonomyItem"][];
+            next_cursor: string | null;
+            unmapped: components["schemas"]["UnmappedTerm"][];
+            versions: components["schemas"]["TaxonomyVersion"][];
+        };
+        TaxonomyVersion: {
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string} */
+            kind: "seed" | "extension";
+            note: string | null;
+            seed_id: string | null;
+            /** Format: int64 */
+            version: number;
+        };
+        TempoDetail: {
+            /** @enum {string} */
+            basis: "measured" | "declared" | "plan";
+            /** Format: double */
+            measured_bpm: number | null;
+            mismatch: boolean;
+            octave: boolean;
+            /** Format: double */
+            plan_bpm: number | null;
+            /** Format: double */
+            requested_bpm: number | null;
         };
         TermCount: {
             /** Format: int64 */
@@ -4285,6 +5096,11 @@ export interface components {
             reset_at: string | null;
             tripped_at: string;
         };
+        UnmappedTerm: {
+            /** Format: int64 */
+            songs: number;
+            term: string;
+        };
         UpdateCommentInBody: {
             body?: string;
             hidden?: boolean;
@@ -4307,6 +5123,14 @@ export interface components {
             /** @enum {string} */
             status?: "backlog" | "archived";
         };
+        UpdateMuseInBody: {
+            artist?: string;
+            brief?: string;
+            hidden?: boolean;
+            /** Format: int64 */
+            revision: number;
+            title?: string;
+        };
         UpdatePlaylistInBody: {
             /** @description Appended in order; duplicates allowed */
             add_track_ids?: string[] | null;
@@ -4323,6 +5147,22 @@ export interface components {
             reason: string;
             /** @description Clear the open trip (no-op when none is open) */
             reset_trip?: boolean;
+        };
+        UpdateSessionInBody: {
+            hidden?: boolean;
+            name?: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        UpdateSongInBody: {
+            /** @description A slug, or null to clear it for good */
+            angle?: string | null;
+            hidden?: boolean;
+            /** @description A Muse id, or null to unassign */
+            muse_id?: string | null;
+            /** Format: int64 */
+            revision: number;
+            title?: string;
         };
         UpdateTrackInBody: {
             /** @enum {string} */
@@ -4697,6 +5537,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_muse_board: {
+        parameters: {
+            query?: {
+                detail?: "chips" | "counts";
+                muse_id?: string;
+                session_id?: string;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                sound?: string[];
+                q?: string;
+                include_hidden?: boolean;
+                limit?: number;
+                cursor?: string;
+                /** @description Cursor inside the Unassigned row */
+                unassigned_after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"];
                 };
             };
             /** @description Error */
@@ -5831,6 +6713,251 @@ export interface operations {
             };
         };
     };
+    list_muses: {
+        parameters: {
+            query?: {
+                /** @description Phrase-prefix search over Muse title, artist and brief */
+                q?: string;
+                kind?: "reference" | "brief";
+                include_hidden?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MusesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_muse: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMuseInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Muse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_muse: {
+        parameters: {
+            query?: {
+                songs_limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Muse id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MuseDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_muse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Muse id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMuseInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Muse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assign_muse_songs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Muse id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignMuseSongsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_pick_events: {
+        parameters: {
+            query?: {
+                song_id?: string;
+                song_ids?: string[];
+                /** @description The cursor of the previous page (exclusive) */
+                after?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PickEventsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    dismiss_pick_proposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Proposal id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PickProposal"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     ping: {
         parameters: {
             query?: never;
@@ -6079,6 +7206,358 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LintReport"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_sessions: {
+        parameters: {
+            query?: {
+                kind?: ("import" | "upload" | "batch" | "night")[];
+                q?: string;
+                include_hidden?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSessionInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSummary"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_songs: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_song: {
+        parameters: {
+            query?: {
+                by?: "song" | "draft" | "track";
+                take_limit?: number;
+                include_events?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Song id; with by=draft a draft id, with by=track a take id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_song: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Song id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSongInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongCore"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    propose_pick: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Song id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposePickInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PickProposal"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pin_pick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Song id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PinPickInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    map_sound_term: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapSoundTermInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    search_sounds: {
+        parameters: {
+            query?: {
+                /** @description 0 returns facet counts only */
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SoundSearch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_sound_taxonomy: {
+        parameters: {
+            query?: {
+                facet?: "genre_family" | "era" | "vocal" | "mood" | "language";
+                q?: string;
+                /** @description Return the top unmapped style terms instead of the mappings */
+                unmapped?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyPage"];
                 };
             };
             /** @description Error */

@@ -391,6 +391,8 @@ func PairingHandler(o PairingOptions) http.Handler
 
 ### C27. Migration `internal/store/migrations/0003_judge.sql` (full DDL) and store rules
 
+> **L1 addendum (L1-B1):** `TestNoDeleteSQL` allows physical deletes on five more tables, all derived caches or queues rebuilt by the Reconciler (L1 C88.3, D-L1-24): `provenance_dirty`, `take_sounds`, `song_sounds`, `sound_state`, `song_unmapped_terms`.
+
 After M2a, `PRAGMA user_version == 3`. As in C11, `CHECK` constraints encode only invariants that never
 change; growing enumerations (comment kinds and sources, listen kinds, export kinds, draft origins,
 audit transports, backup causes) are validated in Go.
@@ -1642,6 +1644,8 @@ or control characters in the URL are dropped. See the M3 plan, C82.
 
 ### C38. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case; types in `internal/api/types_m2a.go`)
 
+> **L1 addendum (L1-B2):** the registry grows by the 18 L1 operations (L1 C96): 99 in total (`TestRegistry_OpCount`), 7 new tools, 9 generic, 2 `exclude:human-judgment`; `tools/list` ceiling 102 600 bytes.
+
 Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP derives it), **H** =
 `rate: heavy`, **S[…]** = `secret_fields`. Human-only ops use `mcp: exclude:human-only`.
 
@@ -2011,6 +2015,8 @@ Web lane (M3-W1..W3).
 
 ### C41. Tooling, CI, routing, coverage (amends M1 C23/C24)
 
+> **L1 addendum (L1-B2):** `toolsCeilingBytes` is 102 600 and `toolsListBaselineBytes` 243 029 after the seven first-class L1 tools (15 285 compact bytes, inside the 16 000 rule).
+
 - **Routing contract** (C24 table gains two routers; `deploy/labels.example.yml`):
 
   | Router | Rule (inside `Host(…) && (…)`) | Priority | Middlewares, in this order |
@@ -2054,6 +2060,8 @@ Web lane (M3-W1..W3).
 - `scripts/loop` allowlist and `metrics/loop.schema.json`: no new targets.
 
 ### C42. Test harness and fixtures
+
+> **L1 addendum (L1-B2):** `librarytest` gains `FixtureL1`, `FixtureL1Mirror`, `FixtureL1Scale`, `FixtureL1Upgrade`, `ApplyL1` and the ad-hoc `Scene`; `servertest.Options` gains `L1` and `Reconcile`, `Rig` gains `Provenance` and `Settle`; `internal/perftest` is a new test-only helper package.
 
 > M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
 > `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:

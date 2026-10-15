@@ -120,3 +120,62 @@ type Changes struct {
 	Expired   int      // proposals expired
 	Songs     []string // Songs whose (take, source) changed
 }
+
+// PickView is the current Pick of a Song as reads show it (C91.4). Raw principal keys; the API renders them.
+type PickView struct {
+	TakeID        *string
+	Source        Source
+	PinnedTakeID  *string
+	PinIneligible bool
+	PinnedBy      *string
+	PinnedByKind  *string
+	PinnedByName  *string
+	PinnedAt      *string
+	Evidence      json.RawMessage
+	ChangedAt     string
+	LastEventID   string
+	Seq           int
+	Pending       bool
+	OpenProposals int
+}
+
+// Proposal is one pick_proposals row.
+type Proposal struct {
+	ID, SongID, TakeID, Rationale     string
+	PrincipalID, PrincipalName, State string
+	CreatedAt                         string
+	DecidedAt, DecidedBy              *string
+}
+
+// PinResult is the outcome of Pin.
+type PinResult struct {
+	Pick     PickView
+	Proposal *Proposal
+	Changed  bool
+}
+
+// EventFilter selects pick events (C91.8).
+type EventFilter struct {
+	SongID  string
+	SongIDs []string
+	After   int64
+	Limit   int
+}
+
+// PickEvent is one pick_events row; Cursor is its rowid.
+type PickEvent struct {
+	Cursor                       int64
+	ID, SongID                   string
+	Seq                          int
+	At                           string
+	FromTakeID, ToTakeID         *string
+	FromSource, ToSource, Reason string
+	Actor, ActorKind, ActorName  string
+	Evidence                     json.RawMessage
+}
+
+// EventPage is one page of events.
+type EventPage struct {
+	Items      []PickEvent
+	NextCursor *int64
+}

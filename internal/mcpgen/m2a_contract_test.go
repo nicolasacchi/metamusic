@@ -34,7 +34,12 @@ import (
 // demoted get_budget, list_jobs, get_batch and request_approval to generic and shortened every M3 description to
 // 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
 // steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
-const toolsCeilingBytes = 87300
+//
+// L1-B2 (D-L1-20) re-baselined 87300 -> 102600 (measured 102587, +15 287, 39 tools): the seven first-class L1 tools
+// (list_muses, get_muse, create_muse, list_songs, get_song, propose_pick, search_sounds) take 15 285 compact bytes, inside
+// the 16 000 byte rule (TestToolsList_L1Budget), so no demotion was needed; the nine other L1 operations and the two
+// human-judgment ones add nothing to tools/list.
+const toolsCeilingBytes = 102600
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

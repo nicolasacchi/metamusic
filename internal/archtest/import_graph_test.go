@@ -166,7 +166,7 @@ var l1Rules = []rule{
 	{from: []string{"internal/sessions"}, deny: []string{"internal/muses", "internal/songs", "internal/picks", "internal/sounds"}, why: "sessions imports no other L1 package"},
 	{from: []string{"internal/picks"}, deny: []string{"internal/muses", "internal/songs", "internal/sessions", "internal/sounds", "internal/duels"},
 		why: "picks imports ladder (pure types) but not duels: the ladder arrives through the picks.Ladder interface (C87)"},
-	{from: []string{"internal/sounds"}, deny: []string{"internal/muses", "internal/sessions", "internal/picks"}, why: "sounds may import songs, not muses, sessions or picks"},
+	{from: []string{"internal/sounds"}, deny: []string{"internal/sessions", "internal/picks"}, why: "sounds may import songs, not sessions or picks (muses only through songs)"},
 	{from: []string{"internal/board"}, deny: []string{"internal/sessions", "internal/picks"}, why: "board imports store, muses, songs, sounds only"},
 	// C99.1: the Muse-visibility rule. A package that serialises, ships or announces data must never reach Muse text.
 	{from: []string{"internal/export", "internal/exports", "internal/notify", "internal/audit", "internal/backup", "internal/importer", "internal/jobs",
