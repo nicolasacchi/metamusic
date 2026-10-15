@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/ladder"
 	"github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songs/songstest"
 	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -371,5 +374,37 @@ func TestSongView_LossyAndReferenceCards(t *testing.T) {
 	}
 	if v.Muse != nil || v.Draft != nil {
 		t.Errorf("reference group: muse %+v draft %+v", v.Muse, v.Draft)
+	}
+}
+
+func TestContext_BriefCutAt500(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name  string
+		runes int
+		want  int
+	}{{"over the cut", 650, 500}, {"exactly the cut", 500, 500}, {"under the cut", 40, 40}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l := songstest.NewLib(t)
+			brief := strings.Repeat("é", tc.runes) // multibyte: a byte cut would corrupt it
+			m, err := l.Muses.Create(ctx, songstest.HumanP, muses.NewMuse{Kind: muses.KindBrief, Title: "Synthetic Brief", Brief: &brief})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rev := l.Count(`SELECT revision FROM songs WHERE id = ?`, l.Picked)
+			if _, err := l.Songs.Update(ctx, songstest.HumanP, l.Picked, songs.Patch{Revision: rev, MuseID: songs.OptString{Set: true, Value: &m.ID}}); err != nil {
+				t.Fatal(err)
+			}
+			sec, err := l.View.ForTrack(ctx, l.PickedTakes[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, _ := sec.Muse["brief"].(string)
+			if n := len([]rune(got)); n != tc.want || got != strings.Repeat("é", tc.want) {
+				t.Errorf("brief runes = %d, want %d", n, tc.want)
+			}
+		})
 	}
 }

@@ -391,6 +391,7 @@ func (s *Service) takeRows(ctx context.Context, songID string) ([]takeRow, error
 
 // pick reads song_picks into a picks.PickView (C91.4); nil when the Song never had one. songview reads the row
 // itself so get_song works while picks.Service is a different lane's concern.
+// TODO(L1-B4 follow-up): switch to the picks.Service read path once B4 exposes one, and drop the direct table reads.
 func (s *Service) pick(ctx context.Context, songID string) (*picks.PickView, error) {
 	var pv picks.PickView
 	var take, pinned, pinnedBy, pinnedAt sql.NullString

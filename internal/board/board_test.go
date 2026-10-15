@@ -400,6 +400,9 @@ func TestBoard_FiveStatements(t *testing.T) {
 }
 
 func TestPerf_MuseBoard(t *testing.T) {
+	if testing.Short() {
+		t.Skip("scale fixture: too slow under -race -short; runs in make test")
+	}
 	budget := perftest.Budget(t, time.Second)
 	t.Parallel()
 	st, err := store.Open(context.Background(), t.TempDir()+"/p.db")
