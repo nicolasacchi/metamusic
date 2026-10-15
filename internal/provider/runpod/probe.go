@@ -383,7 +383,7 @@ type NeverRanShapes struct {
 type Recommendation struct {
 	WriteKeyScoped bool   `json:"write_key_scoped"`
 	Fallback       string `json:"fallback"` // "manual-max-0" | "patch"
-	VAE            string `json:"vae"`      // "second-cached-model" | "network-volume"
+	VAE            string `json:"vae"`      // "image" (D-M3-38: baked into the image)
 }
 
 // KeysReport is the outcome of `runpod probe --keys`.
@@ -791,7 +791,7 @@ func (p *prober) billing(ctx context.Context, active bool) error {
 func (p *prober) recommend() {
 	w := p.rep.Keys["write"]["endpoint_patch"]
 	scoped := w.Verdict == VerdictAllowed
-	p.rep.Recommendation = Recommendation{WriteKeyScoped: scoped, Fallback: "manual-max-0", VAE: "second-cached-model"}
+	p.rep.Recommendation = Recommendation{WriteKeyScoped: scoped, Fallback: "manual-max-0", VAE: "image"}
 	if scoped {
 		p.rep.Recommendation.Fallback = "patch"
 	}
@@ -930,7 +930,7 @@ func ValidateCapabilities(raw []byte) error {
 	if c.Recommendation.Fallback != "manual-max-0" && c.Recommendation.Fallback != "patch" {
 		return errors.New("runpod: key-capabilities.json: bad recommendation.fallback")
 	}
-	if c.Recommendation.VAE != "second-cached-model" && c.Recommendation.VAE != "network-volume" {
+	if c.Recommendation.VAE != "image" {
 		return errors.New("runpod: key-capabilities.json: bad recommendation.vae")
 	}
 	return nil

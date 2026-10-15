@@ -153,7 +153,7 @@ func TestProbe_ClassifiesAgainstFake(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rep.Keys["write"]["endpoint_patch"].Verdict != "forbidden" || rep.Recommendation.WriteKeyScoped || rep.Recommendation.Fallback != "manual-max-0" {
+		if rep.Keys["write"]["endpoint_patch"].Verdict != "forbidden" || rep.Recommendation.WriteKeyScoped || rep.Recommendation.Fallback != "manual-max-0" || rep.Recommendation.VAE != "image" {
 			t.Errorf("write matrix %+v rec %+v", rep.Keys["write"], rep.Recommendation)
 		}
 	})
@@ -383,8 +383,12 @@ func TestKeyCapabilities_FileSafe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(bytes.TrimSpace(raw), []byte(runpod.Placeholder)) && !bytes.Contains(raw, []byte(`"probed": true`)) && !bytes.Contains(raw, []byte(`"probed":true`)) {
-			t.Errorf("unexpected content")
+		var c runpod.Capabilities
+		if err := json.Unmarshal(raw, &c); err != nil {
+			t.Fatal(err)
+		}
+		if !c.Probed || !c.BillingReadable || c.Recommendation.WriteKeyScoped || c.Recommendation.Fallback != "manual-max-0" || c.Recommendation.VAE != "image" {
+			t.Errorf("committed file is not the real key probe: %+v", c)
 		}
 		if err := runpod.ValidateCapabilities(raw); err != nil {
 			t.Error(err)

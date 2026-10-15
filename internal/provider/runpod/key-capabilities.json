@@ -1,1 +1,101 @@
-{"format":"mm.runpod-probe/2","probed":false}
+{
+  "format": "mm.runpod-probe/2",
+  "probed": true,
+  "probed_at": "2026-10-15T11:07:32Z",
+  "keys": {
+    "jobs": {
+      "cancel": {
+        "verdict": "allowed",
+        "http": 404
+      },
+      "health": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "health_after": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "health_other_endpoint": {
+        "verdict": "allowed",
+        "http": 404
+      },
+      "purge_queue": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "retry": {
+        "verdict": "error",
+        "http": 409,
+        "note": "ENDPOINT_PAUSED"
+      },
+      "run": {
+        "verdict": "error",
+        "http": 409,
+        "note": "ENDPOINT_PAUSED"
+      },
+      "run_b": {
+        "verdict": "error",
+        "http": 409,
+        "note": "ENDPOINT_PAUSED"
+      },
+      "status": {
+        "verdict": "allowed",
+        "http": 404
+      }
+    },
+    "read": {
+      "billing": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "catalog": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "endpoint_patch": {
+        "verdict": "forbidden",
+        "http": 403
+      },
+      "get_endpoint": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "graphql_balance": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "list_endpoints": {
+        "verdict": "allowed",
+        "http": 200
+      },
+      "workers": {
+        "verdict": "allowed",
+        "http": 200
+      }
+    }
+  },
+  "never_ran_shapes": {
+    "ttl_has_execution_time": false,
+    "cancelled_has_execution_time": false
+  },
+  "job_not_found": {
+    "http": 404,
+    "code": "NOT_FOUND",
+    "title": "Not Found"
+  },
+  "endpoint_not_found": {
+    "http": 404,
+    "code": "NOT_FOUND",
+    "title": "Not Found"
+  },
+  "retry_allowed": false,
+  "billing_readable": true,
+  "idle_billing_zero_24h": true,
+  "skew_ms": -97,
+  "recommendation": {
+    "write_key_scoped": false,
+    "fallback": "manual-max-0",
+    "vae": "image"
+  }
+}
