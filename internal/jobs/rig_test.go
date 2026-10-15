@@ -325,6 +325,8 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 		VALUES(?,'yue2','syn-a','{"cot":"full","id":"syn-a","lyrics":"la","seed":1,"style":"pop"}','pop','la',1,'full','h1','c1','import',?)`, testRecipe, ts)
 	q, _ := json.Marshal(providertest.GoodQuote(provider.BackendFake, t0))
 	r.exec(`INSERT INTO provider_state(backend, armed, changed_by, changed_at, quote_json, quote_at) VALUES('fake', 1, 'system:default', ?, ?, ?)`, ts, string(q), ts)
+	// worker_meter rows seeded by tests are trusted from the epoch; the first-sweep behaviour has its own tests
+	r.exec(`INSERT INTO settings(key, value) VALUES(?, '1970-01-01T00:00:00.000Z')`, settingMeterBillableSince)
 	return r
 }
 

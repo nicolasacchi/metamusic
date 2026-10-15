@@ -95,6 +95,8 @@ type Reconciler struct {
 	zeroChecked    map[string]bool
 	holdFreed      int
 	lastFetch      time.Time
+	meterObs       map[string]*meterObs // per worker key: last listing observation and billable seconds so far
+	billableSince  string               // cached settings meter.billable_since ("" until read)
 }
 
 // NewReconciler builds the reconciler.
@@ -108,7 +110,7 @@ func NewReconciler(o ReconcilerOptions) *Reconciler {
 	if o.Location == nil {
 		o.Location = time.Local
 	}
-	return &Reconciler{o: o, crash: map[string]int{}, actioned: map[string]bool{}, notified: map[string]time.Time{}, zeroChecked: map[string]bool{}}
+	return &Reconciler{o: o, crash: map[string]int{}, actioned: map[string]bool{}, notified: map[string]time.Time{}, zeroChecked: map[string]bool{}, meterObs: map[string]*meterObs{}}
 }
 
 // Run drives the reconciler until ctx ends: a full pass at start and every 60 s, and a sweep every 10 s
@@ -319,7 +321,10 @@ func (r *Reconciler) sweepStep(ctx context.Context) error {
 	r.mu.Lock()
 	r.sweptAt, r.skew, r.workers, r.endpoint, r.health = now, rep.Skew, rep.Workers, rep.Endpoint, rep.Health
 	r.mu.Unlock()
-	if err := r.recordWorkers(ctx, rep.Workers, now); err != nil {
+	if err := r.ensureBillableSince(ctx, now); err != nil {
+		return err
+	}
+	if err := r.recordWorkers(ctx, rep, now); err != nil {
 		return err
 	}
 	if err := r.recordHealthLifetimes(ctx, rep, now); err != nil {
@@ -342,37 +347,51 @@ func (r *Reconciler) workerKeyOf(id string) string {
 	return workerKey(r.o.MeterKey, id)
 }
 
-// recordWorkers upserts one worker_meter row per placed worker and tags live attempts with the digest of
-// their worker's image (D-M3-26).
-func (r *Reconciler) recordWorkers(ctx context.Context, ws []provider.Worker, now time.Time) error {
+// recordWorkers meters the billable seconds of the listed workers and tags live attempts with the digest of
+// their worker's image (D-M3-26). See meterbillable.go for what is billable: the listing's uptimeSeconds is
+// NOT billable time (it counts from the creation of the worker record, including image pull, model download
+// and idle standby), so it only bounds the deltas that are accumulated.
+func (r *Reconciler) recordWorkers(ctx context.Context, rep provider.SweepReport, now time.Time) error {
+	ws := rep.Workers
 	if len(ws) == 0 {
+		r.mu.Lock()
+		clear(r.meterObs) // nothing listed: every worker is a first observation when it comes back
+		r.mu.Unlock()
 		return nil
 	}
-	return r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
+	idleS := r.meterIdleS(ctx, rep.Endpoint)
+	plan, err := r.planMeter(ctx, ws, now, idleS)
+	if err != nil {
+		return err
+	}
+	err = r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
 		f := r.o.Runner.fence()
 		ts := store.FormatTime(now)
-		for _, w := range ws {
-			key := r.workerKeyOf(w.ID)
-			if key == "" || w.UptimeS == nil || w.StartedAt == nil {
-				continue
+		for _, p := range plan {
+			if p.write {
+				var image any
+				if p.image != "" {
+					image = p.image
+				}
+				args := []any{p.key, store.FormatTime(p.obs.started), ts, ts, p.obs.billable, p.status, image}
+				if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
+					return err
+				}
 			}
-			var image any
-			if w.Image != "" {
-				image = w.Image
-			}
-			args := []any{key, store.FormatTime(*w.StartedAt), ts, ts, *w.UptimeS, w.Status, image}
-			if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
-				return err
-			}
-			if dg := ImageDigestFor(w.Image, ""); strings.HasPrefix(dg, "sha256:") {
+			if dg := ImageDigestFor(p.image, ""); strings.HasPrefix(dg, "sha256:") {
 				if _, err := tx.ExecContext(ctx, `UPDATE job_attempts SET image_digest = ? WHERE worker_key = ? AND image_digest IS NULL AND state IN ('pending','submitted','unknown')`+f.And(), //nolint:gosec // G202: fixed C69 predicate
-					append([]any{dg, key}, f.Args()...)...); err != nil {
+					append([]any{dg, p.key}, f.Args()...)...); err != nil {
 					return err
 				}
 			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err // the in-memory state only advances once the totals are stored
+	}
+	r.commitMeter(plan)
+	return nil
 }
 
 // checkTrips applies stuck_running, crash_loop and meter_exceeds_reserved (C76.3).

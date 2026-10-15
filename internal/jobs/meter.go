@@ -24,6 +24,7 @@ func workerLive(status string) bool {
 	return false
 }
 
+// lifetime is one worker_meter row; uptimeS is billable seconds observed (see meterbillable.go).
 type lifetime struct {
 	key               string
 	started, lastSeen time.Time
@@ -109,18 +110,27 @@ func (m *meterModel) execSeconds(a meterAttempt) int64 {
 // loadMeter reads the snapshot and computes attribution and per-batch overhead.
 func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meterModel, error) {
 	m := &meterModel{now: now, lastSweep: lastSweep, owner: map[int]string{}, overheadS: map[string]int64{}, lastEnd: map[string]time.Time{}, lifetimesOf: map[string][]int{}}
-	rows, err := x.QueryContext(ctx, `SELECT worker_key, started_at, last_seen_at, uptime_s, status_last FROM worker_meter ORDER BY started_at, worker_key`)
+	since, err := meterBillableSince(ctx, x)
+	if err != nil {
+		return nil, err
+	}
+	// rows first seen before billable_since carry the raw listing uptime (not billable): ignored
+	rows, err := x.QueryContext(ctx, `SELECT worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last FROM worker_meter WHERE first_seen_at >= ? ORDER BY started_at, worker_key`, since)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var l lifetime
-		var st, ls string
-		if err := rows.Scan(&l.key, &st, &ls, &l.uptimeS, &l.status); err != nil {
+		var st, fs, ls string
+		if err := rows.Scan(&l.key, &st, &fs, &ls, &l.uptimeS, &l.status); err != nil {
 			rows.Close()
 			return nil, err
 		}
+		// the lifetime starts when it first became billable, never before the record was first metered
 		l.started, l.lastSeen = mustT(st), mustT(ls)
+		if f := mustT(fs); f.After(l.started) {
+			l.started = f
+		}
 		m.lifetimes = append(m.lifetimes, l)
 	}
 	if err := rows.Close(); err != nil {
@@ -319,12 +329,17 @@ func (r *Reconciler) meterOver(ctx context.Context) (over bool, detail map[strin
 }
 
 // MeterStats summarises the last 24 hours for get_provider_status.
+// BilledSeconds is the sum of billable seconds observed (RUNNING plus the idle tail), not listing uptime.
 type MeterStats struct{ Lifetimes, BilledSeconds, MaxWorkers int }
 
 func meterStats(ctx context.Context, x Querier, now time.Time) (MeterStats, error) {
 	var st MeterStats
 	since := store.FormatTime(now.Add(-24 * time.Hour))
-	rows, err := x.QueryContext(ctx, `SELECT started_at, last_seen_at, uptime_s FROM worker_meter WHERE last_seen_at >= ? ORDER BY started_at`, since)
+	trusted, err := meterBillableSince(ctx, x)
+	if err != nil {
+		return st, err
+	}
+	rows, err := x.QueryContext(ctx, `SELECT started_at, last_seen_at, uptime_s FROM worker_meter WHERE last_seen_at >= ? AND first_seen_at >= ? ORDER BY started_at`, since, trusted)
 	if err != nil {
 		return st, err
 	}

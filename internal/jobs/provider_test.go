@@ -215,7 +215,7 @@ func TestGetProviderStatus_NoSecrets(t *testing.T) {
 	if len(st.RTF) != 3 {
 		t.Errorf("rtf %+v", st.RTF)
 	}
-	if st.Meter == nil || st.Meter.Lifetimes != 2 {
+	if st.Meter == nil || st.Meter.Lifetimes != 1 { // the IDLE worker was never RUNNING: no lifetime
 		t.Errorf("meter %+v", st.Meter)
 	}
 }
