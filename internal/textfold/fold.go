@@ -24,3 +24,10 @@ func Fold(s string) string {
 	}
 	return table.Replace(folded)
 }
+
+// Norm is the one normaliser behind Muse keys, title_fold and taxonomy terms (D-L1-33): trim, Fold (diacritics, D-M1-3
+// table), lower-case, and collapse every run of whitespace (spaces, tabs, NBSP, ...) to one space. Fold keeps case and
+// does not collapse whitespace, so on its own it would split one inspiration into several keys.
+func Norm(s string) string {
+	return strings.ToLower(strings.Join(strings.FieldsFunc(Fold(s), unicode.IsSpace), " "))
+}

@@ -1,0 +1,1652 @@
+[
+ {
+  "term": "00s",
+  "facet": "era",
+  "value": "00s"
+ },
+ {
+  "term": "2000s",
+  "facet": "era",
+  "value": "00s"
+ },
+ {
+  "term": "aughts",
+  "facet": "era",
+  "value": "00s"
+ },
+ {
+  "term": "noughties",
+  "facet": "era",
+  "value": "00s"
+ },
+ {
+  "term": "10s",
+  "facet": "era",
+  "value": "10s"
+ },
+ {
+  "term": "2010s",
+  "facet": "era",
+  "value": "10s"
+ },
+ {
+  "term": "2020s",
+  "facet": "era",
+  "value": "20s"
+ },
+ {
+  "term": "20s",
+  "facet": "era",
+  "value": "20s"
+ },
+ {
+  "term": "1950s",
+  "facet": "era",
+  "value": "50s"
+ },
+ {
+  "term": "50s",
+  "facet": "era",
+  "value": "50s"
+ },
+ {
+  "term": "fifties",
+  "facet": "era",
+  "value": "50s"
+ },
+ {
+  "term": "1960s",
+  "facet": "era",
+  "value": "60s"
+ },
+ {
+  "term": "60s",
+  "facet": "era",
+  "value": "60s"
+ },
+ {
+  "term": "sixties",
+  "facet": "era",
+  "value": "60s"
+ },
+ {
+  "term": "1970s",
+  "facet": "era",
+  "value": "70s"
+ },
+ {
+  "term": "70s",
+  "facet": "era",
+  "value": "70s"
+ },
+ {
+  "term": "seventies",
+  "facet": "era",
+  "value": "70s"
+ },
+ {
+  "term": "1980s",
+  "facet": "era",
+  "value": "80s"
+ },
+ {
+  "term": "80s",
+  "facet": "era",
+  "value": "80s"
+ },
+ {
+  "term": "eighties",
+  "facet": "era",
+  "value": "80s"
+ },
+ {
+  "term": "1990s",
+  "facet": "era",
+  "value": "90s"
+ },
+ {
+  "term": "90s",
+  "facet": "era",
+  "value": "90s"
+ },
+ {
+  "term": "nineties",
+  "facet": "era",
+  "value": "90s"
+ },
+ {
+  "term": "ambience",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "ambient",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "ambient music",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "atmospheric",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "drone",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "meditation",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "new age",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "soundscape",
+  "facet": "genre_family",
+  "value": "ambient"
+ },
+ {
+  "term": "12 bar blues",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "blues",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "blues rock",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "chicago blues",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "delta blues",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "twelve bar blues",
+  "facet": "genre_family",
+  "value": "blues"
+ },
+ {
+  "term": "cinematic",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "epic",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "film score",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "movie soundtrack",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "score",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "soundtrack",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "trailer music",
+  "facet": "genre_family",
+  "value": "cinematic"
+ },
+ {
+  "term": "baroque",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "chamber music",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "classical",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "concerto",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "opera",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "orchestral",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "piano solo",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "string quartet",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "symphonic",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "symphony",
+  "facet": "genre_family",
+  "value": "classical"
+ },
+ {
+  "term": "alt country",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "country",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "country pop",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "honky tonk",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "nashville",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "outlaw country",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "western",
+  "facet": "genre_family",
+  "value": "country"
+ },
+ {
+  "term": "club",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "dance",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "dance pop",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "dancefloor",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "deep house",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "disco",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "euro house",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "eurodance",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "house",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "italo disco",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "nu disco",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "trance",
+  "facet": "genre_family",
+  "value": "dance"
+ },
+ {
+  "term": "chiptune",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "dnb",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "drum and bass",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "dubstep",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "edm",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "electro",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "electro pop",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "electronic",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "electronica",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "electropop",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "idm",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "lo fi",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "lofi",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "synth pop",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "synthpop",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "synthwave",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "techno",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "vaporwave",
+  "facet": "genre_family",
+  "value": "electronic"
+ },
+ {
+  "term": "acoustic",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "acoustic guitar",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "americana",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "bluegrass",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "celtic",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "fingerstyle",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "folk",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "folk rock",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "indie folk",
+  "facet": "genre_family",
+  "value": "folk"
+ },
+ {
+  "term": "funk",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "funk soul",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "funky",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "gospel",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "motown",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "neo soul",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "northern soul",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "soul",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "soulful",
+  "facet": "genre_family",
+  "value": "funk-soul"
+ },
+ {
+  "term": "boom bap",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "drill",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "hip hop",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "hiphop",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "lo fi hip hop",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "rap",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "rap music",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "rapper",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "rapping",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "trap",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "trip hop",
+  "facet": "genre_family",
+  "value": "hip-hop"
+ },
+ {
+  "term": "bebop",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "big band",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "cool jazz",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "jazz",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "jazz fusion",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "jazzy",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "latin jazz",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "smooth jazz",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "swing",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "vocal jazz",
+  "facet": "genre_family",
+  "value": "jazz"
+ },
+ {
+  "term": "bachata",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "bossa nova",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "cumbia",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "flamenco",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "latin",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "latin jazz",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "latin pop",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "mariachi",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "merengue",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "reggaeton",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "salsa",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "samba",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "tango",
+  "facet": "genre_family",
+  "value": "latin"
+ },
+ {
+  "term": "black metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "death metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "doom metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "heavy metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "metalcore",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "nu metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "power metal",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "thrash",
+  "facet": "genre_family",
+  "value": "metal"
+ },
+ {
+  "term": "dance pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "electro pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "electropop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "europop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "indie pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "k pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "pop music",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "power pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "synth pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "synthpop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "teen pop",
+  "facet": "genre_family",
+  "value": "pop"
+ },
+ {
+  "term": "emo",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "hardcore",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "pop punk",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "post punk",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "punk",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "punk rock",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "ska punk",
+  "facet": "genre_family",
+  "value": "punk"
+ },
+ {
+  "term": "contemporary r and b",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "r and b",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "r\u0026b",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "rhythm and blues",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "rnb",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "slow jam",
+  "facet": "genre_family",
+  "value": "r-and-b"
+ },
+ {
+  "term": "dancehall",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "dub",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "lovers rock",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "reggae",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "reggae fusion",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "rocksteady",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "roots reggae",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "ska",
+  "facet": "genre_family",
+  "value": "reggae"
+ },
+ {
+  "term": "alt rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "alternative rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "blues rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "classic rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "folk rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "garage rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "grunge",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "hard rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "indie rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "prog rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "progressive rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "psychedelic rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "rock and roll",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "rock n roll",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "soft rock",
+  "facet": "genre_family",
+  "value": "rock"
+ },
+ {
+  "term": "confessional",
+  "facet": "genre_family",
+  "value": "singer-songwriter"
+ },
+ {
+  "term": "singer songwriter",
+  "facet": "genre_family",
+  "value": "singer-songwriter"
+ },
+ {
+  "term": "singer songwriter acoustic",
+  "facet": "genre_family",
+  "value": "singer-songwriter"
+ },
+ {
+  "term": "solo acoustic",
+  "facet": "genre_family",
+  "value": "singer-songwriter"
+ },
+ {
+  "term": "troubadour",
+  "facet": "genre_family",
+  "value": "singer-songwriter"
+ },
+ {
+  "term": "afrobeat",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "afrobeats",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "balkan",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "bollywood",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "gamelan",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "highlife",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "klezmer",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "tribal",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "world",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "world music",
+  "facet": "genre_family",
+  "value": "world"
+ },
+ {
+  "term": "deutsch",
+  "facet": "language",
+  "value": "de"
+ },
+ {
+  "term": "german",
+  "facet": "language",
+  "value": "de"
+ },
+ {
+  "term": "english",
+  "facet": "language",
+  "value": "en"
+ },
+ {
+  "term": "espanol",
+  "facet": "language",
+  "value": "es"
+ },
+ {
+  "term": "spanish",
+  "facet": "language",
+  "value": "es"
+ },
+ {
+  "term": "francais",
+  "facet": "language",
+  "value": "fr"
+ },
+ {
+  "term": "french",
+  "facet": "language",
+  "value": "fr"
+ },
+ {
+  "term": "italian",
+  "facet": "language",
+  "value": "it"
+ },
+ {
+  "term": "italiano",
+  "facet": "language",
+  "value": "it"
+ },
+ {
+  "term": "portugues",
+  "facet": "language",
+  "value": "pt"
+ },
+ {
+  "term": "portuguese",
+  "facet": "language",
+  "value": "pt"
+ },
+ {
+  "term": "aggressive",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "angry",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "fierce",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "heavy",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "intense",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "raw",
+  "facet": "mood",
+  "value": "aggressive"
+ },
+ {
+  "term": "calm",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "chill",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "chillout",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "easy listening",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "laid back",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "lounge",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "mellow",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "relaxed",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "soothing",
+  "facet": "mood",
+  "value": "chill"
+ },
+ {
+  "term": "brooding",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "dark",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "eerie",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "gloomy",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "haunting",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "moody",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "ominous",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "sinister",
+  "facet": "mood",
+  "value": "dark"
+ },
+ {
+  "term": "airy",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "dreamy",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "ethereal",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "floaty",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "hazy",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "lush",
+  "facet": "mood",
+  "value": "dreamy"
+ },
+ {
+  "term": "anthemic",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "driving",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "dynamic",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "energetic",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "high energy",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "lively",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "powerful",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "pumping",
+  "facet": "mood",
+  "value": "energetic"
+ },
+ {
+  "term": "bittersweet",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "melancholic",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "melancholy",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "sad",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "sorrowful",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "wistful",
+  "facet": "mood",
+  "value": "melancholic"
+ },
+ {
+  "term": "nostalgic",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "old school",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "retro",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "sentimental",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "throwback",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "vintage",
+  "facet": "mood",
+  "value": "nostalgic"
+ },
+ {
+  "term": "intimate",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "love song",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "passionate",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "romantic",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "sensual",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "tender",
+  "facet": "mood",
+  "value": "romantic"
+ },
+ {
+  "term": "bright",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "cheerful",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "feel good",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "happy",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "joyful",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "sunny",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "upbeat",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "uplifting",
+  "facet": "mood",
+  "value": "upbeat"
+ },
+ {
+  "term": "cozy",
+  "facet": "mood",
+  "value": "warm"
+ },
+ {
+  "term": "gentle",
+  "facet": "mood",
+  "value": "warm"
+ },
+ {
+  "term": "rich",
+  "facet": "mood",
+  "value": "warm"
+ },
+ {
+  "term": "smooth",
+  "facet": "mood",
+  "value": "warm"
+ },
+ {
+  "term": "warm",
+  "facet": "mood",
+  "value": "warm"
+ },
+ {
+  "term": "backing vocals",
+  "facet": "vocal",
+  "value": "choir"
+ },
+ {
+  "term": "choir",
+  "facet": "vocal",
+  "value": "choir"
+ },
+ {
+  "term": "choral",
+  "facet": "vocal",
+  "value": "choir"
+ },
+ {
+  "term": "chorus",
+  "facet": "vocal",
+  "value": "choir"
+ },
+ {
+  "term": "gospel choir",
+  "facet": "vocal",
+  "value": "choir"
+ },
+ {
+  "term": "call and response",
+  "facet": "vocal",
+  "value": "duet"
+ },
+ {
+  "term": "duet",
+  "facet": "vocal",
+  "value": "duet"
+ },
+ {
+  "term": "male female duet",
+  "facet": "vocal",
+  "value": "duet"
+ },
+ {
+  "term": "vocal duet",
+  "facet": "vocal",
+  "value": "duet"
+ },
+ {
+  "term": "alto",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "female singer",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "female vocal",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "female vocalist",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "female vocals",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "female voice",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "soprano",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "woman singing",
+  "facet": "vocal",
+  "value": "female"
+ },
+ {
+  "term": "instrumental",
+  "facet": "vocal",
+  "value": "instrumental"
+ },
+ {
+  "term": "no vocal",
+  "facet": "vocal",
+  "value": "instrumental"
+ },
+ {
+  "term": "no vocals",
+  "facet": "vocal",
+  "value": "instrumental"
+ },
+ {
+  "term": "without vocals",
+  "facet": "vocal",
+  "value": "instrumental"
+ },
+ {
+  "term": "baritone",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "deep male voice",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "male singer",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "male vocal",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "male vocalist",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "male vocals",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "male voice",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "man singing",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "tenor",
+  "facet": "vocal",
+  "value": "male"
+ },
+ {
+  "term": "female rap",
+  "facet": "vocal",
+  "value": "rap"
+ },
+ {
+  "term": "male rap",
+  "facet": "vocal",
+  "value": "rap"
+ },
+ {
+  "term": "rap",
+  "facet": "vocal",
+  "value": "rap"
+ },
+ {
+  "term": "rapper",
+  "facet": "vocal",
+  "value": "rap"
+ },
+ {
+  "term": "rapping",
+  "facet": "vocal",
+  "value": "rap"
+ }
+]
