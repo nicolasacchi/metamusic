@@ -119,7 +119,7 @@ func TestOpSearchTracks_Filters(t *testing.T) {
 
 func sortedCopy(s []string) []string { c := slices.Clone(s); slices.Sort(c); return c }
 
-// TestRegistry_OpCount pins the registry size: 58 operations after M2c plus the 23 of M3 (C81) plus the 8 of M4a (C113).
+// TestRegistry_OpCount pins the registry size: 58 operations after M2c plus the 23 of M3 (C81) plus the 2 songwriting-target operations plus the 8 of M4a (C113).
 func TestRegistry_OpCount(t *testing.T) {
 	t.Parallel()
 	a, _ := newTestAPI(t)
@@ -127,7 +127,7 @@ func TestRegistry_OpCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := strings.Count(string(b), `"operationId"`); n != 89 {
-		t.Fatalf("operation count = %d, want 89 (58 + 23 of M3 + 8 of M4a)", n)
+	if n := strings.Count(string(b), `"operationId"`); n != 91 {
+		t.Fatalf("operation count = %d, want 91 (58 + 23 of M3 + 2 songwriting settings + 8 of M4a)", n)
 	}
 }

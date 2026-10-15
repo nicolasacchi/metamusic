@@ -1,5 +1,6 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
 import { BASE_URL, HEADERS, OUTPUT_DIR } from "./e2e/env";
+import { E2E_SETS } from "./e2e/sets";
 
 // Chrome must autoplay without a prior gesture so specs can start playback programmatically
 // (the probe specs still use a real click, which exercises the gesture rule).
@@ -30,7 +31,7 @@ const LISTEN = "**/m2a-listen.spec.ts";
 // phase that depends on phase 1 and on the listen projects. The desktop project runs every M3 spec except m3-spend;
 // m3-variant and m3-jobs also run on the phones, one project after the other (they share two fake workers); m3-spend
 // changes the caps and the arming for everyone, so it runs alone after every other project.
-const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend"];
+const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting", "spend"];
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
@@ -73,24 +74,12 @@ const androidFirefox = (policy: number) => ({
 //   m2b-duels      x19 each mobile project skips 9 (8 keyboard/desktop-only tests and the serial queue/skip test,
 //                      which is chrome only) = 18; desktop chrome skips the mobile-toggle test = 1
 // A new skip needs a reason of this kind; anything capability- or environment-related must fail instead.
-export default defineConfig({
-  testDir: "./e2e",
-  outputDir: OUTPUT_DIR,
-  testMatch: "**/*.spec.ts",
-  globalSetup: "./e2e/global-setup.ts",
-  fullyParallel: true,
-  // fewer workers than cores: the specs assert on real-time audio/layout and flake when starved
-  workers: process.env.CI ? 2 : "50%",
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: {
-    baseURL: BASE_URL,
-    extraHTTPHeaders: HEADERS,
-    trace: "retain-on-failure",
-    serviceWorkers: "block",
-  },
-  projects: [
+// CI runs one set of projects per job (e2e/sets.ts); unset runs everything (make e2e).
+const setName = process.env.MM_E2E_SET;
+const setNames = setName ? E2E_SETS[setName] : undefined;
+if (setName && !setNames) throw new Error(`unknown MM_E2E_SET ${setName} (want ${Object.keys(E2E_SETS).join(", ")})`);
+
+const allProjects: NonNullable<PlaywrightTestConfig["projects"]> = [
     { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([]), ...M4A_SERIAL] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
     { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
@@ -108,9 +97,34 @@ export default defineConfig({
     { name: "m4a-track-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: "**/m4a-track.spec.ts", dependencies: [...before3, "m4a-offline"] },
     { name: "m4a-track-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: "**/m4a-track.spec.ts", dependencies: [...before3, "m4a-offline", "m4a-track-chrome"] },
     // phase 3: the M3 specs (see M3 above)
-    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage"]), AUTOADV], dependencies: before3 },
+    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting"]), AUTOADV], dependencies: before3 },
     { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
     { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
     { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, ...m4aPhase, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
-  ],
+];
+
+function projects() {
+  return allProjects
+    .filter((p) => !setNames || setNames.includes(p.name ?? ""))
+    .map((p) => (setNames && p.dependencies ? { ...p, dependencies: p.dependencies.filter((d) => setNames.includes(d)) } : p));
+}
+
+export default defineConfig({
+  testDir: "./e2e",
+  outputDir: OUTPUT_DIR,
+  testMatch: "**/*.spec.ts",
+  globalSetup: "./e2e/global-setup.ts",
+  fullyParallel: true,
+  // fewer workers than cores: the specs assert on real-time audio/layout and flake when starved
+  workers: process.env.CI ? 2 : "50%",
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  use: {
+    baseURL: BASE_URL,
+    extraHTTPHeaders: HEADERS,
+    trace: "retain-on-failure",
+    serviceWorkers: "block",
+  },
+  projects: projects(),
 });

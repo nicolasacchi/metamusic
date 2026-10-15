@@ -134,17 +134,21 @@ func TestArtifacts_RequiredFollowsObserved(t *testing.T) {
 	}
 }
 
-// TestIssueConversion_Lossless: engine.Issue mirrors yue2.Issue field for field.
+// TestIssueConversion_Lossless: engine.Issue mirrors yue2.Issue field for field, except Details: the machine-readable
+// numbers of the lint-only duration warnings, which no engine validation error carries.
 func TestIssueConversion_Lossless(t *testing.T) {
 	t.Parallel()
 	src := reflect.TypeFor[Issue]()
 	dst := reflect.TypeFor[engine.Issue]()
-	if src.NumField() != dst.NumField() || src.NumField() != 7 {
+	if src.NumField() != dst.NumField()+1 || dst.NumField() != 7 {
 		t.Fatalf("field counts: yue2.Issue %d, engine.Issue %d", src.NumField(), dst.NumField())
 	}
 	names := map[string]bool{}
 	for i := range src.NumField() {
 		names[src.Field(i).Name] = true
+	}
+	if !names["Details"] {
+		t.Fatal("yue2.Issue lost Details; update this test")
 	}
 	for i := range dst.NumField() {
 		if !names[dst.Field(i).Name] {

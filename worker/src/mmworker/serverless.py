@@ -51,6 +51,10 @@ def main(environ: Mapping[str, str] | None = None,
         print("mmworker: HF_HUB_OFFLINE=1 is required (a missing file must fail fast, not download on billed "
               "time)", file=sys.stderr)
         return 2
-    pipe = loader(env)  # once per process, outside the handler
+    try:
+        pipe = loader(env)  # once per process, outside the handler
+    except FileNotFoundError as e:  # missing weights: one clear line, non-zero exit, no retry loop in here
+        print(f"mmworker: cannot load the model: {redact.text(e)}", file=sys.stderr)
+        return 1
     runner(make_handler(pipe, environ=env))
     return 0

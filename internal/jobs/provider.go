@@ -76,6 +76,7 @@ type TripInfo struct {
 type WorkerCounts struct {
 	Running, Idle, Initializing, Throttled, Unhealthy int
 	ObservedAt                                        time.Time
+	InitializingSince                                 *time.Time // nil unless a worker has been INITIALIZING (none running)
 }
 
 // EndpointInfo is the endpoint without its id.
@@ -172,6 +173,10 @@ func (a *ProviderAdmin) Status(ctx context.Context, viewer auth.Principal) (Prov
 		if !snap.ObservedAt.IsZero() {
 			wc := &WorkerCounts{Running: snap.WorkerCounts["running"], Idle: snap.WorkerCounts["idle"], Initializing: snap.WorkerCounts["initializing"],
 				Throttled: snap.WorkerCounts["throttled"], Unhealthy: snap.WorkerCounts["unhealthy"], ObservedAt: snap.ObservedAt}
+			if !snap.InitializingSince.IsZero() {
+				t := snap.InitializingSince
+				wc.InitializingSince = &t
+			}
 			out.Workers = wc
 		}
 		if snap.Endpoint != nil {

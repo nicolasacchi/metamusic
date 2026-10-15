@@ -586,6 +586,8 @@ type WorkerCounts struct {
 	Throttled    int    `json:"throttled"`
 	Unhealthy    int    `json:"unhealthy"`
 	ObservedAt   string `json:"observed_at"`
+	// InitializingSince is set while a worker is INITIALIZING with none running (not billed; a warning is sent after 30 min).
+	InitializingSince *string `json:"initializing_since" doc:"RFC 3339 UTC; null unless a worker is initializing"`
 }
 
 // WorkerCountsOrNull may be null.

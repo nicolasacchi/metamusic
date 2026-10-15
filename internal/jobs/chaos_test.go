@@ -362,18 +362,17 @@ func TestChaos_ResultsPurgedDuringDowntime(t *testing.T) {
 var _ = errors.Is
 var _ = store.FormatTime
 
-// TestProperty_ColdStartAboveAllowanceTrips: detection, not prevention. A cold start longer than the quote
-// allows (cold = 400 s against ColdStartS 180) overruns the batch's overhead reserve; the meter notices and
-// trips the provider, and the ledger stays internally consistent.
-func TestProperty_ColdStartAboveAllowanceTrips(t *testing.T) {
+// TestProperty_ColdStartAboveAllowanceIsNotMetered: the meter bills RUNNING time (plus the idle tail), not the
+// worker record's life. A cold start above the quote's allowance (cold = 400 s against ColdStartS 180) is an
+// INITIALIZING stretch RunPod does not bill from the listing's point of view, so it never trips the meter;
+// the ledger stays internally consistent and the billing reconciliation still checks the real invoice.
+func TestProperty_ColdStartAboveAllowanceIsNotMetered(t *testing.T) {
 	t.Parallel()
 	e := chaosEnv(t)
 	job := e.seedBatch("fake:cold=400", 2, 60).Jobs[0]
-	e.drive(300, 15*time.Second, func() bool {
-		return e.jobTerminal(job)() && e.r.count(`SELECT COUNT(*) FROM provider_trips`) > 0
-	})
-	if n := e.r.count(`SELECT COUNT(*) FROM provider_trips WHERE reason IN (?, ?, ?)`, TripMeterExceeds, "provisional_exceeds_reserved", "billed_exceeds_reserved"); n == 0 {
-		t.Errorf("no trip followed a cold start above the allowance (%d trips)", e.r.count(`SELECT COUNT(*) FROM provider_trips`))
+	e.drive(300, 15*time.Second, e.jobTerminal(job))
+	if n := e.r.count(`SELECT COUNT(*) FROM provider_trips WHERE reason = ?`, TripMeterExceeds); n != 0 {
+		t.Errorf("an INITIALIZING cold start tripped the meter (%d trips)", n)
 	}
 }
 

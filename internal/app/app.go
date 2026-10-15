@@ -44,6 +44,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -164,10 +165,13 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	listen := listening.New(st, now)
 	pls := playlists.New(st, lib, now, newID)
 	drf := drafts.New(st, lib, now, newID)
+	sw := songwriting.New(st)
+	drf.UseSongwriting(sw)
 	exp := exports.New(exports.Options{Store: st, Data: data, Lib: lib, Playlists: pls, Ratings: judg, Signer: signer, Now: now, NewID: newID})
 	bak := backup.New(backup.Options{Store: st, DataDir: cfg.DataDir, BackupDir: cfg.BackupDir, Exports: exports.NewDBSource(st, lib, pls),
 		Now: now, NewID: newID, Version: o.Version, Notify: notifier})
 	ctxb := trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now)
+	ctxb.UseSongwriting(sw)
 
 	// M2b: the clip cache pins the clips of open duels, which only the duels service knows;
 	// the closure resolves it after construction (clip must not import duels, C43).
@@ -243,7 +247,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Audit: s.Audit, Devices: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
-		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage,
+		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Songwriting: sw,
 		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 	}
 	s.Server = httpserver.Options{
@@ -254,7 +258,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Devices: devices, DeviceStore: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
-		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads,
+		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads, Songwriting: sw,
 		BaseContext: o.M3.Shutdown,
 		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,

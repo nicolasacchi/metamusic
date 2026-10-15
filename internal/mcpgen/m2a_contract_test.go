@@ -35,9 +35,12 @@ import (
 // 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
 // steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
 //
-// M4a-B2 re-baselined 87300 -> 87600 (measured 87501, +206): the nullable cover object (url_512, url_1024, expires_at)
-// of the first-class get_media_links. The eight M4a operations are all generic, so nothing else joins tools/list.
-const toolsCeilingBytes = 87600
+// Debts (songwriting targets) re-baselined 87300 -> 88200 (measured 88147, +852, 33 tools): get_songwriting_settings, the
+// tool agents read the operator's duration targets with (about 650 bytes), and the lint Issue's optional details object.
+//
+// M4a-X1 merge: 88200 -> 88500 (measured 88353): the nullable cover object of get_media_links (+206)
+// joins the songwriting debts' get_songwriting_settings.
+const toolsCeilingBytes = 88500
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

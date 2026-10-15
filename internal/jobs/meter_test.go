@@ -39,8 +39,15 @@ func TestSettle_OverheadFromMeter(t *testing.T) {
 	if got := r.att(job, 1).WorkerKey; got != workerKey(meterKey, "w1") {
 		t.Fatalf("worker key %q", got)
 	}
+	// uptime_s is billable seconds accumulated from observations: 10 s on the first look, then 120 s more
+	r.sweep(worker("w1", "RUNNING", upt(10), t0))
+	r.mustPass(rec)
+	r.advance(120 * time.Second)
 	r.sweep(worker("w1", "RUNNING", upt(130), t0))
 	r.mustPass(rec)
+	if got := r.count(`SELECT uptime_s FROM worker_meter`); got != 130 {
+		t.Fatalf("billable seconds %d, want 130", got)
+	}
 	out := r.deliver(spec, deliverOpts{})
 	st := completed(out, 60000)
 	st.WorkerID = "w1"
@@ -103,10 +110,13 @@ func TestReconciler_MeterTrip(t *testing.T) {
 	if r.count(`SELECT COUNT(*) FROM provider_trips`) != 0 {
 		t.Fatal("tripped inside the reservation")
 	}
-	// the worker has now billed far more than the batch reserved (cold start twice as long as allowed)
-	r.advance(30 * time.Second)
-	r.sweep(worker("w1", "RUNNING", upt(3600), t0))
-	r.mustPass(rec)
+	// the worker keeps running far past what the batch reserved (cold start twice as long as allowed):
+	// billable time accrues per observation, so the trip comes once the RUNNING seconds exceed the reserve
+	for el := 100; el < 3600 && r.count(`SELECT COUNT(*) FROM provider_trips`) == 0; el += 30 {
+		r.advance(30 * time.Second)
+		r.sweep(worker("w1", "RUNNING", upt(el+30), t0))
+		r.mustPass(rec)
+	}
 	if got := r.openTripReason(); got != TripMeterExceeds {
 		t.Fatalf("trip %q", got)
 	}
@@ -264,5 +274,39 @@ func TestMeterModel_SeveralWorkers(t *testing.T) {
 	}
 	if i := m.lifetimeOf(meterAttempt{key: "unknown"}); i != -1 {
 		t.Errorf("unknown worker -> %d", i)
+	}
+}
+
+func TestBillableMeterTotals(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name  string
+		since string
+		want  [2]int64
+	}{
+		{"no cut-over: everything counts", "", [2]int64{3, 20_144}},
+		{"cut-over excludes rows first seen before it", store.FormatTime(t0.Add(time.Hour)), [2]int64{1, 44}},
+		{"cut-over in the future excludes all", store.FormatTime(t0.Add(48 * time.Hour)), [2]int64{0, 0}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			for _, row := range []struct {
+				key   string
+				first time.Time
+				up    int
+			}{{"a", t0, 100}, {"b", t0.Add(30 * time.Minute), 20_000}, {"c", t0.Add(2 * time.Hour), 44}} {
+				r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,?,'RUNNING')`,
+					row.key, store.FormatTime(row.first), store.FormatTime(row.first), store.FormatTime(row.first.Add(time.Minute)), row.up)
+			}
+			r.exec(`DELETE FROM settings WHERE key = 'meter.billable_since'`)
+			if c.since != "" {
+				r.exec(`INSERT INTO settings(key, value) VALUES ('meter.billable_since', ?)`, c.since)
+			}
+			n, secs, err := BillableMeterTotals(t.Context(), r.st.R)
+			if err != nil || n != c.want[0] || secs != c.want[1] {
+				t.Errorf("got %d %d %v, want %v", n, secs, err, c.want)
+			}
+		})
 	}
 }

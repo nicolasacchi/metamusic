@@ -22,6 +22,7 @@ var SystemOps = []string{
 	"reconciler:adopt", "reconciler:ghost", "reconciler:settle_time_bound", "reconciler:approval_expired",
 	"reconciler:trip", "reconciler:purge_queue", "reconciler:scale_to_zero", "reconciler:revert_drift",
 	"reconciler:billing_window", "reconciler:late_adjust", "reconciler:hold_release", "reconciler:upload_sweep",
+	"reconciler:meter_billable_since",
 	"cli:runpod-arm", "cli:runpod-disarm", "cli:runpod-reset-trip", "cli:runpod-provision", "cli:restore-disarm",
 }
 
