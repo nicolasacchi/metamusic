@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -92,6 +93,8 @@ type server struct {
 	delay   time.Duration
 	now     func() time.Time
 	sleeper chan struct{}
+	cat     *catalog // nil => catalog endpoints answer error 0 "service unavailable"
+	rand    func() uint64
 }
 
 // NewHandler returns the handler mounted by httpserver at /rest/.
@@ -117,7 +120,18 @@ func newServer(o Options) *server {
 	if s.delay <= 0 {
 		s.delay = time.Second
 	}
+	if o.Store != nil {
+		s.cat = &catalog{db: o.Store.R}
+	}
+	s.rand = o.Rand
+	if s.rand == nil {
+		s.rand = rand.Uint64
+	}
 	s.registerSystem()
+	s.registerBrowse()
+	s.registerLists()
+	s.registerSearch()
+	s.registerStubs()
 	return s
 }
 

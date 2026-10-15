@@ -36,6 +36,8 @@ type Response struct {
 	TokenInfo              *TokenInfo      `json:"tokenInfo,omitempty" xml:"tokenInfo,omitempty"`
 	User                   *User           `json:"user,omitempty" xml:"user,omitempty"`
 	MusicFolders           *MusicFolders   `json:"musicFolders,omitempty" xml:"musicFolders,omitempty"`
+
+	catalogPayload // catalog, browsing, lists and search (S2)
 }
 
 // License is the answer of getLicense.
