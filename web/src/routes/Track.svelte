@@ -19,13 +19,18 @@
   import EarsPanel from "../lib/components/EarsPanel.svelte";
   import LineageDuels from "../lib/components/LineageDuels.svelte";
   import TrackBadges from "../lib/components/TrackBadges.svelte";
+  import PickBadge from "../lib/components/PickBadge.svelte";
   import RecipeUnknownPanel from "../lib/components/RecipeUnknownPanel.svelte";
   import GenerateButton from "../lib/components/GenerateButton.svelte";
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
   import type { Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
 
-  type Track = components["schemas"]["TrackDetail"];
+  // `song` and `is_pick` are library read amendments (D-L1-21, C98) that the generated type learns at integration.
+  type Track = components["schemas"]["TrackDetail"] & {
+    song?: { id: string; title: string; angle?: string | null; muse_id?: string | null; pick_source?: string | null } | null;
+    is_pick?: boolean;
+  };
   interface Props {
     id: string;
     /** `?t=` deep link ("72" or "1:12"). */
@@ -57,6 +62,8 @@
     data: number[];
     bits: number;
   }
+  // The Pick take of this take's Song, fetched only when this take is not the Pick.
+  let pickTake = $state<{ id: string; title: string } | null>(null);
   let overview = $state<Level | null>(null);
   let detail = $state<Level | null>(null);
   let width = $state(0);
@@ -96,6 +103,17 @@
           return;
         }
         track = tr.data;
+        pickTake = null;
+        const sg = (tr.data as Track).song;
+        if (sg && (tr.data as Track).is_pick !== true) {
+          void api
+            .GET("/api/songs/{id}", { params: { path: { id: sg.id }, query: { take_limit: 50, include_events: 0 } } })
+            .then((r) => {
+              const p = r.data?.takes.find((x) => x.is_pick);
+              if (mine === id && p) pickTake = { id: p.id, title: p.title };
+            })
+            .catch(() => {});
+        }
         const r = tr.data.rating;
         judge.seed(mine, {
           stars: r.human?.stars ?? null,
@@ -168,6 +186,18 @@
 {:else}
   <article>
     <h1 data-testid="track-title">{track.title}</h1>
+    {#if track.song}
+      <p class="song-strip" data-testid="song-strip">
+        Song <a href="/songs/{track.song.id}" data-testid="song-link">{track.song.title}</a>
+        {#if track.is_pick}
+          <PickBadge source={track.song.pick_source ?? "newest"} />
+        {:else if pickTake}
+          · Pick of this Song: <a href="/tracks/{pickTake.id}" data-testid="song-pick-link">{pickTake.title}</a>
+        {:else}
+          · <a href="/songs/{track.song.id}" data-testid="song-pick-link">Pick of this Song</a>
+        {/if}
+      </p>
+    {/if}
     {#if !track.recipe_known || track.lossy}
       <p class="badges" data-testid="track-badges"><TrackBadges recipeKnown={track.recipe_known} lossy={track.lossy} /></p>
     {/if}

@@ -134,3 +134,19 @@ describe("libraryQuery (M2c)", () => {
     expect(isDirty({ ...defaultFilters(), hasScore: true })).toBe(true);
   });
 });
+
+describe("libraryQuery is_pick (L1)", () => {
+  test("is_pick=true round trips and marks the filters dirty", () => {
+    const f = { ...defaultFilters(), isPick: true };
+    expect(toSearch(f)).toBe("?is_pick=true");
+    expect(parseFilters("?is_pick=true")).toEqual(f);
+    expect(isDirty(f)).toBe(true);
+    expect(toApiQuery(f)).toEqual({ is_pick: true });
+  });
+  test("absent or other values mean off", () => {
+    expect(parseFilters("").isPick).toBe(false);
+    expect(parseFilters("?is_pick=false").isPick).toBe(false);
+    expect(toSearch(defaultFilters())).toBe("");
+    expect(toApiQuery(defaultFilters())).toEqual({});
+  });
+});

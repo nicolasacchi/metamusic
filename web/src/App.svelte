@@ -18,6 +18,7 @@
   import Board from "./routes/Board.svelte";
   import Song from "./routes/Song.svelte";
   import Muse from "./routes/Muse.svelte";
+  import Sounds from "./routes/Sounds.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
@@ -127,6 +128,8 @@
       {#key $router.params.id}
         <Muse id={$router.params.id ?? ""} navigate={router.navigate} />
       {/key}
+    {:else if $router.route?.name === "sounds"}
+      <Sounds search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "draft-new"}
       <DraftNew />
     {:else if $router.route?.name === "draft-upload"}
