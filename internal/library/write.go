@@ -131,6 +131,15 @@ var ErrRecipeExists = errors.New("library: recipe already exists")
 // hasTable reports whether the connected database has the named table. Positive answers are cached;
 // a negative one is re-asked, because an upgrade test migrates a database after the Service exists.
 func (s *Service) hasTable(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	return s.hasTableQ(ctx, tx, name)
+}
+
+// hasTableDB is hasTable on the reader pool (read paths).
+func (s *Service) hasTableDB(ctx context.Context, name string) (bool, error) {
+	return s.hasTableQ(ctx, s.st.R, name)
+}
+
+func (s *Service) hasTableQ(ctx context.Context, tx rowQuerier, name string) (bool, error) {
 	if _, ok := s.tables.Load(name); ok {
 		return true, nil
 	}

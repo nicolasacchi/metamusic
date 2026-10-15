@@ -133,7 +133,7 @@ func TestContext_Golden(t *testing.T) {
 	}
 
 	// shape and key order of C35
-	wantTop := []string{"format", "track", "recipe", "provenance", "score", "lineage", "judgments", "perception", "listening", "_links", "next_actions", "_budget"}
+	wantTop := []string{"format", "track", "song", "muse", "sounds", "recipe", "provenance", "score", "lineage", "judgments", "perception", "listening", "_links", "next_actions", "_budget"}
 	if diff := cmp.Diff(wantTop, keys(t, raw)); diff != "" {
 		t.Errorf("top-level keys (-want +got):\n%s", diff)
 	}

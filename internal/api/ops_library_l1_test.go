@@ -1,13 +1,18 @@
 package api_test
 
 import (
+	"context"
+	"encoding/json"
+
 	"fmt"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
+	"github.com/nicolasacchi/metamusic/internal/songs/songstest"
 )
 
 // libRig is the L1 library rig: the fixtures plus the mirror of the real library structure, settled.
@@ -26,6 +31,8 @@ func TestLibraryOps(t *testing.T) {
 	r := libRig(t)
 	t.Run("read_shapes", func(t *testing.T) { libraryReadShapes(t, r) })
 	t.Run("write_rules", func(t *testing.T) { libraryWriteRules(t, r) })
+	t.Run("song_filters", func(t *testing.T) { songFilterShapes(t, r) })
+	t.Run("track_amendments", func(t *testing.T) { trackAmendments(t, r) })
 }
 
 func libraryReadShapes(t *testing.T, r *servertest.Rig) {
@@ -81,9 +88,6 @@ func libraryReadShapes(t *testing.T, r *servertest.Rig) {
 			t.Errorf("song summary lacks %q", k)
 		}
 	}
-	// NOTE: the list_songs filters (state, sound, draft_id, ...) are not bound over REST/MCP yet: the frozen
-	// listSongsIn embeds an unexported struct that huma skips and uses *bool query params it rejects (reported as a
-	// Stage-1 deviation). They are covered at service level (songs.List) and through get_muse_board.
 	var dsong, rs map[string]any
 	for _, it := range songs {
 		switch m(it)["state"] {
@@ -265,5 +269,220 @@ func libraryWriteRules(t *testing.T, r *servertest.Rig) {
 	}
 	if e := agent.Do(t, "PATCH", "/api/sessions/nope", map[string]any{"revision": 1, "name": "x"}); e.Status != 404 || strings.Contains(string(e.Body), "Canary") {
 		t.Errorf("unknown session: %d %s", e.Status, e.Body)
+	}
+}
+
+// songFilterShapes drives the list_songs and search_sounds filters over REST and MCP (the filters are part of the
+// capability: a service-level test alone would not prove that agents and the UI can send them).
+func songFilterShapes(t *testing.T, r *servertest.Rig) {
+	agent, _ := r.Agent(t, auth.ScopeRead)
+	list := func(q string) map[string]any {
+		t.Helper()
+		return m(agent.OK(t, "GET", "/api/songs?limit=100"+q, nil))
+	}
+	all := list("")
+	total := all["total"].(float64)
+	var draftSong, renderedSong map[string]any
+	for _, it := range arr(all["items"]) {
+		switch m(it)["state"] {
+		case "draft":
+			if draftSong == nil && m(it)["draft_id"] != nil {
+				draftSong = m(it)
+			}
+		case "rendered", "judged", "picked":
+			if renderedSong == nil && m(it)["root_track_id"] != nil {
+				renderedSong = m(it)
+			}
+		}
+	}
+	if draftSong == nil || renderedSong == nil {
+		t.Fatal("the mirror must hold a draft Song and a rendered Song")
+	}
+	for _, st := range []string{"draft", "rendered", "judged", "picked"} {
+		page := list("&state=" + st)
+		for _, it := range arr(page["items"]) {
+			if m(it)["state"] != st {
+				t.Errorf("state=%s listed a %v Song", st, m(it)["state"])
+			}
+		}
+		if page["total"].(float64) > total {
+			t.Errorf("state=%s: total %v > %v", st, page["total"], total)
+		}
+	}
+	if two := list("&state=draft&state=rendered"); two["total"].(float64) < list("&state=draft")["total"].(float64) {
+		t.Errorf("repeatable state: %v", two["total"])
+	}
+	// the single Song of a draft and of a take
+	if got := arr(list("&draft_id=" + str(draftSong["draft_id"]))["items"]); len(got) != 1 || m(got[0])["id"] != draftSong["id"] {
+		t.Errorf("draft_id: %v", got)
+	}
+	if got := arr(list("&track_id=" + str(renderedSong["root_track_id"]))["items"]); len(got) != 1 || m(got[0])["id"] != renderedSong["id"] {
+		t.Errorf("track_id: %v", got)
+	}
+	if got := arr(list("&draft_id=nope")["items"]); len(got) != 0 {
+		t.Errorf("unknown draft_id: %v", got)
+	}
+	// booleans: both polarities partition the list
+	for _, f := range []string{"has_pick", "queued", "has_open_proposals", "tempo_mismatch"} {
+		yes, no := list("&" + f + "=true")["total"].(float64), list("&" + f + "=false")["total"].(float64)
+		if yes+no != total {
+			t.Errorf("%s: %v + %v != %v", f, yes, no, total)
+		}
+	}
+	nm, mu := list("&no_muse=true"), list("&muse_id="+str(renderedSong["muse_id"]))
+	for _, it := range arr(nm["items"]) {
+		if m(it)["muse_id"] != nil {
+			t.Errorf("no_muse listed a Song with a Muse: %v", m(it)["id"])
+		}
+	}
+	if renderedSong["muse_id"] != nil {
+		for _, it := range arr(mu["items"]) {
+			if m(it)["muse_id"] != renderedSong["muse_id"] {
+				t.Errorf("muse_id listed %v", m(it)["muse_id"])
+			}
+		}
+	}
+	if q := list("&q=" + url.QueryEscape(strings.ToUpper(str(renderedSong["title"])))); q["total"].(float64) < 1 {
+		t.Errorf("q is case-insensitive over the title: %v", q["total"])
+	}
+	if resp := agent.Do(t, "GET", "/api/songs?state=bogus", nil); resp.Status != 422 {
+		t.Errorf("unknown state: %d", resp.Status)
+	}
+	if resp := agent.Do(t, "GET", "/api/songs?queued=maybe", nil); resp.Status != 422 {
+		t.Errorf("non-boolean queued: %d", resp.Status)
+	}
+	if resp := agent.Do(t, "GET", "/api/songs?sound=colour:red", nil); resp.Status != 422 {
+		t.Errorf("unknown facet: %d", resp.Status)
+	}
+	// search_sounds embeds the same SongFilterIn (its handler is L1-B6's): a bad value is refused by the binding
+	// (422) before the handler runs, which only happens when the parameter is bound
+	if resp := agent.Do(t, "GET", "/api/sounds/search?state=bogus", nil); resp.Status != 422 {
+		t.Errorf("search_sounds state binding: %d", resp.Status)
+	}
+
+	// MCP: the same arguments reach the same filters
+	sess := r.MCP(t, auth.ScopeRead)
+	call := func(tool string, args map[string]any) map[string]any {
+		t.Helper()
+		params := &mcp.CallToolParams{Name: tool, Arguments: args}
+		if tool == "list_songs" { // a generic operation (D-L1-20): reached through call_operation
+			params = &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": tool, "arguments": args}}
+		}
+		res, err := sess.CallTool(context.Background(), params)
+		if err != nil || res.IsError {
+			t.Fatalf("%s %v: %v %+v", tool, args, err, res)
+		}
+		var v map[string]any
+		if err := json.Unmarshal([]byte(res.Content[0].(*mcp.TextContent).Text), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if v := call("list_songs", map[string]any{"state": []string{"draft"}, "limit": 100}); v["total"] != list("&state=draft")["total"] {
+		t.Errorf("MCP list_songs state: %v", v["total"])
+	}
+	if v := call("list_songs", map[string]any{"draft_id": draftSong["draft_id"]}); len(arr(v["items"])) != 1 {
+		t.Errorf("MCP list_songs draft_id: %v", v)
+	}
+	if v := call("list_songs", map[string]any{"has_pick": true, "limit": 100}); v["total"] != list("&has_pick=true")["total"] {
+		t.Errorf("MCP list_songs has_pick: %v", v["total"])
+	}
+}
+
+// trackAmendments covers C98 over REST: song_id/is_pick on the summaries, the song of a detail, the search filters
+// and get_stats.library_model.
+func trackAmendments(t *testing.T, r *servertest.Rig) {
+	agent, _ := r.Agent(t, auth.ScopeRead)
+	songsPage := m(agent.OK(t, "GET", "/api/songs?limit=100", nil))
+	// the Pick rows come from the picks step of the Reconciler (L1-B7); until it joins, write one as the world helper does
+	for _, it := range arr(songsPage["items"]) {
+		if row := m(it); row["pick"] == nil && row["root_track_id"] != nil && row["state"] != "draft" {
+			songstest.Over(t, r.Store).Pick(str(row["id"]), str(row["root_track_id"]), "ladder")
+			break
+		}
+	}
+	r.Settle(t)
+	songsPage = m(agent.OK(t, "GET", "/api/songs?limit=100", nil))
+	var song map[string]any
+	for _, it := range arr(songsPage["items"]) {
+		if m(it)["pick"] != nil {
+			song = m(it)
+			break
+		}
+	}
+	if song == nil {
+		t.Fatal("the mirror must hold a Song with a Pick")
+	}
+	pickTake := str(m(song["pick"])["take_id"])
+	page := m(agent.OK(t, "GET", "/api/tracks?limit=100&song_id="+str(song["id"]), nil))
+	if len(arr(page["items"])) == 0 {
+		t.Fatalf("song_id filter: %v", page)
+	}
+	picks := 0
+	for _, it := range arr(page["items"]) {
+		row := m(it)
+		if row["song_id"] != song["id"] {
+			t.Errorf("take %v: song_id %v", row["id"], row["song_id"])
+		}
+		if row["is_pick"] == true {
+			picks++
+			if row["id"] != pickTake {
+				t.Errorf("is_pick on %v, the Pick is %v", row["id"], pickTake)
+			}
+		}
+	}
+	if picks != 1 {
+		t.Errorf("%d picks in the Song", picks)
+	}
+	only := m(agent.OK(t, "GET", "/api/tracks?limit=100&is_pick=true", nil))
+	if len(arr(only["items"])) == 0 {
+		t.Error("is_pick=true is empty")
+	}
+	for _, it := range arr(only["items"]) {
+		if m(it)["is_pick"] != true {
+			t.Errorf("is_pick=true listed %v", m(it)["id"])
+		}
+	}
+	d := m(agent.OK(t, "GET", "/api/tracks/"+pickTake, nil))
+	sg := m(d["song"])
+	if sg["id"] != song["id"] || sg["title"] != song["title"] || sg["pick_source"] != m(song["pick"])["source"] {
+		t.Errorf("track detail song: %v vs %v", sg, song)
+	}
+	for _, k := range []string{"angle", "muse_id"} {
+		if _, ok := sg[k]; !ok {
+			t.Errorf("detail song lacks %q", k)
+		}
+	}
+	sess := arr(m(agent.OK(t, "GET", "/api/sessions?limit=50", nil))["items"])
+	if len(sess) > 0 {
+		if got := m(agent.OK(t, "GET", "/api/tracks?limit=100&session_id="+str(m(sess[0])["id"]), nil)); got["total"] == nil {
+			t.Errorf("session_id filter: %v", got)
+		}
+	}
+
+	// /context carries the Song, Muse and Sounds sections after track
+	c := m(agent.OK(t, "GET", "/api/tracks/"+pickTake+"/context", nil))
+	cs := m(c["song"])
+	if cs["id"] != song["id"] || m(cs["pick"])["is_this"] != true || cs["siblings"] == nil || c["sounds"] == nil {
+		t.Errorf("context song: %v", c)
+	}
+	for _, sib := range arr(cs["siblings"]) {
+		if m(sib)["id"] == pickTake {
+			t.Error("the take is its own sibling")
+		}
+	}
+	if song["muse_id"] != nil {
+		if mu := m(c["muse"]); mu["id"] != song["muse_id"] {
+			t.Errorf("context muse: %v", mu)
+		}
+	}
+
+	// get_stats.library_model
+	st := m(agent.OK(t, "GET", "/api/stats", nil))
+	lm := m(st["library_model"])
+	sc := m(lm["songs"])
+	sum := sc["draft"].(float64) + sc["rendered"].(float64) + sc["judged"].(float64) + sc["picked"].(float64)
+	if sc["total"] != sum || sc["total"].(float64) < 1 || lm["muses"].(float64) < 1 || lm["sessions"] == nil || lm["taxonomy_version"] == nil || lm["pending"] != float64(0) {
+		t.Errorf("library_model: %v", lm)
 	}
 }

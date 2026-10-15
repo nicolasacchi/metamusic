@@ -183,12 +183,12 @@ func songStates(in []string) []songs.State {
 }
 
 // songFilter builds the Song filter of list_songs from its inputs (the facet selections are validated here).
-func songFilter(in songFilterIn) (songs.ListFilter, error) {
+func songFilter(in SongFilterIn) (songs.ListFilter, error) {
 	sounds, err := songs.ParseSoundFilters(in.Sound)
 	if err != nil {
 		return songs.ListFilter{}, err
 	}
-	return songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, States: songStates(in.State), Queued: in.Queued, SessionID: in.SessionID,
-		Sounds: sounds, DraftID: in.DraftID, TrackID: in.TrackID, HasOpenProposals: in.HasOpenProposals, TempoMismatch: in.TempoMismatch, Q: in.Q,
-		HasPick: in.HasPick, IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived}, nil
+	return songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, States: songStates(in.State), Queued: in.Queued.ptr(), SessionID: in.SessionID,
+		Sounds: sounds, DraftID: in.DraftID, TrackID: in.TrackID, HasOpenProposals: in.HasOpenProposals.ptr(), TempoMismatch: in.TempoMismatch.ptr(), Q: in.Q,
+		HasPick: in.HasPick.ptr(), IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived}, nil
 }

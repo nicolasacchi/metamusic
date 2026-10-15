@@ -219,6 +219,11 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 
 	l1 := buildL1(st, now, newID, ds, o.L1)
+	ctxb.UseLibrary(libraryReader{l1.SongView})
+	lib.UseMuseCounter(func(ctx context.Context) (int, error) {
+		p, err := l1.Muses.List(ctx, muses.ListFilter{Limit: 1})
+		return p.Total, err
+	})
 
 	s := &Services{
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,

@@ -46,3 +46,8 @@ func (DraftSource) Schema(r huma.Registry) *huma.Schema { return nullableObject[
 
 // Schema implements huma.SchemaProvider.
 func (RatingRow) Schema(r huma.Registry) *huma.Schema { return nullableObject[ratingRowShape](r) }
+
+type trackSongShape TrackSong
+
+// Schema implements huma.SchemaProvider: TrackDetail.song is null before the Song exists.
+func (TrackSong) Schema(r huma.Registry) *huma.Schema { return nullableObject[trackSongShape](r) }

@@ -42,7 +42,11 @@ func init() {
 }
 
 // l1Tools are the first-class L1 tools (D-L1-20).
-var l1Tools = []string{"list_muses", "get_muse", "create_muse", "list_songs", "get_song", "propose_pick", "search_sounds"}
+//
+// list_songs was demoted to generic by L1-B5 (D-L1-20, the first step of the demotion order): binding its 14 filters
+// over REST and MCP added ~810 bytes to it and to search_sounds, taking the seven tools from 15 285 to 16 905 compact
+// bytes, over the 16 000 rule. It stays fully reachable through call_operation with the same arguments.
+var l1Tools = []string{"list_muses", "get_muse", "create_muse", "get_song", "propose_pick", "search_sounds"}
 
 // TestParity_L1Cases: a case exists for each of the 16 ops with an MCP face, and for no other (the runner itself fails
 // on a missing case by name, TestParityEveryOperation).
@@ -63,7 +67,7 @@ func TestParity_L1Cases(t *testing.T) {
 	}
 }
 
-// TestToolsList_L1Budget: the seven first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
+// TestToolsList_L1Budget: the first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
 // M2b/M3 rule); the demotion order list_songs, search_sounds, create_muse, get_muse applies otherwise. It prints the
 // measurement.
 func TestToolsList_L1Budget(t *testing.T) {

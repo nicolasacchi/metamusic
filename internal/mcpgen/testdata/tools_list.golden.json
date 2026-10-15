@@ -1491,6 +1491,9 @@
                       "null"
                     ]
                   },
+                  "is_pick": {
+                    "type": "boolean"
+                  },
                   "lossy": {
                     "type": "boolean"
                   },
@@ -1522,6 +1525,12 @@
                   "seed": {
                     "format": "int64",
                     "type": "integer"
+                  },
+                  "song_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "stars": {
                     "format": "int64",
@@ -3147,7 +3156,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
+    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Reference metadata is returned in full to the operator; agents see the source title and artist (the text the draft's Muse carries) and has_reference.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4959,6 +4968,52 @@
           },
           "type": "object"
         },
+        "library_model": {
+          "properties": {
+            "muses": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "pending": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sessions": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "songs": {
+              "properties": {
+                "draft": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "judged": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "picked": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "rendered": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "total": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "taxonomy_version": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
         "loudness": {
           "properties": {
             "integrated_lufs_max": {
@@ -5722,6 +5777,38 @@
         "slug": {
           "type": "string"
         },
+        "song": {
+          "properties": {
+            "angle": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "muse_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pick_source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "status": {
           "type": "string"
         },
@@ -6368,6 +6455,12 @@
         "listening": {
           "type": "object"
         },
+        "muse": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "next_actions": {
           "items": {
             "type": "string"
@@ -6384,6 +6477,18 @@
           "type": "object"
         },
         "score": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "song": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sounds": {
           "type": [
             "object",
             "null"
@@ -7066,131 +7171,6 @@
             "type": "object"
           },
           "type": "array"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
-    "annotations": {
-      "idempotentHint": true,
-      "openWorldHint": false,
-      "readOnlyHint": true
-    },
-    "description": "List Songs\n\nSongs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "default": 50,
-          "format": "int64",
-          "maximum": 100,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "type": "object"
-    },
-    "name": "list_songs",
-    "outputSchema": {
-      "properties": {
-        "items": {
-          "items": {
-            "properties": {
-              "angle": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "draft_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "hidden": {
-                "type": "boolean"
-              },
-              "id": {
-                "type": "string"
-              },
-              "muse_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "open_proposals": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "pick": {
-                "properties": {
-                  "source": {
-                    "enum": [
-                      "pinned",
-                      "ladder",
-                      "stars",
-                      "newest"
-                    ],
-                    "type": "string"
-                  },
-                  "take_id": {
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              },
-              "queued_jobs": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "root_track_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "state": {
-                "enum": [
-                  "draft",
-                  "rendered",
-                  "judged",
-                  "picked"
-                ],
-                "type": "string"
-              },
-              "takes": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "title": {
-                "type": "string"
-              },
-              "updated_at": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "next_cursor": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "total": {
-          "format": "int64",
-          "type": "integer"
         }
       },
       "type": "object"
@@ -7912,8 +7892,27 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "angle": {
+          "type": "string"
+        },
         "cursor": {
           "type": "string"
+        },
+        "draft_id": {
+          "description": "The single Song of this draft",
+          "type": "string"
+        },
+        "has_open_proposals": {
+          "type": "boolean"
+        },
+        "has_pick": {
+          "type": "boolean"
+        },
+        "include_archived": {
+          "type": "boolean"
+        },
+        "include_hidden": {
+          "type": "boolean"
         },
         "limit": {
           "default": 50,
@@ -7922,6 +7921,50 @@
           "maximum": 100,
           "minimum": 0,
           "type": "integer"
+        },
+        "muse_id": {
+          "type": "string"
+        },
+        "no_muse": {
+          "type": "boolean"
+        },
+        "q": {
+          "description": "Case-insensitive substring of the Song title",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "queued": {
+          "type": "boolean"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sound": {
+          "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "state": {
+          "items": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tempo_mismatch": {
+          "type": "boolean"
+        },
+        "track_id": {
+          "description": "The single Song of this take",
+          "type": "string"
         }
       },
       "type": "object"
@@ -8044,7 +8087,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -8056,6 +8099,10 @@
           "type": "boolean"
         },
         "has_score": {
+          "type": "boolean"
+        },
+        "is_pick": {
+          "description": "true lists only the takes that are their Song's current Pick; false only the others",
           "type": "boolean"
         },
         "limit": {
@@ -8104,6 +8151,14 @@
           "type": "string"
         },
         "root_track_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "description": "Only takes in this Session (derived membership)",
+          "type": "string"
+        },
+        "song_id": {
+          "description": "Only takes of this Song",
           "type": "string"
         },
         "sort": {
@@ -8226,6 +8281,9 @@
                   "null"
                 ]
               },
+              "is_pick": {
+                "type": "boolean"
+              },
               "lossy": {
                 "type": "boolean"
               },
@@ -8257,6 +8315,12 @@
               "seed": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "song_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "stars": {
                 "format": "int64",

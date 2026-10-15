@@ -16,12 +16,12 @@ func registerSongsL1(a huma.API, d Deps) {
 		OperationID: "list_songs", Method: "GET", Path: "/api/songs",
 		Summary:     "List Songs",
 		Description: "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "none:agent-face (the Sound browser lists Songs through search_sounds)"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "none:agent-face (the Sound browser lists Songs through search_sounds)"},
 		func(ctx context.Context, in *listSongsIn) (*songsOut, error) {
 			if d.Songs == nil {
 				return nil, unavailable("songs")
 			}
-			f, err := songFilter(in.songFilterIn)
+			f, err := songFilter(in.SongFilterIn)
 			if err != nil {
 				return nil, m2bErr(err, "L1-B5")
 			}
