@@ -42,4 +42,20 @@ chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.dige
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'
 chk "make gate runs actions-pinned.sh" 'grep -q "actions-pinned.sh" "$root/Makefile"'
 chk "make canary only prints" 'r=$(awk "/^canary:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile"); grep -q "echo" <<<"$r" && ! grep -Eq "go run|bin/metamusic|docker" <<<"$r"'
+
+# L1-I1 (C101.3): the L1 packages land in the fast tier (not the media list), the weekly long property run exists,
+# the docs sections exist and every relative link in docs/*.md resolves.
+fast_pkgs=$(cd "$root" && bash -c 'media=$(sed -n "/^media=(/,/^)/p" scripts/ci-go-test.sh); for p in picks provenance muses songs sessions sounds board textfold perftest; do if grep -q "internal/$p\b" <<<"$media"; then echo "$p"; fi; done')
+chk "L1 packages are not in the media tier list" '[ -z "$fast_pkgs" ]'
+chk "L1 tempo/ffmpeg and acceptance stay in the media tier" 'grep -q "./internal/analysis/ffmpeg" "$root/scripts/ci-go-test.sh" && grep -q "./internal/acceptance" "$root/scripts/ci-go-test.sh"'
+chk "weekly.yml has provenance-property with MM_PROPERTY_SEQS=300" 'awk "/^  provenance-property:/{f=1;next} /^  [a-z]/{f=0} f" "$wf/weekly.yml" | grep -q "MM_PROPERTY_SEQS: \"300\"" && grep -q "TestProperty_.* ./internal/provenance" "$wf/weekly.yml"'
+chk "architecture.md has Library model" 'grep -q "^## Library model" "$root/docs/architecture.md"'
+for h in "Reconcile and verify" "Taxonomy edits" "After a restore"; do
+  chk "runbook.md has $h" 'grep -q "^## $h" "$root/docs/runbook.md"'
+done
+chk "device-checklist has DC-L1-1 and DC-L1-2" 'grep -q "DC-L1-1" "$root/docs/device-checklist.md" && grep -q "DC-L1-2" "$root/docs/device-checklist.md"'
+chk "docs relative links resolve" '"$root/scripts/docs-links.sh"'
+mkdir -p "$tmp/docs-bad"
+printf "[x](missing.md)\n" >"$tmp/docs-bad/a.md"
+chk "docs-links refuses a dangling link" '! "$root/scripts/docs-links.sh" "$tmp/docs-bad" >/dev/null 2>&1'
 exit $fail
