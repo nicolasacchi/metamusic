@@ -374,3 +374,127 @@ func TestReconciler_RunningPastReservationTrips(t *testing.T) {
 }
 
 func (r *rig) tripCount() int { return r.count(`SELECT COUNT(*) FROM provider_trips`) }
+
+// C76.3 cold start: a RUNNING worker with no job evidence is a container that is being created and started
+// (create + start + imports + SDK fitness checks can take minutes) while one of our attempts is submitted and
+// still queued remotely, within ColdStartS + 60 s of its submission.
+func TestReconciler_QueuedAttemptIsColdStartEvidence(t *testing.T) {
+	t.Parallel()
+	const window = (180 + 60) * time.Second
+	// seed submits one attempt per job and sets the remote status of each ("" keeps it unobserved).
+	seed := func(r *rig, remote ...string) {
+		b := r.seedBatch(batchSpec{})
+		_ = b
+		r.step()
+		r.exec(`UPDATE job_attempts SET remote_status = NULL`)
+		for i, rs := range remote {
+			if rs != "" {
+				r.exec(`UPDATE job_attempts SET remote_status = ?, last_queued_at = submitted_at WHERE n = 1 AND rowid = (SELECT rowid FROM job_attempts ORDER BY rowid LIMIT 1 OFFSET ?)`, rs, i)
+			}
+		}
+	}
+	for _, remote := range []string{"", "Queued"} {
+		t.Run("replay no trip then in progress, remote="+remote, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			seed(r, remote)
+			rec := r.recon()
+			r.sweepHealth(healthRunning1, 1)
+			r.passesFor(rec, 2*time.Minute+14*time.Second)
+			if n := r.tripCount(); n != 0 {
+				t.Fatalf("a queued attempt inside the cold-start window tripped (%d)", n)
+			}
+			r.exec(`UPDATE job_attempts SET remote_status = 'Running', in_progress_seen = 1`)
+			r.sweepHealth(provider.Health{Running: 1, InProgress: 1}, 1)
+			r.passesFor(rec, 5*time.Minute)
+			// (a job that runs past the small test reservation may trip the meter; stuck_running must not fire)
+			if got := r.openTripReason(); got == TripStuckRunning {
+				t.Fatalf("running job tripped %q", got)
+			}
+		})
+	}
+	t.Run("trips at the window end", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		seed(r, "Queued")
+		rec := r.recon()
+		r.sweepHealth(healthRunning1, 1)
+		r.mustPass(rec)
+		r.advance(window - 5*time.Second)
+		r.mustPass(rec)
+		if n := r.tripCount(); n != 0 {
+			t.Fatal("tripped inside the window")
+		}
+		r.advance(10 * time.Second)
+		r.mustPass(rec)
+		if got := r.openTripReason(); got != TripStuckRunning {
+			t.Fatalf("trip %q, want stuck_running at the window end", got)
+		}
+		var d string
+		if err := r.st.R.QueryRowContext(t.Context(), `SELECT details_json FROM provider_trips`).Scan(&d); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{`"running":1`, `"with_evidence":0`, `"cold_start_window_s":240`} {
+			if !strings.Contains(d, want) {
+				t.Errorf("details %s lack %s", d, want)
+			}
+		}
+	})
+	t.Run("a worker seen after the window still gets the 2 minute rule", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		seed(r, "Queued")
+		rec := r.recon()
+		r.advance(window + time.Minute)
+		r.sweepHealth(healthRunning1, 1)
+		r.mustPass(rec)
+		r.advance(time.Minute)
+		r.mustPass(rec)
+		if r.tripCount() != 0 {
+			t.Fatal("tripped before 2 minutes")
+		}
+		r.advance(time.Minute + time.Second)
+		r.mustPass(rec)
+		if got := r.openTripReason(); got != TripStuckRunning {
+			t.Fatalf("trip %q", got)
+		}
+	})
+	t.Run("no live attempt trips after 2 minutes", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		r.seedBatch(batchSpec{}) // queued job, never submitted
+		rec := r.recon()
+		r.sweepHealth(healthRunning1, 1)
+		r.passesFor(rec, 2*time.Minute+time.Second)
+		if got := r.openTripReason(); got != TripStuckRunning {
+			t.Fatalf("trip %q", got)
+		}
+	})
+	t.Run("one queued attempt justifies one booting worker only", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		seed(r, "Queued")
+		rec := r.recon()
+		r.sweepHealth(provider.Health{Running: 2}, 2)
+		r.passesFor(rec, 2*time.Minute+time.Second)
+		if got := r.openTripReason(); got != TripStuckRunning {
+			t.Fatalf("trip %q with 2 workers for 1 queued attempt", got)
+		}
+	})
+	t.Run("two queued attempts justify two booting workers", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		r.seedBatch(batchSpec{})
+		r.seedBatch(batchSpec{})
+		r.steps(2)
+		if n := r.count(`SELECT COUNT(*) FROM job_attempts`); n != 2 {
+			t.Skipf("rig submitted %d attempts", n)
+		}
+		rec := r.recon()
+		r.sweepHealth(provider.Health{Running: 2}, 2)
+		r.passesFor(rec, 3*time.Minute)
+		if n := r.tripCount(); n != 0 {
+			t.Fatalf("tripped (%d)", n)
+		}
+	})
+}
