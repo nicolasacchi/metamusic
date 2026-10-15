@@ -3,6 +3,7 @@ package subsonic
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -445,3 +446,69 @@ func yearOf(recorded string) int {
 }
 
 func round2(v float64) float64 { return math.Round(v*100) / 100 }
+
+// mediaSHAs returns the master's sha256 and the mp3_320 rendition's sha256 (invalid when there is none) of a track.
+func (c *catalog) mediaSHAs(ctx context.Context, id string) (master string, mp3 sql.NullString, err error) {
+	err = c.db.QueryRowContext(ctx, `SELECT t.master_sha256, (SELECT n.sha256 FROM renditions n WHERE n.track_id = t.id AND n.kind = 'mp3_320')
+ FROM tracks t WHERE t.id = ?`, id).Scan(&master, &mp3)
+	return master, mp3, err
+}
+
+// lyricsOf returns the lyrics text of a track's recipe ("" when it has none).
+func (c *catalog) lyricsOf(ctx context.Context, trackID string) (string, error) {
+	var l string
+	err := c.db.QueryRowContext(ctx, `SELECT r.lyrics FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, trackID).Scan(&l)
+	return l, err
+}
+
+// playlistRow is one playlist as the Subsonic catalog sees it.
+type playlistRow struct {
+	ID, Name, Desc, Created, Changed string
+	Revision                         int
+	Items                            []string
+	Role                             sql.NullString
+	Hidden                           bool
+	DurationS                        float64
+}
+
+const playlistSelect = `SELECT p.id, p.name, p.description, p.created_at, p.updated_at, p.revision, p.items_json, p.role, p.hidden_at IS NOT NULL,
+ COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value), 0) FROM playlists p`
+
+func scanPlaylist(rows interface{ Scan(...any) error }) (playlistRow, error) {
+	var p playlistRow
+	var items string
+	if err := rows.Scan(&p.ID, &p.Name, &p.Desc, &p.Created, &p.Changed, &p.Revision, &items, &p.Role, &p.Hidden, &p.DurationS); err != nil {
+		return p, err
+	}
+	if err := json.Unmarshal([]byte(items), &p.Items); err != nil {
+		return p, fmt.Errorf("subsonic: stored playlist items: %w", err)
+	}
+	return p, nil
+}
+
+// playlists lists the non-hidden playlists plus the offline set (which is listed even when a direct edit hid it).
+func (c *catalog) playlists(ctx context.Context) ([]playlistRow, error) {
+	rows, err := c.db.QueryContext(ctx, playlistSelect+` WHERE p.hidden_at IS NULL OR p.role IS NOT NULL ORDER BY p.updated_at DESC, p.id DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("subsonic: playlists: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []playlistRow
+	for rows.Next() {
+		p, err := scanPlaylist(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// playlist returns one playlist by id; a hidden playlist other than the offline set does not exist for the bridge.
+func (c *catalog) playlist(ctx context.Context, id string) (playlistRow, bool, error) {
+	p, err := scanPlaylist(c.db.QueryRowContext(ctx, playlistSelect+` WHERE p.id = ? AND (p.hidden_at IS NULL OR p.role IS NOT NULL)`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return playlistRow{}, false, nil
+	}
+	return p, err == nil, err
+}

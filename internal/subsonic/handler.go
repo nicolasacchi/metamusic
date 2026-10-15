@@ -95,6 +95,15 @@ type server struct {
 	sleeper chan struct{}
 	cat     *catalog // nil => catalog endpoints answer error 0 "service unavailable"
 	rand    func() uint64
+	// S3 collaborators: interfaces over the Options services so lane tests can inject fakes; nil => the endpoints
+	// that need them answer error 0 "service unavailable".
+	judg    judger
+	listen  listener
+	plist   playlister
+	resolve mediaResolver
+	covers  CoverSource
+	dls     DownloadSource
+	play    *playState
 }
 
 // NewHandler returns the handler mounted by httpserver at /rest/.
@@ -127,10 +136,36 @@ func newServer(o Options) *server {
 	if s.rand == nil {
 		s.rand = rand.Uint64
 	}
+	s.play = newPlayState()
+	if o.Judgments != nil {
+		s.judg = o.Judgments
+	}
+	if o.Listening != nil {
+		s.listen = o.Listening
+	}
+	if o.Playlists != nil {
+		s.plist = o.Playlists
+	}
+	if o.Lib != nil {
+		s.resolve = o.Lib
+	}
+	if o.Covers != nil {
+		s.covers = o.Covers
+	}
+	if o.Downloads != nil {
+		s.dls = o.Downloads
+	}
 	s.registerSystem()
 	s.registerBrowse()
 	s.registerLists()
 	s.registerSearch()
+	s.registerMedia()
+	s.registerAnnotate()
+	s.registerListens()
+	s.registerBookmarks()
+	s.registerPlayQueue()
+	s.registerPlaylists()
+	s.registerLyrics()
 	s.registerStubs()
 	return s
 }

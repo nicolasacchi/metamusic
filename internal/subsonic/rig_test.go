@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -112,16 +113,20 @@ var testKey = []byte("0123456789abcdef0123456789abcdef")
 type rigOpts struct {
 	limits    ratelimit.Config // nil => unlimited
 	failDelay time.Duration
+	st        *store.Store // use this store instead of an empty one (archive tests)
+	data      *os.Root     // Options.Data
 }
 
 func newRig(t *testing.T, ro rigOpts) *rig {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "mm.db"))
-	if err != nil {
-		t.Fatal(err)
+	st, err := ro.st, error(nil)
+	if st == nil {
+		if st, err = store.Open(ctx, filepath.Join(t.TempDir(), "mm.db")); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = st.Close() })
 	}
-	t.Cleanup(func() { _ = st.Close() })
 	clk := &clock{t: time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)}
 	var n atomic.Int64
 	newID := func() string { return fmt.Sprintf("01900000-0000-7000-8000-%012x", n.Add(1)) }
@@ -138,7 +143,7 @@ func newRig(t *testing.T, ro rigOpts) *rig {
 	r.auditStore = audit.NewStore(st, newID)
 	r.srv = newServer(Options{
 		Cfg:     config.Config{TrustedProxies: nil},
-		Version: "test", Store: st, Creds: creds, Audit: r.auditStore, Limiter: r.lim, Now: clk.now,
+		Version: "test", Store: st, Data: ro.data, Creds: creds, Audit: r.auditStore, Limiter: r.lim, Now: clk.now,
 		FailDelay: ro.failDelay, Sleep: r.sleeps.sleep,
 	})
 	r.srv.log = slog.New(slog.NewJSONHandler(r.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))

@@ -37,7 +37,8 @@ type Response struct {
 	User                   *User           `json:"user,omitempty" xml:"user,omitempty"`
 	MusicFolders           *MusicFolders   `json:"musicFolders,omitempty" xml:"musicFolders,omitempty"`
 
-	catalogPayload // catalog, browsing, lists and search (S2)
+	catalogPayload    // catalog, browsing, lists and search (S2)
+	annotationPayload // playlists, bookmarks, play queue and lyrics (S3)
 }
 
 // License is the answer of getLicense.
