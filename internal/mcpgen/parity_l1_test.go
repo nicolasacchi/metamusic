@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
 // l1Cases covers the 16 L1 operations that have an MCP face (7 tools, 9 generic); pin_pick and dismiss_pick_proposal
@@ -25,14 +26,31 @@ var l1Cases = []ParityCase{
 	{Op: "list_songs", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
 	{Op: "update_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
-	{Op: "propose_pick", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "take_id": lt.TrackCitta, "rationale": "parity"})},
-	{Op: "list_pick_events", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "propose_pick", Args: proposeArgs, Masks: []string{"id", "song_id", "proposed_by"}}, // ids come from each rig's own sequence
+	{Op: "list_pick_events", Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "list_sessions", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "update_session", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
 	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
 	{Op: "get_muse_board", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+}
+
+// proposeArgs proposes the non-Pick take of the first Song with two live takes in the rig's base fixture (the Reconciler
+// builds the Songs structurally; the Pick of a settled Song is its newest take, so the oldest is proposed). The rigs are
+// identical, so the three faces see the same ids.
+func proposeArgs(r *servertest.Rig, _ map[string]any) map[string]any {
+	if _, err := r.Provenance.Settle(context.Background()); err != nil {
+		panic(err)
+	}
+	var song, take string
+	err := r.Store.R.QueryRow(`SELECT ts.song_id, (SELECT t.id FROM take_songs x JOIN tracks t ON t.id = x.track_id WHERE x.song_id = ts.song_id
+		AND t.status <> 'discarded' ORDER BY t.recorded_at LIMIT 1)
+		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE t.status <> 'discarded' GROUP BY ts.song_id HAVING COUNT(*) >= 2 ORDER BY ts.song_id LIMIT 1`).Scan(&song, &take)
+	if err != nil {
+		panic(err)
+	}
+	return map[string]any{"id": song, "take_id": take, "rationale": "parity"}
 }
 
 func init() {
