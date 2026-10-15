@@ -34,12 +34,20 @@ const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
-const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
+// M4a (C117.6): service workers are blocked globally (`use.serviceWorkers`), so route mocks and request observations of the
+// M1-M3 specs stay intact; only m4a-offline and m4a-track allow them. Those two mutate the global offline set, so they are
+// their own serial phase (one project after the other, after phases 1 and 2): offline on chrome only, track on chrome and
+// the Pixel 7. m4a-human edits and restores a connector grant and joins phase 1 on desktop Chrome.
+const M4A_SERIAL = ["**/m4a-offline.spec.ts", "**/m4a-track.spec.ts"];
+const M4A_HUMAN = "**/m4a-human.spec.ts";
+const m4aIgnore = [...M4A_SERIAL, M4A_HUMAN];
+const mobileIgnore = [...m4aIgnore, ...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
 const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([]), AUTOADV];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), AUTOADV];
+const firefoxIgnore = [...m4aIgnore, ...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), AUTOADV];
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];
 const phase2 = ["listen-chrome", "listen-chrome-pixel7", "listen-chrome-iphone15", "listen-firefox"];
 const before3 = [...phase1, ...phase2];
+const m4aPhase = ["m4a-offline", "m4a-track-chrome", "m4a-track-pixel7"];
 const mobileM3 = [...ignoreM3(["variant", "jobs"]), AUTOADV];
 // M3 auto-advance: the refused-play, watchdog and queue specs run on desktop Chrome, the Pixel 7 and two Android-Firefox
 // profiles (Firefox user agent, phone viewport, touch); the other projects add nothing.
@@ -80,9 +88,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     extraHTTPHeaders: HEADERS,
     trace: "retain-on-failure",
+    serviceWorkers: "block",
   },
   projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([]), ...M4A_SERIAL] },
     { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
     { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
     { name: "firefox-android-strict", use: androidFirefox(2), testMatch: AUTOADV, grep: /strict autoplay/ },
@@ -94,10 +103,14 @@ export default defineConfig({
     { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
     { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
     { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
+    // M4a serial phase (see M4A_SERIAL above)
+    { name: "m4a-offline", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: "**/m4a-offline.spec.ts", dependencies: before3 },
+    { name: "m4a-track-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: "**/m4a-track.spec.ts", dependencies: [...before3, "m4a-offline"] },
+    { name: "m4a-track-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: "**/m4a-track.spec.ts", dependencies: [...before3, "m4a-offline", "m4a-track-chrome"] },
     // phase 3: the M3 specs (see M3 above)
     { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage"]), AUTOADV], dependencies: before3 },
     { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
     { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
-    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
+    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, ...m4aPhase, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
   ],
 });

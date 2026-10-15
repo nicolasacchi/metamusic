@@ -69,7 +69,8 @@ test("media session handlers and metadata", async ({ page, request }) => {
   });
   expect(meta?.title).toBe("Syn song 01 s1001");
   expect(meta?.artist).toBe("metamusic");
-  expect(meta?.artwork.join(",")).toContain("/icons/icon-512.png");
+  // C115: the cover art (512 and 1024), the app icon only for a track without a cover
+  expect(meta?.artwork.join(",")).toMatch(/\/media\/[0-9a-f]{64}\.png\?exp=/);
 });
 
 test.describe("session loss", () => {

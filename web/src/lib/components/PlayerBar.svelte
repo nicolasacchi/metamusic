@@ -22,7 +22,8 @@
   $effect(() => {
     const id = trackId;
     commenting = false;
-    if (!id || judge.get(id)) return;
+    // Offline there is no API to ask: the bar works without judging controls and a waveform.
+    if (!id || judge.get(id) || navigator.onLine === false) return;
     void (async () => {
       try {
         const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
@@ -44,6 +45,10 @@
   $effect(() => {
     const id = player.state.trackId;
     if (!id || id === peaksFor) return;
+    if (navigator.onLine === false) {
+      peaks = null;
+      return;
+    }
     peaksFor = id;
     peaks = null;
     void (async () => {

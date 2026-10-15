@@ -94,3 +94,28 @@ func TestCLI_SeedSynthetic_E2EM4a(t *testing.T) {
 		t.Errorf("an edited offline set was overwritten: %v", got.items)
 	}
 }
+
+// TestCLI_SeedSynthetic_E2EReferencesM4a: the e2e server is seeded with `--profile e2e --references` (the reference
+// profile overrides the profile name); the M4a rows must be there all the same.
+func TestCLI_SeedSynthetic_E2EReferencesM4a(t *testing.T) {
+	t.Parallel()
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	env := seedEnv(t)
+	if code, out, errs := do(t, env, "", "seed-synthetic", "--profile", "e2e", "--references"); code != 0 {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	if o := offlineSet(t, env); len(o.items) != 2 {
+		t.Errorf("offline set = %v, want 2 tracks", o.items)
+	}
+	if n := dbRow(t, env, `SELECT count(*) FROM connector_grants WHERE label='E2E Connector'`); n != 1 {
+		t.Errorf("connector grant rows = %d, want 1", n)
+	}
+	// the dev profile with references gets neither
+	devEnv := seedEnv(t)
+	if code, out, errs := do(t, devEnv, "", "seed-synthetic", "--profile", "dev", "--references"); code != 0 {
+		t.Fatalf("dev exit %d\n%s\n%s", code, out, errs)
+	}
+	if n := dbRow(t, devEnv, `SELECT count(*) FROM connector_grants`); n != 0 {
+		t.Errorf("dev profile seeded %d connector grants", n)
+	}
+}

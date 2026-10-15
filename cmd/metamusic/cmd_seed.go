@@ -28,6 +28,7 @@ type seedOpts struct {
 	seed    int64
 	force   bool // --force
 	viaDev  bool // invoked by `dev --seed-synthetic`
+	m4a     bool // --profile e2e: the M4a rows (offline set, connector grant), also when --references renames the profile
 	refs    bool // --references: the reference profile, imported with both reference flags (C66)
 }
 
@@ -50,7 +51,7 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	if err != nil {
 		return fatal(err)
 	}
-	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references}
+	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references, m4a: *profile == "e2e"}
 	if o.refs {
 		o.profile = synth.ProfileReference
 	}
@@ -91,7 +92,7 @@ func seedSynthetic(ctx context.Context, cfg config.Config, st *store.Store, o se
 	if err := seedLibrary(ctx, cfg, st, o, s); err != nil {
 		return err
 	}
-	if o.profile == synth.ProfileE2E {
+	if o.m4a || o.profile == synth.ProfileE2E {
 		return seedE2EM4a(ctx, cfg, st)
 	}
 	return nil

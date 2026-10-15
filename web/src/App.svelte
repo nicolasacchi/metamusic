@@ -77,7 +77,8 @@
       // Offline badge: the set is fetched (never downloaded) so the nav can show downloaded/total.
       if (offline.available) {
         void offline.refresh();
-        void offline.refreshSet();
+        // The set is fetched only when the network is believed to be up (an offline start touches no API).
+        if (navigator.onLine !== false) void offline.refreshSet();
       }
       return () => window.removeEventListener("mm:sw-registered", onReg);
     }),
