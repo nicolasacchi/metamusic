@@ -15,6 +15,7 @@
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
   import Backlog from "./routes/Backlog.svelte";
+  import Board from "./routes/Board.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
@@ -89,6 +90,8 @@
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
       <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/board" aria-current={["board", "muse", "song"].includes($router.route?.name ?? "") ? "page" : undefined}>Board</a>
+      <a href="/sounds" aria-current={$router.route?.name === "sounds" ? "page" : undefined}>Sounds</a>
       <a href="/duels" aria-current={$router.route?.name === "duels" || $router.route?.name === "duel" ? "page" : undefined}>Duels{#if duelBadge}<span class="badge" data-testid="duels-badge" aria-label="{duelBadge} open">{duelBadge}</span>{/if}</a>
       <a href="/ladder" aria-current={$router.route?.name === "ladder" ? "page" : undefined}>Ladder</a>
       <a href="/playlists" aria-current={$router.route?.name === "playlists" || $router.route?.name === "playlist" ? "page" : undefined}>Playlists</a>
@@ -112,6 +115,8 @@
       {/key}
     {:else if $router.route?.name === "backlog"}
       <Backlog search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "board"}
+      <Board search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "draft-new"}
       <DraftNew />
     {:else if $router.route?.name === "draft-upload"}
