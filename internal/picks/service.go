@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/ladder"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -17,7 +19,7 @@ type Ladder interface {
 	Strengths(ctx context.Context, ids []string) (map[string]ladder.Strength, float64, error)
 }
 
-// Service records and serves Picks (C91). The method set is frozen by L1-B2; the bodies are L1-B4's (STUB(L1-B4)).
+// Service records and serves Picks (C91). The method set is frozen by L1-B2.
 type Service struct {
 	st    *store.Store
 	l     Ladder
@@ -30,37 +32,56 @@ func New(st *store.Store, l Ladder, now func() time.Time, newID func() string) *
 	return &Service{st: st, l: l, now: now, newID: newID}
 }
 
-// RecomputeTx recomputes the Picks of the Songs inside the Reconciler's transaction (C91.5).
-func (s *Service) RecomputeTx(ctx context.Context, tx *sql.Tx, env Env, songIDs []string, st map[string]ladder.Strength) (Changes, error) {
-	return Changes{}, errors.ErrUnsupported // STUB(L1-B4)
+func notFound(songID string) error {
+	return problem.E(404, "NOT_FOUND", "song not found", map[string]any{"song_id": songID})
 }
 
-// Sweep recomputes every live Song with >= 2 eligible takes and >= 1 counted human verdict (C91.5).
-func (s *Service) Sweep(ctx context.Context) (Changes, error) {
-	return Changes{}, errors.ErrUnsupported // STUB(L1-B4)
+func humanOnly(hint string) error {
+	d := map[string]any{}
+	if hint != "" {
+		d["hint"] = hint
+	}
+	return problem.E(403, "HUMAN_ONLY", "only the operator can do this", d)
 }
 
-// Get reads the Pick of a Song (C91.4).
-func (s *Service) Get(ctx context.Context, songID string) (PickView, error) {
-	return PickView{}, errors.ErrUnsupported // STUB(L1-B4)
+// requireLiveSongTx is the C90.5 check: 404 for an unknown Song, 409 SONG_RETIRED for a retired one.
+func requireLiveSongTx(ctx context.Context, tx *sql.Tx, songID string) error {
+	var retired sql.NullString
+	err := tx.QueryRowContext(ctx, `SELECT retired_at FROM songs WHERE id = ?`, songID).Scan(&retired)
+	if errors.Is(err, sql.ErrNoRows) {
+		return notFound(songID)
+	}
+	if err != nil {
+		return fmt.Errorf("picks: song: %w", err)
+	}
+	if retired.Valid {
+		return problem.E(409, "SONG_RETIRED", "the song was merged into another", map[string]any{"song_id": songID})
+	}
+	return nil
 }
 
-// Pin pins or unpins (nil takeID) a take; humans and paired devices only (C91.6).
-func (s *Service) Pin(ctx context.Context, p auth.Principal, songID string, takeID, proposalID *string) (PinResult, error) {
-	return PinResult{}, errors.ErrUnsupported // STUB(L1-B4)
+// requireEligibleTakeTx checks that takeID is a take of the Song (422 TAKE_NOT_IN_SONG) and not discarded (422 TAKE_NOT_ELIGIBLE).
+func requireEligibleTakeTx(ctx context.Context, tx *sql.Tx, songID, takeID string) error {
+	var status string
+	err := tx.QueryRowContext(ctx, `SELECT t.status FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = ? AND ts.track_id = ?`, songID, takeID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return problem.E(422, "TAKE_NOT_IN_SONG", "the take does not belong to the song", map[string]any{"song_id": songID, "take_id": takeID})
+	}
+	if err != nil {
+		return fmt.Errorf("picks: take: %w", err)
+	}
+	if status == "discarded" {
+		return problem.E(422, "TAKE_NOT_ELIGIBLE", "the take is discarded", map[string]any{"take_id": takeID, "status": status})
+	}
+	return nil
 }
 
-// Propose records an agent's proposal (C91.7).
-func (s *Service) Propose(ctx context.Context, p auth.Principal, songID, takeID, rationale string) (Proposal, error) {
-	return Proposal{}, errors.ErrUnsupported // STUB(L1-B4)
-}
-
-// Dismiss closes an open proposal as dismissed; humans only (C91.7).
-func (s *Service) Dismiss(ctx context.Context, p auth.Principal, proposalID string) (Proposal, error) {
-	return Proposal{}, errors.ErrUnsupported // STUB(L1-B4)
-}
-
-// Events pages the pick-event feed by the integer cursor (C91.8).
-func (s *Service) Events(ctx context.Context, f EventFilter) (EventPage, error) {
-	return EventPage{}, errors.ErrUnsupported // STUB(L1-B4)
+// principalActor is the actor triple of a pin or unpin. The pick_events schema admits human, agent and system kinds
+// only, so a paired device is recorded as kind human with its own key; renderers derive "device" from the key prefix.
+func principalActor(p auth.Principal) actor {
+	kind := string(p.Kind)
+	if p.Kind == auth.KindDevice {
+		kind = string(auth.KindHuman)
+	}
+	return actor{Key: p.Key(), Kind: kind, Name: p.Name}
 }
