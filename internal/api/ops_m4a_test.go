@@ -229,6 +229,8 @@ var implementedM4a = map[string]bool{
 	"list_connector_grants": true, "set_connector_grant": true, // M4a-C2
 	"list_subsonic_clients": true, "create_subsonic_client": true, "revoke_subsonic_client": true, // M4a-S1
 	"get_download_link": true, // M4a-M
+	"get_offline_set": true, // M4a-agent
+	"get_prompt": true, // M4a-agent
 }
 
 // TestOps_AuthorizationM4a: the management ops need scope admin: a read+write agent, a paired device and an OAuth
@@ -245,6 +247,9 @@ func TestOps_AuthorizationM4a(t *testing.T) {
 	}
 	for name, p := range principals {
 		for _, w := range m4aOps {
+			if implementedM4a[w.id] { // runs against bare dependencies here; its lane tests the scope gate with real ones
+				continue
+			}
 			rec := r.callWith(p, w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
 			if w.scope == auth.ScopeAdmin {
 				if rec.Code != 403 {

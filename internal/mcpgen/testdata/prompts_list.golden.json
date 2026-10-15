@@ -1,0 +1,41 @@
+[
+  {
+    "arguments": [
+      {
+        "name": "track_id",
+        "description": "the take to review",
+        "required": true
+      }
+    ],
+    "description": "Review a take from its context bundle and record fixes as comments",
+    "name": "critique_track",
+    "title": "Critique a take"
+  },
+  {
+    "arguments": [
+      {
+        "name": "since",
+        "description": "RFC 3339 start; default 12 hours ago, at most 30 days"
+      }
+    ],
+    "description": "Summarise what the human listened to, finished and skipped",
+    "name": "session_review",
+    "title": "Review a listening session"
+  },
+  {
+    "arguments": [
+      {
+        "name": "track_id",
+        "description": "the take to vary",
+        "required": true
+      },
+      {
+        "name": "goal",
+        "description": "what the variant should achieve"
+      }
+    ],
+    "description": "Propose one bounded change to a take and save it as a draft",
+    "name": "write_variant",
+    "title": "Write a variant"
+  }
+]

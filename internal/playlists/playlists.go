@@ -27,6 +27,9 @@ const MaxItems = 1000
 // OfflineMaxItems is the most tracks the offline set holds (C102, C111).
 const OfflineMaxItems = 100
 
+// OfflineSetID is the fixed id of the protected offline-set playlist (migration, D-M4a-19).
+const OfflineSetID = "00000000-0000-7000-8000-0000000000f1"
+
 // Error is a client-visible failure with a stable code.
 type Error struct {
 	Status  int
@@ -224,9 +227,10 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Pl
 		curName  string
 		curDesc  string
 		hidden   sql.NullString
+		role     sql.NullString
 	)
-	err = tx.QueryRowContext(ctx, `SELECT revision, items_json, name, description, hidden_at FROM playlists WHERE id = ?`, id).
-		Scan(&cur, &itemsRaw, &curName, &curDesc, &hidden)
+	err = tx.QueryRowContext(ctx, `SELECT revision, items_json, name, description, hidden_at, role FROM playlists WHERE id = ?`, id).
+		Scan(&cur, &itemsRaw, &curName, &curDesc, &hidden, &role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Playlist{}, library.ErrNotFound
 	}
@@ -255,6 +259,16 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Pl
 	}
 	if len(items) > MaxItems {
 		return Playlist{}, invalid("add_track_ids", fmt.Sprintf("a playlist holds at most %d tracks", MaxItems))
+	}
+	if role.String == "offline" {
+		if in.Hidden != nil && *in.Hidden {
+			return Playlist{}, &Error{Status: http.StatusUnprocessableEntity, Code: "VALIDATION_FAILED", Msg: "the offline set cannot be hidden",
+				Details: map[string]any{"field": "hidden", "reason": "offline_set_cannot_be_hidden"}}
+		}
+		if len(items) > OfflineMaxItems {
+			return Playlist{}, &Error{Status: http.StatusUnprocessableEntity, Code: "OFFLINE_SET_TOO_LARGE", Msg: "the offline set holds at most 100 tracks",
+				Details: map[string]any{"items": len(items), "limit": OfflineMaxItems}}
+		}
 	}
 	if name == nil {
 		name = &curName
@@ -322,7 +336,7 @@ func (s *Service) List(ctx context.Context, includeHidden bool) ([]PlaylistSumma
 		COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value), 0), p.role
 		FROM playlists p`
 	if !includeHidden {
-		q += ` WHERE p.hidden_at IS NULL`
+		q += ` WHERE p.hidden_at IS NULL OR p.role = 'offline'`
 	}
 	rows, err := s.st.R.QueryContext(ctx, q+` ORDER BY p.updated_at DESC, p.id DESC`)
 	if err != nil {

@@ -1,0 +1,42 @@
+{
+  "Spec": {
+    "Name": "write_variant",
+    "Title": "Write a variant",
+    "Description": "Propose one bounded change to a take and save it as a draft",
+    "Version": "1",
+    "Args": [
+      {
+        "Name": "track_id",
+        "Description": "the take to vary",
+        "Required": true
+      },
+      {
+        "Name": "goal",
+        "Description": "what the variant should achieve",
+        "Required": false
+      }
+    ]
+  },
+  "Messages": [
+    {
+      "Role": "user",
+      "Content": {
+        "Type": "text",
+        "Text": "You are writing a variant of the take \"Synthetic Song\" (01900000-0000-7000-8000-000000000101) in the metamusic library.\n\nGoal: make the bridge calmer\n\nYou cannot hear audio; base your reasoning on the context bundle attached below.\n\nPropose exactly one bounded change: a lyric edit, a style or BPM edit, or new seeds. Check the resulting recipe with lint_recipe, then save it with create_draft (drafts are free).\n\nTo render it, call estimate_variant and show the estimate to the human. Spending needs create_variant with the confirmation token and may need the human's approval.",
+        "Resource": null
+      }
+    },
+    {
+      "Role": "user",
+      "Content": {
+        "Type": "resource",
+        "Text": "",
+        "Resource": {
+          "URI": "metamusic://tracks/01900000-0000-7000-8000-000000000101/context",
+          "MIMEType": "application/json",
+          "Text": "{\"track_id\":\"01900000-0000-7000-8000-000000000101\",\"perception\":{\"timed\":true,\"blind_spots\":[\"vocals\"]}}"
+        }
+      }
+    }
+  ]
+}
