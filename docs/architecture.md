@@ -141,3 +141,19 @@ appeared in any served response; no HAR files are recorded or uploaded. The rele
 a non-root user.
 
 See [plans/2026-10-12-roadmap.md](plans/2026-10-12-roadmap.md) for milestones.
+
+## Remote agents and mobile (M4a)
+
+- **Hosted connectors.** `/mcp` also accepts OAuth access tokens from an operator-configured OpenID Connect provider
+  (`MM_OIDC_ISSUER`). The app is only the resource server: it verifies RS256 JWTs (issuer, audience, expiry, scope
+  `metamusic`, trusted user) against the provider's keys and maps the client to a **connector grant** (agent
+  principal, scopes from the grant, optional budget limits). Management operations need scope `admin`, are audited and
+  pushed; the global spend cap stays human-only. See `docs/connectors.md`.
+- **Subsonic.** `/rest/` serves a Subsonic subset for native players with dedicated credentials (`mms_` API key or an
+  app password; device principal, never generate). Streams, downloads and covers go through the same media services as
+  the web player. See `docs/subsonic.md`.
+- **Tagged downloads and covers.** Downloads are the frozen master's audio frames with a freshly written tag block,
+  cached outside the masters; covers are derived from the seed or lineage.
+- **PWA offline.** A service worker (the network layer of the SPA) caches the app shell and an explicit offline set
+  of tracks; it never touches API, auth, MCP or Subsonic paths.
+- **MCP resources and prompts** are derived from the same registry as tools.
