@@ -181,7 +181,11 @@ func TestOps_StubsAnswer501L1(t *testing.T) {
 }
 
 // implementedL1 lists the operations a lane has taken over from their stub; each lane adds its ids here.
-var implementedL1 = map[string]bool{}
+var implementedL1 = map[string]bool{
+	// L1-B5 (Library)
+	"list_muses": true, "get_muse": true, "create_muse": true, "update_muse": true, "assign_muse_songs": true,
+	"list_songs": true, "get_song": true, "update_song": true, "list_sessions": true, "update_session": true, "get_muse_board": true,
+}
 
 func TestOps_NilDepsUnavailableL1(t *testing.T) {
 	t.Parallel()

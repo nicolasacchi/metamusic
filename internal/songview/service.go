@@ -4,10 +4,8 @@ package songview
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/ladder"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -121,7 +119,7 @@ type MuseSummary struct {
 	Coverage
 }
 
-// Service assembles views. The method set is frozen by L1-B2; the bodies are L1-B5's (STUB(L1-B5)).
+// Service assembles views (C90.8).
 type Service struct {
 	st       *store.Store
 	muses    *muses.Service
@@ -137,19 +135,4 @@ type Service struct {
 // New builds the Service (C90.8).
 func New(st *store.Store, m *muses.Service, so *songs.Service, se *sessions.Service, pi *picks.Service, sd *sounds.Service, l Ladder, f Flags, now func() time.Time) *Service {
 	return &Service{st: st, muses: m, songs: so, sessions: se, picks: pi, sounds: sd, ladder: l, flags: f, now: now}
-}
-
-// Get assembles the view of one Song (C90.6).
-func (s *Service) Get(ctx context.Context, p auth.Principal, id string, o GetOptions) (View, error) {
-	return View{}, errors.ErrUnsupported // STUB(L1-B5)
-}
-
-// MuseSummaries adds the coverage counts to a page of Muses with one grouped query.
-func (s *Service) MuseSummaries(ctx context.Context, ms []muses.Muse) ([]MuseSummary, error) {
-	return nil, errors.ErrUnsupported // STUB(L1-B5)
-}
-
-// MuseCoverage is the coverage of one Muse.
-func (s *Service) MuseCoverage(ctx context.Context, museID string) (Coverage, error) {
-	return Coverage{}, errors.ErrUnsupported // STUB(L1-B5)
 }

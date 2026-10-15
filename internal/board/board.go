@@ -3,8 +3,6 @@
 package board
 
 import (
-	"context"
-	"errors"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/muses"
@@ -28,57 +26,70 @@ type Query struct {
 
 // Column is one angle column.
 type Column struct {
-	Angle *string
-	Songs int
+	Angle *string `json:"angle"`
+	Songs int     `json:"songs"`
 }
 
 // Counts are the per-row or total state counts.
-type Counts struct{ Draft, Rendered, Judged, Picked, Queued int }
+type Counts struct {
+	Draft    int `json:"draft"`
+	Rendered int `json:"rendered"`
+	Judged   int `json:"judged"`
+	Picked   int `json:"picked"`
+	Queued   int `json:"queued"`
+}
 
 // Chip is one Song on the Board.
 type Chip struct {
-	ID, Title, State string
-	Takes            int
-	PickSource       *string
-	PickTakeID       *string
-	Queued           bool
-	DraftID          *string
-	TempoMismatch    bool
+	ID            string  `json:"id"`
+	Title         string  `json:"title"`
+	State         string  `json:"state"`
+	Takes         int     `json:"takes"`
+	PickSource    *string `json:"pick_source"`
+	PickTakeID    *string `json:"pick_take_id"`
+	Queued        bool    `json:"queued"`
+	DraftID       *string `json:"draft_id"`
+	TempoMismatch bool    `json:"tempo_mismatch"`
 }
 
 // Cell is one non-empty (Muse, angle) cell.
 type Cell struct {
-	Angle *string
-	Chips []Chip
+	Angle *string `json:"angle"`
+	Chips []Chip  `json:"chips"`
 }
 
 // Row is one Muse row, or the Unassigned pseudo-row when Muse is nil.
 type Row struct {
-	Muse                 *muses.MuseRef
-	SongsTotal           int
-	Counts               Counts
-	Cells                []Cell
-	ChipsMore            bool
-	NextUnassignedCursor *string
+	Muse                 *muses.MuseRef `json:"muse"`
+	SongsTotal           int            `json:"songs_total"`
+	Counts               Counts         `json:"counts"`
+	Cells                []Cell         `json:"cells"`
+	ChipsMore            bool           `json:"chips_more"`
+	NextUnassignedCursor *string        `json:"next_unassigned_cursor"`
 }
 
 // Totals are over the whole filter, not the page.
 type Totals struct {
-	Muses, Songs                            int
-	Draft, Rendered, Judged, Picked, Queued int
+	Muses    int `json:"muses"`
+	Songs    int `json:"songs"`
+	Draft    int `json:"draft"`
+	Rendered int `json:"rendered"`
+	Judged   int `json:"judged"`
+	Picked   int `json:"picked"`
+	Queued   int `json:"queued"`
 }
 
 // Board is the answer of Get.
 type Board struct {
-	GeneratedAt     string
-	TaxonomyVersion int
-	Columns         []Column
-	Rows            []Row
-	Totals          Totals
-	NextCursor      *string
+	GeneratedAt     string   `json:"generated_at"`
+	TaxonomyVersion int      `json:"taxonomy_version"`
+	Columns         []Column `json:"columns"`
+	Rows            []Row    `json:"rows"`
+	Totals          Totals   `json:"totals"`
+	NextCursor      *string  `json:"next_cursor"`
 }
 
-// Service builds the Board. The method set is frozen by L1-B2; the body is L1-B5's (STUB(L1-B5)).
+// Service builds the Board (C97).
 type Service struct {
 	st  *store.Store
 	now func() time.Time
@@ -86,8 +97,3 @@ type Service struct {
 
 // New builds the Service.
 func New(st *store.Store, now func() time.Time) *Service { return &Service{st: st, now: now} }
-
-// Get assembles one Board page (C97).
-func (s *Service) Get(ctx context.Context, q Query) (Board, error) {
-	return Board{}, errors.ErrUnsupported // STUB(L1-B5)
-}

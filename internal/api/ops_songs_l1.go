@@ -2,14 +2,15 @@ package api
 
 import (
 	"context"
-	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/songview"
 )
 
-// registerSongsL1 registers the Song operations (C96). The handlers are stubs until L1-B5 (STUB(L1-B5)).
+// registerSongsL1 registers the Song operations (C96).
 func registerSongsL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_songs", Method: "GET", Path: "/api/songs",
@@ -20,7 +21,22 @@ func registerSongsL1(a huma.API, d Deps) {
 			if d.Songs == nil {
 				return nil, unavailable("songs")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			f, err := songFilter(in.songFilterIn)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			f.Limit, f.Cursor = in.Limit, in.Cursor
+			p, err := d.Songs.List(ctx, f)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			out := &songsOut{}
+			out.Body.Items = make([]SongSummary, len(p.Items))
+			for i, it := range p.Items {
+				out.Body.Items[i] = songSummaryWire(it)
+			}
+			out.Body.NextCursor, out.Body.Total = p.NextCursor, p.Total
+			return out, nil
 		})
 
 	Register(a, huma.Operation{
@@ -32,7 +48,12 @@ func registerSongsL1(a huma.API, d Deps) {
 			if d.SongView == nil {
 				return nil, unavailable("songview")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			p := auth.FromContext(ctx)
+			v, err := d.SongView.Get(ctx, p, in.ID, songview.GetOptions{By: in.By, TakeLimit: in.TakeLimit, IncludeEvents: in.IncludeEvents})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &songViewOut{Body: songViewWire(p, v)}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -44,6 +65,15 @@ func registerSongsL1(a huma.API, d Deps) {
 			if d.Songs == nil {
 				return nil, unavailable("songs")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			oc := func(o OptString) songs.OptString { return songs.OptString{Set: o.Set, Value: o.Value} }
+			if _, err := d.Songs.Update(ctx, auth.FromContext(ctx), in.ID, songs.Patch{Revision: in.Body.Revision, Title: in.Body.Title,
+				Angle: oc(in.Body.Angle), MuseID: oc(in.Body.MuseID), Hidden: in.Body.Hidden}); err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			c, err := d.Songs.Core(ctx, in.ID)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &songCoreOut{Body: songCoreWire(c)}, nil
 		})
 }

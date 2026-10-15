@@ -2,14 +2,15 @@ package api
 
 import (
 	"context"
-	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/board"
+	"github.com/nicolasacchi/metamusic/internal/songs"
 )
 
-// registerBoardL1 registers the Muse Board (C96, C97). The handler is a stub until L1-B5 (STUB(L1-B5)). The Board never
+// registerBoardL1 registers the Muse Board (C96, C97). The Board never
 // calls a spend operation.
 func registerBoardL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
@@ -21,6 +22,15 @@ func registerBoardL1(a huma.API, d Deps) {
 			if d.Board == nil {
 				return nil, unavailable("board")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			sounds, err := songs.ParseSoundFilters(in.Sound)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			b, err := d.Board.Get(ctx, board.Query{Detail: in.Detail, MuseID: in.MuseID, SessionID: in.SessionID, Angle: in.Angle, States: in.State, Sounds: sounds,
+				Q: in.Q, IncludeHidden: in.IncludeHidden, Limit: in.Limit, Cursor: in.Cursor, UnassignedAfter: in.UnassignedAfter})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &boardOut{Body: boardWire(b)}, nil
 		})
 }

@@ -15,24 +15,26 @@ import (
 // l1Cases covers the 16 L1 operations that have an MCP face (7 tools, 9 generic); pin_pick and dismiss_pick_proposal
 // have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Until the
 // owning lane fills a handler all three faces must answer the same 501 problem (C101.2); the lane then removes Status
-// and builds the arguments from the rig's L1 rows. The ids below are shaped like the fixture's; a stub reads none.
+// and builds the arguments from the rig's L1 rows. L1-B5 took over the Muse, Song, Session and Board cases: this runner's
+// rig has no L1 rows (L1 false), so the list and Board cases agree on an empty library, create_muse creates one Muse and
+// the id-addressed cases agree on the same 404 problem. L1-B7 enriches them with the settled L1 rig.
 var l1Cases = []ParityCase{
-	{Op: "list_muses", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "create_muse", Status: 501, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
-	{Op: "update_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
-	{Op: "assign_muse_songs", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
-	{Op: "list_songs", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "update_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
+	{Op: "list_muses", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "create_muse", Masks: []string{"id", "created_by"}, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
+	{Op: "update_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
+	{Op: "assign_muse_songs", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
+	{Op: "list_songs", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "update_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
 	{Op: "propose_pick", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "take_id": lt.TrackCitta, "rationale": "parity"})},
 	{Op: "list_pick_events", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "list_sessions", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "update_session", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
+	{Op: "list_sessions", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "update_session", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
 	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
-	{Op: "get_muse_board", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse_board", Masks: []string{"id"}, Args: fixedArgs(map[string]any{"limit": 10})},
 }
 
 func init() {
