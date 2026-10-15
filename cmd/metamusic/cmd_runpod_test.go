@@ -583,10 +583,14 @@ func TestCLI_RunPodCanaryExitCodes(t *testing.T) {
 		t.Errorf("no token: %d %s", code, errs)
 	}
 	env["MM_TOKEN"] = rpCanary("mm-token")
-	for _, args := range [][]string{{"canary"}, {"canary", "--url", disarmed.URL, "--case", "bogus"}, {"canary", "--url", disarmed.URL, "--max-usd", "zero"}} {
+	for _, args := range [][]string{{"canary"}, {"canary", "--url", disarmed.URL, "--case", "bogus"}, {"canary", "--url", disarmed.URL, "--max-usd", "zero"},
+		{"canary", "--url", disarmed.URL, "--start-timeout", "0s"}, {"canary", "--url", disarmed.URL, "--start-timeout", "soon"}} {
 		if code, _, _ := rp(t, env, args...); code != 2 {
 			t.Errorf("%v => %d, want 2", args, code)
 		}
+	}
+	if code, _, _ := rp(t, env, "canary", "--url", disarmed.URL, "--start-timeout", "15m"); code != 3 {
+		t.Errorf("a valid --start-timeout must reach the disarmed refusal: %d", code)
 	}
 	code, out, errs := rp(t, env, "canary", "--url", disarmed.URL)
 	if code != 3 || !strings.Contains(out, `"outcome": "refused"`) {

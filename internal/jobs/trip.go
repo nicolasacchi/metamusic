@@ -194,7 +194,23 @@ func (r *Reconciler) act(ctx context.Context, t openTrip) (bool, error) {
 	}
 	if manual {
 		actions = append(actions, tripActionManualConsole)
-		r.notify(ctx, NoteManualScaleToZero(r.o.ConsoleURL))
+		r.mu.Lock()
+		var maxWorkers *int
+		if r.endpoint != nil {
+			maxWorkers = &r.endpoint.WorkersMax
+		}
+		live := 0
+		if r.health != nil {
+			live = r.health.Live()
+		}
+		for _, w := range r.workers {
+			if workerLive(w.Status) {
+				live = max(live, 1)
+			}
+		}
+		note := NoteManualScaleToZero(r.o.ConsoleURL, maxWorkers, live)
+		r.mu.Unlock()
+		r.notify(ctx, note)
 	}
 	switch t.reason {
 	case TripProviderAccess:

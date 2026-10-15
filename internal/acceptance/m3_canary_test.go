@@ -184,7 +184,7 @@ func TestCanary_ScriptAgainstFake(t *testing.T) {
 			t.Fatalf("report %+v, batches %d", rep, w.batches(t))
 		}
 	})
-	t.Run("a cold start above the allowance aborts with the deactivate hint", func(t *testing.T) {
+	t.Run("a cold start above the start window aborts and confirms the workers", func(t *testing.T) {
 		t.Parallel()
 		w := wireFake(t, fake.Options{IdleS: 1, ColdStartS: 400})
 		var log strings.Builder
@@ -192,8 +192,9 @@ func TestCanary_ScriptAgainstFake(t *testing.T) {
 		if rep.Exit != runpod.ExitAborted || rep.Outcome != "aborted" {
 			t.Fatalf("report %+v", rep)
 		}
-		if !strings.Contains(log.String(), "provision --deactivate") && !strings.Contains(rep.Reason, "provision --deactivate") {
-			t.Errorf("no deactivate hint in %q / %q", log.String(), rep.Reason)
+		// confirmed zero workers, or else the exact manual command
+		if !strings.Contains(rep.Reason, "workers are 0") && !strings.Contains(rep.Reason, "metamusic runpod provision --deactivate") {
+			t.Errorf("neither a zero-workers confirmation nor the manual command in %q", rep.Reason)
 		}
 		// the abort asked for the cancel; the runner carries it out
 		var asked int

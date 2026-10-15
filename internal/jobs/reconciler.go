@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -54,6 +55,7 @@ const (
 	activeTail      = 130 * time.Second // finished_at + idle_s (<= 60) + 60 s
 	approvalBatch   = 50
 	stuckAfter      = 2 * time.Minute
+	initStuckAfter  = 10 * time.Minute // INITIALIZING / UNHEALTHY this long is a crash loop
 	driftNoteEvery  = time.Hour
 	skewLimit       = 30 * time.Second
 	weeklyReminder  = 7 * 24 * time.Hour
@@ -73,6 +75,9 @@ type Reconciler struct {
 	endpoint    *provider.EndpointConfig
 	drift       []provider.Drift
 	stuckSince  time.Time
+	initSince   time.Time
+	health      *provider.Health
+	healthSince time.Time // start of the current stretch with at least one live worker in /health
 	crash       map[string]int
 	actioned    map[string]bool
 	notified    map[string]time.Time
@@ -301,9 +306,12 @@ func (r *Reconciler) sweepStep(ctx context.Context) error {
 		return err
 	}
 	r.mu.Lock()
-	r.sweptAt, r.skew, r.workers, r.endpoint = now, rep.Skew, rep.Workers, rep.Endpoint
+	r.sweptAt, r.skew, r.workers, r.endpoint, r.health = now, rep.Skew, rep.Workers, rep.Endpoint, rep.Health
 	r.mu.Unlock()
 	if err := r.recordWorkers(ctx, rep.Workers, now); err != nil {
+		return err
+	}
+	if err := r.recordHealthLifetimes(ctx, rep, now); err != nil {
 		return err
 	}
 	if err := r.checkTrips(ctx, rep, now); err != nil {
@@ -393,10 +401,17 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 	if crashed {
 		return r.Trip(ctx, TripCrashLoop, map[string]any{"threshold_s": r.o.ColdStartS + 60})
 	}
+	if r.initStuck(rep, now) {
+		return r.Trip(ctx, TripCrashLoop, map[string]any{"initializing_s": int(initStuckAfter.Seconds())})
+	}
 	var evidence int
 	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_attempts a WHERE a.state IN ('pending','submitted','unknown')
 		AND (a.in_progress_seen = 1 OR a.announced_at IS NOT NULL OR EXISTS (SELECT 1 FROM uploads u WHERE u.attempt_id = a.id AND u.state IN ('received','consumed')))`).Scan(&evidence); err != nil {
 		return err
+	}
+	if h := rep.Health; h != nil { // /health counts workers the listing can omit (X3 incident)
+		running = max(running, h.Running)
+		evidence = max(evidence, h.InProgress)
 	}
 	r.mu.Lock()
 	stuck := false
@@ -421,6 +436,81 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		return r.Trip(ctx, TripMeterExceeds, detail)
 	}
 	return nil
+}
+
+// initStuck: a worker INITIALIZING or UNHEALTHY (listing or /health) continuously for initStuckAfter.
+func (r *Reconciler) initStuck(rep provider.SweepReport, now time.Time) bool {
+	bad := rep.Health != nil && rep.Health.Initializing+rep.Health.Unhealthy > 0
+	for _, w := range rep.Workers {
+		if st := strings.ToUpper(w.Status); st == "INITIALIZING" || st == "UNHEALTHY" {
+			bad = true
+		}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !bad {
+		r.initSince = time.Time{}
+		return false
+	}
+	if r.initSince.IsZero() {
+		r.initSince = now
+	}
+	return now.Sub(r.initSince) >= initStuckAfter
+}
+
+// recordHealthLifetimes meters the workers /health counts but the listing does not give a startedAt and an
+// uptime for (an image pull or a crash loop leaves both null): one synthetic lifetime per such worker, from
+// the first sweep that saw a live worker until the counters return to zero. Listed workers are metered by
+// recordWorkers and never counted twice.
+func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.SweepReport, now time.Time) error {
+	h := rep.Health
+	if h == nil || len(r.o.MeterKey) == 0 {
+		return nil
+	}
+	live := h.Live()
+	r.mu.Lock()
+	if live == 0 {
+		r.healthSince = time.Time{}
+		r.mu.Unlock()
+		return nil
+	}
+	if r.healthSince.IsZero() {
+		r.healthSince = now
+	}
+	since := r.healthSince
+	r.mu.Unlock()
+	listed := 0
+	for _, w := range rep.Workers {
+		if w.UptimeS != nil && w.StartedAt != nil {
+			listed++
+		}
+	}
+	var statuses []string
+	for _, c := range []struct {
+		n  int
+		st string
+	}{{h.Running, "RUNNING"}, {h.Initializing, "INITIALIZING"}, {h.Unhealthy, "UNHEALTHY"}, {h.Throttled, "THROTTLED"}, {h.Idle + h.Ready, "IDLE"}} {
+		for range c.n {
+			statuses = append(statuses, c.st)
+		}
+	}
+	if len(statuses) <= listed {
+		return nil
+	}
+	statuses = statuses[listed:]
+	uptime := max(int(now.Sub(since).Seconds()), 0)
+	return r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
+		f := r.o.Runner.fence()
+		ts := store.FormatTime(now)
+		for i, st := range statuses {
+			key := r.workerKeyOf(fmt.Sprintf("health:%d:%d", since.UnixNano(), i))
+			args := []any{key, store.FormatTime(since), ts, ts, uptime, st, nil}
+			if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // checkWorkersZero notifies once per finished batch when a worker is still up at finished_at + idle_s + 30 s
@@ -454,6 +544,9 @@ func (r *Reconciler) checkWorkersZero(ctx context.Context, rep provider.SweepRep
 		if workerLive(w.Status) {
 			live++
 		}
+	}
+	if rep.Health != nil {
+		live = max(live, rep.Health.Live())
 	}
 	for _, b := range fbs {
 		r.mu.Lock()
@@ -494,6 +587,14 @@ func (r *Reconciler) Snapshot() SweepSnapshot {
 		WorkerCounts: map[string]int{}}
 	for _, w := range r.workers {
 		s.WorkerCounts[strings.ToLower(w.Status)]++
+	}
+	if h := r.health; h != nil { // /health counts workers the listing may omit: never report fewer
+		for k, n := range map[string]int{"running": h.Running, "idle": h.Idle + h.Ready, "initializing": h.Initializing,
+			"throttled": h.Throttled, "unhealthy": h.Unhealthy} {
+			if n > s.WorkerCounts[k] {
+				s.WorkerCounts[k] = n
+			}
+		}
 	}
 	return s
 }

@@ -26,7 +26,7 @@ func TestNotify_M3Events(t *testing.T) {
 		{"batch", NoteBatchDone(pub, "bat-1", "6 completed (1 truncated), 1 failed - $0.15 provisional"), 3, "Batch done", "6 completed (1 truncated), 1 failed - $0.15 provisional",
 			"https://mm.example.com/batches/bat-1", nil, nil},
 		{"tripped", NoteProviderTripped(pub, "stuck_running", "purged the queue"), 5, "Generation stopped: stuck_running", "purged the queue", "https://mm.example.com/jobs", nil, nil},
-		{"scale", NoteManualScaleToZero(console), 5, "Set max workers to 0 now", "The app cannot change the endpoint; open the console", console,
+		{"scale", NoteManualScaleToZero(console, nil, 0), 5, "Set max workers to 0 now", "The app cannot change the endpoint; open the console", console,
 			[]notify.Action{{Action: "view", Label: "Open console", URL: console}}, []string{"rotating_light"}},
 		{"access", NoteProviderAccessLost(pub), 5, "RunPod keys refused", "refused", "https://mm.example.com/jobs", nil, []string{"rotating_light"}},
 		{"meter", NoteMeterExceeds(pub), 5, "Worker time above reservation", "", "https://mm.example.com/jobs", nil, nil},
@@ -67,7 +67,7 @@ func TestNotify_M3NoSecrets(t *testing.T) {
 	pub := "https://mm.example.com"
 	var all []notify.Message
 	all = append(all, NoteApprovalRequested(pub, "agent", 1, 100, "b"), NoteBatchDone(pub, "b", "1 completed"), NoteProviderTripped(pub, "crash_loop", "cancelled jobs: 1"),
-		NoteManualScaleToZero("https://console.example.com/serverless"), NoteProviderAccessLost(pub), NoteMeterExceeds(pub), NoteWorkersNotZero(pub),
+		NoteManualScaleToZero("https://console.example.com/serverless", nil, 0), NoteProviderAccessLost(pub), NoteMeterExceeds(pub), NoteWorkersNotZero(pub),
 		NoteCancelNotConfirmed(pub, "j"), NoteConfigDrift(pub, []string{"workers.max"}, false), NoteClockSkew(pub, 31), NoteBillingStalled(pub, []string{"b"}),
 		NotePreflightFailing(pub, "disk low"), NoteBillingUnreadable(pub, 1), NoteIdleDrift(pub, 90, 20))
 	for _, m := range all {
