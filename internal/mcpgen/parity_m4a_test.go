@@ -14,7 +14,8 @@ import (
 // one-time secrets; the owning lane tunes the masks when it fills the handler.
 var m4aCases = []ParityCase{
 	{Op: "get_offline_set", Masks: []string{"updated_at"}},
-	{Op: "get_download_link", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	// the lossy reference: its fixture master is not a parseable FLAC, and a lossy download is the master itself (D-M4a-25)
+	{Op: "get_download_link", Args: fixedArgs(map[string]any{"id": lt.TrackLossy})},
 	{Op: "get_prompt", Variant: "critique", Args: fixedArgs(map[string]any{"name": "critique_track", "track_id": lt.TrackLuna})},
 	{Op: "list_connector_grants", Masks: []string{"id", "created_at", "updated_at", "last_used_at", "updated_by", "fetched_at", "keys"}},
 	{Op: "set_connector_grant", Args: fixedArgs(map[string]any{"id": lt.ConnectorGrantID, "scopes": []string{"read", "write", "generate"}}), SkipGeneric: true,
