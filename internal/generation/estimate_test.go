@@ -756,3 +756,22 @@ func TestMutation_ReplayReproducesRender(t *testing.T) {
 		}
 	}
 }
+
+// A learned factor stored under the worker's spelling of the GPU applies to the quote's class
+// ("NVIDIA RTX A5000" vs the catalog's "RTX A5000"), and a take with cot=full is quoted with planning.
+func TestEstimate_LearnedRTFApplies(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	base := r.est(agent, newSeedItem(lt.TrackLuna, 7)).Items[0].Takes[0]
+	if base.ExpectedAudioS == 0 || base.TimeoutS <= spend.WorkerFinishMarginS+spend.UploadBudgetS {
+		t.Fatalf("take %+v: no worker generation budget", base)
+	}
+	r.exec(`INSERT INTO rtf_stats(gpu_class, rtf_milli, samples, updated_at) VALUES ('NVIDIA GeForce RTX 3080', 3000, 5, '2026-10-15T20:00:00.000Z')`)
+	if again := r.est(agent, newSeedItem(lt.TrackLuna, 7)).Items[0].Takes[0]; again.TimeoutS != base.TimeoutS {
+		t.Errorf("a class outside the allowed set changed the estimate: %d -> %d", base.TimeoutS, again.TimeoutS)
+	}
+	r.exec(`INSERT INTO rtf_stats(gpu_class, rtf_milli, samples, updated_at) VALUES ('NVIDIA RTX A5000 ', 3000, 5, '2026-10-15T20:00:00.000Z')`)
+	if slow := r.est(agent, newSeedItem(lt.TrackLuna, 7)).Items[0].Takes[0]; slow.TimeoutS <= base.TimeoutS {
+		t.Errorf("learned 3000 did not raise the estimate: %d -> %d", base.TimeoutS, slow.TimeoutS)
+	}
+}

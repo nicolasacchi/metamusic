@@ -500,7 +500,10 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 		if b.o.Spend != nil && gpu != "" {
 			if e2e, ok := numberOf(out.Timings["e2e_seconds"]); ok && out.AudioSeconds != nil {
 				if audio, err := out.AudioSeconds.Float64(); err == nil && audio > 0 {
-					if err := b.o.Spend.RecordRTF(ctx, tx, gpu, int64(e2e*1000+0.5), int64(audio*1000+0.5)); err != nil {
+					// the raw reported name: RecordRTF normalises it, so rows learned under it still match
+					var cot string
+					_ = tx.QueryRowContext(ctx, `SELECT cot FROM recipes WHERE id = ?`, job.RecipeID).Scan(&cot)
+					if err := b.o.Spend.RecordRTF(ctx, tx, out.Env.GPUName, int64(e2e*1000+0.5), int64(audio*1000+0.5), cot == "full"); err != nil {
 						return err
 					}
 				}

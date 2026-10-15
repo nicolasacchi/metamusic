@@ -47,7 +47,7 @@ func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provide
 		return spend.QuoteParams{}, pq, fmt.Errorf("generation: rtf: %w", err)
 	}
 	if !ok {
-		rtf = 440
+		rtf = spend.DefaultRTFMilli
 	}
 	return spend.QuoteParams{PricePPH: price, RTFMilli: rtf, ColdStartS: s.o.ColdStartS, IdleS: *pq.Endpoint.IdleTimeoutS,
 		WorkersMax: pq.Endpoint.WorkersMax, MaxRuntimeS: int(s.o.MaxRuntime / time.Second), KillSlackS: s.o.KillSlackS}, pq, nil
@@ -118,11 +118,11 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err != nil {
 		return Estimate{}, err
 	}
-	audio := make([]int, len(pl.takes))
+	takes := make([]spend.TakeIn, len(pl.takes))
 	for i, t := range pl.takes {
-		audio[i] = t.ExpectedAudioS
+		takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON)}
 	}
-	bq := spend.QuoteBatch(qp, audio)
+	bq := spend.QuoteTakes(qp, takes)
 	for i, t := range pl.takes {
 		c := bq.Takes[i]
 		t.ExpectedS, t.TimeoutS = c.ExpectedS, c.TimeoutS
@@ -237,4 +237,13 @@ func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estim
 		return fmt.Errorf("generation: store estimate: %w", err)
 	}
 	return nil
+}
+
+// cotIsFull reports whether a canonical request asks the model to plan the ABC score itself (cot=full), the
+// phase that adds planning time to the quote.
+func cotIsFull(requestJSON string) bool {
+	var probe struct {
+		Cot string `json:"cot"`
+	}
+	return json.Unmarshal([]byte(requestJSON), &probe) == nil && probe.Cot == "full"
 }

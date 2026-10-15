@@ -84,8 +84,8 @@ func TestSpend_StorageFaults(t *testing.T) {
 			_, err := r.s.ReconcileBatch(ctx, tx, fin.Batch, "reconciled", r.lease)
 			return err
 		}},
-		{"RecordRTF", []string{"rtf_stats"}, func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "A5000", 1000, 1000) }},
-		{"RecordRTFNew", []string{"rtf_stats"}, func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "NEW", 1000, 1000) }},
+		{"RecordRTF", []string{"rtf_stats"}, func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "A5000", 1000, 1000, false) }},
+		{"RecordRTFNew", []string{"rtf_stats"}, func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "NEW", 1000, 1000, false) }},
 		{"RTFMilli", []string{"rtf_stats"}, func(tx *sql.Tx) error { _, _, err := r.s.RTFMilli(ctx, tx, []string{"A5000"}); return err }},
 		{"PendingExpired", []string{"approvals"}, func(tx *sql.Tx) error { _, err := r.s.PendingExpired(ctx, tx, 5); return err }},
 		{"Append", []string{"ledger"}, func(tx *sql.Tx) error {
