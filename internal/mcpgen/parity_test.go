@@ -755,9 +755,9 @@ func TestParity_MultiValueQuery(t *testing.T) {
 	}
 }
 
-// MCP output ends up in third-party transcripts: an agent never sees the
-// private reference metadata, only has_reference.
-func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+// MCP output ends up in third-party transcripts: an agent sees the Muse text of the reference (title, artist;
+// D-L1-36) and has_reference, never the variant type.
+func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-ref", auth.ScopeRead)
@@ -768,12 +768,13 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 	}
 	viaMCP := structured(t, res).(map[string]any)
 	for name, m := range map[string]map[string]any{"rest": viaREST, "mcp": viaMCP} {
-		if m["has_reference"] != true || m["reference"] != nil {
+		ref, _ := m["reference"].(map[string]any)
+		if m["has_reference"] != true || ref["source_title"] != "Synthetic Reference Title" || ref["variant_type"] != nil {
 			t.Errorf("%s: has_reference=%v reference=%v", name, m["has_reference"], m["reference"])
 		}
 	}
 	b, _ := json.Marshal(viaMCP)
-	if strings.Contains(string(b), "Synthetic Reference Title") {
-		t.Errorf("reference leaked over MCP: %s", b)
+	if strings.Contains(string(b), "slower") {
+		t.Errorf("variant type leaked over MCP: %s", b)
 	}
 }

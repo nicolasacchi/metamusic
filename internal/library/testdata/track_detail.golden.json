@@ -143,5 +143,6 @@
   },
   "recipe_known": true,
   "lossy": false,
-  "generation": null
+  "generation": null,
+  "song": null
 }

@@ -34,6 +34,7 @@ const (
 	defaultComments = 20
 	includeComments = 500
 	styleKeep       = 500
+	briefKeep       = 200 // muse.brief after the siblings are gone (C98)
 )
 
 // Bundle is the mm.context/1 document. Sub-objects are open JSON objects whose
@@ -42,6 +43,9 @@ const (
 type Bundle struct {
 	Format      string         `json:"format" example:"mm.context/1"`
 	Track       map[string]any `json:"track"`
+	Song        map[string]any `json:"song" nullable:"true" doc:"The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent"`
+	Muse        map[string]any `json:"muse" nullable:"true" doc:"The Song's Muse (title, artist or brief up to 500 characters); null without a Muse"`
+	Sounds      map[string]any `json:"sounds" nullable:"true" doc:"Sound facets and the tempo check of the take; null without a Song"`
 	Recipe      map[string]any `json:"recipe"`
 	Provenance  map[string]any `json:"provenance"`
 	Score       map[string]any `json:"score" nullable:"true"`
@@ -121,6 +125,9 @@ const recipeUnknownNote = "recipe unknown: this is a reference track; no style, 
 
 // Key order of the sections (C35); keys not listed follow, sorted.
 var order = map[string][]string{
+	"song":       {"id", "title", "angle", "state", "takes", "pick", "open_proposals", "pending", "siblings"},
+	"muse":       {"id", "kind", "title", "artist", "brief"},
+	"sounds":     {"taxonomy_version", "facets", "tempo"},
 	"track":      {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
 	"recipe":     {"engine", "known", "hash", "request", "note"},
 	"provenance": {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
@@ -167,7 +174,7 @@ func (b Bundle) MarshalJSON() ([]byte, error) {
 		name string
 		m    map[string]any
 	}{
-		{"track", b.Track}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage},
+		{"track", b.Track}, {"song", b.Song}, {"muse", b.Muse}, {"sounds", b.Sounds}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage},
 		{"judgments", b.Judgments}, {"perception", b.Perception}, {"listening", b.Listening}, {"_links", b.Links},
 	} {
 		raw, err := sectionJSON(s.name, s.m)
@@ -274,7 +281,7 @@ func request(b *Bundle) (set func(string, any) bool, get func(string) any) {
 }
 
 // Fit trims b to limit characters and returns its measured size and the trimmed
-// parts. Order: comments (20, 5, 0), children (10, 0), lyrics, style (500
+// parts. Order: song siblings (12, 5, 0), muse brief (200), comments (20, 5, 0), children (10, 0), lyrics, style (500
 // characters); the parts named by include are protected, except that an ABC text
 // longer than the limit is cut as a last resort. _budget is set to its fixed point.
 func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string) {
@@ -291,6 +298,21 @@ func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string)
 			note(name)
 			chars = settle(b)
 		}
+	}
+	if b.Song != nil {
+		for _, n := range []int{5, 0} {
+			try("song.siblings", func() bool { return shrink(b.Song, "siblings", n) })
+		}
+	}
+	if b.Muse != nil {
+		try("muse.brief", func() bool {
+			s, ok := b.Muse["brief"].(string)
+			if !ok || utf8.RuneCountInString(s) <= briefKeep {
+				return false
+			}
+			b.Muse["brief"] = string([]rune(s)[:briefKeep])
+			return true
+		})
 	}
 	if !has(include, "comments") && b.Judgments != nil {
 		for _, n := range []int{defaultComments, 5, 0} {
@@ -590,6 +612,15 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	}
 	out.Track = map[string]any{"id": d.ID, "title": d.Title, "status": d.Status, "stars": stars, "critic_stars": critic, "critic_verdict": verdict,
 		"tags": tags, "duration_s": d.DurationS, "recipe_known": d.RecipeKnown, "lossy": d.Lossy, "recorded_at": d.RecordedAt, "url": b.publicURL + "/tracks/" + d.ID}
+
+	// song, muse, sounds (C98): three nulls without a Song or without the library services
+	if b.lib1 != nil {
+		ls, err := b.lib1.ForTrack(ctx, d.ID)
+		if err != nil {
+			return Bundle{}, err
+		}
+		out.Song, out.Muse, out.Sounds = ls.Song, ls.Muse, ls.Sounds
+	}
 
 	// recipe and provenance
 	if d.RecipeKnown {

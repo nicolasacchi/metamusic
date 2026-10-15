@@ -16,24 +16,26 @@ import (
 // l1Cases covers the 16 L1 operations that have an MCP face (7 tools, 9 generic); pin_pick and dismiss_pick_proposal
 // have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Until the
 // owning lane fills a handler all three faces must answer the same 501 problem (C101.2); the lane then removes Status
-// and builds the arguments from the rig's L1 rows. The ids below are shaped like the fixture's; a stub reads none.
+// and builds the arguments from the rig's L1 rows. L1-B5 took over the Muse, Song, Session and Board cases: this runner's
+// rig has no L1 rows (L1 false), so the list and Board cases agree on an empty library, create_muse creates one Muse and
+// the id-addressed cases agree on the same 404 problem. L1-B7 enriches them with the settled L1 rig.
 var l1Cases = []ParityCase{
-	{Op: "list_muses", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "create_muse", Status: 501, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
-	{Op: "update_muse", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
-	{Op: "assign_muse_songs", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
-	{Op: "list_songs", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "update_song", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
+	{Op: "list_muses", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "create_muse", Masks: []string{"id", "created_by"}, Args: fixedArgs(map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"})},
+	{Op: "update_muse", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "Synthetic Muse 901"})},
+	{Op: "assign_muse_songs", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "song_ids": []string{lt.TrackCitta}})},
+	{Op: "list_songs", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "update_song", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "title": "x"})},
 	{Op: "propose_pick", Args: proposeArgs, Masks: []string{"id", "song_id", "proposed_by"}}, // ids come from each rig's own sequence
 	{Op: "list_pick_events", Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "list_sessions", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "update_session", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
+	{Op: "list_sessions", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "update_session", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
 	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
-	{Op: "get_muse_board", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "get_muse_board", Masks: []string{"id"}, Args: fixedArgs(map[string]any{"limit": 10})},
 }
 
 // proposeArgs proposes the non-Pick take of the first Song with two live takes in the rig's base fixture (the Reconciler
@@ -58,7 +60,11 @@ func init() {
 }
 
 // l1Tools are the first-class L1 tools (D-L1-20).
-var l1Tools = []string{"list_muses", "get_muse", "create_muse", "list_songs", "get_song", "propose_pick", "search_sounds"}
+//
+// list_songs was demoted to generic by L1-B5 (D-L1-20, the first step of the demotion order): binding its 14 filters
+// over REST and MCP added ~810 bytes to it and to search_sounds, taking the seven tools from 15 285 to 16 905 compact
+// bytes, over the 16 000 rule. It stays fully reachable through call_operation with the same arguments.
+var l1Tools = []string{"list_muses", "get_muse", "create_muse", "get_song", "propose_pick", "search_sounds"}
 
 // TestParity_L1Cases: a case exists for each of the 16 ops with an MCP face, and for no other (the runner itself fails
 // on a missing case by name, TestParityEveryOperation).
@@ -79,7 +85,7 @@ func TestParity_L1Cases(t *testing.T) {
 	}
 }
 
-// TestToolsList_L1Budget: the seven first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
+// TestToolsList_L1Budget: the first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
 // M2b/M3 rule); the demotion order list_songs, search_sounds, create_muse, get_muse applies otherwise. It prints the
 // measurement.
 func TestToolsList_L1Budget(t *testing.T) {

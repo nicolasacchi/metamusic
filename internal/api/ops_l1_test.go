@@ -41,7 +41,7 @@ var l1Ops = []l1Op{
 		reqBody: `{"kind":"reference","title":"Synthetic Muse 001"}`},
 	{id: "update_muse", method: "PATCH", path: "/api/muses/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/muses/:id", body: 64 * kib, component: "muses", lane: "L1-B5", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "assign_muse_songs", method: "POST", path: "/api/muses/{id}/songs", scope: auth.ScopeWrite, mcp: "generic", ui: "/board", body: 64 * kib, component: "muses", lane: "L1-B5", reqBody: `{"song_ids":["s1"]}`},
-	{id: "list_songs", method: "GET", path: "/api/songs", scope: auth.ScopeRead, mcp: "tool", ui: l1AgentFace, component: "songs", lane: "L1-B5"},
+	{id: "list_songs", method: "GET", path: "/api/songs", scope: auth.ScopeRead, mcp: "generic", ui: l1AgentFace, component: "songs", lane: "L1-B5"},
 	{id: "get_song", method: "GET", path: "/api/songs/{id}", scope: auth.ScopeRead, mcp: "tool", ui: "/songs/:id", component: "songview", lane: "L1-B5"},
 	{id: "update_song", method: "PATCH", path: "/api/songs/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/songs/:id", body: 64 * kib, component: "songs", lane: "L1-B5", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "propose_pick", method: "POST", path: "/api/songs/{id}/pick-proposals", scope: auth.ScopeWrite, mcp: "tool", ui: l1Proposal, create: true, status: 201, body: 64 * kib, component: "picks", lane: "L1-B4",
@@ -120,8 +120,8 @@ func TestOps_RegisteredWithMetaL1(t *testing.T) {
 			t.Errorf("%s: default status %d, want %d", w.id, o.DefaultStatus, want)
 		}
 	}
-	if tools != 7 || generic != 9 || excluded != 2 {
-		t.Errorf("tools/generic/excluded = %d/%d/%d, want 7/9/2 (D-L1-20)", tools, generic, excluded)
+	if tools != 6 || generic != 10 || excluded != 2 { // list_songs demoted by L1-B5 (D-L1-20)
+		t.Errorf("tools/generic/excluded = %d/%d/%d, want 6/10/2 (D-L1-20)", tools, generic, excluded)
 	}
 }
 
@@ -181,7 +181,13 @@ func TestOps_StubsAnswer501L1(t *testing.T) {
 }
 
 // implementedL1 lists the operations a lane has taken over from their stub; each lane adds its ids here.
-var implementedL1 = map[string]bool{"propose_pick": true, "pin_pick": true, "dismiss_pick_proposal": true, "list_pick_events": true}
+var implementedL1 = map[string]bool{
+	// L1-B4 (Picks)
+	"propose_pick": true, "pin_pick": true, "dismiss_pick_proposal": true, "list_pick_events": true,
+	// L1-B5 (Library)
+	"list_muses": true, "get_muse": true, "create_muse": true, "update_muse": true, "assign_muse_songs": true,
+	"list_songs": true, "get_song": true, "update_song": true, "list_sessions": true, "update_session": true, "get_muse_board": true,
+}
 
 func TestOps_NilDepsUnavailableL1(t *testing.T) {
 	t.Parallel()

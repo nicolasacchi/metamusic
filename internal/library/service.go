@@ -7,6 +7,7 @@
 package library
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -32,7 +33,13 @@ type Service struct {
 	legacyV2 bool
 	// tables caches tables known to exist (hasTable); schema-gated writes ask it (D-M3-35).
 	tables sync.Map
+	// museCount counts the visible Muses for get_stats (L1, C98); nil leaves the count 0.
+	museCount func(ctx context.Context) (int, error)
 }
+
+// UseMuseCounter sets the counter of visible Muses behind get_stats.library_model.muses. The Muse tables belong to
+// internal/muses (C99.2), so library receives the count through this seam.
+func (s *Service) UseMuseCounter(f func(ctx context.Context) (int, error)) { s.museCount = f }
 
 // New builds a Service. data may be nil for callers that never read files
 // (writes, tests); a nil now means time.Now.

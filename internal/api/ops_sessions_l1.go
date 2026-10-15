@@ -2,14 +2,14 @@ package api
 
 import (
 	"context"
-	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/sessions"
 )
 
-// registerSessionsL1 registers the Session operations (C96). The handlers are stubs until L1-B5 (STUB(L1-B5)).
+// registerSessionsL1 registers the Session operations (C96).
 func registerSessionsL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_sessions", Method: "GET", Path: "/api/sessions",
@@ -20,7 +20,17 @@ func registerSessionsL1(a huma.API, d Deps) {
 			if d.Sessions == nil {
 				return nil, unavailable("sessions")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			p, err := d.Sessions.List(ctx, sessions.ListFilter{Kinds: in.Kind, Q: in.Q, IncludeHidden: in.IncludeHidden, Limit: in.Limit, Cursor: in.Cursor})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			out := &sessionsOut{}
+			out.Body.Items = make([]SessionSummary, len(p.Items))
+			for i, it := range p.Items {
+				out.Body.Items[i] = sessionWire(it)
+			}
+			out.Body.NextCursor, out.Body.Total = p.NextCursor, p.Total
+			return out, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -32,6 +42,13 @@ func registerSessionsL1(a huma.API, d Deps) {
 			if d.Sessions == nil {
 				return nil, unavailable("sessions")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			if _, err := d.Sessions.Update(ctx, auth.FromContext(ctx), in.ID, sessions.Patch{Revision: in.Body.Revision, Name: in.Body.Name, Hidden: in.Body.Hidden}); err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			sum, err := d.Sessions.Summary(ctx, in.ID)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &sessionOut{Body: sessionWire(sum)}, nil
 		})
 }

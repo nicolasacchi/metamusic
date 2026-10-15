@@ -361,7 +361,7 @@ export interface paths {
         };
         /**
          * Get a draft
-         * @description One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.
+         * @description One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Reference metadata is returned in full to the operator; agents see the source title and artist (the text the draft's Muse carries) and has_reference.
          */
         get: operations["get_draft"];
         put?: never;
@@ -1329,7 +1329,7 @@ export interface paths {
         };
         /**
          * Search tracks
-         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
          */
         get: operations["search_tracks"];
         put?: never;
@@ -2501,6 +2501,10 @@ export interface components {
             listening: {
                 [key: string]: unknown;
             };
+            /** @description The Song's Muse (title, artist or brief up to 500 characters); null without a Muse */
+            muse: {
+                [key: string]: unknown;
+            } | null;
             next_actions: string[];
             perception: {
                 [key: string]: unknown;
@@ -2512,6 +2516,14 @@ export interface components {
                 [key: string]: unknown;
             };
             score: {
+                [key: string]: unknown;
+            } | null;
+            /** @description The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent */
+            song: {
+                [key: string]: unknown;
+            } | null;
+            /** @description Sound facets and the tempo check of the take; null without a Song */
+            sounds: {
                 [key: string]: unknown;
             } | null;
             track: {
@@ -2756,7 +2768,7 @@ export interface components {
             lint: components["schemas"]["LintResult"];
             origin: string;
             parent_track_id: string | null;
-            /** @description Private reference metadata; humans only, null for agents */
+            /** @description Reference metadata of the draft. A human sees every key (source_title, source_artist, variant_type); an agent sees only source_title and source_artist, the text the draft's Muse carries (D-L1-36). Null when the draft has no reference */
             reference: {
                 [key: string]: string;
             } | null;
@@ -3541,6 +3553,23 @@ export interface components {
         LedgerPage: {
             items: components["schemas"]["LedgerEntry"][];
             next_cursor: string | null;
+        };
+        LibraryModel: {
+            /** Format: int64 */
+            muses: number;
+            /**
+             * Format: int64
+             * @description Entries waiting in the provenance queue
+             */
+            pending: number;
+            /** Format: int64 */
+            sessions: number;
+            songs: components["schemas"]["SongStateCounts"];
+            /**
+             * Format: int64
+             * @description Newest Sound taxonomy version; 0 when none exists yet
+             */
+            taxonomy_version: number;
         };
         Lineage: {
             /** Format: int64 */
@@ -4425,6 +4454,18 @@ export interface components {
             tempo: components["schemas"]["TempoDetail"];
             unmapped: string[];
         };
+        SongStateCounts: {
+            /** Format: int64 */
+            draft: number;
+            /** Format: int64 */
+            judged: number;
+            /** Format: int64 */
+            picked: number;
+            /** Format: int64 */
+            rendered: number;
+            /** Format: int64 */
+            total: number;
+        };
         SongSummary: {
             angle: string | null;
             archived: boolean;
@@ -4605,6 +4646,8 @@ export interface components {
             generation: components["schemas"]["GenerationStats"];
             imports: components["schemas"]["ImportStats"];
             judgments: components["schemas"]["JudgmentCounters"];
+            /** @description Songs, Muses and Sessions; null on a pre-L1 schema */
+            library_model: components["schemas"]["LibraryModel"];
             loudness: components["schemas"]["LoudnessStats"];
             /** Format: int64 */
             playlists: number;
@@ -4949,6 +4992,15 @@ export interface components {
             } | null;
             sections: components["schemas"]["SectionOut"][];
             slug: string;
+            /** @description The Song of the take; null before the Song exists or on a pre-L1 schema */
+            song: {
+                angle: string | null;
+                id: string;
+                muse_id: string | null;
+                /** @description How the Song's current Pick was chosen; null when it has none */
+                pick_source: string | null;
+                title: string;
+            } | null;
             status: string;
             status_set_by: string;
             style_terms: string[];
@@ -5054,6 +5106,8 @@ export interface components {
             id: string;
             /** Format: double */
             integrated_lufs: number | null;
+            /** @description The take is its Song's current Pick */
+            is_pick: boolean;
             /** @description The master is an MP3; there is no lossless file */
             lossy: boolean;
             /** Format: int64 */
@@ -5069,6 +5123,8 @@ export interface components {
             root_track_id: string;
             /** Format: int64 */
             seed: number;
+            /** @description The Song this take belongs to; null before the Song exists or on a pre-L1 schema */
+            song_id: string | null;
             /**
              * Format: int64
              * @description Human stars; null when unrated
@@ -7293,6 +7349,25 @@ export interface operations {
     list_songs: {
         parameters: {
             query?: {
+                muse_id?: string;
+                no_muse?: boolean;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                queued?: boolean;
+                session_id?: string;
+                /** @description facet:value, repeatable; OR inside a facet, AND across facets */
+                sound?: string[];
+                tempo_mismatch?: boolean;
+                has_pick?: boolean;
+                /** @description The single Song of this draft */
+                draft_id?: string;
+                /** @description The single Song of this take */
+                track_id?: string;
+                has_open_proposals?: boolean;
+                /** @description Case-insensitive substring of the Song title */
+                q?: string;
+                include_hidden?: boolean;
+                include_archived?: boolean;
                 limit?: number;
                 cursor?: string;
             };
@@ -7505,6 +7580,25 @@ export interface operations {
     search_sounds: {
         parameters: {
             query?: {
+                muse_id?: string;
+                no_muse?: boolean;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                queued?: boolean;
+                session_id?: string;
+                /** @description facet:value, repeatable; OR inside a facet, AND across facets */
+                sound?: string[];
+                tempo_mismatch?: boolean;
+                has_pick?: boolean;
+                /** @description The single Song of this draft */
+                draft_id?: string;
+                /** @description The single Song of this take */
+                track_id?: string;
+                has_open_proposals?: boolean;
+                /** @description Case-insensitive substring of the Song title */
+                q?: string;
+                include_hidden?: boolean;
+                include_archived?: boolean;
                 /** @description 0 returns facet counts only */
                 limit?: number;
                 cursor?: string;
@@ -7777,6 +7871,12 @@ export interface operations {
                 recipe_known?: boolean;
                 /** @description true lists tracks whose master is an MP3; false only lossless masters */
                 lossy?: boolean;
+                /** @description Only takes of this Song */
+                song_id?: string;
+                /** @description true lists only the takes that are their Song's current Pick; false only the others */
+                is_pick?: boolean;
+                /** @description Only takes in this Session (derived membership) */
+                session_id?: string;
                 /** @description Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last */
                 sort?: "recorded_desc" | "recorded_asc" | "duration_desc" | "duration_asc" | "title_asc" | "relevance" | "stars_desc";
                 limit?: number;

@@ -32,6 +32,28 @@ type Stats struct {
 	// M3 (C81.1)
 	Generation GenerationStats `json:"generation"`
 	Breakdown  Breakdown       `json:"breakdown"`
+
+	// L1 (C98)
+	LibraryModel *LibraryModel `json:"library_model" doc:"Songs, Muses and Sessions; null on a pre-L1 schema"`
+}
+
+// LibraryModel counts the live, non-hidden rows of the L1 model (C98). Retired and hidden Songs, archived
+// drafts' Songs, hidden Muses and hidden Sessions are not counted; Pending is the length of the provenance queue.
+type LibraryModel struct {
+	Songs           SongStateCounts `json:"songs"`
+	Muses           int             `json:"muses"`
+	Sessions        int             `json:"sessions"`
+	TaxonomyVersion int             `json:"taxonomy_version" doc:"Newest Sound taxonomy version; 0 when none exists yet"`
+	Pending         int             `json:"pending" doc:"Entries waiting in the provenance queue"`
+}
+
+// SongStateCounts is the number of Songs per state (C90.4).
+type SongStateCounts struct {
+	Total    int `json:"total"`
+	Draft    int `json:"draft"`
+	Rendered int `json:"rendered"`
+	Judged   int `json:"judged"`
+	Picked   int `json:"picked"`
 }
 
 // TrackStats counts tracks.
@@ -199,7 +221,37 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 	if err := s.generationStats(ctx, &st); err != nil {
 		return st, err
 	}
+	if st.LibraryModel, err = s.libraryModel(ctx); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+// libraryModel counts the L1 model; nil on a schema without Songs.
+func (s *Service) libraryModel(ctx context.Context) (*LibraryModel, error) {
+	has, err := s.hasTableDB(ctx, "songs")
+	if err != nil || !has {
+		return nil, err
+	}
+	m := &LibraryModel{}
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(c = 'draft'),0), COALESCE(SUM(c = 'rendered'),0),
+		COALESCE(SUM(c = 'judged'),0), COALESCE(SUM(c = 'picked'),0)
+		FROM (SELECT `+store.SongStateCase+` AS c FROM (`+store.SongStateSQL+`) st JOIN songs g ON g.id = st.song_id
+		      WHERE g.hidden_at IS NULL AND g.retired_at IS NULL AND st.archived = 0)`).
+		Scan(&m.Songs.Total, &m.Songs.Draft, &m.Songs.Rendered, &m.Songs.Judged, &m.Songs.Picked); err != nil {
+		return nil, fmt.Errorf("library: stats songs: %w", err)
+	}
+	if s.museCount != nil { // Muse tables are read only by internal/muses (C99.2): the count arrives through a seam
+		if m.Muses, err = s.museCount(ctx); err != nil {
+			return nil, fmt.Errorf("library: stats muses: %w", err)
+		}
+	}
+	if err := s.st.R.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM sessions WHERE hidden_at IS NULL),
+		COALESCE((SELECT MAX(version) FROM sound_taxonomy_versions), 0),
+		(SELECT COUNT(*) FROM provenance_dirty)`).Scan(&m.Sessions, &m.TaxonomyVersion, &m.Pending); err != nil {
+		return nil, fmt.Errorf("library: stats model: %w", err)
+	}
+	return m, nil
 }
 
 // monthBoundsOf is the calendar month of now in the process time zone.

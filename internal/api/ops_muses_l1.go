@@ -2,14 +2,16 @@ package api
 
 import (
 	"context"
-	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/songs"
 )
 
-// registerMusesL1 registers the Muse operations (C96). The handlers are stubs until L1-B5 (STUB(L1-B5)).
+// registerMusesL1 registers the Muse operations (C96).
 func registerMusesL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_muses", Method: "GET", Path: "/api/muses",
@@ -20,7 +22,29 @@ func registerMusesL1(a huma.API, d Deps) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			if d.SongView == nil {
+				return nil, unavailable("songview")
+			}
+			p, err := d.Muses.List(ctx, muses.ListFilter{Q: in.Q, Kind: muses.Kind(in.Kind), IncludeHidden: in.IncludeHidden, Limit: in.Limit, Cursor: in.Cursor})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			v := auth.FromContext(ctx)
+			ms := make([]muses.Muse, len(p.Items))
+			for i, it := range p.Items {
+				ms[i] = it.Muse
+			}
+			sums, err := d.SongView.MuseSummaries(ctx, ms)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			out := &musesOut{}
+			out.Body.Items = make([]MuseSummary, len(sums))
+			for i, s := range sums {
+				out.Body.Items[i] = MuseSummary{Muse: museWire(v, s.Muse), MuseCoverage: coverageWire(s.Coverage)}
+			}
+			out.Body.NextCursor, out.Body.Total = p.NextCursor, p.Total
+			return out, nil
 		})
 
 	Register(a, huma.Operation{
@@ -32,7 +56,47 @@ func registerMusesL1(a huma.API, d Deps) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			if d.SongView == nil {
+				return nil, unavailable("songview")
+			}
+			if d.Songs == nil {
+				return nil, unavailable("songs")
+			}
+			m, err := d.Muses.Get(ctx, in.ID)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			cov, err := d.SongView.MuseCoverage(ctx, m.ID)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			angles, err := d.SongView.MuseAngles(ctx, m.ID)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			out := &museDetailOut{Body: MuseDetail{Muse: museWire(auth.FromContext(ctx), m), Coverage: coverageWire(cov), Angles: []MuseAngleCount{}, Songs: []SongSummary{}}}
+			for _, a := range angles {
+				out.Body.Angles = append(out.Body.Angles, MuseAngleCount{Angle: a.Angle, Songs: a.Songs})
+			}
+			cursor := ""
+			for {
+				want := in.SongsLimit - len(out.Body.Songs)
+				page, err := d.Songs.List(ctx, songs.ListFilter{MuseID: m.ID, Limit: max(1, min(want, 100)), Cursor: cursor})
+				if err != nil {
+					return nil, m2bErr(err, "L1-B5")
+				}
+				out.Body.SongsTotal = page.Total
+				for _, it := range page.Items {
+					if len(out.Body.Songs) < in.SongsLimit {
+						out.Body.Songs = append(out.Body.Songs, songSummaryWire(it))
+					}
+				}
+				if page.NextCursor == nil || len(out.Body.Songs) >= in.SongsLimit {
+					break
+				}
+				cursor = *page.NextCursor
+			}
+			return out, nil
 		})
 
 	Register(a, withBody(created(huma.Operation{
@@ -44,7 +108,12 @@ func registerMusesL1(a huma.API, d Deps) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			m, err := d.Muses.Create(ctx, auth.FromContext(ctx), muses.NewMuse{Kind: muses.Kind(in.Body.Kind), Title: in.Body.Title, Artist: in.Body.Artist, Brief: in.Body.Brief})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			audit.NoteCreated(ctx, m.ID)
+			return &museOut{Body: museWire(auth.FromContext(ctx), m)}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -56,7 +125,12 @@ func registerMusesL1(a huma.API, d Deps) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			p := auth.FromContext(ctx)
+			m, err := d.Muses.Update(ctx, p, in.ID, muses.Patch{Revision: in.Body.Revision, Title: in.Body.Title, Artist: in.Body.Artist, Brief: in.Body.Brief, Hidden: in.Body.Hidden})
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &museOut{Body: museWire(p, m)}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -68,6 +142,10 @@ func registerMusesL1(a huma.API, d Deps) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, "L1-B5") // STUB(L1-B5)
+			r, err := d.Muses.AssignSongs(ctx, auth.FromContext(ctx), in.ID, in.Body.SongIDs)
+			if err != nil {
+				return nil, m2bErr(err, "L1-B5")
+			}
+			return &assignResultOut{Body: AssignResult{Assigned: r.Assigned, Unchanged: r.Unchanged}}, nil
 		})
 }
