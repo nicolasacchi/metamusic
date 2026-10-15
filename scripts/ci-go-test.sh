@@ -71,7 +71,7 @@ case "$cmd" in
       names=$(tests_in_shard "$pkg" "${part%/*}" "${part#*/}" | paste -sd'|')
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
-      go test -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
+      go test -v -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
       pids+=($!)
     done
     if [ "${#whole[@]}" -gt 0 ]; then
