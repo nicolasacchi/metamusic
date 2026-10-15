@@ -160,6 +160,58 @@ func sweepExports(ctx context.Context, e *exports.Service, every time.Duration) 
 	}
 }
 
+// sweeper is the cache-sweep surface of the cover and download services.
+type sweeper interface {
+	Sweep(ctx context.Context, olderThan time.Duration) (int, error)
+}
+
+// sweepM4aCaches removes cover files older than 30 days and download copies older than 7 days now and then every
+// interval until ctx ends (C110.3); a nil service is skipped. Both caches are input-addressed, so a swept file is
+// simply rendered again on its next use.
+func sweepM4aCaches(ctx context.Context, covers, downloads sweeper, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		for _, c := range []struct {
+			name string
+			s    sweeper
+			age  time.Duration
+		}{{"cover", covers, 30 * 24 * time.Hour}, {"download", downloads, 7 * 24 * time.Hour}} {
+			if c.s == nil { // callers pass a nil interface, never a typed nil
+				continue
+			}
+			if n, err := c.s.Sweep(ctx, c.age); err != nil && ctx.Err() == nil {
+				slog.Error(c.name+" sweep failed", "err", redact.Error(err))
+			} else if n > 0 {
+				slog.Info(c.name+" sweep", "deleted", n)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// pruneSubsonicSalts removes salt sightings past the media window now and then every interval until ctx ends.
+func pruneSubsonicSalts(ctx context.Context, s *auth.SubsonicStore, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		if n, err := s.PruneSalts(ctx); err != nil && ctx.Err() == nil {
+			slog.Error("subsonic salt prune failed", "err", redact.Error(err))
+		} else if n > 0 {
+			slog.Info("subsonic salt prune", "deleted", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
 func serve(ctx context.Context, b *booted, s streams) error {
 	root, err := os.OpenRoot(b.cfg.DataDir)
 	if err != nil {
@@ -213,9 +265,21 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	}
 	pruneCtx, stopPrune := context.WithCancel(ctx)
 	var pruned sync.WaitGroup
-	pruned.Add(2)
+	pruned.Add(4)
 	go func() { defer pruned.Done(); pruneIdempotency(pruneCtx, svc.Idem, time.Hour) }()
 	go func() { defer pruned.Done(); sweepExports(pruneCtx, svc.Exports, 24*time.Hour) }()
+	go func() { defer pruned.Done(); pruneSubsonicSalts(pruneCtx, svc.Subsonic, time.Hour) }()
+	var coverSweep, dlSweep sweeper
+	if svc.Covers != nil {
+		coverSweep = svc.Covers
+	}
+	if svc.Downloads != nil {
+		dlSweep = svc.Downloads
+	}
+	go func() { defer pruned.Done(); sweepM4aCaches(pruneCtx, coverSweep, dlSweep, 24*time.Hour) }()
+	if svc.OIDC != nil { // C105 eager fetch: never blocks startup, logs error codes only
+		go svc.OIDC.Prefetch(ctx)
+	}
 	if b.cfg.BackupAt != "off" {
 		sch := &backup.Scheduler{At: b.cfg.BackupAt, Loc: time.Local, Run: func(c context.Context) {
 			if _, err := svc.Backups.Start(c, "scheduled", auth.CLI); err != nil {

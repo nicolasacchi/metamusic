@@ -420,7 +420,7 @@ func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name 
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
+	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
@@ -449,6 +449,11 @@ func runParity(t *testing.T, stdio bool) {
 			headers = append(headers, "Idempotency-Key", fmt.Sprintf("parity-%d", i))
 		}
 		resp := restClient.Do(t, op.Method, path, body, headers...)
+		if task := m4aStubTask(resp.Status, resp.Body); task != "" {
+			// an M4a stub: the lane that replaces it adds its parity behaviour; B3's TestNoPendingM4aStubs fails on any left
+			t.Logf("parity %s: skipped by name, stub of %s", op.ID, task)
+			continue
+		}
 		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
 		}

@@ -198,6 +198,12 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			for _, s := range library.ImportSections {
 				out[op] = append(out[op], strings.Replace(p, "{id}", r.runID, 1)+"?section="+s)
 			}
+		case p == "/api/prompts/{name}":
+			// M4a get_prompt: the critique prompt embeds a track's context bundle, so it is checked per track
+			// (a stub answers 501 and is skipped; the agent lane's implementation is then covered)
+			for _, id := range r.tracks {
+				out[op] = append(out[op], "/api/prompts/critique_track?track_id="+id)
+			}
 		case strings.HasPrefix(p, "/api/playlists/{") || strings.HasPrefix(p, "/api/exports/{"):
 			// M2a operations: their privacy is covered by the M2a acceptance tests (B10)
 		case strings.HasPrefix(p, "/api/duels/{"):

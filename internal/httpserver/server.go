@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -30,10 +31,14 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
+	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/prompts"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/spend"
@@ -105,6 +110,18 @@ type Options struct {
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
+	// M4a (C114). Connectors verifies OAuth access tokens on /mcp: it must be a nil interface (never a typed nil)
+	// while hosted connectors are off. PRM serves /.well-known/oauth-protected-resource/mcp (nil => 404 problem).
+	// Subsonic serves /rest/ (nil => 404 problem NOT_FOUND). The remaining fields reach api.Deps.
+	Connectors     auth.ConnectorVerifier
+	PRM            http.Handler
+	Subsonic       http.Handler
+	ConnectorStore *connectors.Store
+	OIDC           *oidc.Verifier
+	SubsonicStore  *auth.SubsonicStore
+	Covers         *cover.Service
+	Downloads      *tagged.Service
+	Prompts        prompts.Sources
 	// BaseContext is the server's base context: when it ends (shutdown starts) every request context's
 	// reqinfo.ShutdownDone fires, so long-polls return and the 30 s drain does not wait on them (C75.8).
 	BaseContext context.Context
@@ -133,7 +150,8 @@ func New(o Options) (http.Handler, error) {
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
 		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips,
-		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage})
+		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage,
+		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()
@@ -267,6 +285,23 @@ func New(o Options) (http.Handler, error) {
 			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 		})
 	}
+	// M4a (C114): protected-resource metadata (the only /.well-known path with content), the Subsonic bridge, the
+	// service worker script. Every other /.well-known/ path is an explicit 404 problem (it would otherwise fall
+	// through to the SPA shell with status 200).
+	mux.HandleFunc("/.well-known/", func(w http.ResponseWriter, r *http.Request) {
+		writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+	})
+	if o.PRM != nil {
+		mux.Handle(connectors.PRMPath, o.PRM)
+	}
+	if o.Subsonic != nil {
+		mux.Handle("/rest/", o.Subsonic)
+	} else {
+		mux.HandleFunc("/rest/", func(w http.ResponseWriter, r *http.Request) {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+		})
+	}
+	mux.Handle("/sw.js", swHandler(o.SPA))
 	var leaks *leakScanner
 	if o.Cfg.E2E {
 		leaks = newLeakScanner(o.Sec)
@@ -284,7 +319,7 @@ func New(o Options) (http.Handler, error) {
 	if devices == nil && o.DeviceStore != nil {
 		devices = o.DeviceStore
 	}
-	outer := auth.Middleware(o.Cfg, o.Sec, auth.Verifiers{Tokens: o.Tokens, Sessions: o.Sessions, Devices: devices, Connectors: nil})(mux)
+	outer := auth.Middleware(o.Cfg, o.Sec, auth.Verifiers{Tokens: o.Tokens, Sessions: o.Sessions, Devices: devices, Connectors: o.Connectors})(mux)
 	if o.BaseContext != nil {
 		inner := outer
 		done := o.BaseContext.Done()

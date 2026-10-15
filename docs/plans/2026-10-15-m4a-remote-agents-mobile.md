@@ -1910,6 +1910,16 @@ Tests first:
 Done: `make check` green; `grep -rn 'STUB(M4a-' internal` lists only lane-owned stubs (C1, C2, S1–S3, M1,
 M2, A1, A2); `make openapi` committed; `make fixture-db` includes the M4a rows.
 
+> **B2 contract notes (as built).** (1) The schema component of `get_download_link` is `TrackDownloadLink`: `DownloadLink` is
+> M2a's export link. (2) `connectors.Store` is built by `app.Build` whether or not `MM_OIDC_ISSUER` is set (it is a plain
+> table store the management operations and `seed-synthetic` need); only `oidc.Verifier` and `connectors.Verifier` depend on the
+> issuer, and `Server.Connectors` stays a nil interface without it. (3) `get_media_links.cover` is nullable (null while no cover
+> service is wired; M4a-M1 fills it). (4) `CapConnector` carries the `_usd` strings next to the micro amounts, like `CapToken`.
+> (5) The plan's function `subsonictest.Placeholders` collides with its type; the function is `NewPlaceholders`. (6) `Options`
+> fields of `httpserver` are `Connectors` (verifier), `ConnectorStore`, `Subsonic` (handler) and `SubsonicStore`. (7) The
+> parity runner and the scripted-agent test skip an M4a stub by name (501 `NOT_IMPLEMENTED`, `details.task` `M4a-…`).
+> (8) `toolsCeilingBytes` 87300 → 87600 (measured 87501: the nullable cover object of `get_media_links`).
+
 ### Task M4a-C1 (Connectors): `internal/oidc` and the stub provider
 **Files:** `internal/oidc/{config.go,verify.go,jwks.go,discovery.go}` + tests,
 `internal/oidc/oidctest/{stub.go,authorize.go,token.go,keys.go,fetcher.go,stub_test.go}`, `go.mod`/`go.sum`

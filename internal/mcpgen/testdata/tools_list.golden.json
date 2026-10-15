@@ -1471,6 +1471,12 @@
           "format": "int64",
           "type": "integer"
         },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "updated_at": {
           "type": "string"
         },
@@ -3721,6 +3727,23 @@
     "name": "get_media_links",
     "outputSchema": {
       "properties": {
+        "cover": {
+          "properties": {
+            "expires_at": {
+              "type": "string"
+            },
+            "url_1024": {
+              "type": "string"
+            },
+            "url_512": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "expires_at": {
           "type": "string"
         },
@@ -5985,6 +6008,12 @@
               "revision": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "updated_at": {
                 "type": "string"

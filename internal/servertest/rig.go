@@ -41,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/oidc/oidctest"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
@@ -79,6 +80,14 @@ type Options struct {
 	// RunPod selects the serverless backend over a runpodtest server (Backend must be "" or "runpod"): the rig
 	// writes a synthetic runpod.env, points the backend at the server and arms the provider. Rig.Fake is nil.
 	RunPod *RunPodOptions
+
+	// M4a (C117.1). M4a adds the M4a rows of librarytest.FixtureM4a (an offline set of two tracks, a connector grant, a
+	// Subsonic client, a bookmark and a play queue); it requires Fixture, M2c and M3 like M3 does. OIDC starts an
+	// oidctest.Provider on the rig clock (clients test-claude (public), test-chatgpt (client_secret_post) and test-probe
+	// (public, loopback redirect, not allow-listed); user e2e) and configures MM_OIDC_*; such a rig serves on loopback and
+	// its PublicURL is exactly its own origin, so go-sdk clients can dial <PublicURL>/mcp.
+	M4a  bool
+	OIDC bool
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -143,6 +152,9 @@ type Rig struct {
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
 
+	// OIDC is the stub provider of an Options.OIDC rig (nil otherwise).
+	OIDC *oidctest.Provider
+
 	edge, humanUser, mode string
 	password              string
 	rebuild               func(seed uint64) (*app.Services, error)
@@ -154,6 +166,17 @@ const (
 	idBase      = 0x9000
 	unlimitedPM = 1e6
 )
+
+// UnlimitedLimits is the limiter configuration of a rig that sets no Options.Limits: every class (the five of M2a
+// and the three of the Subsonic bridge) is effectively unlimited. Throttling tests pass Options.Limits explicitly.
+func UnlimitedLimits() ratelimit.Config {
+	limits := ratelimit.Config{}
+	for _, c := range []ratelimit.Class{ratelimit.Agent, ratelimit.AgentHeavy, ratelimit.Human, ratelimit.HumanHeavy, ratelimit.Pair,
+		ratelimit.Subsonic, ratelimit.SubsonicAuthFail, ratelimit.SubsonicAuthFailGlobal} {
+		limits[c] = ratelimit.Limit{PerMinute: unlimitedPM, Burst: unlimitedPM}
+	}
+	return limits
+}
 
 // Synthetic key material, built at run time so no literal looks like a credential.
 var (
@@ -225,6 +248,19 @@ func New(tb testing.TB, o Options) *Rig {
 	if r.Ntfy != nil {
 		cfg.NtfyURL = r.Ntfy.URL + "/mm-test"
 	}
+	// M4a OIDC rig: serve on loopback and publish exactly that origin (go-sdk refuses metadata URLs that are neither
+	// https nor loopback and needs the metadata's resource to equal the URL it dialled), then start the stub provider.
+	var unstarted *httptest.Server
+	if o.OIDC {
+		unstarted = httptest.NewUnstartedServer(nil)
+		cfg.PublicURL = "http://" + unstarted.Listener.Addr().String()
+		tb.Cleanup(func() {
+			if unstarted.Config.Handler == nil { // never started (the test failed during setup)
+				_ = unstarted.Listener.Close()
+			}
+		})
+		r.OIDC = startOIDC(tb, &cfg, clock)
+	}
 
 	if o.Archive != nil {
 		if o.Fixture || o.Files {
@@ -258,6 +294,12 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyM3(tb, st, clock.Now())
 	}
+	if o.M4a {
+		if !o.Fixture || !o.M2c || !o.M3 {
+			tb.Fatal("servertest: M4a requires Fixture, M2c and M3")
+		}
+		librarytest.ApplyM4a(tb, st, clock.Now())
+	}
 	if o.Caps != nil {
 		c := o.Caps
 		if _, err := st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd=?, batch_micro_usd=?, human_daily_micro_usd=?, agent_daily_micro_usd=?, auto_approve_takes=?, auto_approve_micro_usd=?, updated_by='system:test', updated_at=? WHERE id = 1`,
@@ -282,10 +324,7 @@ func New(tb testing.TB, o Options) *Rig {
 
 	limits := o.Limits
 	if limits == nil {
-		limits = ratelimit.Config{}
-		for _, c := range []ratelimit.Class{ratelimit.Agent, ratelimit.AgentHeavy, ratelimit.Human, ratelimit.HumanHeavy, ratelimit.Pair} {
-			limits[c] = ratelimit.Limit{PerMinute: unlimitedPM, Burst: unlimitedPM}
-		}
+		limits = UnlimitedLimits()
 	}
 	ao := app.Options{
 		Now: clock.Now, NewID: idSequence(o.IDSeed), Limits: limits, Version: "v-test", Commit: "abc123",
@@ -293,6 +332,11 @@ func New(tb testing.TB, o Options) *Rig {
 		SlotCoin: o.M2b.SlotCoin,
 		Rand:     o.Rand,
 		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
+		// M4a: no real waiting after a failed Subsonic authentication; the OIDC verifier uses a plain client (loopback).
+		M4a: app.M4aOptions{SubsonicSleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() }},
+	}
+	if o.OIDC {
+		ao.M4a.OIDCClient = &http.Client{}
 	}
 	if ao.Rand == nil {
 		ao.Rand = SeededReader(1)
@@ -345,6 +389,12 @@ func New(tb testing.TB, o Options) *Rig {
 		svc.Server.Duels, svc.Server.Ears, svc.Server.Clips = svc.Duels, svc.Ears, svc.Clips
 	}
 	r.Services = svc
+	if svc.OIDC != nil { // C105 eager fetch: logs error codes only, never blocks or fails the rig
+		pctx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() { defer close(done); svc.OIDC.Prefetch(pctx) }()
+		tb.Cleanup(func() { cancel(); <-done })
+	}
 	r.rebuild = func(seed uint64) (*app.Services, error) {
 		ao2 := ao
 		ao2.Rand = SeededReader(seed)
@@ -414,7 +464,14 @@ func New(tb testing.TB, o Options) *Rig {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	srv := httptest.NewServer(h)
+	var srv *httptest.Server
+	if unstarted != nil {
+		unstarted.Config.Handler = h
+		unstarted.Start()
+		srv = unstarted
+	} else {
+		srv = httptest.NewServer(h)
+	}
 	tb.Cleanup(srv.Close)
 	r.URL = srv.URL
 	return r

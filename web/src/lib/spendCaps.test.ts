@@ -9,7 +9,7 @@ const caps = {
   agent_daily_micro_usd: 2_000_000, agent_daily_usd: "2",
   auto_approve_micro_usd: 500_000, auto_approve_usd: "0.5",
   auto_approve_takes: 3,
-  tokens: [], updated_at: "x", updated_by: { id: "h", kind: "human", name: "h" },
+  tokens: [], connectors: [], updated_at: "x", updated_by: { id: "h", kind: "human", name: "h" },
 } as components["schemas"]["CapsView"];
 
 describe("spend caps form", () => {

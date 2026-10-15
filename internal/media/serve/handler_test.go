@@ -255,7 +255,6 @@ func TestHandler_Paths(t *testing.T) {
 		"/media/" + r.sha,
 		"/media/",
 		"/media/sub/" + r.sha + ".flac",
-		"/media/" + r.sha + ".png",
 		"/media/" + r.sha + ".JPG",
 	} {
 		assertProblem(t, r.do("GET", p+q, nil), 404, "NOT_FOUND")

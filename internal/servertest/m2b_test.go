@@ -140,3 +140,37 @@ func TestWriteFixtureDB_M3(t *testing.T) {
 		t.Fatalf("the job take's master file: %v", err)
 	}
 }
+
+// TestWriteFixtureDB_M4a is the fourth half of `make fixture-db`: with MM_FIXTURE_DB=<path> it adds the M4a rows
+// (offline set, a connector grant, a Subsonic client, a bookmark and a play queue) to the fixture database;
+// otherwise it builds the whole fixture in a temp dir and checks the rows. It runs after the M3 half.
+func TestWriteFixtureDB_M4a(t *testing.T) {
+	t.Parallel()
+	path := os.Getenv("MM_FIXTURE_DB")
+	if path == "" {
+		path = filepath.Join(t.TempDir(), "fixture", "metamusic.db")
+		lt.WriteFixtureDB(t, path)
+		st, err := store.Open(context.Background(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lt.ApplyM3(t, st, lt.FixedNow)
+		_ = st.Close()
+	}
+	st, err := store.Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
+	lt.ApplyM4a(t, st, lt.FixedNow)
+	for table, want := range map[string]int{"connector_grants": 1, "subsonic_clients": 1, "subsonic_bookmarks": 1, "subsonic_play_queue": 1} {
+		var n int
+		if err := st.R.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil || n != want {
+			t.Errorf("%s: %d rows (%v), want %d", table, n, err, want)
+		}
+	}
+	var items int
+	if err := st.R.QueryRow(`SELECT items_count FROM playlists WHERE role = 'offline'`).Scan(&items); err != nil || items != 2 {
+		t.Errorf("offline set items = %d (%v)", items, err)
+	}
+}

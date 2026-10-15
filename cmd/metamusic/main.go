@@ -48,6 +48,8 @@ commands:
                                  run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
+  oidc probe --server URL --client-id ID [--client-secret-file FILE] [--redirect URL]
+                                 run the real OAuth flow against the live provider and print a redacted claims report
 dev flags: --data-dir DIR  --seed-synthetic  --fake-provider (default true)
 
 import exit codes: 0 ok, 1 per-file errors, 2 usage or fatal, 3 PLAN_CHANGED, 4 IMPORT_IN_PROGRESS
@@ -113,6 +115,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdAnalyze(ctx, rest, getenv, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
+	case "oidc":
+		err = cmdOIDC(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 	default:

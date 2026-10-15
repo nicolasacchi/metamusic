@@ -92,8 +92,10 @@ func validate(op huma.Operation, m Meta) error {
 	default:
 		return fmt.Errorf("%s: invalid rate %q", op.OperationID, m.Rate)
 	}
-	if len(m.SecretFields) > 0 && !(m.HumanOnly && m.Idempotency == "create") {
-		return fmt.Errorf("%s: secret_fields require a human-only create op", op.OperationID)
+	// D-M4a-24: a secret may be minted by an admin-scope agent too, so the rule is "a create operation" (the
+	// idempotent replay nulls the secrets through idem.Redact), no longer "a human-only create operation".
+	if len(m.SecretFields) > 0 && m.Idempotency != "create" {
+		return fmt.Errorf("%s: secret_fields require an idempotency create op", op.OperationID)
 	}
 	for _, f := range m.SecretFields {
 		if !secretFieldRe.MatchString(f) {

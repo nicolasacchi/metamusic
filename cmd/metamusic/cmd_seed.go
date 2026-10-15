@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -9,9 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/importer"
 	"github.com/nicolasacchi/metamusic/internal/importer/inbox"
+	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
 )
@@ -83,6 +88,66 @@ func missingTools(cfg config.Config) error {
 // imports it as principal seed-synthetic. Synthetic rows are permanent, so it
 // refuses a library that has any other import run (always, even with --force).
 func seedSynthetic(ctx context.Context, cfg config.Config, st *store.Store, o seedOpts, s streams) error {
+	if err := seedLibrary(ctx, cfg, st, o, s); err != nil {
+		return err
+	}
+	if o.profile == synth.ProfileE2E {
+		return seedE2EM4a(ctx, cfg, st)
+	}
+	return nil
+}
+
+// seedE2EM4a adds the M4a rows the e2e profile needs (C114), idempotently and after both the fresh import and the
+// "already seeded" early return: the 12 s timed track (syn-song-03, seed 1003) first and the 6 s take
+// (syn-song-01, seed 1001) second in the offline set, and one connector grant through connectors.Store.Ensure so
+// the /human/connectors page has a row without an OAuth flow. An offline set that already holds tracks is left alone.
+func seedE2EM4a(ctx context.Context, cfg config.Config, st *store.Store) error {
+	abs, err := filepath.Abs(cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	data, err := os.OpenRoot(abs)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = data.Close() }()
+	lib := library.New(st, data, time.Now)
+	pls := playlists.New(st, lib, time.Now, nil)
+	set, err := pls.Get(ctx, offlineSetID)
+	if err != nil {
+		return fmt.Errorf("seed-synthetic: offline set: %w", err)
+	}
+	if len(set.Items) == 0 {
+		var ids []string
+		for _, r := range []struct {
+			request string
+			seed    int64
+		}{{"syn-song-03", 1003}, {"syn-song-01", 1001}} {
+			var id string
+			err := st.R.QueryRowContext(ctx, `SELECT t.id FROM tracks t JOIN recipes r ON r.id = t.recipe_id
+				WHERE r.request_id = ? AND r.seed = ? AND t.status <> 'discarded' ORDER BY t.created_at, t.id LIMIT 1`, r.request, r.seed).Scan(&id)
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("seed-synthetic: no track for request %s seed %d", r.request, r.seed)
+			}
+			if err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		if _, err := pls.Update(ctx, auth.CLI, offlineSetID, playlists.PlaylistPatch{Revision: set.Revision, TrackIDs: ids}); err != nil {
+			return fmt.Errorf("seed-synthetic: offline set: %w", err)
+		}
+	}
+	if _, _, err := connectors.NewStore(st, time.Now, nil).Ensure(ctx, "e2e-connector", "e2e-subject", "e2e", "E2E Connector"); err != nil {
+		return fmt.Errorf("seed-synthetic: connector grant: %w", err)
+	}
+	return nil
+}
+
+// offlineSetID is the fixed id of the offline-set playlist created by the migration (C103).
+const offlineSetID = "00000000-0000-7000-8000-0000000000f1"
+
+func seedLibrary(ctx context.Context, cfg config.Config, st *store.Store, o seedOpts, s streams) error {
 	var other, tracks int
 	if err := st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM import_runs WHERE principal <> ?`, seedPrincipal).Scan(&other); err != nil {
 		return err

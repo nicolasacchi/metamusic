@@ -423,6 +423,8 @@ M2a's `ratings` DDL; `system` and anonymous principals can never write a duel or
 
 ### C45. Library, serve, problem and textfold additions (M2b-B1)
 
+> **M4a amendment (B2):** `serve.Chain` receives the cover and download resolvers after the clip resolver, and the media extension `png` is accepted (M4a C110.3).
+
 ```go
 // internal/library — read helpers used by clip, duels, ears and trackctx
 type TrackRef struct {

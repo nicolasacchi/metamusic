@@ -34,7 +34,10 @@ import (
 // demoted get_budget, list_jobs, get_batch and request_approval to generic and shortened every M3 description to
 // 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
 // steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
-const toolsCeilingBytes = 87300
+//
+// M4a-B2 re-baselined 87300 -> 87600 (measured 87501, +206): the nullable cover object (url_512, url_1024, expires_at)
+// of the first-class get_media_links. The eight M4a operations are all generic, so nothing else joins tools/list.
+const toolsCeilingBytes = 87600
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

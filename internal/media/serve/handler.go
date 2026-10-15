@@ -11,7 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
-var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`)
+var mediaPath = regexp.MustCompile(`^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg|png)$`)
 
 // downloadName is the ASCII file name a Content-Disposition may carry (no RFC 5987 form needed).
 var downloadName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,119}$`)
@@ -57,36 +57,7 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
 			}
 			obj = o
 		}
-		if data == nil {
-			internal(w, sha, ext, errors.New("no data root"))
-			return
-		}
-		f, err := data.Open(obj.RelPath)
-		if err != nil {
-			internal(w, sha, ext, err)
-			return
-		}
-		defer func() { _ = f.Close() }()
-		if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
-			if err == nil {
-				err = errors.New("not a regular file")
-			}
-			internal(w, sha, ext, err)
-			return
-		}
-
-		h := w.Header()
-		h.Set("Content-Type", obj.ContentType)
-		h.Set("Accept-Ranges", "bytes")
-		h.Set("ETag", `"`+obj.ETag+`"`)
-		h.Set("Cache-Control", "private, max-age=31536000, immutable")
-		if downloadName.MatchString(obj.DownloadName) {
-			h.Set("Content-Disposition", `attachment; filename="`+obj.DownloadName+`"`)
-		}
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Cross-Origin-Resource-Policy", "same-origin")
-		http.ServeContent(w, r, "", obj.ModTime, f)
+		serveObject(w, r, data, obj, "private, max-age=31536000, immutable", "sha", sha, "ext", ext)
 	})
 }
 

@@ -55,7 +55,7 @@
     const r = await createPlaylist(api, name, [trackId]);
     busy = false;
     if (r.ok) {
-      lists = [...lists, { id: r.playlist.id, name: r.playlist.name, items_count: 1, duration_s: 0, hidden: false, revision: r.playlist.revision, updated_at: r.playlist.updated_at }];
+      lists = [...lists, { id: r.playlist.id, name: r.playlist.name, items_count: 1, duration_s: 0, hidden: false, revision: r.playlist.revision, role: null, updated_at: r.playlist.updated_at }];
       added = [...added, { id: r.playlist.id, name: r.playlist.name }];
       chosen = r.playlist.id;
       newName = "";

@@ -36,7 +36,7 @@ func capsFrom(viewer auth.Principal, v generation.CapsView) CapsView {
 		MonthlyMicroUSD: int64(c.MonthlyMicro), MonthlyUSD: usd(c.MonthlyMicro), BatchMicroUSD: int64(c.BatchMicro), BatchUSD: usd(c.BatchMicro),
 		HumanDailyMicroUSD: int64(c.HumanDailyMicro), HumanDailyUSD: usd(c.HumanDailyMicro), AgentDailyMicroUSD: int64(c.AgentDailyMicro), AgentDailyUSD: usd(c.AgentDailyMicro),
 		AutoApproveTakes: c.AutoApproveTakes, AutoApproveMicroUSD: int64(c.AutoApproveMicro), AutoApproveUSD: usd(c.AutoApproveMicro),
-		UpdatedBy: refOf(viewer, v.UpdatedBy), UpdatedAt: store.FormatTime(v.UpdatedAt), Tokens: []CapToken{},
+		UpdatedBy: refOf(viewer, v.UpdatedBy), UpdatedAt: store.FormatTime(v.UpdatedAt), Tokens: []CapToken{}, Connectors: []CapConnector{},
 	}
 	for _, t := range v.Tokens {
 		ct := CapToken{TokenID: t.TokenID, Name: t.Name, AutoApproveTakes: t.Limits.AutoApproveTakes}

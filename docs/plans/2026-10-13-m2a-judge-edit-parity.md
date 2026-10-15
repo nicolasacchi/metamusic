@@ -1227,6 +1227,8 @@ func (s *Service) Upload(ctx context.Context, p auth.Principal, in Upload) (Uplo
 
 ### C33. Exports, `songs.jsonl`, playlists and MP3 ZIPs (`internal/export`, `internal/exports`, `internal/playlists`, `internal/media/id3`)
 
+> **M4a amendment (B2):** `Playlist` and `PlaylistSummary` gain `Role *string` (`"offline"` for the migration's offline set, otherwise null) and every playlist `SELECT` reads the column; `playlists.OfflineMaxItems` is 100 (the offline-set rules follow in M4a-A1; M4a C111). The media resolver chain gains the cover and download resolvers (M4a C110.3).
+
 > M2b-B1 addendum: the media path regex also accepts `jpg` (spectrogram renditions); `get_system_info.schema_version` is 4 after M2b (C27/C34 tests that pinned 3 now expect 4).
 
 **Python-compatible JSON writer** (`internal/export/pyjson.go`; M2a-B3, used by export and tests):
@@ -1654,6 +1656,8 @@ or control characters in the URL are dropped. See the M3 plan, C82.
 
 ### C38. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case; types in `internal/api/types_m2a.go`)
 
+> **M4a amendment (B2):** `list_playlists`, `get_playlist`, `create_playlist` and `update_playlist` carry `role`; the registry validation of `secret_fields` is relaxed to create operations (M4a D-M4a-24).
+
 Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP derives it), **H** =
 `rate: heavy`, **S[…]** = `secret_fields`. Human-only ops use `mcp: exclude:human-only`.
 
@@ -1816,6 +1820,8 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
 
 
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
+
+> **M4a amendment (B2):** `app.Build` also wires the grant store, the OIDC and connector verifiers (only with `MM_OIDC_ISSUER`), the Subsonic credential store and handler, the cover and download services and `Deps.Prompts` (`app.Options.M4a`, `internal/app/m4a.go`); `serve` runs `OIDC.Prefetch`, an hourly salt prune and a daily cover/download sweep (M4a C114).
 
 > M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
 > and `DuelClips func(duels.ClipRenderer) duels.ClipRenderer`; `app.Services` gains `Clips`, `Duels` and `Ears`. `Build` calls
@@ -2066,6 +2072,8 @@ Web lane (M3-W1..W3).
 - `scripts/loop` allowlist and `metrics/loop.schema.json`: no new targets.
 
 ### C42. Test harness and fixtures
+
+> **M4a amendment (B2):** `servertest.Options` gains `M4a` and `OIDC`, the unlimited limiter config lists the Subsonic classes, `Rig.OIDC`, `Rig.Connector` and `Rig.Subsonic` exist; `librarytest` gains `FixtureM4a` and `ApplyM4a`; the parity and scripted-agent tests cover the eight M4a operations and skip a stub by name (M4a C117).
 
 > M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
 > `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:

@@ -1293,6 +1293,61 @@
         ],
         "type": "object"
       },
+      "CapConnector": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "daily_budget_micro_usd": {
+            "description": "null: the global agent daily cap applies",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_budget_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grant_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_id",
+          "label",
+          "daily_budget_micro_usd",
+          "daily_budget_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd",
+          "auto_approve_usd"
+        ],
+        "type": "object"
+      },
       "CapToken": {
         "additionalProperties": false,
         "properties": {
@@ -1376,6 +1431,12 @@
           "batch_usd": {
             "type": "string"
           },
+          "connectors": {
+            "items": {
+              "$ref": "#/components/schemas/CapConnector"
+            },
+            "type": "array"
+          },
           "human_daily_micro_usd": {
             "format": "int64",
             "type": "integer"
@@ -1417,7 +1478,8 @@
           "auto_approve_usd",
           "updated_by",
           "updated_at",
-          "tokens"
+          "tokens",
+          "connectors"
         ],
         "type": "object"
       },
@@ -2066,6 +2128,138 @@
         ],
         "type": "object"
       },
+      "ConnectorGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "effective": {
+            "$ref": "#/components/schemas/GrantEffective"
+          },
+          "generate_enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/GrantLimits"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_by": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "Principal key (kind:id); \"human\" for the operator as seen by an agent",
+                "type": "string"
+              },
+              "kind": {
+                "description": "human, device, agent or system",
+                "type": "string"
+              },
+              "name": {
+                "description": "Display name; \"human\" or \"device\" for agents",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "read",
+                "write",
+                "generate"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject_hint": {
+            "description": "First 8 characters of the token subject; null for a non-human caller",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "username": {
+            "description": "null for a non-human caller",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "label",
+          "username",
+          "subject_hint",
+          "scopes",
+          "generate_enabled",
+          "limits",
+          "effective",
+          "created_at",
+          "last_used_at",
+          "updated_at",
+          "updated_by",
+          "revoked_at",
+          "revoked_by"
+        ],
+        "type": "object"
+      },
+      "ConnectorGrantList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorGrant"
+            },
+            "type": "array"
+          },
+          "oidc": {
+            "$ref": "#/components/schemas/OIDCStatus"
+          }
+        },
+        "required": [
+          "oidc",
+          "items"
+        ],
+        "type": "object"
+      },
       "ContextBudget": {
         "additionalProperties": false,
         "properties": {
@@ -2272,6 +2466,46 @@
         ],
         "type": "object"
       },
+      "CreateSubsonicClientInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "description": "Create an API key (default true)",
+            "type": "boolean"
+          },
+          "default_format": {
+            "description": "Stream format when the app names none (default raw)",
+            "enum": [
+              "raw",
+              "mp3"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Label of the app, e.g. its device",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "description": "Create an app password for token authentication (default true)",
+            "type": "boolean"
+          },
+          "username": {
+            "description": "Default: a slug of the name",
+            "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$",
+            "type": "string"
+          },
+          "write": {
+            "description": "May the app rate, star and bookmark? Default true",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateTokenInBody": {
         "additionalProperties": false,
         "properties": {
@@ -2302,6 +2536,42 @@
         "required": [
           "name",
           "scopes"
+        ],
+        "type": "object"
+      },
+      "CreatedSubsonicClient": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "description": "mms_..., shown once; null on an idempotent replay",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client": {
+            "$ref": "#/components/schemas/SubsonicClient"
+          },
+          "password": {
+            "description": "App password, shown once; null on an idempotent replay",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "server_url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client",
+          "api_key",
+          "password",
+          "server_url",
+          "username"
         ],
         "type": "object"
       },
@@ -2950,6 +3220,45 @@
         "required": [
           "url",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "DownloadTags": {
+        "additionalProperties": false,
+        "properties": {
+          "album": {
+            "type": "string"
+          },
+          "date": {
+            "description": "YYYY-MM-DD",
+            "type": "string"
+          },
+          "genre": {
+            "description": "null when the track has no style terms",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_number": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "track_total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "album",
+          "track_number",
+          "track_total",
+          "date",
+          "genre"
         ],
         "type": "object"
       },
@@ -4694,6 +5003,121 @@
           "spend_month_usd",
           "outstanding_micro_usd",
           "outstanding_usd"
+        ],
+        "type": "object"
+      },
+      "GrantEffective": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auto_approve_usd": {
+            "type": "string"
+          },
+          "daily_budget_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "daily_budget_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "daily_budget_micro_usd",
+          "daily_budget_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd",
+          "auto_approve_usd"
+        ],
+        "type": "object"
+      },
+      "GrantLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "daily_budget_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_budget_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "daily_budget_micro_usd",
+          "daily_budget_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd",
+          "auto_approve_usd"
+        ],
+        "type": "object"
+      },
+      "GrantLimitsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "auto_approve_takes": {
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_budget_micro_usd": {
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "daily_budget_micro_usd",
+          "auto_approve_takes",
+          "auto_approve_micro_usd"
         ],
         "type": "object"
       },
@@ -6559,6 +6983,32 @@
       "MediaLinksOutBody": {
         "additionalProperties": false,
         "properties": {
+          "cover": {
+            "additionalProperties": false,
+            "description": "Signed links to the track's deterministic cover art (512 and 1024 px); null while no cover service is wired",
+            "properties": {
+              "expires_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "url_1024": {
+                "type": "string"
+              },
+              "url_512": {
+                "description": "Signed, relative /media/\u003ckey\u003e.png URL",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url_512",
+              "url_1024",
+              "expires_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "expires_at": {
             "description": "RFC 3339 UTC",
             "type": "string"
@@ -6628,7 +7078,8 @@
           "ttl_s",
           "flac",
           "lossy",
-          "mp3"
+          "mp3",
+          "cover"
         ],
         "type": "object"
       },
@@ -6886,6 +7337,274 @@
         ],
         "type": "object"
       },
+      "OIDCClientInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "label"
+        ],
+        "type": "object"
+      },
+      "OIDCKeys": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fetched_at": {
+            "description": "RFC 3339 UTC; null before the first successful fetch",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error": {
+            "description": "An error code, never a message",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "count",
+          "fetched_at",
+          "last_error"
+        ],
+        "type": "object"
+      },
+      "OIDCStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "alg": {
+            "examples": [
+              "RS256"
+            ],
+            "type": "string"
+          },
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/OIDCClientInfo"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "issuer": {
+            "description": "null while MM_OIDC_ISSUER is unset",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keys": {
+            "$ref": "#/components/schemas/OIDCKeys"
+          },
+          "required_scope": {
+            "examples": [
+              "metamusic"
+            ],
+            "type": "string"
+          },
+          "resource": {
+            "description": "\u003cPublicURL\u003e/mcp, the only accepted audience",
+            "type": "string"
+          },
+          "scopes_advertised": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "issuer",
+          "resource",
+          "alg",
+          "required_scope",
+          "scopes_advertised",
+          "clients",
+          "keys"
+        ],
+        "type": "object"
+      },
+      "OfflineItem": {
+        "additionalProperties": false,
+        "properties": {
+          "album": {
+            "description": "The lineage root's current title",
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "flac": {
+            "additionalProperties": false,
+            "description": "null for a lossy reference track",
+            "properties": {
+              "bits_per_sample": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sample_rate": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sha256",
+              "bytes",
+              "sample_rate",
+              "bits_per_sample"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "lossy": {
+            "type": "boolean"
+          },
+          "mp3": {
+            "additionalProperties": false,
+            "description": "null when the track has no MP3 rendition; for a lossy track the master itself",
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sha256",
+              "bytes"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "position": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "to_relisten",
+              "final",
+              "discarded"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "position",
+          "track_id",
+          "title",
+          "album",
+          "duration_s",
+          "status",
+          "flac",
+          "mp3",
+          "lossy"
+        ],
+        "type": "object"
+      },
+      "OfflineSet": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineItem"
+            },
+            "type": "array"
+          },
+          "limit_items": {
+            "description": "At most this many tracks (100)",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "playlist_id": {
+            "type": "string"
+          },
+          "revision": {
+            "description": "Send it with update_playlist (optimistic locking)",
+            "format": "int64",
+            "type": "integer"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/OfflineTotals"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "playlist_id",
+          "name",
+          "revision",
+          "updated_at",
+          "limit_items",
+          "items",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "OfflineTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "flac_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mp3_bytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "flac_bytes",
+          "mp3_bytes"
+        ],
+        "type": "object"
+      },
       "PairStats": {
         "additionalProperties": false,
         "properties": {
@@ -7056,6 +7775,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "role": {
+            "description": "offline for the protected offline set; null for every other playlist",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "updated_at": {
             "type": "string"
           },
@@ -7074,7 +7800,8 @@
           "updated_at",
           "created_by",
           "updated_by",
-          "items"
+          "items",
+          "role"
         ],
         "type": "object"
       },
@@ -7135,6 +7862,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "role": {
+            "description": "offline for the protected offline set; null for every other playlist",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "updated_at": {
             "type": "string"
           }
@@ -7146,7 +7880,8 @@
           "duration_s",
           "hidden",
           "revision",
-          "updated_at"
+          "updated_at",
+          "role"
         ],
         "type": "object"
       },
@@ -7247,6 +7982,125 @@
           "code",
           "message",
           "details"
+        ],
+        "type": "object"
+      },
+      "PromptArgument": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "required"
+        ],
+        "type": "object"
+      },
+      "PromptContent": {
+        "additionalProperties": false,
+        "properties": {
+          "resource": {
+            "$ref": "#/components/schemas/PromptResource"
+          },
+          "text": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "text",
+              "resource"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "PromptMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/PromptContent"
+          },
+          "role": {
+            "enum": [
+              "user"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "type": "object"
+      },
+      "PromptResource": {
+        "additionalProperties": false,
+        "properties": {
+          "mime_type": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri",
+          "mime_type",
+          "text"
+        ],
+        "type": "object"
+      },
+      "PromptView": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "items": {
+              "$ref": "#/components/schemas/PromptArgument"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/PromptMessage"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description",
+          "version",
+          "arguments",
+          "messages"
         ],
         "type": "object"
       },
@@ -7938,6 +8792,36 @@
           "a",
           "b"
         ],
+        "type": "object"
+      },
+      "SetConnectorGrantInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/GrantLimitsIn"
+          },
+          "revoked": {
+            "description": "true revokes the grant (the next request is refused CONNECTOR_REVOKED); false restores it",
+            "type": "boolean"
+          },
+          "scopes": {
+            "description": "Must contain read",
+            "items": {
+              "enum": [
+                "read",
+                "write",
+                "generate"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": [
+              "array",
+              "null"
+            ],
+            "uniqueItems": true
+          }
+        },
         "type": "object"
       },
       "SetSpendCapsInBody": {
@@ -8748,6 +9632,117 @@
           "duel",
           "verdict",
           "replayed"
+        ],
+        "type": "object"
+      },
+      "SubsonicClient": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_prefix": {
+            "description": "First 8 characters after mms_",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "default_format": {
+            "enum": [
+              "raw",
+              "mp3"
+            ],
+            "type": "string"
+          },
+          "has_api_key": {
+            "type": "boolean"
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "read",
+                "write"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "username",
+          "scopes",
+          "default_format",
+          "has_api_key",
+          "api_key_prefix",
+          "has_password",
+          "created_at",
+          "created_by",
+          "last_seen_at",
+          "last_client",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "SubsonicClientList": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "examples": [
+              "1.16.1"
+            ],
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SubsonicClient"
+            },
+            "type": "array"
+          },
+          "server_url": {
+            "description": "What to enter in the app (the public URL)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server_url",
+          "api_version",
+          "items"
         ],
         "type": "object"
       },
@@ -9577,6 +10572,53 @@
           "recipe_known",
           "lossy",
           "generation"
+        ],
+        "type": "object"
+      },
+      "TrackDownloadLink": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "filename": {
+            "description": "Suggested file name, [a-z0-9._-]",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Of the downloaded file",
+            "type": "string"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/DownloadTags"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "ttl_s": {
+            "description": "Link lifetime granted to the caller, seconds",
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Signed, relative URL (/media/\u003ckey\u003e.flac, or the master's /media/\u003csha\u003e.mp3 for a lossy track)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "url",
+          "filename",
+          "bytes",
+          "sha256",
+          "expires_at",
+          "ttl_s",
+          "tags"
         ],
         "type": "object"
       },
@@ -11233,6 +12275,100 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/compare",
+          "human_only": false
+        }
+      }
+    },
+    "/api/connectors": {
+      "get": {
+        "description": "The OAuth connector status (issuer, resource, allowed clients, key cache) and every connector grant with its scopes, limits and last use. Needs scope admin. Usernames and subject hints are shown to humans only.",
+        "operationId": "list_connector_grants",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrantList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List hosted-connector grants",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/connectors",
+          "human_only": false
+        }
+      }
+    },
+    "/api/connectors/{id}": {
+      "put": {
+        "description": "Sets a connector grant's scopes (read is required; generate is off by default), its spend limits (the whole limits object; null means the global default) and/or revokes or restores it. Needs scope admin. The global monthly cap stays human-only, so a connector budget never exceeds it.",
+        "operationId": "set_connector_grant",
+        "parameters": [
+          {
+            "description": "Grant id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Grant id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetConnectorGrantInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change a connector grant",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/connectors",
           "human_only": false
         }
       }
@@ -13116,6 +14252,42 @@
         }
       }
     },
+    "/api/offline-set": {
+      "get": {
+        "description": "The protected offline-set playlist with per-item media facts (FLAC and MP3 sizes and hashes), so a device can plan downloads without further calls. Edit it with update_playlist, sending the revision from this response.",
+        "operationId": "get_offline_set",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineSet"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the offline set",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/offline",
+          "human_only": false
+        }
+      }
+    },
     "/api/ping": {
       "get": {
         "description": "Liveness check that also reports the server version.",
@@ -13425,6 +14597,92 @@
         }
       }
     },
+    "/api/prompts/{name}": {
+      "get": {
+        "description": "Renders one of the built-in prompts (critique_track, write_variant, session_review) for a track or a listening session: the messages an agent or the web UI hands to a model. critique_track and write_variant need track_id.",
+        "operationId": "get_prompt",
+        "parameters": [
+          {
+            "description": "Prompt name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Prompt name",
+              "enum": [
+                "critique_track",
+                "write_variant",
+                "session_review"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required for critique_track and write_variant",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Required for critique_track and write_variant",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "write_variant: what the variant should achieve",
+            "explode": false,
+            "in": "query",
+            "name": "goal",
+            "schema": {
+              "description": "write_variant: what the variant should achieve",
+              "maxLength": 500,
+              "type": "string"
+            }
+          },
+          {
+            "description": "session_review: RFC 3339 start (default now - 12 h; at most 30 days back)",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "session_review: RFC 3339 start (default now - 12 h; at most 30 days back)",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Render a prompt",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/provider": {
       "get": {
         "description": "Whether generation is enabled, armed or tripped; the open trip; worker counts; the endpoint without its id; price, real-time factors and limits.",
@@ -13588,6 +14846,154 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
+          "human_only": false
+        }
+      }
+    },
+    "/api/subsonic-clients": {
+      "get": {
+        "description": "The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. Needs scope admin.",
+        "operationId": "list_subsonic_clients",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubsonicClientList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Subsonic clients",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/subsonic",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. Needs scope admin.",
+        "operationId": "create_subsonic_client",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubsonicClientInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedSubsonicClient"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a Subsonic client",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/subsonic",
+          "human_only": false,
+          "idempotency": "create",
+          "secret_fields": [
+            "api_key",
+            "password"
+          ]
+        }
+      }
+    },
+    "/api/subsonic-clients/{id}/revoke": {
+      "post": {
+        "description": "Revokes a native-app credential by id; repeating the call returns the same result. Needs scope admin.",
+        "operationId": "revoke_subsonic_client",
+        "parameters": [
+          {
+            "description": "Subsonic client id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Subsonic client id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubsonicClient"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a Subsonic client",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/human/subsonic",
           "human_only": false
         }
       }
@@ -14484,6 +15890,55 @@
           "mcp": "tool",
           "ui": "/tracks/:id",
           "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/download": {
+      "get": {
+        "description": "A signed, expiring link to a FLAC copy of the track carrying its current title, album, track number and tags (audio frames unchanged). A lossy track answers a link to its MP3 master unchanged. Humans get 12 h links, agents 15 min.",
+        "operationId": "get_download_link",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackDownloadLink"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a download link with current tags",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "rate": "heavy"
         }
       }
     },

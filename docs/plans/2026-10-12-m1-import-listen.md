@@ -1331,6 +1331,8 @@ schema 2-5 databases; the score of a job take has `source = 'job'`, and `InsertT
 
 ### C18. Media URLs and handler: `internal/media/serve`
 
+> **M4a amendment (B2):** the media path accepts the extension `png`; the response code is extracted into `serve.ServeObject(w, r, data, obj, cacheControl)`, which the handler calls with the unchanged `private, max-age=31536000, immutable` (M4a C110.3). The handler test that listed `.png` among the refused extensions drops that row.
+
 > M2b-B1 addendum: the path regex is `^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`; `Service.Resolve` (C17) answers `jpg` from `renditions(kind='spectrogram')` as `image/jpeg`.
 
 ```go
@@ -1380,6 +1382,8 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
   `[a-z0-9._-]`) adds `Content-Disposition: attachment; filename="<name>"`; library objects send none.
 
 ### C19. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case)
+
+> **M4a amendment (B2):** `get_media_links` gains `cover` (`{url_512, url_1024, expires_at}`, null while no cover service is wired; M4a C113).
 
 | OperationID | Method + path | Scope | MCP | UI | Output (abridged; full types in `internal/api/types_m1.go`) |
 |---|---|---|---|---|---|
@@ -1488,6 +1492,8 @@ the queries that fill them (and the `search_tracks` `origin` filter) land in M3-
 
 ### C20. HTTP server and CLI additions
 
+> **M4a amendment (B2):** `seed-synthetic --profile e2e` additionally, and idempotently, fills the offline set (the 12 s timed track, then the 6 s take) and inserts one connector grant `E2E Connector` (M4a C114).
+
 > M2b-B2 addendum: `httpserver.Options` gains `Duels`, `Ears` and `Clips` (see M0 C6); the CLI gains `analyze` (M2b C51.7, a stub
 > until M2b-E3) and the media chain becomes `serve.Chain(lib, exp, clips)` with `clips` appended only when the service exists.
 
@@ -1549,6 +1555,8 @@ the queries that fill them (and the `search_tracks` `origin` filter) land in M3-
     are missing). M0's dev bootstrap (auto-created secrets, one-time `dev` password) is unchanged.
 
 ### C21. Synthetic generator: `internal/synth`
+
+> **M4a amendment (B2):** the e2e profile's offline set and connector grant are written by the `seed-synthetic` command, not by the generator (M4a C114).
 
 Everything synthetic is generated at test/dev time by ffmpeg + Go; nothing from the real archive; no
 audio is committed. Vocabulary: invented syllable words plus fixed edge strings (`è à ì`, `<`, `>`,
