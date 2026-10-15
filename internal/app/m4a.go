@@ -2,13 +2,13 @@ package app
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -26,6 +26,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/subsonic"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
 // M4aOptions are the test injection points of the M4a services (C114); both are nil in production.
@@ -68,6 +69,7 @@ type m4aInputs struct {
 	version   string
 	covers    *cover.Service
 	downloads *tagged.Service
+	ctxb      *trackctx.Builder
 }
 
 // oidcHTTPClient is the production client of the OIDC verifier: 5 s timeout, redirects refused (C114).
@@ -88,7 +90,7 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 		Covers:     in.covers,
 		Downloads:  in.downloads,
 		PRM:        connectors.PRMHandler(in.cfg),
-		Prompts:    promptSources{lib: in.lib},
+		Prompts:    api.NewPromptSources(in.lib, in.ctxb, in.listen),
 	}
 	if in.cfg.OIDCIssuer != "" {
 		httpc := o.OIDCClient
@@ -118,28 +120,4 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 // m4aResolvers are the resolvers M4a appends to the media chain after library, exports and clips (C110.3).
 func m4aResolvers(covers *cover.Service, downloads *tagged.Service) []mediaserve.Resolver {
 	return []mediaserve.Resolver{covers, downloads}
-}
-
-// promptSources implements prompts.Sources over the services. STUB(M4a-A1): ContextJSON and Session are
-// implemented by the agent lane (they need the context builder's REST bytes and listening.Service.Session).
-type promptSources struct{ lib *library.Service }
-
-func (promptSources) ContextJSON(context.Context, auth.Principal, string) ([]byte, error) {
-	return nil, errors.ErrUnsupported // STUB(M4a-A1)
-}
-
-func (promptSources) Session(context.Context, time.Time, int) (listening.Session, error) {
-	return listening.Session{}, errors.ErrUnsupported // STUB(M4a-A1)
-}
-
-func (p promptSources) Title(ctx context.Context, trackID string) (string, error) {
-	t, err := p.lib.Track(ctx, trackID)
-	if err != nil {
-		return "", err
-	}
-	return t.Title, nil
-}
-
-func (p promptSources) RecipeKnown(ctx context.Context, trackID string) (bool, error) {
-	return p.lib.RecipeKnown(ctx, trackID)
 }

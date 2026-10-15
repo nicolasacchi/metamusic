@@ -58,41 +58,9 @@ func (s promptSources) RecipeKnown(ctx context.Context, trackID string) (bool, e
 	return s.lib.RecipeKnown(ctx, trackID)
 }
 
-// fallbackSources serves ContextJSON and Session from real when primary answers errors.ErrUnsupported (app.Build's
-// placeholder until M4a-B3 passes NewPromptSources as Deps.Prompts; B3 deletes this wrapper). Title and RecipeKnown
-// always go to primary.
-type fallbackSources struct{ primary, real prompts.Sources }
-
-func (f fallbackSources) ContextJSON(ctx context.Context, p auth.Principal, id string) ([]byte, error) {
-	b, err := f.primary.ContextJSON(ctx, p, id)
-	if errors.Is(err, errors.ErrUnsupported) {
-		return f.real.ContextJSON(ctx, p, id)
-	}
-	return b, err
-}
-
-func (f fallbackSources) Session(ctx context.Context, since time.Time, limit int) (listening.Session, error) {
-	s, err := f.primary.Session(ctx, since, limit)
-	if errors.Is(err, errors.ErrUnsupported) {
-		return f.real.Session(ctx, since, limit)
-	}
-	return s, err
-}
-
-func (f fallbackSources) Title(ctx context.Context, id string) (string, error) {
-	return f.primary.Title(ctx, id)
-}
-
-func (f fallbackSources) RecipeKnown(ctx context.Context, id string) (bool, error) {
-	return f.primary.RecipeKnown(ctx, id)
-}
-
 // registerPromptsM4a registers get_prompt (C112.2, C113).
 func registerPromptsM4a(a huma.API, d Deps) {
 	src := d.Prompts
-	if src != nil && d.Library != nil {
-		src = fallbackSources{primary: src, real: NewPromptSources(d.Library, d.Context, d.Listening)}
-	}
 	Register(a, huma.Operation{
 		OperationID: "get_prompt", Method: "GET", Path: "/api/prompts/{name}",
 		Summary:     "Render a prompt",

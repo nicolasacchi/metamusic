@@ -311,7 +311,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 	}
 	var called []string
-	stubbed := map[string]bool{} // M4a stubs (501 NOT_IMPLEMENTED naming their task): skipped by name until their lane lands
 	for _, id := range uiOrder {
 		op, ok := have[id]
 		script := uiScript[id]
@@ -327,9 +326,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)
 		if task := m4aStubOf(raw); raw.IsError && task != "" {
-			t.Logf("scripted call %s: skipped by name, stub of %s", id, task)
-			stubbed[id] = true
-			continue
+			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): M4a-B3 left no pending stub", id, task)
 		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
@@ -359,12 +356,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	slices.Reverse(rows) // newest first => call order
 	var gotOps []string
 	for _, row := range rows {
-		if op, _ := row["op"].(string); stubbed[op] {
-			if s, _ := row["status"].(float64); int(s) != 501 {
-				t.Errorf("stubbed op %s audited with status %v, want 501", op, row["status"])
-			}
-			continue
-		}
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}

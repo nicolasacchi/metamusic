@@ -13,13 +13,11 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// promptRig serves the registry over the rig's real services with the real prompt sources (app.Build wires
-// them in M4a-B3; until then the rig carries a placeholder).
+// promptRig serves the registry over the rig's real services (app.Build wires the real prompt sources).
 func promptRig(t *testing.T) *rig {
 	t.Helper()
 	sr := servertest.New(t, servertest.Options{Fixture: true, M2c: true, M3: true, M4a: true, Files: true})
 	d := sr.Services.Deps
-	d.Prompts = api.NewPromptSources(d.Library, d.Context, d.Listening)
 	mux := http.NewServeMux()
 	api.New(mux, d)
 	return &rig{mux: mux}

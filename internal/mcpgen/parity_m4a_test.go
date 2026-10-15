@@ -18,9 +18,8 @@ import (
 )
 
 // m4aCases covers the eight M4a operations (C113, C117.2): all are MCP generic. The three read ops and the five
-// admin ones run on the admin-scope PAT of every face. Until the owning lane replaces a stub, the REST answer is
-// 501 NOT_IMPLEMENTED with details.task = "M4a-<task>" and the runner skips the case by name (m4aStubTask); B3's
-// TestNoPendingM4aStubs turns the skip into a failure. The management cases mask ids, timestamps, keys and the
+// admin ones run on the admin-scope PAT of every face. A 501 NOT_IMPLEMENTED naming an M4a task fails the
+// run (m4aStubTask; TestNoPendingM4aStubs). The management cases mask ids, timestamps, keys and the
 // one-time secrets; the owning lane tunes the masks when it fills the handler.
 var m4aCases = []ParityCase{
 	{Op: "get_offline_set", Masks: []string{"updated_at"}},
@@ -162,9 +161,8 @@ func TestParity_OAuthConnector(t *testing.T) {
 			headers = append(headers, "Idempotency-Key", "oauth-subset-"+c.op)
 		}
 		resp := restClient.Do(t, op.Method, path, body, headers...)
-		if task := m4aStubTask(resp.Status, resp.Body); task != "" { // another lane's pending stub: skipped by name like runParity
-			t.Logf("oauth subset %s: skipped by name, stub of %s", c.op, task)
-			continue
+		if task := m4aStubTask(resp.Status, resp.Body); task != "" {
+			t.Fatalf("oauth subset %s answers 501 NOT_IMPLEMENTED (stub of %s)", c.op, task)
 		}
 		if c.status != 0 && resp.Status != c.status || c.status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", c.op, resp.Status, resp.Body)

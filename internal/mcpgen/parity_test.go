@@ -450,9 +450,7 @@ func runParity(t *testing.T, stdio bool) {
 		}
 		resp := restClient.Do(t, op.Method, path, body, headers...)
 		if task := m4aStubTask(resp.Status, resp.Body); task != "" {
-			// an M4a stub: the lane that replaces it adds its parity behaviour; B3's TestNoPendingM4aStubs fails on any left
-			t.Logf("parity %s: skipped by name, stub of %s", op.ID, task)
-			continue
+			t.Fatalf("parity %s answers 501 NOT_IMPLEMENTED (stub of %s): no M4a stub may remain", op.ID, task)
 		}
 		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)

@@ -216,7 +216,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 
 	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
-		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads}, o.M4a)
+		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, ctxb: ctxb}, o.M4a)
 
 	s := &Services{
 		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads,

@@ -2,10 +2,13 @@ package app_test
 
 import (
 	"context"
+	"errors"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -96,5 +99,22 @@ func TestApp_M4aPromptSourcesNeverNil(t *testing.T) {
 	s := buildWith(t, nil, app.Options{})
 	if s.Deps.Prompts == nil {
 		t.Fatal("Deps.Prompts is nil")
+	}
+}
+
+// TestApp_PromptSourcesAreReal: the prompt sources read the listening and context services (no A1 stub left).
+func TestApp_PromptSourcesAreReal(t *testing.T) {
+	t.Parallel()
+	s := buildWith(t, nil, app.Options{})
+	sess, err := s.Deps.Prompts.Session(context.Background(), time.Now().Add(-time.Hour), 5)
+	if err != nil {
+		t.Fatalf("Session: %v", err)
+	}
+	if len(sess.Tracks) != 0 {
+		t.Errorf("Session tracks = %d, want 0 on an empty library", len(sess.Tracks))
+	}
+	_, err = s.Deps.Prompts.ContextJSON(context.Background(), auth.Principal{Kind: auth.KindAgent, ID: "x", Name: "x"}, "no-such-track")
+	if err == nil || errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("ContextJSON error = %v, want a not-found style error", err)
 	}
 }

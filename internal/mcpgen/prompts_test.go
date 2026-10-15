@@ -14,21 +14,16 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// promptRig is a2Rig with the real prompt sources behind the gated handler every MCP face dispatches into
-// (app.Build wires them in M4a-B3; until then the rig's own services carry a placeholder).
+// promptRig is a2Rig: app.Build wires the real prompt sources behind the gated handler every MCP face dispatches into.
 func promptRig(t *testing.T) *servertest.Rig {
 	t.Helper()
-	r := a2Rig(t)
-	d := &r.Services.Deps
-	d.Prompts = api.NewPromptSources(d.Library, d.Context, d.Listening)
-	return r
+	return a2Rig(t)
 }
 
 // promptFaces returns an HTTP and a stdio session of one agent, and that agent's gated REST face.
