@@ -46,6 +46,17 @@ func (k RunPodKeys) GoString() string { return k.String() }
 // LoadRunPodKeys reads <dir>/runpod.env. It returns (zero, false, nil) when the
 // file is absent. Errors name the file and the variable, never a value.
 func LoadRunPodKeys(dir string) (RunPodKeys, bool, error) {
+	return loadRunPodKeys(dir, true)
+}
+
+// LoadRunPodKeysForProvision is LoadRunPodKeys for `runpod provision`, which finds the endpoint by name:
+// a runpod.env without RUNPOD_ENDPOINT_ID is accepted (first-time provisioning, before the id exists). An
+// all-access key in the file is still refused.
+func LoadRunPodKeysForProvision(dir string) (RunPodKeys, bool, error) {
+	return loadRunPodKeys(dir, false)
+}
+
+func loadRunPodKeys(dir string, needEndpoint bool) (RunPodKeys, bool, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, "runpod.env"))
 	if errors.Is(err, os.ErrNotExist) {
 		return RunPodKeys{}, false, nil
@@ -66,10 +77,13 @@ func LoadRunPodKeys(dir string) (RunPodKeys, bool, error) {
 		Jobs: vars["RUNPOD_JOBS_KEY"], Read: vars["RUNPOD_READ_KEY"], Write: vars["RUNPOD_WRITE_KEY"],
 		EndpointID: vars["RUNPOD_ENDPOINT_ID"], ConsoleURL: vars["RUNPOD_CONSOLE_URL"],
 	}
-	for _, req := range []struct{ name, val string }{
-		{"RUNPOD_JOBS_KEY", k.Jobs}, {"RUNPOD_READ_KEY", k.Read}, {"RUNPOD_ENDPOINT_ID", k.EndpointID},
+	for _, req := range []struct {
+		name, val string
+		optional  bool
+	}{
+		{"RUNPOD_JOBS_KEY", k.Jobs, false}, {"RUNPOD_READ_KEY", k.Read, false}, {"RUNPOD_ENDPOINT_ID", k.EndpointID, !needEndpoint},
 	} {
-		if req.val == "" {
+		if req.val == "" && !req.optional {
 			return RunPodKeys{}, false, fmt.Errorf("config: runpod.env: %s missing", req.name)
 		}
 	}

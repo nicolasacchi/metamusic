@@ -2,6 +2,7 @@ package yue2
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -175,6 +176,18 @@ func TestWeights_ProvisionMatches(t *testing.T) {
 		if len(rev) != 40 || strings.Trim(rev, "0123456789abcdef") != "" {
 			t.Errorf("%s: revision %q is not 40 lowercase hex digits", repo, rev)
 		}
+	}
+	// the audited pins (2026-10-15, yue2 commit 1647252d); a change is a deliberate edit of this test too
+	if Weights[WeightsRepo3B] != "8f24312f187763b9854adeec87e437e2b03bbff1" || Weights[WeightsRepoVAE] != "152733a19ad43aa67e367f9b5503ef8075bb5126" {
+		t.Errorf("weights pins changed: %v", Weights)
+	}
+	// the VAE baked into the worker image is the same revision (single source of truth)
+	df, err := os.ReadFile("../../../worker/Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(df), "ARG VAE_REVISION="+Weights[WeightsRepoVAE]+"\n") {
+		t.Errorf("worker/Dockerfile VAE_REVISION does not equal Weights[%s]", WeightsRepoVAE)
 	}
 	if Weights[WeightsRepo3B] == Weights[WeightsRepoVAE] {
 		t.Error("the two weights share one revision")

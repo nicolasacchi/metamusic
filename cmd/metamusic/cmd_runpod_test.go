@@ -607,3 +607,38 @@ func TestRunPodBases(t *testing.T) {
 		}
 	}
 }
+
+// First-time provisioning: the operator has written the scoped keys but there is no endpoint id yet.
+func TestCLI_ProvisionWithoutEndpointID(t *testing.T) {
+	t.Parallel()
+	r := newRPRig(t)
+	img := "ghcr.io/example/worker@sha256:" + strings.Repeat("a", 64)
+	envFile := filepath.Join(r.sec, "runpod.env")
+	noID := "RUNPOD_JOBS_KEY=" + r.keys.Jobs + "\nRUNPOD_READ_KEY=" + r.keys.Read + "\n"
+	if err := os.WriteFile(envFile, []byte(noID), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r.srv.SetEndpoint(func(ep map[string]any) { ep["name"] = "other" }) // so provision creates
+	if code, out, errs := rp(t, r.env, "provision", "--image", img, "--dry-run"); code != 0 || strings.Contains(out, "append this line") {
+		t.Fatalf("dry run: %d %s %s", code, out, errs)
+	}
+	code, out, errs := rp(t, r.env, "provision", "--image", img)
+	if code != 0 {
+		t.Fatalf("provision without RUNPOD_ENDPOINT_ID: %d %s %s", code, out, errs)
+	}
+	if !strings.Contains(out, "append this line to runpod.env: RUNPOD_ENDPOINT_ID="+r.ep) {
+		t.Errorf("no endpoint id hint after create:\n%s", out)
+	}
+	// every other command still needs the id
+	if code, _, errs := rp(t, r.env, "status"); code == 0 || !strings.Contains(errs, "RUNPOD_ENDPOINT_ID") {
+		t.Errorf("status without the id: %d %s", code, errs)
+	}
+	// the all-access key is still refused in runpod.env, id or not
+	if err := os.WriteFile(envFile, []byte(noID+"RUNPOD_ADMIN_KEY="+r.keys.Admin+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs = rp(t, r.env, "provision", "--image", img, "--dry-run")
+	if code == 0 || !strings.Contains(errs, "runpod-admin.env") || strings.Contains(out+errs, r.keys.Admin) {
+		t.Errorf("admin key in runpod.env: %d %s %s", code, out, errs)
+	}
+}
