@@ -1367,7 +1367,7 @@ components `oidc`, `covers`, `downloads`, `subsonic`.
   fetch); hourly `Subsonic.PruneSalts` (next to M2a's idempotency prune); daily cover/download sweeps
   (C110.3).
 - **CLI** (stdlib `flag`, `run(...)`-testable, `config.LoadOffline`; B2 owns `cmd/metamusic/main.go`: the `oidc` case in `run` and
-  its usage lines, answering "not implemented" until M4a-C3):
+  its usage lines, answered "not implemented" until M4a-C3, which implements it):
   - `oidc probe --server URL --client-id ID [--client-secret-file FILE] [--redirect URL]` (D-M4a-21):
     builds a go-sdk `auth.AuthorizationCodeHandler` (`PreregisteredClient`, `RequestRefreshToken: true`)
     whose `AuthorizationCodeFetcher` prints the authorization URL and reads the redirected URL from stdin;
