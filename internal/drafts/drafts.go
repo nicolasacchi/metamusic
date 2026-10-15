@@ -21,6 +21,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -119,6 +120,28 @@ type Service struct {
 	newID func() string
 
 	hashQueries atomic.Int64 // duplicate-check queries issued (tests: one per page)
+
+	sw TargetSource // nil: no duration-target warnings
+}
+
+// TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).
+type TargetSource interface {
+	Get(ctx context.Context) (songwriting.Targets, error)
+}
+
+// UseSongwriting wires the duration targets the lint compares each song's estimated length with.
+func (s *Service) UseSongwriting(t TargetSource) { s.sw = t }
+
+func (s *Service) lintContext(ctx context.Context, known func(hash, selfDraftID, selfRecipeID string) (string, bool)) (yue2.LintContext, error) {
+	lc := yue2.LintContext{KnownHash: known}
+	if s.sw != nil {
+		t, err := s.sw.Get(ctx)
+		if err != nil {
+			return lc, err
+		}
+		lc.Targets = &yue2.DurationTargets{MinS: t.MinDurationS, TargetMinS: t.TargetMinDurationS, TargetMaxS: t.TargetMaxDurationS}
+	}
+	return lc, nil
 }
 
 // New builds the drafts service; nil now means time.Now.
@@ -206,7 +229,11 @@ func (s *Service) lintWith(ctx context.Context, items []yue2.LintItem, batch boo
 	if err != nil {
 		return yue2.LintReport{}, err
 	}
-	rep := yue2.Lint(items, batch, yue2.LintContext{KnownHash: known})
+	lc, err := s.lintContext(ctx, known)
+	if err != nil {
+		return yue2.LintReport{}, err
+	}
+	rep := yue2.Lint(items, batch, lc)
 	if err := s.flagUnknown(ctx, &rep); err != nil {
 		return yue2.LintReport{}, err
 	}

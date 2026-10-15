@@ -669,6 +669,9 @@
                   "code": {
                     "type": "string"
                   },
+                  "details": {
+                    "type": "object"
+                  },
                   "fatal": {
                     "type": "boolean"
                   },
@@ -723,6 +726,9 @@
                 "properties": {
                   "code": {
                     "type": "string"
+                  },
+                  "details": {
+                    "type": "object"
                   },
                   "fatal": {
                     "type": "boolean"
@@ -3143,6 +3149,9 @@
                   "code": {
                     "type": "string"
                   },
+                  "details": {
+                    "type": "object"
+                  },
                   "fatal": {
                     "type": "boolean"
                   },
@@ -3197,6 +3206,9 @@
                 "properties": {
                   "code": {
                     "type": "string"
+                  },
+                  "details": {
+                    "type": "object"
                   },
                   "fatal": {
                     "type": "boolean"
@@ -3782,6 +3794,37 @@
           "type": "string"
         },
         "ttl_s": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get the songwriting duration targets\n\nPreferred song length in seconds: at least min_duration_s, aiming for target_min_duration_s to target_max_duration_s. Lint warns when a song misses them.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_songwriting_settings",
+    "outputSchema": {
+      "properties": {
+        "min_duration_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "target_max_duration_s": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "target_min_duration_s": {
           "format": "int64",
           "type": "integer"
         }
@@ -5449,6 +5492,9 @@
             "null"
           ]
         },
+        "songwriting": {
+          "type": "object"
+        },
         "track": {
           "type": "object"
         }
@@ -5645,6 +5691,9 @@
               "code": {
                 "type": "string"
               },
+              "details": {
+                "type": "object"
+              },
               "fatal": {
                 "type": "boolean"
               },
@@ -5680,6 +5729,9 @@
                   "properties": {
                     "code": {
                       "type": "string"
+                    },
+                    "details": {
+                      "type": "object"
                     },
                     "fatal": {
                       "type": "boolean"
@@ -5735,6 +5787,9 @@
                   "properties": {
                     "code": {
                       "type": "string"
+                    },
+                    "details": {
+                      "type": "object"
                     },
                     "fatal": {
                       "type": "boolean"

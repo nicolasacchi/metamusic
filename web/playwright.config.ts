@@ -1,5 +1,6 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
 import { BASE_URL, HEADERS, OUTPUT_DIR } from "./e2e/env";
+import { E2E_SETS } from "./e2e/sets";
 
 // Chrome must autoplay without a prior gesture so specs can start playback programmatically
 // (the probe specs still use a real click, which exercises the gesture rule).
@@ -30,7 +31,7 @@ const LISTEN = "**/m2a-listen.spec.ts";
 // phase that depends on phase 1 and on the listen projects. The desktop project runs every M3 spec except m3-spend;
 // m3-variant and m3-jobs also run on the phones, one project after the other (they share two fake workers); m3-spend
 // changes the caps and the arming for everyone, so it runs alone after every other project.
-const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend"];
+const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting", "spend"];
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
@@ -65,6 +66,37 @@ const androidFirefox = (policy: number) => ({
 //   m2b-duels      x19 each mobile project skips 9 (8 keyboard/desktop-only tests and the serial queue/skip test,
 //                      which is chrome only) = 18; desktop chrome skips the mobile-toggle test = 1
 // A new skip needs a reason of this kind; anything capability- or environment-related must fail instead.
+// CI runs one set of projects per job (e2e/sets.ts); unset runs everything (make e2e).
+const setName = process.env.MM_E2E_SET;
+const setNames = setName ? E2E_SETS[setName] : undefined;
+if (setName && !setNames) throw new Error(`unknown MM_E2E_SET ${setName} (want ${Object.keys(E2E_SETS).join(", ")})`);
+
+const allProjects: NonNullable<PlaywrightTestConfig["projects"]> = [
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
+    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
+    { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
+    { name: "firefox-android-strict", use: androidFirefox(2), testMatch: AUTOADV, grep: /strict autoplay/ },
+    // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
+    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
+    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...firefoxIgnore, LISTEN] },
+    // phase 2: the listen spec alone (see LISTEN above)
+    { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
+    { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
+    { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
+    { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
+    // phase 3: the M3 specs (see M3 above)
+    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting"]), AUTOADV], dependencies: before3 },
+    { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
+    { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
+    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
+];
+
+function projects() {
+  return allProjects
+    .filter((p) => !setNames || setNames.includes(p.name ?? ""))
+    .map((p) => (setNames && p.dependencies ? { ...p, dependencies: p.dependencies.filter((d) => setNames.includes(d)) } : p));
+}
+
 export default defineConfig({
   testDir: "./e2e",
   outputDir: OUTPUT_DIR,
@@ -81,23 +113,5 @@ export default defineConfig({
     extraHTTPHeaders: HEADERS,
     trace: "retain-on-failure",
   },
-  projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
-    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
-    { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
-    { name: "firefox-android-strict", use: androidFirefox(2), testMatch: AUTOADV, grep: /strict autoplay/ },
-    // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
-    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
-    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...firefoxIgnore, LISTEN] },
-    // phase 2: the listen spec alone (see LISTEN above)
-    { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
-    // phase 3: the M3 specs (see M3 above)
-    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage"]), AUTOADV], dependencies: before3 },
-    { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
-    { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
-    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
-  ],
+  projects: projects(),
 });
