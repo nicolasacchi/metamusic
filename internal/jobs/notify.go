@@ -72,6 +72,14 @@ func NoteWorkersNotZero(publicURL string) notify.Message {
 		Body: "A worker is still up after the last batch finished and no attempt is live.", Click: page(publicURL, "/jobs")}
 }
 
+// NoteInitializingSlow is "a worker has been INITIALIZING for 30 min" (priority 3, warning only: an
+// initializing worker is not billed and never trips the provider).
+func NoteInitializingSlow(publicURL string, minutes int) notify.Message {
+	return notify.Message{Title: "Worker still initializing", Priority: 3,
+		Body:  fmt.Sprintf("A worker has been INITIALIZING for %d min (image pull or model download). It is not billed.", minutes),
+		Click: page(publicURL, "/jobs")}
+}
+
 // NoteCancelNotConfirmed is "cancel not confirmed after 5 min" (priority 4).
 func NoteCancelNotConfirmed(publicURL, jobID string) notify.Message {
 	return notify.Message{Title: "Cancel not confirmed yet", Priority: 4,

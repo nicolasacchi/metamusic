@@ -132,21 +132,126 @@ func TestReconciler_HealthStuckResetsWhenWorkerGone(t *testing.T) {
 	}
 }
 
-func TestReconciler_HealthInitializingTenMinutesTrips(t *testing.T) {
+// An INITIALIZING worker is not billed (image pull, cached-model download: 30+ min on a fresh host in canary
+// #2), so elapsed time alone never trips; one warning is sent after 30 minutes.
+func TestReconciler_InitializingNeverTripsOnTime(t *testing.T) {
 	t.Parallel()
-	for _, h := range []provider.Health{{Initializing: 1}, {Unhealthy: 1}} {
-		r := newRig(t)
-		rec := r.recon()
-		r.sweepHealth(h, 1)
-		r.passesFor(rec, 9*time.Minute)
-		if n := r.count(`SELECT COUNT(*) FROM provider_trips`); n != 0 {
-			t.Fatalf("%+v tripped before 10 minutes", h)
-		}
-		r.advance(2 * time.Minute)
-		r.mustPass(rec)
-		if got := r.openTripReason(); got != TripCrashLoop {
-			t.Errorf("%+v: trip %q", h, got)
-		}
+	for _, tc := range []struct {
+		name string
+		h    provider.Health
+		ws   []provider.Worker
+	}{
+		{"health only", provider.Health{Initializing: 1}, nil},
+		{"listed", provider.Health{Initializing: 1}, []provider.Worker{worker("w1", "INITIALIZING", nil, t0)}},
+		{"listed with uptime", provider.Health{Initializing: 1}, []provider.Worker{worker("w1", "INITIALIZING", upt(2000), t0)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			rec := r.recon()
+			r.sweepHealth(tc.h, 1, tc.ws...)
+			r.passesFor(rec, 29*time.Minute)
+			if _, ok := r.findNote("Worker still initializing"); ok {
+				t.Fatal("warned before 30 minutes")
+			}
+			r.passesFor(rec, 11*time.Minute) // 40 minutes in total
+			if n := r.tripCount(); n != 0 {
+				t.Fatalf("a 40 minute INITIALIZING worker tripped: %v", r.openTripReason())
+			}
+			warnings := 0
+			for _, title := range r.noteTitles() {
+				if title == "Worker still initializing" {
+					warnings++
+				}
+			}
+			if warnings != 1 {
+				t.Errorf("warnings %d, want exactly 1 (notes %v)", warnings, r.noteTitles())
+			}
+			if snap := rec.Snapshot(); snap.InitializingSince.IsZero() {
+				t.Error("snapshot has no initializing_since")
+			}
+		})
+	}
+}
+
+func TestReconciler_InitializingSinceClearsWhenRunning(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	rec := r.recon()
+	r.sweepHealth(provider.Health{Initializing: 1}, 1)
+	r.mustPass(rec)
+	if rec.Snapshot().InitializingSince.IsZero() {
+		t.Fatal("not set while initializing")
+	}
+	r.sweepHealth(provider.Health{Running: 1, InProgress: 1}, 1)
+	r.advance(time.Minute)
+	r.mustPass(rec)
+	if !rec.Snapshot().InitializingSince.IsZero() {
+		t.Error("still set while running")
+	}
+}
+
+// A real loop: the same worker keeps cycling running -> initializing.
+func TestReconciler_RestartLoopTrips(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		cycles   int
+		gap      time.Duration
+		wantTrip bool
+	}{
+		{"three restarts in 30 minutes", 3, 5 * time.Minute, true},
+		{"two restarts do not trip", 2, 5 * time.Minute, false},
+		{"three restarts spread over more than 30 minutes", 3, 20 * time.Minute, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, rec := meterRig(t)
+			job := r.seedBatch(batchSpec{jobs: 3}).Jobs[0]
+			r.submitOne(job)
+			for range tc.cycles {
+				r.sweepHealth(provider.Health{Running: 1, InProgress: 1}, 1)
+				r.mustPass(rec)
+				r.advance(time.Minute)
+				r.sweepHealth(provider.Health{Initializing: 1}, 1)
+				r.mustPass(rec)
+				r.advance(tc.gap)
+			}
+			if tc.wantTrip {
+				if got := r.openTripReason(); got != TripCrashLoop {
+					t.Fatalf("trip %q, want crash_loop", got)
+				}
+			} else if n := r.tripCount(); n != 0 {
+				t.Fatalf("tripped: %v", r.openTripReason())
+			}
+		})
+	}
+}
+
+// UNHEALTHY that persists past the grace period is a crash loop (health or listing).
+func TestReconciler_PersistentUnhealthyTrips(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		ws   []provider.Worker
+	}{
+		{"health only", nil},
+		{"listed", []provider.Worker{worker("w1", "UNHEALTHY", nil, t0)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			rec := r.recon()
+			r.sweepHealth(provider.Health{Unhealthy: 1}, 1, tc.ws...)
+			r.passesFor(rec, 4*time.Minute)
+			if n := r.tripCount(); n != 0 {
+				t.Fatal("tripped inside the grace period")
+			}
+			r.passesFor(rec, 3*time.Minute)
+			if got := r.openTripReason(); got != TripCrashLoop {
+				t.Fatalf("trip %q", got)
+			}
+		})
 	}
 }
 
@@ -188,3 +293,84 @@ func TestReconciler_MeterDoesNotDoubleCountListedWorkers(t *testing.T) {
 		t.Errorf("lifetimes %d, want the listed worker only", n)
 	}
 }
+
+// Canary #2 (2026-10-15): one worker INITIALIZING (image pull) for 10 minutes with a submitted job, /health
+// {running:0, initializing:1} and an empty listing. The pull is not billed, so nothing may trip.
+func TestReconciler_ImagePullIsNotMeteredAndDoesNotTrip(t *testing.T) {
+	t.Parallel()
+	r, rec := meterRig(t)
+	job := r.seedBatch(batchSpec{}).Jobs[0]
+	r.submitOne(job)
+	r.sweepHealth(provider.Health{Initializing: 1, InQueue: 1}, 1)
+	r.passesFor(rec, 10*time.Minute)
+	if got := r.tripCount(); got != 0 {
+		t.Fatalf("an image pull tripped the provider: %d trips", got)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_meter`); n != 0 {
+		t.Errorf("initializing worker metered: %d lifetimes", n)
+	}
+	// the pull ends and the worker runs the job: the lifetime starts now, not at the first INITIALIZING sweep
+	r.sweepHealth(provider.Health{Running: 1, InProgress: 1}, 1)
+	r.mustPass(rec)
+	r.advance(time.Minute)
+	r.mustPass(rec)
+	if up := r.count(`SELECT uptime_s FROM worker_meter`); up != 60 {
+		t.Errorf("uptime_s %d, want 60 (running time only)", up)
+	}
+	if got := r.tripCount(); got != 0 {
+		t.Errorf("trips %d", got)
+	}
+}
+
+func TestReconciler_ThrottledAndUnhealthyAreNotMetered(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	rec := r.recon()
+	r.sweepHealth(provider.Health{Throttled: 1, Unhealthy: 1, Idle: 1}, 1)
+	r.passesFor(rec, 5*time.Minute)
+	if n := r.count(`SELECT COUNT(*) FROM worker_meter`); n != 0 {
+		t.Errorf("lifetimes %d", n)
+	}
+}
+
+// A RUNNING worker with no job still trips stuck_running after 2 minutes, and a worker that genuinely runs past
+// the reservation still trips meter_exceeds_reserved.
+func TestReconciler_RunningStuckAfterInitializing(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	rec := r.recon()
+	r.sweepHealth(provider.Health{Initializing: 1}, 1)
+	r.passesFor(rec, 5*time.Minute)
+	r.sweepHealth(healthRunning1, 1)
+	r.mustPass(rec)
+	r.advance(time.Minute)
+	r.mustPass(rec)
+	if r.tripCount() != 0 {
+		t.Fatal("tripped before 2 minutes of running")
+	}
+	r.advance(time.Minute + time.Second)
+	r.mustPass(rec)
+	if got := r.openTripReason(); got != TripStuckRunning {
+		t.Fatalf("trip %q", got)
+	}
+}
+
+func TestReconciler_RunningPastReservationTrips(t *testing.T) {
+	t.Parallel()
+	r, rec := meterRig(t)
+	job := r.seedBatch(batchSpec{}).Jobs[0]
+	r.submitOne(job)
+	r.sweepHealth(provider.Health{Running: 1, InProgress: 1}, 1)
+	for range 60 {
+		r.mustPass(rec)
+		if r.tripCount() != 0 {
+			break
+		}
+		r.advance(time.Minute)
+	}
+	if got := r.openTripReason(); got != TripMeterExceeds {
+		t.Fatalf("trip %q, want %q", got, TripMeterExceeds)
+	}
+}
+
+func (r *rig) tripCount() int { return r.count(`SELECT COUNT(*) FROM provider_trips`) }
