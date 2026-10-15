@@ -184,6 +184,8 @@ func TestOps_StubsAnswer501L1(t *testing.T) {
 var implementedL1 = map[string]bool{
 	// L1-B4 (Picks)
 	"propose_pick": true, "pin_pick": true, "dismiss_pick_proposal": true, "list_pick_events": true,
+	// L1-B6 (Sounds)
+	"search_sounds": true, "get_sound_taxonomy": true, "map_sound_term": true,
 	// L1-B5 (Library)
 	"list_muses": true, "get_muse": true, "create_muse": true, "update_muse": true, "assign_muse_songs": true,
 	"list_songs": true, "get_song": true, "update_song": true, "list_sessions": true, "update_session": true, "get_muse_board": true,

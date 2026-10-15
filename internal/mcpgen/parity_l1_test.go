@@ -13,7 +13,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// l1Cases covers the 16 L1 operations that have an MCP face (7 tools, 9 generic); pin_pick and dismiss_pick_proposal
+// l1Cases covers the 16 L1 operations that have an MCP face (6 tools, 10 generic); pin_pick and dismiss_pick_proposal
 // have none and are covered by REST-only tests (TestPin_*, TestDismiss_HumanOnly, TestOps_HumanJudgment_NoMCP). Until the
 // owning lane fills a handler all three faces must answer the same 501 problem (C101.2); the lane then removes Status
 // and builds the arguments from the rig's L1 rows. L1-B5 took over the Muse, Song, Session and Board cases: this runner's
@@ -32,9 +32,9 @@ var l1Cases = []ParityCase{
 	{Op: "list_pick_events", Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "list_sessions", Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "update_session", Status: 404, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
-	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
+	{Op: "search_sounds", Args: fixedArgs(map[string]any{"limit": 0})}, // counts only: the Song page is list_songs (L1-B5)
+	{Op: "get_sound_taxonomy", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "map_sound_term", Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
 	{Op: "get_muse_board", Masks: []string{"id"}, Args: fixedArgs(map[string]any{"limit": 10})},
 }
 
@@ -85,8 +85,8 @@ func TestParity_L1Cases(t *testing.T) {
 	}
 }
 
-// TestToolsList_L1Budget: the first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
-// M2b/M3 rule); the demotion order list_songs, search_sounds, create_muse, get_muse applies otherwise. It prints the
+// TestToolsList_L1Budget: the six first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
+// M2b/M3 rule); list_songs is already demoted (generic); the order search_sounds, create_muse, get_muse applies otherwise. It prints the
 // measurement.
 func TestToolsList_L1Budget(t *testing.T) {
 	t.Parallel()
@@ -116,7 +116,7 @@ func TestToolsList_L1Budget(t *testing.T) {
 		t.Fatalf("found %d of the %d L1 tools in tools/list", found, len(l1Tools))
 	}
 	if total > 16000 {
-		t.Errorf("the L1 tools take %d bytes, over 16 000: demote list_songs, search_sounds, create_muse, get_muse in that order", total)
+		t.Errorf("the L1 tools take %d bytes, over 16 000: list_songs is already generic: demote search_sounds, create_muse, get_muse in that order", total)
 	}
 }
 

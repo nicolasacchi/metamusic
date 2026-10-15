@@ -171,12 +171,17 @@ type TierA struct {
 	Silence           analysis.Silence
 	Clipping          analysis.Clipping
 	SignalErr, PicErr error
+	TempoErr          error
+	tempo             analysis.Tempo
 	signals, pictures int
+	tempos            int
 }
 
 // NewTierA returns a TierA reporting no silence and no clipping.
 func NewTierA() *TierA {
-	return &TierA{Silence: silenceMetrics(nil, 0, 0), Clipping: clippingMetrics(-3, 0, nil)}
+	bpm := 96.0
+	return &TierA{Silence: silenceMetrics(nil, 0, 0), Clipping: clippingMetrics(-3, 0, nil),
+		tempo: analysis.Tempo{BPM: &bpm, Confidence: 6.5, Candidates: []analysis.TempoCandidate{{BPM: bpm, Strength: 1}}, AnalyzedSeconds: 8}}
 }
 
 // ToolVersion implements ears.TierA.
@@ -219,6 +224,33 @@ func (a *TierA) SpectrumPicture(_ context.Context, _, outPNG string, w, h int) e
 		return err
 	}
 	return os.WriteFile(outPNG, buf.Bytes(), 0o600)
+}
+
+// SetTempo replaces the result Tempo returns (the default is a steady 96 BPM).
+func (a *TierA) SetTempo(t analysis.Tempo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tempo = t
+}
+
+// Tempo implements ears.TierA: the configured result (or TempoErr), AnalyzedSeconds set to durationS.
+func (a *TierA) Tempo(_ context.Context, _ string, durationS float64) (analysis.Tempo, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tempos++
+	if a.TempoErr != nil {
+		return analysis.Tempo{}, a.TempoErr
+	}
+	t := a.tempo
+	t.AnalyzedSeconds = durationS
+	return t, nil
+}
+
+// TempoCalls reports how many Tempo runs happened.
+func (a *TierA) TempoCalls() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tempos
 }
 
 // Calls reports how many Signal and SpectrumPicture runs happened.

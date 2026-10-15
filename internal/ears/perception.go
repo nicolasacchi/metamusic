@@ -19,6 +19,10 @@ func (s *Service) Perception(ctx context.Context, trackID string) (Perception, e
 		bw := float64(*sp.BandwidthHz)
 		p.BandwidthHz = &bw
 	}
+	if t := st.tempo; t != nil && t.BPM != nil {
+		bpm, conf := *t.BPM, t.Confidence
+		p.TempoBPM, p.TempoConfidence = &bpm, &conf
+	}
 	p.Sections = make([]PerceptionSection, len(st.d.Sections))
 	for i, sec := range st.d.Sections {
 		p.Sections[i] = PerceptionSection{Label: sec.Label, Start: sec.StartS, End: sec.EndS, Source: sec.Source, Confidence: sec.Confidence}

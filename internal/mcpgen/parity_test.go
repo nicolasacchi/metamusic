@@ -422,12 +422,17 @@ func runParity(t *testing.T, stdio bool) {
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
 	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
+	// The Reconciler builds the Songs before any case runs: every face then draws its Song and Session ids from the same
+	// point of the id sequence, whatever replays (tool plus call_operation) the cases make on one face and not another.
+	ra.Settle(t)
+	rb.Settle(t)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
 	var stdioSess *mcp.ClientSession
 	var rc *servertest.Rig
 	if stdio {
 		rc = servertest.New(t, opts)
+		rc.Settle(t)
 		stdioSess = rc.Stdio(t, scopes...)
 	}
 	script := parityScript(t, ra.API)
