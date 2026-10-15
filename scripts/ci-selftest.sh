@@ -65,6 +65,8 @@ done
 chk "root .dockerignore excludes worker/ and runpod*.env" 'grep -qx "worker/" "$root/.dockerignore" && grep -qx "\*\*/runpod\*.env" "$root/.dockerignore"'
 chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.digest"'
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'
+chk "make check keeps go test cacheable (no -shuffle)" '! awk "/^_check:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q -- "-shuffle"'
+chk "make test, race and cover keep -shuffle=on" '[ "$(grep -c -E "go test .*-shuffle=on" "$root/Makefile")" -ge 3 ]'
 chk "make gate runs actions-pinned.sh" 'grep -q "actions-pinned.sh" "$root/Makefile"'
 chk "make canary only prints" 'r=$(awk "/^canary:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile"); grep -q "echo" <<<"$r" && ! grep -Eq "go run|bin/metamusic|docker" <<<"$r"'
 exit $fail

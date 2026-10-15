@@ -44,7 +44,11 @@ check:
 # cost about two thirds of suite CPU. Everything else (all of our code, database/sql, net/http) stays
 # under -race, and `make test` / `make cover` / CI keep full instrumentation everywhere.
 CHECK_GCFLAGS = -gcflags=modernc.org/...=-race=false
-# Also fast-loop only: GORACE=atexit_sleep_ms=0 drops the race runtime's 1 s sleep at the exit of each of the ~45
+# Also fast-loop only: no -shuffle. A shuffle flag disables Go's test result cache, so with it every `make check` re-ran all
+# ~70 packages (about 47 s) even when nothing changed; without it an unchanged package is "(cached)" and an edit re-runs only
+# its dependents (a no-change run is about 1 s). Order independence stays enforced where it counts: `make test`, `make race`,
+# `make cover` and CI all run -shuffle=on (asserted by scripts/ci-selftest.sh).
+# GORACE=atexit_sleep_ms=0 drops the race runtime's 1 s sleep at the exit of each of the ~45
 # test binaries (about 2 s of wall time on 8 cores) and GOGC=400 trades memory for fewer collections.
 
 # Internal: steps of `check` (run inside one metrics row). -short skips the heavy media-tool/acceptance
@@ -56,7 +60,7 @@ _check:
 	@# after the Go output; both must pass.
 	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; scripts/web-check.sh >"$$log" 2>&1 & wp=$$!; \
 	rc=0; \
-	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short -shuffle=on ./...; } || rc=1; \
+	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short ./...; } || rc=1; \
 	wait $$wp || rc=1; cat "$$log"; exit $$rc
 
 e2e:
