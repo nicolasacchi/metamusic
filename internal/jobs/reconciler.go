@@ -50,12 +50,20 @@ type ReconcilerOptions struct {
 
 // Intervals of the reconciler (C76).
 const (
-	passEvery       = 60 * time.Second
-	sweepActive     = 10 * time.Second
-	activeTail      = 130 * time.Second // finished_at + idle_s (<= 60) + 60 s
-	approvalBatch   = 50
-	stuckAfter      = 2 * time.Minute
-	initStuckAfter  = 10 * time.Minute // INITIALIZING / UNHEALTHY this long is a crash loop
+	passEvery     = 60 * time.Second
+	sweepActive   = 10 * time.Second
+	activeTail    = 130 * time.Second // finished_at + idle_s (<= 60) + 60 s
+	approvalBatch = 50
+	stuckAfter    = 2 * time.Minute
+	// An INITIALIZING worker costs nothing (RunPod bills from container start): the first pull of the 7.7 GB
+	// image took 8-12 min and the cached-model download (7.3 GB, "initializing model files") 25+ min on a fresh
+	// host (canary #2, 2026-10-15), so elapsed INITIALIZING time never trips; it only warns once per stretch.
+	initWarnAfter = 30 * time.Minute
+	// crash_loop needs evidence of a loop: restartTrip running -> initializing restarts within restartWindow, or
+	// an UNHEALTHY worker for unhealthyGrace continuously.
+	restartTrip     = 3
+	restartWindow   = 30 * time.Minute
+	unhealthyGrace  = 5 * time.Minute
 	driftNoteEvery  = time.Hour
 	skewLimit       = 30 * time.Second
 	weeklyReminder  = 7 * 24 * time.Hour
@@ -66,24 +74,27 @@ const (
 type Reconciler struct {
 	o ReconcilerOptions
 
-	mu          sync.Mutex
-	lastPassAt  time.Time
-	lastSweepRn time.Time // when Sweep was last called
-	sweptAt     time.Time // when a sweep last succeeded
-	skew        *time.Duration
-	workers     []provider.Worker
-	endpoint    *provider.EndpointConfig
-	drift       []provider.Drift
-	stuckSince  time.Time
-	initSince   time.Time
-	health      *provider.Health
-	healthSince time.Time // start of the current stretch with at least one live worker in /health
-	crash       map[string]int
-	actioned    map[string]bool
-	notified    map[string]time.Time
-	zeroChecked map[string]bool
-	holdFreed   int
-	lastFetch   time.Time
+	mu             sync.Mutex
+	lastPassAt     time.Time
+	lastSweepRn    time.Time // when Sweep was last called
+	sweptAt        time.Time // when a sweep last succeeded
+	skew           *time.Duration
+	workers        []provider.Worker
+	endpoint       *provider.EndpointConfig
+	drift          []provider.Drift
+	stuckSince     time.Time
+	initSince      time.Time   // start of the current INITIALIZING-only stretch
+	unhealthySince time.Time   // start of the current UNHEALTHY stretch
+	prevRunning    int         // running workers at the previous sweep
+	restarts       []time.Time // running -> initializing restarts inside restartWindow
+	health         *provider.Health
+	healthSince    time.Time // start of the current stretch with at least one RUNNING worker in /health
+	crash          map[string]int
+	actioned       map[string]bool
+	notified       map[string]time.Time
+	zeroChecked    map[string]bool
+	holdFreed      int
+	lastFetch      time.Time
 }
 
 // NewReconciler builds the reconciler.
@@ -381,7 +392,7 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		if key == "" {
 			key = "worker:" + w.ID
 		}
-		if (st == "INITIALIZING" || st == "UNHEALTHY") && w.UptimeS != nil && *w.UptimeS > r.o.ColdStartS+60 {
+		if st == "UNHEALTHY" && w.UptimeS != nil && *w.UptimeS > r.o.ColdStartS+60 {
 			seen[key] = true
 			r.mu.Lock()
 			r.crash[key]++
@@ -401,8 +412,8 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 	if crashed {
 		return r.Trip(ctx, TripCrashLoop, map[string]any{"threshold_s": r.o.ColdStartS + 60})
 	}
-	if r.initStuck(rep, now) {
-		return r.Trip(ctx, TripCrashLoop, map[string]any{"initializing_s": int(initStuckAfter.Seconds())})
+	if why := r.loopEvidence(ctx, rep, now); why != nil {
+		return r.Trip(ctx, TripCrashLoop, why)
 	}
 	var evidence int
 	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_attempts a WHERE a.state IN ('pending','submitted','unknown')
@@ -438,38 +449,88 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 	return nil
 }
 
-// initStuck: a worker INITIALIZING or UNHEALTHY (listing or /health) continuously for initStuckAfter.
-func (r *Reconciler) initStuck(rep provider.SweepReport, now time.Time) bool {
-	bad := rep.Health != nil && rep.Health.Initializing+rep.Health.Unhealthy > 0
+// workerCounts is the larger of the listing and /health per status (the listing can omit or mislabel workers).
+func workerCounts(rep provider.SweepReport) (running, initializing, unhealthy int) {
 	for _, w := range rep.Workers {
-		if st := strings.ToUpper(w.Status); st == "INITIALIZING" || st == "UNHEALTHY" {
-			bad = true
+		switch strings.ToUpper(w.Status) {
+		case "RUNNING":
+			running++
+		case "INITIALIZING":
+			initializing++
+		case "UNHEALTHY":
+			unhealthy++
 		}
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if !bad {
-		r.initSince = time.Time{}
-		return false
+	if h := rep.Health; h != nil {
+		running, initializing, unhealthy = max(running, h.Running), max(initializing, h.Initializing), max(unhealthy, h.Unhealthy)
 	}
-	if r.initSince.IsZero() {
-		r.initSince = now
-	}
-	return now.Sub(r.initSince) >= initStuckAfter
+	return running, initializing, unhealthy
 }
 
-// recordHealthLifetimes meters the workers /health counts but the listing does not give a startedAt and an
-// uptime for (an image pull or a crash loop leaves both null): one synthetic lifetime per such worker, from
-// the first sweep that saw a live worker until the counters return to zero. Listed workers are metered by
-// recordWorkers and never counted twice.
+// loopEvidence returns trip details when the workers show a real crash loop: restartTrip running ->
+// initializing restarts within restartWindow, or UNHEALTHY continuously for unhealthyGrace. A worker that is
+// only INITIALIZING never trips on elapsed time (it is not billed); after initWarnAfter it raises one ntfy
+// per stretch and reports initializing_since in the provider status.
+func (r *Reconciler) loopEvidence(ctx context.Context, rep provider.SweepReport, now time.Time) map[string]any {
+	running, initializing, unhealthy := workerCounts(rep)
+	r.mu.Lock()
+	if r.prevRunning > 0 && running == 0 && initializing > 0 {
+		r.restarts = append(r.restarts, now)
+	}
+	r.prevRunning = running
+	kept := r.restarts[:0]
+	for _, t := range r.restarts {
+		if now.Sub(t) < restartWindow {
+			kept = append(kept, t)
+		}
+	}
+	r.restarts = kept
+	restarts := len(kept)
+	if unhealthy > 0 {
+		if r.unhealthySince.IsZero() {
+			r.unhealthySince = now
+		}
+	} else {
+		r.unhealthySince = time.Time{}
+	}
+	unhealthyFor := time.Duration(0)
+	if !r.unhealthySince.IsZero() {
+		unhealthyFor = now.Sub(r.unhealthySince)
+	}
+	if initializing > 0 && running == 0 {
+		if r.initSince.IsZero() {
+			r.initSince = now
+		}
+	} else {
+		r.initSince = time.Time{}
+	}
+	initSince := r.initSince
+	r.mu.Unlock()
+	if restarts >= restartTrip {
+		return map[string]any{"restarts": restarts, "window_s": int(restartWindow.Seconds())}
+	}
+	if unhealthyFor >= unhealthyGrace {
+		return map[string]any{"unhealthy_s": int(unhealthyFor.Seconds())}
+	}
+	if !initSince.IsZero() && now.Sub(initSince) >= initWarnAfter {
+		r.notifyOnce(ctx, "init-slow:"+initSince.Format(time.RFC3339Nano), 0, NoteInitializingSlow(r.o.PublicURL, int(now.Sub(initSince).Minutes())))
+	}
+	return nil
+}
+
+// recordHealthLifetimes meters the RUNNING workers /health counts but the listing does not give a startedAt and
+// an uptime for: one synthetic lifetime per such worker, from the first sweep that saw a running worker until
+// the running counter returns to zero. Only running time is billable (RunPod bills container start to stop;
+// an image pull while INITIALIZING is not billed), so initializing, unhealthy, throttled and idle workers are
+// never metered here (X3 canary #2: a 9 minute image pull tripped meter_exceeds_reserved). Listed workers are
+// metered by recordWorkers and never counted twice.
 func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.SweepReport, now time.Time) error {
 	h := rep.Health
 	if h == nil || len(r.o.MeterKey) == 0 {
 		return nil
 	}
-	live := h.Live()
 	r.mu.Lock()
-	if live == 0 {
+	if h.Running == 0 {
 		r.healthSince = time.Time{}
 		r.mu.Unlock()
 		return nil
@@ -481,23 +542,17 @@ func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.Swe
 	r.mu.Unlock()
 	listed := 0
 	for _, w := range rep.Workers {
-		if w.UptimeS != nil && w.StartedAt != nil {
+		if w.UptimeS != nil && w.StartedAt != nil && strings.EqualFold(w.Status, "RUNNING") {
 			listed++
 		}
 	}
 	var statuses []string
-	for _, c := range []struct {
-		n  int
-		st string
-	}{{h.Running, "RUNNING"}, {h.Initializing, "INITIALIZING"}, {h.Unhealthy, "UNHEALTHY"}, {h.Throttled, "THROTTLED"}, {h.Idle + h.Ready, "IDLE"}} {
-		for range c.n {
-			statuses = append(statuses, c.st)
-		}
+	for range max(h.Running-listed, 0) {
+		statuses = append(statuses, "RUNNING")
 	}
-	if len(statuses) <= listed {
+	if len(statuses) == 0 {
 		return nil
 	}
-	statuses = statuses[listed:]
 	uptime := max(int(now.Sub(since).Seconds()), 0)
 	return r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
 		f := r.o.Runner.fence()
@@ -571,19 +626,20 @@ func (r *Reconciler) checkWorkersZero(ctx context.Context, rep provider.SweepRep
 
 // SweepSnapshot is what the last sweep showed, for get_provider_status.
 type SweepSnapshot struct {
-	ObservedAt      time.Time
-	WorkerCounts    map[string]int // by lower-case status
-	Endpoint        *provider.EndpointConfig
-	Drift           []provider.Drift
-	Skew            *time.Duration
-	LastReconcileAt time.Time
+	ObservedAt        time.Time
+	WorkerCounts      map[string]int // by lower-case status
+	Endpoint          *provider.EndpointConfig
+	Drift             []provider.Drift
+	Skew              *time.Duration
+	LastReconcileAt   time.Time
+	InitializingSince time.Time // zero unless a worker has been INITIALIZING (and none running) since then
 }
 
 // Snapshot returns the last sweep (zero ObservedAt before the first one).
 func (r *Reconciler) Snapshot() SweepSnapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	s := SweepSnapshot{ObservedAt: r.sweptAt, Endpoint: r.endpoint, Drift: append([]provider.Drift(nil), r.drift...), Skew: r.skew, LastReconcileAt: r.lastPassAt,
+	s := SweepSnapshot{ObservedAt: r.sweptAt, Endpoint: r.endpoint, Drift: append([]provider.Drift(nil), r.drift...), Skew: r.skew, LastReconcileAt: r.lastPassAt, InitializingSince: r.initSince,
 		WorkerCounts: map[string]int{}}
 	for _, w := range r.workers {
 		s.WorkerCounts[strings.ToLower(w.Status)]++
