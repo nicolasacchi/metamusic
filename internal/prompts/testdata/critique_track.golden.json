@@ -1,0 +1,37 @@
+{
+  "Spec": {
+    "Name": "critique_track",
+    "Title": "Critique a take",
+    "Description": "Review a take from its context bundle and record fixes as comments",
+    "Version": "1",
+    "Args": [
+      {
+        "Name": "track_id",
+        "Description": "the take to review",
+        "Required": true
+      }
+    ]
+  },
+  "Messages": [
+    {
+      "Role": "user",
+      "Content": {
+        "Type": "text",
+        "Text": "You are reviewing the take \"Synthetic Song\" (01900000-0000-7000-8000-000000000101) in the metamusic library.\n\nYou cannot hear audio. Base every statement on the context bundle attached below (loudness, bandwidth, sections, flags, comments, listening) and say plainly what needs the human's ears: the bundle lists them under perception.blind_spots.\n\nStructure your answer as:\n1. What the numbers show.\n2. Questions for the human.\n3. Concrete fixes.\n\nRecord each fix with add_comment using kind=fix. Set at_second only when perception.timed is true; otherwise name the section by its lyrics label and give no time.\n\nRatings you store are critic opinions. They never change the human's stars.",
+        "Resource": null
+      }
+    },
+    {
+      "Role": "user",
+      "Content": {
+        "Type": "resource",
+        "Text": "",
+        "Resource": {
+          "URI": "metamusic://tracks/01900000-0000-7000-8000-000000000101/context",
+          "MIMEType": "application/json",
+          "Text": "{\"track_id\":\"01900000-0000-7000-8000-000000000101\",\"perception\":{\"timed\":true,\"blind_spots\":[\"vocals\"]}}"
+        }
+      }
+    }
+  ]
+}

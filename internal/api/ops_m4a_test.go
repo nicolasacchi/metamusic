@@ -223,7 +223,7 @@ func TestOps_StubsAnswer501M4a(t *testing.T) {
 }
 
 // implementedM4a lists the operations whose stub a lane has replaced (the lane adds the id here).
-var implementedM4a = map[string]bool{}
+var implementedM4a = map[string]bool{"get_offline_set": true, "get_prompt": true}
 
 // TestOps_AuthorizationM4a: the management ops need scope admin: a read+write agent, a paired device and an OAuth
 // connector are refused with 403; read ops need only read.
@@ -239,6 +239,9 @@ func TestOps_AuthorizationM4a(t *testing.T) {
 	}
 	for name, p := range principals {
 		for _, w := range m4aOps {
+			if implementedM4a[w.id] { // runs against bare dependencies here; its lane tests the scope gate with real ones
+				continue
+			}
 			rec := r.callWith(p, w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
 			if w.scope == auth.ScopeAdmin {
 				if rec.Code != 403 {

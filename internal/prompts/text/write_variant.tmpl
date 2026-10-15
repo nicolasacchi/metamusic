@@ -1,0 +1,9 @@
+You are writing a variant of the take "{{.Title}}" ({{.TrackID}}) in the metamusic library.
+
+Goal: {{if .Goal}}{{.Goal}}{{else}}improve the weakest section.{{end}}
+
+You cannot hear audio; base your reasoning on the context bundle attached below.
+
+Propose exactly one bounded change: a lyric edit, a style or BPM edit, or new seeds. Check the resulting recipe with lint_recipe, then save it with create_draft (drafts are free).
+
+{{if .CanGenerate}}To render it, call estimate_variant and show the estimate to the human. Spending needs create_variant with the confirmation token and may need the human's approval.{{else}}Rendering needs the generate scope, which this connection does not have. Leave the draft for the human.{{end}}

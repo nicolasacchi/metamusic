@@ -1229,6 +1229,8 @@ func (s *Service) Upload(ctx context.Context, p auth.Principal, in Upload) (Uplo
 
 > **M4a amendment (B2):** `Playlist` and `PlaylistSummary` gain `Role *string` (`"offline"` for the migration's offline set, otherwise null) and every playlist `SELECT` reads the column; `playlists.OfflineMaxItems` is 100 (the offline-set rules follow in M4a-A1; M4a C111). The media resolver chain gains the cover and download resolvers (M4a C110.3).
 
+> **M4a amendment (A1):** `List` always includes the offline set; `Update` of it refuses `hidden: true` (422 `VALIDATION_FAILED`, `details.reason offline_set_cannot_be_hidden`) and more than 100 items (422 `OFFLINE_SET_TOO_LARGE`, `details {items, limit}`); `Service.OfflineFacts` reads the media facts behind `get_offline_set` (M4a C111).
+
 > M2b-B1 addendum: the media path regex also accepts `jpg` (spectrogram renditions); `get_system_info.schema_version` is 4 after M2b (C27/C34 tests that pinned 3 now expect 4).
 
 **Python-compatible JSON writer** (`internal/export/pyjson.go`; M2a-B3, used by export and tests):
@@ -1614,6 +1616,8 @@ in M3-B2 and the bundle code and goldens change in M3-B6. See the M3 plan, C81.1
 ### C36. Listen events (`internal/listening`)
 
 > **M4a amendment (B1):** The Go-validated listen source set gains `subsonic` (M4a C102).
+
+> **M4a amendment (A1):** `Service.Session(ctx, since, limit)` summarises the human's recent listening (human and device events only; diagnostics are not plays), grouped per track, newest last play first (`internal/listening/session.go`, M4a C112.3).
 
 ```go
 type Event struct{ ID, TrackID, SessionID, Kind string; FromMS, ToMS *int64; Format, DeviceID *string; ClientAt time.Time }
