@@ -16,6 +16,8 @@
   import Track from "./routes/Track.svelte";
   import Backlog from "./routes/Backlog.svelte";
   import Board from "./routes/Board.svelte";
+  import Song from "./routes/Song.svelte";
+  import Muse from "./routes/Muse.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
@@ -117,6 +119,14 @@
       <Backlog search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "board"}
       <Board search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "song"}
+      {#key $router.params.id}
+        <Song id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "muse"}
+      {#key $router.params.id}
+        <Muse id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
     {:else if $router.route?.name === "draft-new"}
       <DraftNew />
     {:else if $router.route?.name === "draft-upload"}
