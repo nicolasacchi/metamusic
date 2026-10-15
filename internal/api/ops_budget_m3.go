@@ -44,6 +44,12 @@ func capsFrom(viewer auth.Principal, v generation.CapsView) CapsView {
 		ct.AutoApproveMicroUSD, ct.AutoApproveUSD = int64Ptr(t.Limits.AutoApproveMicro)
 		out.Tokens = append(out.Tokens, ct)
 	}
+	for _, c := range v.Connectors {
+		cc := CapConnector{GrantID: c.GrantID, Label: c.Label, AutoApproveTakes: c.Limits.AutoApproveTakes}
+		cc.DailyBudgetMicroUSD, cc.DailyBudgetUSD = int64Ptr(c.Limits.DailyMicro)
+		cc.AutoApproveMicroUSD, cc.AutoApproveUSD = int64Ptr(c.Limits.AutoApproveMicro)
+		out.Connectors = append(out.Connectors, cc)
+	}
 	return out
 }
 

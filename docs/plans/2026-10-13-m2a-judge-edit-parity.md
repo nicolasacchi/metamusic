@@ -2073,6 +2073,8 @@ Web lane (M3-W1..W3).
 
 ### C42. Test harness and fixtures
 
+> **M4a amendment (C2):** the parity runner gains the fourth face (`TestParity_OAuthConnector`, `internal/mcpgen/parity_m4a_test.go`): an OIDC rig whose grant is pre-created outside the id sequence runs the fixed OAuth subset (`whoami`, `search_tracks`, `get_track_context`, `add_comment`, `get_offline_set`, `estimate_variant` refused with `FORBIDDEN_SCOPE`) against REST on a read+write PAT with masks for principal ids, names and `via`, and with D's origin rewritten to A's. `Rig.Connector` implements the rig-clock token source of M4a C117.1.
+
 > **M4a amendment (B2):** `servertest.Options` gains `M4a` and `OIDC`, the unlimited limiter config lists the Subsonic classes, `Rig.OIDC`, `Rig.Connector` and `Rig.Subsonic` exist; `librarytest` gains `FixtureM4a` and `ApplyM4a`; the parity and scripted-agent tests cover the eight M4a operations and skip a stub by name (M4a C117).
 
 > M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;

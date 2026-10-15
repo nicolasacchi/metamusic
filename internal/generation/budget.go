@@ -53,6 +53,15 @@ type CapsView struct {
 	UpdatedBy Actor
 	UpdatedAt time.Time
 	Tokens    []TokenCaps
+	// Connectors are the hosted-connector grants' limits (M4a C106): a human sees every live grant, an OAuth
+	// caller its own, any other agent none (never nil).
+	Connectors []ConnectorCaps
+}
+
+// ConnectorCaps is one connector grant's limits.
+type ConnectorCaps struct {
+	GrantID, Label string
+	Limits         spend.TokenLimits
 }
 
 func (s *Service) capsView(ctx context.Context, q lineage.Querier, p auth.Principal) (CapsView, error) {
@@ -98,7 +107,52 @@ func (s *Service) capsView(ctx context.Context, q lineage.Querier, p auth.Princi
 		}
 		v.Tokens = append(v.Tokens, t)
 	}
-	return v, rows.Err()
+	if err := rows.Err(); err != nil {
+		return v, err
+	}
+	v.Connectors, err = s.connectorCaps(ctx, q, p)
+	return v, err
+}
+
+// connectorCaps selects the live grants visible to p with its own SQL (connectors owns the table, spend and
+// generation only read it).
+func (s *Service) connectorCaps(ctx context.Context, q lineage.Querier, p auth.Principal) ([]ConnectorCaps, error) {
+	out := []ConnectorCaps{}
+	query := `SELECT id, label, daily_budget_micro_usd, auto_approve_takes, auto_approve_micro_usd FROM connector_grants WHERE revoked_at IS NULL`
+	args := []any{}
+	switch {
+	case p.Kind == auth.KindAgent && p.Via == "oauth":
+		query += ` AND id = ?`
+		args = append(args, p.ID)
+	case p.Kind == auth.KindAgent:
+		return out, nil
+	}
+	rows, err := q.QueryContext(ctx, query+` ORDER BY created_at, id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("generation: caps connectors: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var c ConnectorCaps
+		var d, tk, am sql.NullInt64
+		if err := rows.Scan(&c.GrantID, &c.Label, &d, &tk, &am); err != nil {
+			return nil, err
+		}
+		if d.Valid {
+			x := money.MicroUSD(d.Int64)
+			c.Limits.DailyMicro = &x
+		}
+		if am.Valid {
+			x := money.MicroUSD(am.Int64)
+			c.Limits.AutoApproveMicro = &x
+		}
+		if tk.Valid {
+			x := int(tk.Int64)
+			c.Limits.AutoApproveTakes = &x
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // MonthView is the current calendar month.

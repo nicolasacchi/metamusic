@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -274,4 +275,73 @@ func TestSetSpendCaps_LoweringStopsNewReserves(t *testing.T) {
 	}
 	_, err := r.create(human, e, spend.ViaHumanCreate)
 	wantProblem(t, err, 402, "BUDGET_EXCEEDED")
+}
+
+func (r *rig) connectorGrants() {
+	r.t.Helper()
+	r.exec(`INSERT INTO connector_grants(id,client_id,subject,username,label,scopes,daily_budget_micro_usd,auto_approve_takes,auto_approve_micro_usd,
+		created_at,updated_at,updated_by) VALUES
+		('grant-a','c1','s1','user-a','Claude Test','read,write,generate',200000,0,50000,'2026-10-01T00:00:00Z','2026-10-01T00:00:00Z','system:oauth'),
+		('grant-b','c2','s2','user-b','ChatGPT Test','read,write',NULL,NULL,NULL,'2026-10-02T00:00:00Z','2026-10-02T00:00:00Z','system:oauth')`)
+}
+
+// TestCapsView_ConnectorsVisibility: a human sees every grant, an OAuth caller its own, a PAT caller none.
+func TestCapsView_ConnectorsVisibility(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.tokens()
+	r.connectorGrants()
+	ctx := context.Background()
+	h, err := r.svc.Budget(ctx, human)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Caps.Connectors) != 2 || h.Caps.Connectors[0].GrantID != "grant-a" || h.Caps.Connectors[1].GrantID != "grant-b" {
+		t.Fatalf("human connectors = %+v", h.Caps.Connectors)
+	}
+	if c := h.Caps.Connectors[0]; c.Label != "Claude Test" || *c.Limits.DailyMicro != 200_000 || *c.Limits.AutoApproveTakes != 0 || *c.Limits.AutoApproveMicro != 50_000 {
+		t.Errorf("grant-a = %+v", c)
+	}
+	if c := h.Caps.Connectors[1]; c.Limits.DailyMicro != nil || c.Limits.AutoApproveTakes != nil || c.Limits.AutoApproveMicro != nil {
+		t.Errorf("grant-b limits must be nil: %+v", c)
+	}
+	oauth := auth.Principal{Kind: auth.KindAgent, ID: "grant-a", Name: "Claude Test", Via: "oauth", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	o, err := r.svc.Budget(ctx, oauth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Caps.Connectors) != 1 || o.Caps.Connectors[0].GrantID != "grant-a" || len(o.Caps.Tokens) != 0 {
+		t.Errorf("oauth caller: connectors %+v tokens %+v", o.Caps.Connectors, o.Caps.Tokens)
+	}
+	a, err := r.svc.Budget(ctx, agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Caps.Connectors) != 0 || a.Caps.Connectors == nil {
+		t.Errorf("PAT caller must see an empty, non-nil list: %#v", a.Caps.Connectors)
+	}
+}
+
+// TestGetBudget_ConnectorOwnLimits: a connector's day cap and auto-approve limits are its grant's.
+func TestGetBudget_ConnectorOwnLimits(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.connectorGrants()
+	ctx := context.Background()
+	a := auth.Principal{Kind: auth.KindAgent, ID: "grant-a", Name: "Claude Test", Via: "oauth", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	v, err := r.svc.Budget(ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Day.Cap != 200_000 || v.AutoApproveTakes != 0 || v.AutoApprove != 50_000 {
+		t.Errorf("grant-a: cap %d takes %d auto %d", v.Day.Cap, v.AutoApproveTakes, v.AutoApprove)
+	}
+	b := auth.Principal{Kind: auth.KindAgent, ID: "grant-b", Name: "ChatGPT Test", Via: "oauth", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	v, err = r.svc.Budget(ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Day.Cap != 1_000_000 || v.AutoApproveTakes != 5 || v.AutoApprove != 500_000 {
+		t.Errorf("grant-b falls back to the global defaults: cap %d takes %d auto %d", v.Day.Cap, v.AutoApproveTakes, v.AutoApprove)
+	}
 }

@@ -1,11 +1,17 @@
 // Package oidctest is a test-only stub OIDC provider mimicking the Authelia 4.39 endpoints (C105). It is listed
 // in TestNoTestHelpersInBinary and must never be linked into the binary.
 //
-// The exported API is frozen by M4a-B2; the bodies are STUB(M4a-C1) until the connectors lane implements them.
-// Until then New skips the calling test, so rigs that ask for an OIDC provider skip by name.
+// It is deliberately strict (PKCE, exact redirect, one auth method per client, single-use codes, refresh
+// rotation with reuse detection) so acceptance tests cannot pass against a lenient stub; stub_test.go pins each rule.
 package oidctest
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,47 +37,111 @@ type Options struct {
 	RefreshTTL time.Duration     // default 720h
 	Now        func() time.Time  // the rig clock
 	ScopeClaim string            // "scope" (default) | "scp" | "both"
-	UserClaim  bool              // emit mm_user when scope metamusic is granted (default true)
-	IssParam   bool              // RFC 9207 iss on the authorization response (default true)
+	UserClaim  bool              // emit mm_user when scope metamusic is granted
+	IssParam   bool              // RFC 9207 iss on the authorization response
 	Mutate     func(header, claims map[string]any)
 }
 
-// Recorded is one authorize or token request as the stub saw it (secrets masked).
+// Recorded is one authorize or token request as the stub saw it (secrets are never recorded).
 type Recorded struct {
 	Endpoint, GrantType, ClientID, Scope, Resource string // Endpoint: "authorize" | "token"
 	At                                             time.Time
 }
 
 // Provider is a running stub; URL is its issuer.
-type Provider struct{ URL string }
+type Provider struct {
+	URL string
 
-// New starts the stub (an httptest server closed by tb.Cleanup). STUB(M4a-C1): skips the test.
-func New(tb testing.TB, _ Options) *Provider {
+	opts Options
+	srv  *httptest.Server
+
+	mu       sync.Mutex
+	keys     []signingKey // published keys; the last one signs
+	codes    map[string]*authCode
+	refresh  map[string]*refreshTok
+	revoked  map[string]bool // revoked families
+	nkeys    int
+	requests []Recorded
+}
+
+// New starts the stub (an httptest server closed by tb.Cleanup).
+func New(tb testing.TB, o Options) *Provider {
 	tb.Helper()
-	tb.Skip("M4a-C1: oidctest provider not implemented yet")
+	if o.AccessTTL == 0 {
+		o.AccessTTL = time.Hour
+	}
+	if o.RefreshTTL == 0 {
+		o.RefreshTTL = 720 * time.Hour
+	}
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	if o.ScopeClaim == "" {
+		o.ScopeClaim = "scope"
+	}
+	p := &Provider{opts: o, codes: map[string]*authCode{}, refresh: map[string]*refreshTok{}, revoked: map[string]bool{}}
+	p.keys = []signingKey{newKey(0)}
+	p.nkeys = 1
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /.well-known/openid-configuration", p.metadata)
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server", p.metadata)
+	mux.HandleFunc("GET /jwks.json", p.jwks)
+	mux.HandleFunc("GET /api/oidc/authorization", p.authorize)
+	mux.HandleFunc("POST /api/oidc/token", p.token)
+	p.srv = httptest.NewServer(mux)
+	tb.Cleanup(p.srv.Close)
+	p.URL = p.srv.URL
+	return p
+}
+
+func (p *Provider) client(id string) *Client {
+	for i := range p.opts.Clients {
+		if p.opts.Clients[i].ID == id {
+			return &p.opts.Clients[i]
+		}
+	}
 	return nil
 }
 
-// RotateKey publishes a new signing key (new kid); the old one stays published until DropOldKeys. STUB(M4a-C1)
-func (p *Provider) RotateKey() {}
-
-// DropOldKeys unpublishes every key but the current one. STUB(M4a-C1)
-func (p *Provider) DropOldKeys() {}
-
-// Mint signs an access token directly for unit tests. STUB(M4a-C1)
-func (p *Provider) Mint(tb testing.TB, _, _ string, _, _ []string) string {
-	tb.Helper()
-	tb.Skip("M4a-C1: oidctest provider not implemented yet")
-	return ""
+func (p *Provider) record(r Recorded) {
+	r.At = p.opts.Now()
+	p.mu.Lock()
+	p.requests = append(p.requests, r)
+	p.mu.Unlock()
 }
 
-// Requests lists the recorded authorize and token requests. STUB(M4a-C1)
-func (p *Provider) Requests() []Recorded { return nil }
+// Requests lists the recorded authorize and token requests.
+func (p *Provider) Requests() []Recorded {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]Recorded(nil), p.requests...)
+}
+
+func (p *Provider) metadata(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"issuer":                                         p.URL,
+		"authorization_endpoint":                         p.URL + "/api/oidc/authorization",
+		"token_endpoint":                                 p.URL + "/api/oidc/token",
+		"jwks_uri":                                       p.URL + "/jwks.json",
+		"response_types_supported":                       []string{"code"},
+		"grant_types_supported":                          []string{"authorization_code", "refresh_token"},
+		"code_challenge_methods_supported":               []string{"S256"},
+		"token_endpoint_auth_methods_supported":          []string{"client_secret_basic", "client_secret_post", "none"},
+		"scopes_supported":                               []string{"openid", "offline_access", "profile", "metamusic"},
+		"authorization_response_iss_parameter_supported": true,
+	})
+}
+
+func randID(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 // Fetcher is the go-sdk authorization-code fetcher for this stub: GET the URL without following redirects and
-// parse code, state and iss. STUB(M4a-C1)
+// parse code, state and iss.
 func (p *Provider) Fetcher(tb testing.TB) auth.AuthorizationCodeFetcher {
 	tb.Helper()
-	tb.Skip("M4a-C1: oidctest provider not implemented yet")
-	return nil
+	return p.fetcher
 }

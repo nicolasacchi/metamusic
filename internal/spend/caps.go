@@ -110,8 +110,10 @@ func (s *Service) LoadCaps(ctx context.Context, q Querier) (Caps, error) {
 	return c, nil
 }
 
-// TokenLimitsFor reads an agent token's limits; a principal key that is not an agent returns zero
-// limits (all global).
+// TokenLimitsFor reads an agent's own limits (M4a C106): "agent:<id>" is the api_tokens row with that id, else
+// the connector_grants row with that id (UUIDv7 ids of disjoint tables). An unknown id, a grant with null limits
+// or any other key prefix returns the all-nil TokenLimits, which every caller reads as "the global default"
+// (never $0); there is no error for "not found".
 func (s *Service) TokenLimitsFor(ctx context.Context, q Querier, principalKey string) (TokenLimits, error) {
 	id, ok := strings.CutPrefix(principalKey, "agent:")
 	if !ok {
@@ -121,15 +123,25 @@ func (s *Service) TokenLimitsFor(ctx context.Context, q Querier, principalKey st
 }
 
 func (s *Service) tokenLimits(ctx context.Context, q Querier, tokenID string) (TokenLimits, error) {
-	var d, am sql.NullInt64
-	var tk sql.NullInt64
-	err := q.QueryRowContext(ctx, `SELECT daily_budget_micro_usd, auto_approve_takes, auto_approve_micro_usd FROM api_tokens WHERE id = ?`, tokenID).
+	for _, table := range []string{"api_tokens", "connector_grants"} {
+		t, found, err := limitsFrom(ctx, q, table, tokenID)
+		if err != nil || found {
+			return t, err
+		}
+	}
+	return TokenLimits{}, nil
+}
+
+// limitsFrom reads the three limit columns of one table (a fixed name, never caller input).
+func limitsFrom(ctx context.Context, q Querier, table, tokenID string) (TokenLimits, bool, error) {
+	var d, am, tk sql.NullInt64
+	err := q.QueryRowContext(ctx, `SELECT daily_budget_micro_usd, auto_approve_takes, auto_approve_micro_usd FROM `+table+` WHERE id = ?`, tokenID).
 		Scan(&d, &tk, &am)
 	if errors.Is(err, sql.ErrNoRows) {
-		return TokenLimits{}, nil
+		return TokenLimits{}, false, nil
 	}
 	if err != nil {
-		return TokenLimits{}, fmt.Errorf("spend: token limits: %w", err)
+		return TokenLimits{}, false, fmt.Errorf("spend: token limits: %w", err)
 	}
 	var t TokenLimits
 	if d.Valid {
@@ -144,7 +156,7 @@ func (s *Service) tokenLimits(ctx context.Context, q Querier, tokenID string) (T
 		v := int(tk.Int64)
 		t.AutoApproveTakes = &v
 	}
-	return t, nil
+	return t, true, nil
 }
 
 // TokenPatch replaces one agent token's limits; a nil field clears the limit (back to the global).
