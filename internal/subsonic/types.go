@@ -29,4 +29,60 @@ type Response struct {
 	ServerVersion string     `json:"serverVersion" xml:"serverVersion,attr"`
 	OpenSubsonic  bool       `json:"openSubsonic" xml:"openSubsonic,attr"`
 	Error         *ErrorBody `json:"error,omitempty" xml:"error,omitempty"`
+
+	// System endpoints (S1).
+	License                *License        `json:"license,omitempty" xml:"license,omitempty"`
+	OpenSubsonicExtensions []ExtensionInfo `json:"openSubsonicExtensions,omitempty" xml:"openSubsonicExtensions"`
+	TokenInfo              *TokenInfo      `json:"tokenInfo,omitempty" xml:"tokenInfo,omitempty"`
+	User                   *User           `json:"user,omitempty" xml:"user,omitempty"`
+	MusicFolders           *MusicFolders   `json:"musicFolders,omitempty" xml:"musicFolders,omitempty"`
+
+	catalogPayload    // catalog, browsing, lists and search (S2)
+	annotationPayload // playlists, bookmarks, play queue and lyrics (S3)
+}
+
+// License is the answer of getLicense.
+type License struct {
+	Valid bool `json:"valid" xml:"valid,attr"`
+}
+
+// ExtensionInfo is one advertised OpenSubsonic extension.
+type ExtensionInfo struct {
+	Name     string `json:"name" xml:"name,attr"`
+	Versions []int  `json:"versions" xml:"versions"`
+}
+
+// TokenInfo is the answer of tokenInfo.
+type TokenInfo struct {
+	Username string `json:"username" xml:"username,attr"`
+}
+
+// User is the answer of getUser.
+type User struct {
+	Username            string `json:"username" xml:"username,attr"`
+	ScrobblingEnabled   bool   `json:"scrobblingEnabled" xml:"scrobblingEnabled,attr"`
+	AdminRole           bool   `json:"adminRole" xml:"adminRole,attr"`
+	SettingsRole        bool   `json:"settingsRole" xml:"settingsRole,attr"`
+	DownloadRole        bool   `json:"downloadRole" xml:"downloadRole,attr"`
+	UploadRole          bool   `json:"uploadRole" xml:"uploadRole,attr"`
+	PlaylistRole        bool   `json:"playlistRole" xml:"playlistRole,attr"`
+	CoverArtRole        bool   `json:"coverArtRole" xml:"coverArtRole,attr"`
+	CommentRole         bool   `json:"commentRole" xml:"commentRole,attr"`
+	PodcastRole         bool   `json:"podcastRole" xml:"podcastRole,attr"`
+	StreamRole          bool   `json:"streamRole" xml:"streamRole,attr"`
+	JukeboxRole         bool   `json:"jukeboxRole" xml:"jukeboxRole,attr"`
+	ShareRole           bool   `json:"shareRole" xml:"shareRole,attr"`
+	VideoConversionRole bool   `json:"videoConversionRole" xml:"videoConversionRole,attr"`
+	Folder              []int  `json:"folder" xml:"folder"`
+}
+
+// MusicFolder is one of the three virtual folders (D-M4a-10).
+type MusicFolder struct {
+	ID   int    `json:"id" xml:"id,attr"`
+	Name string `json:"name" xml:"name,attr"`
+}
+
+// MusicFolders is the answer of getMusicFolders.
+type MusicFolders struct {
+	MusicFolder []MusicFolder `json:"musicFolder" xml:"musicFolder"`
 }

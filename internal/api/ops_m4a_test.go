@@ -58,11 +58,13 @@ func m4aIdem(w m4aOp) []string {
 
 var allScopes = []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
 
-// m4aDeps wires every M4a dependency with a bare value: registration never dereferences them and the stubs
-// answer 501 before touching them.
+// m4aDeps wires the M4a dependencies that still have stubs with a bare value: registration never dereferences
+// them and the stubs answer 501 before touching them. The Subsonic store is left nil on purpose (M4a-S1 replaced
+// its stubs: a bare store would panic): its handlers answer 503 here and are tested against a real rig in
+// internal/subsonic.
 func m4aDeps() api.Deps {
 	return api.Deps{
-		Connectors: connectors.NewStore(nil, nil, nil), Subsonic: &auth.SubsonicStore{}, Downloads: &tagged.Service{},
+		Connectors: connectors.NewStore(nil, nil, nil), Downloads: &tagged.Service{},
 		Playlists: &playlists.Service{}, Prompts: stubSources{},
 	}
 }
@@ -223,7 +225,10 @@ func TestOps_StubsAnswer501M4a(t *testing.T) {
 }
 
 // implementedM4a lists the operations whose stub a lane has replaced (the lane adds the id here).
-var implementedM4a = map[string]bool{"list_connector_grants": true, "set_connector_grant": true} // M4a-C2
+var implementedM4a = map[string]bool{
+	"list_connector_grants": true, "set_connector_grant": true, // M4a-C2
+	"list_subsonic_clients": true, "create_subsonic_client": true, "revoke_subsonic_client": true, // M4a-S1
+}
 
 // TestOps_AuthorizationM4a: the management ops need scope admin: a read+write agent, a paired device and an OAuth
 // connector are refused with 403; read ops need only read.
