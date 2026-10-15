@@ -223,7 +223,7 @@ func TestOps_StubsAnswer501M4a(t *testing.T) {
 }
 
 // implementedM4a lists the operations whose stub a lane has replaced (the lane adds the id here).
-var implementedM4a = map[string]bool{}
+var implementedM4a = map[string]bool{"list_connector_grants": true, "set_connector_grant": true} // M4a-C2
 
 // TestOps_AuthorizationM4a: the management ops need scope admin: a read+write agent, a paired device and an OAuth
 // connector are refused with 403; read ops need only read.

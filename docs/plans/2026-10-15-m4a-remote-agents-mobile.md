@@ -2001,6 +2001,17 @@ Tests first:
   `DropOldKeys`) and asserts at most **one** new authorize request before the call succeeds.
 Done: `internal/connectors` ≥ 95 %; `TestParityEveryOperation` green with the fourth face.
 
+> **C2 contract notes (as built).** (1) `connectors.Store` gains `Touch` (the C103 once-a-minute SQL), exported `TouchInterval` and the
+> errors `ErrInvalidScopes`, `ErrInvalidLimits` and `ErrEmptyChange`; `Set` stores scopes in the CHECK's order (`read,write,generate`)
+> whatever the request's order and keeps the first revoker when a revoked grant is revoked again. (2) `VerifierOptions` gains an
+> optional `Logger` (nil is `slog.Default()`); refusals log one line with a code (`client_not_allowed`, `user_claim_missing`,
+> `user_not_trusted`, `keys_unavailable`, `grant_revoked`), never a value. (3) The grant-created audit row has client `oauth:<client_id>`.
+> (4) `api.Authorize` adds `details.hint` ("the operator can enable this scope for the connector at /human/connectors") to the
+> `FORBIDDEN_SCOPE` problem of a `Via oauth` principal. (5) go-sdk closes a session whose call was refused with a 403 (revoked grant),
+> so the lifecycle test reconnects after restoring the grant. (6) `TestAcceptance_M4a_ConnectorReauthOn401` makes the server learn the
+> new key first (a token of the new key reaches `/mcp` once), because the verifier's cache keeps the old key until it refetches.
+> (7) `golang.org/x/oauth2` is a direct requirement now (the rig-clock token source imports it).
+
 ### Task M4a-C3 (Connectors): `metamusic oidc probe`
 **Files:** `cmd/metamusic/{cmd_oidc.go,cmd_oidc_test.go}`; M0 plan C7 note.
 Tests first: `TestCLI_OIDCProbe` (OIDC rig with loopback `PublicURL` (C117.1) + stub, client

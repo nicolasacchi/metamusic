@@ -220,7 +220,11 @@ func Authorize(ctx context.Context, meta Meta) error {
 		return Err(403, "HUMAN_ONLY", "this operation is restricted to human users", nil)
 	}
 	if !p.Has(meta.Scope) {
-		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", map[string]any{"scope": string(meta.Scope)})
+		details := map[string]any{"scope": string(meta.Scope)}
+		if p.Via == "oauth" { // a connector's scopes are the grant's: only the operator can widen them (M4a C106)
+			details["hint"] = "the operator can enable this scope for the connector at /human/connectors"
+		}
+		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", details)
 	}
 	return nil
 }
