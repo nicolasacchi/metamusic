@@ -46,6 +46,10 @@ tests_in_shard() { # <pkg> <i> <K>
   done < <(tests_of "$pkg")
 }
 
+# The suites fsync heavily (SQLite, the storage-fault chaos tests): on the runner's disk TestChaos_StorageFaults alone
+# took about 5 minutes; on tmpfs it takes seconds (as in `make test`, see TEST_TMPDIR in the Makefile).
+if [ -d /dev/shm ] && [ -w /dev/shm ]; then export TMPDIR=/dev/shm; fi
+
 cmd=${1:?run|plan|tests}
 case "$cmd" in
   plan)
