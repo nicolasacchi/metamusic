@@ -36,8 +36,8 @@ tests_of() { # all top-level tests of a package
 tests_in_shard() { # <pkg> <i> <K>
   local pkg=$1 i=$2 k=$3 t h p
   while read -r t; do
-    # a listed heavy test goes to part (its position among the package's heavy tests) mod K, any other by name hash
-    p=$(awk -v pkg="$pkg" -v t="$t" -v k="$k" '$1 == pkg && $1 !~ /^#/ { if ($2 == t) { print n % k; exit } n++ }' "$root/scripts/ci-heavy-tests.txt")
+    # a listed heavy test goes to its pinned part (mod K), any other test by name hash
+    p=$(awk -v pkg="$pkg" -v t="$t" -v k="$k" '$1 == pkg && $1 !~ /^#/ && $2 == t { print $4 % k; exit }' "$root/scripts/ci-heavy-tests.txt")
     if [ -z "$p" ]; then
       h=$(printf '%s' "$t" | cksum | cut -d' ' -f1)
       p=$((h % k))
@@ -71,7 +71,7 @@ case "$cmd" in
       names=$(tests_in_shard "$pkg" "${part%/*}" "${part#*/}" | paste -sd'|')
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
-      go test -v -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
+      go test -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
       pids+=($!)
     done
     if [ "${#whole[@]}" -gt 0 ]; then

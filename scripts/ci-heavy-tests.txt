@@ -1,10 +1,12 @@
-# pkg  top-level test  (seconds of a -race CI run, 2026-10-15)
-# Tests of a package that scripts/ci-shard-weights.txt splits are spread by the stable hash of their name, which can put
-# every long test in one part. The tests listed here are dealt out round-robin to the parts in this order instead, so
-# keep the slowest first. A name that no longer exists is harmless; a new slow test just falls back to the hash.
-./internal/jobs TestChaos_StorageFaults 90
-./internal/jobs TestChaos_QueueExpiryResubmitThenNoCapacity 88
-./internal/jobs TestProperty_ColdStartAboveAllowanceTrips 40
-./internal/jobs TestRunner_NoCapacityFailsBatchRemainder 37
-./internal/jobs TestChaos_GhostAdoptedViaStart 21
-./internal/jobs TestChaos_CrashBeforeRefPersisted 16
+# pkg  top-level test  seconds-in-a-CI-run  part
+# Tests of a package that scripts/ci-shard-weights.txt splits are spread over its K parts by a stable hash of the test
+# name, which can pile every slow test into one part. A test listed here goes to the given part (0-based, taken mod K)
+# instead. Seconds are the summed wall time of the test and its parallel subtests (-v log of the CI run, 2026-10-15; the
+# parent line of a parallel-subtest test shows ~0 s, so read the subtests). A name that no longer exists is harmless;
+# a new slow test just falls back to the hash.
+./internal/jobs TestProperty_SpendNeverExceedsCap 623 0
+./internal/jobs TestRunner_EveryDatabaseCallMayFail 544 1
+./internal/jobs TestProperty_SpendNeverExceedsCap_RunPod 246 2
+./internal/jobs TestIngestBridge_EveryDatabaseCallMayFail 83 2
+./internal/jobs TestService_EveryDatabaseCallMayFail 80 2
+./internal/jobs TestReconciler_EveryDatabaseCallMayFail 52 2

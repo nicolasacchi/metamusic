@@ -1,7 +1,7 @@
 # pkg  weight(seconds of a CI run, measured 2026-10-15)  [split K = also shard its top-level tests K ways]
 # Packages not listed weigh 3. The weights only balance the shards; coverage of every package and test is
 # structural (scripts/ci-go-test.sh --plan, asserted by scripts/ci-selftest.sh), so stale numbers cost time, never tests.
-./internal/jobs 600 3
+./internal/jobs 1500 3
 ./internal/acceptance 298 2
 ./cmd/metamusic 169
 ./internal/ladder 139
