@@ -709,3 +709,52 @@ func TestCLI_RunPodStatusLiveAttempts(t *testing.T) {
 		}
 	})
 }
+
+// `runpod status` sums the same worker_meter rows as the API: rows first seen before settings
+// meter.billable_since carry the legacy listing uptime and are excluded.
+func TestCLI_RunPodStatusMeterAppliesBillableSince(t *testing.T) {
+	t.Parallel()
+	r := newRPRig(t)
+	cut := rpNow.Add(-time.Hour)
+	ins := func(key string, first time.Time, up int) {
+		r.exec(t, `INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,?,'RUNNING')`,
+			key, store.FormatTime(first), store.FormatTime(first), store.FormatTime(first.Add(time.Minute)), up)
+	}
+	ins("legacy-a", cut.Add(-3*time.Hour), 50_000)
+	ins("legacy-b", cut.Add(-time.Minute), 20_000)
+	ins("trusted", cut.Add(time.Minute), 44)
+	meter := func() map[string]any {
+		code, out, errs := rp(t, r.env, "status", "--json")
+		if code != 0 {
+			t.Fatalf("status: %d %s %s", code, out, errs)
+		}
+		var v struct {
+			Meter map[string]any `json:"meter"`
+		}
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v.Meter
+	}
+	if m := meter(); m["lifetimes"] != float64(3) { // no cut-over yet: nothing is excluded
+		t.Fatalf("before the cut-over: %v", m)
+	}
+	r.exec(t, `INSERT INTO settings(key, value) VALUES ('meter.billable_since', ?)`, store.FormatTime(cut))
+	if m := meter(); m["lifetimes"] != float64(1) || m["uptime_s"] != float64(44) {
+		t.Errorf("after the cut-over the legacy rows still count: %v", m)
+	}
+}
+
+func TestCLI_RunPodCanaryKillSwitchNeedsConfirm(t *testing.T) {
+	t.Parallel()
+	r := newRPRigNoDB(t)
+	env := map[string]string{}
+	for k, v := range r.env {
+		env[k] = v
+	}
+	env["MM_TOKEN"] = rpCanary("token")
+	code, _, errs := rp(t, env, "canary", "--url", "http://127.0.0.1:1", "--case", "kill-switch")
+	if code != 2 || !strings.Contains(errs, "--kill-switch-confirm") {
+		t.Errorf("exit %d: %s", code, errs)
+	}
+}

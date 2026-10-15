@@ -72,9 +72,21 @@ func wireFake(t *testing.T, fo fake.Options) *wiredFake {
 	ts.Config.Handler = h
 	ts.Start()
 	var bg sync.WaitGroup
-	bg.Add(2)
+	bg.Add(3)
 	go func() { defer bg.Done(); _ = svc.Runner.Run(ctx) }()
 	go func() { defer bg.Done(); _ = svc.Reconciler.Run(ctx) }()
+	// the reconciler sweeps every 10 s; a fake take lives for seconds, so the canary (which now insists on
+	// seeing a live worker in get_provider_status) needs the snapshot refreshed far more often
+	go func() {
+		defer bg.Done()
+		for ctx.Err() == nil {
+			_ = svc.Reconciler.Pass(ctx)
+			select {
+			case <-ctx.Done():
+			case <-time.After(250 * time.Millisecond):
+			}
+		}
+	}()
 	t.Cleanup(func() {
 		cancel()
 		bg.Wait()
@@ -128,10 +140,10 @@ func (w *wiredFake) batches(t *testing.T) int {
 // server over the fake backend: every case ends in its expected outcome, and the refusals create nothing.
 func TestCanary_ScriptAgainstFake(t *testing.T) {
 	t.Parallel()
-	quick := fake.Options{IdleS: 1, ColdStartS: 1}
+	quick := fake.Options{IdleS: 1, ColdStartS: 1, Speed: fake.Speed{Slow: 6 * time.Second}} // long enough for the canary to see the worker
 	t.Run("pass cases", func(t *testing.T) {
 		t.Parallel()
-		for _, c := range []runpod.CanaryCase{runpod.CaseMain, runpod.CaseCotFull, runpod.CaseTerminate, runpod.CaseKillSwitch} {
+		for _, c := range []runpod.CanaryCase{runpod.CaseMain, runpod.CaseCotFull, runpod.CaseTerminate} {
 			t.Run(string(c), func(t *testing.T) {
 				t.Parallel()
 				w := wireFake(t, quick)
@@ -155,6 +167,32 @@ func TestCanary_ScriptAgainstFake(t *testing.T) {
 					}
 				}
 			})
+		}
+	})
+	t.Run("kill-switch passes only when the endpoint is deactivated during the run", func(t *testing.T) {
+		t.Parallel()
+		for _, flip := range []bool{true, false} {
+			w := wireFake(t, fake.Options{IdleS: 1, ColdStartS: 1, Speed: fake.Speed{Slow: 3 * time.Second}})
+			if flip { // the operator's `provision --deactivate`, once the job is running (the fake skips "generating")
+				go func() {
+					for i := 0; i < 600; i++ {
+						var n int
+						if err := w.st.R.QueryRow(`SELECT COUNT(*) FROM jobs WHERE state IN ('starting', 'generating', 'transferring')`).Scan(&n); err == nil && n > 0 {
+							time.Sleep(2 * time.Second) // past the 1 s cold start: the worker holds the job, so only idle workers stop
+							_ = w.svc.Fake.ScaleToZero(context.Background())
+							return
+						}
+						time.Sleep(50 * time.Millisecond)
+					}
+				}()
+			}
+			rep := w.run(t, runpod.CaseKillSwitch, func(o *runpod.CanaryOptions) { o.KillSwitchConfirm = true })
+			switch {
+			case flip && (rep.Exit != runpod.ExitPass || rep.Outcome != "pass"):
+				t.Errorf("flipped: report %+v", rep)
+			case !flip && (rep.Exit != runpod.ExitFail || !strings.Contains(rep.Reason, "kill_switch_flipped")):
+				t.Errorf("not flipped: report %+v", rep)
+			}
 		}
 	})
 	t.Run("timeout is refused on a server not configured for it", func(t *testing.T) {

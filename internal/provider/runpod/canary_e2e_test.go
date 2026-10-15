@@ -117,6 +117,23 @@ func TestCanary_MainAgainstWiredServerOverRunpodtest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// RunPod lists a worker while a job runs. runpodtest has no worker model, so the test plays it: one RUNNING
+	// worker for three seconds from the submit, and the reconciler's snapshot (a sweep every 10 s in
+	// production) refreshed every 250 ms. The canary insists on having seen a live worker.
+	go func() {
+		for ctx.Err() == nil {
+			_ = svc.Reconciler.Pass(ctx)
+			time.Sleep(250 * time.Millisecond)
+		}
+	}()
+	go func() {
+		for rp.Calls("run") == 0 && ctx.Err() == nil {
+			time.Sleep(20 * time.Millisecond)
+		}
+		rp.SetWorkers([]map[string]any{{"id": "w-e2e-1", "status": "RUNNING", "isStale": false, "startedAt": time.Now().UTC().Format(time.RFC3339), "uptimeSeconds": 1}})
+		time.Sleep(3 * time.Second)
+		rp.SetWorkers([]map[string]any{})
+	}()
 	rep, err := runpod.RunCanary(ctx, runpod.CanaryOptions{BaseURL: publicURL, Token: tok, Case: runpod.CaseMain,
 		SweepEvery: 200 * time.Millisecond, WaitS: 5, AfterCancelWait: time.Second})
 	if err != nil {

@@ -182,6 +182,18 @@ func meterBillableSince(ctx context.Context, x Querier) (string, error) {
 	return v, err
 }
 
+// BillableMeterTotals is the lifetime count and the billable seconds over every trusted worker_meter row (no
+// time window): rows first seen before meter.billable_since are excluded, exactly as in the API's meter. The
+// CLI's `runpod status` shows it.
+func BillableMeterTotals(ctx context.Context, x Querier) (lifetimes, seconds int64, err error) {
+	trusted, err := meterBillableSince(ctx, x)
+	if err != nil {
+		return 0, 0, err
+	}
+	err = x.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(uptime_s), 0) FROM worker_meter WHERE first_seen_at >= ?`, trusted).Scan(&lifetimes, &seconds)
+	return lifetimes, seconds, err
+}
+
 // ensureBillableSince, on the first sweep with the billable meter, records now as the instant before which
 // worker_meter rows hold raw listing uptime, and audits it. It never deletes or rewrites rows.
 func (r *Reconciler) ensureBillableSince(ctx context.Context, now time.Time) error {
