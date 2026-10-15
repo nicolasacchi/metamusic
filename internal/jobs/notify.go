@@ -34,9 +34,22 @@ func NoteProviderTripped(publicURL, reason, actions string) notify.Message {
 
 // NoteManualScaleToZero is "manual scale-to-zero needed" (priority 5, rotating_light): the app cannot change
 // the endpoint, so the operator does it in the console.
-func NoteManualScaleToZero(consoleURL string) notify.Message {
+//
+// maxWorkers is the endpoint's workers.max as the last sweep saw it (nil: unknown) and live the number of
+// workers still up. When max is already 0 the alert says so: the remaining workers have to be stopped
+// (terminated) in the console, setting max again changes nothing.
+func NoteManualScaleToZero(consoleURL string, maxWorkers *int, live int) notify.Message {
+	body := "The app cannot change the endpoint; open the console"
+	if maxWorkers != nil && *maxWorkers == 0 {
+		body += ". workers.max is already 0"
+		if live > 0 {
+			body += fmt.Sprintf(" but %d worker(s) are still up: terminate them", live)
+		}
+	} else if live > 0 {
+		body += fmt.Sprintf(" (%d worker(s) are up)", live)
+	}
 	return notify.Message{Title: "Set max workers to 0 now", Priority: 5, Tags: []string{"rotating_light"},
-		Body: "The app cannot change the endpoint; open the console", Click: consoleURL,
+		Body: body, Click: consoleURL,
 		Actions: []notify.Action{{Action: "view", Label: "Open console", URL: consoleURL}}}
 }
 

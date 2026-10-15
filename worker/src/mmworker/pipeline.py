@@ -40,6 +40,43 @@ def resolve_vae(env: dict[str, str], repo: str, revision: str) -> str:
     return str(snap)
 
 
+VOLUME_HUB = Path("/runpod-volume/huggingface-cache/hub")  # RunPod cached model, hub-cache layout
+MODEL_STORE = Path("/runpod/model-store/huggingface")  # RunPod cached model, ORG/NAME/<revision> layout
+
+
+def _complete(snap: Path) -> str | None:
+    """Why a candidate snapshot directory is unusable, or None when it holds config + safetensors."""
+    if not snap.is_dir():
+        return "absent"
+    if not (snap / "config.json").is_file():
+        return "no config.json"
+    if not any(snap.glob("*.safetensors")):
+        return "no *.safetensors"
+    return None
+
+
+def resolve_3b(env: dict[str, str], repo: str, revision: str) -> str:
+    """The local snapshot directory of the 3B model at the pinned revision (yue2 accepts a local directory).
+
+    Tried in order: MM_YUE2_3B_DIR (a hub-cache root), RunPod's /runpod-volume/huggingface-cache/hub and
+    RunPod's model store /runpod/model-store/huggingface/ORG/NAME/<revision>. Only the pinned revision is
+    accepted. Nothing found raises FileNotFoundError with one line naming every path tried."""
+    hub_name = "models--" + repo.replace("/", "--")
+    candidates: list[Path] = []
+    root = env.get("MM_YUE2_3B_DIR")
+    if root:
+        candidates.append(Path(root) / hub_name / "snapshots" / revision)
+    candidates.append(VOLUME_HUB / hub_name / "snapshots" / revision)
+    candidates.append(MODEL_STORE / repo / revision)
+    tried: list[str] = []
+    for snap in candidates:
+        why = _complete(snap)
+        if why is None:
+            return str(snap)
+        tried.append(f"{snap} ({why})")
+    raise FileNotFoundError(f"3B weights {repo}@{revision[:12]} not found; tried: " + "; ".join(tried))
+
+
 def load_yue2(env: dict[str, str]) -> Pipeline:  # pragma: no cover - needs yue2, torch and weights
     """Load the model once per worker process (called from serverless.main, outside the handler)."""
     import yue2  # noqa: PLC0415 - lazy by contract (test_yue2_imported_lazily)
@@ -48,10 +85,9 @@ def load_yue2(env: dict[str, str]) -> Pipeline:  # pragma: no cover - needs yue2
 
     rev3b = env["MM_YUE2_3B_REVISION"]
     revvae = env["MM_YUE2_VAE_REVISION"]
-    cache = env.get("HF_HOME") or env.get("MM_MODEL_CACHE")
     pipe = yue2.YuE2Pipeline.from_pretrained(
-        model=WEIGHTS_3B, vae=resolve_vae(env, WEIGHTS_VAE, revvae), revision=rev3b, vae_revision=revvae,
-        local_files_only=True, device="cuda", cache_dir=cache)
+        model=resolve_3b(env, WEIGHTS_3B, rev3b), vae=resolve_vae(env, WEIGHTS_VAE, revvae), revision=rev3b,
+        vae_revision=revvae, local_files_only=True, device="cuda")
     return _Yue2Adapter(pipe, {WEIGHTS_3B: rev3b, WEIGHTS_VAE: revvae})
 
 

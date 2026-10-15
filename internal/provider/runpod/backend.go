@@ -196,6 +196,15 @@ func (b *Backend) Sweep(ctx context.Context) (provider.SweepReport, error) {
 		rep.Workers = append(rep.Workers, provider.Worker{ID: w.ID, Status: w.Status, UptimeS: w.UptimeSeconds, StartedAt: w.StartedAt,
 			Image: w.Image, IsStale: w.IsStale})
 	}
+	// /health: the counters RunPod itself keeps. A failure other than lost access leaves Health nil (the
+	// listing alone is then all there is); lost access is an access trip like any other sweep read.
+	if h, herr := b.c.Health(ctx); herr == nil {
+		rep.Health = &provider.Health{Idle: h.Workers["idle"], Initializing: h.Workers["initializing"], Ready: h.Workers["ready"],
+			Running: h.Workers["running"], Throttled: h.Workers["throttled"], Unhealthy: h.Workers["unhealthy"],
+			InQueue: h.Jobs["inQueue"], InProgress: h.Jobs["inProgress"]}
+	} else if e := endpointErr(herr); errors.Is(e, provider.ErrAccess) {
+		return provider.SweepReport{}, e
+	}
 	if d, ok := b.c.Skew(); ok {
 		rep.Skew = &d
 	}
