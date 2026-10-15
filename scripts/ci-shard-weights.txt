@@ -1,0 +1,33 @@
+# pkg  weight(seconds of a CI run, measured 2026-10-15)  [split K = also shard its top-level tests K ways]
+# Packages not listed weigh 3. The weights only balance the shards; coverage of every package and test is
+# structural (scripts/ci-go-test.sh --plan, asserted by scripts/ci-selftest.sh), so stale numbers cost time, never tests.
+./internal/jobs 481 3
+./internal/acceptance 298 2
+./cmd/metamusic 169
+./internal/ladder 139
+./internal/importer 73
+./internal/backup 70
+./internal/store 67
+./internal/api 61
+./internal/spend 61
+./internal/duels 52
+./internal/generation 51
+./internal/library 50
+./internal/drafts 49
+./internal/trackctx 40
+./internal/media/ingest 37
+./internal/mcpgen 37
+./internal/ears 34
+./internal/media/clip 33
+./internal/auth 26
+./internal/archivetest 22
+./internal/analysis/ffmpeg 22
+./internal/synth 21
+./internal/servertest 20
+./internal/gate 17
+./internal/httpserver 16
+./internal/exports 14
+./internal/judgments 13
+./internal/analysis/spectro 12
+./internal/lineage 11
+./internal/idem 10

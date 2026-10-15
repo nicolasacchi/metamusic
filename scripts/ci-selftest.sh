@@ -13,7 +13,7 @@ wf="$root/.github/workflows"
 chk "ci.yml has no paths: key" '! grep -Eq "^[[:space:]]*paths(-ignore)?:" "$wf/ci.yml"'
 chk "ci.yml has the worker-py job" 'grep -Eq "^  worker-py:" "$wf/ci.yml"'
 chk "worker-py runs pytest with the 90 gate" 'grep -q -- "--cov-fail-under=90" "$wf/ci.yml"'
-chk "go-media timeout is 20 min" 'awk "/^  go-media:/{f=1;next} /^  [a-z]/{f=0} f && /timeout-minutes:/{print \$2}" "$wf/ci.yml" | grep -qx 20'
+chk "go job timeout is 20 min" 'awk "/^  go:/{f=1;next} /^  [a-z]/{f=0} f && /timeout-minutes:/{print \$2}" "$wf/ci.yml" | grep -qx 20'
 chk "worker-contract.yml triggers on PR and push with worker paths" \
   'grep -q "pull_request:" "$wf/worker-contract.yml" && grep -q "worker/\*\*" "$wf/worker-contract.yml" && grep -q "schedule:" "$wf/worker-contract.yml" && grep -q "workflow_dispatch:" "$wf/worker-contract.yml"'
 chk "worker-contract.yml delegates to scripts/worker-contract.sh" 'grep -q "scripts/worker-contract.sh" "$wf/worker-contract.yml"'
@@ -36,7 +36,32 @@ printf 'jobs:\n  a:\n    steps:\n      - uses: actions/checkout@main # 3d3c42e5a
 chk "actions-pinned accepts a SHA" '"$root/scripts/actions-pinned.sh" "$tmp/good" >/dev/null 2>&1'
 chk "actions-pinned refuses tags and branches" '! "$root/scripts/actions-pinned.sh" "$tmp/bad" >/dev/null 2>&1'
 
-chk "ci-go-test media tier lists jobs and provider/fake" 'grep -q "./internal/jobs" "$root/scripts/ci-go-test.sh" && grep -q "./internal/provider/fake" "$root/scripts/ci-go-test.sh"'
+# Go sharding (debts): the matrix shard list, the shard count passed to ci-go-test.sh and the e2e --shard
+# count agree, and the shards' union is every package exactly once, split packages' tests exactly once.
+gn=$(grep -c . <<<"$(grep -oE "ci-go-test.sh run [^ ]+ [0-9]+" "$wf/ci.yml" | awk '{print $4}' | sort -u)")
+n=$(grep -oE "ci-go-test.sh run [^ ]+ [0-9]+" "$wf/ci.yml" | awk '{print $4}' | sort -u)
+chk "ci.yml runs ci-go-test.sh with one shard count" '[ "$gn" = 1 ]'
+mx=$(awk "/^  go:/{f=1;next} /^  [a-z]/{f=0} f && /shard: \[/{print}" "$wf/ci.yml" | grep -oE "[0-9]+" | sort -n | tr "\n" " ")
+chk "go matrix is shards 1..$n" '[ "$mx" = "$(seq 1 "$n" | tr "\n" " ")" ]'
+chk "ci.yml go tier does not use -short" '! grep -q -- "-short" "$wf/ci.yml"'
+chk "e2e is sharded 2 ways and the coverage job merges every shard" 'grep -q -- "--shard=\${{ matrix.shard }}/2" "$wf/ci.yml" && grep -q "pattern: covdata-e2e-\*" "$wf/ci.yml" && grep -q "pattern: covdata-unit-\*" "$wf/ci.yml"'
+chk "shard weights file exists" 'test -f "$root/scripts/ci-shard-weights.txt"'
+go list ./... | sed "s|^$(go list -m)|.|" | sort >"$tmp/allpkgs"
+: >"$tmp/planned"
+for s in $(seq 1 "$n"); do "$root/scripts/ci-go-test.sh" plan "$s" "$n" >>"$tmp/planned"; done
+awk '{print $1}' "$tmp/planned" | sort -u >"$tmp/plannedpkgs"
+chk "sharding covers every package" 'diff "$tmp/allpkgs" "$tmp/plannedpkgs"'
+chk "no whole package or split part is planned twice" '[ -z "$(sort "$tmp/planned" | uniq -d)" ]'
+chk "a package is either whole or fully split, never both" '! awk "NF==1{w[\$1]=1} NF==2{s[\$1]=1} END{for(p in w) if(p in s) exit 1}" "$tmp/planned"'
+chk "every split package has all its parts planned" 'awk "NF==2{split(\$2,a,\"/\"); c[\$1]++; k[\$1]=a[2]} END{for(p in c) if(c[p]!=k[p]) exit 1}" "$tmp/planned"'
+for pk in $(awk 'NF==2{print $1}' "$tmp/planned" | sort -u); do
+  k=$(awk -v p="$pk" '$1==p{split($2,a,"/");print a[2];exit}' "$tmp/planned")
+  go test -list ".*" "$pk" | grep -E "^(Test|Example|Fuzz)[^[:space:]]*$" | sort >"$tmp/alltests"
+  : >"$tmp/parts"
+  for i in $(seq 0 $((k-1))); do "$root/scripts/ci-go-test.sh" tests "$pk" "$i" "$k" >>"$tmp/parts"; done
+  sort "$tmp/parts" >"$tmp/partsorted"
+  chk "split $pk: its $k test parts are every test exactly once" 'test -s "$tmp/alltests" && diff "$tmp/alltests" "$tmp/partsorted"'
+done
 chk "root .dockerignore excludes worker/ and runpod*.env" 'grep -qx "worker/" "$root/.dockerignore" && grep -qx "\*\*/runpod\*.env" "$root/.dockerignore"'
 chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.digest"'
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'
