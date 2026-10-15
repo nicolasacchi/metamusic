@@ -20,6 +20,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -724,5 +725,43 @@ func TestDrafts_EdgeInputs(t *testing.T) {
 	// decorating a detail of a draft that does not exist
 	if err := s.DecorateDetail(ctx, &library.DraftDetail{ID: "ghost"}); !errors.Is(err, library.ErrNotFound) {
 		t.Errorf("ghost detail: %v", err)
+	}
+}
+
+func TestDrafts_LintDurationTargets(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	short := reqJSON("short", lyricsOf(""))
+	rep, err := e.svc.Lint(ctx, []yue2.LintItem{{Request: short}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasWarning(rep.Items[0], "duration_under_target") {
+		t.Fatalf("no targets wired, yet: %+v", rep.Items[0].Warnings)
+	}
+	sw := songwriting.New(e.st)
+	e.svc.UseSongwriting(sw)
+	for step, want := range []bool{true, false} { // defaults first, then a minimum the song reaches
+		if step == 1 {
+			if _, err := sw.Set(ctx, songwriting.Patch{MinDurationS: new(30), TargetMinDurationS: new(30)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rep, err = e.svc.Lint(ctx, []yue2.LintItem{{Request: short}}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := hasWarning(rep.Items[0], "duration_under_target"); got != want {
+			t.Errorf("step %d: duration_under_target = %v, want %v (%+v)", step, got, want, rep.Items[0].Warnings)
+		}
+	}
+	// drafts carry the same lint counts: create, then read back
+	d, err := e.svc.Create(ctx, human, drafts.NewDraft{Request: reqJSON("short2", lyricsOf(""))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasWarning(d.Lint, "duration_under_target") {
+		t.Errorf("min lowered to 30 s, yet the draft lint warns: %+v", d.Lint.Warnings)
 	}
 }

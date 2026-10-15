@@ -32,6 +32,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -80,6 +81,9 @@ type Deps struct {
 	Jobs       *jobs.Service
 	Provider   *jobs.ProviderAdmin
 	Lineage    *lineage.Service
+
+	// Songwriting holds the duration targets (settings table); nil makes its operations answer 503 UNAVAILABLE.
+	Songwriting *songwriting.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -193,6 +197,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerEars(a, d)
 	registerGenerationM3(a, d)
 	registerBudgetM3(a, d)
+	registerSongwriting(a, d)
 	registerJobsM3(a, d)
 	registerProviderM3(a, d)
 	registerAudit(a, d)

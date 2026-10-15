@@ -133,13 +133,20 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   return async () => {
     let failure: Error | undefined;
     try {
-      if (process.env.MM_E2E_COVERAGE !== "0") {
+      // A sharded run (CI) serves only part of the operations: it writes what it served to MM_E2E_SERVED_OUT and
+      // `bun e2e/served-check.ts` (the coverage job) checks the union of every shard against the registry.
+      const servedOut = process.env.MM_E2E_SERVED_OUT;
+      if (servedOut || process.env.MM_E2E_COVERAGE !== "0") {
         const res = await fetch(`${BASE_URL}/__e2e/served`, { headers: HEADERS });
         if (!res.ok) throw new Error(`/__e2e/served returned ${res.status}`);
         const served = (await res.json()) as string[];
-        const missing = missingOperations(uiOperations(), served);
-        if (missing.length > 0) {
-          failure = new Error(`operations with a UI never served to the SPA: ${missing.join(", ")} (filtered run? set MM_E2E_COVERAGE=0 to skip this check)`);
+        if (servedOut) {
+          writeFileSync(servedOut, JSON.stringify(served));
+        } else {
+          const missing = missingOperations(uiOperations(), served);
+          if (missing.length > 0) {
+            failure = new Error(`operations with a UI never served to the SPA: ${missing.join(", ")} (filtered run? set MM_E2E_COVERAGE=0 to skip this check)`);
+          }
         }
       }
       // The leak scanner saw every request and response of the run (C39); it must have found no secret value.

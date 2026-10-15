@@ -110,8 +110,8 @@ func TestOps_RegisteredWithMetaM3(t *testing.T) {
 	if tools != 7 || generic != 11 || excluded != 5 { // C81 had 11/7/5; D-M3-36 demoted four tools
 		t.Errorf("tools/generic/excluded = %d/%d/%d, want 7/11/5", tools, generic, excluded)
 	}
-	if len(byID) != 81 {
-		t.Errorf("registry holds %d operations, want 81", len(byID))
+	if len(byID) != 83 { // 81 + the two songwriting-target ops (debts)
+		t.Errorf("registry holds %d operations, want 83", len(byID))
 	}
 }
 
