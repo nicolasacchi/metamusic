@@ -29,9 +29,9 @@ var l1Cases = []ParityCase{
 	{Op: "list_pick_events", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "list_sessions", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 	{Op: "update_session", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "revision": 1, "name": "x"})},
-	{Op: "search_sounds", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "get_sound_taxonomy", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "map_sound_term", Status: 501, Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
+	{Op: "search_sounds", Args: fixedArgs(map[string]any{"limit": 0})}, // counts only: the Song page is list_songs (L1-B5)
+	{Op: "get_sound_taxonomy", Args: fixedArgs(map[string]any{"limit": 10})},
+	{Op: "map_sound_term", Args: fixedArgs(map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}})},
 	{Op: "get_muse_board", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
 }
 

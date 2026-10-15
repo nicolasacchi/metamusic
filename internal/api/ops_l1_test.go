@@ -181,7 +181,7 @@ func TestOps_StubsAnswer501L1(t *testing.T) {
 }
 
 // implementedL1 lists the operations a lane has taken over from their stub; each lane adds its ids here.
-var implementedL1 = map[string]bool{}
+var implementedL1 = map[string]bool{"search_sounds": true, "get_sound_taxonomy": true, "map_sound_term": true}
 
 func TestOps_NilDepsUnavailableL1(t *testing.T) {
 	t.Parallel()

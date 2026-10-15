@@ -34,7 +34,7 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, patch
 }
 
 // FilterSQL renders a ListFilter as a WHERE fragment over songs s with its arguments; sounds reuses it for facet
-// counts (excludeFacet leaves one facet out). STUB(L1-B5): the stub filters nothing.
+// counts (excludeFacet leaves one facet out). STUB(L1-B5): only the Sound clauses (filter.go, L1-B6) are real so far.
 func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
-	return "1 = 1", nil
+	return SoundClauses(f, excludeFacet)
 }
