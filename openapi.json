@@ -10525,7 +10525,7 @@
             "type": "array"
           },
           "via": {
-            "description": "How the principal authenticated: proxy, local, token or device",
+            "description": "How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)",
             "type": "string"
           }
         },

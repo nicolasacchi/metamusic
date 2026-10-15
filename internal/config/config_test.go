@@ -25,6 +25,7 @@ func TestLoadDefaults(t *testing.T) {
 		BackupDir: "backup", BackupAt: "03:30", RateScale: 1, ClipCacheMB: 4096,
 		Backend: "none", Runner: true, JobMaxRuntime: 15 * time.Minute, KillSlackS: 15, JobTTL: 2 * time.Hour,
 		ColdStartS: 180, PriceMarginPPM: 100000, BillingLag: 6 * time.Hour, ResidualHold: 48 * time.Hour,
+		OIDCScopes: []string{"openid", "metamusic"},
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Fatal(diff)

@@ -232,6 +232,22 @@ func clientLabel(req *mcp.CallToolRequest) string {
 	return ""
 }
 
+// oauthClientLabel is the audit client label of a hosted connector (C104):
+// "oauth:<client_id>/<first product token of the MCP client label, without its version>", e.g.
+// "oauth:metamusic-claude/claude-ai". The OAuth client id leads, so a client cannot forge another
+// connector's prefix; the result is sanitised (printable ASCII, at most 120 bytes).
+func oauthClientLabel(clientID, mcpLabel string) string {
+	product := ""
+	if f := strings.Fields(mcpLabel); len(f) > 0 {
+		product, _, _ = strings.Cut(f[0], "/")
+	}
+	label := "oauth:" + clientID
+	if product != "" {
+		label += "/" + product
+	}
+	return reqinfo.SanitizeClient(label)
+}
+
 // deriveKey supplies the idempotency_key argument of a create operation when
 // the caller gave none (C30): a key derived from (caller, operation, other
 // arguments), marked on the context so the gate treats it as derived. It runs
@@ -271,7 +287,11 @@ func deriveKey(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (conte
 // dispatch executes spec with args on inner, using ctx (which carries the
 // already-resolved principal).
 func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.RawMessage, o origin) *mcp.CallToolResult {
-	ctx = reqinfo.WithClient(reqinfo.WithTransport(ctx, o.transport), o.client)
+	client := o.client
+	if p := auth.FromContext(ctx); p.Via == "oauth" {
+		client = oauthClientLabel(p.Client, client)
+	}
+	ctx = reqinfo.WithClient(reqinfo.WithTransport(ctx, o.transport), client)
 	if s.IdemCreate {
 		ctx, args = deriveKey(ctx, s, args)
 	}

@@ -226,7 +226,7 @@ func TestGetStats_Judgments(t *testing.T) {
 	if diff := cmp.Diff(wantJ, s.Judgments); diff != "" {
 		t.Errorf("judgments (-want +got):\n%s", diff)
 	}
-	if s.Playlists != 1 {
+	if s.Playlists != 2 { // the fixture's playlist plus the offline set 0008_remote.sql creates
 		t.Errorf("playlists = %d", s.Playlists)
 	}
 	if diff := cmp.Diff(map[string]int{"import_backlog": 6, "varianti_import": 1, "jsonl_upload": 2}, s.DraftsByOrigin); diff != "" {

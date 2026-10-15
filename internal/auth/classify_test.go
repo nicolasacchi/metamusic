@@ -35,3 +35,15 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+func TestClassify_M4a(t *testing.T) {
+	t.Parallel()
+	for path, want := range map[string]PathClass{
+		"/sw.js": ClassPublic, "/sw.jsx": ClassUI, "/sw.js/x": ClassUI, "/sw.js/..": ClassUI,
+		"/.well-known/oauth-protected-resource/mcp": ClassMachine, "/mcp": ClassMachine, "/mcp/x": ClassMachine, "/rest/ping": ClassMachine,
+	} {
+		if got := Classify(path); got != want {
+			t.Errorf("Classify(%q) = %d, want %d", path, got, want)
+		}
+	}
+}

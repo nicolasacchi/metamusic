@@ -10,8 +10,8 @@ import (
 )
 
 // deleteAllowlist names the only tables that may be physically deleted from:
-// the idempotency cache and M0's session cache. Nothing else, ever.
-var deleteAllowlist = map[string]bool{"idempotency": true, "human_sessions": true}
+// the idempotency cache, M0's session cache and M4a's Subsonic salt cache. Nothing else, ever.
+var deleteAllowlist = map[string]bool{"idempotency": true, "human_sessions": true, "subsonic_salts": true}
 
 var deleteRE = regexp.MustCompile(`(?i)\bdelete\s+from\s+([A-Za-z_][A-Za-z0-9_]*)`)
 

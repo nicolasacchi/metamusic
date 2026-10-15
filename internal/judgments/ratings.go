@@ -136,7 +136,7 @@ func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID str
 		default:
 			return inv("status", "must be draft, to_relisten, final or discarded")
 		}
-		set, args = append(set, "status = ?", "status_set_by = ?"), append(args, *status, p.Key())
+		set, args = append(set, "status = ?", "status_set_by = ?", "status_set_at = ?"), append(args, *status, p.Key(), s.stamp())
 	}
 	res, err := s.st.W.ExecContext(ctx, `UPDATE tracks SET `+strings.Join(set, ", ")+` WHERE id = ?`, append(args, trackID)...) //nolint:gosec // G202: fixed column list
 	if err != nil {

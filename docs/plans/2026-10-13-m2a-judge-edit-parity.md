@@ -179,6 +179,8 @@ These amend or refine the design of record; M2a-X1 copies them into the private 
 
 ### C25. Config, secrets, data layout, leaf packages
 
+> **M4a amendment (B1):** The `ratelimit` leaf gains `Peek` and the classes `subsonic`, `subsonic_auth_fail`, `subsonic_auth_fail_global`; `reqinfo` gains `ClientIP` and the transports `subsonic` and `oauth`; `redact` masks `mms_` keys, JWS strings and form-encoded secrets (M4a C102).
+
 New env (added to `config.Config`; M2a-B1 amends M0 C1 / M1 C10):
 
 ```go
@@ -256,6 +258,8 @@ job-API paths (`/v2/<endpoint>/run`, `/v2/endpoints/<endpoint>`); `redact.WithEn
 `store.LeaseFence`. See the M3 plan, C68 and C80.
 
 ### C26. Principals, devices, pairing and step-up (amends M0 C3)
+
+> **M4a amendment (B1):** Principals gain `Via` `oauth` (connector, `Kind agent`) and `subsonic` (`Kind device`); `revoke_own_token` refuses every principal whose `Via` is not `token` (M4a C104).
 
 ```go
 const KindDevice Kind = "device"
@@ -390,6 +394,8 @@ func PairingHandler(o PairingOptions) http.Handler
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. Pages never echo the submitted code.
 
 ### C27. Migration `internal/store/migrations/0003_judge.sql` (full DDL) and store rules
+
+> **M4a amendment (B1):** Migration 0009 adds `playlists.role` (the offline set, fixed id) and the delete allowlist of `TestNoDeleteSQL` becomes `{idempotency, human_sessions, subsonic_salts}` (M4a C103).
 
 After M2a, `PRAGMA user_version == 3`. As in C11, `CHECK` constraints encode only invariants that never
 change; growing enumerations (comment kinds and sources, listen kinds, export kinds, draft origins,
@@ -911,6 +917,8 @@ Idempotency rows are pruned hourly by `serve`. Gate logs one slog line per reque
 
 ### C30. MCP adapter, transport marks and `mcp-stdio` (amends M0 C5)
 
+> **M4a amendment (B1):** For an `oauth` principal the dispatch client label is `oauth:<client_id>/<first product token of the MCP client label>` (M4a C104).
+
 - `httpserver` passes the **gated** inner handler to `MCPFactory` (amends the C6 addendum): MCP tools
   dispatch into `gate(inner)`, never into the bare mux.
 - `dispatch` sets `reqinfo.WithTransport(ctx, "mcp")` (or `"stdio"`, see below). (rev 3) M0's
@@ -963,6 +971,8 @@ Idempotency rows are pruned hourly by `serve`. Gate logs one slog line per reque
   always the token's agent principal — never human.
 
 ### C31. Judgments: ratings, status/title, tags, comments (`internal/judgments`)
+
+> **M4a amendment (B1):** `UpdateTrack` writes `tracks.status_set_at` with every status change, and the comment source set gains `subsonic` (M4a C103, D-M4a-23).
 
 ```go
 func New(st *store.Store, lib *library.Service, now func() time.Time, newID func() string) *Service
@@ -1600,6 +1610,8 @@ in M3-B2 and the bundle code and goldens change in M3-B6. See the M3 plan, C81.1
 
 
 ### C36. Listen events (`internal/listening`)
+
+> **M4a amendment (B1):** The Go-validated listen source set gains `subsonic` (M4a C102).
 
 ```go
 type Event struct{ ID, TrackID, SessionID, Kind string; FromMS, ToMS *int64; Format, DeviceID *string; ClientAt time.Time }

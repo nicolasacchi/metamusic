@@ -219,6 +219,8 @@ cycles and to keep test code out of the binary):
 
 ### C11. Migration `internal/store/migrations/0002_library.sql` (full DDL) and store additions
 
+> **M4a amendment (B1):** Migration `0009_remote.sql` (committed as `0008_remote.sql` until L1 merges) adds `tracks.status_set_at` (backfilled with `created_at`); M4a C103.
+
 After M1, `PRAGMA user_version == 2` (M2a-B1: migration `0003_judge.sql` makes it 3; the M1 tests that pinned `== 2` now
 assert "at least 2" or migrate explicitly with `MigrateTo(…, 2)`; `librarytest.FixtureV2` is the M1 fixture body). M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
 package `store`) asserts `user_version == 1` twice; both change to the number of embedded migrations
@@ -1247,6 +1249,8 @@ as `\x..`/`\u....`).
 - Enforced by `TestPrivacy_ReferenceMetadataConfined` (M1-B9).
 
 ### C17. Library service: `internal/library` + `librarytest`
+
+> **M4a amendment (B1):** `InsertTake` also writes `tracks.status_set_at = created_at` when the column exists (M4a C103, D-M4a-23).
 
 ```go
 type Service struct{ /* st *store.Store; data *os.Root; now func() time.Time */ }

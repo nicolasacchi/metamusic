@@ -38,7 +38,7 @@ func newStepRig(t *testing.T) *stepRig {
 	mux := http.NewServeMux()
 	mux.Handle("/auth/", la.Handler())
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
-	h := Middleware(config.Config{AuthMode: "local", PublicURL: "http://mm.example.com"}, config.Secrets{Key: key}, fakeTokens{}, la, nil)(mux)
+	h := Middleware(config.Config{AuthMode: "local", PublicURL: "http://mm.example.com"}, config.Secrets{Key: key}, Verifiers{Tokens: fakeTokens{}, Sessions: la, Devices: nil})(mux)
 	return &stepRig{la: la, clk: clk, h: h, cookie: &http.Cookie{Name: SessionCookie, Value: cv}}
 }
 

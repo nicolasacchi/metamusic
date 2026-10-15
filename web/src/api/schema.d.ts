@@ -4425,7 +4425,7 @@ export interface components {
             name: string;
             /** @description Granted scopes */
             scopes: string[];
-            /** @description How the principal authenticated: proxy, local, token or device */
+            /** @description How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app) */
             via: string;
         };
     };

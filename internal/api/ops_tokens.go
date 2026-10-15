@@ -63,7 +63,7 @@ func registerTokens(a huma.API, d Deps) {
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "none:agent-self-service"},
 		func(ctx context.Context, _ *empty) (*tokenOut, error) {
 			p := auth.FromContext(ctx)
-			if p.Kind != auth.KindAgent {
+			if p.Kind != auth.KindAgent || p.Via != "token" {
 				return nil, Err(403, "NOT_A_TOKEN", "this call was not made with an API token", nil)
 			}
 			if d.Tokens == nil {

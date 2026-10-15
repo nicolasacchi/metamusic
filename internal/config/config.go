@@ -51,6 +51,12 @@ type Config struct {
 	BillingLag      time.Duration // MM_BILLING_LAG, default 6h, 1h..72h
 	ResidualHold    time.Duration // MM_RESIDUAL_HOLD, default 48h, 1h..720h
 	RunPodRecordDir string        // MM_RUNPOD_RECORD_DIR, default "" (fixture recording); existing dir outside DataDir
+
+	// M4a (C102).
+	OIDCIssuer  string       // MM_OIDC_ISSUER: "" ⇒ hosted connectors disabled
+	OIDCJWKSURL string       // MM_OIDC_JWKS_URL: "" ⇒ discovered from the issuer
+	OIDCClients []OIDCClient // MM_OIDC_CLIENTS
+	OIDCScopes  []string     // MM_OIDC_SCOPES, default "openid metamusic"
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -102,6 +108,9 @@ func load(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if err := loadM3(&c, getenv); err != nil {
+		return Config{}, err
+	}
+	if err := loadM4a(&c, getenv); err != nil {
 		return Config{}, err
 	}
 	return c, nil

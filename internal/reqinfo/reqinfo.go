@@ -3,7 +3,9 @@ package reqinfo
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 )
 
@@ -19,6 +21,9 @@ const (
 	Pair  Transport = "pair"
 	// Runner marks audit rows written by the job runner and reconciler (M3 D-M3-22).
 	Runner Transport = "runner"
+	// Subsonic and OAuth mark the OpenSubsonic bridge and hosted-connector requests (M4a C102).
+	Subsonic Transport = "subsonic"
+	OAuth    Transport = "oauth"
 )
 
 type (
@@ -85,4 +90,50 @@ func WithShutdown(ctx context.Context, done <-chan struct{}) context.Context {
 func ShutdownDone(ctx context.Context) <-chan struct{} {
 	d, _ := ctx.Value(shutdownKey{}).(<-chan struct{})
 	return d
+}
+
+// ClientIP returns RemoteAddr's address unless it lies inside a trusted prefix; then the right-most
+// X-Forwarded-For entry that is not itself trusted (all trusted or unparsable ⇒ RemoteAddr's address).
+// It never trusts X-Forwarded-For from an untrusted peer. An unparsable RemoteAddr yields the zero Addr.
+func ClientIP(r *http.Request, trusted []netip.Prefix) netip.Addr {
+	peer := parseHostAddr(r.RemoteAddr)
+	if !peer.IsValid() || !inPrefixes(peer, trusted) {
+		return peer
+	}
+	var entries []string
+	for _, line := range r.Header.Values("X-Forwarded-For") {
+		entries = append(entries, strings.Split(line, ",")...)
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		a, err := netip.ParseAddr(strings.TrimSpace(entries[i]))
+		if err != nil {
+			return peer
+		}
+		a = a.Unmap()
+		if !inPrefixes(a, trusted) {
+			return a
+		}
+	}
+	return peer
+}
+
+func parseHostAddr(hostport string) netip.Addr {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	a, err := netip.ParseAddr(host)
+	if err != nil {
+		return netip.Addr{}
+	}
+	return a.Unmap()
+}
+
+func inPrefixes(a netip.Addr, ps []netip.Prefix) bool {
+	for _, p := range ps {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
 }

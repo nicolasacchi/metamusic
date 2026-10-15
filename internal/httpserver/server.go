@@ -284,7 +284,7 @@ func New(o Options) (http.Handler, error) {
 	if devices == nil && o.DeviceStore != nil {
 		devices = o.DeviceStore
 	}
-	outer := auth.Middleware(o.Cfg, o.Sec, o.Tokens, o.Sessions, devices)(mux)
+	outer := auth.Middleware(o.Cfg, o.Sec, auth.Verifiers{Tokens: o.Tokens, Sessions: o.Sessions, Devices: devices, Connectors: nil})(mux)
 	if o.BaseContext != nil {
 		inner := outer
 		done := o.BaseContext.Done()

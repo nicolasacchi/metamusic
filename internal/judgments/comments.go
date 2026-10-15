@@ -21,7 +21,7 @@ import (
 var (
 	commentKinds  = []string{"note", "fix", "keep", "marker"}
 	commentStates = []string{"open", "addressed", "resolved", "regressed"}
-	commentSrcs   = []string{"web", "api", "mcp", "stdio"}
+	commentSrcs   = []string{"web", "api", "mcp", "stdio", "subsonic"}
 )
 
 // maxPageBytes is the serialized cap of a list page (M1 C17).
