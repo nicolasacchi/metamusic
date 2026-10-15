@@ -10,7 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
 
-var goldenParams = QuoteParams{PricePPH: 690000, RTFMilli: 440, ColdStartS: 180, IdleS: 20, WorkersMax: 2, MaxRuntimeS: 900, KillSlackS: 15}
+var goldenParams = QuoteParams{PricePPH: 690000, RTFMilli: 680, ColdStartS: 180, IdleS: 20, WorkersMax: 2, MaxRuntimeS: 900, KillSlackS: 15}
 
 func TestQuoteBatch_Example(t *testing.T) {
 	t.Parallel()
@@ -18,10 +18,10 @@ func TestQuoteBatch_Example(t *testing.T) {
 	q := QuoteBatch(goldenParams, audio)
 	tc := q.Takes[0]
 	for name, p := range map[string][2]int64{
-		"expected_s": {int64(tc.ExpectedS), 96}, "timeout_s": {int64(tc.TimeoutS), 186}, "take": {int64(tc.TakeMicro), 38525},
-		"overhead": {int64(q.AttemptOverheadMicro), 38334}, "max_i": {int64(tc.MaxMicro), 76859}, "expected_i": {int64(tc.ExpectedMicro), 18400},
-		"max": {int64(q.MaxMicro), 538013}, "retry": {int64(q.RetryAllowanceMicro), 153718}, "ceiling": {int64(q.CeilingMicro), 691731},
-		"expected": {int64(q.ExpectedMicro), 167134}, "eta": {int64(q.ETAS), 564}, "overhead_s": {int64(q.AttemptOverheadS), 200},
+		"expected_s": {int64(tc.ExpectedS), 167}, "timeout_s": {int64(tc.TimeoutS), 332}, "take": {int64(tc.TakeMicro), 66509},
+		"overhead": {int64(q.AttemptOverheadMicro), 38334}, "max_i": {int64(tc.MaxMicro), 104843}, "expected_i": {int64(tc.ExpectedMicro), 32009},
+		"max": {int64(q.MaxMicro), 733901}, "retry": {int64(q.RetryAllowanceMicro), 209686}, "ceiling": {int64(q.CeilingMicro), 943587},
+		"expected": {int64(q.ExpectedMicro), 262397}, "eta": {int64(q.ETAS), 848}, "overhead_s": {int64(q.AttemptOverheadS), 200},
 	} {
 		if p[0] != p[1] {
 			t.Errorf("%s = %d, want %d", name, p[0], p[1])
@@ -37,13 +37,13 @@ func TestQuoteBatch_Clamp(t *testing.T) {
 	p := goldenParams
 	p.RTFMilli = 2000
 	tc := QuoteBatch(p, []int{360}).Takes[0]
-	if tc.ExpectedS != 720 || tc.TimeoutS != 900 {
+	if tc.ExpectedS != 740 || tc.TimeoutS != 900 {
 		t.Fatalf("expected %d timeout %d", tc.ExpectedS, tc.TimeoutS)
 	}
 	if want := money.ForSeconds(915, p.PricePPH); tc.TakeMicro != want {
 		t.Errorf("take = %d, want ForSeconds(915) = %d", tc.TakeMicro, want)
 	}
-	if tc.ExpectedMicro != money.ForSeconds(720, p.PricePPH) {
+	if tc.ExpectedMicro != money.ForSeconds(740, p.PricePPH) {
 		t.Errorf("expected micro = %d", tc.ExpectedMicro)
 	}
 }
@@ -123,28 +123,36 @@ func TestRTF_EWMA(t *testing.T) {
 	}
 	r := newRig(t)
 	ctx := context.Background()
-	r.must(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "A5000", 108_000, 216_000) }) // obs 500
-	if got := r.val(`SELECT rtf_milli FROM rtf_stats WHERE gpu_class='A5000'`); got != 452 {
-		t.Errorf("A5000 = %d, want 452", got)
+	// the seeded prior is replaced by the first real sample, then smoothed
+	r.must(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "A5000", 60_000, 100_000, false) }) // base (60 - 10) / 100 = 500
+	if got := r.val(`SELECT rtf_milli FROM rtf_stats WHERE gpu_class='A5000'`); got != 500 {
+		t.Errorf("A5000 = %d, want 500", got)
 	}
-	if got := r.val(`SELECT samples FROM rtf_stats WHERE gpu_class='A5000'`); got != 1 {
+	r.must(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "A5000", 110_000, 100_000, false) }) // obs 1000
+	if got := r.val(`SELECT rtf_milli FROM rtf_stats WHERE gpu_class='A5000'`); got != 600 {
+		t.Errorf("A5000 = %d, want 600", got)
+	}
+	if got := r.val(`SELECT samples FROM rtf_stats WHERE gpu_class='A5000'`); got != 2 {
 		t.Errorf("samples = %d", got)
 	}
-	r.must(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "H100", 2_000, 100_000) }) // obs 20 -> 50, new class
+	r.must(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "H100", 12_000, 100_000, false) }) // obs 20 -> 50, new class
 	if got := r.val(`SELECT rtf_milli FROM rtf_stats WHERE gpu_class='H100'`); got != 50 {
 		t.Errorf("new class = %d, want clamped 50", got)
 	}
-	if err := r.tx(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "", 1, 1) }); err == nil {
+	if err := r.tx(func(tx *sql.Tx) error { return r.s.RecordRTF(ctx, tx, "", 1, 1, false) }); err == nil {
 		t.Error("empty class accepted")
 	}
-	// RTFMilli: max over the given classes, fallback to all rows
-	if v, ok, err := r.s.RTFMilli(ctx, r.st.R, []string{"RTX 4090", "A5000"}); err != nil || !ok || v != 452 {
+	// RTFMilli: the learned A5000 (600) against unmeasured classes (default 680): the default holds
+	if v, ok, err := r.s.RTFMilli(ctx, r.st.R, []string{"RTX 4090", "RTX A5000"}); err != nil || !ok || v != DefaultRTFMilli {
 		t.Errorf("RTFMilli classes = %d %v %v", v, ok, err)
 	}
-	if v, _, _ := r.s.RTFMilli(ctx, r.st.R, []string{"nope"}); v != 452 {
-		t.Errorf("fallback = %d", v)
+	if v, ok, _ := r.s.RTFMilli(ctx, r.st.R, []string{"RTX A5000"}); v != 600 || !ok {
+		t.Errorf("only the learned class = %d %v", v, ok)
 	}
-	if v, _, _ := r.s.RTFMilli(ctx, r.st.R, nil); v != 452 {
+	if v, ok, _ := r.s.RTFMilli(ctx, r.st.R, []string{"nope"}); v != DefaultRTFMilli || ok {
+		t.Errorf("unknown class = %d %v", v, ok)
+	}
+	if v, _, _ := r.s.RTFMilli(ctx, r.st.R, nil); v != DefaultRTFMilli { // no classes: learned values floored at the default
 		t.Errorf("all = %d", v)
 	}
 }

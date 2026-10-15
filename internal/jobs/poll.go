@@ -3,7 +3,9 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -361,6 +363,9 @@ func (r *Runner) followTerminal(ctx context.Context, tx *sql.Tx, f store.LeaseFe
 			return r.conclude(ctx, tx, f, j, o.b)
 		}
 		code, text := terminalCode(o.st)
+		if code == CodeWorkerLost && o.st.State == provider.Failed && workerReportedDeadline(ctx, tx, a.ID) {
+			code = CodeDeadline
+		}
 		ev := Event{AttemptID: a.ID, Name: EvFailed, Code: code}
 		if o.st.State == provider.Cancelled {
 			ev.Name = EvProviderCancelled
@@ -402,7 +407,10 @@ func liveOthers(ctx context.Context, x q, jobID, skip string) ([]attRec, error) 
 	return queryAtts(ctx, x, `job_id = ? AND state IN ('pending','submitted','unknown') AND id <> ? ORDER BY n`, jobID, skip)
 }
 
-// terminalCode maps a terminal status of a starting or generating job to its error code.
+// terminalCode maps a terminal status of a starting or generating job to its error code. A worker whose
+// generation deadline passed ends with DEADLINE (C73, C75): the handler returns {"error": "DEADLINE: ...",
+// "mm": <output>}, which RunPod reports as FAILED with that error text, and the output's error.code says the
+// same; neither is a lost worker.
 func terminalCode(st provider.RemoteStatus) (code, text string) {
 	switch st.State {
 	case provider.TimedOut:
@@ -410,10 +418,51 @@ func terminalCode(st provider.RemoteStatus) (code, text string) {
 	case provider.Cancelled:
 		return CodeProviderCanceled, st.ErrorText
 	}
-	if out, err := provider.DecodeOutput(st.Output); err == nil && out.Status == "error" {
+	wc, isErr := workerErrorCode(st)
+	switch {
+	case wc == "DEADLINE":
+		return CodeDeadline, st.ErrorText
+	case isErr:
 		return CodeWorkerError, st.ErrorText
 	}
 	return CodeWorkerLost, st.ErrorText
+}
+
+var workerErrPrefix = regexp.MustCompile(`^([A-Z][A-Z0-9_]*): `)
+
+// workerErrorCode is the worker's own error code of a terminal status, from the C73.5 output (status
+// "error"), from the handler's {"error": "CODE: msg", "mm": output} return, or from the error text's
+// "CODE: " prefix. isErr is true only for a decodable error output (the pre-existing WORKER_ERROR path).
+func workerErrorCode(st provider.RemoteStatus) (code string, isErr bool) {
+	if out, err := provider.DecodeOutput(st.Output); err == nil && out.Status == "error" {
+		if out.Error != nil {
+			return out.Error.Code, true
+		}
+		return "", true
+	}
+	var wrapped struct {
+		Error string          `json:"error"`
+		MM    json.RawMessage `json:"mm"`
+	}
+	if len(st.Output) > 0 && json.Unmarshal(st.Output, &wrapped) == nil {
+		if m := workerErrPrefix.FindStringSubmatch(wrapped.Error); m != nil {
+			return m[1], false
+		}
+	}
+	if m := workerErrPrefix.FindStringSubmatch(st.ErrorText); m != nil {
+		return m[1], false
+	}
+	return "", false
+}
+
+// workerReportedDeadline reports whether the attempt's mm-result.json already said DEADLINE (the transfer
+// handler records worker_error on a WORKER_ERROR event): the provider's own terminal status then carries no
+// code of its own.
+func workerReportedDeadline(ctx context.Context, x q, attemptID string) bool {
+	var n int
+	err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_events WHERE attempt_id = ? AND event = 'status' AND code = ? AND json_extract(detail_json, '$.worker_error') = 'DEADLINE'`,
+		attemptID, CodeWorkerError).Scan(&n)
+	return err == nil && n > 0
 }
 
 // validOutput reports whether a status carries an ok worker output of the right contract.

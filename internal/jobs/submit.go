@@ -22,8 +22,8 @@ import (
 // Timing constants of the submit path (C75.3, C75.4).
 const (
 	submitTimeout      = 60 * time.Second
-	uploadBudgetS      = 60
-	windowSlack        = 15 * time.Minute // upload exp = submit + TTL + timeout_s + KillSlackS + 15 min (C74.1)
+	uploadBudgetS      = spend.UploadBudgetS // the quote reserves exactly this much of the timeout for uploads
+	windowSlack        = 15 * time.Minute    // upload exp = submit + TTL + timeout_s + KillSlackS + 15 min (C74.1)
 	preflightEvery     = 60 * time.Second
 	maxClaimsPerStep   = 16
 	noCapacityAfter    = 24 * time.Hour
