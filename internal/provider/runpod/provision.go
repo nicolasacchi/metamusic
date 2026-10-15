@@ -21,8 +21,9 @@ type ProvisionOptions struct {
 	DryRun     bool
 }
 
-// ProvisionResult is what provision did or would do. Nothing in it carries the endpoint id: Body and
-// ConsoleSteps pass the client's redactor.
+// ProvisionResult is what provision did or would do. The serialised form never carries the endpoint id:
+// Body and ConsoleSteps pass the client's redactor. EndpointID (json:"-") is set only after a successful
+// create, for the CLI's one-line hint to append it to runpod.env.
 type ProvisionResult struct {
 	Action       string          `json:"action"` // "create" | "patch" | "none"
 	Name         string          `json:"name"`
@@ -32,6 +33,7 @@ type ProvisionResult struct {
 	Applied      bool            `json:"applied"`
 	ConsoleSteps []string        `json:"console_steps,omitempty"`
 	Warnings     []string        `json:"warnings,omitempty"`
+	EndpointID   string          `json:"-"`
 }
 
 // withEndpoint returns a client for another endpoint id sharing the options (and the recorder).
@@ -121,6 +123,7 @@ func (c *Client) create(ctx context.Context, res *ProvisionResult, want Endpoint
 		return fmt.Errorf("creating the endpoint: %w", err)
 	}
 	res.Applied = true
+	res.EndpointID = ep.ID
 	if left, _, _ := diffEndpoint(want, ep, true); len(left) > 0 {
 		res.Warnings = append(res.Warnings, "the create response differs from the request in: "+strings.Join(left, ", ")+"; run provision again to verify")
 	}
@@ -136,10 +139,13 @@ func consoleSteps(o ProvisionOptions, want EndpointSpec) []string {
 	}
 	steps := []string{fmt.Sprintf("In the RunPod console open the endpoint %q, Model settings, and set the cached model to %s at revision %s.",
 		want.Name, yue2.WeightsRepo3B, o.Weights[yue2.WeightsRepo3B])}
-	if o.Desired.VAESource == "" || o.Desired.VAESource == "cached" {
-		steps = append(steps, fmt.Sprintf("Add %s at revision %s as a second cached model (the worker reads it from %s).",
+	switch o.Desired.VAESource {
+	case "", "image":
+		// the VAE is baked into the worker image: nothing to do in the console for it
+	case "cached":
+		steps = append(steps, fmt.Sprintf("Add %s at revision %s as a second cached model (the worker reads it from %s). RunPod offers one cached model per endpoint, so this step may be impossible; prefer --vae-source image.",
 			yue2.WeightsRepoVAE, o.Weights[yue2.WeightsRepoVAE], CachedModelDir))
-	} else {
+	default:
 		steps = append(steps, "Attach the network volume that holds the VAE and check that its path matches --vae-source.")
 	}
 	return steps

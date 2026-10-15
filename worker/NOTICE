@@ -1,0 +1,21 @@
+metamusic worker image - third-party notices
+
+This image contains the YuE2 VAE weights, baked in at build time so that the endpoint needs only one cached
+model (the 3B model, which is NOT in the image):
+
+  Model:     YuE2-Vae
+  Source:    https://huggingface.co/m-a-p/YuE2-Vae  (pinned revision: see VAE_REVISION in worker/Dockerfile)
+  Creators:  multimodal-art-projection (m-a-p) and the YuE2 licensors
+  Licence:   Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+             https://creativecommons.org/licenses/by-nc/4.0/
+             with the individual-creator permission and the academic-use terms of the YuE2 MODEL_LICENSE
+             https://github.com/multimodal-art-projection/YuE/blob/main/MODEL_LICENSE
+  Changes:   none (files are verified byte-for-byte against the SHA-256 listed by Hugging Face)
+
+The weights are used for non-commercial, individual creative use under those terms. The licence text,
+THIRD_PARTY_NOTICES.md and the licenses/ directory of the model repository are kept next to the weights in
+/opt/mm/hf-cache/hub/models--m-a-p--YuE2-Vae/snapshots/<revision>/.
+
+The image also installs the yue2 inference code (multimodal-art-projection/YuE, pinned commit in
+worker/contract/YUE2_COMMIT, Apache-2.0) and Python packages under their own licences (see
+/opt/venv/freeze.txt for the list).

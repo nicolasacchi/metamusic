@@ -123,6 +123,42 @@ def test_hub_allowlist_only_the_two_repos(tmp_path: Path, monkeypatch: pytest.Mo
     assert socket_guard == []
 
 
+def test_vae_from_the_image_snapshot_never_asks_the_hub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                         socket_guard: list) -> None:
+    """The VAE baked into the image (MM_YUE2_VAE_DIR) is passed as a local directory: the hub is asked for the
+    3B model only, and yue2 receives exactly the snapshot directory of the pinned revision."""
+    import huggingface_hub
+    from yue2 import YuE2Pipeline
+
+    from mmworker.pipeline import resolve_vae
+
+    snap = tmp_path / "hub" / "models--m-a-p--YuE2-Vae" / "snapshots" / PIN_VAE
+    snap.mkdir(parents=True)
+    (snap / "config.json").write_text("{}")
+    vae = resolve_vae({"MM_YUE2_VAE_DIR": str(tmp_path / "hub")}, "m-a-p/YuE2-Vae", PIN_VAE)
+    calls: list[tuple[str, str | None]] = []
+    built: list[tuple[Path, Path]] = []
+
+    def record(repo_id, *args, revision=None, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        calls.append((repo_id, revision))
+        d = tmp_path / "fake-model"
+        d.mkdir(exist_ok=True)
+        return str(d)
+
+    def init(self, model_dir, vae_dir, **kwargs):  # noqa: ANN001, ANN003
+        built.append((Path(model_dir), Path(vae_dir)))
+        self.load_timing = {}
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", record)
+    monkeypatch.setattr(YuE2Pipeline, "__init__", init)
+    YuE2Pipeline.from_pretrained(model="m-a-p/YuE2-3B", vae=vae, revision=PIN_3B, vae_revision=PIN_VAE,
+                                 device="cpu", local_files_only=True, cache_dir=str(tmp_path / "cache"),
+                                 progress=False)
+    assert calls == [("m-a-p/YuE2-3B", PIN_3B)]
+    assert built == [((tmp_path / "fake-model").resolve(), snap.resolve())]
+    assert socket_guard == []
+
+
 def test_offline_raises_fast_and_opens_no_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                                  socket_guard: list) -> None:
     import huggingface_hub.constants as hc

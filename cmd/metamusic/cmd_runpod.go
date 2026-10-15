@@ -32,7 +32,7 @@ const runpodUsage = `usage: metamusic runpod <command>
 
   probe [--schema] [--keys] [--out FILE]      compare the public API spec with the snapshot; classify the keys
   provision [--admin-env FILE] [--image REF@sha256:...] [--activate [--max 1|2] | --deactivate]
-            [--pools AMPERE_24[,ADA_24]] [--vae-source cached|volume:PATH] [--timeout-case] [--dry-run]
+            [--pools AMPERE_24[,ADA_24]] [--vae-source image|cached|volume:PATH] [--timeout-case] [--dry-run]
                                               create or reconcile the endpoint (the only command that reads the admin key)
   status [--json] [--job ID [--repoll]]       read-only: endpoint, workers, health, armed/trip state, billing, meter
   arm --endpoint-name N --reason TEXT [--after-restore]
@@ -107,6 +107,12 @@ type runpodEnv struct {
 }
 
 func loadRunPod(getenv func(string) string) (*runpodEnv, error) {
+	return loadRunPodWith(getenv, config.LoadRunPodKeys)
+}
+
+// loadRunPodWith is loadRunPod with the runpod.env loader chosen by the caller (provision tolerates a
+// missing RUNPOD_ENDPOINT_ID).
+func loadRunPodWith(getenv func(string) string, load func(string) (config.RunPodKeys, bool, error)) (*runpodEnv, error) {
 	cfg, err := config.LoadOffline(getenv)
 	if err != nil {
 		return nil, err
@@ -115,7 +121,7 @@ func loadRunPod(getenv func(string) string) (*runpodEnv, error) {
 	if err != nil {
 		return nil, err
 	}
-	keys, ok, err := config.LoadRunPodKeys(cfg.SecretsDir)
+	keys, ok, err := load(cfg.SecretsDir)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +276,7 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 	deactivate := fs.Bool("deactivate", false, "set workers.max to zero (the manual kill switch)")
 	maxW := fs.Int("max", 0, "workers.max with --activate: 1 or 2 (default 2)")
 	pools := fs.String("pools", "", "GPU pools, comma separated (default AMPERE_24,ADA_24)")
-	vae := fs.String("vae-source", "cached", "where the worker finds the VAE: cached or volume:PATH")
+	vae := fs.String("vae-source", "image", "where the worker finds the VAE: image (baked into the worker image; default), cached (needs a second cached model, which RunPod does not offer) or volume:PATH")
 	timeoutCase := fs.Bool("timeout-case", false, "add MM_WORKER_DEADLINE=provider (the canary's timeout case only)")
 	dry := fs.Bool("dry-run", false, "print the diff and change nothing")
 	if err := fs.Parse(args); err != nil {
@@ -294,7 +300,7 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 			workers = *maxW
 		}
 	}
-	e, err := loadRunPod(getenv)
+	e, err := loadRunPodWith(getenv, config.LoadRunPodKeysForProvision)
 	if err != nil {
 		return fatal(err)
 	}
@@ -336,6 +342,9 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 	printProvision(s, res, *dry)
 	if perr != nil {
 		return fatal(errors.New(cl.Redactor().Error(perr)))
+	}
+	if res.Action == "create" && res.Applied && res.EndpointID != "" {
+		fmt.Fprintf(s.out, "endpoint id: %s\nappend this line to runpod.env: RUNPOD_ENDPOINT_ID=%s\n", res.EndpointID, res.EndpointID)
 	}
 	return nil
 }

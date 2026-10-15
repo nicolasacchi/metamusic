@@ -818,10 +818,26 @@ const Placeholder = `{"format":"mm.runpod-probe/2","probed":false}`
 
 var longRun = regexp.MustCompile(`[A-Za-z0-9_-]{32,}`)
 
+// letterRun matches a run of letters only: a schema identifier such as a long CamelCase component name.
+// Key material, account ids and endpoint ids always carry digits (or separators), so letter-only runs are
+// the one shape allowed inside the schema path lists.
+var letterRun = regexp.MustCompile(`^[A-Za-z]+$`)
+
+// digestHex is a spec digest (the SHA-256 prefix or the whole digest) in a known digest field.
+var digestHex = regexp.MustCompile(`^[0-9a-f]{12,64}$`)
+
 // CheckFileSafe refuses a capabilities document that could carry key material, an account id or the
 // endpoint id: any run of 32 or more [A-Za-z0-9_-] characters, the endpoint id, a bearer or URL.
+//
+// Two places hold values that are not secrets but can legitimately be long, and only these are relaxed:
+//   - schema.snapshot_sha / schema.live_sha: lowercase hex digests (up to a full 64-digit SHA-256);
+//   - schema.changed[] / schema.failures[]: paths and messages built from the public spec, whose
+//     identifiers (long CamelCase component names) may exceed 31 characters. Within them, a long run of
+//     letters only passes; a long run with digits, "_" or "-" (token-like) is still refused.
+//
+// Everywhere else, including any other field of the schema report, the 32-character rule is unchanged.
 func CheckFileSafe(raw []byte, endpointID string) error {
-	if m := longRun.Find(raw); m != nil {
+	if longRun.Match(stripKnownLongFields(raw)) {
 		return errors.New("runpod: capabilities contain a long opaque run; refusing to write")
 	}
 	if endpointID != "" && bytes.Contains(raw, []byte(endpointID)) {
@@ -833,6 +849,47 @@ func CheckFileSafe(raw []byte, endpointID string) error {
 		}
 	}
 	return nil
+}
+
+// stripKnownLongFields returns raw with the relaxed values of CheckFileSafe replaced by "-" (the
+// document is returned unchanged when it is not JSON with a schema object).
+func stripKnownLongFields(raw []byte) []byte {
+	var doc map[string]any
+	if json.Unmarshal(raw, &doc) != nil {
+		return raw
+	}
+	schema, _ := doc["schema"].(map[string]any)
+	if schema == nil {
+		return raw
+	}
+	for _, k := range []string{"snapshot_sha", "live_sha"} {
+		if v, ok := schema[k].(string); ok && digestHex.MatchString(v) {
+			schema[k] = "-"
+		}
+	}
+	for _, k := range []string{"changed", "failures"} {
+		list, _ := schema[k].([]any)
+		for i, e := range list {
+			if str, ok := e.(string); ok {
+				list[i] = softenIdentifiers(str)
+			}
+		}
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// softenIdentifiers replaces every long letters-only run of s by "-"; other runs are kept for the check.
+func softenIdentifiers(s string) string {
+	return longRun.ReplaceAllStringFunc(s, func(run string) string {
+		if letterRun.MatchString(run) {
+			return "-"
+		}
+		return run
+	})
 }
 
 // ValidateCapabilities checks the structure of key-capabilities.json (the placeholder included).

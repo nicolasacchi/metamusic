@@ -69,6 +69,18 @@ jobs:
       - name: smoke torch CUDA build >= 12.8
         run: |
           docker run --rm --entrypoint python "$IMAGE:smoke" -c "import sys, torch; v = torch.version.cuda; print('torch.version.cuda =', v); sys.exit(0 if v and tuple(int(x) for x in v.split('.')[:2]) >= (12, 8) else 1)"
+      - name: smoke baked-in VAE, NOTICE and no 3B weights
+        run: |
+          rev=$(sed -n 's/^ARG VAE_REVISION=//p' worker/Dockerfile)
+          snap="/opt/mm/hf-cache/hub/models--m-a-p--YuE2-Vae/snapshots/$rev"
+          docker run --rm --entrypoint sh "$IMAGE:smoke" -c "test -s $snap/model.safetensors && test -s $snap/config.json && grep -q CC.BY-NC /opt/mm/NOTICE"
+          docker run --rm --entrypoint sh "$IMAGE:smoke" -c 'test ! -e /opt/mm/hf-cache/hub/models--m-a-p--YuE2-3B'
+          docker run --rm --entrypoint sh "$IMAGE:smoke" -c 'echo "MM_YUE2_VAE_DIR=$MM_YUE2_VAE_DIR HF_HUB_OFFLINE=$HF_HUB_OFFLINE"'
+      - name: image size
+        run: |
+          size=$(docker image inspect "$IMAGE:smoke" --format '{{.Size}}')
+          echo "image size: $size bytes ($((size / 1048576)) MiB)"
+          echo "worker image size: $((size / 1048576)) MiB" >> "$GITHUB_STEP_SUMMARY"
       - name: smoke selftest mode
         run: docker run --rm -e MODE=selftest "$IMAGE:smoke"
 

@@ -4,12 +4,13 @@ package yue2
 // runner sends in `expect.weights`, `runpod provision` writes into the endpoint environment, and the
 // worker-contract job loads. One committed file is the only source (TestWeights_ProvisionMatches).
 //
-// The values below are PLACEHOLDERS (40 hex digits, clearly synthetic): the operator replaces them with
-// the audited revisions in M3-X2, before the endpoint is provisioned. Until then a real worker would
-// answer WEIGHTS_MISMATCH, which fails closed (no GPU work).
+// The values are the real Hugging Face commit shas (the `sha` field of https://huggingface.co/api/models/<repo>),
+// audited 2026-10-15 against the pinned yue2 code commit (worker/contract/YUE2_COMMIT = 1647252d), the same
+// day as the 3B revision. Changing one is a deliberate, reviewed edit: a worker whose weights differ from
+// `expect.weights` answers WEIGHTS_MISMATCH, which fails closed (no GPU work).
 var Weights = map[string]string{
-	WeightsRepo3B:  "0000000000000000000000000000000000000001",
-	WeightsRepoVAE: "0000000000000000000000000000000000000002",
+	WeightsRepo3B:  "8f24312f187763b9854adeec87e437e2b03bbff1",
+	WeightsRepoVAE: "152733a19ad43aa67e367f9b5503ef8075bb5126",
 }
 
 // Hugging Face repositories of the weights; WeightsRepoVAE is also the decoder of the env fingerprint.

@@ -30,3 +30,13 @@ uv venv /tmp/contract-venv && uv pip install --python /tmp/contract-venv/bin/pyt
 PYTHONPATH=worker/src /tmp/contract-venv/bin/python -m pytest worker/contract -q
 docker build -f worker/Dockerfile --build-arg YUE2_COMMIT=$(cat worker/contract/YUE2_COMMIT) worker/
 ```
+
+## Weights
+
+The 3B model is never in the image: RunPod mounts it as the endpoint's single cached model. The VAE
+(`m-a-p/YuE2-Vae`, CC BY-NC 4.0, see `NOTICE`) is downloaded at image build time by `tools/fetch_vae.py` at
+the revision `VAE_REVISION` in the Dockerfile (equal to `yue2.Weights` in `internal/engine/yue2/weights.go`;
+a Go test pins the equality) into `/opt/mm/hf-cache/hub`, every file checked against the SHA-256 (LFS) or git
+blob id that Hugging Face lists for that revision; a mismatch fails the build. `MM_YUE2_VAE_DIR` selects the
+hub cache holding the VAE (`runpod provision --vae-source image|cached|volume:PATH`, default `image`);
+`cached` needs a second cached model, which RunPod does not offer. The worker runs with `HF_HUB_OFFLINE=1`.

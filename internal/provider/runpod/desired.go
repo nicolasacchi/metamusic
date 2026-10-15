@@ -15,9 +15,12 @@ const (
 	DefaultEndpointName = "mm-yue2"
 	provisionIdleS      = 20
 	provisionCUDA       = "12.8"
-	// CachedModelDir is where RunPod mounts the endpoint's cached models; a second cached model (the VAE)
-	// lives next to the first.
+	// CachedModelDir is where RunPod mounts the endpoint's cached models. RunPod allows ONE cached model per
+	// endpoint (the 3B); a second cached model (the VAE, --vae-source cached) is not offered.
 	CachedModelDir = "/runpod-volume/huggingface-cache/hub"
+	// ImageVAEDir is the Hugging Face hub cache baked into the worker image (worker/Dockerfile), holding
+	// m-a-p/YuE2-Vae at the pinned revision. It is the default VAE source.
+	ImageVAEDir = "/opt/mm/hf-cache/hub"
 	// excludedGPUName is the catalog name of the type left out of the pools (C77.6).
 	excludedGPUName = "L4"
 )
@@ -42,7 +45,7 @@ type DesiredConfig struct {
 	ColdStartS int           // MM_COLD_START_S: queueDelay = ColdStartS + 60
 	MaxRuntime time.Duration // MM_JOB_MAX_RUNTIME: the endpoint timeout (sent in milliseconds)
 	Pools      []string      // default AMPERE_24, ADA_24
-	VAESource  string        // "cached" (default) | "volume:<absolute path>"
+	VAESource  string        // "image" (default) | "cached" | "volume:<absolute path>"
 	// TimeoutCase adds MM_WORKER_DEADLINE=provider for the canary's timeout case only.
 	TimeoutCase bool
 }
@@ -126,7 +129,9 @@ func DesiredSpec(c DesiredConfig, weights map[string]string, image string, maxWo
 
 func vaeDir(src string) (string, error) {
 	switch {
-	case src == "" || src == "cached":
+	case src == "" || src == "image":
+		return ImageVAEDir, nil
+	case src == "cached":
 		return CachedModelDir, nil
 	case strings.HasPrefix(src, "volume:"):
 		p := strings.TrimPrefix(src, "volume:")
@@ -135,5 +140,5 @@ func vaeDir(src string) (string, error) {
 		}
 		return p, nil
 	}
-	return "", errors.New("runpod: provision: --vae-source must be cached or volume:PATH")
+	return "", errors.New("runpod: provision: --vae-source must be image, cached or volume:PATH")
 }

@@ -304,7 +304,7 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 	r.opts = RunnerOptions{
 		Store: st, Backend: r.be, Engines: registry.Default(), Spend: r.sp, Ingest: r.ing, Notify: r.notes, Hub: r.hub,
 		Clock: r.clk, NewID: r.newID, Owner: "runner-1", PublicURL: testPublicURL, TTL: 2 * time.Hour, MaxRuntime: 15 * time.Minute,
-		ColdStartS: 180, KillSlackS: 15, Expect: provider.WorkerExpect{Weights: map[string]string{"m-a-p/YuE2-3B": "0000000000000000000000000000000000000001"}},
+		ColdStartS: 180, KillSlackS: 15, Expect: provider.WorkerExpect{Weights: map[string]string{"m-a-p/YuE2-3B": "8f24312f187763b9854adeec87e437e2b03bbff1"}},
 	}
 	r.up = upload.NewService(upload.ServiceOptions{Data: root, Signer: r.sig, Store: st, Clock: r.clk, PublicURL: testPublicURL, NewID: r.newID,
 		Log: slog.New(slog.DiscardHandler), Wake: func() {

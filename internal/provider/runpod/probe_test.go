@@ -427,6 +427,58 @@ func TestKeyCapabilities_FileSafe(t *testing.T) {
 			t.Errorf("probed = %v err %v", c.Probed, err)
 		}
 	})
+	t.Run("schema report with long identifiers and digests passes", func(t *testing.T) {
+		t.Parallel()
+		// a live spec that gained a component whose name exceeds 31 characters: the changed paths carry it
+		long := "ServerlessEndpointCreateRequestWithNetworkVolumeAndScalerSettings"
+		var spec map[string]any
+		if err := json.Unmarshal(runpod.Snapshot(), &spec); err != nil {
+			t.Fatal(err)
+		}
+		spec["components"].(map[string]any)["schemas"].(map[string]any)[long] = map[string]any{"type": "object"}
+		live, _ := json.Marshal(spec)
+		schema, err := runpod.CompareSchema(runpod.Snapshot(), live)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(strings.Join(schema.Changed, " "), long) {
+			t.Fatalf("test premise: changed = %v", schema.Changed)
+		}
+		raw, _ := json.MarshalIndent(runpod.BuildCapabilities(t0, &schema, nil), "", "  ")
+		if err := runpod.CheckFileSafe(raw, "ep123"); err != nil {
+			t.Errorf("a schema report with long identifiers was refused: %v\n%s", err, raw)
+		}
+		// full SHA-256 digests in the digest fields
+		schema.SnapshotSHA = strings.Repeat("ab12", 16)
+		schema.LiveSHA = strings.Repeat("0f", 32)
+		raw, _ = json.MarshalIndent(runpod.BuildCapabilities(t0, &schema, nil), "", "  ")
+		if err := runpod.CheckFileSafe(raw, ""); err != nil {
+			t.Errorf("a 64-hex spec digest was refused: %v", err)
+		}
+	})
+	t.Run("the relaxation does not weaken the guard", func(t *testing.T) {
+		t.Parallel()
+		tok := "rpa_" + strings.Repeat("A1b2", 10) // bearer-like: letters, digits, underscore
+		acct := "user_" + strings.Repeat("2x9", 12)
+		cases := map[string]string{
+			"token in changed":       `{"schema":{"changed":["paths.` + tok + `.get"]}}`,
+			"digit run in failures":  `{"schema":{"failures":["field missing: ` + strings.Repeat("a1", 20) + `"]}}`,
+			"account id in changed":  `{"schema":{"changed":["` + acct + `"]}}`,
+			"token in another field": `{"schema":{"flashboot_values":["` + tok + `"]}}`,
+			"token as top level":     `{"format":"mm.runpod-probe/2","probed":false,"x":"` + tok + `"}`,
+			"letters outside lists":  `{"schema":{"flashboot_values":["` + strings.Repeat("Abc", 20) + `"]}}`,
+			"non-hex digest":         `{"schema":{"snapshot_sha":"` + strings.Repeat("g", 40) + `"}}`,
+			"digest in other field":  `{"schema":{"live_sha":"ok","x":"` + strings.Repeat("ab", 32) + `"}}`,
+		}
+		for name, doc := range cases {
+			if runpod.CheckFileSafe([]byte(doc), "") == nil {
+				t.Errorf("%s passed", name)
+			}
+		}
+		if runpod.CheckFileSafe([]byte(`{"schema":{"changed":["paths.abc"]}}`), "abc") == nil {
+			t.Error("the endpoint id passed inside the schema report")
+		}
+	})
 	t.Run("unsafe documents are refused", func(t *testing.T) {
 		t.Parallel()
 		long := `{"format":"mm.runpod-probe/2","probed":false,"x":"` + strings.Repeat("a", 40) + `"}`

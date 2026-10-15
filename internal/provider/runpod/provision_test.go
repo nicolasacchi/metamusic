@@ -193,7 +193,7 @@ func TestProvision_CreateBodyValid(t *testing.T) {
 	}
 	env := body["env"].(map[string]any)
 	if env["MODE"] != "serverless" || env["HF_HUB_OFFLINE"] != "1" || env[yue2.Env3BRevision] != yue2.Weights[yue2.WeightsRepo3B] ||
-		env[yue2.EnvVAERevision] != yue2.Weights[yue2.WeightsRepoVAE] || env["MM_YUE2_VAE_DIR"] != runpod.CachedModelDir {
+		env[yue2.EnvVAERevision] != yue2.Weights[yue2.WeightsRepoVAE] || env["MM_YUE2_VAE_DIR"] != runpod.ImageVAEDir {
 		t.Errorf("env = %v", env)
 	}
 	// the type is not patchable: UpdateEndpointRequest has no such property, the desired spec never patches it
@@ -271,6 +271,14 @@ func TestProvision_VAESource(t *testing.T) {
 	c.VAESource = "volume:/runpod-volume/vae"
 	if got := desired(t, c, 0).Env["MM_YUE2_VAE_DIR"]; got != "/runpod-volume/vae" {
 		t.Errorf("dir = %q", got)
+	}
+	c.VAESource = "cached"
+	if got := desired(t, c, 0).Env["MM_YUE2_VAE_DIR"]; got != runpod.CachedModelDir {
+		t.Errorf("cached dir = %q", got)
+	}
+	c.VAESource = "image"
+	if got := desired(t, c, 0).Env["MM_YUE2_VAE_DIR"]; got != "/opt/mm/hf-cache/hub" {
+		t.Errorf("image dir = %q", got)
 	}
 	for _, bad := range []string{"volume:relative", "volume:/a/../b", "other", "volume:"} {
 		c.VAESource = bad
@@ -420,10 +428,25 @@ func TestProvision_ConsoleStepPrinted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// default (image): only the single cached 3B model; the VAE is baked into the image
 	joined := strings.Join(res.ConsoleSteps, "\n")
-	for _, want := range []string{yue2.WeightsRepo3B, yue2.WeightsRepoVAE, yue2.Weights[yue2.WeightsRepo3B], "console"} {
+	for _, want := range []string{yue2.WeightsRepo3B, yue2.Weights[yue2.WeightsRepo3B], "console"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("console steps lack %q:\n%s", want, joined)
 		}
+	}
+	if len(res.ConsoleSteps) != 1 || strings.Contains(joined, yue2.WeightsRepoVAE) {
+		t.Errorf("image VAE source must print one console step (the 3B model):\n%s", joined)
+	}
+	// cached: a second step for the VAE, with the one-cached-model caveat
+	cfg := desiredCfg()
+	cfg.VAESource = "cached"
+	res, err = runpod.Provision(bg(), c, runpod.ProvisionOptions{Desired: cfg, Weights: yue2.Weights, Image: testDigest, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined = strings.Join(res.ConsoleSteps, "\n")
+	if len(res.ConsoleSteps) != 2 || !strings.Contains(joined, yue2.WeightsRepoVAE) || !strings.Contains(joined, "one cached model") {
+		t.Errorf("cached VAE source steps:\n%s", joined)
 	}
 }

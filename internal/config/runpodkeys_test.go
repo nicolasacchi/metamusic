@@ -80,6 +80,26 @@ func TestLoadRunPodKeys(t *testing.T) {
 			}
 		}
 	})
+	t.Run("endpoint id optional for provision only", func(t *testing.T) {
+		dir := t.TempDir()
+		writeEnv(t, dir, "runpod.env", rk("JOBS")+"="+canaryJobs+"\n"+rk("READ")+"="+canaryRead+"\n")
+		k, ok, err := LoadRunPodKeysForProvision(dir)
+		if err != nil || !ok || k.EndpointID != "" || k.Jobs != canaryJobs {
+			t.Fatalf("provision loader: %v %v %v", k, ok, err)
+		}
+		if _, _, err := LoadRunPodKeys(dir); err == nil || !strings.Contains(err.Error(), "RUNPOD_ENDPOINT_ID") {
+			t.Fatalf("strict loader accepted a missing endpoint id: %v", err)
+		}
+		// the provision loader still insists on the scoped keys and still refuses an all-access key
+		writeEnv(t, dir, "runpod.env", rk("JOBS")+"="+canaryJobs+"\n")
+		if _, _, err := LoadRunPodKeysForProvision(dir); err == nil || !strings.Contains(err.Error(), rk("READ")) {
+			t.Fatalf("err = %v", err)
+		}
+		writeEnv(t, dir, "runpod.env", rk("JOBS")+"="+canaryJobs+"\n"+rk("READ")+"="+canaryRead+"\nRUNPOD_ADMIN_KEY=canary-admin-0005\n")
+		if _, _, err := LoadRunPodKeysForProvision(dir); err == nil || !strings.Contains(err.Error(), "all-access") {
+			t.Fatalf("err = %v", err)
+		}
+	})
 	t.Run("duplicate", func(t *testing.T) {
 		dir := t.TempDir()
 		writeEnv(t, dir, "runpod.env", rk("JOBS")+"="+canaryJobs+"\n"+rk("JOBS")+"="+canaryRead+"\n")
