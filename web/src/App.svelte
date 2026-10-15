@@ -5,7 +5,8 @@
   import { player } from "./lib/player.svelte";
   import { dismissToast, toasts } from "./lib/judge.svelte";
   import { installDevice } from "./lib/device.svelte";
-  import { installMediaSession } from "./lib/mediaSession";
+  import { installMediaSession, mediaSessionEnv } from "./lib/mediaSession";
+  import { covers } from "./lib/cover";
   import { installListen } from "./lib/listen.svelte";
   import { createNav } from "./lib/nav";
   import { api } from "./api/client";
@@ -87,7 +88,7 @@
     untrack(() => {
       player.attach(audio);
       installDevice(player);
-      const offMediaSession = installMediaSession(player, audio);
+      const offMediaSession = installMediaSession(player, audio, mediaSessionEnv(covers.get));
       const offListen = installListen(player);
       const offActivation = player.watchActivation(document);
       return () => {

@@ -3,6 +3,7 @@
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
   import { judge } from "../judge.svelte";
+  import CoverArt from "./CoverArt.svelte";
   import CommentComposer from "./CommentComposer.svelte";
   import StarRating from "./StarRating.svelte";
   import StatusSelect from "./StatusSelect.svelte";
@@ -73,6 +74,7 @@
     >
     <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}>⏭</button>
   </div>
+  {#if trackId}<CoverArt {trackId} title={player.title} size={40} />{/if}
   <div class="mid">
     <div class="title">
       {#if player.state.trackId}
