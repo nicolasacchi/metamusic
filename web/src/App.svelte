@@ -27,6 +27,8 @@
   import SettingsBackups from "./routes/SettingsBackups.svelte";
   import SettingsAudit from "./routes/SettingsAudit.svelte";
   import HumanTokens from "./routes/HumanTokens.svelte";
+  import HumanConnectors from "./routes/HumanConnectors.svelte";
+  import HumanSubsonic from "./routes/HumanSubsonic.svelte";
   import HumanDevices from "./routes/HumanDevices.svelte";
   import Duels from "./routes/Duels.svelte";
   import Duel from "./routes/Duel.svelte";
@@ -201,11 +203,9 @@
     {:else if $router.route?.name === "offline"}
       <Offline />
     {:else if $router.route?.name === "human-connectors"}
-      <!-- placeholder: M4a-W3 fills this page (full-page navigation; the server renders /human/*) -->
-      <h1>Connectors</h1>
+      <HumanConnectors />
     {:else if $router.route?.name === "human-subsonic"}
-      <!-- placeholder: M4a-W3 fills this page -->
-      <h1>Subsonic clients</h1>
+      <HumanSubsonic />
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}
