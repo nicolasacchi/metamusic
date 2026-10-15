@@ -21,6 +21,7 @@ type TierA interface {
 	ToolVersion() string
 	Signal(ctx context.Context, workPath string, sampleRate int, durationS float64) (analysis.Silence, analysis.Clipping, error)
 	SpectrumPicture(ctx context.Context, workPath, outPNG string, w, h int) error
+	Tempo(ctx context.Context, workPath string, durationS float64) (analysis.Tempo, error)
 }
 
 // Judgments is what ears reads from duels; *duels.Service implements it (earstest.Judgments in tests).
@@ -292,4 +293,8 @@ type Perception struct {
 	Timed       bool                `json:"timed"`
 	Flags       []string            `json:"flags"`
 	BlindSpots  []string            `json:"blind_spots"`
+	// TempoBPM and TempoConfidence are the mm-tempo/1 estimate; null when absent or no steady tempo was found (C94).
+	// They follow the M2a keys; trackctx's perception key order is edited once, in L1-B7.
+	TempoBPM        *float64 `json:"tempo_bpm"`
+	TempoConfidence *float64 `json:"tempo_confidence"`
 }

@@ -11,6 +11,7 @@ type BlindSpotFacts struct {
 	Confidence    *float64 // confidence of the section times, when known
 	Spectrogram   bool     // the payload is or embeds a spectrogram view
 	Lossy         bool     // the analysed master is (or, for a comparison, includes) an MP3 decode
+	Tempo         bool     // a tempo estimate is part of the payload (C94)
 }
 
 // BlindSpots is the one list of things the machine cannot judge (D-M2b-21): it
@@ -43,6 +44,9 @@ func BlindSpots(f BlindSpotFacts) []string {
 		}
 	case !f.Timed:
 		out = append(out, "section times unknown (no aligned score)")
+	}
+	if f.Tempo {
+		out = append(out, "tempo is an estimate that assumes a steady beat: tempo changes, rubato, free-time intros and half/double-time ambiguity are not judged")
 	}
 	if f.Spectrogram {
 		out = append(out, "a spectrogram shows energy over time and frequency, not pitch accuracy or words")
