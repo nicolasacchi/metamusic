@@ -443,12 +443,25 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		running = max(running, h.Running)
 		evidence = max(evidence, h.InProgress)
 	}
+	// A RUNNING worker is also what RunPod calls one that is still creating and starting its container (create +
+	// start + imports + SDK fitness checks: minutes on a cold host). One of our attempts that is submitted and
+	// still queued remotely within ColdStartS + 60 s (the allowance behind the reservation's attempt_overhead
+	// and the endpoint scaler) justifies exactly one such worker, so it is counted per attempt. The 2 minute
+	// stuckAfter clock keeps running against the hard evidence only: when the window ends with the worker still
+	// without a job, the trip is immediate; with no live attempt, or a queue wait past the window, the plain
+	// 2 minute rule applies unchanged. Money stays bounded by this window, the scaler and attempt TTL, and the
+	// meter (RUNNING seconds) still trips meter_exceeds_reserved on an overrun.
+	window := time.Duration(r.o.ColdStartS+60) * time.Second
+	booting, err := r.queuedInWindow(ctx, now, window)
+	if err != nil {
+		return err
+	}
 	r.mu.Lock()
 	stuck := false
 	if running > evidence {
 		if r.stuckSince.IsZero() {
 			r.stuckSince = now
-		} else if now.Sub(r.stuckSince) >= stuckAfter {
+		} else if now.Sub(r.stuckSince) >= stuckAfter && running > evidence+booting {
 			stuck = true
 		}
 	} else {
@@ -456,7 +469,7 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 	}
 	r.mu.Unlock()
 	if stuck {
-		return r.Trip(ctx, TripStuckRunning, map[string]any{"running": running, "with_evidence": evidence})
+		return r.Trip(ctx, TripStuckRunning, map[string]any{"running": running, "with_evidence": evidence, "cold_start_window_s": int(window / time.Second), "queued_in_window": booting})
 	}
 	over, detail, err := r.meterOver(ctx)
 	if err != nil {
@@ -466,6 +479,32 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		return r.Trip(ctx, TripMeterExceeds, detail)
 	}
 	return nil
+}
+
+// queuedInWindow counts attempts that are pending/submitted without evidence of running, whose remote status is
+// Queued or not yet observed, and that were submitted within window of now.
+func (r *Reconciler) queuedInWindow(ctx context.Context, now time.Time, window time.Duration) (int, error) {
+	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT submitted_at FROM job_attempts a WHERE a.state IN ('pending','submitted')
+		AND COALESCE(a.remote_status, '') IN ('', ?) AND a.in_progress_seen = 0 AND a.announced_at IS NULL`, string(provider.Queued))
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	n := 0
+	for rows.Next() {
+		var at string
+		if err := rows.Scan(&at); err != nil {
+			return 0, err
+		}
+		t, err := store.ParseTime(at)
+		if err != nil {
+			return 0, err
+		}
+		if now.Sub(t) <= window {
+			n++
+		}
+	}
+	return n, rows.Err()
 }
 
 // workerCounts is the larger of the listing and /health per status (the listing can omit or mislabel workers).
