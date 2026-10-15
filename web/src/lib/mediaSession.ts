@@ -1,4 +1,5 @@
 // Media Session glue (C22.2): lock-screen metadata, transport handlers, position state.
+import { artworkList, type CoverSet } from "./coverLinks";
 
 export interface MSPlayer {
   title: string;
@@ -26,10 +27,14 @@ export interface MSEnv {
   doc: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState">;
   win: Pick<Window, "addEventListener" | "removeEventListener">;
   now?: () => number;
+  /** Cover links of a track (C115: online 512 + 1024, offline the cached 512); absent or null keeps the icon. */
+  cover?: (trackId: string) => Promise<CoverSet | null>;
 }
 
-function defaultEnv(): MSEnv {
+/** The browser environment, plus the cover provider (App passes the real one). */
+export function mediaSessionEnv(cover?: MSEnv["cover"]): MSEnv {
   return {
+    cover,
     mediaSession: (navigator as unknown as { mediaSession?: MSEnv["mediaSession"] }).mediaSession,
     MediaMetadata: (globalThis as unknown as { MediaMetadata?: MSEnv["MediaMetadata"] }).MediaMetadata,
     doc: document,
@@ -38,7 +43,7 @@ function defaultEnv(): MSEnv {
 }
 
 /** Wires the Media Session to the player; returns a cleanup. No-op where unsupported. */
-export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env: MSEnv = defaultEnv()): () => void {
+export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env: MSEnv = mediaSessionEnv()): () => void {
   const ms = env.mediaSession;
   if (!ms) return () => {};
   const now = env.now ?? Date.now;
@@ -63,14 +68,36 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     set("seekbackward", null);
   };
 
+  // Artwork resolved for one track; the icon shows until it arrives.
+  let art: { id: string; list: ReturnType<typeof artworkList> } | null = null;
+  let asked = "";
+  const wantArt = () => {
+    const id = player.state.trackId;
+    if (!env.cover || !id || asked === id) return;
+    asked = id;
+    void env
+      .cover(id)
+      .then((c) => (c ? artworkList(c) : null))
+      .catch(() => null)
+      .then((list) => {
+        if (list && player.state.trackId === id) {
+          art = { id, list };
+          metadata();
+        } else if (!list && asked === id) {
+          asked = ""; // a later event may retry (links can come back)
+        }
+      });
+  };
+
   const metadata = () => {
     if (!env.MediaMetadata) return;
     ms.metadata = new env.MediaMetadata({
       title: player.title,
       artist: "metamusic",
       album: player.album,
-      artwork: [{ src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }],
+      artwork: art && art.id === player.state.trackId ? art.list : artworkList(null),
     });
+    wantArt();
   };
 
   const position = () => {

@@ -34,3 +34,19 @@ describe("Track page (M2c)", () => {
     expect(h).not.toContain("Recover recipe");
   });
 });
+
+describe("Track page (M4a W2)", () => {
+  test("shows cover, download, offline and prompt actions", () => {
+    const h = page(trackKnown);
+    expect(h).toContain('data-testid="cover-placeholder"');
+    expect(h).toContain('data-testid="track-actions"');
+    expect(h).toContain('data-testid="copy-critique-prompt"');
+    expect(h).toContain('data-testid="copy-variant-prompt"');
+  });
+
+  test("the variant prompt is disabled when the recipe is unknown", () => {
+    const h = page(trackReference);
+    expect(h).toMatch(/data-testid="copy-variant-prompt"[^>]*disabled|disabled[^>]*data-testid="copy-variant-prompt"/);
+    expect(h).not.toMatch(/data-testid="copy-critique-prompt"[^>]*disabled/);
+  });
+});

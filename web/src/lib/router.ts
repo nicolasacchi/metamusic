@@ -46,9 +46,12 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/human/generate", name: "human-generate" },
   { pattern: "/human/confirm/:batch", name: "human-confirm" },
   { pattern: "/human/spend", name: "human-spend" },
+  { pattern: "/offline", name: "offline" },
+  { pattern: "/human/connectors", name: "human-connectors" },
+  { pattern: "/human/subsonic", name: "human-subsonic" },
 ];
 
-const SERVER_PREFIXES = ["/api", "/human", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest"];
+const SERVER_PREFIXES = ["/api", "/human", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];
 
 /** Paths owned by the Go server; links to them must be left to the browser. */
 export function isServerPath(path: string): boolean {

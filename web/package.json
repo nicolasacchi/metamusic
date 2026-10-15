@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.sw.config.ts && bun scripts/precache.ts",
     "gen:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
     "lint": "eslint .",
-    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.test.json",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.test.json && tsc -p src/api/sw/tsconfig.json",
     "test": "bun test",
     "e2e": "playwright test"
   },

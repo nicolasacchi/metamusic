@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "exclude": ["src/**/*.test.ts"],
-  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
+  "exclude": ["src/**/*.test.ts", "src/api/sw/**"],
+  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "vite.sw.config.ts"]
 }
