@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1" type="metamusic" serverVersion="v-test" openSubsonic="true"><lyricsList><structuredLyrics displayArtist="metamusic" displayTitle="Luna Park" lang="und" offset="0" synced="false"><line>la la luna</line><line></line><line>sing it loud</line><line></line><line>fade away</line></structuredLyrics></lyricsList></subsonic-response>

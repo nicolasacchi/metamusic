@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/archivetest"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -30,7 +31,9 @@ import (
 func TestMain(m *testing.M) {
 	store.UseMigratedTemplateForTests()
 	auth.UseCheapHashForTests()
-	m.Run()
+	code := m.Run()
+	archivetest.Cleanup() // the shared synthetic archive templates of the acceptance tests (clients_test.go)
+	os.Exit(code)
 }
 
 // clock is a manual clock shared by the credential store, the limiter and the handler.

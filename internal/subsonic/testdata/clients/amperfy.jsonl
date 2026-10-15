@@ -1,0 +1,33 @@
+{"step":"ping","method":"GET","path":"/rest/ping.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"extensions","method":"GET","path":"/rest/getOpenSubsonicExtensions.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"folders","method":"GET","path":"/rest/getMusicFolders.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"musicFolders.musicFolder":3}}}
+{"step":"indexes","method":"GET","path":"/rest/getIndexes.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"indexes.index":2}}}
+{"step":"directory","method":"GET","path":"/rest/getMusicDirectory.view","params":{"id":["{{album:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"directory.child":1}}}
+{"step":"artists","method":"GET","path":"/rest/getArtists.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"artists.index.artist":1}}}
+{"step":"artist","method":"GET","path":"/rest/getArtist.view","params":{"id":["ar-metamusic"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"artist.album":7}}}
+{"step":"album","method":"GET","path":"/rest/getAlbum.view","params":{"id":["{{album:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"album.song":1}}}
+{"step":"song","method":"GET","path":"/rest/getSong.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"song":1}}}
+{"step":"genres","method":"GET","path":"/rest/getGenres.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"album-list","method":"GET","path":"/rest/getAlbumList2.view","params":{"type":["newest"],"size":["50"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"albumList2.album":7}}}
+{"step":"random","method":"GET","path":"/rest/getRandomSongs.view","params":{"size":["10"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"randomSongs.song":8}}}
+{"step":"starred","method":"GET","path":"/rest/getStarred2.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"similar","method":"GET","path":"/rest/getSimilarSongs2.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"search","method":"GET","path":"/rest/search3.view","params":{"query":["{{query}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"searchResult3.song":1}}}
+{"step":"playlists-before","method":"GET","path":"/rest/getPlaylists.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"playlist-create","method":"GET","path":"/rest/createPlaylist.view","params":{"name":["{{text}}"],"songId":["{{song:1}}"]},"auth":"token","save":{"playlist":"playlist.id"},"expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"playlist.entry":1}}}
+{"step":"playlist-update","method":"GET","path":"/rest/updatePlaylist.view","params":{"playlistId":["{{playlist}}"],"songIdToAdd":["{{song:2}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"playlist-read","method":"GET","path":"/rest/getPlaylist.view","params":{"id":["{{playlist}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"playlist.entry":2}}}
+{"step":"playlist-delete","method":"GET","path":"/rest/deletePlaylist.view","params":{"id":["{{playlist}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"stream-seek-head","method":"GET","path":"/rest/stream.view","params":{"id":["{{song:1}}"],"format":["raw"],"maxBitRate":["0"]},"auth":"token","headers":{"Range":"bytes=0-1"},"expect":{"http":206,"headers":{"Content-Range":"bytes 0-1/{{bytes}}"}}}
+{"step":"stream-seek-mid","method":"GET","path":"/rest/stream.view","params":{"id":["{{song:1}}"],"format":["raw"],"maxBitRate":["0"]},"auth":"token","salt":"stream-seek-head","headers":{"Range":"bytes={{mid}}-"},"expect":{"http":206,"bytes_equal_master_from":"{{mid}}"}}
+{"step":"api-window","method":"GET","path":"/rest/getSong.view","params":{"id":["{{song:1}}"]},"auth":"token","salt":"stream-seek-head","advance":"11m","expect":{"http":200,"status":"failed","code":40}}
+{"step":"media-window","method":"GET","path":"/rest/stream.view","params":{"id":["{{song:1}}"],"format":["raw"],"maxBitRate":["0"]},"auth":"token","salt":"stream-seek-head","advance":"10h49m","headers":{"Range":"bytes={{mid}}-"},"expect":{"http":206,"bytes_equal_master_from":"{{mid}}"}}
+{"step":"download","method":"GET","path":"/rest/download.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200},"skip":"needs the tagged-download service (M4a-M2)"}
+{"step":"cover","method":"GET","path":"/rest/getCoverArt.view","params":{"id":["{{album:1}}"],"size":["300"]},"auth":"token","expect":{"http":200,"content_type":"image/"},"skip":"needs the cover service (M4a-M1)"}
+{"step":"lyrics","method":"GET","path":"/rest/getLyricsBySongId.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"lyricsList":1}}}
+{"step":"star","method":"GET","path":"/rest/star.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"starred-after","method":"GET","path":"/rest/getStarred2.view","params":{},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml","counts":{"starred2.song":1}}}
+{"step":"unstar","method":"GET","path":"/rest/unstar.view","params":{"id":["{{song:1}}"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"rate","method":"GET","path":"/rest/setRating.view","params":{"id":["{{song:1}}"],"rating":["4"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"scrobble-now","method":"GET","path":"/rest/scrobble.view","params":{"id":["{{song:1}}"],"submission":["false"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}
+{"step":"scrobble-done","method":"GET","path":"/rest/scrobble.view","params":{"id":["{{song:1}}"],"submission":["true"]},"auth":"token","expect":{"http":200,"status":"ok","content_type":"text/xml"}}

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1" type="metamusic" serverVersion="v-test" openSubsonic="true"><artists ignoredArticles=""><index name="M"><artist id="ar-metamusic" name="metamusic" albumCount="6" coverArt="al-01900000-0000-7000-8000-000000000102" sortName="metamusic"></artist></index></artists></subsonic-response>

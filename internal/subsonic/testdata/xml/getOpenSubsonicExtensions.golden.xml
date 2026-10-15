@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1" type="metamusic" serverVersion="v-test" openSubsonic="true"><openSubsonicExtensions name="apiKeyAuthentication"><versions>1</versions></openSubsonicExtensions><openSubsonicExtensions name="formPost"><versions>1</versions></openSubsonicExtensions><openSubsonicExtensions name="playbackReport"><versions>1</versions></openSubsonicExtensions><openSubsonicExtensions name="songLyrics"><versions>1</versions></openSubsonicExtensions></subsonic-response>

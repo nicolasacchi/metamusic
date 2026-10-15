@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1" type="metamusic" serverVersion="v-test" openSubsonic="true"><musicFolders><musicFolder id="1" name="Library"></musicFolder><musicFolder id="2" name="Drafts"></musicFolder><musicFolder id="3" name="Discarded"></musicFolder></musicFolders></subsonic-response>

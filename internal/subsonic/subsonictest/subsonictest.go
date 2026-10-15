@@ -3,14 +3,12 @@
 // TestNoTestHelpersInBinary and must never be linked into the binary.
 //
 // The exported API is frozen by M4a-B2 (servertest.Rig.Subsonic returns *Client). Client.Call lives in client.go
-// (M4a-S1); NewPlaceholders and Replay are STUB(M4a-S4) and skip the calling test by name.
+// (M4a-S1); NewPlaceholders and Replay live in placeholders.go and replay.go (M4a-S4).
 package subsonictest
 
 import (
 	"net/http"
-	"testing"
-
-	"github.com/nicolasacchi/metamusic/internal/store"
+	"time"
 )
 
 // ClientOpts describe a client created through create_subsonic_client as the human.
@@ -27,6 +25,9 @@ type Client struct {
 	Password string // app password; "" when the client has none
 	APIKey   string // mms_...; "" when the client has none
 	HTTP     *http.Client
+	// Clock advances the rig clock for fixture steps with an "advance" field (C117.5); servertest.Rig.Clock satisfies it.
+	// Replay fails the test when a fixture needs it and it is nil.
+	Clock interface{ Advance(time.Duration) }
 }
 
 // CallOpts select the request shape.
@@ -45,22 +46,4 @@ type Response struct {
 	Status string // "ok" | "failed" ("" for a binary answer)
 	Code   int    // the protocol error code (0 when ok)
 	Doc    map[string]any
-}
-
-// PlaceholderSet resolves the {{song:N}}, {{album:N}}, {{mid}}, {{bytes}}, {{user}}, {{text}} and {{query}}
-// placeholders of a client fixture deterministically.
-type PlaceholderSet map[string]string
-
-// NewPlaceholders resolves the placeholders against the library in st (songs and albums in created_at, id order).
-// (The plan names this function Placeholders, which collides with the type of the same name.) STUB(M4a-S4)
-func NewPlaceholders(tb testing.TB, _ *store.Store) PlaceholderSet {
-	tb.Helper()
-	tb.Skip("M4a-S4: subsonictest.NewPlaceholders not implemented yet")
-	return nil
-}
-
-// Replay runs one client fixture file (internal/subsonic/testdata/clients/*.jsonl). STUB(M4a-S4)
-func Replay(tb testing.TB, _ *Client, _ PlaceholderSet, _ string) {
-	tb.Helper()
-	tb.Skip("M4a-S4: subsonictest.Replay not implemented yet")
 }
