@@ -33,17 +33,29 @@ type gen struct {
 
 // run resolves the caller (stdio) and dispatches one tool call.
 func (g *gen) run(ctx context.Context, req *mcp.CallToolRequest, spec *toolSpec, args json.RawMessage) *mcp.CallToolResult {
-	if g.principal != nil {
-		p, err := g.principal(ctx)
-		if err != nil {
-			if errors.Is(err, auth.ErrInvalidToken) {
-				return problemResult("UNAUTHENTICATED", "the credential is no longer valid")
-			}
-			return problemResult("INTERNAL", "could not resolve the caller")
+	ctx, code := g.resolve(ctx)
+	if code != "" {
+		if code == "UNAUTHENTICATED" {
+			return problemResult(code, "the credential is no longer valid")
 		}
-		ctx = auth.WithPrincipal(ctx, p)
+		return problemResult(code, "could not resolve the caller")
 	}
 	return dispatch(ctx, g.inner, spec, args, origin{transport: g.transport, client: clientLabel(req)})
+}
+
+// resolve puts the stdio caller on ctx; a non-empty code is the problem code to refuse with.
+func (g *gen) resolve(ctx context.Context) (context.Context, string) {
+	if g.principal == nil {
+		return ctx, ""
+	}
+	p, err := g.principal(ctx)
+	if err != nil {
+		if errors.Is(err, auth.ErrInvalidToken) {
+			return ctx, "UNAUTHENTICATED"
+		}
+		return ctx, "INTERNAL"
+	}
+	return auth.WithPrincipal(ctx, p), ""
 }
 
 // StdioOptions configures NewStdioServer.
@@ -72,6 +84,24 @@ func NewStdioServer(a huma.API, gated http.Handler, o StdioOptions) (*mcp.Server
 
 func newServer(a huma.API, inner http.Handler, version string, tr reqinfo.Transport,
 	principal func(context.Context) (auth.Principal, error)) (*mcp.Server, error) {
+	// A registry without a spec's operation (a test fixture) serves no such template; one that has the
+	// operation but cannot present it is a startup error (newServerWith). TestResources_RealRegistry pins that
+	// the real registry serves every entry of Resources.
+	have := map[string]bool{}
+	for _, op := range api.Operations(a) {
+		have[op.ID] = true
+	}
+	var specs []ResourceSpec
+	for _, rs := range Resources {
+		if have[rs.Op] {
+			specs = append(specs, rs)
+		}
+	}
+	return newServerWith(a, inner, version, tr, principal, specs)
+}
+
+func newServerWith(a huma.API, inner http.Handler, version string, tr reqinfo.Transport,
+	principal func(context.Context) (auth.Principal, error), resources []ResourceSpec) (*mcp.Server, error) {
 	raw, err := json.Marshal(a.OpenAPI())
 	if err != nil {
 		return nil, err
@@ -130,6 +160,10 @@ func newServer(a huma.API, inner http.Handler, version string, tr reqinfo.Transp
 		})
 	}
 	g.addGeneric(srv)
+	if err := g.addResources(srv, resources); err != nil {
+		return nil, err
+	}
+	g.addPrompts(srv)
 	return srv, nil
 }
 

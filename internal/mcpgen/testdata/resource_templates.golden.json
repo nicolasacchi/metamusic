@@ -1,0 +1,16 @@
+[
+  {
+    "description": "Everything known about a take for a critique: loudness, sections, flags, comments, listening. Same as the get_track_context tool.",
+    "mimeType": "application/json",
+    "name": "track_context",
+    "title": "Track context bundle",
+    "uriTemplate": "metamusic://tracks/{id}/context"
+  },
+  {
+    "description": "Spectrogram image of a take. Same as the get_track_spectrogram tool.",
+    "mimeType": "image/jpeg",
+    "name": "track_spectrogram",
+    "title": "Track spectrogram",
+    "uriTemplate": "metamusic://tracks/{id}/spectrogram"
+  }
+]

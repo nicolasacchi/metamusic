@@ -215,13 +215,18 @@ func clientLabel(req *mcp.CallToolRequest) string {
 	if req == nil {
 		return ""
 	}
-	if req.Extra != nil && req.Extra.Header != nil {
-		if ua := req.Extra.Header.Get("User-Agent"); ua != "" {
+	return sessionLabel(req.Extra, req.Session)
+}
+
+// sessionLabel is clientLabel for any request kind (resources and prompts share it).
+func sessionLabel(extra *mcp.RequestExtra, session *mcp.ServerSession) string {
+	if extra != nil && extra.Header != nil {
+		if ua := extra.Header.Get("User-Agent"); ua != "" {
 			return ua
 		}
 	}
-	if req.Session != nil {
-		if ip := req.Session.InitializeParams(); ip != nil && ip.ClientInfo != nil && ip.ClientInfo.Name != "" {
+	if session != nil {
+		if ip := session.InitializeParams(); ip != nil && ip.ClientInfo != nil && ip.ClientInfo.Name != "" {
 			label := strings.Join(strings.Fields(ip.ClientInfo.Name), "_")
 			if v := strings.Join(strings.Fields(ip.ClientInfo.Version), "_"); v != "" {
 				label += "/" + v
@@ -284,14 +289,19 @@ func deriveKey(ctx context.Context, s *toolSpec, rawArgs json.RawMessage) (conte
 	return idem.WithDerived(ctx, key), out
 }
 
-// dispatch executes spec with args on inner, using ctx (which carries the
-// already-resolved principal).
-func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.RawMessage, o origin) *mcp.CallToolResult {
+// withOrigin stamps the transport and the (OAuth-prefixed) client label on ctx for the gate's audit row.
+func withOrigin(ctx context.Context, o origin) context.Context {
 	client := o.client
 	if p := auth.FromContext(ctx); p.Via == "oauth" {
 		client = oauthClientLabel(p.Client, client)
 	}
-	ctx = reqinfo.WithClient(reqinfo.WithTransport(ctx, o.transport), client)
+	return reqinfo.WithClient(reqinfo.WithTransport(ctx, o.transport), client)
+}
+
+// dispatch executes spec with args on inner, using ctx (which carries the
+// already-resolved principal).
+func dispatch(ctx context.Context, inner http.Handler, s *toolSpec, args json.RawMessage, o origin) *mcp.CallToolResult {
+	ctx = withOrigin(ctx, o)
 	if s.IdemCreate {
 		ctx, args = deriveKey(ctx, s, args)
 	}
