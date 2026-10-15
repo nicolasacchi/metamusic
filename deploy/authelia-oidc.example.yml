@@ -1,0 +1,114 @@
+# Example only: Authelia OpenID Connect provider settings for the metamusic remote-agent connector
+# (M4a, contract C116). Merge these keys into your own Authelia configuration; nothing here is a
+# secret. The host is mm.example.com and the MCP resource is https://mm.example.com/mcp; replace
+# them with yours. TestAutheliaExample_Shape pins the values the app depends on:
+# an RS256 JWT access token whose audience is the MCP URL, scope `metamusic`, the `mm_user` claim
+# (copied from the Authelia username), PKCE S256, and explicit consent on every authorization
+# (Authelia forces the consent page whenever offline_access is requested, so no
+# pre_configured_consent_duration is set). Key names follow the Authelia 4.39 documentation.
+#
+# Not included here (yours to provide): hmac_secret, jwks signing keys, cors, the access_control
+# rules for the auth host. The app's MM_OIDC_ISSUER is the issuer URL of this provider and
+# MM_OIDC_CLIENTS lists the client ids below that may connect.
+identity_providers:
+  oidc:
+    claims_policies:
+      metamusic:
+        access_token:
+          - 'mm_user'
+        custom_claims:
+          mm_user:
+            attribute: 'username'
+    scopes:
+      metamusic:
+        claims:
+          - 'mm_user'
+    authorization_policies:
+      metamusic_owner:
+        default_policy: 'deny'
+        rules:
+          - policy: 'two_factor'
+            subject: 'user:owner'
+    lifespans:
+      custom:
+        metamusic:
+          access_token: '1h'
+          refresh_token: '30d'
+    clients:
+      - client_id: 'metamusic-claude'
+        client_name: 'Metamusic (Claude)'
+        public: true
+        token_endpoint_auth_method: 'none'
+        redirect_uris:
+          - 'https://claude.ai/api/mcp/auth_callback'
+        audience:
+          - 'https://mm.example.com/mcp'
+        requested_audience_mode: 'implicit'
+        scopes:
+          - 'openid'
+          - 'offline_access'
+          - 'metamusic'
+        grant_types:
+          - 'authorization_code'
+          - 'refresh_token'
+        response_types:
+          - 'code'
+        access_token_signed_response_alg: 'RS256'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        authorization_policy: 'metamusic_owner'
+        consent_mode: 'explicit'
+        claims_policy: 'metamusic'
+        lifespan: 'metamusic'
+      - client_id: 'metamusic-chatgpt'
+        client_name: 'Metamusic (ChatGPT)'
+        public: false
+        # Replace with the digest of the secret you give the hosted client (authelia crypto hash generate).
+        client_secret: '<CLIENT_SECRET_DIGEST>'
+        token_endpoint_auth_method: 'client_secret_post'
+        redirect_uris:
+          - 'https://chatgpt.com/connector_platform_oauth_redirect'
+        audience:
+          - 'https://mm.example.com/mcp'
+        requested_audience_mode: 'implicit'
+        scopes:
+          - 'openid'
+          - 'offline_access'
+          - 'metamusic'
+        grant_types:
+          - 'authorization_code'
+          - 'refresh_token'
+        response_types:
+          - 'code'
+        access_token_signed_response_alg: 'RS256'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        authorization_policy: 'metamusic_owner'
+        consent_mode: 'explicit'
+        claims_policy: 'metamusic'
+        lifespan: 'metamusic'
+      - client_id: 'metamusic-probe'
+        client_name: 'Metamusic (oidc probe)'
+        public: true
+        token_endpoint_auth_method: 'none'
+        redirect_uris:
+          - 'http://127.0.0.1:8765/callback'
+        audience:
+          - 'https://mm.example.com/mcp'
+        requested_audience_mode: 'implicit'
+        scopes:
+          - 'openid'
+          - 'offline_access'
+          - 'metamusic'
+        grant_types:
+          - 'authorization_code'
+          - 'refresh_token'
+        response_types:
+          - 'code'
+        access_token_signed_response_alg: 'RS256'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        authorization_policy: 'metamusic_owner'
+        consent_mode: 'explicit'
+        claims_policy: 'metamusic'
+        lifespan: 'metamusic'

@@ -37,6 +37,7 @@ chk "actions-pinned accepts a SHA" '"$root/scripts/actions-pinned.sh" "$tmp/good
 chk "actions-pinned refuses tags and branches" '! "$root/scripts/actions-pinned.sh" "$tmp/bad" >/dev/null 2>&1'
 
 chk "ci-go-test media tier lists jobs and provider/fake" 'grep -q "./internal/jobs" "$root/scripts/ci-go-test.sh" && grep -q "./internal/provider/fake" "$root/scripts/ci-go-test.sh"'
+chk "ci-go-test media tier lists media/tagged and subsonic" 'grep -q "./internal/media/tagged" "$root/scripts/ci-go-test.sh" && grep -q "./internal/subsonic" "$root/scripts/ci-go-test.sh"'
 chk "root .dockerignore excludes worker/ and runpod*.env" 'grep -qx "worker/" "$root/.dockerignore" && grep -qx "\*\*/runpod\*.env" "$root/.dockerignore"'
 chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.digest"'
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'

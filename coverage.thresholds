@@ -3,6 +3,12 @@
 internal/...            85
 internal/auth           95
 internal/media/serve    95
+internal/media/cover    90
+internal/media/tagged   95
+internal/oidc           95
+internal/connectors     95
+internal/subsonic       90
+internal/prompts        90
 internal/gate           95
 internal/idem           95
 internal/ratelimit      95

@@ -69,6 +69,11 @@ expect "staged mmc_ token blocked" 1 --staged
 contains "mmc_ reason" "metamusic-confirmation-token"
 reset
 
+printf 'apiKey = "mms_%s"\n' "$body" > conf.txt; git add conf.txt
+expect "staged mms_ subsonic key blocked" 1 --staged
+contains "mms_ reason" "metamusic-subsonic-api-key"
+reset
+
 # private pattern
 echo "my-secret-hostname.internal" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'nothing-here\nsecret-hostname' expect "private pattern blocked" 1 --staged

@@ -314,6 +314,7 @@ func TestRoutingContract(t *testing.T) {
 		}{
 			{"/media/x", nil, "mm-media"},
 			{"/rest/x", nil, "mm-media"},
+			{"/rest/ping.view?u=x&t=y&s=z", nil, "mm-media"},
 			{"/worker/x", nil, "mm-media"},
 			{"/worker/v1/uploads/x", nil, "mm-media"},
 			{"/worker/v1/attempts/x/start", nil, "mm-media"},
@@ -328,6 +329,7 @@ func TestRoutingContract(t *testing.T) {
 			{"/api/openapi.json", bearer(), "mm-api-bearer"},
 			{"/manifest.webmanifest", nil, "mm-public"},
 			{"/icons/a.png", nil, "mm-public"},
+			{"/sw.js", nil, "mm-public"},
 		}
 		for _, c := range cases {
 			before := e.stubCalls()
@@ -405,6 +407,8 @@ func TestRoutingContract(t *testing.T) {
 			{"/mcp", cookie("mm_dev=x"), "mm-agent", false},
 			{"/human/api/generations", cookie("mm_dev=x"), "mm-ui", true},
 			{"/worker/v1/uploads/x", cookie("mm_dev=x"), "mm-media", false},
+			{"/rest/x", cookie("mm_dev=x"), "mm-media", false},
+			{"/sw.js", cookie("mm_dev=x"), "mm-public", false},
 		}
 		for _, c := range deviceCases {
 			before := e.stubCalls()
@@ -455,6 +459,7 @@ func TestRoutingContract(t *testing.T) {
 			{"/worker/v1/uploads/x", nil}, {"/worker/v1/attempts/x/start", nil},
 			{"/oauth/token", nil}, {"/.well-known/x", nil}, {"/api/openapi.json", nil},
 			{"/api/tracks", bearer()}, {"/manifest.webmanifest", nil}, {"/icons/a.png", nil},
+			{"/sw.js", nil}, {"/rest/ping.view?u=x&t=y&s=z", nil},
 		}
 		for _, c := range nonUI {
 			r, err := e.try(http.MethodGet, c.path, c.hdr, spoof)
@@ -610,6 +615,10 @@ func TestRoutingContract(t *testing.T) {
 			t.Errorf("/media/ Content-Encoding %q, body %d bytes", enc, len(r.Body))
 		}
 		// positive control: the compress middleware really is active on mm-ui
+		r = e.do(http.MethodGet, "/rest/stream.view?size=5000&u=x&t=y&s=z", gz)
+		if enc := r.Header.Get("Content-Encoding"); r.router() != "mm-media" || enc != "" || len(r.Body) < 5000 {
+			t.Errorf("/rest/ router %q Content-Encoding %q, body %d bytes", r.router(), enc, len(r.Body))
+		}
 		r = e.do(http.MethodGet, "/restore?size=5000", merge(gz, session("two")))
 		if r.Header.Get("Content-Encoding") != "gzip" {
 			t.Errorf("mm-ui control: Content-Encoding %q, want gzip", r.Header.Get("Content-Encoding"))
@@ -619,6 +628,7 @@ func TestRoutingContract(t *testing.T) {
 	t.Run("media access log is off", func(t *testing.T) {
 		e.do(http.MethodGet, "/media/canary-path?sig=canary-sig", nil)
 		e.do(http.MethodPost, "/worker/v1/attempts/canary-attempt/start?sig=canary-wsig", nil)
+		e.do(http.MethodGet, "/rest/ping.view?u=canary-ruser&t=canary-rtoken&s=canary-rsalt", nil)
 		e.do(http.MethodGet, "/poscontrol-ui", session("two"))
 		deadline := time.Now().Add(10 * time.Second)
 		var logs string
@@ -632,7 +642,8 @@ func TestRoutingContract(t *testing.T) {
 			t.Fatal("positive control: mm-ui request missing from the access log")
 		}
 		if strings.Contains(logs, "canary-sig") || strings.Contains(logs, "canary-path") ||
-			strings.Contains(logs, "canary-wsig") || strings.Contains(logs, "canary-attempt") {
+			strings.Contains(logs, "canary-wsig") || strings.Contains(logs, "canary-attempt") ||
+			strings.Contains(logs, "canary-rtoken") || strings.Contains(logs, "canary-ruser") || strings.Contains(logs, "canary-rsalt") {
 			t.Error("a /media/ request was access-logged")
 		}
 	})
