@@ -229,8 +229,8 @@ var implementedM4a = map[string]bool{
 	"list_connector_grants": true, "set_connector_grant": true, // M4a-C2
 	"list_subsonic_clients": true, "create_subsonic_client": true, "revoke_subsonic_client": true, // M4a-S1
 	"get_download_link": true, // M4a-M
-	"get_offline_set": true, // M4a-agent
-	"get_prompt": true, // M4a-agent
+	"get_offline_set":   true, // M4a-agent
+	"get_prompt":        true, // M4a-agent
 }
 
 // TestOps_AuthorizationM4a: the management ops need scope admin: a read+write agent, a paired device and an OAuth
