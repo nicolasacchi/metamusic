@@ -37,7 +37,7 @@ tests_in_shard() { # <pkg> <i> <K>
   local pkg=$1 i=$2 k=$3 t h
   while read -r t; do
     h=$(printf '%s' "$t" | cksum | cut -d' ' -f1)
-    [ $((h % k)) -eq "$i" ] && echo "$t"
+    if [ $((h % k)) -eq "$i" ]; then echo "$t"; fi
   done < <(tests_of "$pkg")
 }
 

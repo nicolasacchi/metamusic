@@ -38,8 +38,8 @@ chk "actions-pinned refuses tags and branches" '! "$root/scripts/actions-pinned.
 
 # Go sharding (debts): the matrix shard list, the shard count passed to ci-go-test.sh and the e2e --shard
 # count agree, and the shards' union is every package exactly once, split packages' tests exactly once.
-gn=$(grep -c . <<<"$(grep -oE "ci-go-test.sh run [^ ]+ [0-9]+" "$wf/ci.yml" | awk '{print $4}' | sort -u)")
-n=$(grep -oE "ci-go-test.sh run [^ ]+ [0-9]+" "$wf/ci.yml" | awk '{print $4}' | sort -u)
+n=$(grep -oE "ci-go-test.sh run .* [0-9]+ covdata" "$wf/ci.yml" | awk '{print $(NF-1)}' | sort -u)
+gn=$(grep -c . <<<"$n" || true)
 chk "ci.yml runs ci-go-test.sh with one shard count" '[ "$gn" = 1 ]'
 mx=$(awk "/^  go:/{f=1;next} /^  [a-z]/{f=0} f && /shard: \[/{print}" "$wf/ci.yml" | grep -oE "[0-9]+" | sort -n | tr "\n" " ")
 chk "go matrix is shards 1..$n" '[ "$mx" = "$(seq 1 "$n" | tr "\n" " ")" ]'
@@ -52,7 +52,7 @@ for s in $(seq 1 "$n"); do "$root/scripts/ci-go-test.sh" plan "$s" "$n" >>"$tmp/
 awk '{print $1}' "$tmp/planned" | sort -u >"$tmp/plannedpkgs"
 chk "sharding covers every package" 'diff "$tmp/allpkgs" "$tmp/plannedpkgs"'
 chk "no whole package or split part is planned twice" '[ -z "$(sort "$tmp/planned" | uniq -d)" ]'
-chk "a package is either whole or fully split, never both" '! awk "NF==1{w[\$1]=1} NF==2{s[\$1]=1} END{for(p in w) if(p in s) exit 1}" "$tmp/planned"'
+chk "a package is either whole or fully split, never both" 'awk "NF==1{w[\$1]=1} NF==2{s[\$1]=1} END{for(p in w) if(p in s) exit 1}" "$tmp/planned"'
 chk "every split package has all its parts planned" 'awk "NF==2{split(\$2,a,\"/\"); c[\$1]++; k[\$1]=a[2]} END{for(p in c) if(c[p]!=k[p]) exit 1}" "$tmp/planned"'
 for pk in $(awk 'NF==2{print $1}' "$tmp/planned" | sort -u); do
   k=$(awk -v p="$pk" '$1==p{split($2,a,"/");print a[2];exit}' "$tmp/planned")
