@@ -34,10 +34,15 @@ tests_of() { # all top-level tests of a package
 }
 
 tests_in_shard() { # <pkg> <i> <K>
-  local pkg=$1 i=$2 k=$3 t h
+  local pkg=$1 i=$2 k=$3 t h p
   while read -r t; do
-    h=$(printf '%s' "$t" | cksum | cut -d' ' -f1)
-    if [ $((h % k)) -eq "$i" ]; then echo "$t"; fi
+    # a listed heavy test goes to part (its position among the package's heavy tests) mod K, any other by name hash
+    p=$(awk -v pkg="$pkg" -v t="$t" -v k="$k" '$1 == pkg && $1 !~ /^#/ { if ($2 == t) { print n % k; exit } n++ }' "$root/scripts/ci-heavy-tests.txt")
+    if [ -z "$p" ]; then
+      h=$(printf '%s' "$t" | cksum | cut -d' ' -f1)
+      p=$((h % k))
+    fi
+    if [ "$p" -eq "$i" ]; then echo "$t"; fi
   done < <(tests_of "$pkg")
 }
 

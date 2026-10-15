@@ -1,0 +1,10 @@
+# pkg  top-level test  (seconds of a -race CI run, 2026-10-15)
+# Tests of a package that scripts/ci-shard-weights.txt splits are spread by the stable hash of their name, which can put
+# every long test in one part. The tests listed here are dealt out round-robin to the parts in this order instead, so
+# keep the slowest first. A name that no longer exists is harmless; a new slow test just falls back to the hash.
+./internal/jobs TestChaos_StorageFaults 90
+./internal/jobs TestChaos_QueueExpiryResubmitThenNoCapacity 88
+./internal/jobs TestProperty_ColdStartAboveAllowanceTrips 40
+./internal/jobs TestRunner_NoCapacityFailsBatchRemainder 37
+./internal/jobs TestChaos_GhostAdoptedViaStart 21
+./internal/jobs TestChaos_CrashBeforeRefPersisted 16
