@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/redact"
 )
 
 func (d Deps) clock() time.Time {
@@ -15,6 +17,29 @@ func (d Deps) clock() time.Time {
 		return d.Now()
 	}
 	return time.Now()
+}
+
+// coverLinks signs the 512 and 1024 px covers of a track (C110.1). nil while no cover service is wired or when
+// the cover cannot be produced: the audio links never depend on it.
+func (d Deps) coverLinks(ctx context.Context, trackID string, ttl, bucket time.Duration) *CoverLinksOrNull {
+	if d.Covers == nil {
+		return nil
+	}
+	var urls [2]string
+	var exp time.Time
+	for i, size := range [2]int{512, 1024} {
+		_, key, err := d.Covers.EnsureTrack(ctx, trackID, size)
+		if err != nil {
+			slog.Warn("cover unavailable", "err", redact.Error(err))
+			return nil
+		}
+		l := d.Signer.Sign(key, "png", ttl, bucket)
+		urls[i] = l.URL
+		if i == 0 || l.Expires.Before(exp) {
+			exp = l.Expires
+		}
+	}
+	return &CoverLinksOrNull{URL512: urls[0], URL1024: urls[1], ExpiresAt: exp.UTC().Format(time.RFC3339)}
 }
 
 func registerMedia(a huma.API, d Deps) {
@@ -49,6 +74,7 @@ func registerMedia(a huma.API, d Deps) {
 					SampleRate: m.Flac.SampleRate, BitsPerSample: m.Flac.BitsPerSample}
 			}
 			b.ExpiresAt = exp.UTC().Format(time.RFC3339)
+			b.Cover = d.coverLinks(ctx, in.ID, ttl, bucket)
 			b.MP3 = MP3Link{URL: ml.URL, ContentType: m.MP3.ContentType, Bytes: m.MP3.Bytes, SHA256: m.MP3.SHA256, BitrateKbps: m.MP3.BitrateKbps}
 			return out, nil
 		})

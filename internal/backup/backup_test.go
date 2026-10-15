@@ -638,6 +638,26 @@ func TestBackup_ExcludesExportsAndProbe(t *testing.T) {
 	}
 }
 
+// TestBackup_ExcludesCoverAndDownloadCaches: the cover and tagged-download caches are rebuilt on demand and never
+// enter a snapshot (only files the database points at are copied).
+func TestBackup_ExcludesCoverAndDownloadCaches(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.write(t, "derived/covers/ab/abcdef.png", "x")
+	e.write(t, "derived/dl/cd/cdef01.flac", "x")
+	_, m, dir := e.run(t)
+	for _, f := range m.Files {
+		if strings.HasPrefix(f.Path, "derived/covers") || strings.HasPrefix(f.Path, "derived/dl") {
+			t.Errorf("unexpected %s", f.Path)
+		}
+	}
+	for _, p := range []string{"derived/covers", "derived/dl"} {
+		if _, err := os.Stat(filepath.Join(dir, p)); err == nil {
+			t.Errorf("%s exists in the snapshot", p)
+		}
+	}
+}
+
 func TestBackup_MissingLiveFileFailsRun(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
