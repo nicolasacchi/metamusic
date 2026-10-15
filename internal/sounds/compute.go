@@ -39,6 +39,57 @@ type input struct {
 
 func (in input) reference() bool { return in.Engine == "unknown" }
 
+// stmts caches the prepared statements of one transaction so a batch of subjects prepares each statement once (the
+// recompute of thousands of subjects was dominated by sqlite prepare). It satisfies querier and adds ExecContext.
+type stmts struct {
+	tx *sql.Tx
+	m  map[string]*sql.Stmt
+}
+
+func newStmts(tx *sql.Tx) *stmts { return &stmts{tx: tx, m: map[string]*sql.Stmt{}} }
+
+func (c *stmts) prep(ctx context.Context, q string) (*sql.Stmt, error) {
+	if st, ok := c.m[q]; ok {
+		return st, nil
+	}
+	st, err := c.tx.PrepareContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	c.m[q] = st
+	return st, nil
+}
+
+func (c *stmts) QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error) {
+	st, err := c.prep(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return st.QueryContext(ctx, args...)
+}
+
+func (c *stmts) QueryRowContext(ctx context.Context, q string, args ...any) *sql.Row {
+	st, err := c.prep(ctx, q)
+	if err != nil {
+		return c.tx.QueryRowContext(ctx, q, args...) // surfaces the prepare error through Scan
+	}
+	return st.QueryRowContext(ctx, args...)
+}
+
+func (c *stmts) ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error) {
+	st, err := c.prep(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return st.ExecContext(ctx, args...)
+}
+
+func (c *stmts) Close() {
+	for _, st := range c.m {
+		_ = st.Close()
+	}
+}
+
 func sum256(parts ...string) string {
 	h := sha256.New()
 	for _, p := range parts {
@@ -305,7 +356,7 @@ func stateOf(ctx context.Context, q querier, kind, id string) (version int, dige
 	return version, digest, true, nil
 }
 
-func writeState(ctx context.Context, tx *sql.Tx, env Env, kind, id string, version int, digest string) error {
+func writeState(ctx context.Context, tx *stmts, env Env, kind, id string, version int, digest string) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO sound_state(subject_kind, subject_id, taxonomy_version, input_digest, computed_at) VALUES(?, ?, ?, ?, ?)
 		ON CONFLICT(subject_kind, subject_id) DO UPDATE SET taxonomy_version = excluded.taxonomy_version,
 		input_digest = excluded.input_digest, computed_at = excluded.computed_at`, kind, id, version, digest, store.FormatTime(env.Now))
@@ -315,41 +366,58 @@ func writeState(ctx context.Context, tx *sql.Tx, env Env, kind, id string, versi
 	return nil
 }
 
+// insertSounds writes all rows of a subject with one multi-row INSERT (the statement text is cached per row count).
+// table and keyCol are constants of this package.
+func insertSounds(ctx context.Context, tx *stmts, table, keyCol, id string, rows []soundRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	args := make([]any, 0, len(rows)*5)
+	for _, r := range rows {
+		args = append(args, id, r.Facet, r.Value, r.Origin, detailJSON(r.Detail))
+	}
+	q := `INSERT INTO ` + table + `(` + keyCol + `, facet, value, origin, detail_json) VALUES ` +
+		strings.TrimSuffix(strings.Repeat("(?, ?, ?, ?, ?),", len(rows)), ",")
+	_, err := tx.ExecContext(ctx, q, args...)
+	return err
+}
+
 // computeTake recomputes the facets of one take unless its digest and taxonomy version are current.
-func (s *Service) computeTake(ctx context.Context, tx *sql.Tx, env Env, ix *Index, id string) (bool, error) {
+func (s *Service) computeTake(ctx context.Context, tx *stmts, env Env, ix *Index, id string) (bool, error) {
 	in, ok, err := loadTake(ctx, tx, id)
 	if err != nil || !ok {
 		return false, err
 	}
 	digest := takeDigest(ix.Version, in)
-	if v, d, found, err := stateOf(ctx, tx, "take", id); err != nil {
+	v, d, found, err := stateOf(ctx, tx, "take", id)
+	if err != nil {
 		return false, err
-	} else if found && v == ix.Version && d == digest {
+	}
+	if found && v == ix.Version && d == digest {
 		return false, nil
 	}
 	rows, _ := buildRows(ix, in)
 	if _, err := tx.ExecContext(ctx, `DELETE FROM take_sounds WHERE track_id = ?`, id); err != nil {
 		return false, fmt.Errorf("sounds: clear take sounds: %w", err)
 	}
-	for _, r := range rows {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO take_sounds(track_id, facet, value, origin, detail_json) VALUES(?, ?, ?, ?, ?)`,
-			id, r.Facet, r.Value, r.Origin, detailJSON(r.Detail)); err != nil {
-			return false, fmt.Errorf("sounds: write take sounds: %w", err)
-		}
+	if err := insertSounds(ctx, tx, "take_sounds", "track_id", id, rows); err != nil {
+		return false, fmt.Errorf("sounds: write take sounds: %w", err)
 	}
 	return true, writeState(ctx, tx, env, "take", id, ix.Version, digest)
 }
 
 // computeSong recomputes the facets of one Song from its representative subject unless fresh.
-func (s *Service) computeSong(ctx context.Context, tx *sql.Tx, env Env, ix *Index, id string) (bool, error) {
+func (s *Service) computeSong(ctx context.Context, tx *stmts, env Env, ix *Index, id string) (bool, error) {
 	sub, err := loadSubject(ctx, tx, ix.Version, id)
 	if err != nil {
 		return false, err
 	}
 	digest := songDigest(ix.Version, sub)
-	if v, d, found, err := stateOf(ctx, tx, "song", id); err != nil {
+	v, d, found, err := stateOf(ctx, tx, "song", id)
+	if err != nil {
 		return false, err
-	} else if found && v == ix.Version && d == digest {
+	}
+	if found && v == ix.Version && d == digest {
 		return false, nil
 	}
 	var rows []soundRow
@@ -370,11 +438,8 @@ func (s *Service) computeSong(ctx context.Context, tx *sql.Tx, env Env, ix *Inde
 	if _, err := tx.ExecContext(ctx, `DELETE FROM song_sounds WHERE song_id = ?`, id); err != nil {
 		return false, fmt.Errorf("sounds: clear song sounds: %w", err)
 	}
-	for _, r := range rows {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO song_sounds(song_id, facet, value, origin, detail_json) VALUES(?, ?, ?, ?, ?)`,
-			id, r.Facet, r.Value, r.Origin, detailJSON(r.Detail)); err != nil {
-			return false, fmt.Errorf("sounds: write song sounds: %w", err)
-		}
+	if err := insertSounds(ctx, tx, "song_sounds", "song_id", id, rows); err != nil {
+		return false, fmt.Errorf("sounds: write song sounds: %w", err)
 	}
 	if err := replaceUnmapped(ctx, tx, id, parsed.Unmapped); err != nil {
 		return false, err
@@ -389,8 +454,10 @@ func (s *Service) ComputeTx(ctx context.Context, tx *sql.Tx, env Env, trackIDs, 
 	if err != nil {
 		return ch, err
 	}
+	c := newStmts(tx)
+	defer c.Close()
 	for _, id := range sortedUnique(trackIDs) {
-		changed, err := s.computeTake(ctx, tx, env, ix, id)
+		changed, err := s.computeTake(ctx, c, env, ix, id)
 		if err != nil {
 			return ch, err
 		}
@@ -400,7 +467,7 @@ func (s *Service) ComputeTx(ctx context.Context, tx *sql.Tx, env Env, trackIDs, 
 	}
 	for _, id := range sortedUnique(songIDs) {
 		var retired bool
-		if err := tx.QueryRowContext(ctx, `SELECT retired_at IS NOT NULL FROM songs WHERE id = ?`, id).Scan(&retired); err != nil {
+		if err := c.QueryRowContext(ctx, `SELECT retired_at IS NOT NULL FROM songs WHERE id = ?`, id).Scan(&retired); err != nil {
 			if err == sql.ErrNoRows {
 				continue
 			}
@@ -409,7 +476,7 @@ func (s *Service) ComputeTx(ctx context.Context, tx *sql.Tx, env Env, trackIDs, 
 		if retired {
 			continue
 		}
-		changed, err := s.computeSong(ctx, tx, env, ix, id)
+		changed, err := s.computeSong(ctx, c, env, ix, id)
 		if err != nil {
 			return ch, err
 		}
@@ -428,13 +495,19 @@ func sortedUnique(ids []string) []string {
 
 // SweepStaleTx recomputes up to limit stale subjects (no state, an older taxonomy version, or a changed digest).
 func (s *Service) SweepStaleTx(ctx context.Context, tx *sql.Tx, env Env, limit int) (n int, err error) {
-	ch, err := s.sweep(ctx, tx, env, limit, true)
+	ch, err := s.sweep(ctx, tx, env, limit, true, nil)
 	return ch.Takes + ch.Songs, err
 }
 
+// sweepCursor is the keyset position of a multi-batch sweep.
+type sweepCursor struct{ take, song string }
+
 // sweep recomputes up to limit stale subjects. Subjects without a state row or on an older taxonomy version are found
 // by SQL; with scanDigests the remaining budget also re-derives every other subject's digest to catch changed inputs.
-func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, scanDigests bool) (Changes, error) {
+//
+// A non-nil cur makes consecutive calls resume after the last stale id handled (keyset), so a recompute of n subjects
+// in batches costs O(n) instead of rescanning the handled prefix on every batch.
+func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, scanDigests bool, cur *sweepCursor) (Changes, error) {
 	var ch Changes
 	if limit <= 0 {
 		return ch, nil
@@ -443,15 +516,21 @@ func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, sca
 	if err != nil {
 		return ch, err
 	}
-	stale := func(table, kind, extra string) ([]string, error) {
-		return stringsOf(ctx, tx, `SELECT x.id FROM `+table+` x WHERE `+extra+` AND NOT EXISTS (SELECT 1 FROM sound_state ss
-			WHERE ss.subject_kind = ? AND ss.subject_id = x.id AND ss.taxonomy_version = ?) ORDER BY x.id LIMIT ?`, kind, ix.Version, limit)
+	c := newStmts(tx)
+	defer c.Close()
+	stale := func(table, kind, extra, after string) ([]string, error) {
+		return stringsOf(ctx, tx, `SELECT x.id FROM `+table+` x WHERE `+extra+` AND x.id > ? AND NOT EXISTS (SELECT 1 FROM sound_state ss
+			WHERE ss.subject_kind = ? AND ss.subject_id = x.id AND ss.taxonomy_version = ?) ORDER BY x.id LIMIT ?`, after, kind, ix.Version, limit)
 	}
-	takes, err := stale("tracks", "take", "1 = 1")
+	var afterTake, afterSong string
+	if cur != nil {
+		afterTake, afterSong = cur.take, cur.song
+	}
+	takes, err := stale("tracks", "take", "1 = 1", afterTake)
 	if err != nil {
 		return ch, err
 	}
-	songIDs, err := stale("songs", "song", "x.retired_at IS NULL")
+	songIDs, err := stale("songs", "song", "x.retired_at IS NULL", afterSong)
 	if err != nil {
 		return ch, err
 	}
@@ -460,22 +539,28 @@ func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, sca
 		if budget == 0 {
 			return ch, nil
 		}
-		if changed, err := s.computeTake(ctx, tx, env, ix, id); err != nil {
+		if changed, err := s.computeTake(ctx, c, env, ix, id); err != nil {
 			return ch, err
 		} else if changed {
 			ch.Takes++
 			budget--
+		}
+		if cur != nil {
+			cur.take = id
 		}
 	}
 	for _, id := range songIDs {
 		if budget == 0 {
 			return ch, nil
 		}
-		if changed, err := s.computeSong(ctx, tx, env, ix, id); err != nil {
+		if changed, err := s.computeSong(ctx, c, env, ix, id); err != nil {
 			return ch, err
 		} else if changed {
 			ch.Songs++
 			budget--
+		}
+		if cur != nil {
+			cur.song = id
 		}
 	}
 	if !scanDigests {
@@ -495,9 +580,9 @@ func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, sca
 			}
 			var changed bool
 			if t.kind == "take" {
-				changed, err = s.computeTake(ctx, tx, env, ix, id)
+				changed, err = s.computeTake(ctx, c, env, ix, id)
 			} else {
-				changed, err = s.computeSong(ctx, tx, env, ix, id)
+				changed, err = s.computeSong(ctx, c, env, ix, id)
 			}
 			if err != nil {
 				return ch, err

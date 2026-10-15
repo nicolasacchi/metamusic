@@ -115,8 +115,9 @@ func (s *Service) Map(ctx context.Context, p auth.Principal, req MapRequest) (Ma
 	}
 	res.Version = &v
 	res.MappingsApplied = len(apply)
+	var swc sweepCursor
 	for {
-		ch, err := s.recomputeBatch(ctx, p)
+		ch, err := s.recomputeBatch(ctx, p, &swc)
 		if err != nil {
 			return res, err
 		}
@@ -132,14 +133,14 @@ func (s *Service) Map(ctx context.Context, p auth.Principal, req MapRequest) (Ma
 const BatchKeys = 100
 
 // recomputeBatch recomputes up to BatchKeys subjects behind the current taxonomy version in its own transaction.
-func (s *Service) recomputeBatch(ctx context.Context, p auth.Principal) (Changes, error) {
+func (s *Service) recomputeBatch(ctx context.Context, p auth.Principal, cur *sweepCursor) (Changes, error) {
 	tx, err := s.st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return Changes{}, fmt.Errorf("sounds: recompute: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	env := Env{Now: s.now(), NewID: s.newID, Actor: p.Key()}
-	ch, err := s.sweep(ctx, tx, env, BatchKeys, false)
+	ch, err := s.sweep(ctx, tx, env, BatchKeys, false, cur)
 	if err != nil {
 		return ch, err
 	}

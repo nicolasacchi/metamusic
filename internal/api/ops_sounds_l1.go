@@ -22,7 +22,7 @@ func registerSoundsL1(a huma.API, d Deps) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")
 			}
-			f, err := soundSearchFilter(in.songFilterIn)
+			f, err := soundSearchFilter(in.SongFilterIn)
 			if err != nil {
 				return nil, err
 			}
@@ -113,10 +113,10 @@ func registerSoundsL1(a huma.API, d Deps) {
 
 // soundSearchFilter turns the shared query filter into a songs.ListFilter; sound=facet:value pairs are validated
 // against the seven facets (value syntax is not checked: an unknown value simply matches nothing).
-func soundSearchFilter(in songFilterIn) (songs.ListFilter, error) {
-	f := songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, Queued: in.Queued, SessionID: in.SessionID,
-		TempoMismatch: in.TempoMismatch, HasPick: in.HasPick, DraftID: in.DraftID, TrackID: in.TrackID,
-		HasOpenProposals: in.HasOpenProposals, Q: in.Q, IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived}
+func soundSearchFilter(in SongFilterIn) (songs.ListFilter, error) {
+	f := songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, Queued: triBool(in.Queued), SessionID: in.SessionID,
+		TempoMismatch: triBool(in.TempoMismatch), HasPick: triBool(in.HasPick), DraftID: in.DraftID, TrackID: in.TrackID,
+		HasOpenProposals: triBool(in.HasOpenProposals), Q: in.Q, IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived}
 	for _, st := range in.State {
 		f.States = append(f.States, songs.State(st))
 	}
@@ -133,6 +133,19 @@ func soundSearchFilter(in songFilterIn) (songs.ListFilter, error) {
 		}
 	}
 	return f, nil
+}
+
+// triBool maps an optional "true"/"false" query value to a *bool (empty = unset; huma rejects other values via the enum).
+func triBool(s string) *bool {
+	switch s {
+	case "true":
+		t := true
+		return &t
+	case "false":
+		f := false
+		return &f
+	}
+	return nil
 }
 
 func contains(xs []string, x string) bool {

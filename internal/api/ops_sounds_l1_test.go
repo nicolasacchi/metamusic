@@ -76,12 +76,69 @@ func TestREST_SearchSounds(t *testing.T) {
 			t.Errorf("engine value with mismatches: %v", v)
 		}
 	}
-	// NOTE: the sound= / tempo_mismatch query parameters of the frozen openapi.json are missing (see the L1-B6 report:
-	// huma ignores the embedded unexported songFilterIn), so selection round trips are tested on soundSearchFilter and
-	// on the Facets service in internal/sounds until the contract is fixed.
 	// With a page requested the Song list comes from list_songs (L1-B5); until that lane merges it answers 501.
 	if resp := agent.Do(t, "GET", "/api/sounds/search?limit=5", nil); resp.Status != 200 && resp.Status != 501 {
 		t.Errorf("limit 5: %d %s", resp.Status, resp.Body)
+	}
+}
+
+func TestREST_SearchSoundsSelection(t *testing.T) {
+	t.Parallel()
+	r := soundsRig(t, servertest.Options{})
+	agent, _ := r.Agent(t, auth.ScopeRead)
+	base := m(agent.OK(t, "GET", "/api/sounds/search?limit=0", nil))
+	total := base["total"].(float64)
+	baseFacets := m(base["facets"])
+	if total < 1 {
+		t.Fatalf("empty library: %v", base)
+	}
+	// sound=genre_family:<v> narrows the total to that value's count, reports it as selected and keeps the siblings.
+	gf := arr(baseFacets["genre_family"])
+	if len(gf) == 0 {
+		t.Fatal("no genre_family values")
+	}
+	v, c := m(gf[0])["value"].(string), m(gf[0])["count"].(float64)
+	sel := m(agent.OK(t, "GET", "/api/sounds/search?limit=0&sound=genre_family:"+v, nil))
+	if sel["total"].(float64) != c || fmt.Sprint(m(sel["selected"])["genre_family"]) != "["+v+"]" {
+		t.Errorf("sound=genre_family:%s: total %v want %v, selected %v", v, sel["total"], c, sel["selected"])
+	}
+	if len(arr(m(sel["facets"])["genre_family"])) != len(gf) {
+		t.Errorf("siblings lost: %v vs %v", m(sel["facets"])["genre_family"], gf)
+	}
+	// An unknown value matches nothing; an unknown facet is a 422.
+	none := m(agent.OK(t, "GET", "/api/sounds/search?limit=0&sound=genre_family:no-such-value", nil))
+	if none["total"].(float64) != 0 {
+		t.Errorf("unknown value: %v", none["total"])
+	}
+	if resp := agent.Do(t, "GET", "/api/sounds/search?limit=0&sound=colour:red", nil); resp.Status != 422 {
+		t.Errorf("unknown facet: %d", resp.Status)
+	}
+	// tempo_band selection and tempo_mismatch: mismatching + matching Songs partition the library.
+	tb := arr(baseFacets["tempo_band"])
+	mism := 0.0
+	for _, x := range tb {
+		mism += m(x)["mismatches"].(float64)
+	}
+	tm := m(agent.OK(t, "GET", "/api/sounds/search?limit=0&tempo_mismatch=true", nil))
+	ok := m(agent.OK(t, "GET", "/api/sounds/search?limit=0&tempo_mismatch=false", nil))
+	if tm["total"].(float64) != mism || tm["total"].(float64)+ok["total"].(float64) != total {
+		t.Errorf("tempo_mismatch: true=%v false=%v library=%v mismatches=%v", tm["total"], ok["total"], total, mism)
+	}
+	if len(tb) > 0 {
+		band := m(tb[0])["value"].(string)
+		both := m(agent.OK(t, "GET", "/api/sounds/search?limit=0&tempo_mismatch=true&sound=tempo_band:"+band, nil))
+		if both["total"].(float64) > tm["total"].(float64) || both["total"].(float64) != m(tb[0])["mismatches"].(float64) {
+			t.Errorf("tempo_band:%s with mismatch: %v, want %v", band, both["total"], m(tb[0])["mismatches"])
+		}
+		// The tempo_band facet is counted with its own selection left out but tempo_mismatch applied.
+		for _, x := range arr(m(both["facets"])["tempo_band"]) {
+			if m(x)["count"].(float64) != m(x)["mismatches"].(float64) {
+				t.Errorf("tempo_band facet under tempo_mismatch=true counts a matching Song: %v", x)
+			}
+		}
+	}
+	if resp := agent.Do(t, "GET", "/api/sounds/search?limit=0&tempo_mismatch=maybe", nil); resp.Status != 422 {
+		t.Errorf("tempo_mismatch=maybe: %d", resp.Status)
 	}
 }
 

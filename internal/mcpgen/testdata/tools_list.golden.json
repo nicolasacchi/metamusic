@@ -7077,131 +7077,6 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "List Songs\n\nSongs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "default": 50,
-          "format": "int64",
-          "maximum": 100,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "type": "object"
-    },
-    "name": "list_songs",
-    "outputSchema": {
-      "properties": {
-        "items": {
-          "items": {
-            "properties": {
-              "angle": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "draft_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "hidden": {
-                "type": "boolean"
-              },
-              "id": {
-                "type": "string"
-              },
-              "muse_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "open_proposals": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "pick": {
-                "properties": {
-                  "source": {
-                    "enum": [
-                      "pinned",
-                      "ladder",
-                      "stars",
-                      "newest"
-                    ],
-                    "type": "string"
-                  },
-                  "take_id": {
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              },
-              "queued_jobs": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "root_track_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "state": {
-                "enum": [
-                  "draft",
-                  "rendered",
-                  "judged",
-                  "picked"
-                ],
-                "type": "string"
-              },
-              "takes": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "title": {
-                "type": "string"
-              },
-              "updated_at": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "next_cursor": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "total": {
-          "format": "int64",
-          "type": "integer"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
-    "annotations": {
-      "idempotentHint": true,
-      "openWorldHint": false,
-      "readOnlyHint": true
-    },
     "description": "Get the next duel to judge\n\nThe oldest unexpired duel waiting for your verdict, with signed clip links, or null. Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. Blind duels stay unrevealed until you have judged them.",
     "inputSchema": {
       "additionalProperties": false,
@@ -7912,8 +7787,35 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "angle": {
+          "type": "string"
+        },
         "cursor": {
           "type": "string"
+        },
+        "draft_id": {
+          "description": "The single Song of this draft",
+          "type": "string"
+        },
+        "has_open_proposals": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        },
+        "has_pick": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        },
+        "include_archived": {
+          "type": "boolean"
+        },
+        "include_hidden": {
+          "type": "boolean"
         },
         "limit": {
           "default": 50,
@@ -7922,6 +7824,58 @@
           "maximum": 100,
           "minimum": 0,
           "type": "integer"
+        },
+        "muse_id": {
+          "type": "string"
+        },
+        "no_muse": {
+          "type": "boolean"
+        },
+        "q": {
+          "description": "Case-insensitive substring of the Song title",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "queued": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sound": {
+          "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "state": {
+          "items": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tempo_mismatch": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        },
+        "track_id": {
+          "description": "The single Song of this take",
+          "type": "string"
         }
       },
       "type": "object"

@@ -221,6 +221,19 @@ func TestFacets_TempoMismatches(t *testing.T) {
 	if fc.SongsMatching != 3 {
 		t.Errorf("tempo_mismatch=false matches %d, want 3", fc.SongsMatching)
 	}
+	// Selecting a band leaves that facet's own selection out of its counts but keeps tempo_mismatch applied: with
+	// tempo_band=mid and tempo_mismatch=true nothing matches, yet the band facet lists the mismatching bands only.
+	fc, err = w.sv.Facets(ctx, songs.ListFilter{TempoMismatch: &yes, Sounds: map[string][]string{"tempo_band": {"mid"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bands := map[string]string{}
+	for _, v := range fc.Facets["tempo_band"] {
+		bands[v.Value] = fmt.Sprintf("%d/%d", v.Count, *v.Mismatches)
+	}
+	if fc.SongsMatching != 0 || fmt.Sprint(bands) != "map[fast:2/2]" {
+		t.Errorf("tempo_band=mid with tempo_mismatch: matching %d, bands %v", fc.SongsMatching, bands)
+	}
 }
 
 // TestSearchSounds_Equivalence: songs_matching equals the total list_songs reports for the same filter.

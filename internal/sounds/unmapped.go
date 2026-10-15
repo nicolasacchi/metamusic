@@ -2,20 +2,26 @@ package sounds
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // replaceUnmapped replaces the cached unmapped style terms of a Song (C93.3).
-func replaceUnmapped(ctx context.Context, tx *sql.Tx, songID string, terms []string) error {
+func replaceUnmapped(ctx context.Context, tx *stmts, songID string, terms []string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM song_unmapped_terms WHERE song_id = ?`, songID); err != nil {
 		return fmt.Errorf("sounds: clear unmapped: %w", err)
 	}
+	if len(terms) == 0 {
+		return nil
+	}
+	args := make([]any, 0, len(terms)*2)
 	for _, t := range terms {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO song_unmapped_terms(song_id, term) VALUES(?, ?) ON CONFLICT DO NOTHING`, songID, t); err != nil {
-			return fmt.Errorf("sounds: write unmapped: %w", err)
-		}
+		args = append(args, songID, t)
+	}
+	q := `INSERT INTO song_unmapped_terms(song_id, term) VALUES ` + strings.TrimSuffix(strings.Repeat("(?, ?),", len(terms)), ",") + ` ON CONFLICT DO NOTHING`
+	if _, err := tx.ExecContext(ctx, q, args...); err != nil {
+		return fmt.Errorf("sounds: write unmapped: %w", err)
 	}
 	return nil
 }

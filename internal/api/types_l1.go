@@ -340,26 +340,26 @@ type PinResult struct {
 	Changed  bool          `json:"changed"`
 }
 
-// songFilterIn are the filters shared by list_songs and search_sounds.
-type songFilterIn struct {
+// SongFilterIn are the filters shared by list_songs and search_sounds.
+type SongFilterIn struct {
 	MuseID           string   `query:"muse_id"`
 	NoMuse           bool     `query:"no_muse"`
 	Angle            string   `query:"angle"`
 	State            []string `query:"state,explode" nullable:"false" enum:"draft,rendered,judged,picked"`
-	Queued           *bool    `query:"queued"`
+	Queued           string   `query:"queued" enum:"true,false"`
 	SessionID        string   `query:"session_id"`
 	Sound            []string `query:"sound,explode" nullable:"false" maxItems:"30" doc:"facet:value, repeatable; OR inside a facet, AND across facets"`
-	TempoMismatch    *bool    `query:"tempo_mismatch"`
-	HasPick          *bool    `query:"has_pick"`
+	TempoMismatch    string   `query:"tempo_mismatch" enum:"true,false"`
+	HasPick          string   `query:"has_pick" enum:"true,false"`
 	DraftID          string   `query:"draft_id" doc:"The single Song of this draft"`
 	TrackID          string   `query:"track_id" doc:"The single Song of this take"`
-	HasOpenProposals *bool    `query:"has_open_proposals"`
+	HasOpenProposals string   `query:"has_open_proposals" enum:"true,false"`
 	Q                string   `query:"q" maxLength:"200" doc:"Case-insensitive substring of the Song title"`
 	IncludeHidden    bool     `query:"include_hidden"`
 	IncludeArchived  bool     `query:"include_archived"`
 }
 type listSongsIn struct {
-	songFilterIn
+	SongFilterIn
 	Limit  int    `query:"limit" minimum:"1" maximum:"100" default:"50"`
 	Cursor string `query:"cursor"`
 }
@@ -482,7 +482,7 @@ type SoundSearch struct {
 	NextCursor      *string                      `json:"next_cursor" nullable:"true"`
 }
 type searchSoundsIn struct {
-	songFilterIn
+	SongFilterIn
 	Limit  int    `query:"limit" minimum:"0" maximum:"100" default:"50" doc:"0 returns facet counts only"`
 	Cursor string `query:"cursor"`
 }

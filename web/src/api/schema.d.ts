@@ -7293,6 +7293,25 @@ export interface operations {
     list_songs: {
         parameters: {
             query?: {
+                muse_id?: string;
+                no_muse?: boolean;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                queued?: "true" | "false";
+                session_id?: string;
+                /** @description facet:value, repeatable; OR inside a facet, AND across facets */
+                sound?: string[];
+                tempo_mismatch?: "true" | "false";
+                has_pick?: "true" | "false";
+                /** @description The single Song of this draft */
+                draft_id?: string;
+                /** @description The single Song of this take */
+                track_id?: string;
+                has_open_proposals?: "true" | "false";
+                /** @description Case-insensitive substring of the Song title */
+                q?: string;
+                include_hidden?: boolean;
+                include_archived?: boolean;
                 limit?: number;
                 cursor?: string;
             };
@@ -7505,6 +7524,25 @@ export interface operations {
     search_sounds: {
         parameters: {
             query?: {
+                muse_id?: string;
+                no_muse?: boolean;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                queued?: "true" | "false";
+                session_id?: string;
+                /** @description facet:value, repeatable; OR inside a facet, AND across facets */
+                sound?: string[];
+                tempo_mismatch?: "true" | "false";
+                has_pick?: "true" | "false";
+                /** @description The single Song of this draft */
+                draft_id?: string;
+                /** @description The single Song of this take */
+                track_id?: string;
+                has_open_proposals?: "true" | "false";
+                /** @description Case-insensitive substring of the Song title */
+                q?: string;
+                include_hidden?: boolean;
+                include_archived?: boolean;
                 /** @description 0 returns facet counts only */
                 limit?: number;
                 cursor?: string;

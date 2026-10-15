@@ -8,9 +8,8 @@ import (
 
 func TestSoundSearchFilter(t *testing.T) {
 	t.Parallel()
-	yes := true
-	f, err := soundSearchFilter(songFilterIn{
-		Sound: []string{"genre_family:reggae", "genre_family:dub", "genre_family:reggae", "tempo_band:slow", "vocal:a:b"}, TempoMismatch: &yes,
+	f, err := soundSearchFilter(SongFilterIn{
+		Sound: []string{"genre_family:reggae", "genre_family:dub", "genre_family:reggae", "tempo_band:slow", "vocal:a:b"}, TempoMismatch: "true",
 		State: []string{"draft", "picked"}, Q: "x", IncludeHidden: true,
 	})
 	if err != nil {
@@ -21,14 +20,14 @@ func TestSoundSearchFilter(t *testing.T) {
 		t.Errorf("filter = %+v", f)
 	}
 	for _, bad := range []string{"colour:red", "genre_family", "genre_family:", ":x", ""} {
-		_, err := soundSearchFilter(songFilterIn{Sound: []string{bad}})
+		_, err := soundSearchFilter(SongFilterIn{Sound: []string{bad}})
 		var p *Problem
 		ok := errors.As(err, &p)
 		if !ok || p.Status != 422 || p.Code != "INVALID_SOUND_FILTER" {
 			t.Errorf("sound=%q: %v", bad, err)
 		}
 	}
-	if f, err := soundSearchFilter(songFilterIn{}); err != nil || f.Sounds != nil {
+	if f, err := soundSearchFilter(SongFilterIn{}); err != nil || f.Sounds != nil {
 		t.Errorf("empty: %+v %v", f, err)
 	}
 }

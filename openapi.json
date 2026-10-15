@@ -16353,6 +16353,164 @@
           {
             "explode": false,
             "in": "query",
+            "name": "muse_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "no_muse",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "angle",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "tempo_mismatch",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_pick",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this draft",
+            "explode": false,
+            "in": "query",
+            "name": "draft_id",
+            "schema": {
+              "description": "The single Song of this draft",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this take",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "The single Song of this take",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_open_proposals",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of the Song title",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Case-insensitive substring of the Song title",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_archived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
             "name": "limit",
             "schema": {
               "default": 50,
@@ -16397,7 +16555,7 @@
         "x-mm": {
           "scope": "read",
           "cost": "free",
-          "mcp": "tool",
+          "mcp": "generic",
           "ui": "none:agent-face (the Sound browser lists Songs through search_sounds)",
           "human_only": false
         }
@@ -16727,6 +16885,164 @@
         "description": "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
         "operationId": "search_sounds",
         "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "muse_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "no_muse",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "angle",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "tempo_mismatch",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_pick",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this draft",
+            "explode": false,
+            "in": "query",
+            "name": "draft_id",
+            "schema": {
+              "description": "The single Song of this draft",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this take",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "The single Song of this take",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_open_proposals",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of the Song title",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Case-insensitive substring of the Song title",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_archived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
           {
             "description": "0 returns facet counts only",
             "explode": false,

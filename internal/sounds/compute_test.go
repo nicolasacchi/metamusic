@@ -281,3 +281,36 @@ func TestSweepStale(t *testing.T) {
 		t.Errorf("rows %v", got)
 	}
 }
+
+// TestCompute_TaxonomyVersionStaleness pins the version leg of staleness on its own: the digest stays untouched, only
+// sound_state.taxonomy_version is older, and both ComputeTx and SweepStaleTx still pick the subject up.
+func TestCompute_TaxonomyVersionStaleness(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t, true)
+	tr := w.track(w.recipe("rock, 100bpm", "x"), trackOpts{})
+	w.settle()
+	song := w.songOfTrack(tr)
+	if ch := w.compute([]string{tr}, []string{song}); ch.Takes+ch.Songs != 0 {
+		t.Fatalf("fresh subjects recomputed: %+v", ch)
+	}
+	w.exec(`UPDATE sound_state SET taxonomy_version = taxonomy_version - 1 WHERE subject_id IN (?, ?)`, tr, song)
+	if ch := w.compute([]string{tr}, []string{song}); ch.Takes != 1 || ch.Songs != 1 {
+		t.Errorf("ComputeTx ignored an older taxonomy_version: %+v", ch)
+	}
+	if got := w.count(`SELECT COUNT(*) FROM sound_state WHERE subject_id IN (?, ?) AND taxonomy_version = (SELECT MAX(version) FROM sound_taxonomy_versions)`, tr, song); got != 2 {
+		t.Errorf("state not at the current version: %d", got)
+	}
+	w.exec(`UPDATE sound_state SET taxonomy_version = taxonomy_version - 1 WHERE subject_id IN (?, ?)`, tr, song)
+	tx, err := w.st.W.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	n, err := w.sv.SweepStaleTx(context.Background(), tx, soundsEnv(w), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("SweepStaleTx swept %d, want 2", n)
+	}
+}

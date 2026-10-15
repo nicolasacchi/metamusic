@@ -41,8 +41,13 @@ func (s *Service) Facets(ctx context.Context, f songs.ListFilter) (FacetCounts, 
 	}
 	for _, facet := range Facets {
 		where, args := songs.FilterSQL(f, facet)
+		// (song_id, facet, value) is unique in song_sounds, so COUNT(*) counts Songs; only tempo_band reads the detail.
+		mm := `0`
+		if facet == "tempo_band" {
+			mm = `COALESCE(SUM(json_extract(ss.detail_json, '$.mismatch') = 1), 0)`
+		}
 		//nolint:gosec // the fragments are constants of this package and songs.FilterSQL; every value is a bound argument
-		q := `SELECT ss.value, COUNT(DISTINCT ss.song_id) AS c, COALESCE(SUM(json_extract(ss.detail_json, '$.mismatch') = 1), 0)
+		q := `SELECT ss.value, COUNT(*) AS c, ` + mm + `
 			FROM song_sounds ss JOIN songs s ON s.id = ss.song_id
 			WHERE ss.facet = ? AND ` + base + ` AND ` + where + ` GROUP BY ss.value ORDER BY c DESC, ss.value`
 		rows, err := s.st.R.QueryContext(ctx, q, append([]any{facet}, args...)...)
