@@ -20,3 +20,10 @@ export function missingOperations(expected: string[], served: string[]): string[
   const seen = new Set(served);
   return expected.filter((id) => !seen.has(id));
 }
+
+/** Union of the served-operation lists written by the shards of a sharded run (MM_E2E_SERVED_OUT). */
+export function servedUnion(files: string[]): string[] {
+  const all = new Set<string>();
+  for (const f of files) for (const id of JSON.parse(readFileSync(f, "utf8")) as string[]) all.add(id);
+  return [...all].sort();
+}
