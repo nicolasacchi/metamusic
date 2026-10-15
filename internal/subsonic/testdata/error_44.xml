@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="failed" version="1.16.1" type="metamusic" serverVersion="test" openSubsonic="true"><error code="44" message="invalid API key"></error></subsonic-response>

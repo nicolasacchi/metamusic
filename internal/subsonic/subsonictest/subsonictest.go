@@ -2,13 +2,12 @@
 // clients, parses both envelopes and replays the synthetic client fixtures. It is listed in
 // TestNoTestHelpersInBinary and must never be linked into the binary.
 //
-// The exported API is frozen by M4a-B2 (servertest.Rig.Subsonic returns *Client); the bodies are STUB(M4a-S4)
-// until the Subsonic lane implements them. Every stub skips the calling test by name.
+// The exported API is frozen by M4a-B2 (servertest.Rig.Subsonic returns *Client). Client.Call lives in client.go
+// (M4a-S1); NewPlaceholders and Replay are STUB(M4a-S4) and skip the calling test by name.
 package subsonictest
 
 import (
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -46,13 +45,6 @@ type Response struct {
 	Status string // "ok" | "failed" ("" for a binary answer)
 	Code   int    // the protocol error code (0 when ok)
 	Doc    map[string]any
-}
-
-// Call sends one request. STUB(M4a-S4): skips the test.
-func (c *Client) Call(tb testing.TB, _ string, _ url.Values, _ CallOpts) *Response {
-	tb.Helper()
-	tb.Skip("M4a-S4: subsonictest.Client.Call not implemented yet")
-	return nil
 }
 
 // PlaceholderSet resolves the {{song:N}}, {{album:N}}, {{mid}}, {{bytes}}, {{user}}, {{text}} and {{query}}
