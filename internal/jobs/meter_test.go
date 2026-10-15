@@ -276,3 +276,37 @@ func TestMeterModel_SeveralWorkers(t *testing.T) {
 		t.Errorf("unknown worker -> %d", i)
 	}
 }
+
+func TestBillableMeterTotals(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name  string
+		since string
+		want  [2]int64
+	}{
+		{"no cut-over: everything counts", "", [2]int64{3, 20_144}},
+		{"cut-over excludes rows first seen before it", store.FormatTime(t0.Add(time.Hour)), [2]int64{1, 44}},
+		{"cut-over in the future excludes all", store.FormatTime(t0.Add(48 * time.Hour)), [2]int64{0, 0}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			for _, row := range []struct {
+				key   string
+				first time.Time
+				up    int
+			}{{"a", t0, 100}, {"b", t0.Add(30 * time.Minute), 20_000}, {"c", t0.Add(2 * time.Hour), 44}} {
+				r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,?,'RUNNING')`,
+					row.key, store.FormatTime(row.first), store.FormatTime(row.first), store.FormatTime(row.first.Add(time.Minute)), row.up)
+			}
+			r.exec(`DELETE FROM settings WHERE key = 'meter.billable_since'`)
+			if c.since != "" {
+				r.exec(`INSERT INTO settings(key, value) VALUES ('meter.billable_since', ?)`, c.since)
+			}
+			n, secs, err := BillableMeterTotals(t.Context(), r.st.R)
+			if err != nil || n != c.want[0] || secs != c.want[1] {
+				t.Errorf("got %d %d %v, want %v", n, secs, err, c.want)
+			}
+		})
+	}
+}

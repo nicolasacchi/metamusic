@@ -127,6 +127,15 @@ func selectBackend(cfg config.Config, o M3Options, clk clock.Clock, ups *upload.
 		}
 		bo.Keys, bo.Clock = keys, clk
 		bo.MaxRuntime, bo.ColdStartS, bo.RecordDir = cfg.JobMaxRuntime, cfg.ColdStartS, cfg.RunPodRecordDir
+		if bo.Recorder == nil && cfg.RunPodRecordDir != "" {
+			// MM_RUNPOD_RECORD_DIR: the RunPod calls of the runner and the reconciler are made by this process, so
+			// this is where the fixtures are recorded (redacted: keys, signed URLs, endpoint and worker ids).
+			rec, err := runpod.NewFileRecorder(cfg.RunPodRecordDir, keys.EndpointID, keys.Jobs, keys.Read, keys.Write)
+			if err != nil {
+				return backendInfo{}, err
+			}
+			bo.Recorder = rec
+		}
 		return backendInfo{b: runpod.NewBackend(bo), keysLoaded: true}, nil
 	}
 	return backendInfo{}, nil
@@ -219,6 +228,9 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 	})
 	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
+	if bi.b != nil {
+		m.Provider.UseCapabilities(bi.b.Capabilities)
+	}
 
 	if bi.b != nil && cfg.Runner {
 		log := o.Log
@@ -250,6 +262,9 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 			GateCfg: m.Gate.Config(),
 		})
+		// get_provider_status shows what the reconciler's last sweep saw (workers, live endpoint, drift); without
+		// this the status always had workers: null (the canary's max_workers_seen was 0 in every run).
+		m.Provider.UseSweep(m.Reconciler.Snapshot)
 		wake.set(m.Runner.Wake)
 	}
 	return m, nil

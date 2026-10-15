@@ -3,6 +3,8 @@ package runpod
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
@@ -151,7 +154,17 @@ type CanaryOptions struct {
 	// 2 minutes).
 	ConfirmWindow   time.Duration
 	AfterCancelWait time.Duration // terminate: second worker observation, default 60 s
+	// CancelObserveWait is how long the terminate case waits, once the job is starting or generating, for a
+	// live worker to show in the provider status before it cancels (the server's sweep runs every 10 s);
+	// default 30 s. A cancel with no observed worker leaves workers_at_cancel failed (unverified).
+	CancelObserveWait time.Duration
+	// KillSwitchConfirm is the operator's acknowledgement that someone will run `metamusic runpod provision
+	// --deactivate` while the kill-switch job is generating. The case refuses to start without it.
+	KillSwitchConfirm bool
 }
+
+// ErrKillSwitchConfirm is returned when the kill-switch case is started without KillSwitchConfirm.
+var ErrKillSwitchConfirm = errors.New("canary: the kill-switch case needs --kill-switch-confirm: an operator must run `metamusic runpod provision --deactivate` while the job is generating, or the case fails")
 
 // CanaryReport is the JSON a canary case prints. It carries no token, no confirmation token and no
 // provider reference.
@@ -203,6 +216,7 @@ type cProvider struct {
 	} `json:"workers"`
 	Endpoint *struct {
 		IdleTimeoutS *int `json:"idle_timeout_s"`
+		WorkersMax   *int `json:"workers_max"`
 	} `json:"endpoint"`
 	Price *struct {
 		PerHourMicroUSD int64 `json:"per_hour_micro_usd"`
@@ -288,6 +302,67 @@ type canary struct {
 	o   CanaryOptions
 	hc  *http.Client
 	rep *CanaryReport
+
+	// observation across every provider-status read of the drive phase (the sampler reads concurrently)
+	mu          sync.Mutex
+	observing   bool
+	samples     int  // successful reads
+	maxLive     int  // most live workers seen in one read
+	deactivated bool // workers_max 0 or endpoint_inactive was seen (the kill switch was flipped)
+}
+
+// status reads /api/provider and, during the drive phase, records what it shows: the most live workers
+// seen and whether the endpoint was seen deactivated.
+func (c *canary) status(ctx context.Context) (cProvider, error) {
+	var p cProvider
+	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err != nil {
+		return p, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.observing {
+		c.samples++
+		c.maxLive = max(c.maxLive, p.live())
+		if (p.Endpoint != nil && p.Endpoint.WorkersMax != nil && *p.Endpoint.WorkersMax == 0) ||
+			(!p.GenerationEnabled && p.DisabledReason != nil && *p.DisabledReason == "endpoint_inactive") {
+			c.deactivated = true
+		}
+	}
+	return p, nil
+}
+
+// observed is the observation so far.
+func (c *canary) observed() (samples, maxLive int, deactivated bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.samples, c.maxLive, c.deactivated
+}
+
+// sample reads the provider status every SweepEvery (at most every 20 ms) until stop is closed. The status is
+// also read after each /wait, but a long-poll returns only when the job changes state or times out, so
+// reading only then can miss a worker that lives for less than the gap between two returns.
+func (c *canary) sample(ctx context.Context, stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	every := max(c.o.SweepEvery, 20*time.Millisecond)
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+		_, _ = c.status(ctx)
+		if c.sleep(ctx, every) != nil {
+			return
+		}
+	}
+}
+
+// idempotencyKey is unique per run: the request id (deterministic per day, case and n) plus a short digest of
+// the run's confirmation token. The key is bound to the request body, and the token is part of the body, so a
+// second same-day run with a different token would otherwise answer 409 IDEMPOTENCY_CONFLICT.
+func idempotencyKey(requestID, confirmationToken string) string {
+	sum := sha256.Sum256([]byte(confirmationToken))
+	return "canary-" + requestID + "-" + hex.EncodeToString(sum[:4])
 }
 
 type restError struct {
@@ -401,6 +476,9 @@ func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
 	if o.Case == "" {
 		return nil, errors.New("canary: --case is required")
 	}
+	if o.Case == CaseKillSwitch && !o.KillSwitchConfirm {
+		return nil, ErrKillSwitchConfirm
+	}
 	spec, err := NewCanarySpec(o.Case, o.Day, o.N)
 	if err != nil {
 		return nil, err
@@ -410,8 +488,8 @@ func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
 }
 
 func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error) {
-	var prov cProvider
-	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &prov); err != nil {
+	prov, err := c.status(ctx)
+	if err != nil {
 		return nil, err
 	}
 	switch {
@@ -425,12 +503,14 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "the provider is disarmed (arm it with `metamusic runpod arm`)"), nil
 	case prov.tripped():
 		return c.finish("refused", ExitRefused, "the provider is tripped; reset the trip first"), nil
+	case spec.Case == CaseKillSwitch && prov.Endpoint != nil && prov.Endpoint.WorkersMax != nil && *prov.Endpoint.WorkersMax == 0:
+		return c.finish("refused", ExitRefused, "the endpoint is already deactivated (workers_max 0): the kill switch could not be told from the start state"), nil
 	case spec.Case == CaseTimeout && prov.MaxRuntimeS != 30:
 		return c.finish("refused", ExitRefused, "the timeout case needs MM_JOB_MAX_RUNTIME=30s on the server and an endpoint provisioned with --timeout-case (max_runtime_s is %d)", prov.MaxRuntimeS), nil
 	}
 
 	var est cEstimate
-	err := c.do(ctx, http.MethodPost, "/api/generations/estimate", nil, map[string]any{
+	err = c.do(ctx, http.MethodPost, "/api/generations/estimate", nil, map[string]any{
 		"engine": "yue2",
 		"items":  []any{map[string]any{"mode": "compose_new", "recipe": spec.Recipe, "title": spec.RequestID}},
 	}, &est)
@@ -446,7 +526,7 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 			money.MicroUSD(est.Cost.CeilingMicroUSD).USD(), c.o.MaxUSD.USD()), nil
 	}
 	var batch cBatch
-	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": "canary-" + spec.RequestID},
+	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": idempotencyKey(spec.RequestID, est.ConfirmationToken)},
 		map[string]any{"confirmation_token": est.ConfirmationToken, "rationale": "runpod canary: " + string(spec.Case)}, &batch)
 	if err != nil {
 		return nil, err
@@ -483,8 +563,23 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	started := c.o.Clock.Now()
 	meas := map[string]any{}
 	c.rep.Measured = meas
-	maxWorkers := 0
+	c.observing = true
+	waitS := c.o.WaitS
+	if se := int(c.o.SweepEvery / time.Second); se >= 1 && se < waitS {
+		waitS = se // the status is sampled after every wait: keep the samples no further apart than a server sweep
+	}
 	lastSweep := time.Time{}
+	stopSampler, samplerDone := make(chan struct{}), make(chan struct{})
+	go c.sample(ctx, stopSampler, samplerDone)
+	stopped := false
+	endSampler := func() {
+		if !stopped {
+			stopped = true
+			close(stopSampler)
+			<-samplerDone
+		}
+	}
+	defer endSampler()
 	var job cJob
 	since := ""
 	cancelled := false
@@ -498,7 +593,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		var w struct {
 			Job cJob `json:"job"`
 		}
-		q := fmt.Sprintf("/api/jobs/%s/wait?timeout_s=%d", id, c.o.WaitS)
+		q := fmt.Sprintf("/api/jobs/%s/wait?timeout_s=%d", id, waitS)
 		if since != "" {
 			q += "&since_state=" + since
 		}
@@ -508,23 +603,24 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		}
 		job = w.Job
 		since = job.State
-		if now := c.o.Clock.Now(); lastSweep.IsZero() || now.Sub(lastSweep) >= c.o.SweepEvery {
+		// sample the provider status after each wait, and always the first time the job is seen generating
+		if now := c.o.Clock.Now(); lastSweep.IsZero() || now.Sub(lastSweep) >= c.o.SweepEvery || (job.State == "generating" && !seenGenerating) {
 			lastSweep = now
-			var p cProvider
-			if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err == nil {
-				maxWorkers = max(maxWorkers, p.live())
-			}
+			_, _ = c.status(ctx)
 		}
 		if job.State == "generating" {
 			seenGenerating = true
 		}
 		if job.terminal() {
+			endSampler()
 			break
 		}
 		// terminate: cancel as soon as starting or generating is seen
 		if spec.Case == CaseTerminate && !cancelled && (job.State == "starting" || job.State == "generating") {
 			c.logf("job is %s: cancelling", job.State)
-			meas["workers_at_cancel"] = c.liveWorkers(ctx)
+			atCancel := c.awaitWorker(ctx)
+			meas["workers_at_cancel"] = atCancel
+			c.check("workers_at_cancel", atCancel > 0, "%d live workers at cancel (0 = unverified: no worker was seen before the cancel)", atCancel)
 			if err := c.cancelJob(id); err != nil {
 				return c.finish("fail", ExitFail, "cancel failed: %v", err)
 			}
@@ -549,7 +645,6 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	if job.ErrorCode != nil {
 		c.rep.ErrorCode = *job.ErrorCode
 	}
-	meas["max_workers_seen"] = maxWorkers
 	if job.Timings.ColdStartS != nil {
 		meas["cold_start_s"] = *job.Timings.ColdStartS
 	}
@@ -563,7 +658,26 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	}
 
 	c.assertOutcome(spec, prov, job, meas)
-	c.waitIdle(ctx, prov)
+	c.checkSettled(ctx, meas)
+	ran := seenGenerating || cancelled || job.State == "completed"
+	c.waitIdle(ctx, ran)
+	samples, maxLive, _ := c.observed()
+	meas["max_workers_seen"] = maxLive
+	meas["workers_samples"] = samples
+	if spec.Case == CaseKillSwitch {
+		// the server's sweep (every 10 s) shows workers_max 0 a little after the PATCH: look a few more times
+		for i := 0; i < 3; i++ {
+			if _, _, d := c.observed(); d {
+				break
+			}
+			if c.sleep(ctx, c.o.SweepEvery) != nil {
+				break
+			}
+			_, _ = c.status(ctx)
+		}
+		_, _, flipped := c.observed()
+		c.check("kill_switch_flipped", flipped, "%s", killSwitchNote(flipped, job.State))
+	}
 
 	if !c.o.Keep && job.TrackID != nil && *job.TrackID != "" {
 		if err := c.do(ctx, http.MethodPatch, "/api/tracks/"+*job.TrackID, nil, map[string]string{"status": "discarded"}, nil); err != nil {
@@ -572,7 +686,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	}
 	for _, ck := range c.rep.Checks {
 		if !ck.OK {
-			return c.finish("fail", ExitFail, "check failed: %s", ck.Name)
+			return c.finish("fail", ExitFail, "check failed: %s (%s)", ck.Name, ck.Note)
 		}
 	}
 	return c.finish("pass", ExitPass, "")
@@ -611,11 +725,51 @@ func (c *canary) abortStart(window time.Duration, state string, meas map[string]
 }
 
 func (c *canary) liveWorkers(ctx context.Context) int {
-	var p cProvider
-	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err != nil {
+	p, err := c.status(ctx)
+	if err != nil {
 		return -1
 	}
 	return p.live()
+}
+
+// awaitWorker polls the provider status until a live worker shows (or CancelObserveWait passes) and returns
+// the last live count: the terminate case must cancel a take it has seen running, or workers_at_cancel and
+// workers_stopped prove nothing.
+func (c *canary) awaitWorker(ctx context.Context) int {
+	window := c.o.CancelObserveWait
+	if window <= 0 {
+		window = 30 * time.Second
+	}
+	step := min(c.o.SweepEvery, 2*time.Second)
+	deadline := c.o.Clock.Now().Add(window)
+	live := 0
+	for {
+		if live = c.liveWorkers(ctx); live > 0 || !c.o.Clock.Now().Before(deadline) {
+			return live
+		}
+		if c.sleep(ctx, step) != nil {
+			return live
+		}
+	}
+}
+
+func killSwitchNote(flipped bool, state string) string {
+	if flipped {
+		return "the endpoint was seen deactivated; the job ended " + state
+	}
+	return "nobody flipped the kill switch: the endpoint was never seen deactivated (workers_max 0); the job ended " + state + ", so this proves nothing"
+}
+
+// checkSettled is the cost-safety check: what the batch settled for the take never exceeds what it reserved.
+func (c *canary) checkSettled(ctx context.Context, meas map[string]any) {
+	var b cBatch
+	if err := c.do(ctx, http.MethodGet, "/api/batches/"+url.PathEscape(c.rep.BatchID), nil, nil, &b); err != nil {
+		c.check("settled_le_reserved", false, "batch unreadable: %v", err)
+		return
+	}
+	meas["settled_micro_usd"], meas["reserved_micro_usd"] = b.Cost.SettledMicroUSD, b.Cost.ReservedMicroUSD
+	c.check("settled_le_reserved", b.Cost.ReservedMicroUSD > 0 && b.Cost.SettledMicroUSD <= b.Cost.ReservedMicroUSD,
+		"settled %d reserved %d micro-USD", b.Cost.SettledMicroUSD, b.Cost.ReservedMicroUSD)
 }
 
 func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas map[string]any) {
@@ -633,14 +787,7 @@ func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas m
 			if spec.Case == CaseCotFull {
 				meas["artifact_names"] = names
 			}
-			if job.AudioS != nil {
-				ms, ok := milliOf(*job.AudioS)
-				// audio_s <= 1.5 x expected, in integers: 2 x audio <= 3 x expected
-				c.check("audio_within_1_5x", ok && 2*ms <= 3*int64(spec.ExpectedAudioS)*1000, "audio %s s, limit %d.%d s", job.AudioS.String(), spec.ExpectedAudioS*3/2, spec.ExpectedAudioS*3%2*5)
-				meas["audio_s"] = job.AudioS.String()
-			} else {
-				c.check("audio_within_1_5x", false, "no audio_s")
-			}
+			c.auditAudio(spec, job, meas)
 		}
 	case CaseTerminate:
 		c.check("cancelled", job.State == "cancelled", "state %s", job.State)
@@ -665,11 +812,32 @@ func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas m
 	}
 }
 
-// waitIdle polls until no worker is running or initializing, within idle_timeout_s + 30 s.
-func (c *canary) waitIdle(ctx context.Context, prov cProvider) {
+// auditAudio is the calibration of the render length. YuE2 does not stop at the end of the ABC score (a
+// 16 s score rendered 61.5 s and 69.1 s in the first real runs), so the length is a measurement: audio_ratio is
+// audio / expected. The only hard checks are 0 < audio <= the engine's maximum.
+func (c *canary) auditAudio(spec CanarySpec, job cJob, meas map[string]any) {
+	limit := yue2.Engine{}.Caps().MaxSeconds
+	if job.AudioS == nil {
+		c.check("audio_within_engine_max", false, "no audio_s")
+		return
+	}
+	ms, ok := milliOf(*job.AudioS)
+	c.check("audio_within_engine_max", ok && ms > 0 && ms <= int64(limit)*1000, "audio %s s, engine maximum %d s", job.AudioS.String(), limit)
+	meas["audio_s"] = job.AudioS.String()
+	meas["audio_expected_s"] = spec.ExpectedAudioS
+	if ok && spec.ExpectedAudioS > 0 {
+		r := ms / int64(spec.ExpectedAudioS) // thousandths
+		meas["audio_ratio"] = fmt.Sprintf("%d.%03d", r/1000, r%1000)
+	}
+}
+
+// waitIdle polls until no worker is running or initializing, within idle_timeout_s + 30 s. When the job ran
+// (ran), workers_stopped is only true if a live worker was seen during the run: zero workers after a run that
+// never showed one is unverified, not stopped.
+func (c *canary) waitIdle(ctx context.Context, ran bool) {
 	idle := 20
-	var p cProvider
-	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err != nil {
+	p, err := c.status(ctx)
+	if err != nil {
 		c.check("workers_stopped", false, "provider status unreadable")
 		return
 	}
@@ -683,7 +851,12 @@ func (c *canary) waitIdle(ctx context.Context, prov cProvider) {
 			running = p.Workers.Running + p.Workers.Initializing
 		}
 		if running == 0 {
-			c.check("workers_stopped", true, "")
+			samples, maxLive, _ := c.observed()
+			if ran && maxLive == 0 {
+				c.check("workers_stopped", false, "unverified: no live worker was seen in %d status reads during the run, so zero workers now proves nothing", samples)
+				return
+			}
+			c.check("workers_stopped", true, "max live workers seen %d in %d status reads", maxLive, samples)
 			return
 		}
 		if c.o.Clock.Now().After(deadline) {
@@ -694,7 +867,7 @@ func (c *canary) waitIdle(ctx context.Context, prov cProvider) {
 			c.check("workers_stopped", false, "interrupted")
 			return
 		}
-		if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err != nil {
+		if p, err = c.status(ctx); err != nil {
 			c.check("workers_stopped", false, "provider status unreadable")
 			return
 		}
