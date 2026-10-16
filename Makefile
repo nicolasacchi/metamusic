@@ -16,7 +16,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
+.PHONY: build web openapi test race lint check _check e2e e2e-cover gate hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -63,10 +63,15 @@ _check:
 	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short ./...; } || rc=1; \
 	wait $$wp || rc=1; cat "$$log"; exit $$rc
 
+# Plain server binary, cached SPA/binary builds (scripts/e2e-cache.sh); writes no covdata.
 e2e:
 	$(LOOP) e2e -- scripts/e2e.sh
 
-# Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e` ran
+# Coverage-instrumented binary: writes covdata/e2e (+ .stamp) for `make cover`.
+e2e-cover:
+	MM_E2E_COVER=1 $(LOOP) e2e -- scripts/e2e.sh
+
+# Unit coverage (race, no -short) into covdata/unit, merged with covdata/e2e when `make e2e-cover` ran
 # (refused as stale if sources changed since: covdata/e2e.stamp);
 # scripts/coverage-gate.sh enforces coverage.thresholds (C23).
 cover:
@@ -82,7 +87,7 @@ routing:
 	$(LOOP) routing -- env MM_REQUIRE_ROUTING=1 CGO_ENABLED=0 go test -tags routing -count=1 ./deploy/traefik-contract/
 
 gate:
-	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/ci-selftest.sh && scripts/deploy-preflight-selftest.sh && scripts/actions-pinned.sh && scripts/public-gate.sh'
+	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/ci-selftest.sh && scripts/e2e-cache-selftest.sh && scripts/deploy-preflight-selftest.sh && scripts/actions-pinned.sh && scripts/public-gate.sh'
 
 # Worker (Python, C83): unit tests with the 90 % coverage gate, no torch, no network.
 worker:
