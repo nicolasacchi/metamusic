@@ -31,7 +31,7 @@ const LISTEN = "**/m2a-listen.spec.ts";
 // phase that depends on phase 1 and on the listen projects. The desktop project runs every M3 spec except m3-spend;
 // m3-variant and m3-jobs also run on the phones, one project after the other (they share two fake workers); m3-spend
 // changes the caps and the arming for everyone, so it runs alone after every other project.
-const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting", "spend"];
+const M3 = ["variant", "batch", "compose", "jobs", "approval", "approvals-ui", "lineage", "songwriting", "spend"];
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
@@ -41,7 +41,7 @@ const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];
 const phase2 = ["listen-chrome", "listen-chrome-pixel7", "listen-chrome-iphone15", "listen-firefox"];
 const before3 = [...phase1, ...phase2];
-const mobileM3 = [...ignoreM3(["variant", "jobs"]), AUTOADV];
+const mobileM3 = [...ignoreM3(["variant", "jobs", "approvals-ui"]), AUTOADV];
 // M3 auto-advance: the refused-play, watchdog and queue specs run on desktop Chrome, the Pixel 7 and two Android-Firefox
 // profiles (Firefox user agent, phone viewport, touch); the other projects add nothing.
 // Firefox (Android) blocks audio autoplay by default (media.autoplay.default=1); policy 0 lets a play() after the
@@ -85,7 +85,7 @@ const allProjects: NonNullable<PlaywrightTestConfig["projects"]> = [
     { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
     { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
     // phase 3: the M3 specs (see M3 above)
-    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting"]), AUTOADV], dependencies: before3 },
+    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "approvals-ui", "lineage", "songwriting"]), AUTOADV], dependencies: before3 },
     { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
     { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
     { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },

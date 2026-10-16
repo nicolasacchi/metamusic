@@ -5,6 +5,8 @@
   import BatchCard from "../lib/components/BatchCard.svelte";
   import BudgetBar from "../lib/components/BudgetBar.svelte";
   import JobRow from "../lib/components/JobRow.svelte";
+  import PendingApprovals from "../lib/components/PendingApprovals.svelte";
+  import { refreshApprovals } from "../lib/approvals.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
   import SpendChart from "../lib/components/SpendChart.svelte";
   import { pushToast } from "../lib/judge.svelte";
@@ -37,6 +39,7 @@
 
   async function loadJobs() {
     try {
+      void refreshApprovals();
       const [l, r, b] = await Promise.all([
         api.GET("/api/jobs", { params: { query: { state: [...LIVE_STATES], limit: 100 } } }),
         api.GET("/api/jobs", { params: { query: { limit: 20 } } }),
@@ -142,6 +145,7 @@
 <h1>Jobs</h1>
 <ProviderBanner provider={budget?.provider ?? null} />
 {#if error}<p role="alert">{error}</p>{/if}
+<PendingApprovals />
 {#if budget}
   <section aria-label="Budget">
     <BudgetBar label="Month" settled={budget.month.settled_micro_usd} reserved={budget.month.outstanding_micro_usd} cap={budget.month.cap_micro_usd} />

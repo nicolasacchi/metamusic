@@ -10,6 +10,8 @@
   import { createNav } from "./lib/nav";
   import { api } from "./api/client";
   import { loadDuelBadge } from "./lib/navBadge";
+  import { approvals, refreshApprovals } from "./lib/approvals.svelte";
+  import { badgeText } from "./lib/approvals";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
@@ -62,6 +64,19 @@
     void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
   });
 
+  // Pending approvals: refreshed on navigation and every 30 s while the tab is visible. The badge is for humans only.
+  const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
+  $effect(() => {
+    void $router.path;
+    void refreshApprovals();
+  });
+  $effect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden) void refreshApprovals();
+    }, 30_000);
+    return () => clearInterval(t);
+  });
+
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
@@ -96,6 +111,7 @@
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
+      {#if approvalBadge}<a href="/jobs" class="approvals-link" data-testid="approvals-nav" aria-label="{approvalBadge} pending approvals">Approvals<span class="badge" data-testid="approvals-badge">{approvalBadge}</span></a>{/if}
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
