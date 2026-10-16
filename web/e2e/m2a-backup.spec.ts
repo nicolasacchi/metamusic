@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("Back up now appears as a completed run in the list", async ({ page }) => {
   await page.goto("/settings/backups");

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { siblings } from "./m2bApi";
 
 test("compare of the two siblings shows the LUFS delta row and relation siblings", async ({ page, request }) => {

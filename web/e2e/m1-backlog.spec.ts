@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 // M2a specs create drafts (editor, jsonl_upload origins) in the same library, so the seed counts are
 // asserted per seed origin; the filter itself is part of what these tests exercise.
