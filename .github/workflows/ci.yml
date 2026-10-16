@@ -159,6 +159,8 @@ jobs:
 
   e2e-bin:
     # The coverage-instrumented server binary, built once and shared with every e2e shard (it was built 6 times).
+    # It embeds the SPA (web/embed.go), so it is built from the web job's dist.
+    needs: web
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -171,6 +173,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-dist
+          path: web/dist
       - name: build coverage-instrumented binary
         run: CGO_ENABLED=0 go build -cover -covermode=atomic -coverpkg=./... -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
