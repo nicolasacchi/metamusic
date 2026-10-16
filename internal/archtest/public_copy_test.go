@@ -84,6 +84,8 @@ func loadPrivatePatterns(t *testing.T) []string {
 }
 
 // TestPublicCopy_CommittedCopyIsClean checks the tracked copy of the plan: no marker line, no appendix, no private pattern.
+// The real P.4 patterns are private and absent on CI; the pattern check runs only where .public-gate-patterns exists
+// (the build host), and `make gate` (pre-commit, pre-push, CI) enforces the same patterns on every commit.
 func TestPublicCopy_CommittedCopyIsClean(t *testing.T) {
 	t.Parallel()
 	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "plans", "2026-10-15-l1-library-provenance.md"))
