@@ -1,2 +1,8 @@
 #!/usr/bin/env bash
-exec "$(git rev-parse --show-toplevel)/scripts/public-gate.sh" --history --require-patterns
+# The complete gate: every selftest plus the full-history scan with the private patterns required
+# (`make gate` is the incremental local variant; pushing always gets the full one). `scripts/gate.sh prepush`
+# skips the rerun only when the pushed tip was already cleared by a green `make gate-full` with the same
+# scripts and patterns (see scripts/gate.sh); anything else runs the whole gate. Run `make gate-full` before
+# pushing: a hook that runs for minutes gets the push's ssh connection dropped by the remote.
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/gate.sh" prepush

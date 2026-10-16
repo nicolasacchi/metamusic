@@ -59,9 +59,14 @@ fi
 # the seeded e2e server finds the pinned ffmpeg/metaflac in bin/
 export PATH="$root/bin:$PATH"
 rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
-(cd web && bun run e2e)
+# MM_E2E_SPECS (space separated spec paths relative to web/, set by `make verify`) runs just those specs; a partial
+# run never records coverage data (no stamp), so `make cover` cannot merge it as if it were the whole suite.
+# shellcheck disable=SC2086
+(cd web && bun run e2e ${MM_E2E_SPECS:+--pass-with-no-tests $MM_E2E_SPECS})
 
-if [ "$cover" = 1 ]; then
+if [ "$cover" = 1 ] && [ -z "${MM_E2E_SPECS:-}" ]; then
   go tool covdata percent -i="$root/covdata/e2e" || true
   echo "$stamp" >covdata/e2e.stamp # scripts/coverage-gate.sh refuses covdata/e2e once sources move on
+elif [ "$cover" = 1 ]; then
+  rm -rf covdata/e2e covdata/e2e.stamp # a partial run is not the suite: `make cover` must not merge it
 fi
