@@ -231,7 +231,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 	})
-	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Wake: wake.call})
+	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
 	if bi.b != nil {
 		m.Provider.UseCapabilities(bi.b.Capabilities)
