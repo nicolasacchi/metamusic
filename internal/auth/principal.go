@@ -34,8 +34,10 @@ type Principal struct {
 	ID       string    // human: username; agent: token id; device: device id; system: "cli"
 	Name     string    // human: username; agent: token name; device: device name
 	Scopes   []Scope   // human: all four; device: read, write; agent: token scopes
-	Via      string    // "proxy" | "local" | "token" | "device" | "cli"
+	Via      string    // "proxy" | "local" | "token" | "device" | "oauth" | "subsonic" | "cli"
 	StepUpAt time.Time // local sessions only (zero otherwise)
+	// Client: Via "oauth" ⇒ the OAuth client_id; Via "subsonic" ⇒ the sanitised `c` parameter; else "".
+	Client string
 }
 
 // CLI is the principal of command-line actions (audit rows only).

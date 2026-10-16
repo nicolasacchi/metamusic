@@ -64,7 +64,7 @@ func (f *deviceFixture) cookie(state string) string {
 func (f *deviceFixture) serve(mode string, r *http.Request) (*httptest.ResponseRecorder, Kind) {
 	c, s := cfg(mode)
 	var seen Kind
-	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, f.ds)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(c, s, Verifiers{Tokens: fakeTokens{}, Sessions: fakeSessions{}, Devices: f.ds})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = FromContext(r.Context()).Kind
 		w.WriteHeader(200)
 	}))
@@ -253,7 +253,7 @@ func (failingDevices) VerifyDevice(context.Context, string) (Principal, error) {
 func TestDeviceCookie_InfrastructureErrorIs500(t *testing.T) {
 	t.Parallel()
 	c, s := cfg("proxy")
-	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, failingDevices{})(http.NotFoundHandler())
+	h := Middleware(c, s, Verifiers{Tokens: fakeTokens{}, Sessions: fakeSessions{}, Devices: failingDevices{}})(http.NotFoundHandler())
 	r := httptest.NewRequest("GET", "/api/tracks", nil)
 	r.AddCookie(&http.Cookie{Name: DeviceCookie, Value: "x"})
 	rec := httptest.NewRecorder()
@@ -277,7 +277,7 @@ func TestDeviceCookie_PlainVerifier(t *testing.T) {
 	t.Parallel()
 	c, s := cfg("proxy")
 	var seen Kind
-	h := Middleware(c, s, fakeTokens{}, fakeSessions{}, plainDevices{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(c, s, Verifiers{Tokens: fakeTokens{}, Sessions: fakeSessions{}, Devices: plainDevices{}})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = FromContext(r.Context()).Kind
 	}))
 	r := httptest.NewRequest("GET", "/api/x", nil)

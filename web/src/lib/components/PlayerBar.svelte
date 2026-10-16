@@ -3,6 +3,7 @@
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
   import { judge } from "../judge.svelte";
+  import CoverArt from "./CoverArt.svelte";
   import CommentComposer from "./CommentComposer.svelte";
   import StarRating from "./StarRating.svelte";
   import StatusSelect from "./StatusSelect.svelte";
@@ -21,7 +22,8 @@
   $effect(() => {
     const id = trackId;
     commenting = false;
-    if (!id || judge.get(id)) return;
+    // Offline there is no API to ask: the bar works without judging controls and a waveform.
+    if (!id || judge.get(id) || navigator.onLine === false) return;
     void (async () => {
       try {
         const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
@@ -43,6 +45,10 @@
   $effect(() => {
     const id = player.state.trackId;
     if (!id || id === peaksFor) return;
+    if (navigator.onLine === false) {
+      peaks = null;
+      return;
+    }
     peaksFor = id;
     peaks = null;
     void (async () => {
@@ -73,6 +79,7 @@
     >
     <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}>⏭</button>
   </div>
+  {#if trackId}<CoverArt {trackId} title={player.title} size={40} />{/if}
   <div class="mid">
     <div class="title">
       {#if player.state.trackId}

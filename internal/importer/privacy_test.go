@@ -112,6 +112,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		RateScale: 100, // every GET operation as two principals twice would otherwise drain the agent bucket (M4a added 8 operations)
 	}
 	tokens := auth.NewTokenStore(e.st, key, time.Now)
 	r := &privacyRig{drafts: map[string]string{}}
@@ -197,6 +198,12 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 		case strings.HasPrefix(p, "/api/imports/{id}"):
 			for _, s := range library.ImportSections {
 				out[op] = append(out[op], strings.Replace(p, "{id}", r.runID, 1)+"?section="+s)
+			}
+		case p == "/api/prompts/{name}":
+			// M4a get_prompt: the critique prompt embeds a track's context bundle, so it is checked per track
+			// (a stub answers 501 and is skipped; the agent lane's implementation is then covered)
+			for _, id := range r.tracks {
+				out[op] = append(out[op], "/api/prompts/critique_track?track_id="+id)
 			}
 		case strings.HasPrefix(p, "/api/playlists/{") || strings.HasPrefix(p, "/api/exports/{"):
 			// M2a operations: their privacy is covered by the M2a acceptance tests (B10)

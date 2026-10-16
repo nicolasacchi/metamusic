@@ -24,6 +24,12 @@ import (
 // MaxItems is the most tracks a playlist holds.
 const MaxItems = 1000
 
+// OfflineMaxItems is the most tracks the offline set holds (C102, C111).
+const OfflineMaxItems = 100
+
+// OfflineSetID is the fixed id of the protected offline-set playlist (migration, D-M4a-19).
+const OfflineSetID = "00000000-0000-7000-8000-0000000000f1"
+
 // Error is a client-visible failure with a stable code.
 type Error struct {
 	Status  int
@@ -63,6 +69,7 @@ type PlaylistSummary struct {
 	Hidden     bool    `json:"hidden"`
 	Revision   int     `json:"revision"`
 	UpdatedAt  string  `json:"updated_at"`
+	Role       *string `json:"role" nullable:"true" doc:"offline for the protected offline set; null for every other playlist"`
 }
 
 // Item is one playlist position.
@@ -73,16 +80,17 @@ type Item struct {
 
 // Playlist is the full playlist view.
 type Playlist struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Revision    int    `json:"revision"`
-	Hidden      bool   `json:"hidden"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-	CreatedBy   string `json:"created_by" doc:"Principal key; masked for agents"`
-	UpdatedBy   string `json:"updated_by" doc:"Principal key; masked for agents"`
-	Items       []Item `json:"items" nullable:"false"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Revision    int     `json:"revision"`
+	Hidden      bool    `json:"hidden"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
+	CreatedBy   string  `json:"created_by" doc:"Principal key; masked for agents"`
+	UpdatedBy   string  `json:"updated_by" doc:"Principal key; masked for agents"`
+	Items       []Item  `json:"items" nullable:"false"`
+	Role        *string `json:"role" nullable:"true" doc:"offline for the protected offline set; null for every other playlist"`
 }
 
 // Service implements C33's playlists.
@@ -219,9 +227,10 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Pl
 		curName  string
 		curDesc  string
 		hidden   sql.NullString
+		role     sql.NullString
 	)
-	err = tx.QueryRowContext(ctx, `SELECT revision, items_json, name, description, hidden_at FROM playlists WHERE id = ?`, id).
-		Scan(&cur, &itemsRaw, &curName, &curDesc, &hidden)
+	err = tx.QueryRowContext(ctx, `SELECT revision, items_json, name, description, hidden_at, role FROM playlists WHERE id = ?`, id).
+		Scan(&cur, &itemsRaw, &curName, &curDesc, &hidden, &role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Playlist{}, library.ErrNotFound
 	}
@@ -250,6 +259,16 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Pl
 	}
 	if len(items) > MaxItems {
 		return Playlist{}, invalid("add_track_ids", fmt.Sprintf("a playlist holds at most %d tracks", MaxItems))
+	}
+	if role.String == "offline" {
+		if in.Hidden != nil && *in.Hidden {
+			return Playlist{}, &Error{Status: http.StatusUnprocessableEntity, Code: "VALIDATION_FAILED", Msg: "the offline set cannot be hidden",
+				Details: map[string]any{"field": "hidden", "reason": "offline_set_cannot_be_hidden"}}
+		}
+		if len(items) > OfflineMaxItems {
+			return Playlist{}, &Error{Status: http.StatusUnprocessableEntity, Code: "OFFLINE_SET_TOO_LARGE", Msg: "the offline set holds at most 100 tracks",
+				Details: map[string]any{"items": len(items), "limit": OfflineMaxItems}}
+		}
 	}
 	if name == nil {
 		name = &curName
@@ -286,9 +305,9 @@ func (s *Service) Get(ctx context.Context, id string) (Playlist, error) {
 		itemsRaw string
 		hidden   sql.NullString
 	)
-	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, description, revision, created_at, updated_at, created_by, updated_by, items_json, hidden_at
+	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, description, revision, created_at, updated_at, created_by, updated_by, items_json, hidden_at, role
 		FROM playlists WHERE id = ?`, id).
-		Scan(&pl.ID, &pl.Name, &pl.Description, &pl.Revision, &pl.CreatedAt, &pl.UpdatedAt, &pl.CreatedBy, &pl.UpdatedBy, &itemsRaw, &hidden)
+		Scan(&pl.ID, &pl.Name, &pl.Description, &pl.Revision, &pl.CreatedAt, &pl.UpdatedAt, &pl.CreatedBy, &pl.UpdatedBy, &itemsRaw, &hidden, &pl.Role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Playlist{}, library.ErrNotFound
 	}
@@ -314,10 +333,10 @@ func (s *Service) Get(ctx context.Context, id string) (Playlist, error) {
 // List returns the playlists, hidden ones only on request.
 func (s *Service) List(ctx context.Context, includeHidden bool) ([]PlaylistSummary, error) {
 	q := `SELECT p.id, p.name, p.items_count, p.revision, p.updated_at, p.hidden_at IS NOT NULL,
-		COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value), 0)
+		COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value), 0), p.role
 		FROM playlists p`
 	if !includeHidden {
-		q += ` WHERE p.hidden_at IS NULL`
+		q += ` WHERE p.hidden_at IS NULL OR p.role = 'offline'`
 	}
 	rows, err := s.st.R.QueryContext(ctx, q+` ORDER BY p.updated_at DESC, p.id DESC`)
 	if err != nil {
@@ -327,7 +346,7 @@ func (s *Service) List(ctx context.Context, includeHidden bool) ([]PlaylistSumma
 	out := []PlaylistSummary{}
 	for rows.Next() {
 		var x PlaylistSummary
-		if err := rows.Scan(&x.ID, &x.Name, &x.ItemsCount, &x.Revision, &x.UpdatedAt, &x.Hidden, &x.DurationS); err != nil {
+		if err := rows.Scan(&x.ID, &x.Name, &x.ItemsCount, &x.Revision, &x.UpdatedAt, &x.Hidden, &x.DurationS, &x.Role); err != nil {
 			return nil, err
 		}
 		out = append(out, x)

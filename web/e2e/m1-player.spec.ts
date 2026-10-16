@@ -60,7 +60,7 @@ test("media requests are signed and ranged", async ({ page, request }) => {
   await page.getByTestId("track-play").click();
   await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.3);
   await expect.poll(() => statuses).toContain(206);
-  for (const u of urls) expect(u).toMatch(/\/media\/[0-9a-f]{64}\.(flac|mp3|jpg)\?exp=\d+&sig=/);
+  for (const u of urls) expect(u).toMatch(/\/media\/[0-9a-f]{64}\.(flac|mp3|jpg|png)\?exp=\d+&sig=/);
 });
 
 test("playback persists across navigation", async ({ page, request }) => {

@@ -16,7 +16,7 @@ function keepDistPlaceholder(): Plugin {
 
 export default defineConfig({
   plugins: [svelte(), keepDistPlaceholder()],
-  build: { outDir: "dist", emptyOutDir: true, sourcemap: false },
+  build: { outDir: "dist", emptyOutDir: true, sourcemap: false, manifest: true },
   server: {
     proxy: Object.fromEntries(
       ["/api", "/human", "/auth", "/healthz"].map((p) => [p, "http://127.0.0.1:8080"]),

@@ -441,7 +441,7 @@ func TestFacetsAndStats_REST(t *testing.T) {
 	}
 	s := obj(t, agent.Do(t, "GET", "/api/stats", nil).JSON(t))
 	j := obj(t, s["judgments"])
-	if j["rated_human"] != 2.0 || j["rated_critic"] != 2.0 || j["open_fix"] != 1.0 || s["playlists"] != 1.0 {
+	if j["rated_human"] != 2.0 || j["rated_critic"] != 2.0 || j["open_fix"] != 1.0 || s["playlists"] != 2.0 { // fixture playlist + the offline set
 		t.Errorf("stats %v", s)
 	}
 	_ = http.StatusOK

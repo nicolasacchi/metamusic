@@ -241,3 +241,15 @@ func TestListen_Diagnostics(t *testing.T) {
 		t.Errorf("diagnostics changed stats: %+v -> %+v", before, after)
 	}
 }
+
+func TestListening_SourceSubsonic(t *testing.T) {
+	t.Parallel()
+	s, _ := newSvc(t)
+	ctx := context.Background()
+	if _, _, _, err := s.Log(ctx, human, "subsonic", []listening.Event{ev(30, "start")}); err != nil {
+		t.Fatalf("subsonic source refused: %v", err)
+	}
+	if _, _, _, err := s.Log(ctx, human, "carrier-pigeon", []listening.Event{ev(31, "start")}); err == nil {
+		t.Fatal("unknown source accepted")
+	}
+}

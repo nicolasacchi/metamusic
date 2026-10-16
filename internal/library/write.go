@@ -154,6 +154,23 @@ func (s *Service) hasTableQ(ctx context.Context, tx rowQuerier, name string) (bo
 	return true, nil
 }
 
+// hasColumn is hasTable for a column (schema-gated writes of columns later migrations add, D-M4a-23).
+func (s *Service) hasColumn(ctx context.Context, tx *sql.Tx, table, col string) (bool, error) {
+	key := table + "." + col
+	if _, ok := s.tables.Load(key); ok {
+		return true, nil
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, col).Scan(&n); err != nil {
+		return false, fmt.Errorf("library: probe column %s: %w", key, err)
+	}
+	if n == 0 {
+		return false, nil
+	}
+	s.tables.Store(key, struct{}{})
+	return true, nil
+}
+
 // InsertRecipe stores a recipe once (by canonical hash) on behalf of createdBy ("import" for the
 // importer, the principal key for a job recipe) and, when the schema has recipe_keys (version 6),
 // the recipe's content and render keys (C71.7). Any createdBy other than "import" gets
@@ -341,6 +358,13 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	runArg := nullStr(t.ImportRunID)
 	// The lossy column exists from schema version 5; it is written only for lossy
 	// takes so FixtureV2 keeps working against older databases.
+	// status_set_at exists from the M4a migration; older databases (upgrade tests) have no column.
+	statusCol, statusArg := "", ""
+	if ok, err := s.hasColumn(ctx, tx, "tracks", "status_set_at"); err != nil {
+		return err
+	} else if ok {
+		statusCol, statusArg = ", status_set_at", ",?"
+	}
 	lossyCol, lossyArg := "", ""
 	if t.Lossy {
 		lossyCol, lossyArg = ", lossy", ",1"
@@ -359,13 +383,16 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	args = append(args, setBy, origin,
 		t.DurationS, t.SampleRate, t.BitsPerSample, t.Channels, t.TotalSamples, t.MasterPath, t.MasterSHA256, t.MasterBytes, t.SourceSHA256, t.FramesSHA256, t.AudioMD5,
 		boolPtr(t.TruncatedABC), boolPtr(t.TruncatedSemantic), bpmArg, t.ImportRule, runArg, ts(t.RecordedAt), now)
+	if statusCol != "" {
+		args = append(args, now)
+	}
 	if t.isJob() {
 		args = append(args, nullStr(t.JobID), nullStr(t.EnvID))
 	}
 	if err := execTx(ctx, tx, `INSERT INTO tracks(id, slug, title, recipe_id, parent_track_id, root_track_id, generation, status, status_set_by, origin,
 		duration_s, sample_rate, bits_per_sample, channels, total_samples, master_path, master_sha256, master_bytes, source_sha256, frames_sha256, audio_md5,
-		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at`+lossyCol+jobCols+`)
-		VALUES (?,?,?,?,?,?,?,'draft',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?`+lossyArg+jobArgs+`)`, args...); err != nil {
+		truncated_abc, truncated_semantic, bpm_declared, import_rule, import_run_id, recorded_at, created_at`+statusCol+lossyCol+jobCols+`)
+		VALUES (?,?,?,?,?,?,?,'draft',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?`+statusArg+lossyArg+jobArgs+`)`, args...); err != nil {
 		return fmt.Errorf("library: insert track: %w", err)
 	}
 	for _, term := range terms {

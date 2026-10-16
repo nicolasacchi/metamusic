@@ -41,6 +41,11 @@ const (
 // Fixtures lists the ids Fixture created, in deterministic order.
 type Fixtures struct {
 	Tracks, Drafts, Runs, Devices, Recipes []string
+
+	// M4a (FixtureM4a only): the ids of the hosted-connector grant and the Subsonic client, and the plaintext
+	// credentials of that client (never written to a file).
+	OfflineSetID, ConnectorGrantID, SubsonicClientID, SubsonicUsername string
+	SubsonicAPIKey, SubsonicPassword                                   string
 }
 
 type fxTrack struct {

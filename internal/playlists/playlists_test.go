@@ -141,8 +141,9 @@ func TestPlaylists_ListHidden(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
+	const offlineSet = "00000000-0000-7000-8000-0000000000f1" // created by the M4a migration (D-M4a-19)
 	got, err := e.svc.List(ctx, false)
-	if err != nil || len(got) != 1 || got[0].ID != lt.PlaylistMix || got[0].ItemsCount != 3 || got[0].DurationS != 26 {
+	if err != nil || len(got) != 2 || got[0].ID != lt.PlaylistMix || got[0].ItemsCount != 3 || got[0].DurationS != 26 || got[1].ID != offlineSet {
 		t.Fatalf("list %+v %v", got, err)
 	}
 	yes := true
@@ -151,11 +152,11 @@ func TestPlaylists_ListHidden(t *testing.T) {
 	if err != nil || !p.Hidden {
 		t.Fatalf("hide: %+v %v", p, err)
 	}
-	if got, _ := e.svc.List(ctx, false); len(got) != 0 {
+	if got, _ := e.svc.List(ctx, false); len(got) != 1 || got[0].ID != offlineSet {
 		t.Errorf("hidden listed: %+v", got)
 	}
 	got, _ = e.svc.List(ctx, true)
-	if len(got) != 1 || !got[0].Hidden || got[0].Revision != 2 {
+	if len(got) != 2 || !got[0].Hidden || got[0].Revision != 2 {
 		t.Errorf("include_hidden: %+v", got)
 	}
 	no := false

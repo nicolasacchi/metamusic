@@ -228,6 +228,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List hosted-connector grants
+         * @description The OAuth connector status (issuer, resource, allowed clients, key cache) and every connector grant with its scopes, limits and last use. Needs scope admin. Usernames and subject hints are shown to humans only.
+         */
+        get: operations["list_connector_grants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connectors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a connector grant
+         * @description Sets a connector grant's scopes (read is required; generate is off by default), its spend limits (the whole limits object; null means the global default) and/or revokes or restores it. Needs scope admin. The global monthly cap stays human-only, so a connector budget never exceeds it.
+         */
+        put: operations["set_connector_grant"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/device-probe": {
         parameters: {
             query?: never;
@@ -848,6 +888,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/offline-set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the offline set
+         * @description The protected offline-set playlist with per-item media facts (FLAC and MP3 sizes and hashes), so a device can plan downloads without further calls. Edit it with update_playlist, sending the revision from this response.
+         */
+        get: operations["get_offline_set"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pick-events": {
         parameters: {
             query?: never;
@@ -970,6 +1030,26 @@ export interface paths {
          * @description Builds a ZIP of the playlist's MP3 files with ID3 tags (at most 200 tracks, 2 GiB) and returns a signed download link.
          */
         post: operations["export_playlist_zip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Render a prompt
+         * @description Renders one of the built-in prompts (critique_track, write_variant, session_review) for a track or a listening session: the messages an agent or the web UI hands to a model. critique_track and write_variant need track_id.
+         */
+        get: operations["get_prompt"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1260,6 +1340,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/subsonic-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subsonic clients
+         * @description The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. Needs scope admin.
+         */
+        get: operations["list_subsonic_clients"];
+        put?: never;
+        /**
+         * Create a Subsonic client
+         * @description Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. Needs scope admin.
+         */
+        post: operations["create_subsonic_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/subsonic-clients/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a Subsonic client
+         * @description Revokes a native-app credential by id; repeating the call returns the same result. Needs scope admin.
+         */
+        post: operations["revoke_subsonic_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system": {
         parameters: {
             query?: never;
@@ -1460,6 +1584,26 @@ export interface paths {
          * @description Everything needed to critique and regenerate one take in a single size-bounded document: recipe, score, lineage, comments, perception and next actions. The _budget key reports the size.
          */
         get: operations["get_track_context"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a download link with current tags
+         * @description A signed, expiring link to a FLAC copy of the track carrying its current title, album, track number and tags (audio frames unchanged). A lossy track answers a link to its MP3 master unchanged. Humans get 12 h links, agents 15 min.
+         */
+        get: operations["get_download_link"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2287,6 +2431,21 @@ export interface components {
             /** @description RFC 3339, start of the month in the server's time zone */
             start: string;
         };
+        CapConnector: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number | null;
+            /** Format: int64 */
+            auto_approve_takes: number | null;
+            auto_approve_usd: string | null;
+            /**
+             * Format: int64
+             * @description null: the global agent daily cap applies
+             */
+            daily_budget_micro_usd: number | null;
+            daily_budget_usd: string | null;
+            grant_id: string;
+            label: string;
+        };
         CapToken: {
             /** Format: int64 */
             auto_approve_micro_usd: number | null;
@@ -2314,6 +2473,7 @@ export interface components {
             /** Format: int64 */
             batch_micro_usd: number;
             batch_usd: string;
+            connectors: components["schemas"]["CapConnector"][];
             /** Format: int64 */
             human_daily_micro_usd: number;
             human_daily_usd: string;
@@ -2518,6 +2678,36 @@ export interface components {
             /** @description Why; stored on the batch and the Operator Ledger */
             rationale?: string;
         };
+        ConnectorGrant: {
+            client_id: string;
+            created_at: string;
+            effective: components["schemas"]["GrantEffective"];
+            generate_enabled: boolean;
+            id: string;
+            label: string;
+            last_used_at: string | null;
+            limits: components["schemas"]["GrantLimits"];
+            revoked_at: string | null;
+            revoked_by: {
+                /** @description Principal key (kind:id); "human" for the operator as seen by an agent */
+                id: string;
+                /** @description human, device, agent or system */
+                kind: string;
+                /** @description Display name; "human" or "device" for agents */
+                name: string;
+            } | null;
+            scopes: ("read" | "write" | "generate")[];
+            /** @description First 8 characters of the token subject; null for a non-human caller */
+            subject_hint: string | null;
+            updated_at: string;
+            updated_by: components["schemas"]["PrincipalRef"];
+            /** @description null for a non-human caller */
+            username: string | null;
+        };
+        ConnectorGrantList: {
+            items: components["schemas"]["ConnectorGrant"][];
+            oidc: components["schemas"]["OIDCStatus"];
+        };
         ContextBudget: {
             /** Format: int64 */
             chars: number;
@@ -2613,9 +2803,35 @@ export interface components {
             name: string;
             track_ids?: string[] | null;
         };
+        CreateSubsonicClientInBody: {
+            /** @description Create an API key (default true) */
+            api_key?: boolean;
+            /**
+             * @description Stream format when the app names none (default raw)
+             * @enum {string}
+             */
+            default_format?: "raw" | "mp3";
+            /** @description Label of the app, e.g. its device */
+            name: string;
+            /** @description Create an app password for token authentication (default true) */
+            password?: boolean;
+            /** @description Default: a slug of the name */
+            username?: string;
+            /** @description May the app rate, star and bookmark? Default true */
+            write?: boolean;
+        };
         CreateTokenInBody: {
             name: string;
             scopes: ("read" | "write" | "generate" | "admin")[] | null;
+        };
+        CreatedSubsonicClient: {
+            /** @description mms_..., shown once; null on an idempotent replay */
+            api_key: string | null;
+            client: components["schemas"]["SubsonicClient"];
+            /** @description App password, shown once; null on an idempotent replay */
+            password: string | null;
+            server_url: string;
+            username: string;
         };
         CreatedToken: {
             created_at: string;
@@ -2786,6 +3002,18 @@ export interface components {
             expires_at: string;
             /** @description Signed, relative /media/ URL */
             url: string;
+        };
+        DownloadTags: {
+            album: string;
+            /** @description YYYY-MM-DD */
+            date: string;
+            /** @description null when the track has no style terms */
+            genre: string | null;
+            title: string;
+            /** Format: int64 */
+            track_number: number;
+            /** Format: int64 */
+            track_total: number;
         };
         DraftDetail: {
             collections: string[];
@@ -3255,6 +3483,34 @@ export interface components {
             spend_month_usd: string;
             /** Format: int64 */
             takes_month: number;
+        };
+        GrantEffective: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number;
+            /** Format: int64 */
+            auto_approve_takes: number;
+            auto_approve_usd: string;
+            /** Format: int64 */
+            daily_budget_micro_usd: number;
+            daily_budget_usd: string;
+        };
+        GrantLimits: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number | null;
+            /** Format: int64 */
+            auto_approve_takes: number | null;
+            auto_approve_usd: string | null;
+            /** Format: int64 */
+            daily_budget_micro_usd: number | null;
+            daily_budget_usd: string | null;
+        };
+        GrantLimitsIn: {
+            /** Format: int64 */
+            auto_approve_micro_usd: number | null;
+            /** Format: int64 */
+            auto_approve_takes: number | null;
+            /** Format: int64 */
+            daily_budget_micro_usd: number | null;
         };
         GroupMember: {
             id: string;
@@ -3809,6 +4065,14 @@ export interface components {
             note?: string;
         };
         MediaLinksOutBody: {
+            /** @description Signed links to the track's deterministic cover art (512 and 1024 px); null while no cover service is wired */
+            cover: {
+                /** @description RFC 3339 UTC */
+                expires_at: string;
+                url_1024: string;
+                /** @description Signed, relative /media/<key>.png URL */
+                url_512: string;
+            } | null;
             /** @description RFC 3339 UTC */
             expires_at: string;
             /** @description null for a lossy track: there is no lossless file; never guess a FLAC URL */
@@ -3981,6 +4245,86 @@ export interface components {
              */
             open_total: number;
         };
+        OIDCClientInfo: {
+            client_id: string;
+            label: string;
+        };
+        OIDCKeys: {
+            /** Format: int64 */
+            count: number;
+            /** @description RFC 3339 UTC; null before the first successful fetch */
+            fetched_at: string | null;
+            /** @description An error code, never a message */
+            last_error: string | null;
+        };
+        OIDCStatus: {
+            /** @example RS256 */
+            alg: string;
+            clients: components["schemas"]["OIDCClientInfo"][];
+            enabled: boolean;
+            /** @description null while MM_OIDC_ISSUER is unset */
+            issuer: string | null;
+            keys: components["schemas"]["OIDCKeys"];
+            /** @example metamusic */
+            required_scope: string;
+            /** @description <PublicURL>/mcp, the only accepted audience */
+            resource: string;
+            scopes_advertised: string[];
+        };
+        OfflineItem: {
+            /** @description The lineage root's current title */
+            album: string;
+            /** Format: double */
+            duration_s: number;
+            /** @description null for a lossy reference track */
+            flac: {
+                /** Format: int64 */
+                bits_per_sample: number;
+                /** Format: int64 */
+                bytes: number;
+                /** Format: int64 */
+                sample_rate: number;
+                sha256: string;
+            } | null;
+            lossy: boolean;
+            /** @description null when the track has no MP3 rendition; for a lossy track the master itself */
+            mp3: {
+                /** Format: int64 */
+                bytes: number;
+                sha256: string;
+            } | null;
+            /** Format: int64 */
+            position: number;
+            /** @enum {string} */
+            status: "draft" | "to_relisten" | "final" | "discarded";
+            title: string;
+            track_id: string;
+        };
+        OfflineSet: {
+            items: components["schemas"]["OfflineItem"][];
+            /**
+             * Format: int64
+             * @description At most this many tracks (100)
+             */
+            limit_items: number;
+            name: string;
+            playlist_id: string;
+            /**
+             * Format: int64
+             * @description Send it with update_playlist (optimistic locking)
+             */
+            revision: number;
+            totals: components["schemas"]["OfflineTotals"];
+            updated_at: string;
+        };
+        OfflineTotals: {
+            /** Format: int64 */
+            flac_bytes: number;
+            /** Format: int64 */
+            items: number;
+            /** Format: int64 */
+            mp3_bytes: number;
+        };
         PairStats: {
             critic: components["schemas"]["VerdictCounts"];
             human: components["schemas"]["VerdictCounts"];
@@ -4095,6 +4439,8 @@ export interface components {
             name: string;
             /** Format: int64 */
             revision: number;
+            /** @description offline for the protected offline set; null for every other playlist */
+            role: string | null;
             updated_at: string;
             /** @description Principal key; masked for agents */
             updated_by: string;
@@ -4118,6 +4464,8 @@ export interface components {
             name: string;
             /** Format: int64 */
             revision: number;
+            /** @description offline for the protected offline set; null for every other playlist */
+            role: string | null;
             updated_at: string;
         };
         PlaylistsOutBody: {
@@ -4154,6 +4502,35 @@ export interface components {
             };
             /** @description Human-readable message */
             message: string;
+        };
+        PromptArgument: {
+            description: string;
+            name: string;
+            required: boolean;
+        };
+        PromptContent: {
+            resource?: components["schemas"]["PromptResource"];
+            text?: string;
+            /** @enum {string} */
+            type: "text" | "resource";
+        };
+        PromptMessage: {
+            content: components["schemas"]["PromptContent"];
+            /** @enum {string} */
+            role: "user";
+        };
+        PromptResource: {
+            mime_type: string;
+            text: string;
+            uri: string;
+        };
+        PromptView: {
+            arguments: components["schemas"]["PromptArgument"][];
+            description: string;
+            messages: components["schemas"]["PromptMessage"][];
+            name: string;
+            title: string;
+            version: string;
         };
         ProposePickInBody: {
             rationale: string;
@@ -4368,6 +4745,13 @@ export interface components {
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
+        };
+        SetConnectorGrantInBody: {
+            limits?: components["schemas"]["GrantLimitsIn"];
+            /** @description true revokes the grant (the next request is refused CONNECTOR_REVOKED); false restores it */
+            revoked?: boolean;
+            /** @description Must contain read */
+            scopes?: ("read" | "write" | "generate")[] | null;
         };
         SetSpendCapsInBody: {
             /** Format: int64 */
@@ -4747,6 +5131,30 @@ export interface components {
             replayed: boolean;
             verdict: components["schemas"]["Verdict"];
         };
+        SubsonicClient: {
+            /** @description First 8 characters after mms_ */
+            api_key_prefix: string | null;
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string} */
+            default_format: "raw" | "mp3";
+            has_api_key: boolean;
+            has_password: boolean;
+            id: string;
+            last_client: string | null;
+            last_seen_at: string | null;
+            name: string;
+            revoked_at: string | null;
+            scopes: ("read" | "write")[];
+            username: string;
+        };
+        SubsonicClientList: {
+            /** @example 1.16.1 */
+            api_version: string;
+            items: components["schemas"]["SubsonicClient"][];
+            /** @description What to enter in the app (the public URL) */
+            server_url: string;
+        };
         SystemOutBody: {
             /**
              * Format: int64
@@ -5068,6 +5476,25 @@ export interface components {
                 abc: boolean | null;
                 semantic: boolean | null;
             } | null;
+        };
+        TrackDownloadLink: {
+            /** Format: int64 */
+            bytes: number;
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            /** @description Suggested file name, [a-z0-9._-] */
+            filename: string;
+            /** @description Of the downloaded file */
+            sha256: string;
+            tags: components["schemas"]["DownloadTags"];
+            track_id: string;
+            /**
+             * Format: int64
+             * @description Link lifetime granted to the caller, seconds
+             */
+            ttl_s: number;
+            /** @description Signed, relative URL (/media/<key>.flac, or the master's /media/<sha>.mp3 for a lossy track) */
+            url: string;
         };
         TrackPage: {
             items: components["schemas"]["TrackSummary"][];
@@ -5394,7 +5821,7 @@ export interface components {
             name: string;
             /** @description Granted scopes */
             scopes: string[];
-            /** @description How the principal authenticated: proxy, local, token or device */
+            /** @description How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app) */
             via: string;
         };
     };
@@ -5807,6 +6234,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Comparison"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_connector_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrantList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_connector_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grant id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetConnectorGrantInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrant"];
                 };
             };
             /** @description Error */
@@ -7020,6 +7512,35 @@ export interface operations {
             };
         };
     };
+    get_offline_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineSet"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_pick_events: {
         parameters: {
             query?: {
@@ -7273,6 +7794,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Export"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_prompt: {
+        parameters: {
+            query?: {
+                /** @description Required for critique_track and write_variant */
+                track_id?: string;
+                /** @description write_variant: what the variant should achieve */
+                goal?: string;
+                /** @description session_review: RFC 3339 start (default now - 12 h; at most 30 days back) */
+                since?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Prompt name */
+                name: "critique_track" | "write_variant" | "session_review";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptView"];
                 };
             };
             /** @description Error */
@@ -7828,6 +8388,103 @@ export interface operations {
             };
         };
     };
+    list_subsonic_clients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubsonicClientList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_subsonic_client: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSubsonicClientInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedSubsonicClient"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_subsonic_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subsonic client id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubsonicClient"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_system_info: {
         parameters: {
             query?: never;
@@ -8250,6 +8907,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContextBundle"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_download_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackDownloadLink"];
                 };
             };
             /** @description Error */

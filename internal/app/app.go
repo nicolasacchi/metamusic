@@ -19,6 +19,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -33,11 +34,14 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
+	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
@@ -77,6 +81,8 @@ type Options struct {
 	Rand io.Reader
 	// M3 (C39 amended): generation services, backend selection and test injection points.
 	M3 M3Options
+	// M4a (C114): test injection points of the OIDC client and the Subsonic failure sleep; nil in production.
+	M4a M4aOptions
 	// L1 (C87): the library-model services and the Reconciler's test seams.
 	L1 L1Options
 }
@@ -118,6 +124,12 @@ type Services struct {
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
 
+	// M4a services (C114). OIDC is nil unless MM_OIDC_ISSUER is set; serve runs `go OIDC.Prefetch(ctx)` after Build.
+	OIDC       *oidc.Verifier
+	Connectors *connectors.Store
+	Subsonic   *auth.SubsonicStore
+	Covers     *cover.Service
+	Downloads  *tagged.Service
 	// L1 services (C87). Provenance is the Reconciler: serve runs its startup Settle and Run, mcp-stdio and the
 	// rigs never start it (rigs call Rig.Settle).
 	Muses      *muses.Service
@@ -207,6 +219,11 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	if media.Clips != nil {
 		resolvers = append(resolvers, media.Clips)
 	}
+	covers := cover.New(data, lib, now)
+	downloads := tagged.New(data, lib, covers, now)
+	resolvers = append(resolvers, m4aResolvers(covers, downloads)...)
+	aud := audit.NewStore(st, newID)
+	limiter := ratelimit.New(limits, now)
 
 	wake := &wakeRef{}
 	var pipe *ingest.Pipeline // the generation ingest bridge's master pipeline (nil without ffmpeg)
@@ -222,6 +239,9 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		return nil, err
 	}
 
+	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
+		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, ctxb: ctxb}, o.M4a)
+
 	l1 := buildL1(st, now, newID, ds, media.Ears, o.L1)
 	ctxb.UseLibrary(libraryReader{l1.SongView})
 	lib.UseMuseCounter(func(ctx context.Context) (int, error) {
@@ -230,6 +250,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	})
 
 	s := &Services{
+		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
 		Board: l1.Board, Provenance: l1.Provenance,
 		Lineage: m3.Lineage, Spend: m3.Spend, Generation: m3.Generation, Jobs: m3.Jobs, Provider: m3.Provider, Uploads: m3.Uploads,
@@ -240,8 +261,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Backups: bak,
 		Exports: exp,
 		Idem:    idem.NewStore(st, now),
-		Audit:   audit.NewStore(st, newID),
-		Limiter: ratelimit.New(limits, now),
+		Audit:   aud,
+		Limiter: limiter,
 		Clips:   media.Clips,
 		Duels:   ds,
 		Ears:    media.Ears,
@@ -257,6 +278,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Songwriting: sw,
+		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
@@ -269,6 +291,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads, Songwriting: sw,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, LibSessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		BaseContext: o.M3.Shutdown,
+		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
+		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 	}
 	return s, nil
 }

@@ -31,6 +31,9 @@ func TestNoTestHelpersInBinary(t *testing.T) {
 		modulePath + "internal/provider/providertest":      true,
 		modulePath + "internal/provider/runpod/runpodtest": true, // lands in M3-B8
 		modulePath + "internal/archtest":                   true,
+		// M4a (C105, C117.4)
+		modulePath + "internal/oidc/oidctest":         true,
+		modulePath + "internal/subsonic/subsonictest": true, // lands in M4a-S4
 		// L1 (C101.4)
 		modulePath + "internal/perftest":      true,
 		modulePath + "internal/store/faultdb": true,

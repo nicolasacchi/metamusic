@@ -46,7 +46,9 @@ import (
 //
 // Merging main (songwriting targets) re-baselined 103500 -> 104300 (measured 104266, +861): get_songwriting_settings and the
 // lint Issue's optional details object.
-const toolsCeilingBytes = 104300
+//
+// M4a-X1 merge: 104300 -> 104500 (measured 104472, +206): the nullable cover object of get_media_links.
+const toolsCeilingBytes = 104500
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

@@ -17,12 +17,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.services.metamusic.loadbalancer.server.port=8080
-      # public static: manifest and icons only (browsers fetch them without credentials)
+      # public static: manifest, icons and the service worker script (browsers fetch them without credentials)
       - traefik.http.routers.mm-public.entrypoints=websecure
       - traefik.http.routers.mm-public.tls=true
       - traefik.http.routers.mm-public.tls.certresolver=myresolver
       - traefik.http.routers.mm-public.service=metamusic
-      - traefik.http.routers.mm-public.rule=Host(`mm.example.com`) && (Path(`/manifest.webmanifest`) || PathPrefix(`/icons/`))
+      - traefik.http.routers.mm-public.rule=Host(`mm.example.com`) && (Path(`/manifest.webmanifest`) || PathPrefix(`/icons/`) || Path(`/sw.js`))
       - traefik.http.routers.mm-public.priority=120
       - traefik.http.routers.mm-public.middlewares=mm-strip-identity,sec-headers@docker
       # humans: SPA, cookie /api, /human/ (2FA by Authelia rule); Authelia, then the edge mark

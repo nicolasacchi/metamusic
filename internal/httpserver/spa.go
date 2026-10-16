@@ -69,3 +69,32 @@ func spaHandler(fsys fs.FS) http.Handler {
 		}
 	})
 }
+
+// swHandler serves the service worker script from the SPA filesystem (C114, D-M4a-18): a classic script with
+// Content-Type text/javascript and Cache-Control no-cache, so the browser revalidates it on every update check.
+// A missing script is a 404 problem, never the HTML shell (a browser would try to run it as a script).
+func swHandler(fsys fs.FS) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			writeProblem(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed")
+			return
+		}
+		if fsys == nil {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			return
+		}
+		b, err := fs.ReadFile(fsys, "sw.js")
+		if err != nil {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+			return
+		}
+		h := w.Header()
+		h.Set("Content-Type", "text/javascript; charset=utf-8")
+		h.Set("Cache-Control", "no-cache")
+		h.Set("X-Content-Type-Options", "nosniff")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(b)
+		}
+	})
+}

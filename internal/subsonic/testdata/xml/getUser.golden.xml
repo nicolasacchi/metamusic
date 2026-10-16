@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1" type="metamusic" serverVersion="v-test" openSubsonic="true"><user username="schemaclient" scrobblingEnabled="true" adminRole="false" settingsRole="false" downloadRole="true" uploadRole="false" playlistRole="true" coverArtRole="true" commentRole="true" podcastRole="false" streamRole="true" jukeboxRole="false" shareRole="false" videoConversionRole="false"><folder>1</folder><folder>2</folder><folder>3</folder></user></subsonic-response>

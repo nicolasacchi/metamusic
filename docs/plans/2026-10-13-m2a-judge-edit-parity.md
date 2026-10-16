@@ -179,6 +179,8 @@ These amend or refine the design of record; M2a-X1 copies them into the private 
 
 ### C25. Config, secrets, data layout, leaf packages
 
+> **M4a amendment (B1):** The `ratelimit` leaf gains `Peek` and the classes `subsonic`, `subsonic_auth_fail`, `subsonic_auth_fail_global`; `reqinfo` gains `ClientIP` and the transports `subsonic` and `oauth`; `redact` masks `mms_` keys, JWS strings and form-encoded secrets (M4a C102).
+
 New env (added to `config.Config`; M2a-B1 amends M0 C1 / M1 C10):
 
 ```go
@@ -256,6 +258,8 @@ job-API paths (`/v2/<endpoint>/run`, `/v2/endpoints/<endpoint>`); `redact.WithEn
 `store.LeaseFence`. See the M3 plan, C68 and C80.
 
 ### C26. Principals, devices, pairing and step-up (amends M0 C3)
+
+> **M4a amendment (B1):** Principals gain `Via` `oauth` (connector, `Kind agent`) and `subsonic` (`Kind device`); `revoke_own_token` refuses every principal whose `Via` is not `token` (M4a C104).
 
 ```go
 const KindDevice Kind = "device"
@@ -390,6 +394,8 @@ func PairingHandler(o PairingOptions) http.Handler
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. Pages never echo the submitted code.
 
 ### C27. Migration `internal/store/migrations/0003_judge.sql` (full DDL) and store rules
+
+> **M4a amendment (B1):** Migration 0009 adds `playlists.role` (the offline set, fixed id) and the delete allowlist of `TestNoDeleteSQL` becomes `{idempotency, human_sessions, subsonic_salts}` (M4a C103).
 
 > **L1 addendum (L1-B1):** `TestNoDeleteSQL` allows physical deletes on five more tables, all derived caches or queues rebuilt by the Reconciler (L1 C88.3, D-L1-24): `provenance_dirty`, `take_sounds`, `song_sounds`, `sound_state`, `song_unmapped_terms`.
 
@@ -913,6 +919,8 @@ Idempotency rows are pruned hourly by `serve`. Gate logs one slog line per reque
 
 ### C30. MCP adapter, transport marks and `mcp-stdio` (amends M0 C5)
 
+> **M4a amendment (B1):** For an `oauth` principal the dispatch client label is `oauth:<client_id>/<first product token of the MCP client label>` (M4a C104).
+
 - `httpserver` passes the **gated** inner handler to `MCPFactory` (amends the C6 addendum): MCP tools
   dispatch into `gate(inner)`, never into the bare mux.
 - `dispatch` sets `reqinfo.WithTransport(ctx, "mcp")` (or `"stdio"`, see below). (rev 3) M0's
@@ -965,6 +973,8 @@ Idempotency rows are pruned hourly by `serve`. Gate logs one slog line per reque
   always the token's agent principal — never human.
 
 ### C31. Judgments: ratings, status/title, tags, comments (`internal/judgments`)
+
+> **M4a amendment (B1):** `UpdateTrack` writes `tracks.status_set_at` with every status change, and the comment source set gains `subsonic` (M4a C103, D-M4a-23).
 
 ```go
 func New(st *store.Store, lib *library.Service, now func() time.Time, newID func() string) *Service
@@ -1218,6 +1228,10 @@ func (s *Service) Upload(ctx context.Context, p auth.Principal, in Upload) (Uplo
   `request.cfg_scale` when present.
 
 ### C33. Exports, `songs.jsonl`, playlists and MP3 ZIPs (`internal/export`, `internal/exports`, `internal/playlists`, `internal/media/id3`)
+
+> **M4a amendment (B2):** `Playlist` and `PlaylistSummary` gain `Role *string` (`"offline"` for the migration's offline set, otherwise null) and every playlist `SELECT` reads the column; `playlists.OfflineMaxItems` is 100 (the offline-set rules follow in M4a-A1; M4a C111). The media resolver chain gains the cover and download resolvers (M4a C110.3).
+
+> **M4a amendment (A1):** `List` always includes the offline set; `Update` of it refuses `hidden: true` (422 `VALIDATION_FAILED`, `details.reason offline_set_cannot_be_hidden`) and more than 100 items (422 `OFFLINE_SET_TOO_LARGE`, `details {items, limit}`); `Service.OfflineFacts` reads the media facts behind `get_offline_set` (M4a C111).
 
 > M2b-B1 addendum: the media path regex also accepts `jpg` (spectrogram renditions); `get_system_info.schema_version` is 4 after M2b (C27/C34 tests that pinned 3 now expect 4).
 
@@ -1603,6 +1617,10 @@ in M3-B2 and the bundle code and goldens change in M3-B6. See the M3 plan, C81.1
 
 ### C36. Listen events (`internal/listening`)
 
+> **M4a amendment (B1):** The Go-validated listen source set gains `subsonic` (M4a C102).
+
+> **M4a amendment (A1):** `Service.Session(ctx, since, limit)` summarises the human's recent listening (human and device events only; diagnostics are not plays), grouped per track, newest last play first (`internal/listening/session.go`, M4a C112.3).
+
 ```go
 type Event struct{ ID, TrackID, SessionID, Kind string; FromMS, ToMS *int64; Format, DeviceID *string; ClientAt time.Time }
 func New(st *store.Store, now func() time.Time) *Service
@@ -1643,6 +1661,8 @@ codes, cookies or URLs with query strings (`TestNotify_NoSecretsInMessages`); a 
 or control characters in the URL are dropped. See the M3 plan, C82.
 
 ### C38. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case; types in `internal/api/types_m2a.go`)
+
+> **M4a amendment (B2):** `list_playlists`, `get_playlist`, `create_playlist` and `update_playlist` carry `role`; the registry validation of `secret_fields` is relaxed to create operations (M4a D-M4a-24).
 
 > **L1 addendum (L1-B2):** the registry grows by the 18 L1 operations (L1 C96): 99 in total (`TestRegistry_OpCount`), 7 new tools, 9 generic, 2 `exclude:human-judgment`; `tools/list` ceiling 102 600 bytes.
 
@@ -1808,6 +1828,8 @@ PairingCodeOut {id, name, code: string|null, pair_url: string|null, expires_at} 
 
 
 ### C39. Service wiring, HTTP server and CLI additions (amends M0 C6/C7, M1 C20)
+
+> **M4a amendment (B2):** `app.Build` also wires the grant store, the OIDC and connector verifiers (only with `MM_OIDC_ISSUER`), the Subsonic credential store and handler, the cover and download services and `Deps.Prompts` (`app.Options.M4a`, `internal/app/m4a.go`); `serve` runs `OIDC.Prefetch`, an hourly salt prune and a daily cover/download sweep (M4a C114).
 
 > M2b-B2 addendum: `app.Options` gains `Media *MediaOptions` (injected clip/Tier A inputs; nil => probe `cfg.FFmpeg`), `SlotCoin func() bool`
 > and `DuelClips func(duels.ClipRenderer) duels.ClipRenderer`; `app.Services` gains `Clips`, `Duels` and `Ears`. `Build` calls
@@ -2060,6 +2082,10 @@ Web lane (M3-W1..W3).
 - `scripts/loop` allowlist and `metrics/loop.schema.json`: no new targets.
 
 ### C42. Test harness and fixtures
+
+> **M4a amendment (C2):** the parity runner gains the fourth face (`TestParity_OAuthConnector`, `internal/mcpgen/parity_m4a_test.go`): an OIDC rig whose grant is pre-created outside the id sequence runs the fixed OAuth subset (`whoami`, `search_tracks`, `get_track_context`, `add_comment`, `get_offline_set`, `estimate_variant` refused with `FORBIDDEN_SCOPE`) against REST on a read+write PAT with masks for principal ids, names and `via`, and with D's origin rewritten to A's. `Rig.Connector` implements the rig-clock token source of M4a C117.1.
+
+> **M4a amendment (B2):** `servertest.Options` gains `M4a` and `OIDC`, the unlimited limiter config lists the Subsonic classes, `Rig.OIDC`, `Rig.Connector` and `Rig.Subsonic` exist; `librarytest` gains `FixtureM4a` and `ApplyM4a`; the parity and scripted-agent tests cover the eight M4a operations and skip a stub by name (M4a C117).
 
 > **L1 addendum (L1-B2):** `librarytest` gains `FixtureL1`, `FixtureL1Mirror`, `FixtureL1Scale`, `FixtureL1Upgrade`, `ApplyL1` and the ad-hoc `Scene`; `servertest.Options` gains `L1` and `Reconcile`, `Rig` gains `Provenance` and `Settle`; `internal/perftest` is a new test-only helper package.
 

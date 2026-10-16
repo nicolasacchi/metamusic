@@ -181,6 +181,38 @@ are released after the hold period when billing is not readable.
 Received worker uploads of jobs that ended without a take are removed 24 h after the job's end.
 `incoming/` is never part of a backup.
 
+## Remote agents and mobile (M4a)
+
+### Service-worker recovery
+
+The app registers `/sw.js` only in a secure context (https or loopback). It never handles `/api/`, `/human/`,
+`/auth/`, `/mcp` or `/rest/`, and it serves a cached shell only when the network fails. If a browser seems stuck on
+an old shell:
+
+1. Reload twice (a new worker activates on the second load).
+2. In the browser's site settings, unregister the worker and clear site data for the app origin. This removes the
+   offline set from that device only; sync it again afterwards.
+3. Check that `/sw.js` answers with `Cache-Control: no-cache` and without any identity header.
+
+### Connector revocation
+
+Revoke a hosted connector on `/human/connectors` (or with `set_connector_grant` and an `admin` token). The next tool
+call is refused with 403 `CONNECTOR_REVOKED`; confirm it in the request log. Restoring the grant makes the same
+sign-in work again. To cut a client off entirely, remove its id from `MM_OIDC_CLIENTS` and restart. For a
+compromised provider, unset `MM_OIDC_ISSUER`: connectors are disabled and `/mcp` accepts only personal tokens.
+
+### Subsonic client rotation
+
+Create the replacement on `/human/subsonic`, enter the new key or password in the app, then revoke the old
+client. Revocation takes effect on the next request. A lost phone: revoke its client and its paired device
+(`/human/devices`).
+
+### Offline set and download cache
+
+The offline set is one protected playlist (at most 100 tracks) that agents can edit. Tagged downloads are cached
+under `derived/dl/`, swept after 7 days and never backed up; covers are cached the same way and are rebuilt on
+demand.
+
 ## Reconcile and verify (L1)
 
 The library model (Muses, Songs, Picks, Sessions, Sounds) is derived and reconciled in the background.

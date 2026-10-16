@@ -3,6 +3,8 @@
 import { playerInUse } from "./playerUse";
 import { api } from "../api/client";
 import { session } from "../api/session";
+import { offline } from "./offline.svelte";
+import type { LocalSource } from "../api/offline";
 import type { components } from "../api/schema";
 
 export type MediaLinks = components["schemas"]["MediaLinksOutBody"];
@@ -48,7 +50,23 @@ export function memoryDevice(): DeviceHooks {
 
 export const localDevice: DeviceHooks = memoryDevice();
 
+/** What the player needs from the offline store (C115.4, owned by offline.svelte.ts). */
+export interface LocalHooks {
+  /** A complete local file for the track, or null. */
+  source(trackId: string): Promise<LocalSource | null>;
+  /** Title/album from the local stores (no API call). */
+  meta(trackId: string): Promise<{ title: string; album: string } | null>;
+  /** The local file failed to play: stop offering it until it is downloaded again. */
+  markSuspect(trackId: string): void;
+}
+
 export interface PlayerDeps {
+  /** Offline source selection; absent: M1's signed-link path only. */
+  local?: LocalHooks;
+  /** navigator.serviceWorker.controller !== null: only then may /media/<sha>.<ext> be served locally. */
+  hasController?(): boolean;
+  /** navigator.onLine; offline, metadata comes from the local store without an API call. */
+  online?(): boolean;
   fetchLinks(trackId: string): Promise<MediaLinks | null>;
   device: DeviceHooks;
   now(): number;
@@ -130,6 +148,10 @@ export class Player {
   private wantPlay = false;
   private reminted = new Set<string>();
   private forceMp3 = new Set<string>();
+  /** Local-file lookups (null: not downloaded); refreshed by prefetchNext so a track change can apply one synchronously. */
+  private localInfo = new Map<string, LocalSource | null>();
+  /** Local files that failed to play on this page life: never offered again. */
+  private noLocal = new Set<string>();
   private meta = new Map<string, { title: string; album: string }>();
   private metaInflight = new Map<string, Promise<{ title: string; album: string } | null>>();
   private probePending = new Set<string>();
@@ -137,6 +159,8 @@ export class Player {
   private cleanup: (() => void) | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
   private appliedExp = 0;
+  /** Track whose source on the element is its local file (a media error then re-mints a signed link). */
+  private playingLocal = "";
   /** Track whose links were last applied to the element: only its metadata may consume a pending seek. */
   private appliedTrack = "";
   /** Bumped on every track change so a slow async link fetch never clobbers a newer play. */
@@ -427,17 +451,32 @@ export class Player {
   private async loadMeta(trackId: string): Promise<{ title: string; album: string } | null> {
     const m = this.meta.get(trackId);
     if (m) return m;
-    if (!this.deps.fetchMeta) return null;
+    if (!this.deps.fetchMeta && !this.deps.local) return null;
     const f = this.metaInflight.get(trackId);
     if (f) return f;
     const p = (async () => {
-      try {
-        const r = await this.deps.fetchMeta!(trackId);
-        if (r) this.meta.set(trackId, r);
-        return r;
-      } catch {
-        return null;
+      const offlineNow = this.deps.online ? !this.deps.online() : false;
+      // Offline: the local stores answer (no API call). Online the API wins (titles may have changed) and the
+      // local copy is the fallback.
+      const fromLocal = async () => {
+        try {
+          return (await this.deps.local?.meta(trackId)) ?? null;
+        } catch {
+          return null;
+        }
+      };
+      let r: { title: string; album: string } | null = null;
+      if (offlineNow) r = await fromLocal();
+      if (!r && !(offlineNow && this.deps.local)) {
+        try {
+          r = (await this.deps.fetchMeta?.(trackId)) ?? null;
+        } catch {
+          r = null;
+        }
       }
+      if (!r) r = await fromLocal();
+      if (r) this.meta.set(trackId, r);
+      return r;
     })().finally(() => {
       this.metaInflight.delete(trackId);
     });
@@ -482,18 +521,58 @@ export class Player {
     this.notify();
   }
 
-  /** Synchronous when links are cached (required for `ended` and gesture-bound play()). */
+  /** A downloaded file may be played locally only when the worker controls the page (else the unsigned URL gets a 403). */
+  private localEligible(trackId: string): boolean {
+    return !!this.deps.local && !!this.deps.hasController?.() && !this.noLocal.has(trackId);
+  }
+
+  private async resolveLocal(trackId: string): Promise<LocalSource | null> {
+    const l = await Promise.resolve(this.deps.local?.source(trackId))
+      .then((x) => x ?? null)
+      .catch(() => null);
+    this.localInfo.set(trackId, l);
+    return l;
+  }
+
+  /** Synchronous when the source is known (required for `ended` and gesture-bound play()). */
   private begin(trackId: string) {
+    if (this.localEligible(trackId)) {
+      const known = this.localInfo.get(trackId);
+      if (known) {
+        this.applyLocal(trackId, known);
+        return;
+      }
+      if (known === undefined) {
+        const unlocked = this.unlock();
+        const epoch = this.epoch;
+        void this.resolveLocal(trackId).then((l) => {
+          if (epoch !== this.epoch) return;
+          if (l) this.applyLocal(trackId, l);
+          else this.beginRemote(trackId, unlocked);
+        });
+        return;
+      }
+    }
+    this.beginRemote(trackId, false);
+  }
+
+  /** Unlock the element inside the user gesture (iOS/WebKit) before an async step. */
+  private unlock(): boolean {
+    if (this.autoplay && this.el?.load) {
+      this.el.load();
+      this.state.playing = !this.el.paused;
+      return true;
+    }
+    return false;
+  }
+
+  private beginRemote(trackId: string, unlocked: boolean) {
     const cached = this.cached(trackId);
     if (cached) {
       this.apply(cached);
       return;
     }
-    // Unlock the element inside the user gesture (iOS/WebKit) before the async fetch.
-    if (this.autoplay && this.el?.load) {
-      this.el.load();
-      this.state.playing = !this.el.paused;
-    }
+    if (!unlocked) this.unlock();
     const epoch = this.epoch;
     void this.links(trackId).then((l) => {
       if (epoch !== this.epoch) return;
@@ -502,9 +581,27 @@ export class Player {
     });
   }
 
+  private applyLocal(trackId: string, l: LocalSource) {
+    const el = this.el;
+    if (!el) return;
+    this.state.format = l.format;
+    this.state.noFlac = false;
+    this.appliedExp = 0;
+    this.src = l.src;
+    this.appliedTrack = trackId;
+    this.playingLocal = trackId;
+    el.src = l.src;
+    this.state.playing = !el.paused;
+    if (this.autoplay) {
+      this.wantPlay = true;
+      void el.play()?.catch?.((e: unknown) => this.fail(e));
+    }
+  }
+
   private apply(links: MediaLinks) {
     const el = this.el;
     if (!el) return;
+    this.playingLocal = "";
     // A track without a lossless file (flac === null: a lossy reference) always plays its MP3 link.
     const format = links.flac ? this.formatFor(links.track_id) : "mp3";
     this.state.format = format;
@@ -519,6 +616,11 @@ export class Player {
       this.wantPlay = true;
       void el.play()?.catch?.((e: unknown) => this.fail(e));
     }
+  }
+
+  /** The device's effective format (M1 C22.1), for the download manager (C115.3). */
+  deviceFormat(): Format {
+    return formatFor(this.deps.device.quality(), this.deps.device.connection());
   }
 
   private formatFor(trackId: string): Format {
@@ -580,7 +682,14 @@ export class Player {
   private prefetchNext(warm = false) {
     const s = this.state;
     const id = s.queue[s.index + 1];
-    if (id !== undefined) {
+    if (id !== undefined && this.localEligible(id)) {
+      // Downloaded: no link to mint. Not downloaded (or the lookup failed): the usual signed-link prefetch.
+      void this.resolveLocal(id).then((l) => {
+        if (l || id !== s.queue[s.index + 1]) return;
+        void this.links(id);
+      });
+      void this.loadMeta(id);
+    } else if (id !== undefined) {
       // cached(): an expired entry is dropped, so this refreshes a link past its half-life.
       void this.links(id).then((l) => {
         if (warm && l && id === s.queue[s.index + 1]) {
@@ -768,6 +877,28 @@ export class Player {
     if (/MediaSink/i.test(el.error?.message ?? "")) return;
     const at = el.currentTime || this.state.current || 0;
     const resume = this.wantPlay;
+    if (this.playingLocal === id && this.appliedTrack === id) {
+      // Any error on a local source (the network answers an unsigned URL with 403, which browsers may report as
+      // MEDIA_ERR_SRC_NOT_SUPPORTED): the file is suspect. Mint a signed link once and resume at the same position.
+      // This is not a codec failure: no FLAC fallback, no failed probe, no put_device_profile (C115.4).
+      this.playingLocal = "";
+      this.noLocal.add(id);
+      this.localInfo.set(id, null);
+      this.deps.local?.markSuspect(id);
+      this.cache.delete(id);
+      const epoch = this.epoch;
+      void this.links(id, true).then((l) => {
+        if (epoch !== this.epoch) return;
+        if (!l) {
+          this.state.error = "Could not load media links";
+          return;
+        }
+        this.pendingSeek = at > 0 ? at : null;
+        this.autoplay = resume;
+        this.apply(l);
+      });
+      return;
+    }
     // Chrome/Firefox report a 403 on the media fetch as code 4 (not 2): an expired link is a re-mint, not a codec problem.
     const expired = this.appliedExp > 0 && this.deps.now() >= this.appliedExp;
     const remint =
@@ -857,6 +988,10 @@ export const player = new Player({
   now: () => Date.now(),
   fetchMeta: (id) => resolveMeta(id, getTrackRef),
   warm,
+  local: offline.hooks,
+  hasController: () => typeof navigator !== "undefined" && !!navigator.serviceWorker?.controller,
+  online: () => typeof navigator === "undefined" || navigator.onLine !== false,
 });
 
 session.configure({ isPlaying: () => playerInUse(player.state) });
+offline.setDeviceFormat(() => player.deviceFormat());

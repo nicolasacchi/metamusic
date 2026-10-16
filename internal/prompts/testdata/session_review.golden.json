@@ -1,0 +1,25 @@
+{
+  "Spec": {
+    "Name": "session_review",
+    "Title": "Review a listening session",
+    "Description": "Summarise what the human listened to, finished and skipped",
+    "Version": "1",
+    "Args": [
+      {
+        "Name": "since",
+        "Description": "RFC 3339 start; default 12 hours ago, at most 30 days",
+        "Required": false
+      }
+    ]
+  },
+  "Messages": [
+    {
+      "Role": "user",
+      "Content": {
+        "Type": "text",
+        "Text": "Review the human's recent listening in metamusic. The data below covers 2026-10-06T08:00:00Z to 2026-10-06T12:00:00Z.\n\n```json\n{\n  \"since\": \"2026-10-06T08:00:00Z\",\n  \"until\": \"2026-10-06T12:00:00Z\",\n  \"tracks\": [\n    {\n      \"track_id\": \"01900000-0000-7000-8000-000000000101\",\n      \"title\": \"Synthetic Song\",\n      \"plays\": 3,\n      \"completed\": 1,\n      \"skipped\": 1,\n      \"seconds_heard\": 95,\n      \"last_played_at\": \"2026-10-06T11:00:00Z\",\n      \"stars\": 4,\n      \"open_comments\": 2\n    }\n  ],\n  \"totals\": {\n    \"tracks\": 1,\n    \"plays\": 3,\n    \"seconds_heard\": 95\n  }\n}\n```\n\nSay which takes the human returned to, which they finished and which they skipped. Ask about the ones that are still unrated. Suggest next steps: add_comment for notes, create_duel between takes that are close, create_draft for a variant. rate_track belongs to the human; do not use it for them.\n\nNever claim to have heard anything. You only know what the data above shows.",
+        "Resource": null
+      }
+    }
+  ]
+}

@@ -56,7 +56,7 @@ var (
 	// as plays or completions.
 	diagKinds = []string{"autoplay_blocked", "stall_end", "advance", "error"}
 	detailRE  = regexp.MustCompile(`^[a-z0-9_:=.,-]{1,64}$`)
-	sources   = []string{"web", "api", "mcp", "stdio"}
+	sources   = []string{"web", "api", "mcp", "stdio", "subsonic"}
 )
 
 const (

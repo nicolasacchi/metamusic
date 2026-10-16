@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { installMediaSession, type MSEnv } from "./mediaSession";
+import { artworkList, createCovers, type CoverSet } from "./coverLinks";
 
 function setup(opts: { duration?: number; currentTime?: number } = {}) {
   const handlers = new Map<string, unknown>();
@@ -207,5 +208,107 @@ describe("mediaSession", () => {
     // an unrelated state change does not clear it again
     el.dispatchEvent(new Event("mm:state"));
     expect(positions.length).toBe(n + 1);
+  });
+});
+
+describe("mediaSession artwork (M4a C115)", () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  const cover = { url512: "/media/aa.png?x=1", url1024: "/media/bb.png?x=1" };
+
+  function withCover(provider: (id: string) => Promise<CoverSet | null>) {
+    const s = setup();
+    s.cleanup();
+    const ms = { ...s.ms, metadata: null as unknown };
+    class MM {
+      constructor(public init: unknown) {}
+    }
+    const el = s.el;
+    const off = installMediaSession(s.player, el as unknown as HTMLAudioElement, {
+      mediaSession: ms,
+      MediaMetadata: MM,
+      doc: s.doc,
+      win: s.win,
+      cover: provider,
+    });
+    type Init = { artwork: { src: string; sizes?: string; type?: string }[] };
+    return { ms, el, off, player: s.player, art: () => (ms.metadata as { init: Init } | null)?.init.artwork };
+  }
+
+  test("artworkList: 512 and 1024 from the cover links; falls back to the icon", () => {
+    expect(artworkList(cover)).toEqual([
+      { src: "/media/aa.png?x=1", sizes: "512x512", type: "image/png" },
+      { src: "/media/bb.png?x=1", sizes: "1024x1024", type: "image/png" },
+    ]);
+    expect(artworkList({ url512: "/media/aa.png", url1024: null })).toHaveLength(1);
+    expect(artworkList(null)).toEqual([{ src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }]);
+  });
+
+  test("metadata shows the icon first, then the cover once the links arrive", async () => {
+    const { el, art } = withCover(async () => cover);
+    el.dispatchEvent(new Event("playing"));
+    expect(art()![0]!.src).toBe("/icons/icon-512.png");
+    await flush();
+    expect(art()!.map((a) => a.src)).toEqual([cover.url512, cover.url1024]);
+  });
+
+  test("a provider that fails or returns null keeps the icon", async () => {
+    const a = withCover(async () => null);
+    a.el.dispatchEvent(new Event("playing"));
+    await flush();
+    expect(a.art()![0]!.src).toBe("/icons/icon-512.png");
+    const b = withCover(() => Promise.reject(new Error("x")));
+    b.el.dispatchEvent(new Event("playing"));
+    await flush();
+    expect(b.art()![0]!.src).toBe("/icons/icon-512.png");
+  });
+
+  test("a result for a track that is no longer current is dropped", async () => {
+    const pending: ((c: CoverSet | null) => void)[] = [];
+    const s = withCover(() => new Promise<CoverSet | null>((r) => pending.push(r)));
+    s.el.dispatchEvent(new Event("playing"));
+    s.player.state.trackId = "b";
+    s.el.dispatchEvent(new Event("mm:state"));
+    pending[0]!(cover); // the links of the first track arrive late
+    await flush();
+    expect(s.art()![0]!.src).toBe("/icons/icon-512.png");
+    pending[1]!({ url512: "/media/b.png", url1024: null });
+    await flush();
+    expect(s.art()![0]!.src).toBe("/media/b.png");
+  });
+});
+
+describe("createCovers", () => {
+  const link = (n: string, exp: number) => ({ cover: { url_512: `/media/${n}.png`, url_1024: `/media/${n}-l.png`, expires_at: new Date(exp).toISOString() } });
+
+  function rig(opts: { online?: boolean; local?: string | null; links?: () => Promise<ReturnType<typeof link> | null> } = {}) {
+    let t = 1_000_000;
+    let n = 0;
+    const covers = createCovers({
+      links: opts.links ?? (async () => link("c" + ++n, t + 3_600_000)),
+      local: async () => opts.local ?? null,
+      online: () => opts.online ?? true,
+      now: () => t,
+    });
+    return { covers, tick: (ms: number) => (t += ms), count: () => n };
+  }
+
+  test("online: one get_media_links per track until the link nears expiry", async () => {
+    const r = rig();
+    expect(await r.covers.get("t1")).toEqual({ url512: "/media/c1.png", url1024: "/media/c1-l.png" });
+    await r.covers.get("t1");
+    expect(r.count()).toBe(1);
+    r.tick(3_600_000 - 30_000);
+    expect((await r.covers.get("t1"))!.url512).toBe("/media/c2.png");
+  });
+
+  test("offline: the cached 512 cover, no 1024, no network call", async () => {
+    const r = rig({ online: false, local: "/media/cached.png" });
+    expect(await r.covers.get("t1")).toEqual({ url512: "/media/cached.png", url1024: null });
+    expect(r.count()).toBe(0);
+  });
+
+  test("no cover service (cover null) or a failing call: null, or the cached cover if any", async () => {
+    expect(await rig({ links: async () => ({ cover: null }) as never }).covers.get("t")).toBeNull();
+    expect(await rig({ links: async () => { throw new Error("net"); }, local: "/media/c.png" }).covers.get("t")).toEqual({ url512: "/media/c.png", url1024: null });
   });
 });

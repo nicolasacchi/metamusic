@@ -450,6 +450,8 @@ type CapsView struct {
 	UpdatedBy           PrincipalRef `json:"updated_by"`
 	UpdatedAt           string       `json:"updated_at"`
 	Tokens              []CapToken   `json:"tokens" nullable:"false"`
+	// Connectors are the per-grant limits of hosted connectors (M4a C106): a human sees all, an OAuth caller its own grant, a PAT caller none.
+	Connectors []CapConnector `json:"connectors" nullable:"false"`
 }
 
 // BudgetMonth is the current calendar month.

@@ -11,8 +11,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// TestMigration0007_UpgradeFromM2d opens a schema-6 library (listen_events.detail from the auto-advance hotfix, the
-// production schema) with the M2c fixture rows, lets store.Open apply exactly 0007, and checks that every earlier row is unchanged, tokens still verify and the new columns are NULL.
+// TestMigration0007_UpgradeFromM2d opens a schema-6 library (listen_events.detail from the auto-advance hotfix)
+// with the M2c fixture rows, lets store.Open apply every later migration, and checks that every earlier row is unchanged, tokens still verify and the new columns are NULL.
 func TestMigration0007_UpgradeFromM2d(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -75,8 +75,8 @@ func TestMigration0007_UpgradeFromM2d(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v < 7 {
-		t.Fatalf("version=%d, want 7", v)
+	if v, _ := s.UserVersion(ctx); v != store.MigrationCount() {
+		t.Fatalf("version=%d, want %d", v, store.MigrationCount())
 	}
 	var detail int
 	if err := s.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('listen_events') WHERE name='detail'`).Scan(&detail); err != nil || detail != 1 {

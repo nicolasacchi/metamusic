@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
@@ -42,6 +43,8 @@ type uiState struct {
 	track, timed, draft, playlist, comment, export, run, duel string
 	// M3: a mother with a known recipe, the token of the last estimate, the batch and the job it created
 	mother, token, batch, job string
+	// M4a: a connector grant (inserted through connectors.Store.Ensure) and the Subsonic client create_subsonic_client made
+	grant, subClient string
 	// L1: ids of a Song, a Muse and a session, read from list_songs, create_muse and list_sessions
 	song, muse, session string
 	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
@@ -164,6 +167,27 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_provider_status": func(*uiState) map[string]any { return nil },
 	"get_lineage":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
 
+	// M4a (C113): the three read ops and the five admin management ops (the scripted agent holds scope admin).
+	"get_offline_set":   func(*uiState) map[string]any { return nil },
+	"get_download_link": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
+	"get_prompt": func(s *uiState) map[string]any {
+		return map[string]any{"name": "critique_track", "track_id": s.track}
+	},
+	"list_connector_grants": func(*uiState) map[string]any { return nil },
+	"set_connector_grant": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.grant, "scopes": []string{"read", "write"}}
+	},
+	"list_subsonic_clients": func(*uiState) map[string]any { return nil },
+	"create_subsonic_client": func(*uiState) map[string]any {
+		return map[string]any{"name": "Scripted phone"}
+	},
+	"revoke_subsonic_client": func(s *uiState) map[string]any {
+		id := s.subClient
+		if id == "" { // create_subsonic_client is still a stub: any id reaches the stub's 501
+			id = "00000000-0000-7000-8000-00000000dead"
+		}
+		return map[string]any{"id": id}
+	},
 	// L1 (C101.2): the 14 operations with a UI route and an MCP face.
 	"list_muses": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"get_muse":   func(s *uiState) map[string]any { return map[string]any{"id": s.muse} },
@@ -226,6 +250,9 @@ var uiOrder = []string{
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
+	// M4a
+	"get_offline_set", "get_download_link", "get_prompt", "list_connector_grants", "set_connector_grant",
+	"list_subsonic_clients", "create_subsonic_client", "revoke_subsonic_client",
 	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them
 	"list_songs", "create_muse", "list_muses", "get_muse", "update_muse", "list_sessions", "update_session", "get_song", "update_song",
 	"assign_muse_songs", "list_pick_events", "search_sounds", "get_sound_taxonomy", "map_sound_term", "get_muse_board",
@@ -249,6 +276,10 @@ func (s *uiState) afterStep(op string, res any) {
 		s.batch, _ = m["id"].(string)
 		if jobs, _ := m["jobs"].([]any); len(jobs) > 0 {
 			s.job, _ = jobs[0].(map[string]any)["id"].(string)
+		}
+	case "create_subsonic_client":
+		if c, _ := m["client"].(map[string]any); c != nil {
+			s.subClient, _ = c["id"].(string)
 		}
 	case "create_muse":
 		if id, _ := m["id"].(string); id != "" {
@@ -297,13 +328,18 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	}
 
 	tok, agentID, err := r.Services.Tokens.Create(context.Background(), "ui-agent",
-		[]auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate})
+		[]auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
 	sess := mcpWithToken(t, r, tok)
 	r.Settle(t) // the library structure and derived rows the L1 operations read (the rig never starts the Reconciler)
 	st := &uiState{duel: "01900000-0000-7000-8000-000000000b01"}
+	g, _, err := r.Services.Connectors.Ensure(context.Background(), "scripted-client", "scripted-subject", "scripted", "Scripted Connector")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.grant = g.ID
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
@@ -337,6 +373,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		args := script(st)
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)
+		if task := m4aStubOf(raw); raw.IsError && task != "" {
+			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): M4a-B3 left no pending stub", id, task)
+		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
 		}
@@ -400,4 +439,25 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if d := cmp.Diff(wantTx, gotTx); d != "" {
 		t.Errorf("in-transaction audit rows differ (-called +audited):\n%s", d)
 	}
+}
+
+// m4aStubOf returns the task of an M4a stub's tool error (the problem 501 NOT_IMPLEMENTED with details.task "M4a-..."), else "".
+func m4aStubOf(res *mcp.CallToolResult) string {
+	if res == nil || !res.IsError || len(res.Content) == 0 {
+		return ""
+	}
+	tc, ok := res.Content[0].(*mcp.TextContent)
+	if !ok {
+		return ""
+	}
+	var p struct {
+		Code    string `json:"code"`
+		Details struct {
+			Task string `json:"task"`
+		} `json:"details"`
+	}
+	if json.Unmarshal([]byte(tc.Text), &p) != nil || p.Code != "NOT_IMPLEMENTED" || !strings.HasPrefix(p.Details.Task, "M4a-") {
+		return ""
+	}
+	return p.Details.Task
 }

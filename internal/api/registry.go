@@ -92,8 +92,10 @@ func validate(op huma.Operation, m Meta) error {
 	default:
 		return fmt.Errorf("%s: invalid rate %q", op.OperationID, m.Rate)
 	}
-	if len(m.SecretFields) > 0 && !(m.HumanOnly && m.Idempotency == "create") {
-		return fmt.Errorf("%s: secret_fields require a human-only create op", op.OperationID)
+	// D-M4a-24: a secret may be minted by an admin-scope agent too, so the rule is "a create operation" (the
+	// idempotent replay nulls the secrets through idem.Redact), no longer "a human-only create operation".
+	if len(m.SecretFields) > 0 && m.Idempotency != "create" {
+		return fmt.Errorf("%s: secret_fields require an idempotency create op", op.OperationID)
 	}
 	for _, f := range m.SecretFields {
 		if !secretFieldRe.MatchString(f) {
@@ -218,7 +220,11 @@ func Authorize(ctx context.Context, meta Meta) error {
 		return Err(403, "HUMAN_ONLY", "this operation is restricted to human users", nil)
 	}
 	if !p.Has(meta.Scope) {
-		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", map[string]any{"scope": string(meta.Scope)})
+		details := map[string]any{"scope": string(meta.Scope)}
+		if p.Via == "oauth" { // a connector's scopes are the grant's: only the operator can widen them (M4a C106)
+			details["hint"] = "the operator can enable this scope for the connector at /human/connectors"
+		}
+		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", details)
 	}
 	return nil
 }

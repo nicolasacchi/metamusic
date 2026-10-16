@@ -219,6 +219,8 @@ cycles and to keep test code out of the binary):
 
 ### C11. Migration `internal/store/migrations/0002_library.sql` (full DDL) and store additions
 
+> **M4a amendment (B1):** Migration `0009_remote.sql` (committed as `0008_remote.sql` until L1 merges) adds `tracks.status_set_at` (backfilled with `created_at`); M4a C103.
+
 After M1, `PRAGMA user_version == 2` (M2a-B1: migration `0003_judge.sql` makes it 3; the M1 tests that pinned `== 2` now
 assert "at least 2" or migrate explicitly with `MigrateTo(…, 2)`; `librarytest.FixtureV2` is the M1 fixture body). M0's `TestOpenMigratesAndReopens` (`internal/store/store_test.go`,
 package `store`) asserts `user_version == 1` twice; both change to the number of embedded migrations
@@ -1174,6 +1176,8 @@ draft:syn-song-01-v2,,,,syn-song-01
   pre-filled for every unmatched/ambiguous audio and every varianti draft with `mother_not_found` or
   `mother_ambiguous`.
 
+> **M4a amendment (M1):** `library_orphans` also skips the caches `derived/covers/` and `derived/dl/` (alongside `derived/probe`, `derived/clips` and `derived/exports`); neither is backed up (M4a C110).
+
 **C16.7 Inventory / report** (`format: "mm.inventory/1"`):
 - `report_id` = UUIDv7 (for an applied run also `import_runs.id`).
 - `plan_digest` = hex sha256 of the canonical JSON (sorted keys and arrays) of everything apply would
@@ -1247,6 +1251,8 @@ as `\x..`/`\u....`).
 - Enforced by `TestPrivacy_ReferenceMetadataConfined` (M1-B9).
 
 ### C17. Library service: `internal/library` + `librarytest`
+
+> **M4a amendment (B1):** `InsertTake` also writes `tracks.status_set_at = created_at` when the column exists (M4a C103, D-M4a-23).
 
 ```go
 type Service struct{ /* st *store.Store; data *os.Root; now func() time.Time */ }
@@ -1327,6 +1333,8 @@ schema 2-5 databases; the score of a job take has `source = 'job'`, and `InsertT
 
 ### C18. Media URLs and handler: `internal/media/serve`
 
+> **M4a amendment (B2):** the media path accepts the extension `png`; the response code is extracted into `serve.ServeObject(w, r, data, obj, cacheControl)`, which the handler calls with the unchanged `private, max-age=31536000, immutable` (M4a C110.3). The handler test that listed `.png` among the refused extensions drops that row.
+
 > M2b-B1 addendum: the path regex is `^/media/([0-9a-f]{64})\.(flac|mp3|jsonl|zip|jpg)$`; `Service.Resolve` (C17) answers `jpg` from `renditions(kind='spectrogram')` as `image/jpeg`.
 
 ```go
@@ -1376,6 +1384,10 @@ func Handler(s *Signer, data *os.Root, res Resolver, probe *Object) http.Handler
   `[a-z0-9._-]`) adds `Content-Disposition: attachment; filename="<name>"`; library objects send none.
 
 ### C19. Operations (all `Cost: "free"`; registered via `api.Register`; JSON snake_case)
+
+> **M4a amendment (B2):** `get_media_links` gains `cover` (`{url_512, url_1024, expires_at}`, null while no cover service is wired; M4a C113).
+>
+> **M4a amendment (M1):** `cover` signs `/media/<key>.png` for 512 and 1024 px (human 12 h, agent 15 min), rendering into the cache on demand, writing nothing to the database; a cover failure degrades to `cover: null` and never fails the audio links.
 
 | OperationID | Method + path | Scope | MCP | UI | Output (abridged; full types in `internal/api/types_m1.go`) |
 |---|---|---|---|---|---|
@@ -1484,6 +1496,8 @@ the queries that fill them (and the `search_tracks` `origin` filter) land in M3-
 
 ### C20. HTTP server and CLI additions
 
+> **M4a amendment (B2):** `seed-synthetic --profile e2e` additionally, and idempotently, fills the offline set (the 12 s timed track, then the 6 s take) and inserts one connector grant `E2E Connector` (M4a C114).
+
 > M2b-B2 addendum: `httpserver.Options` gains `Duels`, `Ears` and `Clips` (see M0 C6); the CLI gains `analyze` (M2b C51.7, a stub
 > until M2b-E3) and the media chain becomes `serve.Chain(lib, exp, clips)` with `clips` appended only when the service exists.
 
@@ -1545,6 +1559,8 @@ the queries that fill them (and the `search_tracks` `origin` filter) land in M3-
     are missing). M0's dev bootstrap (auto-created secrets, one-time `dev` password) is unchanged.
 
 ### C21. Synthetic generator: `internal/synth`
+
+> **M4a amendment (B2):** the e2e profile's offline set and connector grant are written by the `seed-synthetic` command, not by the generator (M4a C114).
 
 Everything synthetic is generated at test/dev time by ffmpeg + Go; nothing from the real archive; no
 audio is committed. Vocabulary: invented syllable words plus fixed edge strings (`è à ì`, `<`, `>`,
@@ -1696,6 +1712,8 @@ position and record a failed probe (C22.3). Format = device effective format (`l
 handler (setting `currentTime` earlier is ignored on iOS); if the track is already current, it seeks
 immediately.
 
+> **M4a amendment (W1):** before minting links the player asks the offline store (`PlayerDeps.local`): a complete local file and a controlling service worker give `src = /media/<sha>.<ext>` with no `get_media_links` call; any media error on it marks the file suspect and mints one signed link at the same position (M4a C115.4).
+
 **C22.2 Media Session:** metadata `{title, artist: "metamusic", album: <root title>, artwork:
 [/icons/icon-512.png 512x512]}`; handlers `play`, `pause`, `previoustrack`, `nexttrack`, `seekto`;
 `seekforward`/`seekbackward` set to `null`; `setPositionState` on `loadedmetadata`, `seeked`, and
@@ -1721,6 +1739,8 @@ is offered again on the next gesture (at most 3 attempts per `probe_version`, co
 `localStorage`). Settings shows the probe result, the quality selector (Lossless / High / Auto only
 when `navigator.connection` exists), data estimates (FLAC ≈ 11 MB/min, MP3 ≈ 2.4 MB/min) and
 `list_device_profiles`.
+
+> **M4a amendment (W1):** `offline.svelte.ts` reads the player's effective device format (`Player.deviceFormat()`) to choose the file it downloads; a local-source playback error never records a failed probe (M4a C115.3/C115.4).
 
 **C22.4 Session loss (D-M1-5; M1-W1 records this in the M0 document).** It replaces M0's behaviour in
 `web/src/api/client.ts`: the openapi-fetch middleware reloads on any 401 response and on a `TypeError`
@@ -1753,6 +1773,8 @@ worker in M1. M0 already ships the manifest link (no `crossorigin`), `theme-colo
 `start_url`, `display`, colours and icons `icon-192.png`, `icon-512.png`, `icon.svg`; M1 adds `scope`,
 a dedicated 180×180 `apple-touch-icon.png` and a maskable 512 PNG (`icons/icon-512-maskable.png`). The
 privacy gate rejects binary blobs except real PNGs under `web/public/icons/`, so icons go only there.
+
+> **M4a amendment (W1):** a service worker now exists: `/sw.js` is built by a second Vite build (`web/vite.sw.config.ts`), registered by `src/api/swRegister.ts` in a secure context only (a refused registration is logged and ignored) and specified in M4a C115.1.
 
 Playwright config additions: Chrome `--autoplay-policy=no-user-gesture-required` on M0's three Chrome
 projects (`chrome`, `chrome-pixel7`, `chrome-iphone15` — the last is an iPhone 15 viewport on Chrome);

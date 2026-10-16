@@ -36,13 +36,19 @@ func capsFrom(viewer auth.Principal, v generation.CapsView) CapsView {
 		MonthlyMicroUSD: int64(c.MonthlyMicro), MonthlyUSD: usd(c.MonthlyMicro), BatchMicroUSD: int64(c.BatchMicro), BatchUSD: usd(c.BatchMicro),
 		HumanDailyMicroUSD: int64(c.HumanDailyMicro), HumanDailyUSD: usd(c.HumanDailyMicro), AgentDailyMicroUSD: int64(c.AgentDailyMicro), AgentDailyUSD: usd(c.AgentDailyMicro),
 		AutoApproveTakes: c.AutoApproveTakes, AutoApproveMicroUSD: int64(c.AutoApproveMicro), AutoApproveUSD: usd(c.AutoApproveMicro),
-		UpdatedBy: refOf(viewer, v.UpdatedBy), UpdatedAt: store.FormatTime(v.UpdatedAt), Tokens: []CapToken{},
+		UpdatedBy: refOf(viewer, v.UpdatedBy), UpdatedAt: store.FormatTime(v.UpdatedAt), Tokens: []CapToken{}, Connectors: []CapConnector{},
 	}
 	for _, t := range v.Tokens {
 		ct := CapToken{TokenID: t.TokenID, Name: t.Name, AutoApproveTakes: t.Limits.AutoApproveTakes}
 		ct.DailyBudgetMicroUSD, ct.DailyBudgetUSD = int64Ptr(t.Limits.DailyMicro)
 		ct.AutoApproveMicroUSD, ct.AutoApproveUSD = int64Ptr(t.Limits.AutoApproveMicro)
 		out.Tokens = append(out.Tokens, ct)
+	}
+	for _, c := range v.Connectors {
+		cc := CapConnector{GrantID: c.GrantID, Label: c.Label, AutoApproveTakes: c.Limits.AutoApproveTakes}
+		cc.DailyBudgetMicroUSD, cc.DailyBudgetUSD = int64Ptr(c.Limits.DailyMicro)
+		cc.AutoApproveMicroUSD, cc.AutoApproveUSD = int64Ptr(c.Limits.AutoApproveMicro)
+		out.Connectors = append(out.Connectors, cc)
 	}
 	return out
 }

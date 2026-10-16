@@ -93,6 +93,25 @@ web/src/lib/components/TakeCard.svelte	l1-song
 web/src/lib/components/Pick*	l1-song
 web/src/lib/components/SongChip.svelte	l1-board l1-song
 web/src/routes/Sounds.svelte	l1-sounds
+web/src/api/sw/*	m4a-offline
+web/src/api/swRegister.ts	m4a-offline
+web/src/api/offline.ts	m4a-offline
+web/src/lib/offline*	m4a-offline
+web/src/routes/Offline.svelte	m4a-offline
+web/src/lib/components/OfflineButton.svelte	m4a-offline m4a-track
+web/src/lib/components/CoverArt.svelte	m4a-track
+web/src/lib/components/DownloadFlacButton.svelte	m4a-track
+web/src/lib/components/PromptButtons.svelte	m4a-track
+web/src/lib/cover*	m4a-track
+web/src/lib/promptButtons.ts	m4a-track
+web/src/routes/HumanConnectors.svelte	m4a-human
+web/src/routes/HumanSubsonic.svelte	m4a-human
+web/src/lib/components/GrantRow.svelte	m4a-human
+web/src/lib/components/SubsonicClientForm.svelte	m4a-human
+web/src/lib/components/SecretOnce.svelte	m4a-human
+web/src/lib/grantForm.ts	m4a-human
+web/src/lib/subsonicForm.ts	m4a-human
+web/src/lib/secretOnce.ts	m4a-human
 # Go packages whose behaviour a spec exercises end to end. Packages not listed here (money, clock,
 # redact, canonjson, textfold, ...) are covered by their reverse dependencies' unit tests only.
 internal/duels/*	m2b-duels
@@ -118,6 +137,8 @@ internal/library/*	m1-library m1-track
 internal/trackctx/*	m2a-context
 internal/auth/*	m2a-human
 internal/analysis/*	m1-track
+internal/media/cover/*	m4a-track
+internal/media/tagged/*	m4a-track
 internal/media/*	m1-player
 internal/mediatool/*	m1-player
 internal/synth/*	core
@@ -141,3 +162,7 @@ internal/picks/*	l1-song
 internal/sessions/*	l1-song
 internal/sounds/*	l1-sounds
 internal/board/*	l1-board
+internal/connectors/*	m4a-human
+internal/oidc/*	m4a-human
+internal/subsonic/*	m4a-human
+internal/prompts/*	m4a-track

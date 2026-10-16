@@ -95,10 +95,11 @@ func TestPlaylists_REST(t *testing.T) {
 		}
 		return out
 	}
-	if got := ids(""); !slices.Equal(got, []string{lt.PlaylistMix}) {
+	const offlineSet = "00000000-0000-7000-8000-0000000000f1" // created by the M4a migration
+	if got := ids(""); !slices.Equal(got, []string{lt.PlaylistMix, offlineSet}) {
 		t.Errorf("default list %v", got)
 	}
-	if got := ids("?include_hidden=true"); len(got) != 2 {
+	if got := ids("?include_hidden=true"); len(got) != 3 {
 		t.Errorf("include_hidden list %v", got)
 	}
 }

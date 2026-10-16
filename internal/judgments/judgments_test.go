@@ -606,7 +606,7 @@ func TestAddComment_Validation(t *testing.T) {
 			t.Errorf("source %s: %+v %v", src, c, err)
 		}
 	}
-	if _, err := e.svc.AddComment(ctx, human, "subsonic", lt.TrackLuna, judgments.NewComment{Body: "x"}); err == nil {
+	if _, err := e.svc.AddComment(ctx, human, "carrier-pigeon", lt.TrackLuna, judgments.NewComment{Body: "x"}); err == nil {
 		t.Error("unknown source accepted")
 	}
 	if _, err := e.svc.AddComment(ctx, human, "web", "nope", judgments.NewComment{Body: "x"}); !errors.Is(err, library.ErrNotFound) {

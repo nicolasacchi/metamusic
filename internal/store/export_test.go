@@ -14,3 +14,12 @@ func OpenRaw(path string) (*sql.DB, error) {
 	w.SetMaxOpenConns(1)
 	return w, nil
 }
+
+// MigrationCount is the number of embedded migrations (the schema version of a fresh database).
+func MigrationCount() int {
+	ms, err := loadMigrations()
+	if err != nil {
+		panic(err)
+	}
+	return len(ms)
+}

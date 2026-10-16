@@ -247,6 +247,7 @@ describe("lossy playback (M2c)", () => {
       track_id: "a",
       expires_at: "2099-01-01T00:00:00Z",
       ttl_s: 43200,
+      cover: null,
       lossy: true,
       flac: null,
       mp3: { url: "/media/a.mp3?exp=1", bytes: 1, content_type: "audio/mpeg", bitrate_kbps: 320, sha256: "y" },

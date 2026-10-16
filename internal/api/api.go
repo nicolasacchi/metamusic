@@ -19,6 +19,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -30,11 +31,15 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
+	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/prompts"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
@@ -88,6 +93,16 @@ type Deps struct {
 	Jobs       *jobs.Service
 	Provider   *jobs.ProviderAdmin
 	Lineage    *lineage.Service
+
+	// M4a (C114). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
+	// (the component names are connectors, subsonic, covers, downloads, prompts and playlists; OIDC only fills
+	// OIDCStatus.keys and may be nil while hosted connectors are off).
+	Connectors *connectors.Store
+	OIDC       *oidc.Verifier
+	Subsonic   *auth.SubsonicStore
+	Covers     *cover.Service
+	Downloads  *tagged.Service
+	Prompts    prompts.Sources
 
 	// L1 (C87). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
 	// (muses, songs, songview, sessions, picks, sounds, board).
@@ -225,6 +240,11 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerAudit(a, d)
 	registerTokens(a, d)
 	registerPairedDevices(a, d)
+	registerOfflineM4a(a, d)
+	registerDownloadM4a(a, d)
+	registerPromptsM4a(a, d)
+	registerConnectorsM4a(a, d)
+	registerSubsonicClientsM4a(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

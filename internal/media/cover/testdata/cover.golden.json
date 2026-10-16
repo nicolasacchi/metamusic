@@ -1,0 +1,20 @@
+[
+  {
+    "root": "root-synthetic-a",
+    "seed": 1101,
+    "size": 128,
+    "sha256": "74a62e8d312793d996b601be97dc2788ce1163f6fd11f5d326c46974a8fe3879"
+  },
+  {
+    "root": "root-synthetic-b",
+    "seed": 7,
+    "size": 96,
+    "sha256": "4a9317d3d4503bdc0c9eba351284a8bd933bcad2135404d508db97b481023d1a"
+  },
+  {
+    "root": "01900000-0000-7000-8000-000000000101",
+    "seed": 0,
+    "size": 64,
+    "sha256": "d8e83c80cabf400bdfd21b7c2df67d94082173f6ba94ccae486f08a4ab0dad8e"
+  }
+]

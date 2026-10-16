@@ -21,6 +21,10 @@
   import TrackBadges from "../lib/components/TrackBadges.svelte";
   import PickBadge from "../lib/components/PickBadge.svelte";
   import RecipeUnknownPanel from "../lib/components/RecipeUnknownPanel.svelte";
+  import CoverArt from "../lib/components/CoverArt.svelte";
+  import DownloadFlacButton from "../lib/components/DownloadFlacButton.svelte";
+  import OfflineButton from "../lib/components/OfflineButton.svelte";
+  import PromptButtons from "../lib/components/PromptButtons.svelte";
   import GenerateButton from "../lib/components/GenerateButton.svelte";
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
   import type { Viewer } from "../lib/genIntent";
@@ -185,19 +189,22 @@
   <p class="muted">Loading…</p>
 {:else}
   <article>
-    <h1 data-testid="track-title">{track.title}</h1>
-    {#if track.song}
-      <p class="song-strip" data-testid="song-strip">
-        Song <a href="/songs/{track.song.id}" data-testid="song-link">{track.song.title}</a>
-        {#if track.is_pick}
-          <PickBadge source={track.song.pick_source ?? "newest"} />
-        {:else if pickTake}
-          · Pick of this Song: <a href="/tracks/{pickTake.id}" data-testid="song-pick-link">{pickTake.title}</a>
-        {:else}
-          · <a href="/songs/{track.song.id}" data-testid="song-pick-link">Pick of this Song</a>
+    <div class="head">
+      <CoverArt trackId={id} title={track.title} size={128} />
+      <div class="headtext">
+        <h1 data-testid="track-title">{track.title}</h1>
+        {#if track.song}
+          <p class="song-strip" data-testid="song-strip">
+            Song <a href="/songs/{track.song.id}" data-testid="song-link">{track.song.title}</a>
+            {#if track.is_pick}
+              <PickBadge source={track.song.pick_source ?? "newest"} />
+            {:else if pickTake}
+              · Pick of this Song: <a href="/tracks/{pickTake.id}" data-testid="song-pick-link">{pickTake.title}</a>
+            {:else}
+              · <a href="/songs/{track.song.id}" data-testid="song-pick-link">Pick of this Song</a>
+            {/if}
+          </p>
         {/if}
-      </p>
-    {/if}
     {#if !track.recipe_known || track.lossy}
       <p class="badges" data-testid="track-badges"><TrackBadges recipeKnown={track.recipe_known} lossy={track.lossy} /></p>
     {/if}
@@ -205,6 +212,8 @@
       {fmt(track.duration_s)} · recorded {track.recorded_at.slice(0, 10)} · {track.status} · seed {track.recipe.seed}
       {#if track.bpm_declared} · {track.bpm_declared} BPM{/if}
     </p>
+      </div>
+    </div>
 
     <div class="controls">
       <button type="button" data-testid="track-play" onclick={() => play()}>
@@ -212,6 +221,11 @@
       </button>
       <span class="time" data-testid="track-time">{fmt(position)} / {fmt(duration)}</span>
       <GenerateButton trackId={id} recipeKnown={track.recipe_known} lossy={track.lossy} {me} />
+    </div>
+
+    <div class="controls" data-testid="track-actions">
+      <DownloadFlacButton trackId={id} lossy={track.lossy} />
+      <OfflineButton trackId={id} />
     </div>
 
     <div class="wave" bind:clientWidth={width}>
@@ -253,6 +267,7 @@
         <section class="card">
           <h2>Agent context</h2>
           <ContextButton trackId={id} />
+          <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
         </section>
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <EarsPanel trackId={id} />
@@ -309,6 +324,14 @@
   }
   .meta {
     margin-top: 0;
+  }
+  .head {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .headtext {
+    min-width: 0;
   }
   .badges {
     margin: 0.2rem 0;

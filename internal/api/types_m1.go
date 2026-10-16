@@ -66,12 +66,13 @@ type MP3Link struct {
 
 type mediaLinksOut struct {
 	Body struct {
-		TrackID   string          `json:"track_id"`
-		ExpiresAt string          `json:"expires_at" doc:"RFC 3339 UTC"`
-		TTLS      int64           `json:"ttl_s" doc:"Link lifetime granted to the caller, seconds"`
-		Flac      *FlacLinkOrNull `json:"flac" doc:"null for a lossy track: there is no lossless file; never guess a FLAC URL"`
-		Lossy     bool            `json:"lossy" doc:"The master is an MP3; mp3 points at it"`
-		MP3       MP3Link         `json:"mp3"`
+		TrackID   string            `json:"track_id"`
+		ExpiresAt string            `json:"expires_at" doc:"RFC 3339 UTC"`
+		TTLS      int64             `json:"ttl_s" doc:"Link lifetime granted to the caller, seconds"`
+		Flac      *FlacLinkOrNull   `json:"flac" doc:"null for a lossy track: there is no lossless file; never guess a FLAC URL"`
+		Lossy     bool              `json:"lossy" doc:"The master is an MP3; mp3 points at it"`
+		MP3       MP3Link           `json:"mp3"`
+		Cover     *CoverLinksOrNull `json:"cover" doc:"Signed links to the track's deterministic cover art (512 and 1024 px); null while no cover service is wired"`
 	}
 }
 

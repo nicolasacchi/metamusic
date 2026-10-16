@@ -23,7 +23,7 @@ func Classify(path string) PathClass {
 	}
 	switch path {
 	case "/healthz", "/manifest.webmanifest", "/auth/login", "/auth/logout",
-		"/start", "/pair", "/pair.js", "/auth/pair":
+		"/start", "/pair", "/pair.js", "/auth/pair", "/sw.js":
 		return ClassPublic
 	case "/oauth/token", "/oauth/register", "/oauth/revoke", "/mcp":
 		return ClassMachine

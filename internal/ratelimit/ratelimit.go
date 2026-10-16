@@ -18,6 +18,11 @@ const (
 	Human      Class = "human"
 	HumanHeavy Class = "human_heavy"
 	Pair       Class = "pair"
+
+	// M4a (C102): the OpenSubsonic bridge.
+	Subsonic               Class = "subsonic"
+	SubsonicAuthFail       Class = "subsonic_auth_fail"
+	SubsonicAuthFailGlobal Class = "subsonic_auth_fail_global"
 )
 
 // Limit is one bucket's refill rate and burst.
@@ -36,6 +41,10 @@ var Default = Config{
 	Human:      {600, 200},
 	HumanHeavy: {12, 6},
 	Pair:       {10, 5},
+
+	Subsonic:               {1200, 300},
+	SubsonicAuthFail:       {10, 5},
+	SubsonicAuthFailGlobal: {60, 20},
 }
 
 // Scaled returns a copy with every PerMinute and Burst multiplied by n.
@@ -132,6 +141,33 @@ func (l *Limiter) Allow(key string, classes ...Class) (ok bool, retryAfter time.
 		secs = 1
 	}
 	return false, secs * time.Second, worstClass
+}
+
+// Peek reports whether a token is available for (class, key) without consuming one. A class missing
+// from the configuration is always ok (like Allow). When empty, retryAfter is the whole-second wait.
+func (l *Limiter) Peek(key string, class Class) (ok bool, retryAfter time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	lim, known := l.cfg[class]
+	if !known {
+		return true, 0
+	}
+	now := l.now()
+	b := l.bucketLocked(class, key, lim)
+	b.last = now
+	if b.lim.TokensAt(now) >= 1 {
+		return true, 0
+	}
+	if lim.Burst < 1 || lim.PerMinute <= 0 {
+		return false, time.Minute
+	}
+	need := 1 - b.lim.TokensAt(now)
+	d := time.Duration(need / (lim.PerMinute / 60) * float64(time.Second))
+	secs := (d + time.Second - 1) / time.Second
+	if secs < 1 {
+		secs = 1
+	}
+	return false, secs * time.Second
 }
 
 func (l *Limiter) bucketLocked(c Class, key string, lim Limit) *bucket {

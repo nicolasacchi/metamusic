@@ -83,6 +83,9 @@ export default defineConfig({
   use: {
     extraHTTPHeaders: HEADERS,
     trace: "retain-on-failure",
+    // M4a (C117.6): service workers are blocked by default so the route mocks and request observations of the other specs
+    // stay intact; m4a-offline and m4a-track opt in with test.use({ serviceWorkers: "allow" }) (their server is per worker).
+    serviceWorkers: "block",
   },
   projects: allProjects,
 });

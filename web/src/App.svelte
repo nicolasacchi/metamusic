@@ -5,7 +5,8 @@
   import { player } from "./lib/player.svelte";
   import { dismissToast, toasts } from "./lib/judge.svelte";
   import { installDevice } from "./lib/device.svelte";
-  import { installMediaSession } from "./lib/mediaSession";
+  import { installMediaSession, mediaSessionEnv } from "./lib/mediaSession";
+  import { covers } from "./lib/cover";
   import { installListen } from "./lib/listen.svelte";
   import { createNav } from "./lib/nav";
   import { api } from "./api/client";
@@ -32,6 +33,8 @@
   import SettingsBackups from "./routes/SettingsBackups.svelte";
   import SettingsAudit from "./routes/SettingsAudit.svelte";
   import HumanTokens from "./routes/HumanTokens.svelte";
+  import HumanConnectors from "./routes/HumanConnectors.svelte";
+  import HumanSubsonic from "./routes/HumanSubsonic.svelte";
   import HumanDevices from "./routes/HumanDevices.svelte";
   import Duels from "./routes/Duels.svelte";
   import Duel from "./routes/Duel.svelte";
@@ -45,7 +48,10 @@
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
+  import Offline from "./routes/Offline.svelte";
   import NotFound from "./routes/NotFound.svelte";
+  import { offline } from "./lib/offline.svelte";
+  import { applyUpdate, watchForUpdate } from "./api/swRegister";
 
   const router = createRouter(APP_ROUTES);
   const audioId = randomId();
@@ -89,6 +95,37 @@
   $effect(() => {
     document.documentElement.style.setProperty("scroll-padding-bottom", `${playerH}px`);
   });
+  // A new service worker is waiting: offer the update (C115.1); never forced.
+  let waitingWorker = $state<ServiceWorkerRegistration | null>(null);
+  // "Reload to update" never reloads under music: while the player is playing (or waiting for a tap) the click is
+  // remembered and applied as soon as playback stops.
+  let updateQueued = $state(false);
+  const playbackBusy = $derived(player.state.playing || player.state.pendingPlay);
+  function requestUpdate() {
+    if (!waitingWorker) return;
+    if (playbackBusy) updateQueued = true;
+    else applyUpdate(waitingWorker);
+  }
+  $effect(() => {
+    if (updateQueued && !playbackBusy && waitingWorker) {
+      updateQueued = false;
+      applyUpdate(waitingWorker);
+    }
+  });
+  $effect(() =>
+    untrack(() => {
+      const onReg = (e: Event) => watchForUpdate((e as CustomEvent<ServiceWorkerRegistration>).detail, (r) => (waitingWorker = r));
+      window.addEventListener("mm:sw-registered", onReg);
+      // Offline badge: the set is fetched (never downloaded) so the nav can show downloaded/total.
+      if (offline.available) {
+        void offline.refresh();
+        // The set is fetched only when the network is believed to be up (an offline start touches no API).
+        if (navigator.onLine !== false) void offline.refreshSet();
+      }
+      return () => window.removeEventListener("mm:sw-registered", onReg);
+    }),
+  );
+
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
@@ -96,7 +133,7 @@
     untrack(() => {
       player.attach(audio);
       installDevice(player);
-      const offMediaSession = installMediaSession(player, audio);
+      const offMediaSession = installMediaSession(player, audio, mediaSessionEnv(covers.get));
       const offListen = installListen(player);
       const offActivation = player.watchActivation(document);
       return () => {
@@ -124,16 +161,31 @@
       <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
+      {#if offline.available}
+        <a href="/offline" aria-current={$router.route?.name === "offline" ? "page" : undefined} data-testid="nav-offline">Offline{#if offline.badge}<span class="badge" data-testid="offline-badge">{offline.badge}</span>{/if}</a>
+      {/if}
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
       <a href="/human/" onclick={humanClick} class="approvals-link" data-testid="approvals-nav" aria-current={$router.route?.name === "human" ? "page" : undefined} aria-label={approvalBadge ? `Approvals, ${approvalBadge} pending` : "Approvals"}>Approvals{#if approvalBadge}<span class="badge" data-testid="approvals-badge">{approvalBadge}</span>{/if}</a>
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
+      <a href="/human/connectors" onclick={humanClick} aria-current={$router.route?.name === "human-connectors" ? "page" : undefined}>Connectors</a>
+      <a href="/human/subsonic" onclick={humanClick} aria-current={$router.route?.name === "human-subsonic" ? "page" : undefined}>Subsonic</a>
     </nav>
   </header>
 
   <main style:padding-bottom="calc(1rem + {playerH}px)">
     <SessionBanner />
+    {#if waitingWorker}
+      <p class="update" role="status" data-testid="sw-update">
+        A new version is available.
+        {#if updateQueued}
+          <span data-testid="sw-update-queued">The update applies when playback stops.</span>
+        {:else}
+          <button type="button" onclick={requestUpdate}>Reload to update</button>
+        {/if}
+      </p>
+    {/if}
     {#if $router.route?.name === "home"}
       <Library search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "track"}
@@ -212,6 +264,12 @@
       {#key $router.params.id}
         <Lineage id={$router.params.id ?? ""} />
       {/key}
+    {:else if $router.route?.name === "offline"}
+      <Offline />
+    {:else if $router.route?.name === "human-connectors"}
+      <HumanConnectors />
+    {:else if $router.route?.name === "human-subsonic"}
+      <HumanSubsonic />
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}
@@ -279,6 +337,12 @@
     background: #f2a65a;
     color: #14110f;
     font-size: 0.75rem;
+  }
+  .update {
+    margin: 0 0 1rem;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid #3a322b;
+    border-radius: 0.4rem;
   }
   main {
     min-width: 0;

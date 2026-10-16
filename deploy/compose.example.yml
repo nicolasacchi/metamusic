@@ -24,6 +24,12 @@ services:
       # Optional push notifications (backup failed, device paired, token created). https:// unless
       # loopback; the publisher token, if any, is the optional secret file "ntfy_token".
       # MM_NTFY_URL: https://ntfy.example.com/metamusic
+      # Hosted connectors (claude.ai, ChatGPT), see docs/connectors.md. Needs an https MM_PUBLIC_URL and
+      # MM_TRUSTED_USERS. No secret belongs here: hosted clients are public or hold their secret at the provider.
+      # MM_OIDC_ISSUER: https://auth.example.com
+      # MM_OIDC_CLIENTS: metamusic-claude=Claude
+      # MM_OIDC_SCOPES: "openid metamusic"
+      # MM_OIDC_JWKS_URL: https://auth.example.com/jwks.json   # only if not discoverable from the container
     ports:
       - "127.0.0.1:8080:8080"
     user: "1000:1000"

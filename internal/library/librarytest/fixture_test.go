@@ -81,7 +81,8 @@ func TestLibrarytest_FixtureExtendsV2(t *testing.T) {
 		}
 	}
 	for table, want := range map[string]int{
-		"ratings": 4, "tags": 3, "track_tags": 4, "comments": 5, "playlists": 1, "listen_events": 3, "devices": 1, "backup_runs": 1,
+		"ratings": 4, "tags": 3, "track_tags": 4, "comments": 5, "playlists": 2, // + the offline set (migration)
+		"listen_events": 3, "devices": 1, "backup_runs": 1,
 		"recipe_drafts": 9, "recipes": 12,
 	} {
 		if got := count(full, table); got != want {

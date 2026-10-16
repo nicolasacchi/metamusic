@@ -9,11 +9,14 @@ import (
 var uuidRE = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 var (
-	credRE  = regexp.MustCompile(`\b(mm[pdc])_[A-Za-z0-9]{8,}`)
+	credRE  = regexp.MustCompile(`\b(mm[pdcs])_[A-Za-z0-9]{8,}`)
 	bearRE  = regexp.MustCompile(`(?i)\b(Bearer)\s+[^\s,;"']+`)
 	authRE  = regexp.MustCompile(`(?i)\b(Authorization):\s*[^\r\n]*`)
 	queryRE = regexp.MustCompile(`\?[^\s"'<>]*`)
-	runRE   = regexp.MustCompile(`[A-Za-z0-9_-]{32,}`)
+	jwtRE   = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*`)
+	// form-encoded secrets (Subsonic t/s/p/apiKey, OAuth code and token parameters)
+	formRE = regexp.MustCompile(`(^|[\s&?;,])(t|s|p|apiKey|code|code_verifier|refresh_token|access_token|client_secret)=[^&\s"']*`)
+	runRE  = regexp.MustCompile(`[A-Za-z0-9_-]{32,}`)
 
 	// M3 additions (C80): cookie headers and the RunPod endpoint id inside job-API paths.
 	cookieRE = regexp.MustCompile(`(?i)\b(Cookie|Set-Cookie):\s*[^\r\n]*`)
@@ -34,6 +37,8 @@ func String(s string) string {
 	s = jobHostRE.ReplaceAllString(s, "${1}"+endpointPlaceholder)
 	s = mgmtPathRE.ReplaceAllString(s, "${1}"+endpointPlaceholder)
 	s = bearRE.ReplaceAllString(s, "$1 <redacted>")
+	s = jwtRE.ReplaceAllString(s, "<jwt>")
+	s = formRE.ReplaceAllString(s, "${1}${2}=<redacted>")
 	s = credRE.ReplaceAllString(s, "${1}_<redacted>")
 	s = queryRE.ReplaceAllString(s, "?<redacted>")
 	s = runRE.ReplaceAllStringFunc(s, func(m string) string {

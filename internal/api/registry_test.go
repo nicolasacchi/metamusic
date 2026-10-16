@@ -65,7 +65,8 @@ func TestRegisterPanics(t *testing.T) {
 		{"idempotency create on GET", nil, func(m *api.Meta) { m.Idempotency = "create" }},
 		{"idempotency create on PATCH", func(o *huma.Operation) { o.Method = "PATCH" }, func(m *api.Meta) { m.Idempotency = "create" }},
 		{"rate unknown", nil, func(m *api.Meta) { m.Rate = "turbo" }},
-		{"secret fields without human-only", func(o *huma.Operation) { o.Method = "POST" }, func(m *api.Meta) { m.Idempotency = "create"; m.SecretFields = []string{"token"} }},
+		// D-M4a-24: secret_fields need a create operation, human-only or not (TestValidateMeta_SecretFieldsM4a)
+		{"secret fields without create", nil, func(m *api.Meta) { m.SecretFields = []string{"token"} }},
 		{"secret fields human-only but not create", func(o *huma.Operation) { o.Path = "/human/api/x" }, func(m *api.Meta) {
 			m.HumanOnly, m.UI, m.MCP, m.SecretFields = true, "none:x", "exclude:human-only", []string{"token"}
 		}},
