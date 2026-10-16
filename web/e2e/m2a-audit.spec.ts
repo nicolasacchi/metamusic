@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON, trackByTitle, uniq } from "./helpers";
 
 test("human mutations made here are listed and the filters narrow the list", async ({ page, request }) => {

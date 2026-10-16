@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "./fixtures";
 import { SEED_RECIPE_TRACKS, SEED_TRACKS } from "./env";
 
 const TITLES = ["Syn ears clip", "Syn ears gap", "Syn ears loop", "Syn song 01 s1001", "Syn song 01 s2001", "Syn song 02", "Syn song 03", "Syn song 04", "Syn song 05"];

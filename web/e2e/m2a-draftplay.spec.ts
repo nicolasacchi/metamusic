@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { apiJSON, ownTracks, uniq } from "./helpers";
 
 // Saving a draft is an in-app hop: it must go through the SPA router, never a document load, or the player dies.
