@@ -58,7 +58,7 @@ describe("isServerPath", () => {
 });
 
 describe("human and pairing pages", () => {
-  test("/human, /start and /pair are server paths, never client-routed", () => {
+  test("/human (the hub; /human/ is stripped to it), /start and /pair are server paths, never client-routed", () => {
     for (const p of ["/human", "/human/tokens", "/human/devices", "/start", "/pair", "/pair/x"]) expect(isServerPath(p)).toBe(true);
     for (const p of ["/humane", "/started", "/pairs"]) expect(isServerPath(p)).toBe(false);
   });
@@ -81,6 +81,7 @@ describe("APP_ROUTES (C40)", () => {
     ["/settings", "settings"],
     ["/settings/backups", "settings-backups"],
     ["/settings/audit", "settings-audit"],
+    ["/human", "human"],
     ["/human/tokens", "human-tokens"],
     ["/human/devices", "human-devices"],
     ["/duels", "duels"],
@@ -96,7 +97,7 @@ describe("APP_ROUTES (C40)", () => {
     });
   }
   test("unknown paths are 404", () => {
-    expect(matchRoute(APP_ROUTES, "/human")).toBeNull();
+    expect(matchRoute(APP_ROUTES, "/humane")).toBeNull();
     expect(matchRoute(APP_ROUTES, "/nope")).toBeNull();
   });
 });

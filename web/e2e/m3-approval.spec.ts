@@ -1,4 +1,4 @@
-// matrix: chrome-only because the seven-take approval flow is slow (150 s timeouts); on the iPhone 15 emulation the Approve button is covered by the fixed player footer (PR #24 CI), a UI finding to fix before this goes @mobile
+// matrix: @mobile because approvals are done on the phone; the fixed player bar must never cover Approve/Reject (it did on the iPhone before the bar reserved its space)
 import { expect, test, type APIRequestContext } from "./fixtures";
 import { agentCreateHeaders, allTerminal, assertOnlyDuplicateFailures, composeRoots, first, getBatch, pollBatch, type Batch, type Estimate } from "./m3Api";
 

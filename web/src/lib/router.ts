@@ -37,6 +37,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/settings", name: "settings" },
   { pattern: "/settings/backups", name: "settings-backups" },
   { pattern: "/settings/audit", name: "settings-audit" },
+  { pattern: "/human", name: "human" }, // also /human/: parseLocation strips the trailing slash
   { pattern: "/human/tokens", name: "human-tokens" },
   { pattern: "/human/devices", name: "human-devices" },
   { pattern: "/jobs", name: "jobs" },

@@ -10,6 +10,8 @@
   import { createNav } from "./lib/nav";
   import { api } from "./api/client";
   import { loadDuelBadge } from "./lib/navBadge";
+  import { approvals, refreshApprovals } from "./lib/approvals.svelte";
+  import { badgeText } from "./lib/approvals";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
@@ -34,6 +36,7 @@
   import HumanGenerate from "./routes/HumanGenerate.svelte";
   import HumanConfirm from "./routes/HumanConfirm.svelte";
   import HumanSpend from "./routes/HumanSpend.svelte";
+  import Human from "./routes/Human.svelte";
   import Jobs from "./routes/Jobs.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -62,6 +65,26 @@
     void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
   });
 
+  // Pending approvals: refreshed on navigation and every 30 s while the tab is visible. The badge is for humans only.
+  const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
+  $effect(() => {
+    void $router.path;
+    void refreshApprovals();
+  });
+  $effect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden) void refreshApprovals();
+    }, 30_000);
+    return () => clearInterval(t);
+  });
+
+  // The player bar is fixed to the viewport bottom; routed content reserves its (variable) height so that no control
+  // (Approve, Reject, duel verdicts) can ever sit under it.
+  let playerH = $state(0);
+  // scroll-padding keeps scrollIntoView, focus and find-in-page from parking a control under the bar.
+  $effect(() => {
+    document.documentElement.style.setProperty("scroll-padding-bottom", `${playerH}px`);
+  });
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
@@ -96,13 +119,14 @@
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
+      <a href="/human/" onclick={humanClick} class="approvals-link" data-testid="approvals-nav" aria-current={$router.route?.name === "human" ? "page" : undefined} aria-label={approvalBadge ? `Approvals, ${approvalBadge} pending` : "Approvals"}>Approvals{#if approvalBadge}<span class="badge" data-testid="approvals-badge">{approvalBadge}</span>{/if}</a>
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
     </nav>
   </header>
 
-  <main>
+  <main style:padding-bottom="calc(1rem + {playerH}px)">
     <SessionBanner />
     {#if $router.route?.name === "home"}
       <Library search={searchOf($router)} navigate={router.navigate} />
@@ -142,6 +166,8 @@
       <SettingsBackups />
     {:else if $router.route?.name === "settings-audit"}
       <SettingsAudit />
+    {:else if $router.route?.name === "human"}
+      <Human />
     {:else if $router.route?.name === "human-tokens"}
       <HumanTokens />
     {:else if $router.route?.name === "human-devices"}
@@ -186,7 +212,7 @@
     {/each}
   </div>
 
-  <footer class="player" aria-label="Player">
+  <footer class="player" aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
     <PlayerBar {player} />
     <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
@@ -246,8 +272,12 @@
     align-items: center;
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
     border-top: 1px solid #3a322b;
-    position: sticky;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    z-index: 5;
+    box-sizing: border-box;
     background: #1d1814;
   }
   .toasts {
