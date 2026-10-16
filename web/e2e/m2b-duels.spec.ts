@@ -2,7 +2,7 @@
 // M2b duel specs. Verdicts are immutable and next_duel returns the globally oldest open duel, so every
 // spec makes its own duel (API helper or UI) and opens /duels/:id; none asserts a global rank or the
 // queue head. Keyboard specs run on the desktop Chrome project, toggle specs on the mobile projects.
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { expect, test, type Page, type Response } from "./fixtures";
 import { crossfades, installAbSpy, readAb } from "./abSpy";
 import { trackByTitle } from "./helpers";
 import { createDuel, decide, getDuel, ladder, siblings } from "./m2bApi";

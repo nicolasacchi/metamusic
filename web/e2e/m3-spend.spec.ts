@@ -1,5 +1,5 @@
 // matrix: chrome-only because it changes the caps and arming for everyone and runs alone
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON } from "./helpers";
 import { composeRoots, first } from "./m3Api";
 

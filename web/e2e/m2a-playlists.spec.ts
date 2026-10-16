@@ -1,6 +1,6 @@
 // matrix: chrome-only because it is a data flow ending in a ZIP of tagged MP3s
 import { readFileSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { trackByTitle, uniq } from "./helpers";
 import { id3Frames, readZip } from "./zip";
 

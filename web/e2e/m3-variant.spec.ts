@@ -1,5 +1,5 @@
 // matrix: @mobile because the three-click variant flow is run from the phone
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { apiJSON } from "./helpers";
 import { allTerminal, assertOnlyDuplicateFailures, composeRoots, first, onlyDuplicates, pollBatch } from "./m3Api";
 

@@ -39,12 +39,12 @@ jobs:
       - id: plan
         run: |
           q=$(grep -lE '^[^/]*@quarantine' web/e2e/*.spec.ts 2>/dev/null | wc -l || true)
-          inc='{"name":"quarantine","set":"","matrix":"default","quarantine":"only","soft":true}'
+          inc='{"name":"quarantine","shard":"","matrix":"default","quarantine":"only","soft":true}'
           full=""
           case "$GITHUB_EVENT_NAME" in
             schedule|workflow_dispatch)
-              for s in a b c; do
-                full="$full{\"name\":\"full-$s\",\"set\":\"$s\",\"matrix\":\"full\",\"quarantine\":\"0\",\"soft\":false},"
+              for s in 1 2 3 4 5 6; do
+                full="$full{\"name\":\"full-$s\",\"shard\":\"$s\",\"matrix\":\"full\",\"quarantine\":\"0\",\"soft\":false},"
               done ;;
           esac
           list="$full"
@@ -123,12 +123,12 @@ jobs:
         working-directory: web
         env:
           MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
-          MM_E2E_SET: ${{ matrix.set }}
+          SHARD: ${{ matrix.shard }}
           MM_E2E_MATRIX: ${{ matrix.matrix }}
           MM_E2E_QUARANTINE: ${{ matrix.quarantine }}
-          # a filtered run serves only part of the UI operations: the blocking ci.yml sets check the union
+          # a filtered run serves only part of the UI operations: the blocking ci.yml shards check the union
           MM_E2E_COVERAGE: "0"
-        run: bunx playwright test --pass-with-no-tests
+        run: bunx playwright test --pass-with-no-tests ${SHARD:+--shard=$SHARD/6}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:

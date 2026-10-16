@@ -1,13 +1,11 @@
 // matrix: chrome-only because it is a file export check (bytes and validation)
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 const SOURCE = "music/songs.jsonl";
 
-function seedPath(): string {
-  const dir = process.env.MM_E2E_SEED_DIR;
-  if (!dir) throw new Error("MM_E2E_SEED_DIR is set by global-setup");
+function seedPath(dir: string): string {
   return join(dir, SOURCE);
 }
 
@@ -21,7 +19,7 @@ async function chooseSource(page: Page, forBatch: boolean) {
   await expect(page.getByTestId("export-result")).toBeVisible();
 }
 
-test("source export is the original file byte for byte and reports exactly its own issues", async ({ page }) => {
+test("source export is the original file byte for byte and reports exactly its own issues", async ({ page, seedDir }) => {
   await chooseSource(page, false);
   const card = page.getByTestId("validator-card");
   await expect(card).toHaveAttribute("data-tone", "original");
@@ -34,7 +32,7 @@ test("source export is the original file byte for byte and reports exactly its o
   const download = page.waitForEvent("download");
   await page.getByTestId("export-download").click();
   const got = readFileSync(await (await download).path());
-  const seed = readFileSync(seedPath());
+  const seed = readFileSync(seedPath(seedDir));
   expect(got.equals(seed)).toBe(true);
   // the shown digest is the digest of those bytes
   const { createHash } = await import("node:crypto");

@@ -2,7 +2,7 @@
 // Auto-advance hardening (Android Firefox: at the end of a song the next one did not start).
 // The "firefox-android" project runs this spec with an Android Firefox user agent, a phone viewport,
 // touch and Firefox's strict autoplay prefs; chrome and the Pixel 7 project run the same specs.
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 type Item = { id: string; title: string };
 

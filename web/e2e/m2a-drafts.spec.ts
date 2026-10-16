@@ -1,5 +1,5 @@
 // matrix: chrome-only because the draft editor and uploads are data flows with no device-dependent behaviour
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 
 type Draft = { id: string; revision: number; request: { lyrics: string }; request_id: string; origin: string };

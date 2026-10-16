@@ -1,5 +1,5 @@
 // matrix: @mobile @firefox because deep-link seek and section highlight depend on the audio element and the phone track layout
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 async function trackId(request: APIRequestContext, title: string): Promise<string> {
   const r = await request.get("/api/tracks?limit=50");

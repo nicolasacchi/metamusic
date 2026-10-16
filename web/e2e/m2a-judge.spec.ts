@@ -1,5 +1,5 @@
 // matrix: @mobile @realtime because rating and tagging happen from the player bar, whose controls must not overflow a phone viewport
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "./fixtures";
 import { apiJSON, ownTracks, tap, uniqTag } from "./helpers";
 
 // The tests share the project's seed track pair, so they run one after the other.

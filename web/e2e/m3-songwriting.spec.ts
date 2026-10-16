@@ -1,5 +1,5 @@
 // matrix: chrome-only because it is a settings form with no device-dependent behaviour
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON } from "./helpers";
 
 // The operator sets the songwriting duration targets on Settings; the agent read (get_songwriting_settings) and the
