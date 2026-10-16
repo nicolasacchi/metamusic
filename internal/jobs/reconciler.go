@@ -167,7 +167,7 @@ func (r *Reconciler) Pass(ctx context.Context) error {
 	if r.o.Runner == nil || !r.o.Runner.Holding() {
 		return nil
 	}
-	steps := []func(context.Context) error{r.adopt, r.expireApprovals, r.sweepUploads, r.refreshQuote, r.sweepStep, r.actOnTrips, r.reconcileBilling}
+	steps := []func(context.Context) error{r.adopt, r.expireApprovals, r.withdrawStuckApprovals, r.sweepUploads, r.refreshQuote, r.sweepStep, r.actOnTrips, r.reconcileBilling}
 	var first error
 	for _, step := range steps {
 		if err := step(ctx); err != nil {
@@ -237,6 +237,34 @@ func (r *Reconciler) expireApprovals(ctx context.Context) error {
 		if errors.Is(err, spend.ErrInvalidTransition) {
 			continue // decided meanwhile
 		}
+		if err != nil {
+			return err
+		}
+		r.o.Runner.changed()
+	}
+	return nil
+}
+
+// withdrawStuckApprovals closes the batches that were cancelled while awaiting confirmation before cancel
+// withdrew their approval itself: every job is cancelled but the batch is still awaiting_confirmation with a
+// pending approval, which would keep the batch in the approvals hub. It is the same move cancel_batch now
+// makes (approval and batch end 'rejected', approval via 'cancel', decided by the reconciler, the outstanding
+// released) and writes one audit row per batch. Once a batch is closed it no longer matches, so the rule
+// is idempotent and a no-op on a healthy database.
+func (r *Reconciler) withdrawStuckApprovals(ctx context.Context) error {
+	ids, err := r.o.Spend.StuckWithdrawn(ctx, r.o.Store.R, approvalBatch)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		err := r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
+			f := r.o.Runner.fence()
+			changed, err := r.o.Spend.WithdrawBatch(ctx, tx, id, spend.ExpirySystem, "cancelled before approval", &f)
+			if err != nil || !changed {
+				return err
+			}
+			return r.auditTx(ctx, tx, f, "reconciler:approval_withdrawn", map[string]any{"batch": id}, 0)
+		})
 		if err != nil {
 			return err
 		}
