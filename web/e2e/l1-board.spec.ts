@@ -1,4 +1,4 @@
-import { expect as baseExpect, test } from "@playwright/test";
+import { expect as baseExpect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { apiJSON, uniq } from "./helpers";
 import { archiveDrafts, assignSongs, createMuse, letters, makeDraftSongs, setAngle, type SongList } from "./l1Api";
 
@@ -73,6 +73,22 @@ test("a new Muse takes two selected chips", async ({ page, request }) => {
   }
 });
 
+// Other specs of this phase create Songs (and their derived Sounds) while this one runs, so a total shown by the page and
+// one read from the API at another instant can differ. The page's number must lie within the range of the API totals
+// observed from before the page changed until the poll succeeds.
+async function expectShownSongsWithinApi(page: Page, request: APIRequestContext, url: string, before: number): Promise<number> {
+  const seen = [before];
+  await expect
+    .poll(async () => {
+      const text = await page.getByTestId("board-totals").innerText();
+      const shown = Number(/(\d+) songs/.exec(text)?.[1] ?? Number.NaN);
+      seen.push((await apiJSON<BoardOut>(request, "GET", url)).totals.songs);
+      return shown >= Math.min(...seen) && shown <= Math.max(...seen);
+    })
+    .toBe(true);
+  return seen[seen.length - 1] ?? before;
+}
+
 test("the Board filters by session and by a Sound facet", async ({ page, request }) => {
   const sessions = await apiJSON<SessionList>(request, "GET", "/api/sessions?limit=100");
   const withSongs = sessions.items.find((s) => s.songs > 0);
@@ -80,14 +96,13 @@ test("the Board filters by session and by a Sound facet", async ({ page, request
 
   await page.goto("/board");
   await expect(page.getByTestId("board-totals")).toBeVisible();
-  const all = await apiJSON<BoardOut>(request, "GET", "/api/board?detail=counts&limit=1");
 
+  const sessionURL = `/api/board?detail=counts&limit=1&session_id=${withSongs.id}`;
+  const sessionBefore = (await apiJSON<BoardOut>(request, "GET", sessionURL)).totals.songs;
   await page.getByTestId("filter-session").selectOption(withSongs.id);
   await expect(page).toHaveURL(new RegExp(`session=${withSongs.id}`));
-  const bySession = await apiJSON<BoardOut>(request, "GET", `/api/board?detail=counts&limit=1&session_id=${withSongs.id}`);
-  await expect(page.getByTestId("board-totals")).toContainText(`${bySession.totals.songs} songs`);
-  expect(bySession.totals.songs).toBeGreaterThan(0);
-  expect(bySession.totals.songs).toBeLessThanOrEqual(all.totals.songs);
+  const bySession = await expectShownSongsWithinApi(page, request, sessionURL, sessionBefore);
+  expect(bySession).toBeGreaterThan(0);
 
   await page.getByTestId("filter-session").selectOption("");
   await expect(page).not.toHaveURL(/session=/);
@@ -96,11 +111,11 @@ test("the Board filters by session and by a Sound facet", async ({ page, request
   await expect(pill).toBeVisible();
   const token = ((await pill.innerText()).split(/\s+/)[0] ?? "").trim();
   expect(token).toMatch(/^[a-z_]+:.+/);
+  const soundURL = `/api/board?detail=counts&limit=1&sound=${encodeURIComponent(token)}`;
+  const soundBefore = (await apiJSON<BoardOut>(request, "GET", soundURL)).totals.songs;
   await pill.click();
   await expect(page).toHaveURL(/sound=/);
-  const bySound = await apiJSON<BoardOut>(request, "GET", `/api/board?detail=counts&limit=1&sound=${encodeURIComponent(token)}`);
-  await expect(page.getByTestId("board-totals")).toContainText(`${bySound.totals.songs} songs`);
-  expect(bySound.totals.songs).toBeLessThanOrEqual(all.totals.songs);
+  await expectShownSongsWithinApi(page, request, soundURL, soundBefore);
 });
 
 test("a session can be renamed from the Board and renamed back", async ({ page, request }) => {
@@ -126,8 +141,10 @@ test("a session can be renamed from the Board and renamed back", async ({ page, 
   // the row shows the old name again only once the response arrived (while editing it holds an input, not text)
   await expect(panel.locator("li").filter({ hasText: target.name }).first()).toBeVisible();
   await expect(panel.locator("li").filter({ hasText: renamed })).toHaveCount(0);
-  const now = await apiJSON<SessionList>(request, "GET", "/api/sessions?limit=100");
-  expect(now.items.find((s) => s.id === target.id)?.name).toBe(target.name);
+  // default batch names are minute-resolution and may repeat, so the visible row can be a sibling: wait on the API itself
+  await expect
+    .poll(async () => (await apiJSON<SessionList>(request, "GET", "/api/sessions?limit=100")).items.find((s) => s.id === target.id)?.name)
+    .toBe(target.name);
 });
 
 test("Estimate hands off to /human/generate with the draft count", async ({ page, request }) => {

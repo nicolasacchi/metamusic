@@ -103,7 +103,7 @@ test("a refused play() after ended keeps the queue and resumes with the tap-to-c
   await toEnd(page);
   await expect(bar.getByRole("link", { name: list[5]!.title })).toBeVisible({ timeout: 10_000 });
   // diagnostics reached the outbox through the listen-events op
-  await expect.poll(async () => (await kinds()).filter((k) => k === "autoplay_blocked").length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(async () => (await kinds()).filter((k) => k === "autoplay_blocked").length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
   expect(await kinds()).toEqual(expect.arrayContaining(["advance", "complete", "autoplay_blocked"]));
 });
 

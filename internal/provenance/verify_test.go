@@ -111,6 +111,37 @@ func TestVerify_DetectsEachAnomaly(t *testing.T) {
 			s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
 				VALUES('e9',?,3,?,NULL,?,'none','newest','initial','system:provenance','system','provenance','{}')`, s.songRoot, s.sc.At(1), s.root)
 		}},
+		{"I5 pick chain broken after the first event", "pick_chain_broken", func(s *settled) {
+			s.dropTrigger("pick_events_chain")
+			for i, seq := range []int{1, 3} {
+				s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
+					VALUES(?,?,?,?,NULL,?,'none','newest','initial','system:provenance','system','provenance','{}')`, "ec"+string(rune('a'+i)), s.songRoot, seq, s.sc.At(1), s.root)
+			}
+		}},
+		{"I5 pick take outside its song", "pick_take_not_in_song", func(s *settled) {
+			s.dropTrigger("pick_events_take_in_song")
+			s.dropTrigger("song_picks_take_in_song")
+			s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
+				VALUES('e1',?,1,?,NULL,?,'none','newest','initial','system:provenance','system','provenance','{}')`, s.songRoot, s.sc.At(1), s.other)
+			s.dropTrigger("song_picks_event_required")
+			s.exec(`INSERT INTO song_picks(song_id,take_id,source,evidence_json,last_event_id,changed_at,computed_at) VALUES(?,?,'newest','{}','e1',?,?)`, s.songRoot, s.other, s.sc.At(1), s.sc.At(1))
+		}},
+		{"I5 pinned pick differs from its pin", "pick_pin_mismatch", func(s *settled) {
+			s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
+				VALUES('e1',?,1,?,NULL,?,'none','newest','initial','system:provenance','system','provenance','{}')`, s.songRoot, s.sc.At(1), s.root)
+			s.dropTrigger("song_picks_event_required")
+			s.exec(`INSERT INTO song_picks(song_id,take_id,source,evidence_json,last_event_id,changed_at,computed_at) VALUES(?,?,'newest','{}','e1',?,?)`, s.songRoot, s.root, s.sc.At(1), s.sc.At(1))
+			s.exec(`PRAGMA ignore_check_constraints = ON`)
+			s.exec(`UPDATE song_picks SET source = 'pinned', pinned_take_id = ?`, s.child)
+		}},
+		{"I5 ladder pick keeps its incumbent", "pick_stale", func(s *settled) {
+			s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
+				VALUES('e1',?,1,?,NULL,?,'none','ladder','initial','system:provenance','system','provenance','{}')`, s.songRoot, s.sc.At(1), s.root)
+			s.exec(`INSERT INTO song_picks(song_id,take_id,source,evidence_json,last_event_id,changed_at,computed_at) VALUES(?,?,'ladder','{}','e1',?,?)`, s.songRoot, s.root, s.sc.At(1), s.sc.At(1))
+		}},
+		{"I7 collection without session", "collection_without_session", func(s *settled) {
+			s.sc.Collection(s.draftA, "Planted collection")
+		}},
 		{"I5 pick event mismatch", "pick_event_mismatch", func(s *settled) {
 			s.exec(`INSERT INTO pick_events(id,song_id,seq,at,from_take_id,to_take_id,from_source,to_source,reason,actor,actor_kind,actor_name,evidence_json)
 				VALUES('e1',?,1,?,NULL,?,'none','newest','initial','system:provenance','system','provenance','{}')`, s.songRoot, s.sc.At(1), s.child)

@@ -62,6 +62,7 @@ func seededImage(t *testing.T) []byte {
 // world is one empty library with the Sound service and a Reconciler that runs it.
 type world struct {
 	t    *testing.T
+	path string
 	st   *store.Store
 	sv   *sounds.Service
 	prov *provenance.Service
@@ -82,7 +83,7 @@ func newWorld(t *testing.T, seed bool) *world {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	w := &world{t: t, st: st}
+	w := &world{t: t, path: path, st: st}
 	w.sv = sounds.New(st, w.now, w.newID)
 	if seed {
 		if err := w.sv.EnsureSeed(context.Background()); err != nil { // already applied: a no-op that proves idempotence

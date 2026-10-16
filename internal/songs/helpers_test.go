@@ -39,6 +39,7 @@ func (l *logBuf) String() string {
 func (l *logBuf) Count(msg string) int { return strings.Count(l.String(), `"msg":"`+msg+`"`) }
 
 type world struct {
+	path string
 	log  *logBuf
 	t    *testing.T
 	st   *store.Store
@@ -48,14 +49,15 @@ type world struct {
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "w.db"))
+	path := filepath.Join(t.TempDir(), "w.db")
+	st, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
 	n := 0
 	clock := librarytest.FixedNow
-	w := &world{t: t, st: st, sc: librarytest.NewScene(t, st, clock), log: &logBuf{}}
+	w := &world{t: t, path: path, st: st, sc: librarytest.NewScene(t, st, clock), log: &logBuf{}}
 	w.prov = provenance.New(provenance.Options{Store: st, Now: func() time.Time { return clock }, NewID: func() string {
 		n++
 		return idOf(n)

@@ -78,14 +78,16 @@ func TestPick_DerivationTable(t *testing.T) {
 		{"P27 incumbent below keep", picks.Input{IntraDuels: 3, IncumbentTakeID: sp("a"), Takes: []picks.TakeInput{tk("a", 0, us(0.70, 0.5)), tk("b", 1, us(0.54, 0.6))}}, want{"b", picks.SourceNewest, false, "margin"}},
 		{"P28 challenger displaces", picks.Input{IntraDuels: 3, IncumbentTakeID: sp("b"), Takes: []picks.TakeInput{tk("a", 0, us(1.00, 0.5)), tk("b", 1, us(0.60, 0.6))}}, want{"a", picks.SourceLadder, false, ""}},
 		{"P29 incumbent held against weak challenger", picks.Input{IntraDuels: 3, IncumbentTakeID: sp("b"), Takes: []picks.TakeInput{tk("a", 0, us(0.90, 0.5)), tk("b", 1, us(0.60, 0.6))}}, want{"b", picks.SourceLadder, false, ""}},
+		{"P33 challenger clear of a low incumbent but not of the runner-up", picks.Input{IntraDuels: 3, IncumbentTakeID: sp("c"), Takes: []picks.TakeInput{tk("a", 0, us(1.00, 0.5)), tk("b", 1, us(0.90, 0.5)), tk("c", 2, us(0.00, 0.5))}}, want{"c", picks.SourceNewest, false, "margin"}},
+		{"P34 equal recorded time, later created wins", picks.Input{Takes: []picks.TakeInput{tk("b", 0), tk("a", 0, func(t *picks.TakeInput) { t.CreatedAt += 5000 })}}, want{"a", picks.SourceNewest, false, ""}},
 		{"P30 discarded incumbent ignored", picks.Input{IntraDuels: 3, IncumbentTakeID: sp("b"), Takes: []picks.TakeInput{tk("a", 0, us(0.90, 0.5)), tk("b", 1, us(0.60, 0.6), status("discarded")), tk("c", 2, us(0.1, 0.5))}}, want{"a", picks.SourceLadder, false, ""}},
 		{"P31 as P14 with B 0.45", picks.Input{IntraDuels: 3, Takes: []picks.TakeInput{tk("a", 0, us(1.30, 0.5), status("discarded")), tk("b", 1, us(0.45, 0.5)), tk("c", 2, us(0.20, 0.6))}}, want{"c", picks.SourceNewest, false, "margin"}},
 		{"P32 mixed widths", picks.Input{Takes: []picks.TakeInput{
 			{ID: "a", Status: "draft", RecordedAt: inst(t, "2026-03-01T10:00:05Z"), CreatedAt: inst(t, "2026-03-01T10:00:05Z")},
 			{ID: "b", Status: "draft", RecordedAt: inst(t, "2026-03-01T10:00:05.250Z"), CreatedAt: inst(t, "2026-03-01T10:00:05.250Z")}}}, want{"b", picks.SourceNewest, false, ""}},
 	}
-	if len(rows) != 32 {
-		t.Fatalf("table has %d rows, want 32", len(rows))
+	if len(rows) != 34 {
+		t.Fatalf("table has %d rows, want 34", len(rows))
 	}
 	for _, tc := range rows {
 		got := picks.Derive(tc.in)

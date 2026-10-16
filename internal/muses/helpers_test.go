@@ -23,6 +23,7 @@ var (
 
 type world struct {
 	t    *testing.T
+	path string
 	st   *store.Store
 	sc   *librarytest.Scene
 	svc  *muses.Service
@@ -34,13 +35,14 @@ func idOf(n int) string { return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0x
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "w.db"))
+	path := filepath.Join(t.TempDir(), "w.db")
+	st, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
 	clock := librarytest.FixedNow
-	w := &world{t: t, st: st, sc: librarytest.NewScene(t, st, clock)}
+	w := &world{t: t, path: path, st: st, sc: librarytest.NewScene(t, st, clock)}
 	newID := func() string { w.n++; return idOf(w.n) }
 	w.svc = muses.New(st, func() time.Time { return clock }, newID)
 	w.prov = provenance.New(provenance.Options{Store: st, Now: func() time.Time { return clock }, NewID: newID})

@@ -20,15 +20,16 @@ test("facet counts drill down to the matching Songs", async ({ page, request }) 
   await page.goto("/sounds");
   const values = page.getByTestId("facet-value");
   await expect(values.first()).toBeVisible();
-  const first = values.first();
-  const facet = (await first.getAttribute("data-facet")) ?? "";
-  const value = (await first.getAttribute("data-value")) ?? "";
+  // the list reorders while other specs add Songs: read the identity in ONE call, then pin the element by it
+  const [facet, value] = await values.first().evaluate((e) => [e.getAttribute("data-facet") ?? "", e.getAttribute("data-value") ?? ""]);
+  const first = page.locator(`[data-testid="facet-value"][data-facet="${facet}"][data-value="${value}"]`);
   const count = Number((await first.getByTestId("facet-count").innerText()).trim());
   expect(count).toBeGreaterThan(0);
 
   const query = `/api/sounds/search?sound=${encodeURIComponent(`${facet}:${value}`)}&limit=1`;
-  // other tests of this phase add Songs while this one runs: the shown total lies between two reads of the API
-  const lo = (await apiJSON<Search>(request, "GET", query)).total;
+  // other specs of this phase add AND hide Songs while this one runs, so the total is not monotonic: the shown total
+  // must lie within the range of the API totals observed from before the click until the poll succeeds
+  const seen = [(await apiJSON<Search>(request, "GET", query)).total];
   await first.click();
   await expect(page).toHaveURL(new RegExp(`sound=${facet}`));
   await expect(page.getByTestId("selected-pill")).toHaveCount(1);
@@ -36,8 +37,8 @@ test("facet counts drill down to the matching Songs", async ({ page, request }) 
   await expect
     .poll(async () => {
       const shown = Number((await page.getByTestId("songs-total").innerText()).trim());
-      const hi = (await apiJSON<Search>(request, "GET", query)).total;
-      return shown >= lo && shown <= hi;
+      seen.push((await apiJSON<Search>(request, "GET", query)).total);
+      return shown >= Math.min(...seen) && shown <= Math.max(...seen);
     })
     .toBe(true);
   await expect(page.getByTestId("sound-song").first()).toBeVisible();

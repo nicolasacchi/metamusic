@@ -53,6 +53,7 @@ func (f *fakeLadder) Strengths(_ context.Context, ids []string) (map[string]ladd
 
 type world struct {
 	t    *testing.T
+	path string
 	st   *store.Store
 	sc   *librarytest.Scene
 	lad  *fakeLadder
@@ -68,12 +69,13 @@ func withoutPicksStep(o *provenance.Options) { o.Picks = nil }
 
 func newWorld(t *testing.T, mod ...func(*provenance.Options)) *world {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "w.db"))
+	path := filepath.Join(t.TempDir(), "w.db")
+	st, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	w := &world{t: t, st: st, sc: librarytest.NewScene(t, st, librarytest.FixedNow), lad: &fakeLadder{m: map[string]ladder.Strength{}}}
+	w := &world{t: t, path: path, st: st, sc: librarytest.NewScene(t, st, librarytest.FixedNow), lad: &fakeLadder{m: map[string]ladder.Strength{}}}
 	now := func() time.Time { return librarytest.FixedNow.Add(time.Duration(w.min.Load()) * time.Minute) }
 	newID := func() string {
 		n := w.n.Add(1)

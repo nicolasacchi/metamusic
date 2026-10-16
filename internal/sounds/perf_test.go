@@ -47,7 +47,7 @@ func bulkLibrary(t *testing.T, w *world, n int) {
 
 func TestPerf_TaxonomyRecompute(t *testing.T) {
 	budget := perftest.Budget(t, 5*time.Second)
-	t.Parallel()
+	// serial on purpose: a wall-clock budget measured next to other heavy parallel tests of the package is noise
 	w := newWorld(t, true)
 	bulkLibrary(t, w, 5000) // 5 000 takes + 5 000 Songs = 10 000 subjects, none computed yet
 	start := time.Now()
@@ -65,7 +65,7 @@ func TestPerf_TaxonomyRecompute(t *testing.T) {
 
 func TestPerf_SearchSounds(t *testing.T) {
 	budget := perftest.Budget(t, 300*time.Millisecond)
-	t.Parallel()
+	// serial on purpose: a wall-clock budget measured next to other heavy parallel tests of the package is noise
 	w := newWorld(t, true)
 	bulkLibrary(t, w, 10000)
 	if _, err := w.sv.Map(context.Background(), agentP, sounds.MapRequest{Mappings: []sounds.MapEntry{{Term: "wobble 3", Facet: "mood", Value: "dark", Op: "add"}}}); err != nil {
