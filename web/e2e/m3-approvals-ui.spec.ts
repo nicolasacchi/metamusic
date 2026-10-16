@@ -1,23 +1,13 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type PlaywrightWorkerArgs } from "@playwright/test";
-import { BASE_URL } from "./env";
-import { apiJSON, ownTracks, uniq } from "./helpers";
+import { expect, test, type APIRequestContext, type Locator, type Page, type PlaywrightWorkerArgs } from "./fixtures";
+import { ownTracks, uniq } from "./helpers";
 import { agentCreateHeaders, composeRoots, first, getBatch, type Batch, type Estimate } from "./m3Api";
 
 // Desktop Chrome, Pixel 7 and iPhone 15. Pending approvals are discoverable inside the app: nav badge, Jobs section,
 // link to the confirm page. Counts are compared with the server's own pending list (other specs may leave batches
-// pending), never with absolute numbers. Desktop approves (the fake renderer runs it); the phones reject, so that the
+// pending), never with absolute numbers (cheap to keep with a server per worker). Desktop approves (the fake renderer runs it); the phones reject, so that the
 // two fake workers stay free for the m3-variant and m3-jobs specs of the same project.
 
 test.describe.configure({ mode: "serial", timeout: 150_000 });
-
-// The spec's own agent: a dedicated token with its own daily budget, so it never depends on what the shared
-// e2e-agent token spent in earlier specs of the same set.
-async function ownAgent(request: APIRequestContext, playwright: PlaywrightWorkerArgs["playwright"]): Promise<{ ctx: APIRequestContext; name: string }> {
-  const name = uniq("e2e-approvals");
-  const tok = await apiJSON<{ id: string; token: string }>(request, "POST", "/human/api/tokens", { name, scopes: ["read", "write", "generate"] }, true);
-  await apiJSON(request, "PUT", "/human/api/spend/caps", { tokens: [{ token_id: tok.id, auto_approve_takes: 1, auto_approve_micro_usd: null, daily_budget_micro_usd: 50_000_000 }] });
-  return { ctx: await playwright.request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${tok.token}` } }), name };
-}
 
 // Whatever happens, the spec's batch must not stay pending for the specs that count on a quiet queue.
 let createdBatch: string | null = null;
@@ -37,8 +27,9 @@ interface Own {
   dispose: () => Promise<void>;
 }
 
-async function ownPendingBatch(request: APIRequestContext, playwright: PlaywrightWorkerArgs["playwright"]): Promise<Own> {
-  const { ctx: agent, name: agentName } = await ownAgent(request, playwright);
+async function ownPendingBatch(request: APIRequestContext, playwright: PlaywrightWorkerArgs["playwright"], baseURL: string | undefined, agentToken: string): Promise<Own> {
+  const agentName = "e2e-agent"; // the setup's PAT; its auto-approve limit is one take, so two takes wait for the operator
+  const agent = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { Authorization: `Bearer ${agentToken}` } });
   const mother = first(await composeRoots(request, 1, "m3u"));
   const er = await agent.post(`/api/tracks/${mother}/variants/estimate`, { data: { mode: "new_seed", n_seeds: 2 } });
   expect(er.ok(), await er.text()).toBe(true);
@@ -89,8 +80,8 @@ async function pendingCount(request: APIRequestContext): Promise<number> {
   return ((await r.json()) as { items: { approval: { state: string } }[] }).items.filter((b) => b.approval.state === "pending").length;
 }
 
-test("a pending agent batch shows in the nav badge, the hub and Jobs, links to the confirm page and leaves the lists when decided", async ({ page, request, playwright }, info) => {
-  const { batch, agentName, dispose } = await ownPendingBatch(request, playwright);
+test("a pending agent batch shows in the nav badge, the hub and Jobs, links to the confirm page and leaves the lists when decided", async ({ page, request, playwright, baseURL, agentToken }, info) => {
+  const { batch, agentName, dispose } = await ownPendingBatch(request, playwright, baseURL, agentToken);
   try {
     // the badge in the main navigation, also on a narrow viewport: other specs may decide batches at the same time,
     // so the count is only checked against a fresh server read taken in the same poll
@@ -150,13 +141,13 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
   }
 });
 
-test("/human is the hub: both spellings land on it, it lists the batch, the link decides it and the batch moves to recent decisions", async ({ page, request, playwright }, info) => {
+test("/human is the hub: both spellings land on it, it lists the batch, the link decides it and the batch moves to recent decisions", async ({ page, request, playwright, baseURL, agentToken }, info) => {
   // the bare path only redirects (the edge's two-factor rule is ^/human/); the redirect itself reveals nothing
   const bare = await request.get("/human", { maxRedirects: 0 });
   expect(bare.status()).toBe(308);
   expect(new URL(bare.headers()["location"] ?? "", "http://x").pathname).toBe("/human/");
 
-  const { batch, dispose } = await ownPendingBatch(request, playwright);
+  const { batch, dispose } = await ownPendingBatch(request, playwright, baseURL, agentToken);
   try {
     await page.goto("/human");
     await expect(page).toHaveURL(/\/human\/$/);

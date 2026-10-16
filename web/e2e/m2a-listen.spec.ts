@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
 import { allTracks, apiJSON, audioTime, tap, type Item } from "./helpers";
 
 // One seed track per project (this spec runs alone in the listen-* projects, see playwright.config.ts): plays are counted per track and the projects run in parallel.

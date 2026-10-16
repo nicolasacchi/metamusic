@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 import { allTerminal, assertOnlyDuplicateFailures, first, getBatch, pollBatch, recipe } from "./m3Api";
 

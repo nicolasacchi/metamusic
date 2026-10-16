@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { apiJSON, audioTime, trackByTitle } from "./helpers";
 
 // The three "Syn ears" tracks each carry one defect (C55): they are read-only here, so every project may

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { apiJSON, audioTime, trackByTitle, uniq } from "./helpers";
 
 type Comment = { id: string; at_second: number | null; body: string; hidden: boolean; state: string; link: string; section: { label: string } | null };

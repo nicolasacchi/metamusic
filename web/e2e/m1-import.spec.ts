@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { SEED_AUDIO_FILES } from "./env";
 
 test("import page shows the seed run with counts and paged sections", async ({ page }) => {

@@ -38,7 +38,7 @@ export function createSession(deps: SessionDeps = {}) {
     }
   }
 
-  /** Authentication is confirmed lost: banner while playing, else reload (loop-guarded). */
+  /** Authentication is confirmed lost: banner while the player is in use (playing, tap-to-continue, loaded or queued), else reload (loop-guarded). */
   function confirmed() {
     if (cfg.isPlaying?.()) {
       banner.set("expired");

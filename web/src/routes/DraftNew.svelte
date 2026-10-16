@@ -3,6 +3,9 @@
   import { idempotentAction } from "../api/idem";
   import { emptyForm, formFromRequest, labelOrUndefined, toRequest, type DraftForm } from "../lib/draftForm";
 
+  /** SPA router navigate: saving must not reload the document (the player lives in it). */
+  let { navigate }: { navigate: (to: string) => void } = $props();
+
   let form = $state<DraftForm>(emptyForm());
   let from = $state("");
   let collection = $state("");
@@ -44,7 +47,7 @@
     error = "";
     try {
       const r = await action();
-      if (r.id) location.assign("/backlog/" + r.id);
+      if (r.id) navigate("/backlog/" + r.id);
       else error = r.message ?? "Could not create the draft";
     } catch {
       error = "Could not create the draft";

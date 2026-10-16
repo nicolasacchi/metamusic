@@ -158,13 +158,13 @@ jobs:
           retention-days: 1
 
   e2e:
-    name: e2e (${{ matrix.set }})
+    name: e2e (${{ matrix.shard }}/6)
     needs: web
     strategy:
       fail-fast: false
       matrix:
-        # one set of Playwright projects per job (web/e2e/sets.ts)
-        set: [a, b, c]
+        # Playwright --shard=i/6 over the whole test list; every worker has its own server (web/e2e/fixtures.ts)
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -236,29 +236,28 @@ jobs:
         env:
           MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
           GOCOVERDIR: ${{ github.workspace }}/covdata/e2e
-          # each set serves part of the UI operations: the coverage job checks the union (web/e2e/served-check.ts)
-          MM_E2E_SET: ${{ matrix.set }}
-          MM_E2E_SERVED_OUT: ${{ github.workspace }}/served/e2e-served-${{ matrix.set }}.json
+          # each shard serves part of the UI operations: the coverage job checks the union (web/e2e/served-check.ts)
+          MM_E2E_SERVED_OUT: ${{ github.workspace }}/served/e2e-served-${{ matrix.shard }}.json
         run: |
           mkdir -p "$(dirname "$MM_E2E_SERVED_OUT")"
-          bun run e2e
+          bun run e2e --shard=${{ matrix.shard }}/6
       - name: coverage summary
         if: always()
         run: go tool covdata percent -i=covdata/e2e || true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: covdata-e2e-${{ matrix.set }}
+          name: covdata-e2e-${{ matrix.shard }}
           path: covdata/e2e
           retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-served-${{ matrix.set }}
-          path: served/e2e-served-${{ matrix.set }}.json
+          name: e2e-served-${{ matrix.shard }}
+          path: served/e2e-served-${{ matrix.shard }}.json
           retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-report-${{ matrix.set }}
+          name: playwright-report-${{ matrix.shard }}
           path: |
             web/playwright-report
             web/test-results
@@ -298,7 +297,7 @@ jobs:
           path: served
       - name: every UI operation is served by some e2e shard
         working-directory: web
-        run: bun e2e/served-check.ts 3 ../served/e2e-served-*.json
+        run: bun e2e/served-check.ts 6 ../served/e2e-served-*.json
       - name: coverage gate selftest
         run: scripts/coverage-gate-selftest.sh
       - name: enforce coverage.thresholds on merged unit + e2e data

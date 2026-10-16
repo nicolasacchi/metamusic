@@ -1,5 +1,6 @@
 // Global player store (C22.1). The single audio element lives in App.svelte's footer and is
 // handed over by attach(); it is never re-created on navigation.
+import { playerInUse } from "./playerUse";
 import { api } from "../api/client";
 import { session } from "../api/session";
 import type { components } from "../api/schema";
@@ -858,4 +859,4 @@ export const player = new Player({
   warm,
 });
 
-session.configure({ isPlaying: () => player.state.playing });
+session.configure({ isPlaying: () => playerInUse(player.state) });

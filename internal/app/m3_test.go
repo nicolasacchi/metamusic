@@ -314,3 +314,31 @@ func TestApp_RunPodRecordDirRecordsServerExchanges(t *testing.T) {
 		}
 	}
 }
+
+// The server built its RunPod backend without the committed key probe, so Capabilities() stayed conservative
+// (billing "none") in production: the reconciler never read RunPod's hourly billing and every residual hold
+// waited out MM_RESIDUAL_HOLD. selectBackend must hand the embedded probe to the backend (the CLI always did).
+func TestApp_RunPodBackendUsesTheCommittedKeyProbe(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendRunPod })
+	// built at run time so no key literal exists in the repository (C85's gitleaks rule)
+	set := runpodtest.KeySet{Jobs: "canary-" + "jobs-7101", Read: "canary-" + "read-7102", Write: "canary-" + "write-7103", Admin: "canary-" + "admin-7104"}
+	ep := "canary-" + "ep-7105"
+	rp := runpodtest.New(t, runpodtest.Options{Keys: set, EndpointID: ep})
+	if err := os.MkdirAll(e.cfg.SecretsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env := "RUNPOD_" + "JOBS_KEY=" + set.Jobs + "\nRUNPOD_" + "READ_KEY=" + set.Read + "\nRUNPOD_" + "WRITE_KEY=" + set.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+	if err := os.WriteFile(filepath.Join(e.cfg.SecretsDir, "runpod.env"), []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := e.build(t, app.Options{M3: app.M3Options{RunPod: &runpod.BackendOptions{MgmtBase: rp.URL, JobsBase: rp.URL}}})
+	st, err := s.Deps.Provider.Status(ctx, auth.Principal{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Capability.Billing != "hour" {
+		t.Errorf("get_provider_status capabilities.billing = %q, want \"hour\" (read key present, committed probe says billing_readable)", st.Capability.Billing)
+	}
+}
