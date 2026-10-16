@@ -55,6 +55,10 @@ type TrackSummary struct {
 	CostDisplayMicroUSD *int64  `json:"cost_display_micro_usd" doc:"Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes"`
 	CostDisplayUSD      *string `json:"cost_display_usd"`
 
+	// L1 (C98)
+	SongID *string `json:"song_id" doc:"The Song this take belongs to; null before the Song exists or on a pre-L1 schema"`
+	IsPick bool    `json:"is_pick" doc:"The take is its Song's current Pick"`
+
 	jobID string // the job of a generated take (not part of the response)
 }
 
@@ -81,6 +85,10 @@ type SearchParams struct {
 	RecipeKnown                *bool    // (r.engine <> 'unknown') = v (M2c)
 	Lossy                      *bool    // t.lossy = v (M2c)
 	Origin                     []string // import | job (M3, C81.1)
+	SongID                     string   // take belongs to this Song (L1, C98)
+	IsPick                     *bool    // take is (not) its Song's current Pick (L1, C98)
+	SessionID                  string   // take is in this Session by derived membership (L1, C98)
+	noSongs                    bool     // set by the service: the schema has no Song tables, so L1 filters match nothing
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -283,6 +291,29 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 			*args = append(*args, o)
 		}
 	}
+	if p.SongID != "" || p.IsPick != nil || p.SessionID != "" {
+		if p.noSongs {
+			where += ` AND 0` // a pre-L1 schema has no Songs: the L1 filters match nothing (C98)
+		} else {
+			if p.SongID != "" {
+				where += ` AND EXISTS (SELECT 1 FROM take_songs ts WHERE ts.track_id = t.id AND ts.song_id = ?)`
+				*args = append(*args, p.SongID)
+			}
+			if p.IsPick != nil {
+				cond := `EXISTS (SELECT 1 FROM song_picks sp WHERE sp.take_id = t.id)`
+				if !*p.IsPick {
+					cond = `NOT ` + cond
+				}
+				where += ` AND ` + cond
+			}
+			if p.SessionID != "" {
+				where += ` AND t.id IN (SELECT m.member_id FROM session_members m WHERE m.session_id = ? AND m.member_kind = 'track'
+					UNION SELECT ts2.track_id FROM session_members m JOIN songs sg ON sg.draft_id = m.member_id AND m.member_kind = 'draft'
+					JOIN take_songs ts2 ON ts2.song_id = sg.id WHERE m.session_id = ?)`
+				*args = append(*args, p.SessionID, p.SessionID)
+			}
+		}
+	}
 	q.where = where
 	q.order = map[string]string{
 		"recorded_desc": `t.recorded_at DESC, t.id DESC`,
@@ -298,6 +329,11 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 
 // SearchTracks lists tracks with FTS and filters.
 func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, error) {
+	has, err := s.hasTableDB(ctx, "songs")
+	if err != nil {
+		return TrackPage{}, err
+	}
+	p.noSongs = !has
 	q, err := compileSearch(p)
 	if err != nil {
 		return TrackPage{}, err
@@ -334,6 +370,11 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	if err := s.fillCosts(ctx, sums); err != nil {
 		return TrackPage{}, err
 	}
+	if has {
+		if err := s.fillSongs(ctx, sums); err != nil {
+			return TrackPage{}, err
+		}
+	}
 	for _, sum := range sums {
 		if !pg.add(sizeOf(sum)) {
 			more = true
@@ -354,6 +395,11 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 // it to select tracks with the exact search semantics.
 func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, error) {
 	p.Limit, p.Cursor = 0, ""
+	has, err := s.hasTableDB(ctx, "songs")
+	if err != nil {
+		return nil, err
+	}
+	p.noSongs = !has
 	q, err := compileSearch(p)
 	if err != nil {
 		return nil, err
@@ -372,6 +418,36 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 		out = append(out, id)
 	}
 	return out, rows.Err()
+}
+
+// fillSongs sets song_id and is_pick of a page (L1, C98): two lookups per page, no per-row query.
+func (s *Service) fillSongs(ctx context.Context, sums []TrackSummary) error {
+	if len(sums) == 0 {
+		return nil
+	}
+	idx := make(map[string]int, len(sums))
+	args := make([]any, len(sums))
+	for i, x := range sums {
+		idx[x.ID] = i
+		args[i] = x.ID
+	}
+	const base = `SELECT ts.track_id, ts.song_id, EXISTS(SELECT 1 FROM song_picks sp WHERE sp.take_id = ts.track_id)
+		FROM take_songs ts WHERE ts.track_id IN (`
+	q := base + placeholders(len(sums)) + `)` //nolint:gosec // G202: only "?" placeholders are concatenated
+	rows, err := s.st.R.QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf("library: summary songs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tid, sid string
+		var pick bool
+		if err := rows.Scan(&tid, &sid, &pick); err != nil {
+			return err
+		}
+		sums[idx[tid]].SongID, sums[idx[tid]].IsPick = &sid, pick
+	}
+	return rows.Err()
 }
 
 // fillCosts sets the displayed cost of the generated takes of a page (C81.1); imported takes keep null.
@@ -756,6 +832,18 @@ type TrackDetail struct {
 
 	// M3 (C81.1)
 	Generation *GenerationInfo `json:"generation" doc:"How the take was generated; null for imported takes"`
+
+	// L1 (C98)
+	Song *TrackSong `json:"song" doc:"The Song of the take; null before the Song exists or on a pre-L1 schema"`
+}
+
+// TrackSong is the Song reference of a TrackDetail (C98).
+type TrackSong struct {
+	ID         string  `json:"id"`
+	Title      string  `json:"title"`
+	Angle      *string `json:"angle"`
+	MuseID     *string `json:"muse_id"`
+	PickSource *string `json:"pick_source" doc:"How the Song's current Pick was chosen; null when it has none"`
 }
 
 func nb(n sql.NullInt64) *bool {
@@ -846,6 +934,9 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		if d.Generation, err = GenerationOf(ctx, s.st.R, id); err != nil {
 			return d, err
 		}
+	}
+	if d.Song, err = s.trackSong(ctx, id); err != nil {
+		return d, err
 	}
 	return d, nil
 }
@@ -1257,3 +1348,23 @@ func (s *Service) HasProvider(ctx context.Context) (bool, error) {
 // Slug is the filename-safe form of a title (D-M1-3); callers that may not import the engine
 // implementation (the job ingest bridge) use it instead of yue2.Slug.
 func Slug(s string) string { return yue2.Slug(s) }
+
+// trackSong reads the Song reference of a take; nil on a pre-L1 schema or when the take has no Song yet.
+func (s *Service) trackSong(ctx context.Context, trackID string) (*TrackSong, error) {
+	has, err := s.hasTableDB(ctx, "songs")
+	if err != nil || !has {
+		return nil, err
+	}
+	var out TrackSong
+	var angle, muse, src sql.NullString
+	err = s.st.R.QueryRowContext(ctx, `SELECT g.id, g.title, g.angle, g.muse_id, (SELECT p.source FROM song_picks p WHERE p.song_id = g.id AND p.take_id IS NOT NULL)
+		FROM take_songs ts JOIN songs g ON g.id = ts.song_id WHERE ts.track_id = ?`, trackID).Scan(&out.ID, &out.Title, &angle, &muse, &src)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("library: track song: %w", err)
+	}
+	out.Angle, out.MuseID, out.PickSource = ptrStr(angle), ptrStr(muse), ptrStr(src)
+	return &out, nil
+}

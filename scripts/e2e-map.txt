@@ -84,6 +84,15 @@ web/src/lib/components/LintPanel.svelte	m3-songwriting
 web/src/lib/components/Provenance*	m1-track
 web/src/lib/components/Recipe*	m1-library
 web/src/routes/Settings.svelte	m2a-backup m2a-audit
+web/src/routes/Board.svelte	l1-board
+web/src/lib/components/Board*	l1-board
+web/src/lib/components/MusePicker.svelte	l1-board l1-muse
+web/src/routes/Muse.svelte	l1-muse
+web/src/routes/Song.svelte	l1-song
+web/src/lib/components/TakeCard.svelte	l1-song
+web/src/lib/components/Pick*	l1-song
+web/src/lib/components/SongChip.svelte	l1-board l1-song
+web/src/routes/Sounds.svelte	l1-sounds
 # Go packages whose behaviour a spec exercises end to end. Packages not listed here (money, clock,
 # redact, canonjson, textfold, ...) are covered by their reverse dependencies' unit tests only.
 internal/duels/*	m2b-duels
@@ -125,3 +134,10 @@ internal/engine/*	core
 internal/config/*	core
 cmd/*	core
 web/embed.go	core
+internal/muses/*	l1-muse
+internal/songs/*	l1-song l1-board
+internal/songview/*	l1-song
+internal/picks/*	l1-song
+internal/sessions/*	l1-song
+internal/sounds/*	l1-sounds
+internal/board/*	l1-board

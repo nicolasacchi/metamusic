@@ -36,6 +36,7 @@ type importJSON struct {
 	TracksImported int              `json:"tracks_imported,omitempty"`
 	TracksFailed   int              `json:"tracks_failed,omitempty"`
 	TierA          string           `json:"tier_a,omitempty"`
+	Library        string           `json:"library_model,omitempty"`
 	SpreadLU       *float64         `json:"loudness_spread_lu,omitempty"`
 }
 
@@ -194,7 +195,8 @@ func cmdImport(ctx context.Context, args []string, getenv func(string) string, s
 		spread = stats.Loudness.SpreadLU
 	}
 	tierA := tierAAfterIngest(ctx, cfg, st, data, rt.lib)
-	out.applied(res, spread, tierA)
+	// the derived model settles after Tier A (the tempo analyzer's rows enqueue their takes), when this process can take the lease
+	out.applied(res, spread, tierA, settleCLI(ctx, st))
 	slog.Info("import finished", "run", res.RunID, "state", res.State, "tracks_imported", res.TracksImported,
 		"tracks_failed", res.TracksFailed, "errors", res.Errors)
 	if res.State != "completed" {
@@ -301,10 +303,10 @@ func (o cliOut) dryRun(inv *importer.Inventory, files importer.DryRunFiles) {
 	fmt.Fprintf(o.s.out, "\nnext:    metamusic import --plan %s\n", shellQuote(abs))
 }
 
-func (o cliOut) applied(res *importer.RunResult, spread *float64, tierA string) {
+func (o cliOut) applied(res *importer.RunResult, spread *float64, tierA, library string) {
 	if o.asJSON {
 		o.json(importJSON{ReportID: res.RunID, State: res.State, PlanDigest: res.Report.PlanDigest, Report: res.ReportPath,
-			Summary: res.Report.Summary, TracksImported: res.TracksImported, TracksFailed: res.TracksFailed, SpreadLU: spread, TierA: tierA})
+			Summary: res.Report.Summary, TracksImported: res.TracksImported, TracksFailed: res.TracksFailed, SpreadLU: spread, TierA: tierA, Library: library})
 		return
 	}
 	res.Report.FormatText(o.s.out)
@@ -317,6 +319,7 @@ func (o cliOut) applied(res *importer.RunResult, spread *float64, tierA string) 
 		fmt.Fprintf(o.s.out, "loudness spread: %.1f LU%s\n", *spread, note)
 	}
 	fmt.Fprintln(o.s.out, tierA)
+	fmt.Fprintln(o.s.out, library)
 }
 
 func (o cliOut) planDiff(reviewed, current []string) {

@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
+	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
@@ -35,12 +36,19 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
+	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
+	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
+	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -69,6 +77,8 @@ type Options struct {
 	Rand io.Reader
 	// M3 (C39 amended): generation services, backend selection and test injection points.
 	M3 M3Options
+	// L1 (C87): the library-model services and the Reconciler's test seams.
+	L1 L1Options
 }
 
 // Services is everything Build wires.
@@ -107,6 +117,17 @@ type Services struct {
 	Gate       *provider.Gate
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
+
+	// L1 services (C87). Provenance is the Reconciler: serve runs its startup Settle and Run, mcp-stdio and the
+	// rigs never start it (rigs call Rig.Settle).
+	Muses      *muses.Service
+	Songs      *songs.Service
+	SongView   *songview.Service
+	Sessions   *sessions.Service
+	Picks      *picks.Service
+	Sounds     *sounds.Service
+	Board      *board.Service
+	Provenance *provenance.Service
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -201,7 +222,16 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		return nil, err
 	}
 
+	l1 := buildL1(st, now, newID, ds, media.Ears, o.L1)
+	ctxb.UseLibrary(libraryReader{l1.SongView})
+	lib.UseMuseCounter(func(ctx context.Context) (int, error) {
+		p, err := l1.Muses.List(ctx, muses.ListFilter{Limit: 1})
+		return p.Total, err
+	})
+
 	s := &Services{
+		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
+		Board: l1.Board, Provenance: l1.Provenance,
 		Lineage: m3.Lineage, Spend: m3.Spend, Generation: m3.Generation, Jobs: m3.Jobs, Provider: m3.Provider, Uploads: m3.Uploads,
 		Backend: m3.Backend, Fake: m3.Fake, Gate: m3.Gate, Runner: m3.Runner, Reconciler: m3.Reconciler,
 		Tokens:  tokens,
@@ -225,6 +255,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Judgments: judg, Drafts: drf, Playlists: pls, Exports: exp, Backups: bak, Context: ctxb, Listening: listen,
 		Audit: s.Audit, Devices: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
+		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Songwriting: sw,
 	}
 	s.Server = httpserver.Options{
@@ -236,6 +267,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Devices: devices, DeviceStore: devices, Notify: notifier,
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads, Songwriting: sw,
+		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, LibSessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		BaseContext: o.M3.Shutdown,
 	}
 	return s, nil

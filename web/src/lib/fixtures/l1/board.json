@@ -1,0 +1,182 @@
+{
+  "generated_at": "2026-01-01T00:00:00.000Z",
+  "taxonomy_version": 1,
+  "columns": [
+    {
+      "angle": null,
+      "songs": 2
+    },
+    {
+      "angle": "remake-long",
+      "songs": 3
+    },
+    {
+      "angle": "acoustic",
+      "songs": 2
+    }
+  ],
+  "rows": [
+    {
+      "muse": {
+        "id": "muse-a",
+        "kind": "reference",
+        "title": "Synthetic muse A",
+        "artist": "Synthetic artist"
+      },
+      "songs_total": 5,
+      "counts": {
+        "draft": 2,
+        "rendered": 1,
+        "judged": 1,
+        "picked": 1,
+        "queued": 1
+      },
+      "cells": [
+        {
+          "angle": "acoustic",
+          "chips": [
+            {
+              "id": "song-1",
+              "title": "Synthetic song 1",
+              "state": "draft",
+              "takes": 0,
+              "pick_source": null,
+              "pick_take_id": null,
+              "queued": false,
+              "draft_id": "draft-1",
+              "tempo_mismatch": false
+            },
+            {
+              "id": "song-2",
+              "title": "Synthetic song 2",
+              "state": "rendered",
+              "takes": 2,
+              "pick_source": null,
+              "pick_take_id": null,
+              "queued": true,
+              "draft_id": null,
+              "tempo_mismatch": false
+            }
+          ]
+        },
+        {
+          "angle": "remake-long",
+          "chips": [
+            {
+              "id": "song-3",
+              "title": "Synthetic song 3",
+              "state": "judged",
+              "takes": 3,
+              "pick_source": "stars",
+              "pick_take_id": "take-3",
+              "queued": false,
+              "draft_id": null,
+              "tempo_mismatch": false
+            },
+            {
+              "id": "song-4",
+              "title": "Synthetic song 4",
+              "state": "draft",
+              "takes": 0,
+              "pick_source": null,
+              "pick_take_id": null,
+              "queued": false,
+              "draft_id": "draft-4",
+              "tempo_mismatch": false
+            },
+            {
+              "id": "song-5",
+              "title": "Synthetic song 5",
+              "state": "picked",
+              "takes": 4,
+              "pick_source": "ladder",
+              "pick_take_id": "take-5",
+              "queued": false,
+              "draft_id": null,
+              "tempo_mismatch": true
+            }
+          ]
+        }
+      ],
+      "chips_more": false,
+      "next_unassigned_cursor": null
+    },
+    {
+      "muse": {
+        "id": "muse-b",
+        "kind": "reference",
+        "title": "Synthetic muse B",
+        "artist": "Synthetic artist"
+      },
+      "songs_total": 1,
+      "counts": {
+        "draft": 1,
+        "rendered": 0,
+        "judged": 0,
+        "picked": 0,
+        "queued": 0
+      },
+      "cells": [
+        {
+          "angle": null,
+          "chips": [
+            {
+              "id": "song-6",
+              "title": "Synthetic song 6",
+              "state": "draft",
+              "takes": 0,
+              "pick_source": null,
+              "pick_take_id": null,
+              "queued": false,
+              "draft_id": "draft-6",
+              "tempo_mismatch": false
+            }
+          ]
+        }
+      ],
+      "chips_more": false,
+      "next_unassigned_cursor": null
+    },
+    {
+      "muse": null,
+      "songs_total": 1,
+      "counts": {
+        "draft": 1,
+        "rendered": 0,
+        "judged": 0,
+        "picked": 0,
+        "queued": 0
+      },
+      "cells": [
+        {
+          "angle": null,
+          "chips": [
+            {
+              "id": "song-7",
+              "title": "Synthetic song 7",
+              "state": "draft",
+              "takes": 0,
+              "pick_source": null,
+              "pick_take_id": null,
+              "queued": false,
+              "draft_id": "draft-7",
+              "tempo_mismatch": false
+            }
+          ]
+        }
+      ],
+      "chips_more": false,
+      "next_unassigned_cursor": null
+    }
+  ],
+  "totals": {
+    "muses": 2,
+    "songs": 7,
+    "draft": 4,
+    "rendered": 1,
+    "judged": 1,
+    "picked": 1,
+    "queued": 1
+  },
+  "next_cursor": null
+}

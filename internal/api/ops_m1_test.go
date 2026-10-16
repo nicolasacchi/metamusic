@@ -347,7 +347,7 @@ func TestGetMediaLinks_MediaUnavailable(t *testing.T) {
 	r.problem(t, human, "GET", "/api/tracks/"+tk.ID+"/peaks", "", 409, "MEDIA_UNAVAILABLE")
 }
 
-func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	id := r.get(t, agent, "/api/drafts")["items"].([]any)[0].(map[string]any)["id"].(string)
@@ -356,11 +356,13 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 	if h["has_reference"] != true || h["reference"].(map[string]any)["variant_type"] != "slower" {
 		t.Errorf("human: %v", h["reference"])
 	}
-	if a["has_reference"] != true || a["reference"] != nil {
-		t.Errorf("agent must not see the reference: %v", a)
+	// D-L1-36: an agent reads the Muse text (title, artist), not the variant type
+	ar, _ := a["reference"].(map[string]any)
+	if a["has_reference"] != true || ar["source_title"] != h["reference"].(map[string]any)["source_title"] || ar["variant_type"] != nil {
+		t.Errorf("agent reference view: %v", a)
 	}
-	if b := r.call(agent, "GET", "/api/drafts/"+id, "").Body.String(); strings.Contains(b, "Synthetic Reference Title") || strings.Contains(b, "slower") {
-		t.Errorf("agent response leaks reference: %s", b)
+	if b := r.call(agent, "GET", "/api/drafts/"+id, "").Body.String(); strings.Contains(b, "slower") {
+		t.Errorf("agent response leaks the variant type: %s", b)
 	}
 	if _, ok := h["request"].(map[string]any)["reference"]; ok {
 		t.Errorf("reference inside request")

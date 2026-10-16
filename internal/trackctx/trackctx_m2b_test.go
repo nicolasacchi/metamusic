@@ -66,7 +66,7 @@ func perceptionOf(t *testing.T, e *env, id string) (perceptionOut, []byte) {
 func TestContext_PerceptionFromEars(t *testing.T) {
 	t.Parallel()
 	e, fx := newEarsEnv(t)
-	wantKeys := []string{"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots"}
+	wantKeys := []string{"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"}
 
 	got, raw := perceptionOf(t, e, fx.ClipTrack)
 	if got.Tier != "A" || !slices.Contains(got.Flags, "clipping") || !slices.Contains(got.Flags, "internal_silence") {

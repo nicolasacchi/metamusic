@@ -41,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
@@ -79,6 +80,12 @@ type Options struct {
 	// RunPod selects the serverless backend over a runpodtest server (Backend must be "" or "runpod"): the rig
 	// writes a synthetic runpod.env, points the backend at the server and arms the provider. Rig.Fake is nil.
 	RunPod *RunPodOptions
+
+	// L1 (C101.2). L1 adds librarytest.FixtureL1's rows (the mirror of the real library structure with synthetic
+	// text) to the library; it requires Fixture, M2c and M3. The Reconciler is always built; Reconcile false (the
+	// default) leaves it idle and the queue untouched, tests call Rig.Settle(t); true starts Run.
+	L1        bool
+	Reconcile bool
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -142,6 +149,9 @@ type Rig struct {
 	Backend    provider.Backend
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
+
+	// Provenance is the L1 Reconciler (never started unless Options.Reconcile); Settle drains it.
+	Provenance *provenance.Service
 
 	edge, humanUser, mode string
 	password              string
@@ -258,6 +268,12 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyM3(tb, st, clock.Now())
 	}
+	if o.L1 {
+		if !o.Fixture || !o.M2c || !o.M3 {
+			tb.Fatal("servertest: L1 requires Fixture, M2c and M3")
+		}
+		librarytest.ApplyL1(tb, st, clock.Now())
+	}
 	if o.Caps != nil {
 		c := o.Caps
 		if _, err := st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd=?, batch_micro_usd=?, human_daily_micro_usd=?, agent_daily_micro_usd=?, auto_approve_takes=?, auto_approve_micro_usd=?, updated_by='system:test', updated_at=? WHERE id = 1`,
@@ -348,7 +364,8 @@ func New(tb testing.TB, o Options) *Rig {
 	r.rebuild = func(seed uint64) (*app.Services, error) {
 		ao2 := ao
 		ao2.Rand = SeededReader(seed)
-		ao2.M3.Backend = svc.Backend // the provider outlives the process: the same backend instance
+		ao2.L1.Owner = fmt.Sprintf("settler-%d", seed) // a second process settles under its own lease owner
+		ao2.M3.Backend = svc.Backend                   // the provider outlives the process: the same backend instance
 		return app.Build(ctx, cfg, sec, st, dataRoot, ao2)
 	}
 	if o.RunPod != nil && !o.RunPod.Disarmed {
@@ -367,6 +384,13 @@ func New(tb testing.TB, o Options) *Rig {
 		go func() { defer wg.Done(); _ = svc.Runner.Run(rctx) }()
 		go func() { defer wg.Done(); _ = svc.Reconciler.Run(rctx) }()
 		tb.Cleanup(func() { cancel(); wg.Wait() })
+	}
+	r.Provenance = svc.Provenance
+	if o.Reconcile {
+		rctx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() { defer close(done); svc.Provenance.Run(rctx) }()
+		tb.Cleanup(func() { cancel(); <-done })
 	}
 	if o.M2b.Backfill {
 		if _, err := svc.Ears.Backfill(ctx, ears.BackfillOptions{}); err != nil && !errors.Is(err, errors.ErrUnsupported) {
@@ -593,4 +617,22 @@ func applyM2bFixture(tb testing.TB, st *store.Store, data *os.Root, dataDir stri
 	tb.Helper()
 	duelstest.Fixture(tb, st, dataDir, librarytest.Fixtures{}, now, nil)
 	earstest.Fixture(tb, st, data, librarytest.Fixtures{}, now)
+}
+
+// Settle seeds the Sound taxonomy as serve does at startup, drains the Reconciler queue, sweeps, and returns the
+// report. It fails the test on an error; rigs never start Run unless Options.Reconcile is set, so tests that need the
+// derived rows call it after the fixture or after a write.
+func (r *Rig) Settle(tb testing.TB) provenance.Report {
+	tb.Helper()
+	if err := r.Services.Sounds.EnsureSeed(context.Background()); err != nil {
+		tb.Fatalf("servertest: taxonomy seed: %v", err)
+	}
+	rep, err := r.Provenance.Settle(context.Background())
+	if err != nil {
+		tb.Fatalf("servertest: settle: %v", err)
+	}
+	if err := r.Provenance.Sweep(context.Background()); err != nil {
+		tb.Fatalf("servertest: sweep: %v", err)
+	}
+	return rep
 }

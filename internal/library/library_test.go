@@ -510,7 +510,7 @@ func draftRecipe(t *testing.T, e *env, draftID string) string {
 	return rid
 }
 
-func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	ctx := context.Background()
@@ -525,13 +525,14 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !a.HasReference || a.Reference != nil {
+	// D-L1-36: an agent reads the Muse text (title, artist) but not the variant type
+	if !a.HasReference || a.Reference["source_title"] != h.Reference["source_title"] || a.Reference["variant_type"] != "" {
 		t.Errorf("agent: has=%v ref=%v", a.HasReference, a.Reference)
 	}
-	// the reference never leaks into the request or any other field
-	b, _ := json.Marshal(a)
-	if strings.Contains(string(b), "Synthetic Reference Title") || strings.Contains(string(b), "slower") {
-		t.Errorf("reference leaked into agent view: %s", b)
+	// the reference never leaks into the request
+	b, _ := json.Marshal(a.Request)
+	if strings.Contains(string(b), "Synthetic Reference Title") {
+		t.Errorf("reference leaked into the agent request: %s", b)
 	}
 	req, _ := json.Marshal(h.Request)
 	if strings.Contains(string(req), "Synthetic") {

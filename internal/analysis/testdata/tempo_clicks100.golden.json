@@ -1,0 +1,16 @@
+{
+  "bpm": 99.85,
+  "confidence": 12.64,
+  "candidates": [
+    {
+      "bpm": 99.85,
+      "strength": 1
+    },
+    {
+      "bpm": 199.7,
+      "strength": 0.367
+    }
+  ],
+  "octave_ambiguous": false,
+  "analyzed_s": 25
+}

@@ -35,9 +35,18 @@ import (
 // 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
 // steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
 //
-// Debts (songwriting targets) re-baselined 87300 -> 88200 (measured 88147, +852, 33 tools): get_songwriting_settings, the
-// tool agents read the operator's duration targets with (about 650 bytes), and the lint Issue's optional details object.
-const toolsCeilingBytes = 88200
+// L1-B2 (D-L1-20) re-baselined 87300 -> 102600 (measured 102587, +15 287, 39 tools): the seven first-class L1 tools at that point (six after the list_songs demotion below)
+// (list_muses, get_muse, create_muse, list_songs, get_song, propose_pick, search_sounds) take 15 285 compact bytes, inside
+// the 16 000 byte rule (TestToolsList_L1Budget), so no demotion was needed; the nine other L1 operations and the two
+// human-judgment ones add nothing to tools/list.
+//
+// L1-B5 bound the list_songs and search_sounds filters (C96, +~810 bytes each) and the C98 track fields; the seven tools
+// then measured 16 905, so list_songs was demoted to generic (D-L1-20): the six remaining L1 tools take ~14 700. The ceiling is re-baselined 102600 -> 103500 (measured 103405) for the
+// C98 fields (song_id, is_pick, session_id, TrackDetail.song, the /context sections and library_model).
+//
+// Merging main (songwriting targets) re-baselined 103500 -> 104300 (measured 104266, +861): get_songwriting_settings and the
+// lint Issue's optional details object.
+const toolsCeilingBytes = 104300
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

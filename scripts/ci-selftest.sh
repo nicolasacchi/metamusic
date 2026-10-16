@@ -83,4 +83,18 @@ chk "gate-full runs every selftest, actions-pinned and the full-history scan" 'g
 chk "pre-push runs the complete gate (gate.sh prepush -> gate-full with the patterns required)" 'grep -q "gate.sh\" prepush" "$root/.githooks/pre-push" && grep -q "GATE_REQUIRE_PATTERNS=1 exec scripts/loop gate-full -- scripts/gate.sh full" "$root/scripts/gate.sh"'
 chk "CI gate workflow runs gate.sh full (selftests plus full history)" 'grep -q "scripts/gate.sh full" "$wf/gate.yml" && grep -q "GATE_REQUIRE_PATTERNS" "$wf/gate.yml"'
 chk "make canary only prints" 'r=$(awk "/^canary:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile"); grep -q "echo" <<<"$r" && ! grep -Eq "go run|bin/metamusic|docker" <<<"$r"'
+
+# L1-I1 (C101.3): the heaviest L1 packages are weighted for the CI shards, the weekly long property run exists,
+# the docs sections exist and every relative link in docs/*.md resolves.
+chk "heaviest L1 packages carry shard weights (scripts/ci-shard-weights.txt)" 'for p in provenance songs sounds; do grep -q "^./internal/$p " "$root/scripts/ci-shard-weights.txt" || exit 1; done'
+chk "weekly.yml has provenance-property with MM_PROPERTY_SEQS=300" 'awk "/^  provenance-property:/{f=1;next} /^  [a-z]/{f=0} f" "$wf/weekly.yml" | grep -q "MM_PROPERTY_SEQS: \"300\"" && grep -q "TestProperty_.* ./internal/provenance" "$wf/weekly.yml"'
+chk "architecture.md has Library model" 'grep -q "^## Library model" "$root/docs/architecture.md"'
+for h in "Reconcile and verify" "Taxonomy edits" "After a restore"; do
+  chk "runbook.md has $h" 'grep -q "^## $h" "$root/docs/runbook.md"'
+done
+chk "device-checklist has DC-L1-1 and DC-L1-2" 'grep -q "DC-L1-1" "$root/docs/device-checklist.md" && grep -q "DC-L1-2" "$root/docs/device-checklist.md"'
+chk "docs relative links resolve" '"$root/scripts/docs-links.sh"'
+mkdir -p "$tmp/docs-bad"
+printf "[x](missing.md)\n" >"$tmp/docs-bad/a.md"
+chk "docs-links refuses a dangling link" '! "$root/scripts/docs-links.sh" "$tmp/docs-bad" >/dev/null 2>&1'
 exit $fail

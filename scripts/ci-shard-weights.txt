@@ -31,3 +31,6 @@
 ./internal/analysis/spectro 12
 ./internal/lineage 11
 ./internal/idem 10
+./internal/provenance 40
+./internal/songs 20
+./internal/sounds 10

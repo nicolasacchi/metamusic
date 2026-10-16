@@ -62,7 +62,7 @@ func registerDraftsM2a(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_draft", Method: "GET", Path: "/api/drafts/{id}",
 		Summary:     "Get a draft",
-		Description: "One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
+		Description: "One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Reference metadata is returned in full to the operator; agents see the source title and artist (the text the draft's Muse carries) and has_reference.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/backlog/:id"},
 		func(ctx context.Context, in *draftIDIn) (*draftOut, error) {
 			if d.Library == nil {

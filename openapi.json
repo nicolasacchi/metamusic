@@ -295,6 +295,44 @@
         ],
         "type": "object"
       },
+      "AssignMuseSongsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "song_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "song_ids"
+        ],
+        "type": "object"
+      },
+      "AssignResult": {
+        "additionalProperties": false,
+        "properties": {
+          "assigned": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unchanged": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assigned",
+          "unchanged"
+        ],
+        "type": "object"
+      },
       "AudioInfo": {
         "additionalProperties": false,
         "properties": {
@@ -1066,6 +1104,206 @@
           "cost",
           "approval",
           "estimate_id"
+        ],
+        "type": "object"
+      },
+      "Board": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/BoardColumn"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "type": "string"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BoardRow"
+            },
+            "type": "array"
+          },
+          "taxonomy_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BoardTotals"
+          }
+        },
+        "required": [
+          "generated_at",
+          "taxonomy_version",
+          "columns",
+          "rows",
+          "totals",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "BoardCell": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chips": {
+            "description": "Empty unless detail=chips",
+            "items": {
+              "$ref": "#/components/schemas/SongChip"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "angle",
+          "chips"
+        ],
+        "type": "object"
+      },
+      "BoardColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "angle",
+          "songs"
+        ],
+        "type": "object"
+      },
+      "BoardCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "picked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rendered": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "draft",
+          "rendered",
+          "judged",
+          "picked",
+          "queued"
+        ],
+        "type": "object"
+      },
+      "BoardRow": {
+        "additionalProperties": false,
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/BoardCell"
+            },
+            "type": "array"
+          },
+          "chips_more": {
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/BoardCounts"
+          },
+          "muse": {
+            "$ref": "#/components/schemas/MuseRef"
+          },
+          "next_unassigned_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "songs_total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "muse",
+          "songs_total",
+          "counts",
+          "cells",
+          "chips_more",
+          "next_unassigned_cursor"
+        ],
+        "type": "object"
+      },
+      "BoardTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "muses": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "picked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rendered": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "muses",
+          "songs",
+          "draft",
+          "rendered",
+          "judged",
+          "picked",
+          "queued"
         ],
         "type": "object"
       },
@@ -2119,6 +2357,14 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "muse": {
+            "additionalProperties": {},
+            "description": "The Song's Muse (title, artist or brief up to 500 characters); null without a Muse",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "next_actions": {
             "items": {
               "type": "string"
@@ -2144,9 +2390,25 @@
               "null"
             ]
           },
+          "song": {
+            "additionalProperties": {},
+            "description": "The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "songwriting": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "sounds": {
+            "additionalProperties": {},
+            "description": "Sound facets and the tempo check of the take; null without a Song",
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "track": {
             "additionalProperties": {},
@@ -2156,6 +2418,9 @@
         "required": [
           "format",
           "track",
+          "song",
+          "muse",
+          "sounds",
           "recipe",
           "provenance",
           "score",
@@ -2230,6 +2495,40 @@
         "required": [
           "a_track_id",
           "b_track_id"
+        ],
+        "type": "object"
+      },
+      "CreateMuseInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "artist": {
+            "description": "Reference Muses only",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "brief": {
+            "description": "Brief Muses only",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reference",
+              "brief"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "title"
         ],
         "type": "object"
       },
@@ -3033,7 +3332,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Private reference metadata; humans only, null for agents",
+            "description": "Reference metadata of the draft. A human sees every key (source_title, source_artist, variant_type); an agent sees only source_title and source_artist, the text the draft's Muse carries (D-L1-36). Null when the draft has no reference",
             "type": [
               "object",
               "null"
@@ -4581,6 +4880,28 @@
         ],
         "type": "object"
       },
+      "FacetValueCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mismatches": {
+            "description": "tempo_band only: Songs whose requested and measured tempo disagree",
+            "format": "int64",
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ],
+        "type": "object"
+      },
       "Facets": {
         "additionalProperties": false,
         "properties": {
@@ -5956,6 +6277,40 @@
         ],
         "type": "object"
       },
+      "LibraryModel": {
+        "additionalProperties": false,
+        "properties": {
+          "muses": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "Entries waiting in the provenance queue",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sessions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "songs": {
+            "$ref": "#/components/schemas/SongStateCounts"
+          },
+          "taxonomy_version": {
+            "description": "Newest Sound taxonomy version; 0 when none exists yet",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "songs",
+          "muses",
+          "sessions",
+          "taxonomy_version",
+          "pending"
+        ],
+        "type": "object"
+      },
       "Lineage": {
         "additionalProperties": false,
         "properties": {
@@ -6564,6 +6919,119 @@
         ],
         "type": "object"
       },
+      "MapEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "facet": {
+            "enum": [
+              "genre_family",
+              "era",
+              "vocal",
+              "mood",
+              "language"
+            ],
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "add",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "term": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "facet",
+          "value",
+          "op"
+        ],
+        "type": "object"
+      },
+      "MapRecomputed": {
+        "additionalProperties": false,
+        "properties": {
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "takes",
+          "songs"
+        ],
+        "type": "object"
+      },
+      "MapResult": {
+        "additionalProperties": false,
+        "properties": {
+          "mappings_applied": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recomputed": {
+            "$ref": "#/components/schemas/MapRecomputed"
+          },
+          "unchanged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "description": "The new taxonomy version; null when every mapping was already effective",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "mappings_applied",
+          "unchanged",
+          "recomputed"
+        ],
+        "type": "object"
+      },
+      "MapSoundTermInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/MapEntry"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mappings"
+        ],
+        "type": "object"
+      },
       "MediaLinksOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -6637,6 +7105,311 @@
           "flac",
           "lossy",
           "mp3"
+        ],
+        "type": "object"
+      },
+      "Muse": {
+        "additionalProperties": false,
+        "properties": {
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "brief": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reference",
+              "brief"
+            ],
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "recipe_refs",
+              "human",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "artist",
+          "brief",
+          "source",
+          "created_by",
+          "updated_at",
+          "revision",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "MuseAngleCount": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "angle",
+          "songs"
+        ],
+        "type": "object"
+      },
+      "MuseCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "picked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued_jobs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rendered": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "songs",
+          "draft",
+          "rendered",
+          "judged",
+          "picked",
+          "queued_jobs"
+        ],
+        "type": "object"
+      },
+      "MuseDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "angles": {
+            "items": {
+              "$ref": "#/components/schemas/MuseAngleCount"
+            },
+            "type": "array"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/MuseCoverage"
+          },
+          "muse": {
+            "$ref": "#/components/schemas/Muse"
+          },
+          "songs": {
+            "items": {
+              "$ref": "#/components/schemas/SongSummary"
+            },
+            "type": "array"
+          },
+          "songs_total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "muse",
+          "coverage",
+          "angles",
+          "songs",
+          "songs_total"
+        ],
+        "type": "object"
+      },
+      "MuseRef": {
+        "additionalProperties": false,
+        "properties": {
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "artist"
+        ],
+        "type": "object"
+      },
+      "MuseSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "brief": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "reference",
+              "brief"
+            ],
+            "type": "string"
+          },
+          "picked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued_jobs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rendered": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "recipe_refs",
+              "human",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "artist",
+          "brief",
+          "source",
+          "created_by",
+          "updated_at",
+          "revision",
+          "hidden",
+          "songs",
+          "draft",
+          "rendered",
+          "judged",
+          "picked",
+          "queued_jobs"
+        ],
+        "type": "object"
+      },
+      "MusesOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MuseSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
         ],
         "type": "object"
       },
@@ -7014,6 +7787,290 @@
         ],
         "type": "object"
       },
+      "PickEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "at": {
+            "type": "string"
+          },
+          "cursor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "from_source": {
+            "enum": [
+              "none",
+              "pinned",
+              "ladder",
+              "stars",
+              "newest"
+            ],
+            "type": "string"
+          },
+          "from_take_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "initial",
+              "pin",
+              "unpin",
+              "pin_ineligible",
+              "pin_restored",
+              "ladder",
+              "stars",
+              "newest",
+              "emptied"
+            ],
+            "type": "string"
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "song_id": {
+            "type": "string"
+          },
+          "to_source": {
+            "enum": [
+              "none",
+              "pinned",
+              "ladder",
+              "stars",
+              "newest"
+            ],
+            "type": "string"
+          },
+          "to_take_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "cursor",
+          "id",
+          "song_id",
+          "seq",
+          "at",
+          "from_take_id",
+          "to_take_id",
+          "from_source",
+          "to_source",
+          "reason",
+          "actor",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "PickEventsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PickEvent"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "PickProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decided_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "proposed_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "song_id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed",
+              "superseded",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "take_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "song_id",
+          "take_id",
+          "rationale",
+          "proposed_by",
+          "state",
+          "created_at",
+          "decided_at",
+          "decided_by"
+        ],
+        "type": "object"
+      },
+      "PickView": {
+        "additionalProperties": false,
+        "properties": {
+          "changed_at": {
+            "type": "string"
+          },
+          "evidence": {
+            "description": "mm.pick/1 evidence",
+            "type": "object"
+          },
+          "last_event_id": {
+            "type": "string"
+          },
+          "open_proposals": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pending": {
+            "type": "boolean"
+          },
+          "pin_ineligible": {
+            "type": "boolean"
+          },
+          "pinned_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinned_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "pinned_take_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "none",
+              "pinned",
+              "ladder",
+              "stars",
+              "newest"
+            ],
+            "type": "string"
+          },
+          "take_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "take_id",
+          "source",
+          "pinned_take_id",
+          "pin_ineligible",
+          "pinned_by",
+          "pinned_at",
+          "evidence",
+          "changed_at",
+          "last_event_id",
+          "seq",
+          "pending",
+          "open_proposals"
+        ],
+        "type": "object"
+      },
+      "PinPickInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "proposal_id": {
+            "description": "An open proposal for this take to accept",
+            "type": "string"
+          },
+          "take_id": {
+            "description": "The take to pin, or null to unpin",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "take_id"
+        ],
+        "type": "object"
+      },
+      "PinResult": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/PickView"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/PickProposal"
+          }
+        },
+        "required": [
+          "pick",
+          "proposal",
+          "changed"
+        ],
+        "type": "object"
+      },
       "PingOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -7255,6 +8312,24 @@
           "code",
           "message",
           "details"
+        ],
+        "type": "object"
+      },
+      "ProposePickInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "rationale": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "take_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "take_id",
+          "rationale"
         ],
         "type": "object"
       },
@@ -7956,6 +9031,94 @@
         ],
         "type": "object"
       },
+      "SessionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "drafts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "import",
+              "upload",
+              "batch",
+              "night"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "started_at",
+          "ended_at",
+          "hidden",
+          "revision",
+          "drafts",
+          "takes",
+          "songs"
+        ],
+        "type": "object"
+      },
+      "SessionsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
       "SetSpendCapsInBody": {
         "additionalProperties": false,
         "properties": {
@@ -8182,6 +9345,604 @@
         },
         "required": [
           "track"
+        ],
+        "type": "object"
+      },
+      "SongChip": {
+        "additionalProperties": false,
+        "properties": {
+          "draft_id": {
+            "description": "Only when state is draft",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "pick_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pick_take_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "queued": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tempo_mismatch": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "state",
+          "takes",
+          "pick_source",
+          "pick_take_id",
+          "queued",
+          "draft_id",
+          "tempo_mismatch"
+        ],
+        "type": "object"
+      },
+      "SongCore": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "angle_source": {
+            "enum": [
+              "reference",
+              "request_id",
+              "manual",
+              "cleared"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "draft_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "draft",
+              "root"
+            ],
+            "type": "string"
+          },
+          "queued_jobs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "retired": {
+            "type": "boolean"
+          },
+          "retired_into": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "root_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "root_track_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "angle",
+          "angle_source",
+          "origin",
+          "revision",
+          "state",
+          "hidden",
+          "archived",
+          "queued_jobs",
+          "created_at",
+          "updated_at",
+          "root_track_id",
+          "root_track_ids",
+          "draft_id",
+          "retired",
+          "retired_into"
+        ],
+        "type": "object"
+      },
+      "SongDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "group_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "revision",
+          "label",
+          "request_id",
+          "group_key"
+        ],
+        "type": "object"
+      },
+      "SongLineage": {
+        "additionalProperties": false,
+        "properties": {
+          "children_total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "root_track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "root_track_id",
+          "generations",
+          "children_total"
+        ],
+        "type": "object"
+      },
+      "SongPickRef": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "pinned",
+              "ladder",
+              "stars",
+              "newest"
+            ],
+            "type": "string"
+          },
+          "take_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "take_id",
+          "source"
+        ],
+        "type": "object"
+      },
+      "SongSession": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
+      "SongSounds": {
+        "additionalProperties": false,
+        "properties": {
+          "facets": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SoundFacetEntry"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": "object"
+          },
+          "taxonomy_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tempo": {
+            "$ref": "#/components/schemas/TempoDetail"
+          },
+          "unmapped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "taxonomy_version",
+          "facets",
+          "tempo",
+          "unmapped"
+        ],
+        "type": "object"
+      },
+      "SongStateCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "picked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rendered": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "draft",
+          "rendered",
+          "judged",
+          "picked"
+        ],
+        "type": "object"
+      },
+      "SongSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "draft_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "muse_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "open_proposals": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/SongPickRef"
+          },
+          "queued_jobs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "root_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "angle",
+          "muse_id",
+          "state",
+          "takes",
+          "pick",
+          "draft_id",
+          "root_track_id",
+          "queued_jobs",
+          "open_proposals",
+          "hidden",
+          "archived",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "SongView": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/SongDraft"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/PickEvent"
+            },
+            "type": "array"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/SongLineage"
+          },
+          "muse": {
+            "$ref": "#/components/schemas/MuseRef"
+          },
+          "pending": {
+            "type": "boolean"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/PickView"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/PickProposal"
+            },
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SongSession"
+            },
+            "type": "array"
+          },
+          "song": {
+            "$ref": "#/components/schemas/SongCore"
+          },
+          "sounds": {
+            "$ref": "#/components/schemas/SongSounds"
+          },
+          "takes": {
+            "items": {
+              "$ref": "#/components/schemas/TakeCard"
+            },
+            "type": "array"
+          },
+          "takes_total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "song",
+          "muse",
+          "draft",
+          "takes",
+          "takes_total",
+          "pick",
+          "proposals",
+          "events",
+          "sounds",
+          "sessions",
+          "lineage",
+          "pending"
+        ],
+        "type": "object"
+      },
+      "SongsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SongSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
+      "SoundFacetEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "origin"
+        ],
+        "type": "object"
+      },
+      "SoundSearch": {
+        "additionalProperties": false,
+        "properties": {
+          "facets": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/FacetValueCount"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": "object"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selected": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": "object"
+          },
+          "songs": {
+            "items": {
+              "$ref": "#/components/schemas/SongSummary"
+            },
+            "type": "array"
+          },
+          "taxonomy_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "taxonomy_version",
+          "selected",
+          "facets",
+          "songs",
+          "total",
+          "next_cursor"
         ],
         "type": "object"
       },
@@ -8582,6 +10343,10 @@
           "judgments": {
             "$ref": "#/components/schemas/JudgmentCounters"
           },
+          "library_model": {
+            "$ref": "#/components/schemas/LibraryModel",
+            "description": "Songs, Muses and Sessions; null on a pre-L1 schema"
+          },
           "loudness": {
             "$ref": "#/components/schemas/LoudnessStats"
           },
@@ -8612,7 +10377,8 @@
           "drafts_by_origin",
           "backups",
           "generation",
-          "breakdown"
+          "breakdown",
+          "library_model"
         ],
         "type": "object"
       },
@@ -8909,6 +10675,134 @@
         ],
         "type": "object"
       },
+      "TakeCard": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_display_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "critic_stars": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "flags": {
+            "description": "Ears flag codes",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "has_ears": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_pick": {
+            "type": "boolean"
+          },
+          "ladder": {
+            "$ref": "#/components/schemas/TakeLadder"
+          },
+          "lossy": {
+            "type": "boolean"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "recipe_known": {
+            "type": "boolean"
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "stars": {
+            "description": "Human stars",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "tempo": {
+            "$ref": "#/components/schemas/TakeTempo"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "generation",
+          "parent_track_id",
+          "origin",
+          "duration_s",
+          "recorded_at",
+          "lossy",
+          "recipe_known",
+          "stars",
+          "critic_stars",
+          "is_pick",
+          "pinned",
+          "has_ears",
+          "flags",
+          "ladder",
+          "tempo",
+          "cost_display_usd"
+        ],
+        "type": "object"
+      },
+      "TakeLadder": {
+        "additionalProperties": false,
+        "properties": {
+          "n_duels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sd": {
+            "format": "double",
+            "type": "number"
+          },
+          "u": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "u",
+          "sd",
+          "n_duels"
+        ],
+        "type": "object"
+      },
       "TakePlan": {
         "additionalProperties": false,
         "properties": {
@@ -8972,6 +10866,30 @@
         ],
         "type": "object"
       },
+      "TakeTempo": {
+        "additionalProperties": false,
+        "properties": {
+          "measured_bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "requested_bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "requested_bpm",
+          "measured_bpm"
+        ],
+        "type": "object"
+      },
       "Targets": {
         "additionalProperties": false,
         "properties": {
@@ -8992,6 +10910,164 @@
           "min_duration_s",
           "target_min_duration_s",
           "target_max_duration_s"
+        ],
+        "type": "object"
+      },
+      "TaxonomyItem": {
+        "additionalProperties": false,
+        "properties": {
+          "facet": {
+            "type": "string"
+          },
+          "since_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "term": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "facet",
+          "value",
+          "since_version"
+        ],
+        "type": "object"
+      },
+      "TaxonomyPage": {
+        "additionalProperties": false,
+        "properties": {
+          "current_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyItem"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unmapped": {
+            "items": {
+              "$ref": "#/components/schemas/UnmappedTerm"
+            },
+            "type": "array"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyVersion"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "current_version",
+          "versions",
+          "items",
+          "unmapped",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "TaxonomyVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "kind": {
+            "enum": [
+              "seed",
+              "extension"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seed_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "seed_id",
+          "created_by",
+          "created_at",
+          "note"
+        ],
+        "type": "object"
+      },
+      "TempoDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "enum": [
+              "measured",
+              "declared",
+              "plan"
+            ],
+            "type": "string"
+          },
+          "measured_bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "mismatch": {
+            "type": "boolean"
+          },
+          "octave": {
+            "type": "boolean"
+          },
+          "plan_bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "requested_bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "requested_bpm",
+          "plan_bpm",
+          "measured_bpm",
+          "basis",
+          "mismatch",
+          "octave"
         ],
         "type": "object"
       },
@@ -9535,6 +11611,48 @@
           "slug": {
             "type": "string"
           },
+          "song": {
+            "additionalProperties": false,
+            "description": "The Song of the take; null before the Song exists or on a pre-L1 schema",
+            "properties": {
+              "angle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "muse_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pick_source": {
+                "description": "How the Song's current Pick was chosen; null when it has none",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "angle",
+              "muse_id",
+              "pick_source"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "status": {
             "type": "string"
           },
@@ -9615,7 +11733,8 @@
           "listening",
           "recipe_known",
           "lossy",
-          "generation"
+          "generation",
+          "song"
         ],
         "type": "object"
       },
@@ -9913,6 +12032,10 @@
               "null"
             ]
           },
+          "is_pick": {
+            "description": "The take is its Song's current Pick",
+            "type": "boolean"
+          },
           "lossy": {
             "description": "The master is an MP3; there is no lossless file",
             "type": "boolean"
@@ -9948,6 +12071,13 @@
           "seed": {
             "format": "int64",
             "type": "integer"
+          },
+          "song_id": {
+            "description": "The Song this take belongs to; null before the Song exists or on a pre-L1 schema",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "stars": {
             "description": "Human stars; null when unrated",
@@ -10016,7 +12146,9 @@
           "lossy",
           "origin",
           "cost_display_micro_usd",
-          "cost_display_usd"
+          "cost_display_usd",
+          "song_id",
+          "is_pick"
         ],
         "type": "object"
       },
@@ -10071,6 +12203,23 @@
           "reason",
           "actions",
           "reset_at"
+        ],
+        "type": "object"
+      },
+      "UnmappedTerm": {
+        "additionalProperties": false,
+        "properties": {
+          "songs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "songs"
         ],
         "type": "object"
       },
@@ -10146,6 +12295,38 @@
         ],
         "type": "object"
       },
+      "UpdateMuseInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "artist": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "brief": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
       "UpdatePlaylistInBody": {
         "additionalProperties": false,
         "properties": {
@@ -10212,6 +12393,64 @@
         },
         "required": [
           "reason"
+        ],
+        "type": "object"
+      },
+      "UpdateSessionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "UpdateSongInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "description": "A slug, or null to clear it for good",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "muse_id": {
+            "description": "A Muse id, or null to unassign",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
         ],
         "type": "object"
       },
@@ -11149,6 +13388,157 @@
         }
       }
     },
+    "/api/board": {
+      "get": {
+        "description": "The grid of Muses (rows) by angles (columns) with Song counts or chips, filtered by session, angle, state or Sound facets, row-paged under a 90 000-byte page cap; the Unassigned row has its own cursor.",
+        "operationId": "get_muse_board",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "detail",
+            "schema": {
+              "default": "counts",
+              "enum": [
+                "chips",
+                "counts"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "muse_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "angle",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cursor inside the Unassigned row",
+            "explode": false,
+            "in": "query",
+            "name": "unassigned_after",
+            "schema": {
+              "description": "Cursor inside the Unassigned row",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Board"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the Muse Board",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/board",
+          "human_only": false
+        }
+      }
+    },
     "/api/budget": {
       "get": {
         "description": "The caps, this month's and today's use, your auto-approve limits, the provider balance when readable, and whether generation is enabled.",
@@ -11730,7 +14120,7 @@
     },
     "/api/drafts/{id}": {
       "get": {
-        "description": "One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
+        "description": "One draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Reference metadata is returned in full to the operator; agents see the source title and artist (the text the draft's Muse carries) and has_reference.",
         "operationId": "get_draft",
         "parameters": [
           {
@@ -13182,6 +15572,459 @@
         }
       }
     },
+    "/api/muses": {
+      "get": {
+        "description": "Muses (inspirations: a reference title and artist, or a brief) with their Song counts by state; q is a phrase-prefix search over title, artist and brief. Hidden Muses only with include_hidden.",
+        "operationId": "list_muses",
+        "parameters": [
+          {
+            "description": "Phrase-prefix search over Muse title, artist and brief",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Phrase-prefix search over Muse title, artist and brief",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "reference",
+                "brief"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MusesOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Muses",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/board",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Creates a reference Muse (title, optional artist) or a brief Muse (short title and free text). A reference whose normalised title and artist already exist answers 409 MUSE_EXISTS with the existing id.",
+        "operationId": "create_muse",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMuseInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Muse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a Muse",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/board",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/muses/{id}": {
+      "get": {
+        "description": "One Muse with its coverage (Songs by state), its angles and its Songs.",
+        "operationId": "get_muse",
+        "parameters": [
+          {
+            "description": "Muse id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Muse id",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "songs_limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MuseDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Muse",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/muses/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Changes a Muse's title, artist or brief, or hides it, under optimistic locking: send the revision you read.",
+        "operationId": "update_muse",
+        "parameters": [
+          {
+            "description": "Muse id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Muse id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMuseInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Muse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a Muse",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/muses/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/muses/{id}/songs": {
+      "post": {
+        "description": "Assigns the Muse to 1..200 Songs, all or nothing; an assignment is never overwritten by the index backfill.",
+        "operationId": "assign_muse_songs",
+        "parameters": [
+          {
+            "description": "Muse id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Muse id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignMuseSongsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Assign a Muse to Songs",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/board",
+          "human_only": false
+        }
+      }
+    },
+    "/api/pick-events": {
+      "get": {
+        "description": "The append-only feed of Pick changes (initial, pin, unpin, ladder, stars, newest, emptied), ascending by an integer cursor; pass the previous page's cursor as after.",
+        "operationId": "list_pick_events",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "song_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "song_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array"
+            }
+          },
+          {
+            "description": "The cursor of the previous page (exclusive)",
+            "explode": false,
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "description": "The cursor of the previous page (exclusive)",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickEventsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Pick events",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/songs/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/pick-proposals/{id}/dismiss": {
+      "post": {
+        "description": "The operator closes an open proposal as dismissed. Refused with 403 HUMAN_ONLY for agents.",
+        "operationId": "dismiss_pick_proposal",
+        "parameters": [
+          {
+            "description": "Proposal id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Proposal id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickProposal"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Dismiss a Pick proposal",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:human-judgment",
+          "ui": "/songs/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/ping": {
       "get": {
         "description": "Liveness check that also reports the server version.",
@@ -13573,6 +16416,156 @@
         }
       }
     },
+    "/api/sessions": {
+      "get": {
+        "description": "Sessions (an import run, a draft collection or a generation batch) newest first, with their draft, take and Song counts.",
+        "operationId": "list_sessions",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "import",
+                  "upload",
+                  "batch",
+                  "night"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List sessions",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/board",
+          "human_only": false
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "patch": {
+        "description": "Renames or hides a session under optimistic locking: send the revision you read.",
+        "operationId": "update_session",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Session id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a session",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/board",
+          "human_only": false
+        }
+      }
+    },
     "/api/settings/songwriting": {
       "get": {
         "description": "Preferred song length in seconds: at least min_duration_s, aiming for target_min_duration_s to target_max_duration_s. Lint warns when a song misses them.",
@@ -13605,6 +16598,819 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
+    "/api/songs": {
+      "get": {
+        "description": "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
+        "operationId": "list_songs",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "muse_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "no_muse",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "angle",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "tempo_mismatch",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_pick",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The single Song of this draft",
+            "explode": false,
+            "in": "query",
+            "name": "draft_id",
+            "schema": {
+              "description": "The single Song of this draft",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this take",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "The single Song of this take",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_open_proposals",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of the Song title",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Case-insensitive substring of the Song title",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_archived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Songs",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "none:agent-face (the Sound browser lists Songs through search_sounds)",
+          "human_only": false
+        }
+      }
+    },
+    "/api/songs/{id}": {
+      "get": {
+        "description": "One Song with its Muse, takes, current Pick and proposals, recent Pick events, Sound facets and sessions. With by=draft or by=track the id is a draft or take id. A retired Song answers 200 with retired_into.",
+        "operationId": "get_song",
+        "parameters": [
+          {
+            "description": "Song id; with by=draft a draft id, with by=track a take id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Song id; with by=draft a draft id, with by=track a take id",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "by",
+            "schema": {
+              "default": "song",
+              "enum": [
+                "song",
+                "draft",
+                "track"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "take_limit",
+            "schema": {
+              "default": 24,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_events",
+            "schema": {
+              "default": 10,
+              "format": "int64",
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Song",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/songs/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Renames a Song, sets or clears its angle and Muse, or hides it, under optimistic locking: send the revision you read. A cleared angle is never refilled by the backfill.",
+        "operationId": "update_song",
+        "parameters": [
+          {
+            "description": "Song id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Song id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSongInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongCore"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a Song",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/songs/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/songs/{id}/pick-proposals": {
+      "post": {
+        "description": "An agent suggests which take should be the Song's Pick, with a rationale; one open proposal per agent per Song (a new one supersedes it). Only the operator can pin a Pick.",
+        "operationId": "propose_pick",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Song id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Song id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposePickInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickProposal"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Propose a Pick",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "none:agent-face (a human pins directly with pin_pick)",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/songs/{id}/pin": {
+      "put": {
+        "description": "The operator pins a take as the Song's Pick (optionally accepting an open proposal) or unpins it with take_id null. Refused with 403 HUMAN_ONLY for agents.",
+        "operationId": "pin_pick",
+        "parameters": [
+          {
+            "description": "Song id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Song id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinPickInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Pin or unpin a Pick",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:human-judgment",
+          "ui": "/songs/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/sound-terms": {
+      "post": {
+        "description": "Adds or removes up to 50 style-term mappings as one new taxonomy version and recomputes the affected Songs before answering.",
+        "operationId": "map_sound_term",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapSoundTermInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Map Sound terms",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/sounds",
+          "human_only": false,
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/sounds/search": {
+      "get": {
+        "description": "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
+        "operationId": "search_sounds",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "muse_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "no_muse",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "angle",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "tempo_mismatch",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_pick",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The single Song of this draft",
+            "explode": false,
+            "in": "query",
+            "name": "draft_id",
+            "schema": {
+              "description": "The single Song of this draft",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The single Song of this take",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "The single Song of this take",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "has_open_proposals",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of the Song title",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Case-insensitive substring of the Song title",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_archived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "0 returns facet counts only",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "0 returns facet counts only",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoundSearch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Search Sounds",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/sounds",
+          "human_only": false
+        }
+      }
+    },
+    "/api/sounds/taxonomy": {
+      "get": {
+        "description": "The effective mapping of style terms to facet values with the version history, or with unmapped=true the most frequent style terms no mapping matches.",
+        "operationId": "get_sound_taxonomy",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "facet",
+            "schema": {
+              "enum": [
+                "genre_family",
+                "era",
+                "vocal",
+                "mood",
+                "language"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return the top unmapped style terms instead of the mappings",
+            "explode": false,
+            "in": "query",
+            "name": "unmapped",
+            "schema": {
+              "description": "Return the top unmapped style terms instead of the mappings",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the Sound taxonomy",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/sounds",
           "human_only": false
         }
       }
@@ -13840,7 +17646,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -14014,6 +17820,36 @@
             "schema": {
               "description": "true lists tracks whose master is an MP3; false only lossless masters",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Only takes of this Song",
+            "explode": false,
+            "in": "query",
+            "name": "song_id",
+            "schema": {
+              "description": "Only takes of this Song",
+              "type": "string"
+            }
+          },
+          {
+            "description": "true lists only the takes that are their Song's current Pick; false only the others",
+            "explode": false,
+            "in": "query",
+            "name": "is_pick",
+            "schema": {
+              "description": "true lists only the takes that are their Song's current Pick; false only the others",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only takes in this Session (derived membership)",
+            "explode": false,
+            "in": "query",
+            "name": "session_id",
+            "schema": {
+              "description": "Only takes in this Session (derived membership)",
+              "type": "string"
             }
           },
           {

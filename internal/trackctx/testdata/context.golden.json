@@ -14,6 +14,9 @@
     "recorded_at": "2026-10-01T12:00:00Z",
     "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000000101"
   },
+  "song": null,
+  "muse": null,
+  "sounds": null,
   "recipe": {
     "engine": "yue2",
     "known": true,
@@ -139,7 +142,9 @@
       "diction and intelligibility",
       "melody and harmony adherence to the score",
       "section times are score-plan estimates (confidence 0.7)"
-    ]
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
   },
   "listening": {
     "plays": 2,
@@ -161,7 +166,7 @@
     "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
   ],
   "_budget": {
-    "chars": 3352,
+    "chars": 3431,
     "limit": 24000,
     "truncated": []
   }

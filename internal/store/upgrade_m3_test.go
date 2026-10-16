@@ -75,7 +75,7 @@ func TestMigration0007_UpgradeFromM2d(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if v, _ := s.UserVersion(ctx); v != 7 {
+	if v, _ := s.UserVersion(ctx); v < 7 {
 		t.Fatalf("version=%d, want 7", v)
 	}
 	var detail int

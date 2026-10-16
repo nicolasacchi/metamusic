@@ -34,3 +34,25 @@ describe("Track page (M2c)", () => {
     expect(h).not.toContain("Recover recipe");
   });
 });
+
+describe("Track page Song strip (L1)", () => {
+  const song = { id: "s_1", title: "Synthetic Song", angle: null, muse_id: null, pick_source: "ladder" };
+  test("shows the Song link and the Pick badge when the take is the Pick", () => {
+    const h = page({ ...trackKnown, song, is_pick: true } as never);
+    expect(h).toContain('data-testid="song-strip"');
+    expect(h).toContain('href="/songs/s_1"');
+    expect(h).toContain("Synthetic Song");
+    expect(h).toContain('data-testid="pick-badge"');
+    expect(h).not.toContain("Pick of this Song");
+  });
+  test("links to the Pick of the Song when the take is not the Pick", () => {
+    const h = page({ ...trackKnown, song, is_pick: false } as never);
+    expect(h).toContain("Pick of this Song");
+    expect(h).toContain('href="/songs/s_1"');
+    expect(h).not.toContain('data-testid="pick-badge"');
+  });
+  test("no strip without a Song", () => {
+    expect(page({ ...trackKnown, song: null } as never)).not.toContain('data-testid="song-strip"');
+    expect(page(trackKnown)).not.toContain('data-testid="song-strip"');
+  });
+});
