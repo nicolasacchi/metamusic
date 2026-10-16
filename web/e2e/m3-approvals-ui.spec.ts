@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Page, type PlaywrightWorkerArgs } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page, type PlaywrightWorkerArgs } from "@playwright/test";
 import { BASE_URL } from "./env";
-import { apiJSON, uniq } from "./helpers";
+import { apiJSON, ownTracks, uniq } from "./helpers";
 import { agentCreateHeaders, composeRoots, first, getBatch, type Batch, type Estimate } from "./m3Api";
 
 // Desktop Chrome, Pixel 7 and iPhone 15. Pending approvals are discoverable inside the app: nav badge, Jobs section,
@@ -52,14 +52,33 @@ async function ownPendingBatch(request: APIRequestContext, playwright: Playwrigh
   return { batch, agentName, dispose: () => agent.dispose() };
 }
 
+// A control is usable when the fixed player bar does not overlap it, wherever the page is scrolled: the bar's box and
+// the control's box are disjoint, and the control is what the browser hits at its centre.
+async function expectNotUnderPlayer(page: Page, target: Locator): Promise<void> {
+  await target.scrollIntoViewIfNeeded();
+  const bar = await page.getByTestId("player-footer").boundingBox();
+  const box = await target.boundingBox();
+  if (!bar || !box) throw new Error("no box for the player bar or the control");
+  expect(box.y + box.height, "control ends above the player bar").toBeLessThanOrEqual(bar.y + 0.5);
+  const hit = await target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return top === el || el.contains(top);
+  });
+  expect(hit).toBe(true);
+}
+
 async function decide(page: Page, project: string): Promise<void> {
   await expect(page.getByTestId("batch-state")).toHaveText("awaiting confirmation");
+  const approve = page.getByTestId("approve");
+  const reject = page.getByTestId("reject");
+  await expectNotUnderPlayer(page, approve);
+  await expectNotUnderPlayer(page, reject);
   if (project === "m3-chrome") {
-    await page.getByTestId("approve").click();
+    await approve.click();
   } else {
     await page.getByTestId("decision-reason").fill("e2e: not now");
-    // on phones the sticky player bar can cover the button and Playwright's hit test never settles: click it in the DOM
-    await page.getByTestId("reject").evaluate((el) => (el as HTMLButtonElement).click());
+    await reject.click();
   }
   await expect(page.getByTestId("decided")).toBeVisible();
 }
@@ -91,9 +110,16 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     await expect(row.getByTestId("approval-ceiling")).toContainText(/\$\d/);
     await expect(row.getByTestId("approval-reason").first()).toBeVisible();
 
-    // the Jobs page carries the same section
-    await page.goto("/jobs");
+    // the Jobs page carries the same section; with music playing (client navigation keeps the player) the link is
+    // still clear of the player bar
+    const [t] = await ownTracks(request, info);
+    await page.goto(`/tracks/${t.id}`);
+    await page.getByTestId("track-play").click();
+    await expect(page.getByTestId("player-footer")).toBeVisible();
+    await page.getByRole("link", { name: "Jobs", exact: true }).click();
+    await expect(page).toHaveURL(/\/jobs$/);
     await expect(row).toBeVisible();
+    await expectNotUnderPlayer(page, row.getByTestId("approval-link"));
     await page.screenshot({ path: `test-results/approvals-jobs-${info.project.name}.png` });
 
     // the batch page carries the same link

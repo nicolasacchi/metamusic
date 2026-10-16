@@ -78,6 +78,9 @@
     return () => clearInterval(t);
   });
 
+  // The player bar is fixed to the viewport bottom; routed content reserves its (variable) height so that no control
+  // (Approve, Reject, duel verdicts) can ever sit under it.
+  let playerH = $state(0);
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
@@ -119,7 +122,7 @@
     </nav>
   </header>
 
-  <main>
+  <main style:padding-bottom="calc(1rem + {playerH}px)">
     <SessionBanner />
     {#if $router.route?.name === "home"}
       <Library search={searchOf($router)} navigate={router.navigate} />
@@ -205,7 +208,7 @@
     {/each}
   </div>
 
-  <footer class="player" aria-label="Player">
+  <footer class="player" aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
     <PlayerBar {player} />
     <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
@@ -265,8 +268,12 @@
     align-items: center;
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
     border-top: 1px solid #3a322b;
-    position: sticky;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    z-index: 5;
+    box-sizing: border-box;
     background: #1d1814;
   }
   .toasts {
