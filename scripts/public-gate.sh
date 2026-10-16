@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Public-repo privacy gate. Usage: public-gate.sh [--staged|--history] [--require-patterns]
+# Public-repo privacy gate. Usage: public-gate.sh [--staged|--history|--range=BASE] [--require-patterns]
 #   (default)  tracked files in the index
 #   --staged   paths/content staged for commit (pre-commit hook)
 #   --history  every path, blob, ref and commit identity ever committed (pre-push hook, CI)
+#   --range=BASE  incremental (local `make gate`): the commits BASE..HEAD (paths, new blobs, messages,
+#              identities, gitleaks) plus the working tree (uncommitted and untracked files). Refs and
+#              commits already in BASE are not rescanned; `make gate-full` (CI, pre-push) does that.
 #   --require-patterns  fail (instead of warn) when no private patterns are configured
 # Checks: forbidden paths, binary/archive content, gitleaks, built-in token regex,
 # private regexes (as regex and as fixed strings), identities, refs, metrics row schema.
@@ -10,12 +13,14 @@ set -uo pipefail
 
 mode=tracked
 require=0
+base=
 for a in "$@"; do
   case "$a" in
     --staged) mode=staged ;;
     --history) mode=history ;;
+    --range=?*) mode=range; base=${a#--range=} ;;
     --require-patterns) require=1 ;;
-    *) echo "usage: $0 [--staged|--history] [--require-patterns]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--staged|--history|--range=BASE] [--require-patterns]" >&2; exit 2 ;;
   esac
 done
 
@@ -23,6 +28,11 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$(git rev-parse --show-toplevel)" || exit 2
 cfg=.gitleaks.toml
 [ -f "$cfg" ] || cfg="$root/.gitleaks.toml"
+if [ "$mode" = range ]; then
+  # fail closed: an unresolvable base must never shrink the scan
+  git rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 || { echo "public-gate: --range base '$base' is not a commit" >&2; exit 2; }
+  base=$(git rev-parse "$base^{commit}")
+fi
 
 problems=()
 tmpfiles=()
@@ -38,6 +48,10 @@ case "$mode" in
     # rev-list --objects also reaches trees/blobs that only a tag points at
     readz < <(git ls-files -z; git log --all -m -z --name-only --pretty=format:
       git rev-list --all --objects 2>/dev/null | sed -n 's/^[0-9a-f]* //p' | tr '\n' '\0') ;;
+  range)
+    # every path the range touches (-m: merges list what they add per parent) + the working tree
+    readz < <(git log -m -z --name-only --pretty=format: "$base..HEAD"
+      git diff --name-only -z HEAD; git ls-files -z -o --exclude-standard) ;;
   *) readz < <(git ls-files -z) ;;
 esac
 
@@ -81,10 +95,25 @@ else
     "$gl" git "${glargs[@]}" --staged . >/dev/null 2>&1
   elif [ "$mode" = history ]; then
     "$gl" git "${glargs[@]}" --log-opts="--all -m" . >/dev/null 2>&1
+  elif [ "$mode" = range ]; then
+    # commits of the range, then staged and unstaged changes, then untracked files (copied, paths kept)
+    rc=0
+    if [ -n "$(git rev-list -n1 "$base..HEAD")" ]; then
+      "$gl" git "${glargs[@]}" --log-opts="-m $base..HEAD" . >/dev/null 2>&1 || rc=$?
+    fi
+    if [ $rc -eq 0 ]; then "$gl" git "${glargs[@]}" --pre-commit . >/dev/null 2>&1 || rc=$?; fi
+    if [ $rc -eq 0 ]; then "$gl" git "${glargs[@]}" --staged . >/dev/null 2>&1 || rc=$?; fi
+    if [ $rc -eq 0 ] && [ -n "$(git ls-files -o --exclude-standard | head -n1)" ]; then
+      untracked=$(mktemp -d)
+      tmpfiles+=("$untracked")
+      git ls-files -z -o --exclude-standard | xargs -0 -I{} cp --parents -- {} "$untracked" 2>/dev/null
+      "$gl" dir "${glargs[@]}" "$untracked" >/dev/null 2>&1 || rc=$?
+    fi
   else
     "$gl" git "${glargs[@]}" . >/dev/null 2>&1
   fi
-  rc=$?
+  grc=$?
+  [ "$mode" = range ] || rc=$grc
   if [ $rc -ne 0 ]; then
     add "gitleaks reported findings (exit $rc):"
     if command -v jq >/dev/null 2>&1 && [ -s "$report" ]; then
@@ -98,7 +127,7 @@ fi
 pf=$(mktemp)
 blobf=$(mktemp)
 tmpfiles+=("$pf" "$pf.f" "$blobf")
-trap 'rm -f "${tmpfiles[@]}"' EXIT
+trap 'rm -rf "${tmpfiles[@]}"' EXIT
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
 if [ -n "${PUBLIC_GATE_PATTERNS:-}" ]; then
   printf '%s\n' "$PUBLIC_GATE_PATTERNS" >"$pf"
@@ -166,7 +195,10 @@ png_ok() { # name file: allow-listed icon that really is a PNG
 scan_blob() { # sha name
   local sha=$1 name=$2 label
   label=${name:-blob ${sha:0:8}}
-  git cat-file blob "$sha" >"$blobf" 2>/dev/null || return 0
+  case "$sha" in
+    @*) cat -- "${sha#@}" >"$blobf" 2>/dev/null || return 0 ;;   # a working-tree file (range mode)
+    *) git cat-file blob "$sha" >"$blobf" 2>/dev/null || return 0 ;;
+  esac
   if ! png_ok "$name" "$blobf"; then
     if bad_magic "$blobf"; then add_once "binary/archive/audio/db/pdf content in: $label"
     elif has_nul "$blobf"; then add_once "binary content (NUL bytes) in: $label"; fi
@@ -198,6 +230,19 @@ list_blobs() {
       { git ls-files -s -z | tr '\0' '\n' | awk -F'[ \t]' '$1 != 160000 {print $2" "substr($0, index($0,"\t")+1)}'
         git rev-list --all --objects 2>/dev/null; } |
         git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' 2>/dev/null ;;
+    range)
+      git rev-list --objects "$base..HEAD" 2>/dev/null | git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' 2>/dev/null
+      # staged blobs, then every changed or untracked regular file as it is on disk
+      local meta path m1 m2 o n st
+      while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+        read -r m1 m2 o n st <<<"$meta"
+        [ "$m2" = 160000 ] && continue
+        printf 'blob %s %s\n' "$n" "$path"
+      done < <(git diff --cached --raw -z --no-abbrev --no-renames --diff-filter=ACMR)
+      { git diff --name-only -z --diff-filter=ACMR HEAD; git ls-files -z -o --exclude-standard; } |
+        while IFS= read -r -d '' path; do
+          [ -f "$path" ] && [ ! -L "$path" ] && printf 'blob @%s %s\n' "$PWD/$path" "$path"
+        done ;;
     *)
       git ls-files -s -z | tr '\0' '\n' | awk -F'[ \t]' '$1 != 160000 {print "blob "$2" "substr($0, index($0,"\t")+1)}' ;;
   esac | awk '$1 == "blob" && !seen[$2]++'
@@ -214,15 +259,22 @@ if [ "$havepf" = 1 ] && [ ${#paths[@]} -gt 0 ]; then
   while IFS= read -r -d '' p; do add_once "private pattern match in path: $p"; done < <(pmatch_records "$pf.p")
 fi
 
-if [ "$mode" = history ]; then
+if [ "$mode" = history ] || [ "$mode" = range ]; then
+  if [ "$mode" = history ]; then logsel=(--all); else logsel=("$base..HEAD"); fi
   if [ "$havepf" = 1 ]; then
     # commit messages and author/committer identities are published too (short SHA only)
-    git log --all -z --format='%H %B' >"$pf.m"
-    git log --all -z --format='%h %an <%ae> %cn <%ce>' >"$pf.i"
+    git log "${logsel[@]}" -z --format='%H %B' >"$pf.m"
+    git log "${logsel[@]}" -z --format='%h %an <%ae> %cn <%ce>' >"$pf.i"
     tmpfiles+=("$pf.m" "$pf.i")
     while IFS= read -r -d '' r; do add_once "private pattern match in commit message: ${r:0:8}"; done < <(pmatch_records "$pf.m")
     while IFS= read -r -d '' r; do add_once "private pattern match in commit identity: ${r:0:8}"; done < <(pmatch_records "$pf.i")
   fi
+  if [ "$mode" = range ] && [ "$havepf" = 1 ]; then
+    { git var GIT_AUTHOR_IDENT; git var GIT_COMMITTER_IDENT; } >"$blobf" 2>/dev/null
+    pmatch "$blobf" && add "private pattern match in your git author/committer identity (set a noreply user.email)"
+  fi
+fi
+if [ "$mode" = history ]; then
   # refs: names, tag messages/taggers, and refs that point at non-commits
   while read -r otype oname ptype; do
     case "$otype" in
@@ -259,9 +311,10 @@ declare -a seenb=()
 for p in ${paths[@]+"${paths[@]}"}; do
   case "$p" in metrics/*.jsonl) ;; *) continue ;; esac
   if ! command -v jq >/dev/null 2>&1; then add "jq not found; cannot validate $p"; continue; fi
-  if [ "$mode" = history ]; then
+  if [ "$mode" = history ] || [ "$mode" = range ]; then
     refs=()
-    while IFS= read -r c; do refs+=("$c:$p"); done < <(git log --all -m --format=%H -- "$p")
+    if [ "$mode" = history ]; then logsel=(--all); else logsel=("$base..HEAD"); fi
+    while IFS= read -r c; do refs+=("$c:$p"); done < <(git log "${logsel[@]}" -m --format=%H -- "$p")
     refs+=(":$p")
   else
     refs=(":$p")

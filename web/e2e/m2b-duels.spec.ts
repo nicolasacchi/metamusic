@@ -1,3 +1,4 @@
+// matrix: @mobile @realtime because the duel page has a mobile toggle UI (desktop keyboard tests skip on phones at run time)
 // M2b duel specs. Verdicts are immutable and next_duel returns the globally oldest open duel, so every
 // spec makes its own duel (API helper or UI) and opens /duels/:id; none asserts a global rank or the
 // queue head. Keyboard specs run on the desktop Chrome project, toggle specs on the mobile projects.

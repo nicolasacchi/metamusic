@@ -173,7 +173,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		for _, k := range pl.items[i] {
 			t := pl.takes[k]
 			pi.Takes = append(pi.Takes, TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
-				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, TimeoutS: t.TimeoutS, Max: money.MicroUSD(t.MaxMicroUSD)})
+				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, MinAudioS: t.MinAudioS, TimeoutS: t.TimeoutS, Max: money.MicroUSD(t.MaxMicroUSD)})
 		}
 		est.Items = append(est.Items, pi)
 	}

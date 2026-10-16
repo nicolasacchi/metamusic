@@ -77,7 +77,7 @@ mkdir -p "$tmp/cov/e2e"
 echo aaaaaaaaaaaa >"$tmp/cov/e2e.stamp"
 rc=0; out=$(COVERAGE_SOURCE_STAMP=bbbbbbbbbbbb "$gate" --thresholds "$tmp/th" "$tmp/cov/e2e" 2>&1) || rc=$?
 [ "$rc" = 4 ] || fail "stale covdata: want exit 4, got $rc: $out"
-grep -q 'is stale (built from aaaaaaaaaaaa, sources now bbbbbbbbbbbb): run make e2e' <<<"$out" || fail "stale message: $out"
+grep -q 'is stale (built from aaaaaaaaaaaa, sources now bbbbbbbbbbbb): run make e2e-cover' <<<"$out" || fail "stale message: $out"
 # matching stamp, or no stamp at all (CI artifact): not refused as stale
 rc=0; out=$(COVERAGE_SOURCE_STAMP=aaaaaaaaaaaa "$gate" --thresholds "$tmp/th" "$tmp/cov/e2e" 2>&1) || rc=$?
 [ "$rc" != 4 ] || fail "matching stamp refused as stale: $out"

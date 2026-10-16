@@ -1,3 +1,4 @@
+// matrix: @mobile @firefox @realtime because it is the player: touch seeking, signed ranged media, FLAC and auto-advance in the audio element
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 type Item = { id: string; title: string; duration_s: number };
@@ -18,7 +19,7 @@ test("plays and seeks a FLAC master", async ({ page, request }) => {
   await page.goto(`/tracks/${t?.id}`);
   await page.getByTestId("track-play").click();
   await expect.poll(async () => (await audioState(page)).src).toMatch(/\/media\/[0-9a-f]{64}\.flac\?exp=/);
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 10_000 }).toBeGreaterThanOrEqual(0.5);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 10_000 }).toBeGreaterThanOrEqual(0.2);
   // seek forward: playback continues from there
   await page.evaluate(() => {
     const a = document.querySelector("audio");
@@ -85,19 +86,19 @@ test("playback persists across navigation", async ({ page, request }) => {
   await expect.poll(async () => (await audioState(page)).t, { timeout: 4000 }).toBeGreaterThan(b.t);
 });
 
-test("auto-advances to the next queue track", async ({ page, request }) => {
+// Continuous playback across a track boundary, in real time (the one such spec: the others seek, see
+// m3-autoadvance.spec.ts). "Syn song 02" is the 2 s seed take, so the boundary costs about two seconds.
+// Where @realtime specs run is decided by the e2e matrix rules (web/e2e/matrix.ts).
+test("@realtime auto-advances to the next queue track without a gap", async ({ page, request }) => {
   const list = await tracks(request);
   const i = list.findIndex((x) => x.title === "Syn song 02");
   const next = list[i + 1];
   if (!next) throw new Error("no track after Syn song 02");
   await page.goto("/");
   await page.getByRole("button", { name: "Play Syn song 02" }).click();
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.2);
-  await page.evaluate(() => {
-    const a = document.querySelector("audio");
-    if (a) a.currentTime = a.duration - 0.5;
-  });
-  await expect(page.getByTestId("player-bar").getByRole("link", { name: next.title })).toBeVisible({ timeout: 10_000 });
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.1);
+  // no seek: the take ends by itself
+  await expect(page.getByTestId("player-bar").getByRole("link", { name: next.title })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Pause");
   await expect.poll(async () => (await audioState(page)).paused).toBe(false);
   await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.3);

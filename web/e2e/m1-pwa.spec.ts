@@ -1,3 +1,4 @@
+// matrix: @mobile @firefox @realtime because it covers the PWA manifest, Media Session, session-loss banner and the device codec probe
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { SEED_TRACKS } from "./env";
 

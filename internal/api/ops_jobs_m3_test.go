@@ -14,6 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -53,7 +54,7 @@ func newJobsRig(t *testing.T, mode string, keys bool) *jobsRig {
 	gate := provider.NewGate(st.R, provider.GateConfig{Mode: mode, KeysLoaded: keys, ColdStartS: 180, MaxRuntime: 15 * time.Minute}, now)
 	admin := jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: gate, KillSlackS: 15, TTL: 2 * time.Hour, PriceMarginPPM: 100000})
 	mux := http.NewServeMux()
-	api.New(mux, api.Deps{Store: st, Jobs: jobs.New(jobs.Options{Store: st}), Provider: admin, Now: now})
+	api.New(mux, api.Deps{Store: st, Jobs: jobs.New(jobs.Options{Store: st, Spend: spend.New(spend.Options{Store: st, Now: now})}), Provider: admin, Now: now})
 	return &jobsRig{rig: &rig{mux: mux}, st: st, gate: gate, admin: admin}
 }
 
@@ -258,6 +259,18 @@ func TestCancel_DeviceAllowed(t *testing.T) {
 	}
 	if n := cancelIntents(t, r.st); n != 2 {
 		t.Errorf("intents %d, want 2", n)
+	}
+	// the batch no longer waits for a human: terminal, approval closed, and out of the awaiting list
+	if b["state"] != "rejected" {
+		t.Errorf("batch state %v, want a terminal state", b["state"])
+	}
+	var a, via string
+	if err := r.st.R.QueryRow(`SELECT state, via FROM approvals WHERE batch_id = ?`, lt.BatchAwaiting).Scan(&a, &via); err != nil || a != "rejected" || via != "cancel" {
+		t.Errorf("approval %q %q %v", a, via, err)
+	}
+	m := r.must(t, human, "GET", "/api/batches?state=awaiting_confirmation", "", 200)
+	if got := ids(m["items"]); len(got) != 0 {
+		t.Errorf("awaiting batches after the cancel: %v", got)
 	}
 }
 

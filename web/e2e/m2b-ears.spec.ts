@@ -1,3 +1,4 @@
+// matrix: chrome-only because the flags, spectrogram image and plot click are data-only (the seek is the same code as the player specs)
 import { expect, test } from "./fixtures";
 import { apiJSON, audioTime, trackByTitle } from "./helpers";
 

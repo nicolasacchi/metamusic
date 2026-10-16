@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
@@ -79,13 +80,13 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 	}
 	// the ceiling check uses the estimate's ceiling against --max-usd
 	lim := runpod.DefaultCanaryMaxUSD
-	if lim != 250_000 {
+	if lim != 500_000 {
 		t.Errorf("default limit = %d", lim)
 	}
 	for _, c := range []struct {
 		ceiling money.MicroUSD
 		want    bool
-	}{{0, false}, {1, true}, {250_000, true}, {250_001, false}} {
+	}{{0, false}, {1, true}, {500_000, true}, {500_001, false}} {
 		if got := runpod.CeilingAllowed(c.ceiling, lim); got != c.want {
 			t.Errorf("CeilingAllowed(%d) = %v", c.ceiling, got)
 		}
@@ -235,9 +236,42 @@ func (s *restStub) serve(w http.ResponseWriter, r *http.Request) {
 
 func canaryOpts(s *restStub, c runpod.CanaryCase) runpod.CanaryOptions {
 	return runpod.CanaryOptions{BaseURL: s.URL, Token: canary("mm-token"), Case: c, Day: t0, N: 1,
-		WaitS: 1, SweepEvery: time.Millisecond, AbortAfter: 150 * time.Millisecond, AfterCancelWait: time.Millisecond,
-		CancelObserveWait: 20 * time.Millisecond}
+		WaitS: 1, SweepEvery: time.Millisecond, AbortAfter: time.Hour, AfterCancelWait: time.Millisecond,
+		CancelObserveWait: 20 * time.Millisecond, Clock: newAutoClock(t0)}
 }
+
+// autoClock is the canary's injected clock for the stub-driven tests: no test here is about real time, so
+// nothing may depend on it. Every Now() advances 1 ms of fake time and every timer is already fired after
+// moving the clock by its duration, so the start window, the confirm window, the sweep and the observe waits
+// all expire after a fixed number of the canary's own steps, never because a CI machine was slow.
+type autoClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newAutoClock(start time.Time) *autoClock { return &autoClock{now: start} }
+
+func (c *autoClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(time.Millisecond)
+	return c.now
+}
+
+func (c *autoClock) NewTimer(d time.Duration) clock.Timer {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	now := c.now
+	c.mu.Unlock()
+	ch := make(chan time.Time, 1)
+	ch <- now
+	return firedTimer{ch}
+}
+
+type firedTimer struct{ ch chan time.Time }
+
+func (f firedTimer) C() <-chan time.Time { return f.ch }
+func (f firedTimer) Stop() bool          { return false }
 
 func goodMain() []map[string]any {
 	return []map[string]any{
@@ -253,7 +287,7 @@ func TestCanary_RefusesOverCeilingAndDisarmed(t *testing.T) {
 	t.Run("ceiling over --max-usd", func(t *testing.T) {
 		t.Parallel()
 		s := ranStub(t, goodMain()...)
-		s.ceiling = 300_000
+		s.ceiling = 600_000
 		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseMain))
 		if err != nil || rep.Exit != runpod.ExitRefused || rep.Outcome != "refused" {
 			t.Fatalf("rep %+v err %v", rep, err)
@@ -262,7 +296,7 @@ func TestCanary_RefusesOverCeilingAndDisarmed(t *testing.T) {
 			t.Error("a batch was created above the ceiling")
 		}
 		o := canaryOpts(s, runpod.CaseMain)
-		o.MaxUSD = 300_000
+		o.MaxUSD = 600_000
 		if rep, err = runpod.RunCanary(context.Background(), o); err != nil || rep.Exit != runpod.ExitPass {
 			t.Fatalf("with a higher limit: %+v %v", rep, err)
 		}
@@ -386,7 +420,9 @@ func TestCanary_FailsOnUnverifiedArtifactOrBadAudio(t *testing.T) {
 func TestCanary_AbortsWhenNeverGenerating(t *testing.T) {
 	t.Parallel()
 	s := newRestStub(t, job("queued", nil))
-	rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseMain))
+	o := canaryOpts(s, runpod.CaseMain)
+	o.AbortAfter = 150 * time.Millisecond // fake time: the canary's own steps expire it
+	rep, err := runpod.RunCanary(context.Background(), o)
 	if err != nil || rep.Exit != runpod.ExitAborted || rep.Outcome != "aborted" {
 		t.Fatalf("rep %+v err %v", rep, err)
 	}

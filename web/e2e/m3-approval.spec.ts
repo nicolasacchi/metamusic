@@ -1,3 +1,4 @@
+// matrix: @mobile because approvals are done on the phone; the fixed player bar must never cover Approve/Reject (it did on the iPhone before the bar reserved its space)
 import { expect, test, type APIRequestContext } from "./fixtures";
 import { agentCreateHeaders, allTerminal, assertOnlyDuplicateFailures, composeRoots, first, getBatch, pollBatch, type Batch, type Estimate } from "./m3Api";
 

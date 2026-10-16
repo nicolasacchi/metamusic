@@ -83,6 +83,8 @@ type archive struct {
 	post  []func() error
 	// ffmpeg is the encoder of the reference profile's MP3 files.
 	ffmpeg string
+	// short is Options.ShortAudio.
+	short bool
 }
 
 type renderJob struct {
@@ -143,10 +145,27 @@ func (a *archive) retagOf(ctx context.Context, t mediatool.Tools, src, dst strin
 // and returns its Manifest. seed offsets the audio variants, nothing else; the
 // same arguments give byte-identical text files and the same loudness.
 func Archive(ctx context.Context, t mediatool.Tools, dir string, profile Profile, seed int64) (Manifest, error) {
+	return ArchiveWith(ctx, t, dir, profile, seed, Options{})
+}
+
+// Options tunes an archive without changing its recipes, text files or expectations.
+type Options struct {
+	// ShortAudio renders the one take that only the player e2e specs walk to its natural end
+	// ("Syn song 02") at ShortSeconds instead of 6 s, so a real play-through costs a couple of seconds.
+	// Every other take keeps its length: the library duration filter, the seek, waveform, comment-pin,
+	// listen and ears specs read them. The masters stay real, valid FLAC files.
+	ShortAudio bool
+}
+
+// ShortSeconds is the length of the short e2e take (Options.ShortAudio).
+const ShortSeconds = 2
+
+// ArchiveWith is Archive with Options.
+func ArchiveWith(ctx context.Context, t mediatool.Tools, dir string, profile Profile, seed int64, opts Options) (Manifest, error) {
 	if err := needAbs(dir); err != nil {
 		return Manifest{}, err
 	}
-	a := &archive{root: dir}
+	a := &archive{root: dir, short: opts.ShortAudio}
 	var m Manifest
 	var err error
 	switch profile {
@@ -478,7 +497,11 @@ func (a *archive) e2e(ctx context.Context, t mediatool.Tools, seed int64) (Manif
 	}
 	a.flac("music/flac/syn_song_01_s1001.flac", "syn-song-01", 1001, Tone{LUFS: -12, Seconds: 6, BPM: 120, Variant: v(0)}, StyleYuE2)
 	a.flac("music/flac/syn_song_01_s2001.flac", "syn-song-01", 2001, Tone{LUFS: -14, Seconds: 8, BPM: 100, Variant: v(1)}, StyleYuE2)
-	a.flac("music/flac/syn_song_02.flac", "syn-song-02", 1002, Tone{LUFS: -15, Seconds: 6, BPM: 90, Variant: v(2)}, StyleYuE2)
+	song02 := 6.0
+	if a.short {
+		song02 = ShortSeconds
+	}
+	a.flac("music/flac/syn_song_02.flac", "syn-song-02", 1002, Tone{LUFS: -15, Seconds: song02, BPM: 90, Variant: v(2)}, StyleYuE2)
 	a.flac("music/flac/syn_song_03.flac", "syn-song-03", 1003, Tone{LUFS: -14, Seconds: 12, BPM: 120, Variant: v(3)}, StyleYuE2)
 	a.flac("music/flac/syn_song_04.flac", "syn-song-04", 1004, Tone{LUFS: -16, Seconds: 7, BPM: 110, Variant: v(4)}, StyleYuE2)
 	a.flac("music/flac/syn_song_05.flac", "syn-song-05", 1005, Tone{LUFS: -13, Seconds: 9, BPM: 130, Variant: v(5)}, StyleYuE2)

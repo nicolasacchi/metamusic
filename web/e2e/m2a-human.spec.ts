@@ -1,3 +1,4 @@
+// matrix: @mobile because it covers the human pages (tokens, pairing and devices) the operator uses from the phone (pairing tests run on chrome only at run time)
 import { expect, test, type Browser, type BrowserContext } from "./fixtures";
 import { trackByTitle, uniq } from "./helpers";
 

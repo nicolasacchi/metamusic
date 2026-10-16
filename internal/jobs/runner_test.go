@@ -612,3 +612,31 @@ func TestRunner_SubmitOutcomes(t *testing.T) {
 		}
 	})
 }
+
+// The forced minimum frozen into mutation_json at create reaches the provider in the take spec, and a job
+// without the key (planned before the control) sends none.
+func TestRunner_MinAudioReachesTheTakeSpec(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name, mutation string
+		want           int
+	}{
+		{"frozen at create", `{"min_audio_s":252}`, 252},
+		{"absent", `{}`, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			r.seedBatch(batchSpec{mutation: c.mutation})
+			got := -1
+			r.onSubmit(func(spec provider.TakeSpec) (provider.Ref, error) {
+				got = spec.MinAudioS
+				return provider.Ref{Backend: provider.BackendFake, ID: "ref-x"}, nil
+			})
+			r.step()
+			if got != c.want {
+				t.Errorf("TakeSpec.MinAudioS = %d, want %d", got, c.want)
+			}
+		})
+	}
+}

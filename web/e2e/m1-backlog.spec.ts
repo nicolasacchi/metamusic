@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is a pure data list (draft groups, filter, lyrics structure) with no device-dependent behaviour
 import { expect, test } from "./fixtures";
 
 // M2a specs create drafts (editor, jsonl_upload origins) in the same library, so the seed counts are

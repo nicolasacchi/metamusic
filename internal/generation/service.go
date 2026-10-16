@@ -6,6 +6,7 @@
 package generation
 
 import (
+	"context"
 	"io"
 	"time"
 	"uuid"
@@ -16,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -39,6 +41,14 @@ type Options struct {
 	ColdStartS, KillSlackS int
 	MaxRuntime             time.Duration
 	PriceMarginPPM         int64
+	// Songwriting supplies the operator's duration targets for the minimum-render control (min_audio_s). nil
+	// turns the control off: takes are planned and sent exactly as before.
+	Songwriting SongwritingSource
+}
+
+// SongwritingSource reads the songwriting duration targets (songwriting.Service satisfies it).
+type SongwritingSource interface {
+	Get(ctx context.Context) (songwriting.Targets, error)
 }
 
 // Service owns the create path of generation.
@@ -110,6 +120,7 @@ type TakePlan struct {
 	ParentTrackID  *string
 	DraftID        *string
 	ExpectedAudioS int
+	MinAudioS      int // forced minimum render length in seconds, 0 = none; ExpectedAudioS is never below it
 	TimeoutS       int
 	Max            money.MicroUSD
 }

@@ -26,6 +26,10 @@ async function createAgentToken(base: string): Promise<void> {
   const tok = await post("POST", "/human/api/tokens", { name: "e2e-agent", scopes: ["read", "write", "generate"] }, `e2e-setup-${randomBytes(6).toString("hex")}`);
   if (typeof tok.token !== "string" || typeof tok.id !== "string") throw new Error("create_token returned no token");
   process.env.MM_E2E_AGENT_TOKEN = tok.token;
+  // The fake backend's tracks are seconds long; the shipped minimum-render floor (min_duration_s 180) would quote every e2e
+  // take at 3 minutes and exhaust the agent's daily budget. The template runs with the allowed minimum; the floor itself is
+  // asserted in m3-songwriting.spec.ts by raising the setting there.
+  await post("PUT", "/human/api/settings/songwriting", { min_duration_s: 30 });
   await post("PUT", "/human/api/spend/caps", { tokens: [{ token_id: tok.id, auto_approve_takes: 1, auto_approve_micro_usd: null, daily_budget_micro_usd: null }] });
 }
 
@@ -56,7 +60,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   // Seed the synthetic library (C22) plus the M2c reference and lossy takes (C66): synchronous; a failed seed fails the whole setup.
   const url = `http://127.0.0.1:${await freePort()}`;
-  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
+  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references", "--short-audio"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
   if (seed.status !== 0) {
     rmSync(root, { recursive: true, force: true });
     throw new Error(`seed-synthetic failed (exit ${seed.status ?? seed.signal ?? "unknown"}${seed.error ? `: ${seed.error.message}` : ""})`);

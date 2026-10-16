@@ -122,7 +122,21 @@ CASES: list[tuple[str, dict[str, Any]]] = [
     ("expect extra", _mut(["expect", "y"], 1)),
     ("contract missing", _mut(["contract"], KeyError)),
     ("contract wrong", _mut(["contract"], "nope")),
+    ("min_audio_s 200", _mut(["min_audio_s"], 200)),
+    ("min_audio_s 0", _mut(["min_audio_s"], 0)),
+    ("min_audio_s 360", _mut(["min_audio_s"], 360)),
+    ("min_audio_s 361", _mut(["min_audio_s"], 361)),
+    ("min_audio_s -1", _mut(["min_audio_s"], -1)),
+    ("min_audio_s str", _mut(["min_audio_s"], "200")),
+    ("min_audio_s float", _mut(["min_audio_s"], 200.5)),
+    ("min_audio_s bool", _mut(["min_audio_s"], True)),
+    ("min_audio_s null", _mut(["min_audio_s"], None)),
 ]
+
+
+def test_parse_input_min_audio_s() -> None:
+    assert contract.parse_input(good()).min_audio_s == 0
+    assert contract.parse_input({**good(), "min_audio_s": 252}).min_audio_s == 252
 
 
 @pytest.mark.parametrize(("name", "raw"), CASES, ids=[c[0] for c in CASES])

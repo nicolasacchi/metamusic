@@ -344,7 +344,7 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 	}
 	for i, t := range e.Items {
 		jobID := s.o.NewID()
-		mut, _ := json.Marshal(map[string]any{"operator": t.Operator, "params": t.Params, "recipe_patch": t.Patch, "rationale": rationale, "principal_id": p.Key()})
+		mut, _ := json.Marshal(map[string]any{"operator": t.Operator, "params": t.Params, "recipe_patch": t.Patch, "rationale": rationale, "principal_id": p.Key(), "min_audio_s": t.MinAudioS})
 		var queuedAt any
 		if jobState == "queued" {
 			queuedAt = ts

@@ -1,3 +1,4 @@
+// matrix: @mobile because approvals are done on the phone; asserts the player never covers Approve/Reject
 import { expect, test, type APIRequestContext, type Locator, type Page, type PlaywrightWorkerArgs } from "./fixtures";
 import { ownTracks, uniq } from "./helpers";
 import { agentCreateHeaders, composeRoots, first, getBatch, type Batch, type Estimate } from "./m3Api";
