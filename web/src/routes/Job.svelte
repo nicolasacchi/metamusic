@@ -73,8 +73,8 @@
   </p>
   <p>
     {job.title || job.id} · take {job.take_index + 1} · seed {job.seed} · <a href="/batches/{job.batch_id}">batch</a>
-    {#if job.track_id} · <a href="/track/{job.track_id}">track</a>{/if}
-    {#if job.parent_track_id} · parent <a href="/track/{job.parent_track_id}">track</a>{/if}
+    {#if job.track_id} · <a href="/tracks/{job.track_id}">track</a>{/if}
+    {#if job.parent_track_id} · parent <a href="/tracks/{job.parent_track_id}">track</a>{/if}
   </p>
   <p data-testid="job-cost">
     Cost {formatMicroUSD(job.cost.display_micro_usd ?? job.cost.expected_micro_usd)} <span class="muted">({job.cost.basis})</span>
