@@ -26,12 +26,20 @@ const (
 
 	// ExpirySystem decides expired approvals.
 	ExpirySystem = "system:reconciler"
+
+	// ViaCancel marks an approval closed because its batch was cancelled while awaiting confirmation. The
+	// schema has no 'withdrawn' state (and migrations 0008/0009 are reserved), so such an approval and its
+	// batch end as 'rejected' and this via tells them apart from a human rejection.
+	ViaCancel = "cancel"
 )
 
 // Errors of the approval and batch writers.
 var (
 	// ErrInvalidTransition: the approval or batch is not in a state the move starts from (409).
 	ErrInvalidTransition = errors.New("spend: invalid transition")
+	// ErrBatchNotPending: the batch was cancelled while it awaited confirmation; its approval was withdrawn
+	// and there is nothing left to approve or reject (409 BATCH_NOT_PENDING).
+	ErrBatchNotPending = errors.New("spend: batch is not pending")
 	// ErrNotBatchOwner: an agent other than the batch's creator (403).
 	ErrNotBatchOwner = errors.New("spend: not the batch owner")
 )
@@ -138,6 +146,9 @@ func (s *Service) ApproveBatch(ctx context.Context, tx *sql.Tx, batchID string, 
 	if state == "approved" || state == "auto" {
 		return false, nil
 	}
+	if s.withdrawn(ctx, tx, batchID) {
+		return false, fmt.Errorf("%w: batch was cancelled", ErrBatchNotPending)
+	}
 	return false, fmt.Errorf("%w: approval is %s", ErrInvalidTransition, state)
 }
 
@@ -157,12 +168,69 @@ func (s *Service) RejectBatch(ctx context.Context, tx *sql.Tx, batchID string, b
 		if err != nil {
 			return false, err
 		}
+		if s.withdrawn(ctx, tx, batchID) {
+			return false, fmt.Errorf("%w: batch was cancelled", ErrBatchNotPending)
+		}
 		if state == "rejected" {
 			return false, nil
 		}
 		return false, fmt.Errorf("%w: approval is %s", ErrInvalidTransition, state)
 	}
 	return true, s.closeUnstarted(ctx, tx, nil, batchID, "rejected", now)
+}
+
+// withdrawn reports whether the batch's approval was closed by a cancel.
+func (s *Service) withdrawn(ctx context.Context, tx *sql.Tx, batchID string) bool {
+	var n int
+	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM approvals WHERE batch_id = ? AND state = 'rejected' AND via = ?`, batchID, ViaCancel).Scan(&n)
+	return err == nil && n > 0
+}
+
+// WithdrawBatch closes a batch that is still awaiting confirmation because it was cancelled: the pending
+// approval and the batch both end as 'rejected' (approval via 'cancel', decided by who), the whole
+// outstanding is released ('rejected') and reconciled_at is set, all in the caller's transaction. The
+// jobs are the caller's (a cancel intent; the runner ends them). A batch that is not awaiting confirmation
+// is left alone (changed false), so the call is idempotent. lease is nil on a request path and the
+// reconciler's fence for the stuck-row rule.
+func (s *Service) WithdrawBatch(ctx context.Context, tx *sql.Tx, batchID, by, reason string, lease *store.LeaseFence) (changed bool, err error) {
+	now := store.FormatTime(s.now())
+	q, args := `UPDATE approvals SET state='rejected', via=?, decided_by=?, decided_at=?, reason=? WHERE batch_id=? AND state='pending'`,
+		[]any{ViaCancel, by, now, nullStr(reason), batchID}
+	if lease != nil {
+		q += lease.And() //nolint:gosec // G202: fixed C69 predicate, values are bound
+		args = append(args, lease.Args()...)
+	}
+	res, err := tx.ExecContext(ctx, q, args...)
+	if err != nil {
+		return false, fmt.Errorf("spend: withdraw: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, nil
+	}
+	return true, s.closeUnstarted(ctx, tx, lease, batchID, "rejected", now)
+}
+
+// StuckWithdrawn lists batches still awaiting confirmation with a pending approval although every one of
+// their jobs is cancelled (a cancel that predates WithdrawBatch), oldest first.
+func (s *Service) StuckWithdrawn(ctx context.Context, q Querier, limit int) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT b.id FROM batches b JOIN approvals a ON a.batch_id = b.id
+		WHERE b.state = 'awaiting_confirmation' AND a.state = 'pending'
+		AND EXISTS (SELECT 1 FROM jobs j WHERE j.batch_id = b.id)
+		AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.batch_id = b.id AND j.state <> 'cancelled')
+		ORDER BY b.created_at LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // ExpireApproval expires a lapsed pending approval (reconciler, lease predicate): approval expired

@@ -44,9 +44,12 @@ chk "ci.yml runs ci-go-test.sh with one shard count" '[ "$gn" = 1 ]'
 mx=$(awk "/^  go:/{f=1;next} /^  [a-z]/{f=0} f && /shard: \[/{print}" "$wf/ci.yml" | grep -oE "[0-9]+" | sort -n | tr "\n" " ")
 chk "go matrix is shards 1..$n" '[ "$mx" = "$(seq 1 "$n" | tr "\n" " ")" ]'
 chk "ci.yml go tier does not use -short" '! grep -q -- "-short" "$wf/ci.yml"'
-en=$(awk "/^  e2e:/{f=1;next} /^  [a-z]/{f=0} f && /set: \\[/{print}" "$wf/ci.yml" | grep -oE "[a-z]+" | grep -vx set | wc -l)
-chk "e2e matrix has $en sets, each a key of web/e2e/sets.ts" 'for k in $(awk "/^  e2e:/{f=1;next} /^  [a-z]/{f=0} f && /set: \\[/{print}" "$wf/ci.yml" | sed "s/.*\\[//; s/\\].*//; s/,/ /g"); do grep -Eq "^  $k: \\[" "$root/web/e2e/sets.ts" || exit 1; done; [ "$en" = "$(grep -cE "^  [a-z]+: \\[" "$root/web/e2e/sets.ts")" ]'
-chk "the coverage job merges every shard and set" 'grep -q "pattern: covdata-e2e-\*" "$wf/ci.yml" && grep -q "pattern: covdata-unit-\*" "$wf/ci.yml"'
+en=$(grep -oE -- "--shard=\\$\{\{ matrix.shard \}\}/[0-9]+" "$wf/ci.yml" | grep -oE "[0-9]+$" | sort -u)
+chk "e2e runs Playwright --shard=i/N with one N" '[ "$(grep -c . <<<"$en")" = 1 ]'
+ex=$(awk "/^  e2e:/{f=1;next} /^  [a-z]/{f=0} f && /shard: \\[/{print}" "$wf/ci.yml" | grep -oE "[0-9]+" | sort -n | tr "\n" " ")
+chk "e2e matrix is shards 1..$en" '[ "$ex" = "$(seq 1 "$en" | tr "\n" " ")" ]'
+chk "e2e has no hand-made project sets or phase dependencies" '! grep -q "MM_E2E_SET" "$wf/ci.yml" && ! grep -q "dependencies:" "$root/web/playwright.config.ts"'
+chk "the coverage job merges every shard" 'grep -q "pattern: covdata-e2e-\*" "$wf/ci.yml" && grep -q "pattern: covdata-unit-\*" "$wf/ci.yml"'
 chk "each e2e shard writes its served ops and the coverage job checks the union over all shards" 'grep -q "MM_E2E_SERVED_OUT" "$wf/ci.yml" && grep -q "served-check.ts $en " "$wf/ci.yml" && grep -q "pattern: e2e-served-\*" "$wf/ci.yml"'
 chk "ci-go-test.sh runs the suites on tmpfs scratch (fsync-heavy)" 'grep -q "export TMPDIR=/dev/shm" "$root/scripts/ci-go-test.sh"'
 chk "shard weights file exists" 'test -f "$root/scripts/ci-shard-weights.txt"'
@@ -71,6 +74,9 @@ chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.dige
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'
 chk "make check keeps go test cacheable (no -shuffle)" '! awk "/^_check:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q -- "-shuffle"'
 chk "make test, race and cover keep -shuffle=on" '[ "$(grep -c -E "go test .*-shuffle=on" "$root/Makefile")" -ge 3 ]'
-chk "make gate runs actions-pinned.sh" 'grep -q "actions-pinned.sh" "$root/Makefile"'
+chk "make gate is incremental and make gate-full is complete" 'grep -q "gate.sh incremental" "$root/Makefile" && grep -q "gate.sh full" "$root/Makefile"'
+chk "gate-full runs every selftest, actions-pinned and the full-history scan" 'g=$(awk "/^  full\\)/{f=1} f" "$root/scripts/gate.sh"); grep -q "^ALL_SELFTESTS=.*public-gate-selftest.*loop-selftest.*coverage-gate-selftest.*ci-selftest.*deploy-preflight-selftest.*actions-pinned" "$root/scripts/gate.sh" && grep -q -- "--history" <<<"$g"'
+chk "pre-push runs the complete gate (gate.sh prepush -> gate-full with the patterns required)" 'grep -q "gate.sh\" prepush" "$root/.githooks/pre-push" && grep -q "GATE_REQUIRE_PATTERNS=1 exec scripts/loop gate-full -- scripts/gate.sh full" "$root/scripts/gate.sh"'
+chk "CI gate workflow runs gate.sh full (selftests plus full history)" 'grep -q "scripts/gate.sh full" "$wf/gate.yml" && grep -q "GATE_REQUIRE_PATTERNS" "$wf/gate.yml"'
 chk "make canary only prints" 'r=$(awk "/^canary:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile"); grep -q "echo" <<<"$r" && ! grep -Eq "go run|bin/metamusic|docker" <<<"$r"'
 exit $fail

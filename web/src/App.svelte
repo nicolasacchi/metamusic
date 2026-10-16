@@ -113,12 +113,12 @@
     {:else if $router.route?.name === "backlog"}
       <Backlog search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "draft-new"}
-      <DraftNew />
+      <DraftNew navigate={router.navigate} />
     {:else if $router.route?.name === "draft-upload"}
       <DraftUpload />
     {:else if $router.route?.name === "draft"}
       {#key $router.params.id}
-        <Draft id={$router.params.id ?? ""} />
+        <Draft id={$router.params.id ?? ""} navigate={router.navigate} />
       {/key}
     {:else if $router.route?.name === "duels"}
       <Duels navigate={router.navigate} />
@@ -147,7 +147,7 @@
     {:else if $router.route?.name === "human-devices"}
       <HumanDevices />
     {:else if $router.route?.name === "human-generate"}
-      <HumanGenerate />
+      <HumanGenerate navigate={router.navigate} />
     {:else if $router.route?.name === "human-confirm"}
       {#key $router.params.batch}
         <HumanConfirm batch={$router.params.batch ?? ""} />

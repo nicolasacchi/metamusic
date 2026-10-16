@@ -233,7 +233,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 		Songwriting: songwriting.New(st), // the minimum-render control (X4) reads songwriting.min_duration_s
 	})
-	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Wake: wake.call})
+	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
 	if bi.b != nil {
 		m.Provider.UseCapabilities(bi.b.Capabilities)

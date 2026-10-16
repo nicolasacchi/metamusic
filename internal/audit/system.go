@@ -19,7 +19,7 @@ import (
 // The prefix names the actor: runner:*, reconciler:* and cli:*.
 var SystemOps = []string{
 	"runner:submit", "runner:topup", "runner:cancel", "runner:batch_finish", "runner:fail_remainder",
-	"reconciler:adopt", "reconciler:ghost", "reconciler:settle_time_bound", "reconciler:approval_expired",
+	"reconciler:adopt", "reconciler:ghost", "reconciler:settle_time_bound", "reconciler:approval_expired", "reconciler:approval_withdrawn",
 	"reconciler:trip", "reconciler:purge_queue", "reconciler:scale_to_zero", "reconciler:revert_drift",
 	"reconciler:billing_window", "reconciler:late_adjust", "reconciler:hold_release", "reconciler:upload_sweep",
 	"reconciler:meter_billable_since",
