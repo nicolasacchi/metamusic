@@ -18,7 +18,7 @@ type waitOut struct {
 }
 
 func (r *rig) service(context.Context) *Service {
-	return New(Options{Store: r.st, Clock: r.clk, Hub: r.hub})
+	return New(Options{Store: r.st, Clock: r.clk, Hub: r.hub, Spend: r.sp})
 }
 
 func (r *rig) waitAsync(ctx context.Context, s *Service, job, since string, timeout time.Duration) <-chan waitOut {

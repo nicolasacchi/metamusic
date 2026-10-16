@@ -212,3 +212,31 @@ client. Revocation takes effect on the next request. A lost phone: revoke its cl
 The offline set is one protected playlist (at most 100 tracks) that agents can edit. Tagged downloads are cached
 under `derived/dl/`, swept after 7 days and never backed up; covers are cached the same way and are rebuilt on
 demand.
+
+## Reconcile and verify (L1)
+
+The library model (Muses, Songs, Picks, Sessions, Sounds) is derived and reconciled in the background.
+`healthz` reports `library_model.pending`; zero means the queue is drained.
+
+- `metamusic library reconcile --dry-run` reports the queue and what a pass would create; without the
+  flag it settles. `--wait` polls until the queue is empty.
+- `metamusic library verify` checks the invariants and exits 1 on any anomaly. Run it after a migration
+  and after every restore.
+- The server settles once before it opens the listener. Only one process holds the settle lease; a CLI
+  run while a server is up only enqueues, and the server drains.
+- Rollback of an L1 deploy is restoring the pre-migration backup.
+
+## Taxonomy edits (L1)
+
+The taxonomy is versioned and append-only. The code seed is applied at startup as one version per seed
+id; extensions are added with `map_sound_term` (at most 50 mappings per call) and recompute the affected
+facets synchronously. A mapping is never edited in place: add a `remove` and an `add`. A better seed
+ships as a new seed revision, never as a silent edit. Review the top unmapped terms periodically and map
+the worthwhile ones.
+
+## After a restore (L1)
+
+A restored database keeps the derived rows of its snapshot. After restoring, start the server (the first
+`Settle` completes what the snapshot lacked), then run `metamusic library verify`; it must report
+nothing. If derived rows were dropped or damaged, `metamusic library reconcile` rebuilds them from the
+source tables.

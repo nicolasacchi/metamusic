@@ -34,6 +34,9 @@ func TestNoTestHelpersInBinary(t *testing.T) {
 		// M4a (C105, C117.4)
 		modulePath + "internal/oidc/oidctest":         true,
 		modulePath + "internal/subsonic/subsonictest": true, // lands in M4a-S4
+		// L1 (C101.4)
+		modulePath + "internal/perftest":      true,
+		modulePath + "internal/store/faultdb": true,
 	}
 	// Forbidden import edges (C43), asserted from the same `go list -deps` output: pairs of module-relative
 	// package prefixes, from -> to. A prefix ending in "/" matches the whole subtree.

@@ -401,6 +401,8 @@ func TestRoutingContract(t *testing.T) {
 			{"/api/tracks", cookie("a=1;mm_dev=x"), "mm-device", false},
 			{"/api/tracks", cookie("xmm_dev=1"), "mm-ui", true},
 			{"/api/tracks", cookie("mm_dev_x=1"), "mm-ui", true},
+			{"/human", cookie("mm_dev=x"), "mm-ui", true},
+			{"/human/", cookie("mm_dev=x"), "mm-ui", true},
 			{"/human/tokens", cookie("mm_dev=x"), "mm-ui", true},
 			{"/auth/step-up", cookie("mm_dev=x"), "mm-ui", true},
 			{"/media/x", cookie("mm_dev=x"), "mm-media", false},

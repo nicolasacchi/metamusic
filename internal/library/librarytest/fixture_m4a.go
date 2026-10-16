@@ -28,7 +28,7 @@ const (
 // no literal looks like a credential.
 var SecretKey = strings.Repeat("0123456789abcdef", 2)
 
-// FixtureM4a is FixtureM3 plus the M4a rows (schema version 8/9, C117.3): two offline-set items (fixture tracks 1 and
+// FixtureM4a is FixtureM3 plus the M4a rows (schema version 9, C117.3): two offline-set items (fixture tracks 1 and
 // 2), one connector grant (read,write, limits null; through connectors.Store.Ensure), one Subsonic client created
 // through auth.SubsonicStore.Create (API key and password; the plaintexts are returned in Fixtures and never
 // written to a file), one bookmark with a comment, a play queue of two tracks, and status_set_at on every track.

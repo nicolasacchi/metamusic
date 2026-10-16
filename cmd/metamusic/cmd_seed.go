@@ -30,6 +30,7 @@ type seedOpts struct {
 	viaDev  bool // invoked by `dev --seed-synthetic`
 	m4a     bool // --profile e2e: the M4a rows (offline set, connector grant), also when --references renames the profile
 	refs    bool // --references: the reference profile, imported with both reference flags (C66)
+	short   bool // --short-audio: the e2e-only short take (synth.Options.ShortAudio)
 }
 
 func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) string, s streams) error {
@@ -38,6 +39,7 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	seed := fs.Int64("seed", 1, "audio variant seed")
 	force := fs.Bool("force", false, "seed a data directory that is not marked MM_E2E=1")
 	references := fs.Bool("references", false, "also seed recipe-less reference tracks (unmatched FLACs and lossy MP3s)")
+	short := fs.Bool("short-audio", false, "render the one short e2e take (only with --profile e2e)")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -47,11 +49,14 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	if *profile != "dev" && *profile != "e2e" {
 		return usageError("seed-synthetic: --profile must be dev or e2e")
 	}
+	if *short && *profile != "e2e" {
+		return usageError("seed-synthetic: --short-audio needs --profile e2e")
+	}
 	cfg, err := config.Load(getenv)
 	if err != nil {
 		return fatal(err)
 	}
-	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references, m4a: *profile == "e2e"}
+	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references, short: *short, m4a: *profile == "e2e"}
 	if o.refs {
 		o.profile = synth.ProfileReference
 	}
@@ -176,7 +181,7 @@ func seedLibrary(ctx context.Context, cfg config.Config, st *store.Store, o seed
 		if err := os.MkdirAll(tmp, 0o750); err != nil {
 			return err
 		}
-		if _, err := synth.Archive(ctx, toolsOf(cfg), tmp, o.profile, o.seed); err != nil {
+		if _, err := synth.ArchiveWith(ctx, toolsOf(cfg), tmp, o.profile, o.seed, synth.Options{ShortAudio: o.short}); err != nil {
 			_ = os.RemoveAll(tmp)
 			return err
 		}
@@ -218,5 +223,6 @@ func seedLibrary(ctx context.Context, cfg config.Config, st *store.Store, o seed
 	fmt.Fprintf(s.out, "seed-synthetic: imported %d tracks, %d recipes (%d drafts), profile %s\n",
 		res.TracksImported, inv.Report.Summary.RecipesUnique, inv.Report.Summary.DraftsNew, o.profile)
 	fmt.Fprintln(s.out, tierAAfterIngest(ctx, cfg, st, data, rt.lib))
+	fmt.Fprintln(s.out, settleCLI(ctx, st))
 	return nil
 }

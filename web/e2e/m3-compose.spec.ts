@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+// matrix: chrome-only because it is the slowest generation form flow and has no device-dependent behaviour
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 import { allTerminal, assertOnlyDuplicateFailures, first, pollBatch } from "./m3Api";
 

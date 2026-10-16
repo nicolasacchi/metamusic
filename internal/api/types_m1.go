@@ -109,6 +109,9 @@ type searchTracksIn struct {
 	HasOpenComments optParam[bool]    `query:"has_open_comments"`
 	RecipeKnown     optParam[bool]    `query:"recipe_known" doc:"false lists reference tracks (recipe unknown); true only tracks with a real recipe"`
 	Lossy           optParam[bool]    `query:"lossy" doc:"true lists tracks whose master is an MP3; false only lossless masters"`
+	SongID          string            `query:"song_id" doc:"Only takes of this Song"`
+	IsPick          optParam[bool]    `query:"is_pick" doc:"true lists only the takes that are their Song's current Pick; false only the others"`
+	SessionID       string            `query:"session_id" doc:"Only takes in this Session (derived membership)"`
 	Sort            string            `query:"sort" enum:"recorded_desc,recorded_asc,duration_desc,duration_asc,title_asc,relevance,stars_desc" doc:"Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last"`
 	Limit           int               `query:"limit" minimum:"1" maximum:"100" default:"50"`
 	Cursor          string            `query:"cursor" doc:"Opaque cursor from next_cursor"`

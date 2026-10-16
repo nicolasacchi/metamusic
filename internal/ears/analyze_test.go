@@ -20,7 +20,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/synth"
 )
 
-var allNames = []string{"silence", "clipping", "token_loops", "spectrogram"}
+var allNames = []string{"silence", "clipping", "token_loops", "spectrogram", "tempo"}
 
 // addSemantic gives a track a real semantic.npy artifact (a clean random token stream).
 func (r *rig) addSemantic(id string, seconds float64) string {
@@ -61,8 +61,8 @@ func TestAnalyze_RunsMissingOnly(t *testing.T) {
 	if diff := cmp.Diff(allNames, out.Ran); diff != "" || len(out.Failed) != 0 || len(out.Skipped) != 0 {
 		t.Fatalf("first run: %+v\n%s", out, diff)
 	}
-	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 3 {
-		t.Errorf("tier A analyses = %d, want 3 (silence, clipping, token_loops)", got)
+	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 4 {
+		t.Errorf("tier A analyses = %d, want 4 (silence, clipping, token_loops, tempo)", got)
 	}
 	if got := r.count(`SELECT count(*) FROM renditions WHERE track_id = ? AND kind = 'spectrogram'`, id); got != 1 {
 		t.Errorf("spectrogram renditions = %d, want 1", got)
@@ -97,7 +97,7 @@ func TestAnalyze_RunsMissingOnly(t *testing.T) {
 	if !slices.Equal(out.Ran, allNames) || len(out.Failed) != 0 {
 		t.Fatalf("forced run: %+v", out)
 	}
-	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 3 {
+	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 4 {
 		t.Errorf("forced run with the same tool version changed the analyses: %d rows", got)
 	}
 	if got := r.spectroSHA(id); got != sha {
@@ -112,7 +112,7 @@ func TestAnalyze_WithoutSemanticSkipsTokenLoops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"silence", "clipping", "spectrogram"}; !slices.Equal(out.Ran, want) {
+	if want := []string{"silence", "clipping", "spectrogram", "tempo"}; !slices.Equal(out.Ran, want) {
 		t.Errorf("ran %v, want %v", out.Ran, want)
 	}
 	if got := r.count(`SELECT count(*) FROM analyses WHERE analyzer = 'token_loops'`); got != 0 {
@@ -184,11 +184,11 @@ func TestAnalyze_PartialFailure(t *testing.T) {
 		if out.Failed["spectrogram"] != "TOOL_FAILED" || len(out.Failed) != 1 {
 			t.Errorf("failed = %v, want only spectrogram: TOOL_FAILED", out.Failed)
 		}
-		if want := []string{"silence", "clipping"}; !slices.Equal(out.Ran, want) {
+		if want := []string{"silence", "clipping", "tempo"}; !slices.Equal(out.Ran, want) {
 			t.Errorf("ran %v, want %v", out.Ran, want)
 		}
-		if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, lt.TrackCitta); n != 2 {
-			t.Errorf("committed analyses = %d, want silence and clipping", n)
+		if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, lt.TrackCitta); n != 3 {
+			t.Errorf("committed analyses = %d, want silence, clipping and tempo", n)
 		}
 		if n := r.count(`SELECT count(*) FROM renditions WHERE kind = 'spectrogram'`); n != 0 {
 			t.Errorf("a failed spectrogram left a rendition row")
@@ -369,7 +369,7 @@ func TestAnalyze_WritesTwice(t *testing.T) {
 			t.Fatalf("run %d: %+v %v", i, out, err)
 		}
 	}
-	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 2 {
+	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 3 {
 		t.Errorf("analyses = %d", n)
 	}
 	if n := r.count(`SELECT count(*) FROM renditions WHERE kind = 'spectrogram'`); n != 1 {
@@ -385,7 +385,7 @@ func TestBackfill_Report(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dry.Tracks != 5 || dry.Ran["silence"] != 5 || dry.Ran["spectrogram"] != 5 || dry.Ran["token_loops"] != 0 {
+	if dry.Tracks != 5 || dry.Ran["silence"] != 5 || dry.Ran["spectrogram"] != 5 || dry.Ran["token_loops"] != 0 || dry.Ran["tempo"] != 5 {
 		t.Errorf("dry run = %+v", dry)
 	}
 	if sig, pic := r.tier.Calls(); sig != 0 || pic != 0 || r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`) != 0 {
@@ -398,8 +398,8 @@ func TestBackfill_Report(t *testing.T) {
 	if rep.Tracks != 5 || rep.Analysed != 5 || rep.Failed != 0 || rep.Ran["clipping"] != 5 {
 		t.Errorf("report = %+v", rep)
 	}
-	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 10 {
-		t.Errorf("analyses = %d, want 10", n)
+	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 15 {
+		t.Errorf("analyses = %d, want 15", n)
 	}
 	again, err := r.svc.Backfill(ctx, ears.BackfillOptions{})
 	if err != nil {

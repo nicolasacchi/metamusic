@@ -2,6 +2,9 @@
 # Self-test for public-gate.sh: runs it in a throwaway repo.
 set -euo pipefail
 
+# A git hook (pre-push) runs with GIT_DIR/GIT_INDEX_FILE/... exported; scratch repos created below would then
+# silently operate on the real repository (commits, tags, user.name/email). Never inherit that.
+unset $(git rev-parse --local-env-vars)
 root=$(cd "$(dirname "$0")/.." && pwd)
 gl="${GITLEAKS:-}"
 [ -n "$gl" ] || { [ -x "$root/bin/gitleaks" ] && gl="$root/bin/gitleaks"; } || gl=$(command -v gitleaks || true)
@@ -400,5 +403,46 @@ expect "no patterns: --require-patterns fails" 1 --staged --require-patterns
 contains "require reason" "--require-patterns"
 PUBLIC_GATE_PATTERNS=nothing-here expect "patterns present: --require-patterns passes" 0 --staged --require-patterns
 
+# --range=BASE: the incremental gate (commits BASE..HEAD plus the working tree)
+git tag rbase
+rreset() { git reset -q --hard rbase; git clean -qfd; }
+expect "range: clean tree passes" 0 --range=rbase
+expect "range: unresolvable base refused" 1 --range=no-such-ref
+printf 'token = "mmp_%s"\n' "$body" > conf.txt; git add conf.txt; git commit -qm leak
+expect "range: committed token blocked" 1 --range=rbase
+contains "range: committed token reason" "metamusic token pattern in: conf.txt"
+git tag rafter
+expect "range: a leak before the base is not rescanned" 0 --range=rafter
+expect "history: the same leak is still caught" 1 --history
+rreset
+printf 'token = "mmp_%s"\n' "$body" >> README.md
+expect "range: token in an unstaged edit blocked" 1 --range=rbase
+contains "range: unstaged edit reason" "metamusic token pattern in: README.md"
+rreset
+printf 'token = "mmp_%s"\n' "$body" > conf.txt
+expect "range: token in an untracked file blocked" 1 --range=rbase
+contains "range: untracked reason" "metamusic token pattern in: conf.txt"
+rreset
+printf 'token = "mmc_%s"\n' "$body" > conf.txt; git add conf.txt
+expect "range: token in a staged file blocked" 1 --range=rbase
+rreset
+echo x > x.pdf; git add -f x.pdf; git commit -qm pdf
+expect "range: forbidden path in a range commit blocked" 1 --range=rbase
+contains "range: forbidden path reason" "forbidden path: x.pdf"
+rreset
+echo x > x.pdf; git add -f x.pdf; git commit -qm pdf; git rm -q x.pdf; git commit -qm unpdf
+expect "range: forbidden path added then deleted inside the range still blocked" 1 --range=rbase
+rreset
+git commit -q --allow-empty -m "mentions secret-hostname"
+PUBLIC_GATE_PATTERNS=$'nothing-here\nsecret-hostname' expect "range: private pattern in a range commit message blocked" 1 --range=rbase
+contains "range: commit message reason" "private pattern match in commit message"
+rreset
+echo "my-secret-hostname.internal" > notes.txt
+PUBLIC_GATE_PATTERNS=$'nothing-here\nsecret-hostname' expect "range: private pattern in an untracked file blocked" 1 --range=rbase
+rreset
+mkdir -p metrics; echo '{"bad":1}' > metrics/loop.jsonl; git add metrics/loop.jsonl; git commit -qm badrow
+expect "range: invalid metrics row in a range commit blocked" 1 --range=rbase
+rreset
+expect "range: clean again after cleanup" 0 --range=rbase
 
 exit $fail

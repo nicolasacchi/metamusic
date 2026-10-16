@@ -1,5 +1,5 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
-import { BASE_URL } from "./env";
+// matrix: @mobile because approvals are done on the phone; the fixed player bar must never cover Approve/Reject (it did on the iPhone before the bar reserved its space)
+import { expect, test, type APIRequestContext } from "./fixtures";
 import { agentCreateHeaders, allTerminal, assertOnlyDuplicateFailures, composeRoots, first, getBatch, pollBatch, type Batch, type Estimate } from "./m3Api";
 
 // Desktop Chrome only. The agent is the setup's read+write+generate PAT; its auto-approve limit is one take, so every
@@ -18,10 +18,8 @@ async function agentBatch(agent: APIRequestContext, mother: string, takes: numbe
   return (await cr.json()) as Batch;
 }
 
-test("an agent batch of seven takes waits for the operator, who approves it from the confirm page", async ({ page, request, playwright }) => {
-  const token = process.env.MM_E2E_AGENT_TOKEN;
-  if (!token) throw new Error("the global setup did not create the agent token");
-  const agent = await playwright.request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
+test("an agent batch of seven takes waits for the operator, who approves it from the confirm page", async ({ page, request, playwright, baseURL, agentToken }) => {
+  const agent = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { Authorization: `Bearer ${agentToken}` } });
   try {
     const mother = first(await composeRoots(request, 1, "m3a"));
     const batch = await agentBatch(agent, mother, 7);
@@ -45,10 +43,8 @@ test("an agent batch of seven takes waits for the operator, who approves it from
   }
 });
 
-test("a second agent batch of two takes is rejected with a reason and its reservation is released", async ({ page, request, playwright }) => {
-  const token = process.env.MM_E2E_AGENT_TOKEN;
-  if (!token) throw new Error("the global setup did not create the agent token");
-  const agent = await playwright.request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
+test("a second agent batch of two takes is rejected with a reason and its reservation is released", async ({ page, request, playwright, baseURL, agentToken }) => {
+  const agent = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { Authorization: `Bearer ${agentToken}` } });
   try {
     const mother = first(await composeRoots(request, 1, "m3a"));
     const batch = await agentBatch(agent, mother, 2);

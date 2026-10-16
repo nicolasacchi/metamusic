@@ -154,6 +154,10 @@
         <option value="true">lossy</option>
       </select>
     </label>
+    <label class="check">
+      <input type="checkbox" name="is_pick" checked={filters.isPick} onchange={(e) => patch({ isPick: e.currentTarget.checked })} data-testid="filter-picks" />
+      Picks only
+    </label>
     <label>
       Stars
       <select name="min_stars" value={starsValue} onchange={onstars} data-testid="filter-stars">

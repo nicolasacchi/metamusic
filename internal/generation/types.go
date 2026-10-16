@@ -42,7 +42,8 @@ type planTake struct {
 	Params        paramsDoc       `json:"params"`
 	Patch         json.RawMessage `json:"patch"` // null or the patch document
 
-	ExpectedAudioS   int     `json:"expected_audio_s"`
+	ExpectedAudioS   int     `json:"expected_audio_s"` // never below MinAudioS
+	MinAudioS        int     `json:"min_audio_s"`      // forced minimum render length (worker min_tokens); 0 = none
 	ExpectedS        int     `json:"expected_s"`
 	TimeoutS         int     `json:"timeout_s"`
 	ExpectedMicroUSD int64   `json:"expected_micro_usd"`

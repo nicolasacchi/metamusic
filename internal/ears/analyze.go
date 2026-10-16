@@ -27,14 +27,14 @@ const maxSemanticBytes = 8 << 20
 
 // plan says which analyzers a track needs.
 type plan struct {
-	silence, clipping, tokens, spectro bool
-	hasSemantic                        bool
-	art                                library.ArtifactRef
-	secs                               library.Sections
-	overlay                            spectro.Overlay
+	silence, clipping, tokens, spectro, tempo bool
+	hasSemantic                               bool
+	art                                       library.ArtifactRef
+	secs                                      library.Sections
+	overlay                                   spectro.Overlay
 }
 
-func (p plan) any() bool { return p.silence || p.clipping || p.tokens || p.spectro }
+func (p plan) any() bool { return p.silence || p.clipping || p.tokens || p.spectro || p.tempo }
 
 // needed lists the analyzers to run, in result order.
 func (p plan) needed() []string {
@@ -42,7 +42,7 @@ func (p plan) needed() []string {
 	for _, n := range []struct {
 		name string
 		on   bool
-	}{{anSilence, p.silence}, {anClipping, p.clipping}, {anTokenLoops, p.tokens}, {anSpectrogram, p.spectro}} {
+	}{{anSilence, p.silence}, {anClipping, p.clipping}, {anTokenLoops, p.tokens}, {anSpectrogram, p.spectro}, {anTempo, p.tempo}} {
 		if n.on {
 			out = append(out, n.name)
 		}
@@ -56,7 +56,7 @@ func (p plan) applicable() []string {
 	if p.hasSemantic {
 		out = append(out, anTokenLoops)
 	}
-	return append(out, anSpectrogram)
+	return append(out, anSpectrogram, anTempo)
 }
 
 // planFor reads what is present and decides what is missing (D-M2b-12), or everything under force.
@@ -77,8 +77,10 @@ func (s *Service) planFor(ctx context.Context, ref library.TrackRef, force bool)
 	_, haveSil := rows[anSilence]
 	_, haveClip := rows[anClipping]
 	_, haveTok := rows[anTokenLoops]
+	_, haveTempo := rows[anTempo]
 	p.silence, p.clipping = force || !haveSil, force || !haveClip
 	p.tokens = has && (force || !haveTok)
+	p.tempo = force || !haveTempo
 	p.spectro = force || !sp.current() || sp.Params.OverlaySHA != spectro.OverlaySHA(p.overlay)
 	return p, nil
 }
@@ -115,6 +117,7 @@ type results struct {
 	clipping *analysis.Clipping
 	tokens   *tokenMetrics
 	picture  *picture
+	tempo    *analysis.Tempo
 	failed   map[string]string
 }
 
@@ -252,6 +255,20 @@ func (s *Service) compute(ctx context.Context, ref library.TrackRef, p plan) (re
 			res.picture = pic
 		}
 	}
+	if p.tempo {
+		tm, err := s.o.Analyzer.Tempo(ctx, master, ref.DurationS)
+		switch {
+		case ctx.Err() != nil:
+			return res, ctx.Err()
+		case err != nil:
+			res.failed[anTempo] = codeToolFailed
+		default:
+			if tm.Candidates == nil {
+				tm.Candidates = []analysis.TempoCandidate{}
+			}
+			res.tempo = &tm
+		}
+	}
 	return res, nil
 }
 
@@ -318,7 +335,7 @@ func (s *Service) render(ctx context.Context, ref library.TrackRef, p plan, work
 
 // store commits everything that succeeded in one write transaction (C44 write SQL).
 func (s *Service) store(ctx context.Context, trackID string, res results) error {
-	if res.silence == nil && res.clipping == nil && res.tokens == nil && res.picture == nil {
+	if res.silence == nil && res.clipping == nil && res.tokens == nil && res.picture == nil && res.tempo == nil {
 		return nil
 	}
 	tx, err := s.o.Store.W.BeginTx(ctx, nil)
@@ -350,6 +367,11 @@ func (s *Service) store(ctx context.Context, trackID string, res results) error 
 	if res.tokens != nil {
 		if err := put(anTokenLoops, tokens.Version(), res.tokens); err != nil {
 			return fmt.Errorf("ears: store token loops: %w", err)
+		}
+	}
+	if res.tempo != nil {
+		if err := put(anTempo, analysis.TempoDef+" "+tool, res.tempo); err != nil {
+			return fmt.Errorf("ears: store tempo: %w", err)
 		}
 	}
 	if pic := res.picture; pic != nil {

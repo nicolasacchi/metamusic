@@ -21,15 +21,6 @@ func openStore(t *testing.T) *store.Store {
 	return st
 }
 
-func count(t *testing.T, st *store.Store, q string, args ...any) int {
-	t.Helper()
-	var n int
-	if err := st.R.QueryRow(q, args...).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	return n
-}
-
 // TestFixtureM4a_Rows: the M4a rows of C117.3 sit on top of FixtureM3, which keeps its own rows.
 func TestFixtureM4a_Rows(t *testing.T) {
 	t.Parallel()

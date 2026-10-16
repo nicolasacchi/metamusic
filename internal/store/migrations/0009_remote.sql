@@ -1,4 +1,4 @@
--- 0008_remote.sql — M4a: connector grants, Subsonic clients, salts, bookmarks, play queue,
+-- 0009_remote.sql — M4a: connector grants, Subsonic clients, salts, bookmarks, play queue,
 -- the offline-set playlist, status timestamps.
 
 -- Status timestamp (Subsonic `starred`, D-M4a-23). Mutable; set with every status change.

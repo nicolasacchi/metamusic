@@ -112,6 +112,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		RateScale: 100, // every GET operation as two principals twice would otherwise drain the agent bucket (M4a added 8 operations)
 	}
 	tokens := auth.NewTokenStore(e.st, key, time.Now)
 	r := &privacyRig{drafts: map[string]string{}}
@@ -210,6 +211,8 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// M2b: duels hold track ids and verdicts only, never recipe reference metadata
 		case strings.HasPrefix(p, "/api/batches/{") || strings.HasPrefix(p, "/api/jobs/{"):
 			// M3: batches and jobs hold ids, states and money, never recipe reference metadata
+		case strings.HasPrefix(p, "/api/muses/{") || strings.HasPrefix(p, "/api/songs/{"):
+			// L1: Muse reads hold reference text by design (D-L1-6); their confinement is the L1 canary test (TestMuseText_OnlyInAllowlistedOps)
 		case p == "/api/compare":
 			// M2b compare_tracks needs two distinct takes and reads recipes, never reference metadata
 		case strings.Contains(p, "{"):
@@ -302,7 +305,7 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 
 	// every GET operation, as a human and as an agent (REST bearer, then MCP)
 	rig := newPrivacyRig(t, e)
-	humanDraftHits := 0
+	humanDraftHits, agentDraftHits := 0, 0
 	paths := rig.getPaths()
 	if len(paths) < 8 {
 		t.Fatalf("only %d GET operations found", len(paths))
@@ -328,17 +331,20 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 					}
 				}
 				if strings.Contains(body, sentS1) {
-					if !human || op != "get_draft" {
+					// D-L1-36: get_draft shows the reference's Muse text (title, artist) to agents as well as to humans
+					if op != "get_draft" {
 						t.Errorf("%s (human=%v) leaks S1", u, human)
-					} else {
+					} else if human {
 						humanDraftHits++
+					} else {
+						agentDraftHits++
 					}
 				}
 			}
 		}
 	}
-	if humanDraftHits == 0 {
-		t.Error("humans never saw the reference values: the check proves nothing")
+	if humanDraftHits == 0 || agentDraftHits == 0 {
+		t.Errorf("get_draft showed the reference to %d humans and %d agents: the check proves nothing (D-L1-36)", humanDraftHits, agentDraftHits)
 	}
 
 	// MCP: every tool the registry exposes for a GET operation
@@ -382,7 +388,7 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 			}
 			b, _ := json.Marshal(res)
 			for _, s := range []string{sentS1, sentS2, sentS3} {
-				if strings.Contains(string(b), s) {
+				if strings.Contains(string(b), s) && !(op == "get_draft" && s == sentS1) { // D-L1-36
 					t.Errorf("mcp %s %v leaks %s", op, args, s)
 				}
 			}

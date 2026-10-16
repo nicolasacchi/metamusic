@@ -202,3 +202,26 @@ func TestWeights_ProvisionMatches(t *testing.T) {
 		t.Errorf("WeightsEnv = %v", env)
 	}
 }
+
+func TestMinAudioSeconds(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name              string
+		expected, minDurS int
+		want              int
+	}{
+		{"settings floor wins over a short estimate", 75, 180, 180},
+		{"seventy percent of a long estimate wins", 288, 180, 202}, // ceil(0.7 * 288) = 202
+		{"capped below the 360 s token budget", 360, 600, 330},
+		{"70 percent of the largest estimate stays under the cap", 360, 30, 252},
+		{"clamped estimate minimum", 30, 30, 30},
+		{"no settings floor, short song", 100, 0, 70},
+	} {
+		if got := (Engine{}).MinAudioSeconds(c.expected, c.minDurS); got != c.want {
+			t.Errorf("%s: MinAudioSeconds(%d, %d) = %d, want %d", c.name, c.expected, c.minDurS, got, c.want)
+		}
+	}
+	if MinAudioCapSeconds >= maxAudioSeconds {
+		t.Errorf("cap %d leaves no headroom under max_tokens (%d s)", MinAudioCapSeconds, maxAudioSeconds)
+	}
+}

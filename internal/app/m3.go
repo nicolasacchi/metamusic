@@ -28,6 +28,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/upload"
@@ -126,6 +127,11 @@ func selectBackend(cfg config.Config, o M3Options, clk clock.Clock, ups *upload.
 			bo = *o.RunPod
 		}
 		bo.Keys, bo.Clock = keys, clk
+		if bo.ProbeJSON == nil {
+			// the committed key probe: without it Capabilities() stays conservative (billing "none") and the
+			// reconciler never reads RunPod's hourly billing. A test may set its own.
+			bo.ProbeJSON = runpod.EmbeddedCapabilities
+		}
 		bo.MaxRuntime, bo.ColdStartS, bo.RecordDir = cfg.JobMaxRuntime, cfg.ColdStartS, cfg.RunPodRecordDir
 		if bo.Recorder == nil && cfg.RunPodRecordDir != "" {
 			// MM_RUNPOD_RECORD_DIR: the RunPod calls of the runner and the reconciler are made by this process, so
@@ -225,8 +231,9 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		Store: st, Library: lib, Lineage: m.Lineage, Spend: m.Spend, Engines: engines, Gate: m.Gate, Notify: notifier,
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
+		Songwriting: songwriting.New(st), // the minimum-render control (X4) reads songwriting.min_duration_s
 	})
-	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Wake: wake.call})
+	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
 	if bi.b != nil {
 		m.Provider.UseCapabilities(bi.b.Capabilities)

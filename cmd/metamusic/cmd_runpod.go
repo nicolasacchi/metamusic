@@ -39,7 +39,7 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm --endpoint-name N --reason TEXT [--after-restore]
   disarm --reason TEXT
   reset-trip --reason TEXT
-  canary --url URL [--max-usd 0.25] [--case main|cot-full|terminate|timeout|kill-switch]
+  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
 
@@ -915,7 +915,7 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("runpod canary", s)
 	urlFlag := fs.String("url", "", "the server's base `URL`")
-	maxUSD := fs.String("max-usd", "0.25", "refuse when the estimate's ceiling exceeds this many dollars")
+	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars")
 	cs := fs.String("case", "main", "main|cot-full|terminate|timeout|kill-switch")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")

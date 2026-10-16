@@ -10,8 +10,12 @@ import (
 )
 
 // deleteAllowlist names the only tables that may be physically deleted from:
-// the idempotency cache, M0's session cache and M4a's Subsonic salt cache. Nothing else, ever.
-var deleteAllowlist = map[string]bool{"idempotency": true, "human_sessions": true, "subsonic_salts": true}
+// the idempotency cache, M0's session cache, M4a's Subsonic salt cache and (L1, C88.3, D-L1-24) the four derived Sound caches and the reconcile
+// queue, which the Reconciler rebuilds by delete-and-insert. Nothing else, ever.
+var deleteAllowlist = map[string]bool{
+	"idempotency": true, "human_sessions": true,
+	"subsonic_salts": true, "provenance_dirty": true, "take_sounds": true, "song_sounds": true, "sound_state": true, "song_unmapped_terms": true,
+}
 
 var deleteRE = regexp.MustCompile(`(?i)\bdelete\s+from\s+([A-Za-z_][A-Za-z0-9_]*)`)
 

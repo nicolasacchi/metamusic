@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -788,5 +790,57 @@ func TestReconciler_UploadSweep(t *testing.T) {
 	r.mustPass(rec)
 	if r.auditOps("reconciler:upload_sweep") != 1 {
 		t.Error("an empty sweep writes no row")
+	}
+}
+
+// TestReconciler_WithdrawsStuckCancelledApprovals: a batch cancelled while awaiting confirmation before
+// cancel withdrew its approval (jobs cancelled, batch awaiting, approval pending) is closed by the
+// reconciler once, audited, and left alone afterwards; batches with a live job are untouched.
+func TestReconciler_WithdrawsStuckCancelledApprovals(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	stuck := r.seedBatch(batchSpec{state: "awaiting_confirmation", jobs: 2, principal: "agent:a1"})
+	live := r.seedBatch(batchSpec{state: "awaiting_confirmation", jobs: 2})
+	half := r.seedBatch(batchSpec{state: "awaiting_confirmation", jobs: 2})
+	ts := store.FormatTime(r.clk.Now())
+	// what the old cancel_batch left: jobs cancelled and the pot released never_ran, nothing else
+	for _, j := range stuck.Jobs {
+		r.exec(`UPDATE jobs SET state = 'cancelled', error_code = 'CANCELLED_BY_USER', cancel_requested_at = ?, cancel_requested_by = 'agent:a1', finished_at = ?, updated_at = ? WHERE id = ?`, ts, ts, ts, j)
+	}
+	r.exec(`UPDATE jobs SET state = 'cancelled', finished_at = ?, updated_at = ? WHERE id = ?`, ts, ts, half.Jobs[0])
+	reserved := r.ledger(stuck.Batch, "reserve", "")
+	rel := r.ledger(stuck.Batch, "reserve", "") / 2
+	for _, j := range stuck.Jobs {
+		bid, jid := stuck.Batch, j
+		if err := r.sp.RunTx(t.Context(), func(tx *sql.Tx) error {
+			return r.sp.Ledger().Append(t.Context(), tx, spend.Entry{Kind: spend.KindRelease, MicroUSD: money.MicroUSD(rel), BatchID: &bid, JobID: &jid, PrincipalID: "agent:a1", Reason: "never_ran"})
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := r.recon()
+	r.mustPass(rec)
+	if got := r.str(`SELECT state || '|' || via || '|' || decided_by FROM approvals WHERE batch_id = ?`, stuck.Batch); got != "rejected|cancel|system:reconciler" {
+		t.Errorf("approval %q", got)
+	}
+	if got := r.str(`SELECT state FROM batches WHERE id = ?`, stuck.Batch); got != "rejected" {
+		t.Errorf("batch %q", got)
+	}
+	if r.outstanding(stuck.Batch) != 0 || r.ledger(stuck.Batch, "release", "rejected") != 0 {
+		t.Errorf("ledger: outstanding %d, extra release %d (reserved %d)", r.outstanding(stuck.Batch), r.ledger(stuck.Batch, "release", "rejected"), reserved)
+	}
+	for _, b := range []seeded{live, half} {
+		if got := r.str(`SELECT state FROM approvals WHERE batch_id = ?`, b.Batch); got != "pending" {
+			t.Errorf("batch %s with a live job: approval %q", b.Batch, got)
+		}
+	}
+	if r.auditOps("reconciler:approval_withdrawn") != 1 {
+		t.Errorf("audit rows %d", r.auditOps("reconciler:approval_withdrawn"))
+	}
+	// idempotent
+	r.advance(2 * time.Minute)
+	r.mustPass(rec)
+	if r.auditOps("reconciler:approval_withdrawn") != 1 {
+		t.Errorf("audit rows after a second pass %d", r.auditOps("reconciler:approval_withdrawn"))
 	}
 }

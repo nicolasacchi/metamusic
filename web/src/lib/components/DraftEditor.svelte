@@ -22,8 +22,10 @@
     draft: Draft;
     /** Server state replaced ours (save, reload theirs, archive). */
     onupdate: (d: Draft) => void;
+    /** SPA router navigate: an in-app hop must not reload the document (the player lives in it). */
+    navigate: (to: string) => void;
   }
-  let { draft, onupdate }: Props = $props();
+  let { draft, onupdate, navigate }: Props = $props();
 
   const readonly = $derived(!draft.editable || draft.status === "fulfilled");
   /* svelte-ignore state_referenced_locally */
@@ -99,7 +101,7 @@
     saving = true;
     try {
       const r = await keepMine(api, form, draft.parent_track_id);
-      if (r.kind === "ok") location.assign("/backlog/" + r.draft.id);
+      if (r.kind === "ok") navigate("/backlog/" + r.draft.id);
       else if (r.kind === "error") error = r.message;
     } catch {
       error = "Could not create the draft";
@@ -204,6 +206,7 @@
   }
   .dialog {
     position: fixed;
+    z-index: 20; /* above the player bar (z-index 10), which would otherwise cover the buttons */
     inset: auto 1rem 1rem 1rem;
     max-width: 28rem;
     margin: auto;

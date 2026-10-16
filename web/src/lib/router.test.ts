@@ -58,7 +58,7 @@ describe("isServerPath", () => {
 });
 
 describe("human and pairing pages", () => {
-  test("/human, /start and /pair are server paths, never client-routed", () => {
+  test("/human (the hub; /human/ is stripped to it), /start and /pair are server paths, never client-routed", () => {
     for (const p of ["/human", "/human/tokens", "/human/devices", "/start", "/pair", "/pair/x"]) expect(isServerPath(p)).toBe(true);
     for (const p of ["/humane", "/started", "/pairs"]) expect(isServerPath(p)).toBe(false);
   });
@@ -81,6 +81,7 @@ describe("APP_ROUTES (C40)", () => {
     ["/settings", "settings"],
     ["/settings/backups", "settings-backups"],
     ["/settings/audit", "settings-audit"],
+    ["/human", "human"],
     ["/human/tokens", "human-tokens"],
     ["/human/devices", "human-devices"],
     ["/duels", "duels"],
@@ -96,7 +97,7 @@ describe("APP_ROUTES (C40)", () => {
     });
   }
   test("unknown paths are 404", () => {
-    expect(matchRoute(APP_ROUTES, "/human")).toBeNull();
+    expect(matchRoute(APP_ROUTES, "/humane")).toBeNull();
     expect(matchRoute(APP_ROUTES, "/nope")).toBeNull();
   });
 });
@@ -128,5 +129,20 @@ describe("M4a routes (C115)", () => {
   });
   test("the worker script and the Subsonic API are server paths", () => {
     for (const p of ["/sw.js", "/rest/ping.view"]) expect(isServerPath(p)).toBe(true);
+  });
+});
+
+describe("L1 routes", () => {
+  test("the four new routes match, specific before parametric", async () => {
+    const { APP_ROUTES } = await import("./router");
+    const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+    expect(name("/board")).toBe("board");
+    expect(name("/muses/m1")).toBe("muse");
+    expect(matchRoute(APP_ROUTES, "/muses/m1")?.params).toEqual({ id: "m1" });
+    expect(name("/songs/s1")).toBe("song");
+    expect(name("/sounds")).toBe("sounds");
+    expect(name("/muses")).toBeUndefined();
+    expect(name("/songs")).toBeUndefined();
+    expect(isServerPath("/board")).toBe(false);
   });
 });

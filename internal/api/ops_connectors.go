@@ -29,9 +29,9 @@ func notifyAdmin(ctx context.Context, d Deps, caller auth.Principal, title, verb
 	_ = d.Notify.Notify(context.WithoutCancel(ctx), notify.Message{Title: title, Body: who + " " + verb + " " + label, Priority: 3, Tags: []string{"key"}})
 }
 
-// keyRef renders a stored principal key for viewer: the kind is the key's prefix, an agent's name the token's or
+// grantKeyRef renders a stored principal key for viewer: the kind is the key's prefix, an agent's name the token's or
 // grant's label, a human's the rest of the key (RefFor then masks the operator and devices for an agent viewer).
-func keyRef(ctx context.Context, d Deps, viewer auth.Principal, key string) PrincipalRef {
+func grantKeyRef(ctx context.Context, d Deps, viewer auth.Principal, key string) PrincipalRef {
 	kind, rest, _ := strings.Cut(key, ":")
 	name := rest
 	if kind == string(auth.KindAgent) && d.Store != nil {
@@ -47,7 +47,7 @@ func keyRef(ctx context.Context, d Deps, viewer auth.Principal, key string) Prin
 func connectorGrantView(ctx context.Context, d Deps, viewer auth.Principal, g connectors.Grant, caps spend.Caps) ConnectorGrant {
 	out := ConnectorGrant{
 		ID: g.ID, ClientID: g.ClientID, Label: g.Label, Scopes: make([]string, 0, len(g.Scopes)),
-		CreatedAt: store.FormatTime(g.CreatedAt), UpdatedAt: store.FormatTime(g.UpdatedAt), UpdatedBy: keyRef(ctx, d, viewer, g.UpdatedBy),
+		CreatedAt: store.FormatTime(g.CreatedAt), UpdatedAt: store.FormatTime(g.UpdatedAt), UpdatedBy: grantKeyRef(ctx, d, viewer, g.UpdatedBy),
 	}
 	if viewer.ActsAsHuman() {
 		u, hint := g.Username, g.Subject
@@ -85,7 +85,7 @@ func connectorGrantView(ctx context.Context, d Deps, viewer auth.Principal, g co
 	if g.RevokedAt != nil {
 		s := store.FormatTime(*g.RevokedAt)
 		out.RevokedAt = &s
-		ref := PrincipalRefOrNull(keyRef(ctx, d, viewer, g.RevokedBy))
+		ref := PrincipalRefOrNull(grantKeyRef(ctx, d, viewer, g.RevokedBy))
 		out.RevokedBy = &ref
 	}
 	return out

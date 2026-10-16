@@ -128,6 +128,23 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
 - **Keys**: RunPod keys live in a separate file in the secrets dir and are scoped (jobs, read, write); the
   all-access admin key is used only by `runpod provision` from an operator-provided file.
 
+## Library model (L1)
+
+- **Nouns**: a Muse is an inspiration (a reference or a brief, with angles); a Song is one piece of work
+  (a draft or a lineage of takes); a Take is a track; a Pick is the Song's chosen take; a Session groups
+  Songs by import run, collection or batch; Sounds are faceted terms (genre family, era, vocal, mood,
+  language, tempo band, engine) derived from parameters through a versioned taxonomy.
+- **Derivation**: every L1 row is derived from the earlier tables by one writer, the provenance
+  reconciler. Source writes mark keys in a dirty queue through triggers; the reconciler drains the
+  queue in the background and once at startup before the listener opens. A fresh or restored database
+  is rebuilt by the same pass, and `library verify` checks the invariants.
+- **Picks** follow ratings, verdicts and duels unless a human pins a take; every change is an
+  append-only event, and agents can only propose.
+- **Visibility rule**: Muse text (titles, artists, notes) appears only in the allow-listed Muse
+  operations; everywhere else Muses are referred to by id.
+- **Reconcile queue**: eventually consistent and crash safe; one settler holds a lease, a stale epoch
+  writes nothing, and a transient anomaly is re-marked a bounded number of times.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

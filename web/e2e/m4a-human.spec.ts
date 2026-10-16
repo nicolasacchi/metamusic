@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: @mobile because the operator manages connectors and Subsonic clients from the phone
+import { expect, test } from "./fixtures";
 import { uniq } from "./helpers";
 
 // The connector grant seeded by `seed-synthetic --profile e2e` (client e2e-connector, label "E2E Connector").

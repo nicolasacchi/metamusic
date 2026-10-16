@@ -279,6 +279,16 @@ func Middleware(cfg config.Config, sec config.Secrets, v Verifiers) func(http.Ha
 				writeProblem(w, http.StatusForbidden, "CROSS_ORIGIN", "cross-origin request refused")
 				return
 			}
+			// The hub lives at /human/: the edge's two-factor rule is ^/human/, which a bare /human does not match.
+			// Authenticated callers are sent to the slash form before any step-up or page logic.
+			if path == "/human" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+				to := "/human/"
+				if r.URL.RawQuery != "" {
+					to += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, to, http.StatusPermanentRedirect) //nolint:gosec // G710: to is the constant "/human/" plus the request's own query string, never a host
+				return
+			}
 			if p.Via == "local" && (path == "/human" || strings.HasPrefix(path, "/human/")) && !stepUpFresh(sessions, p) {
 				if strings.HasPrefix(path, "/human/api/") {
 					writeProblem(w, http.StatusForbidden, "STEP_UP_REQUIRED", "confirm your password to continue")

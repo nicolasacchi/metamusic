@@ -1271,6 +1271,107 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
+    "description": "Create a Muse\n\nCreates a reference Muse (title, optional artist) or a brief Muse (short title and free text). A reference whose normalised title and artist already exist answers 409 MUSE_EXISTS with the existing id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artist": {
+          "description": "Reference Muses only",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "brief": {
+          "description": "Brief Muses only",
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "reference",
+            "brief"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "name": "create_muse",
+    "outputSchema": {
+      "properties": {
+        "artist": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "brief": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "reference",
+            "brief"
+          ],
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "recipe_refs",
+            "human",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
     "description": "Create a playlist\n\nCreates a playlist, optionally with an ordered list of track ids (at most 1000).",
     "inputSchema": {
       "additionalProperties": false,
@@ -1396,6 +1497,9 @@
                       "null"
                     ]
                   },
+                  "is_pick": {
+                    "type": "boolean"
+                  },
                   "lossy": {
                     "type": "boolean"
                   },
@@ -1427,6 +1531,12 @@
                   "seed": {
                     "format": "int64",
                     "type": "integer"
+                  },
+                  "song_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "stars": {
                     "format": "int64",
@@ -3058,7 +3168,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Private reference metadata is returned to the operator only; agents see has_reference.",
+    "description": "Get a draft\n\nOne draft with its request, lyric structure, collections, group, recipe sources, revision and lint result. Reference metadata is returned in full to the operator; agents see the source title and artist (the text the draft's Muse carries) and has_reference.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3830,6 +3940,845 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Get a Muse\n\nOne Muse with its coverage (Songs by state), its angles and its Songs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Muse id",
+          "type": "string"
+        },
+        "songs_limit": {
+          "default": 100,
+          "format": "int64",
+          "maximum": 200,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_muse",
+    "outputSchema": {
+      "properties": {
+        "angles": {
+          "items": {
+            "properties": {
+              "angle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "songs": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "coverage": {
+          "properties": {
+            "draft": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "judged": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "picked": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "queued_jobs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "rendered": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "songs": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "muse": {
+          "properties": {
+            "artist": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "brief": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "created_by": {
+              "type": "string"
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "reference",
+                "brief"
+              ],
+              "type": "string"
+            },
+            "revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "source": {
+              "enum": [
+                "recipe_refs",
+                "human",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "songs": {
+          "items": {
+            "properties": {
+              "angle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "draft_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "muse_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "open_proposals": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "pick": {
+                "properties": {
+                  "source": {
+                    "enum": [
+                      "pinned",
+                      "ladder",
+                      "stars",
+                      "newest"
+                    ],
+                    "type": "string"
+                  },
+                  "take_id": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "queued_jobs": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "root_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "takes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "songs_total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get a Song\n\nOne Song with its Muse, takes, current Pick and proposals, recent Pick events, Sound facets and sessions. With by=draft or by=track the id is a draft or take id. A retired Song answers 200 with retired_into.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "default": "song",
+          "enum": [
+            "song",
+            "draft",
+            "track"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "description": "Song id; with by=draft a draft id, with by=track a take id",
+          "type": "string"
+        },
+        "include_events": {
+          "default": 10,
+          "format": "int64",
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "take_limit": {
+          "default": 24,
+          "format": "int64",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_song",
+    "outputSchema": {
+      "properties": {
+        "draft": {
+          "properties": {
+            "group_key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "events": {
+          "items": {
+            "properties": {
+              "actor": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "at": {
+                "type": "string"
+              },
+              "cursor": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "evidence": {
+                "type": "object"
+              },
+              "from_source": {
+                "enum": [
+                  "none",
+                  "pinned",
+                  "ladder",
+                  "stars",
+                  "newest"
+                ],
+                "type": "string"
+              },
+              "from_take_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "reason": {
+                "enum": [
+                  "initial",
+                  "pin",
+                  "unpin",
+                  "pin_ineligible",
+                  "pin_restored",
+                  "ladder",
+                  "stars",
+                  "newest",
+                  "emptied"
+                ],
+                "type": "string"
+              },
+              "seq": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "song_id": {
+                "type": "string"
+              },
+              "to_source": {
+                "enum": [
+                  "none",
+                  "pinned",
+                  "ladder",
+                  "stars",
+                  "newest"
+                ],
+                "type": "string"
+              },
+              "to_take_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "lineage": {
+          "properties": {
+            "children_total": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "generations": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "root_track_id": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "muse": {
+          "properties": {
+            "artist": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "pending": {
+          "type": "boolean"
+        },
+        "pick": {
+          "properties": {
+            "changed_at": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "object"
+            },
+            "last_event_id": {
+              "type": "string"
+            },
+            "open_proposals": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "pending": {
+              "type": "boolean"
+            },
+            "pin_ineligible": {
+              "type": "boolean"
+            },
+            "pinned_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pinned_by": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "pinned_take_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seq": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "source": {
+              "enum": [
+                "none",
+                "pinned",
+                "ladder",
+                "stars",
+                "newest"
+              ],
+              "type": "string"
+            },
+            "take_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "proposals": {
+          "items": {
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "decided_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decided_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "proposed_by": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "rationale": {
+                "type": "string"
+              },
+              "song_id": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "accepted",
+                  "dismissed",
+                  "superseded",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "take_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sessions": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "song": {
+          "properties": {
+            "angle": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "angle_source": {
+              "enum": [
+                "reference",
+                "request_id",
+                "manual",
+                "cleared"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "draft_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "origin": {
+              "enum": [
+                "draft",
+                "root"
+              ],
+              "type": "string"
+            },
+            "queued_jobs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "retired": {
+              "type": "boolean"
+            },
+            "retired_into": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "root_track_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "root_track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "state": {
+              "enum": [
+                "draft",
+                "rendered",
+                "judged",
+                "picked"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "sounds": {
+          "properties": {
+            "facets": {
+              "type": "object"
+            },
+            "taxonomy_version": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "tempo": {
+              "properties": {
+                "basis": {
+                  "enum": [
+                    "measured",
+                    "declared",
+                    "plan"
+                  ],
+                  "type": "string"
+                },
+                "measured_bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "mismatch": {
+                  "type": "boolean"
+                },
+                "octave": {
+                  "type": "boolean"
+                },
+                "plan_bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "requested_bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "unmapped": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "takes": {
+          "items": {
+            "properties": {
+              "cost_display_usd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "critic_stars": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "flags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "generation": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "has_ears": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "is_pick": {
+                "type": "boolean"
+              },
+              "ladder": {
+                "properties": {
+                  "n_duels": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "sd": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "u": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "lossy": {
+                "type": "boolean"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "parent_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pinned": {
+                "type": "boolean"
+              },
+              "recipe_known": {
+                "type": "boolean"
+              },
+              "recorded_at": {
+                "type": "string"
+              },
+              "stars": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "tempo": {
+                "properties": {
+                  "measured_bpm": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "requested_bpm": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "takes_total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Get the songwriting duration targets\n\nPreferred song length in seconds: at least min_duration_s, aiming for target_min_duration_s to target_max_duration_s. Lint warns when a song misses them.",
     "inputSchema": {
       "additionalProperties": false,
@@ -4079,6 +5028,52 @@
               "type": "object"
             },
             "tags": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "library_model": {
+          "properties": {
+            "muses": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "pending": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sessions": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "songs": {
+              "properties": {
+                "draft": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "judged": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "picked": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "rendered": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "total": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "taxonomy_version": {
               "format": "int64",
               "type": "integer"
             }
@@ -4848,6 +5843,38 @@
         "slug": {
           "type": "string"
         },
+        "song": {
+          "properties": {
+            "angle": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "muse_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pick_source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "status": {
           "type": "string"
         },
@@ -5494,6 +6521,12 @@
         "listening": {
           "type": "object"
         },
+        "muse": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "next_actions": {
           "items": {
             "type": "string"
@@ -5515,8 +6548,20 @@
             "null"
           ]
         },
+        "song": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "songwriting": {
           "type": "object"
+        },
+        "sounds": {
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "track": {
           "type": "object"
@@ -6000,6 +7045,139 @@
                 "type": "array"
               },
               "updated_by": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List Muses\n\nMuses (inspirations: a reference title and artist, or a brief) with their Song counts by state; q is a phrase-prefix search over title, artist and brief. Hidden Muses only with include_hidden.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "include_hidden": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "reference",
+            "brief"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "default": 100,
+          "format": "int64",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "q": {
+          "description": "Phrase-prefix search over Muse title, artist and brief",
+          "maxLength": 200,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_muses",
+    "outputSchema": {
+      "properties": {
+        "items": {
+          "items": {
+            "properties": {
+              "artist": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "brief": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_by": {
+                "type": "string"
+              },
+              "draft": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "judged": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "reference",
+                  "brief"
+                ],
+                "type": "string"
+              },
+              "picked": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "queued_jobs": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "rendered": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "songs": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "source": {
+                "enum": [
+                  "recipe_refs",
+                  "human",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "updated_at": {
                 "type": "string"
               }
             },
@@ -6568,6 +7746,101 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
+    "description": "Propose a Pick\n\nAn agent suggests which take should be the Song's Pick, with a rationale; one open proposal per agent per Song (a new one supersedes it). Only the operator can pin a Pick.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Song id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional. Omit it and the server derives a key from (caller, operation, arguments): an identical call within 10 minutes replays the first result instead of acting twice. Pass distinct keys to repeat an action on purpose; explicit keys are remembered for 24 hours.",
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[!-~]+$",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "take_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "rationale",
+        "take_id"
+      ],
+      "type": "object"
+    },
+    "name": "propose_pick",
+    "outputSchema": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "decided_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decided_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "proposed_by": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "song_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "accepted",
+            "dismissed",
+            "superseded",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "take_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
     "description": "Rate a track\n\nSets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
     "inputSchema": {
       "additionalProperties": false,
@@ -6699,7 +7972,206 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known and lossy filters. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search Sounds\n\nSongs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "angle": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "draft_id": {
+          "description": "The single Song of this draft",
+          "type": "string"
+        },
+        "has_open_proposals": {
+          "type": "boolean"
+        },
+        "has_pick": {
+          "type": "boolean"
+        },
+        "include_archived": {
+          "type": "boolean"
+        },
+        "include_hidden": {
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 50,
+          "description": "0 returns facet counts only",
+          "format": "int64",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "muse_id": {
+          "type": "string"
+        },
+        "no_muse": {
+          "type": "boolean"
+        },
+        "q": {
+          "description": "Case-insensitive substring of the Song title",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "queued": {
+          "type": "boolean"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sound": {
+          "description": "facet:value, repeatable; OR inside a facet, AND across facets",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "state": {
+          "items": {
+            "enum": [
+              "draft",
+              "rendered",
+              "judged",
+              "picked"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tempo_mismatch": {
+          "type": "boolean"
+        },
+        "track_id": {
+          "description": "The single Song of this take",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "search_sounds",
+    "outputSchema": {
+      "properties": {
+        "facets": {
+          "type": "object"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selected": {
+          "type": "object"
+        },
+        "songs": {
+          "items": {
+            "properties": {
+              "angle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "draft_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "muse_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "open_proposals": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "pick": {
+                "properties": {
+                  "source": {
+                    "enum": [
+                      "pinned",
+                      "ladder",
+                      "stars",
+                      "newest"
+                    ],
+                    "type": "string"
+                  },
+                  "take_id": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "queued_jobs": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "root_track_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "enum": [
+                  "draft",
+                  "rendered",
+                  "judged",
+                  "picked"
+                ],
+                "type": "string"
+              },
+              "takes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "taxonomy_version": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -6711,6 +8183,10 @@
           "type": "boolean"
         },
         "has_score": {
+          "type": "boolean"
+        },
+        "is_pick": {
+          "description": "true lists only the takes that are their Song's current Pick; false only the others",
           "type": "boolean"
         },
         "limit": {
@@ -6759,6 +8235,14 @@
           "type": "string"
         },
         "root_track_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "description": "Only takes in this Session (derived membership)",
+          "type": "string"
+        },
+        "song_id": {
+          "description": "Only takes of this Song",
           "type": "string"
         },
         "sort": {
@@ -6881,6 +8365,9 @@
                   "null"
                 ]
               },
+              "is_pick": {
+                "type": "boolean"
+              },
               "lossy": {
                 "type": "boolean"
               },
@@ -6912,6 +8399,12 @@
               "seed": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "song_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "stars": {
                 "format": "int64",

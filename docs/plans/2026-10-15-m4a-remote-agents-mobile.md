@@ -157,7 +157,7 @@ miss); listing resources through `resources/list` (D-M4a-20); L1's Muse/Song/Tak
 - **Hard:** M0, M1, M2a, M2b, M2c and M3 contracts exactly as written, merged to `main` (done: the build starts from
   `main` at the M3 / X2-probe merge); the **Release 1 gate** (roadmap) is green. Branch `m4a`, in its own root worktree.
   Schema version after M4a: **9** (`0009_remote.sql`; L1 takes 0008). Production is at schema 7. `loadMigrations`
-  refuses numbering gaps, so **while L1 is unmerged the file is committed as `0008_remote.sql`** (schema 8, upgrade
+  refuses numbering gaps, so **while L1 was unmerged the file was committed as `0008_remote.sql`** (schema 8, upgrade
   from 7) and the **renumber-on-merge step** (M4a-X1, step 0) renames it to `0009_remote.sql`, sets the single test
   constant `remoteMigration` (`internal/store/schema_m4a_test.go`) to 9, regenerates the generated files (never hand-merged) and runs the
   upgrade test from schema 8 on L1's fixture. Earlier schema assertions: most compare with `len(migrations)`, but
@@ -2266,7 +2266,7 @@ scanner (`/__e2e/leaks`) stays `[]`.
 Done: `make e2e` green on chrome + firefox; CI e2e ≤ 5 min.
 
 ### Task M4a-X1 (Integration)
-**Step 0 (only if L1 has merged to `main` meanwhile):** rebase `m4a` onto `main`, `git mv internal/store/migrations/0008_remote.sql
+**Step 0 (done in the main merge: L1 merged first, the file is `0009_remote.sql`, `remoteMigration = 9`; the tools/list ceiling is 104 500 bytes, measured 104 472, and the "Reload to update" action waits for playback to stop):** rebase `m4a` onto `main`, `git mv internal/store/migrations/0008_remote.sql
 internal/store/migrations/0009_remote.sql`, set `remoteMigration = 9`, regenerate `openapi.json`, `schema.d.ts` and the `tools/list` golden
 (never hand-merge them), run the upgrade test from schema 8 on L1's fixture, and resolve the shared edits (`servertest.Options`,
 `librarytest` fixture layering `FixtureL1` / `FixtureM4a`, `TestRegistry_OpCount`, `toolsCeilingBytes`) by re-measuring. If M4a merges

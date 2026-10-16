@@ -422,12 +422,17 @@ func runParity(t *testing.T, stdio bool) {
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
 	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
+	// The Reconciler builds the Songs before any case runs: every face then draws its Song and Session ids from the same
+	// point of the id sequence, whatever replays (tool plus call_operation) the cases make on one face and not another.
+	ra.Settle(t)
+	rb.Settle(t)
 	restClient, _ := ra.Agent(t, scopes...)
 	mcpSess := rb.MCP(t, scopes...)
 	var stdioSess *mcp.ClientSession
 	var rc *servertest.Rig
 	if stdio {
 		rc = servertest.New(t, opts)
+		rc.Settle(t)
 		stdioSess = rc.Stdio(t, scopes...)
 	}
 	script := parityScript(t, ra.API)
@@ -627,7 +632,11 @@ func TestToolsListGolden(t *testing.T) {
 // create_variant, wait_for_job, get_job, cancel_job) with full output schemas; the other sixteen M3 operations are
 // generic (D-M3-36 demoted get_budget, list_jobs, get_batch and request_approval), and the track, draft and stats
 // shapes gained the C81.1 fields.
-const toolsListBaselineBytes = 207451
+//
+// L1-B2 re-baselined 207451 -> 243029 (+35 578): the first-class L1 tools (seven at the time; six after the
+// list_songs demotion, D-L1-20) with their full output schemas
+// (SongView, MuseDetail, SoundSearch, ...) and the L1 fields of the track shapes' neighbours; no other tool changed.
+const toolsListBaselineBytes = 243029
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {
@@ -755,9 +764,9 @@ func TestParity_MultiValueQuery(t *testing.T) {
 	}
 }
 
-// MCP output ends up in third-party transcripts: an agent never sees the
-// private reference metadata, only has_reference.
-func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
+// MCP output ends up in third-party transcripts: an agent sees the Muse text of the reference (title, artist;
+// D-L1-36) and has_reference, never the variant type.
+func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-ref", auth.ScopeRead)
@@ -768,12 +777,13 @@ func TestGetDraft_ReferenceHumanOnly(t *testing.T) {
 	}
 	viaMCP := structured(t, res).(map[string]any)
 	for name, m := range map[string]map[string]any{"rest": viaREST, "mcp": viaMCP} {
-		if m["has_reference"] != true || m["reference"] != nil {
+		ref, _ := m["reference"].(map[string]any)
+		if m["has_reference"] != true || ref["source_title"] != "Synthetic Reference Title" || ref["variant_type"] != nil {
 			t.Errorf("%s: has_reference=%v reference=%v", name, m["has_reference"], m["reference"])
 		}
 	}
 	b, _ := json.Marshal(viaMCP)
-	if strings.Contains(string(b), "Synthetic Reference Title") {
-		t.Errorf("reference leaked over MCP: %s", b)
+	if strings.Contains(string(b), "slower") {
+		t.Errorf("variant type leaked over MCP: %s", b)
 	}
 }

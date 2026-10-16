@@ -121,10 +121,14 @@ type rigCfg struct {
 	mode   string
 	margin int64
 	caps   *spend.Caps
+	sw     generation.SongwritingSource
 }
 
 func withMargin(ppm int64) rigOpt     { return func(c *rigCfg) { c.margin = ppm } }
 func withCaps(caps spend.Caps) rigOpt { return func(c *rigCfg) { c.caps = &caps } }
+
+// withSongwriting makes the planner read the operator's duration targets (nil keeps the minimum control off).
+func withSongwriting(sw generation.SongwritingSource) rigOpt { return func(c *rigCfg) { c.sw = sw } }
 
 func newRig(t *testing.T, opts ...rigOpt) *rig {
 	t.Helper()
@@ -154,7 +158,7 @@ func newRig(t *testing.T, opts ...rigOpt) *rig {
 	r.opts = generation.Options{
 		Store: st, Library: r.lib, Lineage: lin, Spend: r.sp, Engines: registry.Default(), Notify: r.notes, PublicURL: "http://mm.example.com",
 		Now: r.clk.Now, NewID: r.id, Wake: func() { r.wakes.Add(1) },
-		ColdStartS: 180, KillSlackS: 15, MaxRuntime: 15 * time.Minute, PriceMarginPPM: cfg.margin,
+		ColdStartS: 180, KillSlackS: 15, MaxRuntime: 15 * time.Minute, PriceMarginPPM: cfg.margin, Songwriting: cfg.sw,
 	}
 	r.opts.Gate = r.gate(cfg.mode)
 	r.svc = generation.New(r.opts)

@@ -258,7 +258,7 @@ type DraftDetail struct {
 	Sections           []DraftSection    `json:"sections" nullable:"false"`
 	Collections        []string          `json:"collections" nullable:"false"`
 	HasReference       bool              `json:"has_reference"`
-	Reference          map[string]string `json:"reference" nullable:"true" doc:"Private reference metadata; humans only, null for agents"`
+	Reference          map[string]string `json:"reference" nullable:"true" doc:"Reference metadata of the draft. A human sees every key (source_title, source_artist, variant_type); an agent sees only source_title and source_artist, the text the draft's Muse carries (D-L1-36). Null when the draft has no reference"`
 	Source             *DraftSource      `json:"source" doc:"null for drafts without an imported recipe"`
 	ParentTrackID      *string           `json:"parent_track_id"`
 	FulfilledByTrackID *string           `json:"fulfilled_by_track_id"`
@@ -278,8 +278,9 @@ type DraftDetail struct {
 	GeneratedTakes int  `json:"generated_takes" doc:"Takes generated from this draft"`
 }
 
-// Draft returns one draft. The reference map is filled only withReference
-// (human principals); has_reference is always reported.
+// Draft returns one draft. has_reference is always reported. The reference map carries every key for human
+// principals (withReference); for agents it is cut to source_title and source_artist, whitespace-normalised the
+// way the draft's Muse stores them (D-L1-36: an agent never sees more than the Muse holds).
 func (s *Service) Draft(ctx context.Context, id string, withReference bool) (DraftDetail, error) {
 	d := DraftDetail{Lint: yue2.LintResult{Errors: []yue2.Issue{}, Warnings: []yue2.Issue{}}}
 	var gk, lb, src, par, ful sql.NullString
@@ -394,8 +395,27 @@ func (s *Service) Draft(ctx context.Context, id string, withReference bool) (Dra
 	if err := rows.Close(); err != nil {
 		return d, err
 	}
-	if withReference && d.HasReference {
+	switch {
+	case !d.HasReference:
+	case withReference:
 		d.Reference = merged
+	default:
+		d.Reference = museText(merged)
 	}
 	return d, nil
+}
+
+// museText is the part of a reference map that a Muse carries (title and artist), normalised like the Muse stores it;
+// nil when neither is present.
+func museText(ref map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, k := range []string{"source_title", "source_artist"} {
+		if v := strings.Join(strings.Fields(ref[k]), " "); v != "" {
+			out[k] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

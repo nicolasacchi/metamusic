@@ -397,6 +397,8 @@ func PairingHandler(o PairingOptions) http.Handler
 
 > **M4a amendment (B1):** Migration 0009 adds `playlists.role` (the offline set, fixed id) and the delete allowlist of `TestNoDeleteSQL` becomes `{idempotency, human_sessions, subsonic_salts}` (M4a C103).
 
+> **L1 addendum (L1-B1):** `TestNoDeleteSQL` allows physical deletes on five more tables, all derived caches or queues rebuilt by the Reconciler (L1 C88.3, D-L1-24): `provenance_dirty`, `take_sounds`, `song_sounds`, `sound_state`, `song_unmapped_terms`.
+
 After M2a, `PRAGMA user_version == 3`. As in C11, `CHECK` constraints encode only invariants that never
 change; growing enumerations (comment kinds and sources, listen kinds, export kinds, draft origins,
 audit transports, backup causes) are validated in Go.
@@ -1662,6 +1664,8 @@ or control characters in the URL are dropped. See the M3 plan, C82.
 
 > **M4a amendment (B2):** `list_playlists`, `get_playlist`, `create_playlist` and `update_playlist` carry `role`; the registry validation of `secret_fields` is relaxed to create operations (M4a D-M4a-24).
 
+> **L1 addendum (L1-B2):** the registry grows by the 18 L1 operations (L1 C96): 99 in total (`TestRegistry_OpCount`), 7 new tools, 9 generic, 2 `exclude:human-judgment`; `tools/list` ceiling 102 600 bytes.
+
 Legend: **C** = `idempotency: create` (REST requires `Idempotency-Key`; MCP derives it), **H** =
 `rate: heavy`, **S[…]** = `secret_fields`. Human-only ops use `mcp: exclude:human-only`.
 
@@ -2033,6 +2037,8 @@ Web lane (M3-W1..W3).
 
 ### C41. Tooling, CI, routing, coverage (amends M1 C23/C24)
 
+> **L1 addendum (L1-B2):** `toolsCeilingBytes` is 102 600 and `toolsListBaselineBytes` 243 029 after the seven first-class L1 tools (15 285 compact bytes, inside the 16 000 rule).
+
 - **Routing contract** (C24 table gains two routers; `deploy/labels.example.yml`):
 
   | Router | Rule (inside `Host(…) && (…)`) | Priority | Middlewares, in this order |
@@ -2080,6 +2086,8 @@ Web lane (M3-W1..W3).
 > **M4a amendment (C2):** the parity runner gains the fourth face (`TestParity_OAuthConnector`, `internal/mcpgen/parity_m4a_test.go`): an OIDC rig whose grant is pre-created outside the id sequence runs the fixed OAuth subset (`whoami`, `search_tracks`, `get_track_context`, `add_comment`, `get_offline_set`, `estimate_variant` refused with `FORBIDDEN_SCOPE`) against REST on a read+write PAT with masks for principal ids, names and `via`, and with D's origin rewritten to A's. `Rig.Connector` implements the rig-clock token source of M4a C117.1.
 
 > **M4a amendment (B2):** `servertest.Options` gains `M4a` and `OIDC`, the unlimited limiter config lists the Subsonic classes, `Rig.OIDC`, `Rig.Connector` and `Rig.Subsonic` exist; `librarytest` gains `FixtureM4a` and `ApplyM4a`; the parity and scripted-agent tests cover the eight M4a operations and skip a stub by name (M4a C117).
+
+> **L1 addendum (L1-B2):** `librarytest` gains `FixtureL1`, `FixtureL1Mirror`, `FixtureL1Scale`, `FixtureL1Upgrade`, `ApplyL1` and the ad-hoc `Scene`; `servertest.Options` gains `L1` and `Reconcile`, `Rig` gains `Provenance` and `Settle`; `internal/perftest` is a new test-only helper package.
 
 > M2b-B2 addendum: `servertest.Options` gains `M2b M2bOptions{Fixture, Media, Backfill, FakeClips, SlotCoin, WrapClips, Override}`;
 > `servertest.Alternating()` is the default slot coin; the parity runner's rigs use `M2b{Fixture: true}`. New test-only helper packages:

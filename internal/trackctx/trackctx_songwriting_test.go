@@ -35,7 +35,7 @@ func TestContext_SongwritingTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := marshal(t, b)
-	want := []string{"format", "track", "recipe", "provenance", "score", "lineage", "judgments", "perception", "listening", "_links", "songwriting", "next_actions", "_budget"}
+	want := []string{"format", "track", "song", "muse", "sounds", "recipe", "provenance", "score", "lineage", "judgments", "perception", "listening", "_links", "songwriting", "next_actions", "_budget"}
 	if diff := cmp.Diff(want, keys(t, raw)); diff != "" {
 		t.Errorf("top-level keys:\n%s", diff)
 	}

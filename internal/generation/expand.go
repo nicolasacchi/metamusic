@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
@@ -122,6 +123,9 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		}
 	} else {
 		t.ExpectedAudioS = secs
+		if err := p.forceMinimum(t); err != nil {
+			return err
+		}
 	}
 	n, err := p.inputBytes(t, parsed.Canonical)
 	if err != nil {
@@ -138,6 +142,26 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		p.renders[render] = t.TakeIndex
 	}
 	p.takes = append(p.takes, t)
+	return nil
+}
+
+// forceMinimum applies the engine's minimum-render control (X4): the floor comes from the operator's
+// songwriting settings and the estimate, is frozen into the take (min_audio_s) and raises the quoted length so
+// a take is never priced shorter than the render it forces. A source that fails to read stops the estimate:
+// silently planning without the control would quote and render short.
+func (p *planner) forceMinimum(t *planTake) error {
+	mp, ok := p.eng.(engine.MinAudioPlanner)
+	if !ok || p.s.o.Songwriting == nil {
+		return nil
+	}
+	targets, err := p.s.o.Songwriting.Get(p.ctx)
+	if err != nil {
+		return fmt.Errorf("generation: songwriting targets: %w", err)
+	}
+	t.MinAudioS = mp.MinAudioSeconds(t.ExpectedAudioS, targets.MinDurationS)
+	t.ExpectedAudioS = max(t.ExpectedAudioS, t.MinAudioS)
+	t.Warnings = append(t.Warnings, Issue{Code: "min_audio_forced", Field: "", Severity: "warning",
+		Message: fmt.Sprintf("the render is forced to last at least %d s (songwriting minimum %d s, 70%% of the estimate); the quote assumes it", t.MinAudioS, targets.MinDurationS)})
 	return nil
 }
 
@@ -219,7 +243,7 @@ func (p *planner) inputBytes(t *planTake, canonical []byte) (int, error) {
 	}
 	in := provider.WorkerInput{
 		Contract: provider.Contract, TakeID: long, AttemptID: long, Engine: p.s.engineName(p.eng), Request: json.RawMessage(canonical),
-		TimeoutS: 2700, UploadBudgetS: 600, DeadlineUnix: 1 << 40, Start: provider.StartTarget{URL: ph}, Uploads: uploads,
+		TimeoutS: 2700, UploadBudgetS: 600, DeadlineUnix: 1 << 40, MinAudioS: t.MinAudioS, Start: provider.StartTarget{URL: ph}, Uploads: uploads,
 		Expect: provider.WorkerExpect{Weights: map[string]string{
 			"m-a-p/YuE2-3B": strings.Repeat("0", 40), "m-a-p/YuE2-Vae": strings.Repeat("0", 40),
 		}},

@@ -16,6 +16,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
+	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
@@ -34,14 +35,20 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
+	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
+	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/prompts"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
+	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
+	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -103,6 +110,14 @@ type Options struct {
 	Notify      notify.Notifier
 
 	// M3 services (C81); nil makes the matching operations answer 503 UNAVAILABLE {component}.
+	// L1 services (C87); nil makes the matching operations answer 503 UNAVAILABLE {component}.
+	Muses       *muses.Service
+	Songs       *songs.Service
+	SongView    *songview.Service
+	LibSessions *sessions.Service
+	Picks       *picks.Service
+	Sounds      *sounds.Service
+	Board       *board.Service
 	Generation  *generation.Service
 	Spend       *spend.Service
 	Jobs        *jobs.Service
@@ -153,6 +168,7 @@ func New(o Options) (http.Handler, error) {
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
 		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips,
 		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage, Songwriting: o.Songwriting,
+		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board,
 		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts})
 	gated := http.Handler(inner)
 	if o.Store != nil {

@@ -1,43 +1,21 @@
 import { randomBytes } from "node:crypto";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { BASE_URL, EDGE_SECRET, HEADERS, PORT } from "./env";
+import { EDGE_SECRET, HEADERS } from "./env";
 import { missingOperations, uiOperations } from "./coverage";
-
-async function waitHealthy(timeoutMs: number, dead: () => boolean): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (dead()) throw new Error("e2e server exited during startup (see stderr above)");
-    try {
-      const res = await fetch(`${BASE_URL}/healthz`);
-      if (res.ok) return;
-    } catch {
-      // not listening yet
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error(`e2e server did not become healthy within ${timeoutMs}ms`);
-}
-
-async function stop(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  const exited = new Promise<void>((r) => child.once("exit", () => r()));
-  child.kill("SIGTERM");
-  const timer = setTimeout(() => child.kill("SIGKILL"), 5000);
-  await exited;
-  clearTimeout(timer);
-}
+import { serverEnv, startServer, stopServer, freePort } from "./server";
 
 /**
  * The agent of the approval spec (C86.5): a read+write+generate PAT made through the human create_token op, and a
  * per-token auto-approve limit of one take so that every agent batch of two or more takes waits for the operator.
- * Workers inherit the token through process.env (never written to disk or logged).
+ * The token lives in the seeded database, so every per-worker copy of it knows the token; workers get its value
+ * through process.env (never written to disk or logged).
  */
-async function createAgentToken(): Promise<void> {
+async function createAgentToken(base: string): Promise<void> {
   const post = async (method: "POST" | "PUT", path: string, body: unknown, key?: string) => {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await fetch(`${base}${path}`, {
       method,
       headers: { ...HEADERS, "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
       body: JSON.stringify(body),
@@ -48,88 +26,59 @@ async function createAgentToken(): Promise<void> {
   const tok = await post("POST", "/human/api/tokens", { name: "e2e-agent", scopes: ["read", "write", "generate"] }, `e2e-setup-${randomBytes(6).toString("hex")}`);
   if (typeof tok.token !== "string" || typeof tok.id !== "string") throw new Error("create_token returned no token");
   process.env.MM_E2E_AGENT_TOKEN = tok.token;
+  // The fake backend's tracks are seconds long; the shipped minimum-render floor (min_duration_s 180) would quote every e2e
+  // take at 3 minutes and exhaust the agent's daily budget. The template runs with the allowed minimum; the floor itself is
+  // asserted in m3-songwriting.spec.ts by raising the setting there.
+  await post("PUT", "/human/api/settings/songwriting", { min_duration_s: 30 });
   await post("PUT", "/human/api/spend/caps", { tokens: [{ token_id: tok.id, auto_approve_takes: 1, auto_approve_micro_usd: null, daily_budget_micro_usd: null }] });
 }
 
+/**
+ * Seeds ONE template (data + secrets dir) and quiesces it: the server that made the agent token is stopped, which
+ * checkpoints the SQLite WAL, so the template is a plain consistent file tree. Every Playwright worker then serves its
+ * own copy of it (fixtures.ts), so no spec shares budgets, counters, fake GPU workers or play counts with another.
+ */
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const bin = resolve(process.env.MM_E2E_BIN ?? resolve(import.meta.dirname, "../../bin/metamusic-e2e"));
   if (!existsSync(bin)) throw new Error(`e2e binary not found at ${bin} (set MM_E2E_BIN)`);
 
-  const stale = await fetch(`${BASE_URL}/healthz`).then(
-    () => true,
-    () => false,
-  );
-  if (stale) throw new Error(`port ${PORT} already in use (stale e2e server?); stop it or set MM_E2E_PORT`);
-
-  const root = mkdtempSync(join(tmpdir(), "mm-e2e-data-"));
-  const dataDir = join(root, "data");
-  const secretsDir = join(root, "secrets");
+  const root = mkdtempSync(join(tmpdir(), "mm-e2e-"));
+  const template = join(root, "template");
+  const dataDir = join(template, "data");
+  const secretsDir = join(template, "secrets");
+  const runDir = join(root, "run");
   mkdirSync(dataDir, { recursive: true });
+  mkdirSync(runDir);
   mkdirSync(secretsDir, { recursive: true, mode: 0o700 });
   writeFileSync(join(secretsDir, "secret_key"), "0123456789abcdef".repeat(4) + "\n", { mode: 0o600 });
   writeFileSync(join(secretsDir, "edge_secret"), EDGE_SECRET + "\n", { mode: 0o600 });
   // Canary for the leak scanner (C39): its value must never appear in any response body or header.
   writeFileSync(join(secretsDir, "ntfy_token"), `canary-${randomBytes(16).toString("hex")}\n`, { mode: 0o600 });
+  process.env.MM_E2E_BIN_RESOLVED = bin;
+  process.env.MM_E2E_TEMPLATE = template;
+  process.env.MM_E2E_RUN_DIR = runDir;
 
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    MM_AUTH: "proxy",
-    MM_ADDR: `127.0.0.1:${PORT}`,
-    MM_PUBLIC_URL: BASE_URL,
-    MM_TRUSTED_PROXY: "127.0.0.1/32,::1/128",
-    MM_TRUSTED_USERS: HEADERS["Remote-User"],
-    MM_E2E: "1",
-    MM_DATA_DIR: dataDir,
-    MM_SECRETS_DIR: secretsDir,
-    // One e2e human principal across parallel workers would exceed the production buckets (D-M2a-10);
-    // the schedule is off so a backup only ever runs when a spec asks for it.
-    MM_RATE_SCALE: "100",
-    MM_BACKUP_AT: "off",
-    // M3 (C86.5): the fake backend finishes a take in about a second; specs steer slower ones with "fake:slow=<s>" in the style.
-    MM_BACKEND: "fake",
-    MM_FAKE_BACKEND: "fast",
-  };
-  // Specs read the seed archive (byte-identity export check); workers inherit this from the setup process.
-  process.env.MM_E2E_SEED_DIR = join(dataDir, "inbox-synthetic");
-  // Seed the synthetic library (C22) plus the M2c reference and lossy takes (C66): synchronous, same env; a failed seed fails the whole setup.
-  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references"], { env, stdio: ["ignore", "ignore", "inherit"] });
+  // Seed the synthetic library (C22) plus the M2c reference and lossy takes (C66): synchronous; a failed seed fails the whole setup.
+  const url = `http://127.0.0.1:${await freePort()}`;
+  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references", "--short-audio"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
   if (seed.status !== 0) {
     rmSync(root, { recursive: true, force: true });
     throw new Error(`seed-synthetic failed (exit ${seed.status ?? seed.signal ?? "unknown"}${seed.error ? `: ${seed.error.message}` : ""})`);
   }
-  const child = spawn(bin, ["serve"], { env, stdio: ["ignore", "ignore", "inherit"] });
-  let dead = false;
-  let spawnError: Error | undefined;
-  child.once("exit", () => {
-    dead = true;
-  });
-  child.once("error", (e) => {
-    dead = true;
-    spawnError = e;
-  });
-
-  const cleanup = async () => {
-    await stop(child);
+  try {
+    const srv = await startServer(bin, dataDir, secretsDir);
+    try {
+      await createAgentToken(srv.url);
+    } finally {
+      await stopServer(srv);
+    }
+  } catch (e) {
     rmSync(root, { recursive: true, force: true });
-  };
-
-  try {
-    await waitHealthy(15_000, () => dead);
-  } catch (e) {
-    await cleanup();
-    if (spawnError) throw new Error(`failed to start e2e server: ${spawnError.message}`, { cause: e });
     throw e;
   }
 
-  try {
-    await createAgentToken();
-  } catch (e) {
-    await cleanup();
-    throw e;
-  }
-
-  // Run-scoped teardown: Playwright only calls this when setup succeeded, and it captures this
-  // run's own child and data dir, so concurrent or failed runs can never touch another run's server.
+  // Run-scoped teardown: every retired worker server left its served-operation list and leak findings in runDir
+  // (fixtures.ts); this checks the union. Playwright only calls it when setup succeeded.
   return async () => {
     let failure: Error | undefined;
     try {
@@ -137,22 +86,20 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       // `bun e2e/served-check.ts` (the coverage job) checks the union of every shard against the registry.
       const servedOut = process.env.MM_E2E_SERVED_OUT;
       if (servedOut || process.env.MM_E2E_COVERAGE !== "0") {
-        const res = await fetch(`${BASE_URL}/__e2e/served`, { headers: HEADERS });
-        if (!res.ok) throw new Error(`/__e2e/served returned ${res.status}`);
-        const served = (await res.json()) as string[];
+        const served = new Set<string>();
+        for (const f of readdirSync(runDir).filter((n) => n.startsWith("served-"))) for (const id of JSON.parse(readFileSync(join(runDir, f), "utf8")) as string[]) served.add(id);
         if (servedOut) {
-          writeFileSync(servedOut, JSON.stringify(served));
+          writeFileSync(servedOut, JSON.stringify([...served].sort()));
         } else {
-          const missing = missingOperations(uiOperations(), served);
+          const missing = missingOperations(uiOperations(), [...served]);
           if (missing.length > 0) {
             failure = new Error(`operations with a UI never served to the SPA: ${missing.join(", ")} (filtered run? set MM_E2E_COVERAGE=0 to skip this check)`);
           }
         }
       }
-      // The leak scanner saw every request and response of the run (C39); it must have found no secret value.
-      const lk = await fetch(`${BASE_URL}/__e2e/leaks`, { headers: HEADERS });
-      if (!lk.ok) throw new Error(`/__e2e/leaks returned ${lk.status}`);
-      const leaks = (await lk.json()) as unknown[];
+      // The leak scanner of each server saw every request and response of its life (C39); it must have found no secret value.
+      const leaks: unknown[] = [];
+      for (const f of readdirSync(runDir).filter((n) => n.startsWith("leaks-"))) leaks.push(...(JSON.parse(readFileSync(join(runDir, f), "utf8")) as unknown[]));
       if (leaks.length > 0) {
         // Entries name the kind, place and path of a leak, never its value.
         failure = new Error(`secret leak scanner reported ${leaks.length} finding(s): ${JSON.stringify(leaks)}`, { cause: failure });
@@ -160,7 +107,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     } catch (e) {
       failure = e instanceof Error ? e : new Error(String(e));
     } finally {
-      await cleanup();
+      rmSync(root, { recursive: true, force: true });
     }
     if (failure) throw failure;
   };

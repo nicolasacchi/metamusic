@@ -42,6 +42,8 @@ type Options struct {
 	Clock clock.Clock // nil => clock.Real
 	Hub   *Hub        // nil => a private hub
 	Gate  *provider.Gate
+	// Spend closes the approval and releases the ledger when a batch awaiting confirmation is cancelled.
+	Spend *spend.Service
 	// Wake nudges the runner after a cancel intent (an injected func; nil => none).
 	Wake func()
 }
@@ -821,7 +823,6 @@ func (s *Service) CancelBatch(ctx context.Context, p auth.Principal, id, reason 
 	if err := s.wired(); err != nil {
 		return Batch{}, err
 	}
-	_ = reason
 	start := s.o.Clock.Now()
 	var owner string
 	err := s.o.Store.R.QueryRowContext(ctx, `SELECT principal_id FROM batches WHERE id = ?`, id).Scan(&owner)
@@ -838,6 +839,20 @@ func (s *Service) CancelBatch(ctx context.Context, p auth.Principal, id, reason 
 		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET cancel_requested_at = ?, cancel_requested_by = ? WHERE batch_id = ? AND cancel_requested_at IS NULL AND state NOT IN ('completed','failed','cancelled','expired')`,
 			store.FormatTime(start), p.Key(), id); err != nil {
 			return fmt.Errorf("jobs: cancel intents: %w", err)
+		}
+		// a batch still awaiting confirmation never started: withdraw its approval, end the batch and release
+		// the reservation in this transaction, so it leaves the approvals hub and list_batches
+		var state string
+		if err := tx.QueryRowContext(ctx, `SELECT state FROM batches WHERE id = ?`, id).Scan(&state); err != nil {
+			return err
+		}
+		if state == StateAwaiting {
+			if s.o.Spend == nil {
+				return errors.ErrUnsupported
+			}
+			if _, err := s.o.Spend.WithdrawBatch(ctx, tx, id, p.Key(), reason, nil); err != nil {
+				return fmt.Errorf("jobs: withdraw batch: %w", err)
+			}
 		}
 		return completeAudit(ctx, tx, s.o.Clock, start, nil)
 	})

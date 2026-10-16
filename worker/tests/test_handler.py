@@ -291,3 +291,53 @@ def test_yue2_imported_lazily() -> None:
     import mmworker.handler, mmworker.serverless, mmworker.selftest  # noqa: F401,E401
 
     assert "yue2" not in sys.modules and "torch" not in sys.modules
+
+
+# ---- X4: forced minimum render length (YuE2 semantic min_tokens) ----
+
+def test_min_audio_s_becomes_semantic_min_tokens(sink: Sink) -> None:
+    rig = make_rig(sink, min_audio_s=252)
+    pipe = fake()
+    out = rig.run(pipe)
+    assert out["status"] == "ok"
+    assert pipe.calls[0]["semantic_sampling"] == {"min_tokens": 252 * 25}
+
+
+def test_no_min_audio_s_leaves_the_call_untouched(sink: Sink) -> None:
+    for over in ({}, {"min_audio_s": 0}):
+        rig = make_rig(sink, **over)
+        pipe = fake()
+        assert rig.run(pipe)["status"] == "ok"
+        assert "semantic_sampling" not in pipe.calls[0] and "abc_sampling" not in pipe.calls[0]
+
+
+def test_min_audio_s_is_recorded_in_config_json(sink: Sink) -> None:
+    """config.json (uploaded as an artifact) is the record that re-runs the take: overrides names min_tokens."""
+    rig = make_rig(sink, min_audio_s=200)
+    assert rig.run(fake())["status"] == "ok"
+    cfg = json.loads(sink.puts("/config.json")[0].body)
+    assert cfg["generation"]["semantic"]["min_tokens"] == 5000
+    assert cfg["overrides"]["semantic"]["min_tokens"] == 5000
+
+
+def test_min_audio_s_keeps_a_larger_request_min_tokens(sink: Sink) -> None:
+    req = {"cot": "full", "id": "syn-a-s1", "lyrics": "[Verse]\nla", "seed": 1, "style": "pop",
+           "semantic_sampling": {"min_tokens": 7000, "top_k": 50}}
+    rig = make_rig(sink, request=req, min_audio_s=200)
+    pipe = fake()
+    assert rig.run(pipe)["status"] == "ok"
+    assert pipe.calls[0]["semantic_sampling"] == {"min_tokens": 7000, "top_k": 50}
+
+
+def test_min_audio_s_with_a_bad_request_sampling_is_rejected(sink: Sink) -> None:
+    req = {"cot": "full", "id": "syn-a-s1", "lyrics": "[Verse]\nla", "seed": 1, "style": "pop", "semantic_sampling": 5}
+    rig = make_rig(sink, request=req, min_audio_s=200)
+    assert err_code(rig.run(fake())) == "BAD_INPUT"
+
+
+def test_config_without_the_min_tokens_fails_the_take(sink: Sink) -> None:
+    """A pipeline that did not apply the override must not upload a take that claims the control."""
+    rig = make_rig(sink, min_audio_s=200)
+    res = rig.run(fake(files={"config.json": b'{"generation":{"semantic":{"min_tokens":200}}}'}))
+    assert err_code(res) == "PIPELINE_ERROR"
+    assert not sink.puts("/audio.flac")

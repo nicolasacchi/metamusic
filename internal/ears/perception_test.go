@@ -42,7 +42,7 @@ func TestPerception_Keys(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := []string{"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots"}
+	want := []string{"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"}
 	if !slices.Equal(keys, want) {
 		t.Errorf("keys = %v, want %v", keys, want)
 	}

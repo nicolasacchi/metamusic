@@ -12,8 +12,8 @@ import (
 )
 
 // remoteMigration mirrors the constant of the internal schema_m4a_test.go: the position of the M4a
-// migration (8 until L1's 0008 merges, then 9: M4a-X1 step 0 changes both constants together).
-const remoteMigration = 8
+// migration (9: 0009_remote.sql, after L1's 0008_provenance.sql).
+const remoteMigration = 9
 
 // TestMigration0009_UpgradeFromM3 opens a library one migration below the M4a one with the M3 fixture rows,
 // lets store.Open apply the migration and checks that every earlier row is unchanged, every track's

@@ -6,7 +6,7 @@
   import { fetchViewer } from "../lib/viewer";
 
   type Draft = components["schemas"]["DraftDetail"];
-  let { id }: { id: string } = $props();
+  let { id, navigate }: { id: string; navigate: (to: string) => void } = $props();
 
   let draft = $state<Draft | null>(null);
   let error = $state("");
@@ -55,7 +55,7 @@
   {/if}
 
   {#key draft.id + ":" + draft.revision + ":" + draft.status}
-    <DraftEditor {draft} onupdate={(d) => (draft = d)} />
+    <DraftEditor {draft} {navigate} onupdate={(d) => (draft = d)} />
   {/key}
 
   {#if draft.reference}

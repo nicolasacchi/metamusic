@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+// matrix: @mobile because the cover, download, offline and prompt actions of the track page are used from the phone
+import { expect, test, type Page } from "./fixtures";
 import { ownTracks } from "./helpers";
 
-// Runs with the service worker allowed (the page is controlled after the first load) on chrome and the Pixel 7,
-// one project after the other (the offline set is global). Clipboard access is granted to the context.
+// Runs with the service worker allowed (the page is controlled after the first load); every project has its own server,
+// so the offline set is its own. Clipboard access is granted to the context.
 test.use({ serviceWorkers: "allow", permissions: ["clipboard-read", "clipboard-write"] });
 
 test.describe.configure({ mode: "serial" });

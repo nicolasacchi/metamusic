@@ -177,3 +177,25 @@ func TestLocalStepUp_FailureDelayAndNotRevealed(t *testing.T) {
 		t.Fatalf("delay/echo: %v %d", time.Since(start), rec.Code)
 	}
 }
+
+// /human (no slash) is outside the edge's ^/human/ two-factor rule: it only ever redirects to /human/, before
+// any step-up or page logic, and an anonymous caller learns nothing from it.
+func TestLocalStepUp_BareHumanRedirectsToSlashForm(t *testing.T) {
+	t.Parallel()
+	s := newStepRig(t)
+
+	rec := s.do("GET", "/human?x=1", "")
+	if rec.Code != http.StatusPermanentRedirect || rec.Header().Get("Location") != "/human/?x=1" {
+		t.Fatalf("/human: %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	rec = s.do("GET", "/human/", "") // the slash form is under the step-up rule
+	if rec.Code != 303 || rec.Header().Get("Location") != "/auth/step-up?next=%2Fhuman%2F" {
+		t.Fatalf("/human/: %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+
+	anon := httptest.NewRecorder()
+	s.h.ServeHTTP(anon, httptest.NewRequest("GET", "/human", nil))
+	if anon.Code != 303 || anon.Header().Get("Location") != "/auth/login" {
+		t.Fatalf("anonymous /human: %d %q", anon.Code, anon.Header().Get("Location"))
+	}
+}

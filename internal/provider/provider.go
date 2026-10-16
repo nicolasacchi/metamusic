@@ -133,6 +133,7 @@ type TakeSpec struct {
 	StartURL                 string                  // D-M3-28; minted at submit, never persisted or logged
 	Expect                   WorkerExpect            // pinned weight revisions
 	Deadline                 time.Time               // = window_ends_at
+	MinAudioS                int                     // forced minimum render length in seconds, 0 = none (X4)
 }
 
 // Ref identifies a provider job. ID never leaves the server (API, events, logs).

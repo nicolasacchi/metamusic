@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -532,5 +533,116 @@ func TestBilling_StalledMeasuresFromTheLastWindow(t *testing.T) {
 	}
 	if _, ok := r.findNote("Billing reconciliation stalled"); !ok {
 		t.Errorf("73 hours after the last window: %v", r.noteTitles())
+	}
+}
+
+// TestBilling_FirstActivationReplay replays what the first billing-enabled production passes meet: several
+// finished, unreconciled batches over many hours, a shared hour, an idle hour, RunPod billing less than the
+// settled execution (the list price carries a margin), a canary hour before the first batch, and the lag.
+func TestBilling_FirstActivationReplay(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	b1 := r.billBatch(at(8, 50), at(9, 20), 20000, at(9, 30))
+	b2 := r.billBatch(at(10, 10), at(10, 40), 15000, at(10, 45))
+	b3 := r.billBatch(at(10, 30), at(11, 5), 25000, at(11, 10)) // shares the 10:00 bucket with b2
+	b4 := r.billBatch(at(13, 5), at(13, 40), 30000, at(13, 45)) // 12:00 is an idle hour
+	b5 := r.billBatch(at(14, 50), at(15, 20), 10000, at(15, 30))
+	all := []seeded{b1, b2, b3, b4, b5}
+	settled := int64(20000 + 15000 + 25000 + 30000 + 10000)
+	buckets := map[time.Time][2]money.MicroUSD{
+		at(7, 0):  {4500, 4500}, // the canary hour before the first batch: never part of a window
+		at(8, 0):  {3000, 3000},
+		at(9, 0):  {11000, 11000},
+		at(10, 0): {18000, 18000},
+		at(11, 0): {10000, 10000},
+		at(13, 0): {21000, 21000},
+		at(14, 0): {2000, 2000},
+		at(15, 0): {5000, 5000},
+	}
+	billed := int64(3000 + 11000 + 18000 + 10000 + 21000 + 2000 + 5000)
+	r.hours(buckets)
+	rec := r.recon()
+	closed := map[int]time.Time{} // windows seen -> when
+	for now := at(15, 30); !now.After(at(23, 30)); now = now.Add(30 * time.Minute) {
+		r.clk.Set(now)
+		r.mustPass(rec)
+		if n := r.windows(); n > len(closed) {
+			closed[n] = now
+		}
+		if r.tripCount() != 0 {
+			t.Fatalf("at %s the provider tripped: %s", now.Format("15:04"), r.openTripReason())
+		}
+	}
+	// a boundary closes once it is 6 h old and quiet: 10:00 at 16:00, 12:00 at 18:00 (b2 and b3 share the 10:00
+	// bucket and settle in one window), 14:00 at 20:00 (the idle 12:00 hour rides along), 16:00 at 22:00
+	want := map[int]time.Time{1: at(16, 0), 2: at(18, 0), 3: at(20, 0), 4: at(22, 0)}
+	if len(closed) != len(want) {
+		t.Fatalf("windows closed at %v, want %v", closed, want)
+	}
+	for n, w := range want {
+		if !closed[n].Equal(w) {
+			t.Fatalf("window %d closed at %s, want %s", n, closed[n], w)
+		}
+	}
+	if got := r.str(`SELECT group_concat(substr(window_start, 12, 2) || '>' || substr(window_end, 12, 2) || ':' || verdict || ':' || batches, ' ') FROM (SELECT * FROM billing_windows ORDER BY window_start)`); got !=
+		"08>10:ok:1 10>12:ok:2 12>14:ok:1 14>16:ok:1" {
+		t.Errorf("windows %q", got)
+	}
+	for i, s := range all {
+		if r.str(`SELECT reconciled_at FROM batches WHERE id = ?`, s.Batch) == "" {
+			t.Errorf("batch %d is not reconciled", i+1)
+		}
+		if o := r.outstanding(s.Batch); o != 0 {
+			t.Errorf("batch %d still holds %d", i+1, o)
+		}
+		if got := r.ledger(s.Batch, "release", "reconciled"); got != r.ledger(s.Batch, "reserve", "")-r.ledger(s.Batch, "settle", "") {
+			t.Errorf("batch %d released %d, want reserve - settle", i+1, got)
+		}
+		if r.ledger(s.Batch, "release", "hold_elapsed") != 0 {
+			t.Errorf("batch %d was released by the hold, not by billing", i+1)
+		}
+	}
+	// settled + bill adjustments == what RunPod billed (billed is below settled: the adjustment is a refund)
+	if bill := r.sum(`SELECT SUM(micro_usd) FROM ledger WHERE kind = 'bill'`); settled+bill != billed || bill >= 0 {
+		t.Errorf("settled %d + bill %d != billed %d", settled, bill, billed)
+	}
+	if n := r.auditOps("reconciler:billing_window"); n != 4 {
+		t.Errorf("billing windows audited %d", n)
+	}
+	// a later pass has nothing left to do and trips nothing
+	r.clk.Set(at(23, 59).Add(2 * time.Hour))
+	r.mustPass(rec)
+	if r.windows() != 4 || r.tripCount() != 0 {
+		t.Errorf("windows %d trips %d after the backlog drained", r.windows(), r.tripCount())
+	}
+}
+
+// A billing fetch that fails transiently (HTTP 5xx, timeout) must not close a window: with no buckets stored
+// it would settle the batches against a billed amount of zero and release their residuals early.
+func TestBilling_FailedFetchDoesNotCloseWindow(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	s := r.billBatch(at(12, 50), at(13, 20), 20000, at(21, 0))
+	var fail = true
+	r.mu.Lock()
+	r.billingFn = func(from, to time.Time) ([]provider.BillBucket, error) {
+		if fail {
+			return nil, errors.New("billing: 503")
+		}
+		return []provider.BillBucket{{Start: at(13, 0), End: at(14, 0), Total: 9000, Compute: 9000}}, nil
+	}
+	r.mu.Unlock()
+	rec := r.recon()
+	r.mustPass(rec)
+	if r.windows() != 0 || r.outstanding(s.Batch) == 0 {
+		t.Fatal("a window closed although billing could not be read")
+	}
+	r.mu.Lock()
+	fail = false
+	r.mu.Unlock()
+	r.clk.Set(at(21, 20))
+	r.mustPass(rec)
+	if r.windows() != 1 || r.str(`SELECT billed_micro_usd FROM billing_windows`) != "9000" || r.outstanding(s.Batch) != 0 {
+		t.Errorf("after the fetch recovered: windows %d", r.windows())
 	}
 }

@@ -179,6 +179,7 @@
 </script>
 
 <h1>Backlog</h1>
+<p><a href="/board" data-testid="board-link">Muse Board</a></p>
 <p><a href="/backlog/new">New draft</a> · <a href="/backlog/upload">Upload JSONL</a></p>
 
 <form class="filters" onsubmit={submit} role="search" aria-label="Filter drafts">

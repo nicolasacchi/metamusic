@@ -18,7 +18,7 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -26,6 +26,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # the gate selftests (scripts/gate.sh full) build and list Go packages
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -33,7 +38,7 @@ jobs:
           key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
       - name: install tools
         run: scripts/tools.sh
-      - name: public gate (history)
+      - name: gate-full (every selftest, then the public gate over the full history)
         env:
           PUBLIC_GATE_PATTERNS: ${{ secrets.PUBLIC_GATE_PATTERNS }}
           FORK_PR: ${{ github.event.pull_request.head.repo.fork }}
@@ -43,8 +48,8 @@ jobs:
           # The private pattern list must be configured, or the gate fails: otherwise a
           # missing secret silently turns the strongest check off. Fork PRs, Dependabot
           # and forks of the repo never receive the secret, so they run without it.
-          require=--require-patterns
+          require=1
           if [ "$FORK_PR" = true ] || [ "$ACTOR" = 'dependabot[bot]' ] || [ "$REPO" != 'nicolasacchi/metamusic' ]; then
-            require=
+            require=0
           fi
-          scripts/public-gate.sh --history $require
+          GATE_REQUIRE_PATTERNS=$require scripts/gate.sh full

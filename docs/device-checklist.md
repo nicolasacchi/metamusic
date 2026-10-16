@@ -75,4 +75,9 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-M4a-7 Media Session: the lock screen shows the generated cover art
 - [ ] DC-M4a-8 revoking the connector on `/human/connectors`: the next tool call fails and the request log shows 403 `CONNECTOR_REVOKED`; restoring works again
 
+## L1
+
+- [ ] DC-L1-1 pin a Pick from a paired phone: the Pick badge moves to the pinned take and the history shows the pin; unpinning restores the derived Pick
+- [ ] DC-L1-2 the Board is usable on a phone: horizontal scroll works, targets are at least 44 px, and selection and the Estimate hand-off reach the generate page
+
 ## Notes

@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+// matrix: @mobile @firefox @realtime because comment-and-jump seeks the audio element (Firefox runs only the jump: tests) and the comment form is used on phones
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { apiJSON, audioTime, trackByTitle, uniq } from "./helpers";
 
 type Comment = { id: string; at_second: number | null; body: string; hidden: boolean; state: string; link: string; section: { label: string } | null };

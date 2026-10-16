@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// remoteMigration is the 1-based position of 0008_remote.sql (renamed 0009_remote.sql, value 9, when
-// L1's 0008 merges: M4a-X1 step 0). It is the single schema-number constant of the M4a tests.
-const remoteMigration = 8
+// remoteMigration is the 1-based position of 0009_remote.sql (renumbered from 0008 when L1's 0008_provenance.sql merged).
+// It is the single schema-number constant of the M4a tests.
+const remoteMigration = 9
 
 func TestMigration0009_Applies(t *testing.T) {
 	t.Parallel()

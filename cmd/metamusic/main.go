@@ -46,6 +46,8 @@ commands:
                                  fill a dev or e2e data directory with a generated library
   analyze [--track ID]... [--force] [--dry-run] [--jobs N] [--json]
                                  run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it
+  library reconcile [--dry-run] [--wait] | verify
+                                 settle the derived library model (Songs, Muses, Sessions) now, or check its invariants
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
   oidc probe --server URL --client-id ID [--client-secret-file FILE] [--redirect URL]
@@ -113,6 +115,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdSeedSynthetic(ctx, rest, getenv, s)
 	case "analyze":
 		err = cmdAnalyze(ctx, rest, getenv, s)
+	case "library":
+		err = cmdLibrary(ctx, rest, getenv, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
 	case "oidc":

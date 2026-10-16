@@ -11,11 +11,17 @@
   import { createNav } from "./lib/nav";
   import { api } from "./api/client";
   import { loadDuelBadge } from "./lib/navBadge";
+  import { approvals, refreshApprovals } from "./lib/approvals.svelte";
+  import { badgeText } from "./lib/approvals";
   import PlayerBar from "./lib/components/PlayerBar.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
   import Backlog from "./routes/Backlog.svelte";
+  import Board from "./routes/Board.svelte";
+  import Song from "./routes/Song.svelte";
+  import Muse from "./routes/Muse.svelte";
+  import Sounds from "./routes/Sounds.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
   import Settings from "./routes/Settings.svelte";
@@ -37,6 +43,7 @@
   import HumanGenerate from "./routes/HumanGenerate.svelte";
   import HumanConfirm from "./routes/HumanConfirm.svelte";
   import HumanSpend from "./routes/HumanSpend.svelte";
+  import Human from "./routes/Human.svelte";
   import Jobs from "./routes/Jobs.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -68,8 +75,43 @@
     void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
   });
 
+  // Pending approvals: refreshed on navigation and every 30 s while the tab is visible. The badge is for humans only.
+  const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
+  $effect(() => {
+    void $router.path;
+    void refreshApprovals();
+  });
+  $effect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden) void refreshApprovals();
+    }, 30_000);
+    return () => clearInterval(t);
+  });
+
+  // The player bar is fixed to the viewport bottom; routed content reserves its (variable) height so that no control
+  // (Approve, Reject, duel verdicts) can ever sit under it.
+  let playerH = $state(0);
+  // scroll-padding keeps scrollIntoView, focus and find-in-page from parking a control under the bar.
+  $effect(() => {
+    document.documentElement.style.setProperty("scroll-padding-bottom", `${playerH}px`);
+  });
   // A new service worker is waiting: offer the update (C115.1); never forced.
   let waitingWorker = $state<ServiceWorkerRegistration | null>(null);
+  // "Reload to update" never reloads under music: while the player is playing (or waiting for a tap) the click is
+  // remembered and applied as soon as playback stops.
+  let updateQueued = $state(false);
+  const playbackBusy = $derived(player.state.playing || player.state.pendingPlay);
+  function requestUpdate() {
+    if (!waitingWorker) return;
+    if (playbackBusy) updateQueued = true;
+    else applyUpdate(waitingWorker);
+  }
+  $effect(() => {
+    if (updateQueued && !playbackBusy && waitingWorker) {
+      updateQueued = false;
+      applyUpdate(waitingWorker);
+    }
+  });
   $effect(() =>
     untrack(() => {
       const onReg = (e: Event) => watchForUpdate((e as CustomEvent<ServiceWorkerRegistration>).detail, (r) => (waitingWorker = r));
@@ -111,6 +153,8 @@
     <nav aria-label="Main">
       <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
       <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
+      <a href="/board" aria-current={["board", "muse", "song"].includes($router.route?.name ?? "") ? "page" : undefined}>Board</a>
+      <a href="/sounds" aria-current={$router.route?.name === "sounds" ? "page" : undefined}>Sounds</a>
       <a href="/duels" aria-current={$router.route?.name === "duels" || $router.route?.name === "duel" ? "page" : undefined}>Duels{#if duelBadge}<span class="badge" data-testid="duels-badge" aria-label="{duelBadge} open">{duelBadge}</span>{/if}</a>
       <a href="/ladder" aria-current={$router.route?.name === "ladder" ? "page" : undefined}>Ladder</a>
       <a href="/playlists" aria-current={$router.route?.name === "playlists" || $router.route?.name === "playlist" ? "page" : undefined}>Playlists</a>
@@ -121,6 +165,7 @@
         <a href="/offline" aria-current={$router.route?.name === "offline" ? "page" : undefined} data-testid="nav-offline">Offline{#if offline.badge}<span class="badge" data-testid="offline-badge">{offline.badge}</span>{/if}</a>
       {/if}
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
+      <a href="/human/" onclick={humanClick} class="approvals-link" data-testid="approvals-nav" aria-current={$router.route?.name === "human" ? "page" : undefined} aria-label={approvalBadge ? `Approvals, ${approvalBadge} pending` : "Approvals"}>Approvals{#if approvalBadge}<span class="badge" data-testid="approvals-badge">{approvalBadge}</span>{/if}</a>
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
@@ -129,12 +174,16 @@
     </nav>
   </header>
 
-  <main>
+  <main style:padding-bottom="calc(1rem + {playerH}px)">
     <SessionBanner />
     {#if waitingWorker}
       <p class="update" role="status" data-testid="sw-update">
         A new version is available.
-        <button type="button" onclick={() => waitingWorker && applyUpdate(waitingWorker)}>Reload to update</button>
+        {#if updateQueued}
+          <span data-testid="sw-update-queued">The update applies when playback stops.</span>
+        {:else}
+          <button type="button" onclick={requestUpdate}>Reload to update</button>
+        {/if}
       </p>
     {/if}
     {#if $router.route?.name === "home"}
@@ -145,13 +194,25 @@
       {/key}
     {:else if $router.route?.name === "backlog"}
       <Backlog search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "board"}
+      <Board search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "song"}
+      {#key $router.params.id}
+        <Song id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "muse"}
+      {#key $router.params.id}
+        <Muse id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "sounds"}
+      <Sounds search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "draft-new"}
-      <DraftNew />
+      <DraftNew navigate={router.navigate} />
     {:else if $router.route?.name === "draft-upload"}
       <DraftUpload />
     {:else if $router.route?.name === "draft"}
       {#key $router.params.id}
-        <Draft id={$router.params.id ?? ""} />
+        <Draft id={$router.params.id ?? ""} navigate={router.navigate} />
       {/key}
     {:else if $router.route?.name === "duels"}
       <Duels navigate={router.navigate} />
@@ -175,12 +236,14 @@
       <SettingsBackups />
     {:else if $router.route?.name === "settings-audit"}
       <SettingsAudit />
+    {:else if $router.route?.name === "human"}
+      <Human />
     {:else if $router.route?.name === "human-tokens"}
       <HumanTokens />
     {:else if $router.route?.name === "human-devices"}
       <HumanDevices />
     {:else if $router.route?.name === "human-generate"}
-      <HumanGenerate />
+      <HumanGenerate navigate={router.navigate} />
     {:else if $router.route?.name === "human-confirm"}
       {#key $router.params.batch}
         <HumanConfirm batch={$router.params.batch ?? ""} />
@@ -225,7 +288,7 @@
     {/each}
   </div>
 
-  <footer class="player" aria-label="Player">
+  <footer class="player" aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
     <PlayerBar {player} />
     <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
@@ -291,8 +354,12 @@
     align-items: center;
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
     border-top: 1px solid #3a322b;
-    position: sticky;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    z-index: 5;
+    box-sizing: border-box;
     background: #1d1814;
   }
   .toasts {

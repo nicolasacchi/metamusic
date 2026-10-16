@@ -1,0 +1,139 @@
+name: e2e-extra
+
+# Two jobs outside the blocking ci.yml e2e sets (web/e2e/matrix.ts):
+#  - quarantine (pull_request, push to main, nightly): the specs tagged @quarantine, non-blocking (continue-on-error).
+#    Skipped when no spec is quarantined. The blocking jobs never run them (MM_E2E_QUARANTINE unset skips them).
+#  - full matrix (nightly + manual): MM_E2E_MATRIX=full ignores the @mobile/@firefox/@android-firefox tags and runs
+#    every spec on every project. Nightly only: it adds ~80 % tests over the pruned matrix, which is too much for every
+#    merge; the pruned matrix plus this nightly bound how long a device-specific regression can hide.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: e2e-extra-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: plan
+        run: |
+          q=$(grep -lE '^[^/]*@quarantine' web/e2e/*.spec.ts 2>/dev/null | wc -l || true)
+          inc='{"name":"quarantine","shard":"","matrix":"default","quarantine":"only","soft":true}'
+          full=""
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch)
+              for s in 1 2 3 4 5 6; do
+                full="$full{\"name\":\"full-$s\",\"shard\":\"$s\",\"matrix\":\"full\",\"quarantine\":\"0\",\"soft\":false},"
+              done ;;
+          esac
+          list="$full"
+          [ "$q" -gt 0 ] && list="$list$inc,"
+          list="${list%,}"
+          n=$(printf '%s' "$list" | grep -o '"name"' | wc -l || true)
+          echo "matrix={\"include\":[${list:-}]}" >> "$GITHUB_OUTPUT"
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    name: e2e (${{ matrix.name }})
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    continue-on-error: ${{ matrix.soft }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - name: cache bun
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('web/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - name: install web deps and build the SPA
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          export PATH="$PWD/bin:$PATH"
+          command -v metaflac flac
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+      - name: build the e2e binary
+        run: go build -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
+      - name: playwright version
+        id: pw
+        working-directory: web
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: cache playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-firefox-${{ steps.pw.outputs.version }}
+      - name: install firefox (chrome is preinstalled on the runner)
+        working-directory: web
+        run: bunx playwright install --with-deps firefox
+      - name: e2e
+        working-directory: web
+        env:
+          MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
+          SHARD: ${{ matrix.shard }}
+          MM_E2E_MATRIX: ${{ matrix.matrix }}
+          MM_E2E_QUARANTINE: ${{ matrix.quarantine }}
+          # a filtered run serves only part of the UI operations: the blocking ci.yml shards check the union
+          MM_E2E_COVERAGE: "0"
+        run: bunx playwright test --pass-with-no-tests ${SHARD:+--shard=$SHARD/6}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report-extra-${{ matrix.name }}
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7

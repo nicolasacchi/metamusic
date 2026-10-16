@@ -45,6 +45,10 @@ type uiState struct {
 	mother, token, batch, job string
 	// M4a: a connector grant (inserted through connectors.Store.Ensure) and the Subsonic client create_subsonic_client made
 	grant, subClient string
+	// L1: ids of a Song, a Muse and a session, read from list_songs, create_muse and list_sessions
+	song, muse, session string
+	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
+	songRev, sessionRev int
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -184,11 +188,40 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		}
 		return map[string]any{"id": id}
 	},
+	// L1 (C101.2): the 14 operations with a UI route and an MCP face.
+	"list_muses": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_muse":   func(s *uiState) map[string]any { return map[string]any{"id": s.muse} },
+	"create_muse": func(*uiState) map[string]any {
+		return map[string]any{"kind": "reference", "title": "Synthetic Muse 900", "artist": "Synthetic Artist 900"}
+	},
+	"update_muse": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.muse, "revision": 1, "title": "Synthetic Muse 901"}
+	},
+	"assign_muse_songs": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.muse, "song_ids": []string{s.song}}
+	},
+	"get_song": func(s *uiState) map[string]any { return map[string]any{"id": s.song} },
+	"update_song": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.song, "revision": s.songRev, "title": "Scripted song"}
+	},
+	"list_pick_events": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"list_sessions":    func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"update_session": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.session, "revision": s.sessionRev, "name": "Scripted session"}
+	},
+	"search_sounds":      func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_sound_taxonomy": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"map_sound_term": func(*uiState) map[string]any {
+		return map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}}
+	},
+	"get_muse_board": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
 // create_generation_human): each is called right after the estimate whose token it spends.
 var spendScript = map[string]func(s *uiState) map[string]any{
+	// L1: list_songs has no UI route (the Sound browser lists Songs through search_sounds); the script calls it for parity with the Sound browser.
+	"list_songs": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"create_variant": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.mother, "confirmation_token": s.token, "rationale": "scripted"}
 	},
@@ -220,6 +253,9 @@ var uiOrder = []string{
 	// M4a
 	"get_offline_set", "get_download_link", "get_prompt", "list_connector_grants", "set_connector_grant",
 	"list_subsonic_clients", "create_subsonic_client", "revoke_subsonic_client",
+	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them
+	"list_songs", "create_muse", "list_muses", "get_muse", "update_muse", "list_sessions", "update_session", "get_song", "update_song",
+	"assign_muse_songs", "list_pick_events", "search_sounds", "get_sound_taxonomy", "map_sound_term", "get_muse_board",
 }
 
 // afterStep records the ids later steps need.
@@ -244,6 +280,10 @@ func (s *uiState) afterStep(op string, res any) {
 	case "create_subsonic_client":
 		if c, _ := m["client"].(map[string]any); c != nil {
 			s.subClient, _ = c["id"].(string)
+		}
+	case "create_muse":
+		if id, _ := m["id"].(string); id != "" {
+			s.muse = id
 		}
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
@@ -293,6 +333,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		t.Fatal(err)
 	}
 	sess := mcpWithToken(t, r, tok)
+	r.Settle(t) // the library structure and derived rows the L1 operations read (the rig never starts the Reconciler)
 	st := &uiState{duel: "01900000-0000-7000-8000-000000000b01"}
 	g, _, err := r.Services.Connectors.Ensure(context.Background(), "scripted-client", "scripted-subject", "scripted", "Scripted Connector")
 	if err != nil {
@@ -302,6 +343,12 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Store.R.QueryRow(`SELECT id, revision FROM songs WHERE retired_at IS NULL ORDER BY id LIMIT 1`).Scan(&st.song, &st.songRev); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Store.R.QueryRow(`SELECT id, revision FROM sessions ORDER BY id LIMIT 1`).Scan(&st.session, &st.sessionRev); err != nil {
 		t.Fatal(err)
 	}
 	st.draft = obj(obj(h.OK(t, "GET", "/api/drafts?limit=1", nil))["items"].([]any)[0])["id"].(string)

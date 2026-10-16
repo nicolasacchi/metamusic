@@ -1,0 +1,100 @@
+{
+  "ladder": {
+    "def": "mm.pick/1",
+    "rule": "ladder",
+    "eligible": 2,
+    "duels_n": 3,
+    "leader": {
+      "id": "a",
+      "u": 1.2,
+      "sd": 0.5
+    },
+    "runner_up": {
+      "id": "b",
+      "u": 0.3,
+      "sd": 0.6
+    },
+    "z": 1.1523,
+    "min_z": 0.5,
+    "min_duels": 3
+  },
+  "ladder_incumbent_held": {
+    "def": "mm.pick/1",
+    "rule": "ladder",
+    "eligible": 2,
+    "duels_n": 3,
+    "leader": {
+      "id": "b",
+      "u": 0.6,
+      "sd": 0.6
+    },
+    "runner_up": {
+      "id": "a",
+      "u": 0.9,
+      "sd": 0.5
+    },
+    "z": -0.3841,
+    "min_z": 0.5,
+    "min_duels": 3,
+    "incumbent": {
+      "id": "b",
+      "held": true,
+      "z_challenge": 0.3841
+    }
+  },
+  "newest": {
+    "def": "mm.pick/1",
+    "rule": "newest",
+    "eligible": 2,
+    "recorded_at": "2026-03-01T10:01:00.000Z"
+  },
+  "newest_after_margin": {
+    "def": "mm.pick/1",
+    "rule": "newest",
+    "eligible": 2,
+    "recorded_at": "2026-03-01T10:01:00.000Z",
+    "ladder_skipped": {
+      "duels_n": 3,
+      "z": 0.3841,
+      "reason": "margin"
+    }
+  },
+  "newest_few_duels": {
+    "def": "mm.pick/1",
+    "rule": "newest",
+    "eligible": 2,
+    "recorded_at": "2026-03-01T10:01:00.000Z",
+    "ladder_skipped": {
+      "duels_n": 2,
+      "z": null,
+      "reason": "few_duels"
+    }
+  },
+  "none": {
+    "def": "mm.pick/1",
+    "rule": "none",
+    "eligible": 0
+  },
+  "pin_ineligible": {
+    "def": "mm.pick/1",
+    "rule": "newest",
+    "eligible": 1,
+    "recorded_at": "2026-03-01T10:01:00.000Z",
+    "pin_ineligible": {
+      "take_id": "a",
+      "status": "discarded"
+    }
+  },
+  "pinned": {
+    "def": "mm.pick/1",
+    "rule": "pinned",
+    "eligible": 2
+  },
+  "stars": {
+    "def": "mm.pick/1",
+    "rule": "stars",
+    "eligible": 2,
+    "stars": 4,
+    "tied": 2
+  }
+}

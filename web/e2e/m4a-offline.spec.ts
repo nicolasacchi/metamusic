@@ -1,9 +1,10 @@
-import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
+// matrix: @mobile because offline listening is a phone feature (service worker, Cache Storage, storage persistence, relaunch offline)
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "./fixtures";
 import { allTracks, audioTime, apiJSON } from "./helpers";
 
-// Offline listening (C115, C117.6). Project `chrome` only: the worker is allowed here (and in m4a-track) and
-// everything else runs with workers blocked. The tests change the global offline set, so they run in order and the
-// one that edits it puts it back.
+// Offline listening (C115, C117.6). The worker is allowed here (and in m4a-track) and everything else runs with workers
+// blocked (playwright.config.ts). The tests change the offline set of this worker's own server, so they run in order and
+// the one that edits it puts it back.
 test.use({ serviceWorkers: "allow" });
 test.describe.configure({ mode: "serial" });
 

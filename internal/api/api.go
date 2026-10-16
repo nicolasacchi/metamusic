@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
+	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
@@ -33,11 +34,17 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
+	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
+	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/prompts"
+	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
+	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
@@ -97,6 +104,15 @@ type Deps struct {
 	Downloads  *tagged.Service
 	Prompts    prompts.Sources
 
+	// L1 (C87). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
+	// (muses, songs, songview, sessions, picks, sounds, board).
+	Muses    *muses.Service
+	Songs    *songs.Service
+	SongView *songview.Service
+	Sessions *sessions.Service
+	Picks    *picks.Service
+	Sounds   *sounds.Service
+	Board    *board.Service
 	// Songwriting holds the duration targets (settings table); nil makes its operations answer 503 UNAVAILABLE.
 	Songwriting *songwriting.Service
 
@@ -215,6 +231,12 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerSongwriting(a, d)
 	registerJobsM3(a, d)
 	registerProviderM3(a, d)
+	registerMusesL1(a, d)
+	registerSongsL1(a, d)
+	registerPicksL1(a, d)
+	registerSessionsL1(a, d)
+	registerSoundsL1(a, d)
+	registerBoardL1(a, d)
 	registerAudit(a, d)
 	registerTokens(a, d)
 	registerPairedDevices(a, d)
