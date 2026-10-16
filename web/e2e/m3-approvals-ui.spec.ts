@@ -43,10 +43,15 @@ async function ownPendingBatch(request: APIRequestContext, playwright: Playwrigh
   return { batch, agentName, dispose: () => agent.dispose() };
 }
 
-// A control is usable when the fixed player bar does not overlap it, wherever the page is scrolled: the bar's box and
-// the control's box are disjoint, and the control is what the browser hits at its centre.
+// Scrolls a control to the middle of the viewport, as a user does.
+async function centre(target: Locator): Promise<void> {
+  await target.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
+}
+
+// A control is usable when the fixed player bar does not overlap it once it is centred: the boxes are disjoint, and the
+// control is what the browser hits at its centre.
 async function expectNotUnderPlayer(page: Page, target: Locator): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
+  await centre(target);
   const bar = await page.getByTestId("player-footer").boundingBox();
   const box = await target.boundingBox();
   if (!bar || !box) throw new Error("no box for the player bar or the control");
@@ -59,6 +64,22 @@ async function expectNotUnderPlayer(page: Page, target: Locator): Promise<void> 
   expect(hit).toBe(true);
 }
 
+// A real Playwright click (actionability checks on). On failure it names what sits on top of the control.
+async function press(page: Page, target: Locator): Promise<void> {
+  await target.waitFor({ state: "visible" });
+  await centre(target);
+  try {
+    await target.click({ timeout: 20_000 });
+  } catch (e) {
+    const cover = await target.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return `${top?.tagName}.${top?.className} [${top?.getAttribute("data-testid")}] at y=${Math.round(r.y)} h=${Math.round(r.height)} vh=${window.innerHeight}`;
+    });
+    throw new Error(`click failed; the control is covered by ${cover}`, { cause: e });
+  }
+}
+
 async function decide(page: Page, project: string): Promise<void> {
   await expect(page.getByTestId("batch-state")).toHaveText("awaiting confirmation");
   const approve = page.getByTestId("approve");
@@ -66,10 +87,10 @@ async function decide(page: Page, project: string): Promise<void> {
   await expectNotUnderPlayer(page, approve);
   await expectNotUnderPlayer(page, reject);
   if (project === "m3-chrome") {
-    await approve.click();
+    await press(page, approve);
   } else {
     await page.getByTestId("decision-reason").fill("e2e: not now");
-    await reject.click();
+    await press(page, reject);
   }
   await expect(page.getByTestId("decided")).toBeVisible();
 }
@@ -92,7 +113,7 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     await page.screenshot({ path: `test-results/approvals-badge-${info.project.name}.png` });
 
     // the badge leads to the human hub, whose Approvals section lists the batch
-    await page.getByTestId("approvals-nav").click();
+    await press(page, page.getByTestId("approvals-nav"));
     await expect(page).toHaveURL(/\/human\/$/);
     const row = page.locator(`[data-testid="approval-row"][data-batch="${batch.id}"]`);
     await expect(row).toBeVisible();
@@ -105,9 +126,9 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     // still clear of the player bar
     const [t] = await ownTracks(request, info);
     await page.goto(`/tracks/${t.id}`);
-    await page.getByTestId("track-play").click();
+    await press(page, page.getByTestId("track-play"));
     await expect(page.getByTestId("player-footer")).toBeVisible();
-    await page.getByRole("link", { name: "Jobs", exact: true }).click();
+    await press(page, page.getByRole("link", { name: "Jobs", exact: true }));
     await expect(page).toHaveURL(/\/jobs$/);
     await expect(row).toBeVisible();
     await expectNotUnderPlayer(page, row.getByTestId("approval-link"));
@@ -119,7 +140,7 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
 
     // the Jobs link opens the confirm page
     await page.goto("/jobs");
-    await row.getByTestId("approval-link").click();
+    await press(page, row.getByTestId("approval-link"));
     await expect(page).toHaveURL(new RegExp(`/human/confirm/${batch.id}$`));
     await decide(page, info.project.name);
     expect((await getBatch(request, batch.id)).approval.state).not.toBe("pending");
@@ -158,7 +179,7 @@ test("/human is the hub: both spellings land on it, it lists the batch, the link
     await expect(row).toBeVisible();
     await page.screenshot({ path: `test-results/human-hub-${info.project.name}.png` });
 
-    await row.getByTestId("approval-link").click();
+    await press(page, row.getByTestId("approval-link"));
     await expect(page).toHaveURL(new RegExp(`/human/confirm/${batch.id}$`));
     await decide(page, info.project.name);
 
