@@ -13,7 +13,8 @@ given in your brief; never copy private content (hostnames, names, balances, lyr
 ```bash
 make check      # gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit  (target <30s warm)
 make test       # go test -race -shuffle=on ./...  (no -short: media-tool + acceptance tiers; CI sets MM_REQUIRE_MEDIA_TOOLS=1)
-make e2e        # build SPA + cover binary, run Playwright (chrome + firefox) in proxy auth mode
+make e2e        # run Playwright (chrome + firefox) in proxy auth mode; SPA/binary builds and the firefox install are cached
+                # (scripts/e2e-cache.sh), plain server binary. `make e2e-cover` = coverage binary feeding `make cover` (as CI does)
 make openapi    # regenerate openapi.json and web/src/api/schema.d.ts (commit both)
 make dev        # run locally: MM_AUTH=local, data in ./data/dev
 make gate       # public-repo privacy gate (same script as git hooks and CI)
