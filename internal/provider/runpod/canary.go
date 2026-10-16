@@ -31,8 +31,10 @@ const (
 	ExitAborted = 4 // the job never reached generating; cancelled
 )
 
-// DefaultCanaryMaxUSD is the per-case ceiling the canary accepts: $0.25 (C79, P.5).
-const DefaultCanaryMaxUSD money.MicroUSD = 250_000
+// DefaultCanaryMaxUSD is the per-case ceiling the canary accepts: $0.50 (C79, P.5). It was $0.25 until the
+// minimum-render control (X4): the canary's 16 s scores are now forced to the songwriting minimum (180 s by
+// default), which prices a take like a real song (the main case ceiling is about $0.34).
+const DefaultCanaryMaxUSD money.MicroUSD = 500_000
 
 // CanaryCase names one scripted case.
 type CanaryCase string

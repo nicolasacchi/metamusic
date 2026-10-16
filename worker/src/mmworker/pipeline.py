@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import struct
 from collections.abc import Callable
 from pathlib import Path
@@ -21,6 +22,29 @@ class Pipeline(Protocol):
         """yue2's own validation; raises ValueError on rejection."""
 
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Result: ...
+
+
+SEMANTIC_TOKENS_PER_S = 25  # YuE2 semantic codec rate
+
+
+def with_min_audio(kwargs: dict[str, Any], min_audio_s: int) -> dict[str, Any]:
+    """The pipeline kwargs with yue2's own override for a forced minimum length: semantic_sampling.min_tokens
+    (yue2.sampling.distribution suppresses the end-of-music token until that many tokens exist). The result is
+    recorded by yue2 in config.json (generation.semantic, overrides.semantic), which is what makes the take
+    re-runnable. A min_tokens the request itself set is kept when larger. ValueError on a malformed sampling."""
+    if min_audio_s <= 0:
+        return kwargs
+    sampling = kwargs.get("semantic_sampling")
+    if sampling is None:
+        sampling = {}
+    elif not isinstance(sampling, dict):
+        raise ValueError("semantic_sampling must be an object")
+    current = sampling.get("min_tokens", 0)
+    if isinstance(current, bool) or not isinstance(current, int):
+        raise ValueError("semantic_sampling.min_tokens must be an integer")
+    out = dict(kwargs)
+    out["semantic_sampling"] = {**sampling, "min_tokens": max(current, min_audio_s * SEMANTIC_TOKENS_PER_S)}
+    return out
 
 
 def resolve_vae(env: dict[str, str], repo: str, revision: str) -> str:
@@ -127,6 +151,14 @@ def _flac_bytes(seconds: float = 1.0, rate: int = 8000) -> bytes:
     return out
 
 
+def _fake_config(semantic_sampling: Any) -> bytes:
+    """What yue2's effective_config records for a semantic_sampling override (generation + overrides)."""
+    if not semantic_sampling:
+        return b'{"fake":true}'
+    sem = {"min_tokens": 200, "max_tokens": 9000, **semantic_sampling}
+    return json.dumps({"fake": True, "generation": {"semantic": sem}, "overrides": {"semantic": sem}}).encode()
+
+
 class _FakeResult:
     def __init__(self, truncated: Any, files: dict[str, bytes]) -> None:
         self.truncated = truncated
@@ -154,7 +186,7 @@ class FakePipeline:
         self.calls: list[dict[str, Any]] = []
 
     def request_kwargs(self, request: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"style", "lyrics", "cot", "seed", "id", "abc", "cfg_scale"}
+        allowed = {"style", "lyrics", "cot", "seed", "id", "abc", "cfg_scale", "abc_sampling", "semantic_sampling"}
         extra = set(request) - allowed
         if extra:
             raise ValueError(f"unknown request key {sorted(extra)[0]}")
@@ -171,7 +203,7 @@ class FakePipeline:
             raise self._error
         files: dict[str, bytes] = {
             "request.json": b'{"fake":true}',
-            "config.json": b'{"fake":true}',
+            "config.json": _fake_config(kwargs.get("semantic_sampling")),
             "result.json": b'{"fake":true}',
             "audio.flac": _flac_bytes(),
         }

@@ -51,6 +51,12 @@
       "type": "integer",
       "minimum": 1
     },
+    "min_audio_s": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 360,
+      "description": "Forced minimum render length in seconds (YuE2 semantic min_tokens = min_audio_s x 25); 0 or absent means none. The app derives it from songwriting.min_duration_s and the estimate at plan time (X4)."
+    },
     "start": {
       "type": "object",
       "additionalProperties": false,

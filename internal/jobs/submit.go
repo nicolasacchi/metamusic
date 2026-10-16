@@ -557,8 +557,13 @@ func (r *Runner) takeSpec(c *claim) (provider.TakeSpec, error) {
 	if err != nil {
 		return provider.TakeSpec{}, err
 	}
+	var m struct {
+		MinAudioS int `json:"min_audio_s"`
+	}
+	_ = json.Unmarshal([]byte(c.job.MutationJSON), &m) // absent in takes planned before the control: 0 = none
 	return provider.TakeSpec{
-		JobID: c.job.ID, AttemptID: c.attempt, Engine: c.job.Engine, Request: []byte(c.request),
+		MinAudioS: m.MinAudioS,
+		JobID:     c.job.ID, AttemptID: c.attempt, Engine: c.job.Engine, Request: []byte(c.request),
 		TimeoutS: c.job.TimeoutS, TTL: r.o.TTL, UploadBudgetS: uploadBudgetS, Uploads: ups, StartURL: startURL,
 		Expect: r.o.Expect, Deadline: time.Unix(c.exp, 0).UTC(),
 	}, nil
