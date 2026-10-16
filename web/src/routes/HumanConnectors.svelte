@@ -54,15 +54,30 @@
   {#if data.items.length === 0}
     <p class="muted">No connector grants yet. A grant appears after a hosted client signs in the first time.</p>
   {:else}
-    <table data-testid="grant-list">
-      <thead><tr><th scope="col">Client</th><th scope="col">Scopes</th><th scope="col">Limits (empty = default)</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"></th></tr></thead>
-      <tbody>
-        {#each data.items as g (g.id + g.updated_at)}
-          <GrantRow grant={g} onchanged={() => void load()} />
-        {/each}
-      </tbody>
-    </table>
+    <div class="scroll-x">
+      <table data-testid="grant-list">
+        <thead><tr><th scope="col">Client</th><th scope="col">Scopes</th><th scope="col">Limits (empty = default)</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"></th></tr></thead>
+        <tbody>
+          {#each data.items as g (g.id + g.updated_at)}
+            <GrantRow grant={g} onchanged={() => void load()} />
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 {:else if !error}
   <p class="muted">Loading…</p>
 {/if}
+
+<style>
+  /* a phone shows a wide table by scrolling it, never by letting cells overlap the buttons of the next column */
+  .scroll-x {
+    overflow-x: auto;
+  }
+  .scroll-x :global(td) {
+    vertical-align: top;
+  }
+  .scroll-x :global(button) {
+    white-space: nowrap;
+  }
+</style>

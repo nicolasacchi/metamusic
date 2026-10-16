@@ -83,22 +83,37 @@
   {#if items.length === 0}
     <p class="muted">No clients yet.</p>
   {:else}
-    <table data-testid="subsonic-list">
-      <thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Credentials</th><th scope="col">Last seen</th><th scope="col">State</th><th scope="col"></th></tr></thead>
-      <tbody>
-        {#each items as c (c.id)}
-          <tr data-revoked={c.revoked_at !== null}>
-            <td>{c.name}</td>
-            <td><code>{c.username}</code></td>
-            <td>{[c.has_api_key ? `API key ${c.api_key_prefix ?? ""}…` : "", c.has_password ? "password" : ""].filter(Boolean).join(", ")}</td>
-            <td>{c.last_seen_at ?? "never"}{c.last_client ? ` (${c.last_client})` : ""}</td>
-            <td>{c.revoked_at ? `revoked ${c.revoked_at}` : "active"}</td>
-            <td>{#if !c.revoked_at}<button type="button" onclick={() => revoke(c)} data-testid="subsonic-revoke">Revoke</button>{/if}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="scroll-x">
+      <table data-testid="subsonic-list">
+        <thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Credentials</th><th scope="col">Last seen</th><th scope="col">State</th><th scope="col"></th></tr></thead>
+        <tbody>
+          {#each items as c (c.id)}
+            <tr data-revoked={c.revoked_at !== null}>
+              <td>{c.name}</td>
+              <td><code>{c.username}</code></td>
+              <td>{[c.has_api_key ? `API key ${c.api_key_prefix ?? ""}…` : "", c.has_password ? "password" : ""].filter(Boolean).join(", ")}</td>
+              <td>{c.last_seen_at ?? "never"}{c.last_client ? ` (${c.last_client})` : ""}</td>
+              <td>{c.revoked_at ? `revoked ${c.revoked_at}` : "active"}</td>
+              <td>{#if !c.revoked_at}<button type="button" onclick={() => revoke(c)} data-testid="subsonic-revoke">Revoke</button>{/if}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 {:else if !error}
   <p class="muted">Loading…</p>
 {/if}
+
+<style>
+  /* a phone shows a wide table by scrolling it, never by letting cells overlap the buttons of the next column */
+  .scroll-x {
+    overflow-x: auto;
+  }
+  .scroll-x :global(td) {
+    vertical-align: top;
+  }
+  .scroll-x :global(button) {
+    white-space: nowrap;
+  }
+</style>
