@@ -99,8 +99,12 @@ func TestSubsonic_PlaylistsCRUD(t *testing.T) {
 	eq(t, "update missing", x.callCode("updatePlaylist", "name", "x"), 10)
 	eq(t, "delete missing", x.callCode("deletePlaylist"), 10)
 	w := x.get("createPlaylist", x.rwq("name", "Bad", "songId", "no-such"), libIP)
-	eq(t, "unknown song", w.code(t), 0)
-	eq(t, "unknown song message", dig(t, w.doc(t), "error", "message"), "playlist change not allowed")
+	eq(t, "unknown song", w.code(t), 70)
+	// an unusable index changes nothing and answers ok; a missing playlist still answers 70
+	pid := dig(t, x.get("createPlaylist", x.rwq("name", "Idx", "songId", luna), libIP).doc(t), "playlist", "id").(string)
+	eq(t, "bad index", x.callCode("updatePlaylist", "playlistId", pid, "songIndexToRemove", "x"), 0)
+	eq(t, "bad index unknown playlist", x.callCode("updatePlaylist", "playlistId", "no-such", "songIndexToRemove", "x"), 70)
+	eq(t, "unknown song to add", x.callCode("updatePlaylist", "playlistId", pid, "songIdToAdd", "no-such"), 70)
 	eq(t, "empty name", x.callCode("createPlaylist", "name", "  "), 0)
 	// users: only the caller's own
 	eq(t, "own username", x.get("getPlaylists", x.rwq("username", "rwclient"), libIP).code(t), 0)

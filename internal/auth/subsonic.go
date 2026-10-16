@@ -27,13 +27,13 @@ import (
 
 // Subsonic credential constants (C107, D-M4a-9).
 const (
-	SubsonicAPIKeyPrefix = "mms_"           // + 52 lowercase base32 chars of 32 random bytes
-	SaltWindowMedia      = 12 * time.Hour   // stream, download, getCoverArt
-	SaltWindowAPI        = 10 * time.Minute // every other endpoint
-	MinSaltLen           = 6                // printable ASCII, no space
-	MaxSaltLen           = 64               //
-	subsonicTouchEvery   = time.Minute      // at most one last_seen write per client per minute
-	saltPruneGrace       = time.Hour        // PruneSalts keeps rows this long past the media window
+	SubsonicAPIKeyPrefix = "mms_"              // + 52 lowercase base32 chars of 32 random bytes
+	SaltWindowMedia      = 12 * time.Hour      // stream, download, getCoverArt
+	SaltWindowAPI        = 10 * time.Minute    // every other endpoint
+	MinSaltLen           = 6                   // printable ASCII, no space
+	MaxSaltLen           = 64                  //
+	subsonicTouchEvery   = time.Minute         // at most one last_seen write per client per minute
+	saltRetention        = 30 * 24 * time.Hour // PruneSalts keeps rows far past every replay window, so an expired salt cannot restart as a first sighting
 	subsonicKeyContext   = "metamusic/subsonic-password/v1"
 )
 
@@ -419,10 +419,11 @@ func (s *SubsonicStore) touch(ctx context.Context, id, client string) {
 		store.FormatTime(now), lc, id, store.FormatTime(now.Add(-subsonicTouchEvery)), lc)
 }
 
-// PruneSalts deletes salt sightings older than the media window plus an hour (cache table).
+// PruneSalts deletes salt sightings older than saltRetention (30 days, cache table). The retention must stay
+// well above SaltWindowMedia: a pruned salt would count as a first sighting and be accepted for another window.
 func (s *SubsonicStore) PruneSalts(ctx context.Context) (int, error) {
 	res, err := s.st.W.ExecContext(ctx, `DELETE FROM subsonic_salts WHERE first_seen_at < ?`,
-		store.FormatTime(s.now().Add(-SaltWindowMedia-saltPruneGrace)))
+		store.FormatTime(s.now().Add(-saltRetention)))
 	if err != nil {
 		return 0, fmt.Errorf("subsonic: prune salts: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 )
 
@@ -146,6 +147,7 @@ func (c *call) createPlaylist() error {
 		if err != nil {
 			return mapService(err, "playlist change not allowed")
 		}
+		audit.NoteCreated(c.ctx, created.ID)
 		return c.playlistWithSongs(created.ID)
 	}
 	err := c.updateRetrying(id, func(playlistRow) playlists.PlaylistPatch {
@@ -168,7 +170,14 @@ func (c *call) updatePlaylist() error {
 	}
 	adds, removes := c.all("songIdToAdd"), c.all("songIndexToRemove")
 	hasName, hasComment := c.params.Has("name"), c.params.Has("comment")
-	if !hasName && !hasComment && len(adds) == 0 && len(removes) == 0 {
+	drop := map[int]bool{}
+	for _, v := range removes {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			drop[n] = true
+		}
+	}
+	// nothing usable to change (no parameters, or only unparsable indexes): ok once the playlist exists
+	if !hasName && !hasComment && len(adds) == 0 && len(drop) == 0 {
 		cat, err := c.cat()
 		if err != nil {
 			return err
@@ -179,12 +188,6 @@ func (c *call) updatePlaylist() error {
 			return fail(errNotFound, "playlist not found")
 		}
 		return nil
-	}
-	drop := map[int]bool{}
-	for _, v := range removes {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			drop[n] = true
-		}
 	}
 	name, comment := c.str("name"), c.str("comment")
 	return c.updateRetrying(id, func(cur playlistRow) playlists.PlaylistPatch {

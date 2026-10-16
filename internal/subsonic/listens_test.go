@@ -69,12 +69,12 @@ func TestSubsonic_ScrobbleListenEvents(t *testing.T) {
 	// without a time the clock decides; a retry at the same instant dedupes too
 	eq(t, "no time", x.callCode("scrobble", "id", citta), 0)
 	eq(t, "no time retry", x.callCode("scrobble", "id", citta), 0)
-	eq(t, "citta", kinds(x.events(citta)), "complete")
+	eq(t, "citta", kinds(x.events(citta)), "start complete")
 	// several ids, each with its own time
 	t2 := strconv.FormatInt(x.clk.now().Add(-2*time.Minute).UnixMilli(), 10)
 	eq(t, "many", x.callCode("scrobble", "id", twinA, "time", ms, "id", twinB, "time", t2), 0)
-	eq(t, "twinA", kinds(x.events(twinA)), "complete")
-	eq(t, "twinB", kinds(x.events(twinB)), "complete")
+	eq(t, "twinA", kinds(x.events(twinA)), "start complete")
+	eq(t, "twinB", kinds(x.events(twinB)), "start complete")
 	// errors
 	eq(t, "unknown", x.callCode("scrobble", "id", "no-such"), 70)
 	eq(t, "missing", x.callCode("scrobble"), 10)
@@ -216,22 +216,22 @@ func TestSubsonic_ScrobbleSuppressedAfterReportPlayback(t *testing.T) {
 	eq(t, "suppressed", kinds(x.events(twinA)), "start complete")
 	// another track or another client is unaffected
 	eq(t, "other track", x.callCode("scrobble", "id", citta), 0)
-	eq(t, "citta recorded", kinds(x.events(citta)), "complete")
+	eq(t, "citta recorded", kinds(x.events(citta)), "start complete")
 	if w := x.get("scrobble", keyParams(other, "id", twinA), libIP); w.code(t) != 0 {
 		t.Fatal(w.Body)
 	}
-	eq(t, "client B recorded", len(x.events(twinA)), 3)
+	eq(t, "client B recorded", len(x.events(twinA)), 4)
 	// the window ends 30 minutes after the report
 	x.clk.advance(21 * time.Minute)
 	eq(t, "after 31 min", x.callCode("scrobble", "id", twinA), 0)
-	eq(t, "recorded again", len(x.events(twinA)), 4)
+	eq(t, "recorded again", len(x.events(twinA)), 6)
 	// ignoreScrobble also stamps "seen"; another media type does not
 	x.callCode("reportPlayback", "mediaId", twinB, "state", "starting", "positionMs", "0", "ignoreScrobble", "true")
 	x.callCode("scrobble", "id", twinB)
 	eq(t, "ignoreScrobble suppresses scrobbles", len(x.events(twinB)), 0)
 	x.callCode("reportPlayback", "mediaId", short, "state", "starting", "positionMs", "0", "mediaType", "podcast")
 	x.callCode("scrobble", "id", short)
-	eq(t, "podcast does not", kinds(x.events(short)), "complete")
+	eq(t, "podcast does not", kinds(x.events(short)), "start complete")
 }
 
 func TestSubsonic_PlayStateIsBounded(t *testing.T) {
@@ -251,5 +251,74 @@ func TestSubsonic_PlayStateIsBounded(t *testing.T) {
 	}
 	if _, ok := p.streamed.get("c|" + strconv.Itoa(3*playStateLimit-1)); !ok {
 		t.Error("the newest entry is gone")
+	}
+}
+
+// A plain scrobble (submission defaults to true) counts a play and sets the last-played time.
+func TestSubsonic_ScrobbleCountsPlay(t *testing.T) {
+	t.Parallel()
+	x := newS3Rig(t)
+	eq(t, "scrobble", x.callCode("scrobble", "id", luna), 0)
+	song := dig(t, x.call("getSong", "id", luna), "song").(map[string]any)
+	eq(t, "playCount", song["playCount"], 1)
+	if _, ok := song["played"]; !ok {
+		t.Error("played missing after a scrobble")
+	}
+	recent := dig(t, x.call("getAlbumList2", "type", "recent"), "albumList2", "album")
+	if l, _ := recent.([]any); len(l) == 0 {
+		t.Error("getAlbumList2 type=recent is empty after a scrobble")
+	}
+	// now-playing then submission counts one play, with or without the client's time
+	eq(t, "np", x.callCode("scrobble", "id", citta, "submission", "false"), 0)
+	eq(t, "submit", x.callCode("scrobble", "id", citta, "submission", "true"), 0)
+	eq(t, "one start", kinds(x.events(citta)), "start complete")
+	cs := dig(t, x.call("getSong", "id", citta), "song").(map[string]any)
+	eq(t, "citta playCount", cs["playCount"], 1)
+	// the same call twice is a retry
+	x.callCode("scrobble", "id", citta)
+	eq(t, "retry", kinds(x.events(citta)), "start complete")
+}
+
+// A client clock far off, or a time sent in seconds, must not lose the scrobble.
+func TestSubsonic_ScrobbleBadTimeFallsBack(t *testing.T) {
+	t.Parallel()
+	x := newS3Rig(t)
+	old := strconv.FormatInt(x.clk.now().Add(-400*24*time.Hour).UnixMilli(), 10)
+	future := strconv.FormatInt(x.clk.now().Add(time.Hour).UnixMilli(), 10)
+	seconds := strconv.FormatInt(x.clk.now().Unix(), 10)
+	for i, tr := range []struct{ id, at string }{{luna, old}, {citta, future}, {twinA, seconds}} {
+		eq(t, fmt.Sprint("scrobble ", i), x.callCode("scrobble", "id", tr.id, "time", tr.at, "submission", "false"), 0)
+		eq(t, fmt.Sprint("stored ", i), kinds(x.events(tr.id)), "start")
+	}
+}
+
+// A repeated `playing` report (heartbeat) or a seek keeps the listened time.
+func TestSubsonic_ReportPlaybackHeartbeatAndSeek(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		seq  [][3]string // state, position, seconds to advance before the report
+		want string
+	}{
+		{"heartbeat", [][3]string{{"starting", "0", "0"}, {"playing", "0", "0"}, {"playing", "2000", "2"}, {"paused", "3000", "1"},
+			{"playing", "3000", "0"}, {"stopped", "5900", "3"}}, "start segment[0,2000] segment[2000,3000] segment[3000,5900]"},
+		{"long gap", [][3]string{{"starting", "0", "0"}, {"playing", "0", "0"}, {"playing", "4000", "4"}, {"stopped", "5000", "1"}},
+			"start segment[0,4000] segment[4000,5000]"},
+		{"forward seek", [][3]string{{"starting", "0", "0"}, {"playing", "0", "0"}, {"playing", "9000", "3"}, {"stopped", "10000", "1"}},
+			"start segment[0,3000] segment[9000,10000]"},
+		{"backward seek", [][3]string{{"starting", "0", "0"}, {"playing", "5000", "0"}, {"playing", "1000", "2"}, {"stopped", "3000", "2"}},
+			"start segment[5000,7000] segment[1000,3000]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			x := newS3Rig(t) // luna lasts 12 s
+			for _, st := range tc.seq {
+				d, _ := strconv.Atoi(st[2])
+				x.clk.advance(time.Duration(d) * time.Second)
+				eq(t, st[0], x.callCode("reportPlayback", "mediaId", luna, "state", st[0], "positionMs", st[1]), 0)
+			}
+			eq(t, "events", strings.TrimSuffix(kinds(x.events(luna)), " complete"), tc.want)
+		})
 	}
 }

@@ -321,19 +321,21 @@ func TestSubsonicAuth_SaltWindowMedia(t *testing.T) {
 	if err := v2("sharedsalt", "stream"); err != nil {
 		t.Fatalf("media window at +11m: %v", err)
 	}
-	// prune: keeps a row until media window + 1 h
+	// prune: keeps a row for the 30-day retention, far past the replay windows
 	_ = c
-	r.clock.advance(-2 * time.Minute) // back to T0 + 11h59m
-	r.clock.advance(59 * time.Minute) // T0 + 12h58m... first row seen at T0
-	if n, err := r.s.PruneSalts(ctx); err != nil || n != 0 {
-		t.Fatalf("prune keeps (T0+12h58m): %d %v", n, err)
+	r2.clock.advance(13 * time.Hour) // T0 + ~13h: expired, but must survive pruning
+	if n, err := r2.s.PruneSalts(ctx); err != nil || n != 0 {
+		t.Fatalf("prune keeps (T0+13h): %d %v", n, err)
 	}
-	r.clock.advance(3 * time.Minute) // T0 + 13h01m
-	if n, err := r.s.PruneSalts(ctx); err != nil || n != 1 {
-		t.Fatalf("prune removes (T0+13h01m): %d %v", n, err)
+	if err := v2("sharedsalt", "stream"); !errors.Is(err, ErrSaltExpired) {
+		t.Fatalf("expired salt after prune pass: %v", err)
+	}
+	r2.clock.advance(31 * 24 * time.Hour)
+	if n, err := r2.s.PruneSalts(ctx); err != nil || n != 1 {
+		t.Fatalf("prune removes (T0+31d): %d %v", n, err)
 	}
 	var left int
-	if err := r.st.R.QueryRow(`SELECT count(*) FROM subsonic_salts`).Scan(&left); err != nil || left != 0 {
+	if err := r2.st.R.QueryRow(`SELECT count(*) FROM subsonic_salts`).Scan(&left); err != nil || left != 0 {
 		t.Fatalf("rows left %d %v", left, err)
 	}
 }

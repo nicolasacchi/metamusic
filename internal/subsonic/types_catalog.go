@@ -32,7 +32,36 @@ type catalogPayload struct {
 	AlbumInfo     *AlbumInfo     `json:"albumInfo,omitempty" xml:"albumInfo,omitempty"`
 	SearchResult2 *SearchResult2 `json:"searchResult2,omitempty" xml:"searchResult2,omitempty"`
 	SearchResult3 *SearchResult3 `json:"searchResult3,omitempty" xml:"searchResult3,omitempty"`
+
+	Podcasts              *Podcasts              `json:"podcasts,omitempty" xml:"podcasts,omitempty"`
+	NewestPodcasts        *NewestPodcasts        `json:"newestPodcasts,omitempty" xml:"newestPodcasts,omitempty"`
+	InternetRadioStations *InternetRadioStations `json:"internetRadioStations,omitempty" xml:"internetRadioStations,omitempty"`
+	Shares                *Shares                `json:"shares,omitempty" xml:"shares,omitempty"`
+	Videos                *Videos                `json:"videos,omitempty" xml:"videos,omitempty"`
+	ChatMessages          *ChatMessages          `json:"chatMessages,omitempty" xml:"chatMessages,omitempty"`
 }
+
+// Always-empty lists of features the library does not have; clients probe them while syncing.
+type (
+	Podcasts struct {
+		Channel []struct{} `json:"channel" xml:"channel"`
+	}
+	NewestPodcasts struct {
+		Episode []struct{} `json:"episode" xml:"episode"`
+	}
+	InternetRadioStations struct {
+		InternetRadioStation []struct{} `json:"internetRadioStation" xml:"internetRadioStation"`
+	}
+	Shares struct {
+		Share []struct{} `json:"share" xml:"share"`
+	}
+	Videos struct {
+		Video []struct{} `json:"video" xml:"video"`
+	}
+	ChatMessages struct {
+		ChatMessage []struct{} `json:"chatMessage" xml:"chatMessage"`
+	}
+)
 
 // ItemGenre is one genre of an item.
 type ItemGenre struct {

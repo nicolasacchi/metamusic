@@ -672,3 +672,21 @@ func TestSubsonic_CatalogXMLShape(t *testing.T) {
 		t.Errorf("genres XML = %s", body)
 	}
 }
+
+func TestSubsonic_AlbumListSizeZeroAndByYear(t *testing.T) {
+	t.Parallel()
+	r := newLibRig(t)
+	l, _ := dig(t, r.call("getAlbumList2", "type", "newest", "size", "0"), "albumList2", "album").([]any)
+	eq(t, "size 0", len(l), 0)
+	eq(t, "byYear without years", r.callCode("getAlbumList2", "type", "byYear"), 10)
+	eq(t, "byYear one year", r.callCode("getAlbumList2", "type", "byYear", "fromYear", "2020"), 10)
+	eq(t, "byYear ok", r.callCode("getAlbumList2", "type", "byYear", "fromYear", "2020", "toYear", "2030"), 0)
+}
+
+func TestSubsonic_EmptyProbeEndpoints(t *testing.T) {
+	t.Parallel()
+	r := newLibRig(t)
+	for _, n := range []string{"getPodcasts", "getNewestPodcasts", "getInternetRadioStations", "getShares", "getVideos", "getChatMessages", "startScan"} {
+		eq(t, n, r.callCode(n), 0)
+	}
+}

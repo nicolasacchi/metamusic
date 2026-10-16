@@ -139,7 +139,8 @@ func (v *Verifier) keyFor(ctx context.Context, kid string) (*rsa.PublicKey, erro
 	fetched := false
 	empty := len(kc.keys) == 0
 	due := now.Sub(kc.fetchedAt) >= refreshInterval
-	if empty || (due && now.Sub(kc.lastAttempt) >= unknownKidGap) {
+	spaced := kc.lastAttempt.IsZero() || now.Sub(kc.lastAttempt) >= emptyRetryGap
+	if (empty && spaced) || (!empty && due && now.Sub(kc.lastAttempt) >= unknownKidGap) {
 		v.refreshLocked(ctx)
 		fetched = true
 	}

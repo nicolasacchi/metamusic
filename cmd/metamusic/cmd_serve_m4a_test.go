@@ -77,7 +77,7 @@ func TestSweepM4aCaches_NilServicesAreSkipped(t *testing.T) {
 	}
 }
 
-// TestPruneSubsonicSalts_RunsAtStartAndStops: salts older than the media window plus an hour are removed at start.
+// TestPruneSubsonicSalts_RunsAtStartAndStops: salts older than the 30-day retention are removed at start.
 func TestPruneSubsonicSalts_RunsAtStartAndStops(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -86,7 +86,7 @@ func TestPruneSubsonicSalts_RunsAtStartAndStops(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	old := store.FormatTime(time.Now().Add(-48 * time.Hour))
+	old := store.FormatTime(time.Now().Add(-45 * 24 * time.Hour))
 	fresh := store.FormatTime(time.Now())
 	for _, r := range [][2]string{{"c1", old}, {"c2", fresh}} {
 		if _, err := st.W.Exec(`INSERT INTO subsonic_salts(client_id, salt_sha256, first_seen_at) VALUES(?,?,?)`, r[0], "aa", r[1]); err != nil {
@@ -122,8 +122,8 @@ func TestPruneSubsonicSalts_RunsAtStartAndStops(t *testing.T) {
 }
 
 // TestServe_SweepsAndPrunes: a started server runs the cache sweeps and the salt prune at start. Ages are set through
-// file modification times and row timestamps relative to now (the 30-day cover and 7-day download windows; the media
-// salt window of 12 h plus one hour of grace).
+// file modification times and row timestamps relative to now (the 30-day cover and 7-day download windows; the
+// 30-day salt retention).
 func TestServe_SweepsAndPrunes(t *testing.T) {
 	t.Parallel()
 	env := m3Env(t, nil)
@@ -154,7 +154,7 @@ func TestServe_SweepsAndPrunes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range [][2]string{{"c-old", store.FormatTime(now.Add(-14 * time.Hour))}, {"c-young", store.FormatTime(now.Add(-12*time.Hour - 30*time.Minute))}} {
+	for _, r := range [][2]string{{"c-old", store.FormatTime(now.Add(-35 * day))}, {"c-young", store.FormatTime(now.Add(-29 * day))}} {
 		if _, err := st.W.Exec(`INSERT INTO subsonic_salts(client_id, salt_sha256, first_seen_at) VALUES(?,?,?)`, r[0], "aa", r[1]); err != nil {
 			t.Fatal(err)
 		}

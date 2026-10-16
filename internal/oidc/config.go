@@ -14,6 +14,7 @@ const (
 	refreshInterval = time.Hour
 	staleLimit      = 24 * time.Hour
 	unknownKidGap   = 60 * time.Second
+	emptyRetryGap   = 10 * time.Second // spacing of refresh attempts while no usable key is cached
 )
 
 // Verifier verifies access tokens. It is safe for concurrent use.

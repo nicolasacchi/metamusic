@@ -100,3 +100,34 @@ func TestSubsonic_InternalErrorIsFixedText(t *testing.T) {
 		t.Error("logs hold a key")
 	}
 }
+
+// TestSubsonic_AuditCreatedIDs: scrobble, reportPlayback and createPlaylist rows carry what they created.
+func TestSubsonic_AuditCreatedIDs(t *testing.T) {
+	t.Parallel()
+	x := newS3Rig(t)
+	eq(t, "scrobble", x.callCode("scrobble", "id", luna), 0)
+	eq(t, "report", x.callCode("reportPlayback", "mediaId", citta, "state", "starting", "positionMs", "0"), 0)
+	w := x.get("createPlaylist", x.rwq("name", "Audited", "songId", luna), libIP)
+	eq(t, "create", w.code(t), 0)
+	plID := dig(t, w.doc(t), "playlist", "id").(string)
+	page, err := x.auditStore.List(context.Background(), audit.Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, row := range page.Items {
+		got[row.Op] = row.CreatedIDs
+	}
+	eq(t, "scrobble ids", len(got["subsonic:scrobble"]), 2) // start + complete
+	eq(t, "report ids", len(got["subsonic:reportPlayback"]), 1)
+	eq(t, "playlist ids", strings.Join(got["subsonic:createPlaylist"], ","), plID)
+	ev := map[string]bool{}
+	for _, e := range append(x.events(luna), x.events(citta)...) {
+		ev[e.ID] = true
+	}
+	for _, id := range append(got["subsonic:scrobble"], got["subsonic:reportPlayback"]...) {
+		if !ev[id] {
+			t.Errorf("audited id %s is no listen event", id)
+		}
+	}
+}

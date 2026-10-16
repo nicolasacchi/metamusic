@@ -24,6 +24,20 @@ func (s *server) registerStubs() {
 		c.resp.ScanStatus = &ScanStatus{Scanning: false, Count: n}
 		return nil
 	})
+	// Endpoints a client may probe while syncing: empty lists, and startScan answers the scan status shape.
+	for name, set := range map[string]func(r *Response){
+		"getPodcasts":       func(r *Response) { r.Podcasts = &Podcasts{Channel: []struct{}{}} },
+		"getNewestPodcasts": func(r *Response) { r.NewestPodcasts = &NewestPodcasts{Episode: []struct{}{}} },
+		"getInternetRadioStations": func(r *Response) {
+			r.InternetRadioStations = &InternetRadioStations{InternetRadioStation: []struct{}{}}
+		},
+		"getShares":       func(r *Response) { r.Shares = &Shares{Share: []struct{}{}} },
+		"getVideos":       func(r *Response) { r.Videos = &Videos{Video: []struct{}{}} },
+		"getChatMessages": func(r *Response) { r.ChatMessages = &ChatMessages{ChatMessage: []struct{}{}} },
+	} {
+		s.add(name, false, func(c *call) error { set(&c.resp); return nil })
+	}
+	s.add("startScan", false, func(c *call) error { return c.s.routes["getScanStatus"].fn(c) })
 	artist := func(c *call) error {
 		cat, err := c.cat()
 		if err != nil {

@@ -33,6 +33,8 @@ func mapService(err error, msg string) error {
 		return fail(errGeneric, msg)
 	case errors.As(err, &je) && je.Status == http.StatusUnprocessableEntity:
 		return fail(errGeneric, msg)
+	case errors.As(err, &pe) && pe.Code == "UNKNOWN_TRACK":
+		return fail(errNotFound, "song not found")
 	case errors.As(err, &pe) && (pe.Status == http.StatusUnprocessableEntity || pe.Status == http.StatusConflict):
 		return fail(errGeneric, msg)
 	}

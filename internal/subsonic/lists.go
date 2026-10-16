@@ -54,6 +54,9 @@ func (c *call) albumList(cat *catalog) ([]albumRow, error) {
 	case "starred":
 		q.where, q.order = "a.starred IS NOT NULL", "a.starred DESC, a.id"
 	case "byYear":
+		if !c.params.Has("fromYear") || !c.params.Has("toYear") {
+			return nil, fail(errMissingParam, "required parameter is missing: fromYear and toYear")
+		}
 		from, to := c.intParam("fromYear", 0, 9999), c.intParam("toYear", 9999, 9999)
 		dir := "ASC"
 		if from > to {
@@ -70,6 +73,9 @@ func (c *call) albumList(cat *catalog) ([]albumRow, error) {
 		q.args = []any{g}
 	default:
 		return nil, fail(errMissingParam, "unsupported album list type")
+	}
+	if size == 0 {
+		return []albumRow{}, nil
 	}
 	return cat.albums(c.ctx, q)
 }

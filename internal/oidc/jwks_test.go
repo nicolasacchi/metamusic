@@ -219,6 +219,7 @@ func TestVerifier_PrefetchStatus(t *testing.T) {
 		t.Fatalf("failing: %+v", s)
 	}
 	failing.setMode(nil)
+	base.now.Add(int64(11)) // past the empty-cache retry spacing
 	if _, err := v2.Verify(t.Context(), base.mint(t)); err != nil {
 		t.Fatalf("Verify after recovery: %v", err)
 	}
@@ -254,5 +255,29 @@ func TestDiscovery_IssuerMismatch(t *testing.T) {
 	}
 	if s := v.Status(); s.LastError != "issuer_mismatch" || s.Keys != 0 {
 		t.Fatalf("status %+v", s)
+	}
+}
+
+// An empty key cache must not turn every request into an outbound JWKS fetch.
+func TestVerifier_EmptyCacheRefreshThrottled(t *testing.T) {
+	t.Parallel()
+	base := newRig(t, rigOpts{})
+	failing := newJWKSProxy(t, base.p.URL)
+	failing.setMode(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "down", http.StatusInternalServerError) })
+	v, _ := oidc.NewVerifier(oidc.Config{Issuer: base.p.URL, JWKSURL: failing.URL, Resource: testResource,
+		Clients: map[string]string{testClient: "x"}}, nil, func() time.Time { return time.Unix(base.now.Load(), 0) })
+	tok := base.mint(t)
+	for range 20 {
+		if _, err := v.Verify(t.Context(), tok); err == nil {
+			t.Fatal("verify succeeded with no keys")
+		}
+	}
+	if got := failing.hits.Load(); got != 1 {
+		t.Fatalf("jwks fetches = %d, want 1 within the spacing interval", got)
+	}
+	base.now.Add(11)
+	_, _ = v.Verify(t.Context(), tok)
+	if got := failing.hits.Load(); got != 2 {
+		t.Fatalf("jwks fetches after spacing = %d, want 2", got)
 	}
 }
