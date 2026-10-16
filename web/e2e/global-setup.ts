@@ -26,6 +26,10 @@ async function createAgentToken(base: string): Promise<void> {
   const tok = await post("POST", "/human/api/tokens", { name: "e2e-agent", scopes: ["read", "write", "generate"] }, `e2e-setup-${randomBytes(6).toString("hex")}`);
   if (typeof tok.token !== "string" || typeof tok.id !== "string") throw new Error("create_token returned no token");
   process.env.MM_E2E_AGENT_TOKEN = tok.token;
+  // The fake backend's tracks are seconds long; the shipped minimum-render floor (min_duration_s 180) would quote every e2e
+  // take at 3 minutes and exhaust the agent's daily budget. The template runs with the allowed minimum; the floor itself is
+  // asserted in m3-songwriting.spec.ts by raising the setting there.
+  await post("PUT", "/human/api/settings/songwriting", { min_duration_s: 30 });
   await post("PUT", "/human/api/spend/caps", { tokens: [{ token_id: tok.id, auto_approve_takes: 1, auto_approve_micro_usd: null, daily_budget_micro_usd: null }] });
 }
 
