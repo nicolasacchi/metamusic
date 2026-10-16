@@ -42,6 +42,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -104,11 +105,6 @@ type Options struct {
 	Notify      notify.Notifier
 
 	// M3 services (C81); nil makes the matching operations answer 503 UNAVAILABLE {component}.
-	Generation *generation.Service
-	Spend      *spend.Service
-	Jobs       *jobs.Service
-	Provider   *jobs.ProviderAdmin
-	Lineage    *lineage.Service
 	// L1 services (C87); nil makes the matching operations answer 503 UNAVAILABLE {component}.
 	Muses       *muses.Service
 	Songs       *songs.Service
@@ -117,6 +113,12 @@ type Options struct {
 	Picks       *picks.Service
 	Sounds      *sounds.Service
 	Board       *board.Service
+	Generation  *generation.Service
+	Spend       *spend.Service
+	Jobs        *jobs.Service
+	Provider    *jobs.ProviderAdmin
+	Lineage     *lineage.Service
+	Songwriting *songwriting.Service
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
@@ -148,7 +150,7 @@ func New(o Options) (http.Handler, error) {
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
 		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips,
-		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage,
+		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage, Songwriting: o.Songwriting,
 		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board})
 	gated := http.Handler(inner)
 	if o.Store != nil {

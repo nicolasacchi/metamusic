@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because it is a generation data flow (seven drafts, one confirmation)
+import { expect, test } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 import { allTerminal, assertOnlyDuplicateFailures, first, getBatch, pollBatch, recipe } from "./m3Api";
 

@@ -2398,6 +2398,10 @@
               "null"
             ]
           },
+          "songwriting": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "sounds": {
             "additionalProperties": {},
             "description": "Sound facets and the tempo check of the take; null without a Song",
@@ -5224,6 +5228,10 @@
         "properties": {
           "code": {
             "type": "string"
+          },
+          "details": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "fatal": {
             "type": "boolean"
@@ -8623,6 +8631,13 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "initializing_since": {
+                "description": "RFC 3339 UTC; null unless a worker is initializing",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "observed_at": {
                 "type": "string"
               },
@@ -8645,7 +8660,8 @@
               "initializing",
               "throttled",
               "unhealthy",
-              "observed_at"
+              "observed_at",
+              "initializing_since"
             ],
             "type": [
               "object",
@@ -10874,6 +10890,29 @@
         ],
         "type": "object"
       },
+      "Targets": {
+        "additionalProperties": false,
+        "properties": {
+          "min_duration_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "target_max_duration_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "target_min_duration_s": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_duration_s",
+          "target_min_duration_s",
+          "target_max_duration_s"
+        ],
+        "type": "object"
+      },
       "TaxonomyItem": {
         "additionalProperties": false,
         "properties": {
@@ -12413,6 +12452,33 @@
         "required": [
           "revision"
         ],
+        "type": "object"
+      },
+      "UpdateSongwritingInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "min_duration_s": {
+            "description": "Songs shorter than this draw a duration_under_target warning",
+            "format": "int64",
+            "maximum": 600,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "target_max_duration_s": {
+            "description": "Upper end of the target band",
+            "format": "int64",
+            "maximum": 600,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "target_min_duration_s": {
+            "description": "Lower end of the target band",
+            "format": "int64",
+            "maximum": 600,
+            "minimum": 30,
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "UpdateTrackInBody": {
@@ -16500,6 +16566,42 @@
         }
       }
     },
+    "/api/settings/songwriting": {
+      "get": {
+        "description": "Preferred song length in seconds: at least min_duration_s, aiming for target_min_duration_s to target_max_duration_s. Lint warns when a song misses them.",
+        "operationId": "get_songwriting_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Targets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the songwriting duration targets",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/settings",
+          "human_only": false
+        }
+      }
+    },
     "/api/songs": {
       "get": {
         "description": "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
@@ -19172,6 +19274,52 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/spend",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/settings/songwriting": {
+      "put": {
+        "description": "The operator changes the minimum song length and/or the target band, in seconds (30 to 600; min \u003c= target min \u003c= target max). At least one field.",
+        "operationId": "update_songwriting_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSongwritingInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Targets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Set the songwriting duration targets",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/settings",
           "human_only": true
         }
       }

@@ -5,6 +5,10 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export MM_METRICS_FILE="$tmp/m.jsonl" MM_LANE=selftest
+# Own lock file and no systemd scope from the first call on: the selftest's heavy targets (check, test, race) must
+# never queue behind the machine-wide lock a real `make check`/`make e2e` holds (that made `make gate` wait for
+# as long as any suite ran, up to 44 min).
+export MM_HEAVY_LOCK_FILE="$tmp/heavy.lock" MM_HEAVY_SCOPE=0
 fail=0
 chk() { if ! eval "$2"; then echo "FAIL: $1"; fail=1; else echo "ok:   $1"; fi; }
 
@@ -36,6 +40,14 @@ done
 chk "M3 rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 chk "schema enum has M3 targets" 'jq -e ".properties.target.enum | contains([\"worker\",\"contract\",\"canary\"])" "$root/metrics/loop.schema.json" >/dev/null'
 
+# make verify / gate-full (dev-loop): accepted, validated, in the schema enum
+for t in verify gate-full; do
+  "$root/scripts/loop" "$t" -- true >/dev/null
+  chk "target $t accepted" 'jq -e "select(.target==\"$t\")" "$MM_METRICS_FILE" >/dev/null'
+done
+chk "verify rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+chk "schema enum has verify and gate-full" 'jq -e ".properties.target.enum | contains([\"verify\",\"gate-full\"])" "$root/metrics/loop.schema.json" >/dev/null'
+
 # lint-style findings are not compile errors; tsc-style are; subtests counted once
 : >"$MM_METRICS_FILE"
 "$root/scripts/loop" lint -- sh -c 'echo "foo.go:3:4: type assertion on error (errorlint)"; echo "bar.ts(3,5): error TS2322: bad"; echo "--- FAIL: TestP (0.0s)"; echo "    --- FAIL: TestP/a (0.0s)"; echo "    --- FAIL: TestP/b (0.0s)"' >/dev/null
@@ -64,28 +76,29 @@ chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM
 # heavy targets: machine-wide lock, wait_ms, nesting, scope fallback
 export MM_HEAVY_LOCK_FILE="$tmp/heavy.lock" MM_HEAVY_SCOPE=0
 unset MM_HEAVY_HELD MM_HEAVY_LOCK MM_HEAVY_SLOTS
-now() { date +%s%N; }
-par2() { # run two heavy 1s sleeps concurrently, print elapsed ms
-  local t0 t1
-  t0=$(now)
-  "$root/scripts/loop" test -- sleep 1 >/dev/null 2>&1 &
-  "$root/scripts/loop" race -- sleep 1 >/dev/null 2>&1 &
+# Overlap is measured by timestamps taken inside the commands, not by wall time, so a loaded host cannot
+# flip the result (spawn overhead varies by seconds at load 100; the order of start/end does not).
+par2() { # run two heavy 1s jobs concurrently; print "overlap" if their run windows intersected, else "serial"
+  local ts="$tmp/ts"
+  : >"$ts"
+  "$root/scripts/loop" test -- sh -c "echo s \$(date +%s%N) >>$ts; sleep 1; echo e \$(date +%s%N) >>$ts" >/dev/null 2>&1 &
+  "$root/scripts/loop" race -- sh -c "echo s \$(date +%s%N) >>$ts; sleep 1; echo e \$(date +%s%N) >>$ts" >/dev/null 2>&1 &
   wait
-  t1=$(now)
-  echo $(((t1 - t0) / 1000000))
+  awk '$1 == "s" { s[++ns] = $2 } $1 == "e" { e[++ne] = $2 }
+    END { min_e = (e[1] < e[2]) ? e[1] : e[2]; max_s = (s[1] > s[2]) ? s[1] : s[2]; print (max_s < min_e) ? "overlap" : "serial" }' "$ts"
 }
 : >"$MM_METRICS_FILE"
 el=$(par2)
-chk "1 slot serialises heavy runs (>=2s, got ${el}ms)" '[ "$el" -ge 1950 ]'
+chk "1 slot serialises heavy runs ($el)" '[ "$el" = serial ]'
 chk "wait_ms recorded for the waiter" '[ "$(jq -s "map(.wait_ms) | max" "$MM_METRICS_FILE")" -ge 700 ]'
-chk "wall_ms excludes the wait" '[ "$(jq -s "map(.wall_ms) | max" "$MM_METRICS_FILE")" -lt 1700 ]'
+chk "wall_ms excludes the wait" 'jq -s -e "(map(.wall_ms) | max) < (map(.wait_ms) | max) + 700" "$MM_METRICS_FILE" >/dev/null'
 chk "wait_ms rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 chk "legacy row without wait_ms validates" 'echo "{\"ts\":\"2026-01-01T00:00:00Z\",\"target\":\"check\",\"wall_ms\":1,\"exit\":0,\"compile_errors\":0,\"failing_tests\":0,\"sha\":\"abc1234\",\"lane\":\"main\",\"cache\":\"warm\"}" | jq -e -f "$root/scripts/metrics-row.jq" >/dev/null'
 : >"$MM_METRICS_FILE"
 el=$(MM_HEAVY_SLOTS=2 par2)
-chk "2 slots run in parallel (<1.8s, got ${el}ms)" '[ "$el" -lt 1800 ]'
+chk "2 slots run in parallel ($el)" '[ "$el" = overlap ]'
 el=$(MM_HEAVY_LOCK=0 par2)
-chk "MM_HEAVY_LOCK=0 skips the lock (<1.8s, got ${el}ms)" '[ "$el" -lt 1800 ]'
+chk "MM_HEAVY_LOCK=0 skips the lock ($el)" '[ "$el" = overlap ]'
 # nested loop invocation under a held slot must not deadlock
 rc=0
 timeout 20 "$root/scripts/loop" check -- "$root/scripts/loop" test -- true >/dev/null 2>&1 || rc=$?
@@ -101,6 +114,14 @@ chk "scope applied with MemoryMax and no swap" 'grep -q -- "--user --scope --qui
 rm -f "$tmp/sdrun.args"
 PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" lint -- true >/dev/null 2>&1
 chk "non-heavy target is not scoped" '[ ! -e "$tmp/sdrun.args" ]'
+rm -f "$tmp/sdrun.args"
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" verify -- true >/dev/null 2>&1
+chk "verify is light by default (not scoped)" '[ ! -e "$tmp/sdrun.args" ]'
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 MM_LOOP_HEAVY=1 "$root/scripts/loop" verify -- true >/dev/null 2>&1
+chk "verify with MM_LOOP_HEAVY=1 is heavy (scoped)" 'grep -q "MemoryMax=" "$tmp/sdrun.args"'
+rm -f "$tmp/sdrun.args"
+PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 MM_LOOP_HEAVY=1 "$root/scripts/loop" lint -- true >/dev/null 2>&1
+chk "MM_LOOP_HEAVY does not make other targets heavy" '[ ! -e "$tmp/sdrun.args" ]'
 printf '#!/bin/sh\necho offline\nexit 1\n' >"$fake/systemctl"
 rc=0
 PATH="$fake:$PATH" MM_HEAVY_SCOPE=1 "$root/scripts/loop" test -- sh -c 'exit 5' >/dev/null 2>&1 || rc=$?

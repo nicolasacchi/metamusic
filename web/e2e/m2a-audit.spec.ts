@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because it is an admin audit list and filters, with no device-dependent behaviour
+import { expect, test } from "./fixtures";
 import { apiJSON, trackByTitle, uniq } from "./helpers";
 
 test("human mutations made here are listed and the filters narrow the list", async ({ page, request }) => {

@@ -133,6 +133,7 @@ type TakeSpec struct {
 	StartURL                 string                  // D-M3-28; minted at submit, never persisted or logged
 	Expect                   WorkerExpect            // pinned weight revisions
 	Deadline                 time.Time               // = window_ends_at
+	MinAudioS                int                     // forced minimum render length in seconds, 0 = none (X4)
 }
 
 // Ref identifies a provider job. ID never leaves the server (API, events, logs).
@@ -179,12 +180,27 @@ type Worker struct {
 	IsStale   bool
 }
 
+// Health holds the endpoint's counters. Ready is RunPod's name for an idle worker that is ready to serve.
+type Health struct {
+	Idle, Initializing, Ready, Running, Throttled, Unhealthy int
+	InQueue, InProgress                                      int
+}
+
+// Live is the number of workers that exist (and may bill).
+func (h Health) Live() int {
+	return h.Idle + h.Initializing + h.Ready + h.Running + h.Throttled + h.Unhealthy
+}
+
 // Drift is one endpoint field that differs from the desired spec.
 type Drift struct{ Field, Want, Got string }
 
 // SweepReport is the result of Sweep.
 type SweepReport struct {
-	Workers    []Worker
+	Workers []Worker
+	// Health is the endpoint's own worker and job counters (RunPod /health); nil when unavailable. It is
+	// authoritative for "is any worker up": the workers listing can omit, or mislabel, a worker that is
+	// still pulling its image or crash-looping, while /health counts it (X3 incident, 2026-10-15).
+	Health     *Health
 	Endpoint   *EndpointConfig
 	Drift      []Drift
 	ObservedAt time.Time

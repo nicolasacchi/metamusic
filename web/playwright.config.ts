@@ -1,54 +1,27 @@
-import { defineConfig, devices } from "@playwright/test";
-import { BASE_URL, HEADERS, OUTPUT_DIR } from "./e2e/env";
+import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
+import { HEADERS, OUTPUT_DIR } from "./e2e/env";
+import { matrixIgnore, quarantineFilter } from "./e2e/matrix";
 
 // Chrome must autoplay without a prior gesture so specs can start playback programmatically
 // (the probe specs still use a real click, which exercises the gesture rule).
 const chromeLaunch = { args: ["--autoplay-policy=no-user-gesture-required"] };
 const firefoxPrefs = { "media.autoplay.default": 0, "media.autoplay.blocking_policy": 0 };
 
-// C41 time budget for the M2a specs: the mobile projects run only judge, comments, human and listen;
-// Firefox only the jump (comments) and listen specs; every other M2a spec runs on desktop Chrome only.
-const M2A = ["judge", "comments", "drafts", "playlists", "export", "backup", "audit", "human", "listen", "context"];
-const ignoreM2a = (keep: string[]) => M2A.filter((n) => !keep.includes(n)).map((n) => `**/m2a-${n}.spec.ts`);
-
-// M2b budget (rev 3): the duel specs (keyboard on desktop, toggle on mobile) skip Firefox, whose headless
-// AudioContext is not relied on for scheduling assertions; the ears and compare specs are layout- and
-// data-only, so they run on desktop Chrome and Firefox but not on the phones.
-const M2B = ["duels", "ears", "compare"];
-const ignoreM2b = (keep: string[]) => M2B.filter((n) => !keep.includes(n)).map((n) => `**/m2b-${n}.spec.ts`);
-// M2c: the reference/lossy spec runs on desktop Chrome and the Pixel 7 only (Firefox and the iPhone-sized project
-// add no coverage for badges, filters and the MP3 fallback; real iOS playback is in the device checklist).
-const M2C = ["reference"];
-const ignoreM2c = (keep: string[]) => M2C.filter((n) => !keep.includes(n)).map((n) => `**/m2c-${n}.spec.ts`);
-// The listen spec counts plays per seed track, and other specs also play seed tracks (auto-advance plays
-// "Syn song 02" and the track after it, the judge specs play their own track): any play of the listen track
-// between the spec's "before" and "after" reads as a duplicate. It therefore runs alone, as a second phase
-// ("listen-*" projects depend on every other project) with one track per project.
+// Which spec runs on which device is decided by the `// matrix:` header of each spec file (e2e/matrix.ts).
+// Hermetic e2e: every Playwright worker serves its own seeded metamusic (web/e2e/fixtures.ts), so no project or spec
+// shares budgets, counters, fake GPU workers, listen counts or the library with another and there are no phases or
+// project `dependencies` (any project may run beside any other), and CI shards the whole test list (--shard=i/N).
+// The listen spec still has one track per project (ownTracks) and the M3 specs add tracks and spend to their own server.
 const LISTEN = "**/m2a-listen.spec.ts";
-// M3 (C86.5): the generation specs add tracks, jobs and spend rows to the shared library, which the count-based specs
-// (m1-library, m1-pwa, m1-import, the audit and export specs) must never see. Every M3 project is therefore a third
-// phase that depends on phase 1 and on the listen projects. The desktop project runs every M3 spec except m3-spend;
-// m3-variant and m3-jobs also run on the phones, one project after the other (they share two fake workers); m3-spend
-// changes the caps and the arming for everyone, so it runs alone after every other project.
-const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "spend"];
+// M3 (C86.5): the generation specs add tracks, jobs and spend rows to their worker's own library (never the shared one
+// the count-based specs read). The desktop project runs every M3 spec except m3-spend; m3-variant and m3-jobs also run on
+// the phones when tagged @mobile; m3-spend changes the caps and the arming and has its own project.
+const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting", "spend"];
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
-// L1 (C100.7): the Board, Song, Sounds and Muse specs change Muses, ratings, Picks, proposals and duels while the Reconciler
-// derives Songs, so they are a fourth phase after every M3 project (m3-spend included); phases 1-3 never pick them up
-// (testMatch is **/*.spec.ts). Desktop Chrome and Firefox run all four specs (layout and data only); the Pixel 7 runs
-// board and song (the phone requirement); the three projects run one after the other.
-const L1 = ["board", "song", "sounds", "muse"];
-const ignoreL1 = (keep: string[]) => L1.filter((n) => !keep.includes(n)).map((n) => `**/l1-${n}.spec.ts`);
-const L1_SPECS = "**/l1-*.spec.ts";
-const L1_ALL = ignoreL1([]);
-const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([]), ...L1_ALL];
-const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([]), AUTOADV];
-const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), ...L1_ALL, AUTOADV];
-const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];
-const phase2 = ["listen-chrome", "listen-chrome-pixel7", "listen-chrome-iphone15", "listen-firefox"];
-const before3 = [...phase1, ...phase2];
-const mobileM3 = [...ignoreM3(["variant", "jobs"]), AUTOADV];
+const noM3 = ignoreM3([]); // the phase-less projects never run the M3 specs (auto-advance is not in the M3 list)
+const noSpend = ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage", "songwriting"]); // m3-spend has its own project
 // M3 auto-advance: the refused-play, watchdog and queue specs run on desktop Chrome, the Pixel 7 and two Android-Firefox
 // profiles (Firefox user agent, phone viewport, touch); the other projects add nothing.
 // Firefox (Android) blocks audio autoplay by default (media.autoplay.default=1); policy 0 lets a play() after the
@@ -73,10 +46,33 @@ const androidFirefox = (policy: number) => ({
 //   m2b-duels      x19 each mobile project skips 9 (8 keyboard/desktop-only tests and the serial queue/skip test,
 //                      which is chrome only) = 18; desktop chrome skips the mobile-toggle test = 1
 // A new skip needs a reason of this kind; anything capability- or environment-related must fail instead.
+// CI runs one `--shard=i/N` slice of the whole test list per job; no flag runs everything (make e2e).
+
+const allProjects: NonNullable<PlaywrightTestConfig["projects"]> = [
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
+    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("mobile")] },
+    { name: "firefox-android", use: androidFirefox(0), testIgnore: [...noM3, LISTEN, ...matrixIgnore("android-firefox")] },
+    { name: "firefox-android-strict", use: androidFirefox(2), testIgnore: [...noM3, LISTEN, ...matrixIgnore("android-firefox")], grep: /strict autoplay/ },
+    // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
+    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("mobile")] },
+    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("firefox")] },
+    // the listen spec has one project per device (each owns a seed track)
+    { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN },
+    { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, testIgnore: matrixIgnore("mobile") },
+    { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, testIgnore: matrixIgnore("mobile") },
+    { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, testIgnore: matrixIgnore("firefox") },
+    // the M3 specs (see M3 above)
+    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...noSpend, AUTOADV] },
+    { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...noSpend, AUTOADV, ...matrixIgnore("mobile")] },
+    { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...noSpend, AUTOADV, ...matrixIgnore("mobile")] },
+    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV] },
+];
+
 export default defineConfig({
   testDir: "./e2e",
   outputDir: OUTPUT_DIR,
   testMatch: "**/*.spec.ts",
+  ...quarantineFilter(), // @quarantine tests: skipped unless MM_E2E_QUARANTINE=1|only (e2e/matrix.ts)
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   // fewer workers than cores: the specs assert on real-time audio/layout and flake when starved
@@ -85,31 +81,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: BASE_URL,
     extraHTTPHeaders: HEADERS,
     trace: "retain-on-failure",
   },
-  projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([]), ...L1_ALL] },
-    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...mobileIgnore, LISTEN] },
-    { name: "firefox-android", use: androidFirefox(0), testMatch: AUTOADV },
-    { name: "firefox-android-strict", use: androidFirefox(2), testMatch: AUTOADV, grep: /strict autoplay/ },
-    // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
-    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...iphoneIgnore, LISTEN] },
-    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...firefoxIgnore, LISTEN] },
-    // phase 2: the listen spec alone (see LISTEN above)
-    { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, dependencies: phase1 },
-    { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, dependencies: phase1 },
-    // phase 3: the M3 specs (see M3 above)
-    { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["variant", "batch", "compose", "jobs", "approval", "lineage"]), AUTOADV], dependencies: before3 },
-    { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-chrome"] },
-    { name: "m3-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: mobileM3, dependencies: [...before3, "m3-pixel7"] },
-    { name: "m3-spend", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...ignoreM3(["spend"]), AUTOADV], dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15"] },
-    // phase 4: the L1 specs (see L1 above)
-    { name: "l1-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: L1_SPECS, dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend"] },
-    { name: "l1-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: L1_SPECS, dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend", "l1-chrome"] },
-    { name: "l1-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: L1_SPECS, testIgnore: ignoreL1(["board", "song"]), dependencies: [...before3, "m3-chrome", "m3-pixel7", "m3-iphone15", "m3-spend", "l1-chrome", "l1-firefox"] },
-  ],
+  projects: allProjects,
 });

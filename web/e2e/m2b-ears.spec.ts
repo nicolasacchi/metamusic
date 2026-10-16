@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because the flags, spectrogram image and plot click are data-only (the seek is the same code as the player specs)
+import { expect, test } from "./fixtures";
 import { apiJSON, trackByTitle } from "./helpers";
 
 // The three "Syn ears" tracks each carry one defect (C55): they are read-only here, so every project may
@@ -45,7 +46,7 @@ test("clicking the middle of the plot seeks the player to half the duration", as
   await expect(img).toBeVisible();
   await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
   // Record where every seek lands: the element keeps playing from the jump target, so a periodic sample of
-  // currentTime sweeps past a 1 s window (the jump target to half a second later) and a late sample misses it.
+  // currentTime sweeps past a 1 s window and a late sample misses it.
   await page.evaluate(() => {
     const w = window as unknown as { __seekedAt: number[] };
     w.__seekedAt = [];

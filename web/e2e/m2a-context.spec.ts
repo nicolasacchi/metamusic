@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because it only checks a character count (the clipboard is not read)
+import { expect, test } from "./fixtures";
 import { trackByTitle } from "./helpers";
 
 // The clipboard is not read: Firefox grants Playwright no clipboard permission. The displayed count is

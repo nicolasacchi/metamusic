@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because it is a data and layout table with no device-dependent behaviour
+import { expect, test } from "./fixtures";
 import { siblings } from "./m2bApi";
 
 test("compare of the two siblings shows the LUFS delta row and relation siblings", async ({ page, request }) => {

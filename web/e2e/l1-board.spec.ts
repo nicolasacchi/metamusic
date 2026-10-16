@@ -1,12 +1,13 @@
-import { expect as baseExpect, test, type APIRequestContext, type Page } from "@playwright/test";
+// matrix: @mobile because the Board is used from the phone (layout, touch selection and the hand-off to Generate)
+import { expect as baseExpect, test, type APIRequestContext, type Page } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 import { archiveDrafts, assignSongs, createMuse, letters, makeDraftSongs, setAngle, type SongList } from "./l1Api";
 
-// Desktop Chrome, Firefox and the Pixel 7 (layout and data only). Every spec makes its own Muse and draft Songs under a
+// Layout and data only. Every spec makes its own Muse and draft Songs under a
 // unique tag and asserts relative effects; none depends on a count another spec changes. The spec stops at the
 // Generate page (it never confirms spend).
 
-// Songs are derived and the single writer is shared with the heavier tests of this phase (52 drafts), so waits are generous.
+// Songs are derived and the single writer is shared with the heavier tests of this server (52 drafts), so waits are generous.
 const expect = baseExpect.configure({ timeout: 20_000 });
 
 test.describe.configure({ timeout: 120_000 });
@@ -73,7 +74,7 @@ test("a new Muse takes two selected chips", async ({ page, request }) => {
   }
 });
 
-// Other specs of this phase create Songs (and their derived Sounds) while this one runs, so a total shown by the page and
+// Other specs of this server create Songs (and their derived Sounds) while this one runs, so a total shown by the page and
 // one read from the API at another instant can differ. The page's number must lie within the range of the API totals
 // observed from before the page changed until the poll succeeds.
 async function expectShownSongsWithinApi(page: Page, request: APIRequestContext, url: string, before: number): Promise<number> {

@@ -1,10 +1,11 @@
-import { expect as baseExpect, test } from "@playwright/test";
+// matrix: chrome-only because the Muse page is a data and form flow with no device-dependent behaviour
+import { expect as baseExpect, test } from "./fixtures";
 import { apiJSON, uniq } from "./helpers";
 import { archiveDrafts, assignSongs, createMuse, getMuse, makeDraftSongs } from "./l1Api";
 
-// Desktop Chrome and Firefox (layout and data only).
+// Layout and data only.
 
-// Songs are derived and the single writer is shared with the heavier tests of this phase (52 drafts), so waits are generous.
+// Songs are derived and the single writer is shared with the heavier tests of this server (52 drafts), so waits are generous.
 const expect = baseExpect.configure({ timeout: 20_000 });
 
 test.describe.configure({ timeout: 120_000 });

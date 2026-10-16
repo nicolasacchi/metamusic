@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: chrome-only because it is a data tree plus navigation to duel and compare
+import { expect, test } from "./fixtures";
 import { apiJSON } from "./helpers";
 import { composeRoots, first, newSeedChildren } from "./m3Api";
 

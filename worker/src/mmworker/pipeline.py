@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import struct
 from collections.abc import Callable
 from pathlib import Path
@@ -23,6 +24,29 @@ class Pipeline(Protocol):
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Result: ...
 
 
+SEMANTIC_TOKENS_PER_S = 25  # YuE2 semantic codec rate
+
+
+def with_min_audio(kwargs: dict[str, Any], min_audio_s: int) -> dict[str, Any]:
+    """The pipeline kwargs with yue2's own override for a forced minimum length: semantic_sampling.min_tokens
+    (yue2.sampling.distribution suppresses the end-of-music token until that many tokens exist). The result is
+    recorded by yue2 in config.json (generation.semantic, overrides.semantic), which is what makes the take
+    re-runnable. A min_tokens the request itself set is kept when larger. ValueError on a malformed sampling."""
+    if min_audio_s <= 0:
+        return kwargs
+    sampling = kwargs.get("semantic_sampling")
+    if sampling is None:
+        sampling = {}
+    elif not isinstance(sampling, dict):
+        raise ValueError("semantic_sampling must be an object")
+    current = sampling.get("min_tokens", 0)
+    if isinstance(current, bool) or not isinstance(current, int):
+        raise ValueError("semantic_sampling.min_tokens must be an integer")
+    out = dict(kwargs)
+    out["semantic_sampling"] = {**sampling, "min_tokens": max(current, min_audio_s * SEMANTIC_TOKENS_PER_S)}
+    return out
+
+
 def resolve_vae(env: dict[str, str], repo: str, revision: str) -> str:
     """The local snapshot directory of the VAE at the pinned revision, from MM_YUE2_VAE_DIR.
 
@@ -40,6 +64,43 @@ def resolve_vae(env: dict[str, str], repo: str, revision: str) -> str:
     return str(snap)
 
 
+VOLUME_HUB = Path("/runpod-volume/huggingface-cache/hub")  # RunPod cached model, hub-cache layout
+MODEL_STORE = Path("/runpod/model-store/huggingface")  # RunPod cached model, ORG/NAME/<revision> layout
+
+
+def _complete(snap: Path) -> str | None:
+    """Why a candidate snapshot directory is unusable, or None when it holds config + safetensors."""
+    if not snap.is_dir():
+        return "absent"
+    if not (snap / "config.json").is_file():
+        return "no config.json"
+    if not any(snap.glob("*.safetensors")):
+        return "no *.safetensors"
+    return None
+
+
+def resolve_3b(env: dict[str, str], repo: str, revision: str) -> str:
+    """The local snapshot directory of the 3B model at the pinned revision (yue2 accepts a local directory).
+
+    Tried in order: MM_YUE2_3B_DIR (a hub-cache root), RunPod's /runpod-volume/huggingface-cache/hub and
+    RunPod's model store /runpod/model-store/huggingface/ORG/NAME/<revision>. Only the pinned revision is
+    accepted. Nothing found raises FileNotFoundError with one line naming every path tried."""
+    hub_name = "models--" + repo.replace("/", "--")
+    candidates: list[Path] = []
+    root = env.get("MM_YUE2_3B_DIR")
+    if root:
+        candidates.append(Path(root) / hub_name / "snapshots" / revision)
+    candidates.append(VOLUME_HUB / hub_name / "snapshots" / revision)
+    candidates.append(MODEL_STORE / repo / revision)
+    tried: list[str] = []
+    for snap in candidates:
+        why = _complete(snap)
+        if why is None:
+            return str(snap)
+        tried.append(f"{snap} ({why})")
+    raise FileNotFoundError(f"3B weights {repo}@{revision[:12]} not found; tried: " + "; ".join(tried))
+
+
 def load_yue2(env: dict[str, str]) -> Pipeline:  # pragma: no cover - needs yue2, torch and weights
     """Load the model once per worker process (called from serverless.main, outside the handler)."""
     import yue2  # noqa: PLC0415 - lazy by contract (test_yue2_imported_lazily)
@@ -48,10 +109,9 @@ def load_yue2(env: dict[str, str]) -> Pipeline:  # pragma: no cover - needs yue2
 
     rev3b = env["MM_YUE2_3B_REVISION"]
     revvae = env["MM_YUE2_VAE_REVISION"]
-    cache = env.get("HF_HOME") or env.get("MM_MODEL_CACHE")
     pipe = yue2.YuE2Pipeline.from_pretrained(
-        model=WEIGHTS_3B, vae=resolve_vae(env, WEIGHTS_VAE, revvae), revision=rev3b, vae_revision=revvae,
-        local_files_only=True, device="cuda", cache_dir=cache)
+        model=resolve_3b(env, WEIGHTS_3B, rev3b), vae=resolve_vae(env, WEIGHTS_VAE, revvae), revision=rev3b,
+        vae_revision=revvae, local_files_only=True, device="cuda")
     return _Yue2Adapter(pipe, {WEIGHTS_3B: rev3b, WEIGHTS_VAE: revvae})
 
 
@@ -91,6 +151,14 @@ def _flac_bytes(seconds: float = 1.0, rate: int = 8000) -> bytes:
     return out
 
 
+def _fake_config(semantic_sampling: Any) -> bytes:
+    """What yue2's effective_config records for a semantic_sampling override (generation + overrides)."""
+    if not semantic_sampling:
+        return b'{"fake":true}'
+    sem = {"min_tokens": 200, "max_tokens": 9000, **semantic_sampling}
+    return json.dumps({"fake": True, "generation": {"semantic": sem}, "overrides": {"semantic": sem}}).encode()
+
+
 class _FakeResult:
     def __init__(self, truncated: Any, files: dict[str, bytes]) -> None:
         self.truncated = truncated
@@ -118,7 +186,7 @@ class FakePipeline:
         self.calls: list[dict[str, Any]] = []
 
     def request_kwargs(self, request: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"style", "lyrics", "cot", "seed", "id", "abc", "cfg_scale"}
+        allowed = {"style", "lyrics", "cot", "seed", "id", "abc", "cfg_scale", "abc_sampling", "semantic_sampling"}
         extra = set(request) - allowed
         if extra:
             raise ValueError(f"unknown request key {sorted(extra)[0]}")
@@ -135,7 +203,7 @@ class FakePipeline:
             raise self._error
         files: dict[str, bytes] = {
             "request.json": b'{"fake":true}',
-            "config.json": b'{"fake":true}',
+            "config.json": _fake_config(kwargs.get("semantic_sampling")),
             "result.json": b'{"fake":true}',
             "audio.flac": _flac_bytes(),
         }

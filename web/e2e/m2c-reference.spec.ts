@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
+// matrix: chrome-only because badges, filters and the MP3 fallback are data-driven and identical in Chromium emulations (real iOS playback is in the device checklist)
+import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
 import { SEED_LOSSY_TRACKS, SEED_REFERENCE_FLACS, SEED_TRACKS, SEED_UNKNOWN_TRACKS } from "./env";
 import { apiJSON, uniq } from "./helpers";
 

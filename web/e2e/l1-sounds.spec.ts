@@ -1,11 +1,12 @@
-import { expect as baseExpect, test } from "@playwright/test";
+// matrix: @mobile because the Sounds page is browsed from the phone (facet chips and the Song list)
+import { expect as baseExpect, test } from "./fixtures";
 import { apiJSON } from "./helpers";
 import { composeSong, letters, waitSongs } from "./l1Api";
 
-// Desktop Chrome, Firefox (layout and data only). The mapping test composes its own Song with a unique, letters-only
+// Layout and data only. The mapping test composes its own Song with a unique, letters-only
 // style term, so no other spec's Song or total moves.
 
-// Songs are derived and the single writer is shared with the heavier tests of this phase (52 drafts), so waits are generous.
+// Songs are derived and the single writer is shared with the heavier tests of this server (52 drafts), so waits are generous.
 const expect = baseExpect.configure({ timeout: 20_000 });
 
 test.describe.configure({ timeout: 180_000 });
@@ -27,7 +28,7 @@ test("facet counts drill down to the matching Songs", async ({ page, request }) 
   expect(count).toBeGreaterThan(0);
 
   const query = `/api/sounds/search?sound=${encodeURIComponent(`${facet}:${value}`)}&limit=1`;
-  // other specs of this phase add AND hide Songs while this one runs, so the total is not monotonic: the shown total
+  // other specs of this server add AND hide Songs while this one runs, so the total is not monotonic: the shown total
   // must lie within the range of the API totals observed from before the click until the poll succeeds
   const seen = [(await apiJSON<Search>(request, "GET", query)).total];
   await first.click();

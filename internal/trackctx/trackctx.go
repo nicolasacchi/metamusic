@@ -21,6 +21,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/songwriting"
 )
 
 // Limits (UTF-16 units of the REST body).
@@ -41,19 +42,21 @@ const (
 // shape C35 documents; unknown values are null, never invented. Marshalling
 // writes the keys in the order C35 lists them.
 type Bundle struct {
-	Format      string         `json:"format" example:"mm.context/1"`
-	Track       map[string]any `json:"track"`
-	Song        map[string]any `json:"song" nullable:"true" doc:"The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent"`
-	Muse        map[string]any `json:"muse" nullable:"true" doc:"The Song's Muse (title, artist or brief up to 500 characters); null without a Muse"`
-	Sounds      map[string]any `json:"sounds" nullable:"true" doc:"Sound facets and the tempo check of the take; null without a Song"`
-	Recipe      map[string]any `json:"recipe"`
-	Provenance  map[string]any `json:"provenance"`
-	Score       map[string]any `json:"score" nullable:"true"`
-	Lineage     map[string]any `json:"lineage"`
-	Judgments   map[string]any `json:"judgments"`
-	Perception  map[string]any `json:"perception"`
-	Listening   map[string]any `json:"listening"`
-	Links       map[string]any `json:"_links"`
+	Format     string         `json:"format" example:"mm.context/1"`
+	Track      map[string]any `json:"track"`
+	Song       map[string]any `json:"song" nullable:"true" doc:"The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent"`
+	Muse       map[string]any `json:"muse" nullable:"true" doc:"The Song's Muse (title, artist or brief up to 500 characters); null without a Muse"`
+	Sounds     map[string]any `json:"sounds" nullable:"true" doc:"Sound facets and the tempo check of the take; null without a Song"`
+	Recipe     map[string]any `json:"recipe"`
+	Provenance map[string]any `json:"provenance"`
+	Score      map[string]any `json:"score" nullable:"true"`
+	Lineage    map[string]any `json:"lineage"`
+	Judgments  map[string]any `json:"judgments"`
+	Perception map[string]any `json:"perception"`
+	Listening  map[string]any `json:"listening"`
+	Links      map[string]any `json:"_links"`
+	// Songwriting holds the operator's duration targets; absent unless UseSongwriting wired a source.
+	Songwriting map[string]any `json:"songwriting,omitempty"`
 	NextActions []string       `json:"next_actions" nullable:"false"`
 	Budget      Budget         `json:"_budget"`
 }
@@ -125,18 +128,19 @@ const recipeUnknownNote = "recipe unknown: this is a reference track; no style, 
 
 // Key order of the sections (C35); keys not listed follow, sorted.
 var order = map[string][]string{
-	"song":       {"id", "title", "angle", "state", "takes", "pick", "open_proposals", "pending", "siblings"},
-	"muse":       {"id", "kind", "title", "artist", "brief"},
-	"sounds":     {"taxonomy_version", "facets", "tempo"},
-	"track":      {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
-	"recipe":     {"engine", "known", "hash", "request", "note"},
-	"provenance": {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
-	"score":      {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
-	"lineage":    {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
-	"judgments":  {"comments", "comments_total", "open_fix", "ladder"},
-	"perception": {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"},
-	"listening":  {"plays", "completion_rate", "last_played_at"},
-	"_links":     {"stream", "spectrogram", "comments", "track"},
+	"song":        {"id", "title", "angle", "state", "takes", "pick", "open_proposals", "pending", "siblings"},
+	"muse":        {"id", "kind", "title", "artist", "brief"},
+	"sounds":      {"taxonomy_version", "facets", "tempo"},
+	"track":       {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
+	"recipe":      {"engine", "known", "hash", "request", "note"},
+	"provenance":  {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
+	"score":       {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
+	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
+	"judgments":   {"comments", "comments_total", "open_fix", "ladder"},
+	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"},
+	"listening":   {"plays", "completion_rate", "last_played_at"},
+	"_links":      {"stream", "spectrogram", "comments", "track"},
+	"songwriting": {"min_duration_s", "target_min_duration_s", "target_max_duration_s", "guidance"},
 }
 
 func sectionJSON(name string, m map[string]any) ([]byte, error) {
@@ -182,6 +186,13 @@ func (b Bundle) MarshalJSON() ([]byte, error) {
 			return nil, err
 		}
 		put(s.name, raw, false)
+	}
+	if b.Songwriting != nil {
+		raw, err := sectionJSON("songwriting", b.Songwriting)
+		if err != nil {
+			return nil, err
+		}
+		put("songwriting", raw, false)
 	}
 	na := b.NextActions
 	if na == nil {
@@ -423,6 +434,30 @@ type Builder struct {
 	str       StrengthSource
 	gen       func(ctx context.Context) bool
 	lib1      LibraryReader // L1 (C98): nil => the song, muse and sounds sections are null
+	sw        TargetSource
+}
+
+// TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).
+type TargetSource interface {
+	Get(ctx context.Context) (songwriting.Targets, error)
+}
+
+// UseSongwriting adds the duration targets to every bundle as the "songwriting" section.
+func (b *Builder) UseSongwriting(t TargetSource) { b.sw = t }
+
+func (b *Builder) songwritingSection(ctx context.Context) (map[string]any, error) {
+	if b.sw == nil {
+		return nil, nil
+	}
+	t, err := b.sw.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"min_duration_s": t.MinDurationS, "target_min_duration_s": t.TargetMinDurationS, "target_max_duration_s": t.TargetMaxDurationS,
+		"guidance": fmt.Sprintf("songs should be longer than %d s and aim for %d-%d s: write enough sections for it (lint warns duration_under_target / duration_outside_target; get_songwriting_settings reads these)",
+			t.MinDurationS, t.TargetMinDurationS, t.TargetMaxDurationS),
+	}, nil
 }
 
 // PerceptionSource builds the perception block of a track; *ears.Service implements it (C51.8).
@@ -792,6 +827,9 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		}
 	}
 	out.Links = links
+	if out.Songwriting, err = b.songwritingSection(ctx); err != nil {
+		return Bundle{}, err
+	}
 
 	// next actions
 	na := []string{}

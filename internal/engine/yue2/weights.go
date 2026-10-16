@@ -23,6 +23,9 @@ const (
 const (
 	Env3BRevision  = "MM_YUE2_3B_REVISION"
 	EnvVAERevision = "MM_YUE2_VAE_REVISION"
+	// Env3BDir is the Hugging Face hub-cache root holding the cached 3B model (RunPod mounts it at
+	// /runpod-volume/huggingface-cache/hub); the worker resolves models--m-a-p--YuE2-3B/snapshots/<rev> under it.
+	Env3BDir = "MM_YUE2_3B_DIR"
 )
 
 // WeightsEnv is the endpoint environment derived from Weights.

@@ -15,61 +15,18 @@ env:
   CGO_ENABLED: "1"
 
 jobs:
-  go-fast:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: apt flac
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flac
-      - name: cache tools
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
-      - name: install tools
-        run: scripts/tools.sh
-      - name: media tools on PATH
-        run: |
-          echo "$PWD/bin" >> "$GITHUB_PATH"
-          export PATH="$PWD/bin:$PATH"
-          command -v metaflac flac
-          metaflac --version
-          v=$(metaflac --version | awk '{print $2}')
-          [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
-          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
-      - name: gofmt
-        run: |
-          out=$(gofmt -l $(git ls-files '*.go'))
-          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
-      - name: vet
-        run: go vet ./...
-      - name: test (every package outside the media tier)
-        # no -short: scripts/ci-go-test.sh splits the module in two parallel jobs (C67); this is the rest
-        run: scripts/ci-go-test.sh fast covdata/unit
-      - name: openapi drift
-        run: CGO_ENABLED=0 go run ./cmd/metamusic openapi | diff - openapi.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: covdata-unit-fast
-          path: covdata/unit
-          retention-days: 1
-
-  go-media:
+  go:
+    # The Go tests, 6 shards (scripts/ci-go-test.sh): every package once, the giants (jobs, acceptance) split by
+    # test name. gofmt, vet and the openapi drift check live in the lint job. Coverage data goes to the coverage job.
+    name: go (${{ matrix.shard }}/6)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,12 +55,12 @@ jobs:
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
-      - name: test (media tools and the acceptance tier)
-        # MM_REQUIRE_MEDIA_TOOLS=1 makes a missing tool fail
-        run: scripts/ci-go-test.sh media covdata/unit
+      - name: test (shard ${{ matrix.shard }} of 6)
+        # the full tier; MM_REQUIRE_MEDIA_TOOLS=1 makes a missing media tool fail
+        run: scripts/ci-go-test.sh run ${{ matrix.shard }} 6 covdata/unit
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: covdata-unit-media
+          name: covdata-unit-${{ matrix.shard }}
           path: covdata/unit
           retention-days: 1
 
@@ -153,6 +110,14 @@ jobs:
           key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
       - name: install tools
         run: scripts/tools.sh
+      - name: gofmt
+        run: |
+          out=$(gofmt -l $(git ls-files '*.go'))
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - name: vet
+        run: go vet ./...
+      - name: openapi drift
+        run: CGO_ENABLED=0 go run ./cmd/metamusic openapi | diff - openapi.json
       - name: golangci-lint
         run: bin/golangci-lint run ./...
 
@@ -192,8 +157,42 @@ jobs:
           path: web/dist
           retention-days: 1
 
-  e2e:
+  e2e-bin:
+    # The coverage-instrumented server binary, built once and shared with every e2e shard (it was built 6 times).
+    # It embeds the SPA (web/embed.go), so it is built from the web job's dist.
     needs: web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-dist
+          path: web/dist
+      - name: build coverage-instrumented binary
+        run: CGO_ENABLED=0 go build -cover -covermode=atomic -coverpkg=./... -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-bin
+          path: ${{ runner.temp }}/metamusic-e2e
+          retention-days: 1
+
+  e2e:
+    name: e2e (${{ matrix.shard }}/6)
+    needs: [web, e2e-bin]
+    strategy:
+      fail-fast: false
+      matrix:
+        # Playwright --shard=i/6 over the whole test list; every worker has its own server (web/e2e/fixtures.ts)
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -205,7 +204,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false # only `go tool covdata` runs here; the binary comes from e2e-bin
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.3
@@ -242,10 +241,14 @@ jobs:
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
-      - name: build coverage-instrumented binary
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: e2e-bin
+          path: ${{ runner.temp }}
+      - name: prepare coverage binary and covdata dir
         run: |
+          chmod +x "$RUNNER_TEMP/metamusic-e2e"
           mkdir -p covdata/e2e
-          CGO_ENABLED=0 go build -cover -covermode=atomic -coverpkg=./... -o "$RUNNER_TEMP/metamusic-e2e" ./cmd/metamusic
       - name: playwright version
         id: pw
         working-directory: web
@@ -265,26 +268,35 @@ jobs:
         env:
           MM_E2E_BIN: ${{ runner.temp }}/metamusic-e2e
           GOCOVERDIR: ${{ github.workspace }}/covdata/e2e
-        run: bun run e2e
+          # each shard serves part of the UI operations: the coverage job checks the union (web/e2e/served-check.ts)
+          MM_E2E_SERVED_OUT: ${{ github.workspace }}/served/e2e-served-${{ matrix.shard }}.json
+        run: |
+          mkdir -p "$(dirname "$MM_E2E_SERVED_OUT")"
+          bun run e2e --shard=${{ matrix.shard }}/6
       - name: coverage summary
         if: always()
         run: go tool covdata percent -i=covdata/e2e || true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: covdata-e2e
+          name: covdata-e2e-${{ matrix.shard }}
           path: covdata/e2e
+          retention-days: 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-served-${{ matrix.shard }}
+          path: served/e2e-served-${{ matrix.shard }}.json
           retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             web/playwright-report
             web/test-results
           retention-days: 7
 
   coverage:
-    needs: [go-fast, go-media, e2e]
+    needs: [go, e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -304,8 +316,20 @@ jobs:
           path: covdata/unit
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: covdata-e2e
+          pattern: covdata-e2e-*
+          merge-multiple: true
           path: covdata/e2e
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: e2e-served-*
+          merge-multiple: true
+          path: served
+      - name: every UI operation is served by some e2e shard
+        working-directory: web
+        run: bun e2e/served-check.ts 6 ../served/e2e-served-*.json
       - name: coverage gate selftest
         run: scripts/coverage-gate-selftest.sh
       - name: enforce coverage.thresholds on merged unit + e2e data

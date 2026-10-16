@@ -807,8 +807,8 @@ func BuildCapabilities(now time.Time, schema *SchemaReport, keys *KeysReport) Ca
 	return c
 }
 
-// EmbeddedCapabilities is the committed key-capabilities.json (a placeholder until M3-X2); wiring passes
-// it to BackendOptions.ProbeJSON.
+// EmbeddedCapabilities is the committed key-capabilities.json (the M3-X2 probe result, probed:true); the
+// server (app.selectBackend) and the CLI pass it to BackendOptions.ProbeJSON.
 //
 //go:embed key-capabilities.json
 var EmbeddedCapabilities []byte

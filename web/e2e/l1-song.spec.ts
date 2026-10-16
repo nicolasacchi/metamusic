@@ -1,13 +1,13 @@
-import { expect as baseExpect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { BASE_URL } from "./env";
+// matrix: @mobile because the Song page (take cards, Pick, duel start) is the phone listening surface
+import { expect as baseExpect, test, type APIRequestContext, type Page, type PlaywrightWorkerArgs } from "./fixtures";
 import { apiJSON, idemKey, uniq } from "./helpers";
 import { archiveDrafts, composeSong, getSong, makeDraftSongs, type ComposedSong, type SongDetail } from "./l1Api";
 
-// Desktop Chrome, Firefox and the Pixel 7. Each project composes ONE Song of three takes (a root and two new-seed children
+// Each worker server composes ONE Song of three takes (a root and two new-seed children
 // through the human estimate/confirm path, fake backend; every take spends against the shared daily cap) and the tests
-// of the file run in order on it, so ratings, pins, duels and proposals never touch another spec's or project's Song.
+// of the file run in order on it, so ratings, pins, duels and proposals never touch another spec's Song.
 
-// Songs are derived and the single writer is shared with the heavier tests of this phase (52 drafts), so waits are generous.
+// Songs are derived and the single writer is shared with the heavier tests of this server (52 drafts), so waits are generous.
 const expect = baseExpect.configure({ timeout: 20_000 });
 
 test.describe.configure({ mode: "serial", timeout: 180_000 });
@@ -81,10 +81,8 @@ test("two cards start a blind duel", async ({ page, request }) => {
   expect(duel.blind).toBe(true);
 });
 
-async function propose(playwright: import("@playwright/test").PlaywrightWorkerArgs["playwright"], songId: string, takeId: string, rationale: string): Promise<void> {
-  const token = process.env.MM_E2E_AGENT_TOKEN;
-  if (!token) throw new Error("the global setup did not create the agent token");
-  const agent = await playwright.request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
+async function propose(playwright: PlaywrightWorkerArgs["playwright"], baseURL: string | undefined, token: string, songId: string, takeId: string, rationale: string): Promise<void> {
+  const agent = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
   try {
     const r = await agent.post(`/api/songs/${songId}/pick-proposals`, { data: { take_id: takeId, rationale }, headers: { "Idempotency-Key": idemKey() } });
     expect(r.status(), await r.text()).toBeLessThan(300);
@@ -93,10 +91,10 @@ async function propose(playwright: import("@playwright/test").PlaywrightWorkerAr
   }
 }
 
-test("a dismissed proposal leaves the Pick alone", async ({ page, request, playwright }) => {
+test("a dismissed proposal leaves the Pick alone", async ({ page, request, playwright, baseURL, agentToken }) => {
   const s = await theSong(request);
   const before = await getSong(request, s.songId);
-  await propose(playwright, s.songId, nonPick(before), "e2e agent: maybe this one");
+  await propose(playwright, baseURL, agentToken, s.songId, nonPick(before), "e2e agent: maybe this one");
 
   await page.goto(`/songs/${s.songId}`);
   await expect(page.getByTestId("proposal")).toHaveCount(1);
@@ -108,10 +106,10 @@ test("a dismissed proposal leaves the Pick alone", async ({ page, request, playw
   expect(after.proposals.filter((p) => p.state === "open")).toHaveLength(0);
 });
 
-test("an agent proposal appears on the Song and Accept pins it", async ({ page, request, playwright }) => {
+test("an agent proposal appears on the Song and Accept pins it", async ({ page, request, playwright, baseURL, agentToken }) => {
   const s = await theSong(request);
   const target = nonPick(await getSong(request, s.songId), true);
-  await propose(playwright, s.songId, target, "e2e agent: this take is stronger");
+  await propose(playwright, baseURL, agentToken, s.songId, target, "e2e agent: this take is stronger");
 
   await page.goto(`/songs/${s.songId}`);
   const prop = page.getByTestId("proposal");

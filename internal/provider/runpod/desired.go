@@ -102,6 +102,7 @@ func DesiredSpec(c DesiredConfig, weights map[string]string, image string, maxWo
 		yue2.Env3BRevision:  rev3,
 		yue2.EnvVAERevision: revVAE,
 		"MM_YUE2_VAE_DIR":   vae,
+		yue2.Env3BDir:       CachedModelDir,
 	}
 	if c.TimeoutCase {
 		env["MM_WORKER_DEADLINE"] = "provider"

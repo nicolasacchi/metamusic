@@ -130,7 +130,7 @@ func TestAudit_SystemOpsTable(t *testing.T) {
 	t.Parallel()
 	want := map[string]string{
 		"runner":     "submit topup cancel batch_finish fail_remainder",
-		"reconciler": "adopt ghost settle_time_bound approval_expired trip purge_queue scale_to_zero revert_drift billing_window late_adjust hold_release upload_sweep",
+		"reconciler": "adopt ghost settle_time_bound approval_expired approval_withdrawn trip purge_queue scale_to_zero revert_drift billing_window late_adjust hold_release upload_sweep meter_billable_since",
 		"cli":        "runpod-arm runpod-disarm runpod-reset-trip runpod-provision restore-disarm",
 	}
 	var wantOps []string
@@ -139,7 +139,7 @@ func TestAudit_SystemOpsTable(t *testing.T) {
 			wantOps = append(wantOps, actor+":"+op)
 		}
 	}
-	if len(audit.SystemOps) != len(wantOps) || len(wantOps) != 22 {
+	if len(audit.SystemOps) != len(wantOps) || len(wantOps) != 24 {
 		t.Fatalf("SystemOps has %d entries, D-M3-22 lists %d", len(audit.SystemOps), len(wantOps))
 	}
 	for _, op := range wantOps {
@@ -174,7 +174,7 @@ func TestAudit_SystemOpsTable(t *testing.T) {
 	}
 
 	p, err := s.List(ctx, audit.Filter{Limit: 200})
-	if err != nil || len(p.Items) != 23 {
+	if err != nil || len(p.Items) != 25 {
 		t.Fatalf("list: %d %v", len(p.Items), err)
 	}
 	// canonical details ⇒ key order irrelevant

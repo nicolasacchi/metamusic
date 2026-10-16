@@ -18,17 +18,20 @@ const MaxRunBody = 2 << 20
 
 // WorkerInput is the decoded job input (C73.3).
 type WorkerInput struct {
-	Contract      string                  `json:"contract"`
-	TakeID        string                  `json:"take_id"`
-	AttemptID     string                  `json:"attempt_id"`
-	Engine        string                  `json:"engine"`
-	Request       json.RawMessage         `json:"request"`
-	TimeoutS      int                     `json:"timeout_s"`
-	UploadBudgetS int                     `json:"upload_budget_s"`
-	DeadlineUnix  int64                   `json:"deadline_unix"`
-	Start         StartTarget             `json:"start"`
-	Uploads       map[string]UploadTarget `json:"uploads"`
-	Expect        WorkerExpect            `json:"expect"`
+	Contract      string          `json:"contract"`
+	TakeID        string          `json:"take_id"`
+	AttemptID     string          `json:"attempt_id"`
+	Engine        string          `json:"engine"`
+	Request       json.RawMessage `json:"request"`
+	TimeoutS      int             `json:"timeout_s"`
+	UploadBudgetS int             `json:"upload_budget_s"`
+	DeadlineUnix  int64           `json:"deadline_unix"`
+	// MinAudioS is the forced minimum render length in seconds (X4); 0 is omitted. A worker image that predates
+	// the field rejects the input (BAD_INPUT), so a forced minimum is never silently dropped.
+	MinAudioS int                     `json:"min_audio_s,omitempty"`
+	Start     StartTarget             `json:"start"`
+	Uploads   map[string]UploadTarget `json:"uploads"`
+	Expect    WorkerExpect            `json:"expect"`
 }
 
 // StartTarget is the signed start-handshake URL (D-M3-28).
@@ -46,6 +49,8 @@ var (
 const (
 	maxURLLen   = 2048
 	maxTimeoutS = 2700
+	// MaxMinAudioS is the largest forced minimum: yue2's semantic max_tokens is 9000 = 360 s at 25 tokens/s.
+	MaxMinAudioS = 360
 )
 
 // ErrWorkerInput is wrapped by every ParseWorkerInput error. Messages name fields, never values.
@@ -67,6 +72,10 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 	bad := func(field, rule string) (WorkerInput, error) {
 		return WorkerInput{}, fmt.Errorf("%w: %s %s", ErrWorkerInput, field, rule)
 	}
+	var top map[string]json.RawMessage // encoding/json reads null into an int as "absent"; the schema forbids it
+	if json.Unmarshal(raw, &top) == nil && bytes.Equal(bytes.TrimSpace(top["min_audio_s"]), []byte("null")) {
+		return bad("min_audio_s", "must be an integer")
+	}
 	switch {
 	case in.Contract != Contract:
 		return bad("contract", "must be "+Contract)
@@ -84,6 +93,8 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 		return bad("upload_budget_s", "out of range")
 	case in.DeadlineUnix < 1:
 		return bad("deadline_unix", "out of range")
+	case in.MinAudioS < 0 || in.MinAudioS > MaxMinAudioS:
+		return bad("min_audio_s", "out of range")
 	case !validURL(in.Start.URL):
 		return bad("start.url", "malformed")
 	}
@@ -149,7 +160,7 @@ func BuildWorkerInput(t TakeSpec) ([]byte, error) {
 	}
 	return json.Marshal(WorkerInput{
 		Contract: Contract, TakeID: t.JobID, AttemptID: t.AttemptID, Engine: t.Engine, Request: t.Request,
-		TimeoutS: t.TimeoutS, UploadBudgetS: t.UploadBudgetS, DeadlineUnix: t.Deadline.Unix(),
+		TimeoutS: t.TimeoutS, UploadBudgetS: t.UploadBudgetS, DeadlineUnix: t.Deadline.Unix(), MinAudioS: t.MinAudioS,
 		Start: StartTarget{URL: t.StartURL}, Uploads: uploads, Expect: t.Expect,
 	})
 }

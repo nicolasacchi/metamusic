@@ -67,7 +67,7 @@ func providerStatus(viewer auth.Principal, s jobs.ProviderStatus) ProviderStatus
 		out.TripsRecent = append(out.TripsRecent, providerTrip(t))
 	}
 	if w := s.Workers; w != nil {
-		v := WorkerCountsOrNull{Running: w.Running, Idle: w.Idle, Initializing: w.Initializing, Throttled: w.Throttled, Unhealthy: w.Unhealthy, ObservedAt: tsOut(w.ObservedAt)}
+		v := WorkerCountsOrNull{Running: w.Running, Idle: w.Idle, Initializing: w.Initializing, Throttled: w.Throttled, Unhealthy: w.Unhealthy, ObservedAt: tsOut(w.ObservedAt), InitializingSince: tsPtr(w.InitializingSince)}
 		out.Workers = &v
 	}
 	if e := s.Endpoint; e != nil {

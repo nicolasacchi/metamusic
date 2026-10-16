@@ -1056,6 +1056,26 @@ export interface paths {
         patch: operations["update_session"];
         trace?: never;
     };
+    "/api/settings/songwriting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the songwriting duration targets
+         * @description Preferred song length in seconds: at least min_duration_s, aiming for target_min_duration_s to target_max_duration_s. Lint warns when a song misses them.
+         */
+        get: operations["get_songwriting_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/songs": {
         parameters: {
             query?: never;
@@ -1742,6 +1762,26 @@ export interface paths {
          * @description The operator arms or disarms generation and/or resets an open trip. A reason is required. Arming after a restore waits for a billing reconciliation.
          */
         post: operations["update_provider_state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/settings/songwriting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the songwriting duration targets
+         * @description The operator changes the minimum song length and/or the target band, in seconds (30 to 600; min <= target min <= target max). At least one field.
+         */
+        put: operations["update_songwriting_settings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2522,6 +2562,9 @@ export interface components {
             song: {
                 [key: string]: unknown;
             } | null;
+            songwriting?: {
+                [key: string]: unknown;
+            };
             /** @description Sound facets and the tempo check of the take; null without a Song */
             sounds: {
                 [key: string]: unknown;
@@ -3264,6 +3307,9 @@ export interface components {
         };
         Issue: {
             code: string;
+            details?: {
+                [key: string]: unknown;
+            };
             fatal?: boolean;
             field?: string;
             /** Format: int64 */
@@ -4194,6 +4240,8 @@ export interface components {
                 idle: number;
                 /** Format: int64 */
                 initializing: number;
+                /** @description RFC 3339 UTC; null unless a worker is initializing */
+                initializing_since: string | null;
                 observed_at: string;
                 /** Format: int64 */
                 running: number;
@@ -4805,6 +4853,14 @@ export interface components {
             /** Format: double */
             requested_bpm: number | null;
         };
+        Targets: {
+            /** Format: int64 */
+            min_duration_s: number;
+            /** Format: int64 */
+            target_max_duration_s: number;
+            /** Format: int64 */
+            target_min_duration_s: number;
+        };
         TaxonomyItem: {
             facet: string;
             /** Format: int64 */
@@ -5219,6 +5275,23 @@ export interface components {
             /** Format: int64 */
             revision: number;
             title?: string;
+        };
+        UpdateSongwritingInBody: {
+            /**
+             * Format: int64
+             * @description Songs shorter than this draw a duration_under_target warning
+             */
+            min_duration_s?: number;
+            /**
+             * Format: int64
+             * @description Upper end of the target band
+             */
+            target_max_duration_s?: number;
+            /**
+             * Format: int64
+             * @description Lower end of the target band
+             */
+            target_min_duration_s?: number;
         };
         UpdateTrackInBody: {
             /** @enum {string} */
@@ -7346,6 +7419,35 @@ export interface operations {
             };
         };
     };
+    get_songwriting_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Targets"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_songs: {
         parameters: {
             query?: {
@@ -8668,6 +8770,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_songwriting_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSongwritingInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Targets"];
                 };
             };
             /** @description Error */

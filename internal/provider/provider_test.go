@@ -276,6 +276,14 @@ func TestParseWorkerInput_MatchesSchema(t *testing.T) {
 		},
 		"weights non-string": func(m map[string]any) { m["expect"].(map[string]any)["weights"].(map[string]any)["m-a-p/YuE2-3B"] = 5 },
 		"uploads is array":   func(m map[string]any) { m["uploads"] = []any{} },
+		"min_audio_s 200":    func(m map[string]any) { m["min_audio_s"] = 200 },
+		"min_audio_s 0":      func(m map[string]any) { m["min_audio_s"] = 0 },
+		"min_audio_s 360":    func(m map[string]any) { m["min_audio_s"] = 360 },
+		"min_audio_s 361":    func(m map[string]any) { m["min_audio_s"] = 361 },
+		"min_audio_s -1":     func(m map[string]any) { m["min_audio_s"] = -1 },
+		"min_audio_s string": func(m map[string]any) { m["min_audio_s"] = "200" },
+		"min_audio_s float":  func(m map[string]any) { m["min_audio_s"] = 200.5 },
+		"min_audio_s null":   func(m map[string]any) { m["min_audio_s"] = nil },
 	}
 	for name, mutate := range cases {
 		doc := exampleInput()
@@ -308,6 +316,39 @@ func TestParseWorkerInput_MatchesSchema(t *testing.T) {
 	doc["start"] = map[string]any{"url": "https://h/secret-sig-value x"}
 	if _, err := ParseWorkerInput(marshal(t, doc)); err == nil || strings.Contains(err.Error(), "secret-sig-value") {
 		t.Errorf("error echoes a value: %v", err)
+	}
+}
+
+func TestBuildWorkerInput_MinAudio(t *testing.T) {
+	t.Parallel()
+	ex := exampleInput()
+	spec := TakeSpec{
+		JobID: "a1", AttemptID: "a2", Engine: "yue2", Request: marshal(t, ex["request"]), TimeoutS: 186, UploadBudgetS: 60,
+		Deadline: time.Unix(1760000000, 0), StartURL: ex["start"].(map[string]any)["url"].(string),
+		Uploads: map[string]UploadTarget{}, Expect: WorkerExpect{Weights: map[string]string{"m-a-p/YuE2-3B": rev3B}},
+	}
+	for n, v := range ex["uploads"].(map[string]any) {
+		m := v.(map[string]any)
+		spec.Uploads[n] = UploadTarget{URL: m["url"].(string), MaxBytes: m["max_bytes"].(int64)}
+	}
+	raw, err := BuildWorkerInput(spec)
+	if err != nil || strings.Contains(string(raw), "min_audio_s") {
+		t.Fatalf("a take without a forced minimum must not carry the key (an older worker rejects it): %s %v", raw, err)
+	}
+	spec.MinAudioS = 252
+	raw, err = BuildWorkerInput(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := ParseWorkerInput(raw)
+	if err != nil || in.MinAudioS != 252 {
+		t.Fatalf("round trip: %+v %v", in, err)
+	}
+	rs, _ := loadSchema(t, "mm-worker-1.input.schema.json")
+	var inst any
+	_ = json.Unmarshal(raw, &inst)
+	if err := rs.Validate(inst); err != nil {
+		t.Errorf("schema: %v", err)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
@@ -38,8 +39,23 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm --endpoint-name N --reason TEXT [--after-restore]
   disarm --reason TEXT
   reset-trip --reason TEXT
-  canary --url URL [--max-usd 0.25] [--case main|cot-full|terminate|timeout|kill-switch]
-         [--verify-billing BATCH] [--keep]    scripted agent over REST with MM_TOKEN (read + write + generate)
+  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch]
+         [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
+                                              scripted agent over REST with MM_TOKEN (read + write + generate)
+
+canary --start-timeout: how long the job may take to start generating (default 12m). The first cold start
+includes a one-time image pull of about 7.7 GB, which RunPod does not bill. When the window expires the
+canary cancels the job and waits for the workers to reach 0 (or prints the manual command) before exiting.
+
+canary --kill-switch-confirm: required for --case kill-switch. While the job is generating, an operator runs
+'metamusic runpod provision --deactivate'; the canary detects it (endpoint workers_max 0 or endpoint_inactive in
+GET /api/provider) and the case fails with "nobody flipped the kill switch" if the job ends without it.
+
+Recording RunPod exchanges (fixtures for the X4 tests): the RunPod calls are made by the SERVER process, not by
+the canary (a REST client), so MM_RUNPOD_RECORD_DIR must be set in the environment of 'metamusic serve' (an
+existing directory outside MM_DATA_DIR; restart the server, there is no live toggle). Setting it on the canary
+process records nothing. The CLI commands probe, provision and status record their own calls when it is set
+for them. Files are redacted (keys, signed URLs, endpoint and worker ids, job inputs).
 
 canary exit codes: 0 pass, 1 fail, 2 usage, 3 refused (cost or disarmed), 4 aborted
 `
@@ -530,8 +546,8 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 		return err
 	}
 	v.Billing = map[string]any{"windows": n, "last_window_end": end.String, "billed": money.MicroUSD(billed).USD()}
-	var lifetimes, secs int64
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(uptime_s),0) FROM worker_meter`).Scan(&lifetimes, &secs); err != nil {
+	lifetimes, secs, err := jobs.BillableMeterTotals(ctx, db) // the API's meter rule: rows before billable_since are legacy
+	if err != nil {
 		return err
 	}
 	v.Meter = map[string]any{"lifetimes": lifetimes, "uptime_s": secs}
@@ -899,10 +915,13 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("runpod canary", s)
 	urlFlag := fs.String("url", "", "the server's base `URL`")
-	maxUSD := fs.String("max-usd", "0.25", "refuse when the estimate's ceiling exceeds this many dollars")
+	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars")
 	cs := fs.String("case", "main", "main|cot-full|terminate|timeout|kill-switch")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")
+	killConfirm := fs.Bool("kill-switch-confirm", false, "kill-switch case: an operator will run `provision --deactivate` while the job is generating")
+	startTimeout := fs.Duration("start-timeout", runpod.DefaultCanaryStartTimeout,
+		"how long the job may take to start generating; the first cold start includes a one-time ~7.7 GB image pull (not billed by RunPod)")
 	if err := fs.Parse(args); err != nil {
 		return exitError{code: runpod.ExitUsage, err: errors.New(err.Error())}
 	}
@@ -923,7 +942,11 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	if token == "" {
 		return usage("MM_TOKEN is not set (a PAT with read + write + generate)")
 	}
-	o := runpod.CanaryOptions{BaseURL: *urlFlag, Token: token, MaxUSD: limit, Keep: *keep, Log: s.err}
+	if *startTimeout <= 0 {
+		return usage("--start-timeout must be a positive duration")
+	}
+	o := runpod.CanaryOptions{BaseURL: *urlFlag, Token: token, MaxUSD: limit, Keep: *keep, Log: s.err, StartTimeout: *startTimeout,
+		KillSwitchConfirm: *killConfirm}
 	var rep *runpod.CanaryReport
 	if *verify != "" {
 		rep, err = runpod.VerifyBilling(ctx, o, *verify)
@@ -933,6 +956,9 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 			return usage(cerr.Error())
 		}
 		o.Case = c
+		if c == runpod.CaseKillSwitch && !*killConfirm {
+			return usage("--case kill-switch needs --kill-switch-confirm: an operator must run `metamusic runpod provision --deactivate` while the job is generating, or the case fails")
+		}
 		rep, err = runpod.RunCanary(ctx, o)
 	}
 	if err != nil {

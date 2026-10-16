@@ -159,6 +159,44 @@ def test_vae_from_the_image_snapshot_never_asks_the_hub(tmp_path: Path, monkeypa
     assert socket_guard == []
 
 
+def test_3b_from_the_runpod_cache_is_a_local_directory_and_never_asks_the_hub(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, socket_guard: list) -> None:
+    """resolve_3b's output (RunPod's cached-model layouts) is accepted by yue2's loader as `model=`: a local
+    directory short-circuits the hub entirely (storage.resolve_model), so no download call and no socket."""
+    import huggingface_hub
+    from yue2 import YuE2Pipeline
+
+    from mmworker import pipeline
+    from mmworker.pipeline import resolve_3b
+
+    store = tmp_path / "store"
+    snap = store / "m-a-p" / "YuE2-3B" / PIN_3B
+    snap.mkdir(parents=True)
+    (snap / "config.json").write_text("{}")
+    (snap / "model-00001-of-00001.safetensors").write_bytes(b"w")
+    vol = tmp_path / "vol"
+    monkeypatch.setattr(pipeline, "MODEL_STORE", store)
+    monkeypatch.setattr(pipeline, "VOLUME_HUB", vol)
+    vae = tmp_path / "vae"
+    vae.mkdir()
+    model = resolve_3b({}, "m-a-p/YuE2-3B", PIN_3B)
+    built: list[Path] = []
+
+    def never(*a, **k):  # noqa: ANN002, ANN003, ANN202
+        raise AssertionError("the hub was asked")
+
+    def init(self, model_dir, vae_dir, **kwargs):  # noqa: ANN001, ANN003
+        built.append(Path(model_dir))
+        self.load_timing = {}
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", never)
+    monkeypatch.setattr(YuE2Pipeline, "__init__", init)
+    YuE2Pipeline.from_pretrained(model=model, vae=str(vae), revision=PIN_3B, vae_revision=PIN_VAE,
+                                 device="cpu", local_files_only=True, progress=False)
+    assert built == [snap.resolve()]
+    assert socket_guard == []
+
+
 def test_offline_raises_fast_and_opens_no_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                                  socket_guard: list) -> None:
     import huggingface_hub.constants as hc
@@ -225,3 +263,71 @@ def test_adapter_request_kwargs_uses_real_yue2() -> None:
                 {"id": "a", "style": "s", "lyrics": "l", "extra": 1}):
         with pytest.raises(Exception):  # noqa: B017, PT011
             adapter.request_kwargs(bad)
+
+
+# ---- X4: forced minimum render length ----
+
+def _bare_pipeline(tmp_path: Path):
+    """A YuE2Pipeline with only what effective_config reads: no weights, no loading."""
+    from yue2 import YuE2Pipeline
+    from yue2.protocol import GenerationConfig
+
+    vae = tmp_path / "vae"
+    vae.mkdir(exist_ok=True)
+    (vae / "config.json").write_text('{"release_variant": "contract"}')
+    p = YuE2Pipeline.__new__(YuE2Pipeline)
+    p.generation_config, p.backend, p.quantization = GenerationConfig(), "torch", "none"
+    p.memory_budget_gib, p.offload_ar, p.runtime_sha256 = 24, False, "0" * 64
+    p.vae_core_frames, p.device, p.vae_dir = 64, "cpu", vae
+    return p
+
+
+def test_semantic_sampling_travels_through_request_kwargs_into_the_pipeline_call(tmp_path: Path) -> None:
+    """The worker's only lever: request_kwargs keeps semantic_sampling, __call__ takes it, and yue2 records it
+    in config.json under generation.semantic AND overrides.semantic (the take's re-run record)."""
+    from yue2 import YuE2Pipeline
+    from yue2.cli import request_kwargs
+
+    from mmworker.pipeline import with_min_audio
+
+    assert "semantic_sampling" in inspect.signature(YuE2Pipeline.__call__).parameters
+    req = {"cot": "melody", "id": "x", "lyrics": "[verse]\nla", "seed": 2, "style": "pop"}
+    kwargs = with_min_audio(request_kwargs(req, tmp_path), 252)
+    assert kwargs["semantic_sampling"] == {"min_tokens": 6300}
+    pipe = _bare_pipeline(tmp_path)
+    request = pipe._request(**{k: v for k, v in kwargs.items() if k not in {"abc_sampling", "semantic_sampling"}})
+    cfg = pipe.effective_config(request, kwargs.get("abc_sampling"), kwargs.get("semantic_sampling"))
+    assert cfg["generation"]["semantic"]["min_tokens"] == 6300
+    assert cfg["overrides"]["semantic"]["min_tokens"] == 6300
+    assert cfg["generation"]["semantic"]["max_tokens"] == 9000
+    plain = pipe.effective_config(request, None, None)
+    assert plain["overrides"] == {} and plain["generation"]["semantic"]["min_tokens"] == 200
+    # the take's identity covers the config (pipeline.__call__): another min_tokens is another identity
+    from yue2.storage import identity
+
+    ident = lambda c: identity({"request": request.to_dict(), "config": c, "weights": {}})  # noqa: E731
+    assert ident(cfg) != ident(plain)
+    # the request itself (request.json, the recipe's hash input) and the runtime hash do not change
+    assert request.to_dict() == pipe._request(**{k: v for k, v in kwargs.items()
+                                                 if k not in {"abc_sampling", "semantic_sampling"}}).to_dict()
+    assert cfg["runtime_sha256"] == plain["runtime_sha256"]
+
+
+def test_min_tokens_suppresses_the_end_token_until_reached_and_is_bounded() -> None:
+    import torch
+    from yue2.protocol import MUSIC_END, VOCAB_SIZE, Sampling
+    from yue2.sampling import distribution
+
+    from mmworker.contract import MAX_MIN_AUDIO_S
+    from mmworker.pipeline import SEMANTIC_TOKENS_PER_S
+
+    sampling = Sampling(min_tokens=6300)
+    logits = torch.zeros(1, VOCAB_SIZE)
+    logits[..., MUSIC_END] = 50.0  # the model wants to stop
+    assert distribution(logits, sampling, [], 6299, "semantic")[..., MUSIC_END].item() == float("-inf")
+    assert distribution(logits, sampling, [], 6300, "semantic")[..., MUSIC_END].item() > float("-inf")
+    # the schema's 360 s ceiling is exactly max_tokens; one more token is refused by yue2 itself
+    assert MAX_MIN_AUDIO_S * SEMANTIC_TOKENS_PER_S == Sampling().max_tokens
+    Sampling(min_tokens=MAX_MIN_AUDIO_S * SEMANTIC_TOKENS_PER_S)
+    with pytest.raises(ValueError):
+        Sampling(min_tokens=MAX_MIN_AUDIO_S * SEMANTIC_TOKENS_PER_S + 1)

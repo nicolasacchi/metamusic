@@ -43,7 +43,10 @@ import (
 // L1-B5 bound the list_songs and search_sounds filters (C96, +~810 bytes each) and the C98 track fields; the seven tools
 // then measured 16 905, so list_songs was demoted to generic (D-L1-20): the six remaining L1 tools take ~14 700. The ceiling is re-baselined 102600 -> 103500 (measured 103405) for the
 // C98 fields (song_id, is_pick, session_id, TrackDetail.song, the /context sections and library_model).
-const toolsCeilingBytes = 103500
+//
+// Merging main (songwriting targets) re-baselined 103500 -> 104300 (measured 104266, +861): get_songwriting_settings and the
+// lint Issue's optional details object.
+const toolsCeilingBytes = 104300
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

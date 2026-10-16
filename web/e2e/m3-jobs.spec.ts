@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+// matrix: @mobile because live job following and termination are watched from the phone
+import { expect, test, type Page } from "./fixtures";
 import { composeRoots, first, getBatch, pollBatch, startSlowBatch } from "./m3Api";
 
 // Desktop Chrome, then the Pixel 7 and the iPhone 15 (one project after the other: the fake endpoint has two workers

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -27,6 +28,8 @@ func (s *Service) spendErr(ctx context.Context, q interface {
 		return notFound()
 	case errors.Is(err, spend.ErrNotBatchOwner):
 		return notOwner()
+	case errors.Is(err, spend.ErrBatchNotPending):
+		return perr(http.StatusConflict, "BATCH_NOT_PENDING", "the batch was cancelled while awaiting confirmation; there is nothing to "+strings.TrimSuffix(to, "d")+" any more", map[string]any{"to": to})
 	case errors.Is(err, spend.ErrInvalidTransition):
 		var from string
 		if e := q.QueryRowContext(ctx, `SELECT state FROM approvals WHERE batch_id = ?`, batchID).Scan(&from); e != nil {

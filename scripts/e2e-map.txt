@@ -1,0 +1,143 @@
+# Source path -> Playwright specs for `make verify` (scripts/verify.sh). The first matching line wins.
+# Columns (tab separated): bash glob over the repo-relative path, then spec names (web/e2e/<name>.spec.ts)
+# or "core" (the "@core" line below), or "-" for none. A changed web/e2e/*.spec.ts always runs itself; this
+# file is only for changes to the code under test. verify passes the selected spec files to scripts/e2e.sh
+# (MM_E2E_SPECS) and Playwright runs them on whatever projects/tags the config gives them; CI runs everything.
+@core	smoke m1-library m1-player
+web/src/*.test.ts	-
+web/src/lib/fixtures/*	-
+web/src/routes/Backlog.svelte	m1-backlog
+web/src/routes/Draft*.svelte	m2a-drafts m1-backlog
+web/src/routes/Import.svelte	m1-import
+web/src/routes/Library.svelte	m1-library
+web/src/lib/components/Library*	m1-library
+web/src/lib/components/TrackTable.svelte	m1-library
+web/src/lib/components/Pager.svelte	m1-library
+web/src/lib/libraryQuery.ts	m1-library
+web/src/routes/Track.svelte	m1-track
+web/src/lib/components/Track*	m1-track
+web/src/lib/components/Player*	m1-player
+web/src/lib/components/Waveform.svelte	m1-player
+web/src/lib/components/Spectrogram.svelte	m1-player
+web/src/lib/player*	m1-player m3-autoadvance
+web/src/lib/queue*	m1-player m3-autoadvance
+web/src/lib/listen*	m2a-listen
+web/src/lib/components/ABPlayer.svelte	m2b-compare
+web/src/routes/Compare.svelte	m2b-compare
+web/src/lib/compareView.ts	m2b-compare
+web/src/lib/ab*	m2b-compare
+web/src/routes/Duel*.svelte	m2b-duels
+web/src/lib/components/Duel*	m2b-duels
+web/src/lib/duel*	m2b-duels
+web/src/lib/components/NewDuelForm.svelte	m2b-duels
+web/src/routes/Ladder.svelte	m2b-duels
+web/src/lib/components/Ladder*	m2b-duels
+web/src/lib/ladder*	m2b-duels
+web/src/lib/components/Ears*	m2b-ears
+web/src/lib/earsView.ts	m2b-ears
+web/src/routes/Playlist*.svelte	m2a-playlists
+web/src/lib/components/Playlist*	m2a-playlists
+web/src/lib/components/AddToPlaylist.svelte	m2a-playlists
+web/src/routes/Export.svelte	m2a-export
+web/src/lib/components/ExportForm.svelte	m2a-export
+web/src/lib/exportView.ts	m2a-export
+web/src/routes/SettingsBackups.svelte	m2a-backup
+web/src/lib/components/BackupList.svelte	m2a-backup
+web/src/routes/SettingsAudit.svelte	m2a-audit
+web/src/lib/components/AuditTable.svelte	m2a-audit
+web/src/routes/HumanDevices.svelte	m2a-human
+web/src/routes/HumanConfirm.svelte	m2a-human
+web/src/lib/components/PairingPanel.svelte	m2a-human
+web/src/lib/humanView.ts	m2a-human
+web/src/lib/components/Comment*	m2a-comments
+web/src/lib/comments.ts	m2a-comments
+web/src/lib/jump.ts	m2a-comments
+web/src/lib/components/VerdictBar.svelte	m2a-judge
+web/src/lib/components/StarRating.svelte	m2a-judge
+web/src/lib/components/StatusSelect.svelte	m2a-judge
+web/src/lib/judge*	m2a-judge
+web/src/lib/components/ContextButton.svelte	m2a-context
+web/src/routes/Jobs.svelte	m3-jobs
+web/src/routes/Job.svelte	m3-jobs
+web/src/lib/components/Job*	m3-jobs
+web/src/lib/jobState.ts	m3-jobs
+web/src/routes/Batch.svelte	m3-batch
+web/src/lib/components/BatchCard.svelte	m3-batch
+web/src/routes/HumanGenerate.svelte	m3-compose m3-variant
+web/src/lib/components/Generate*	m3-compose m3-variant
+web/src/lib/components/ModeForm.svelte	m3-compose
+web/src/lib/components/Estimate*	m3-compose
+web/src/lib/genIntent.ts	m3-compose m3-variant
+web/src/lib/components/ConfirmSpend.svelte	m3-approval
+web/src/routes/HumanSpend.svelte	m3-spend
+web/src/routes/HumanTokens.svelte	m3-spend m3-approval
+web/src/lib/components/Budget*	m3-spend
+web/src/lib/components/Spend*	m3-spend
+web/src/lib/components/TokenForm.svelte	m3-spend m3-approval
+web/src/lib/spendCaps.ts	m3-spend
+web/src/lib/money.ts	m3-spend
+web/src/routes/Lineage.svelte	m3-lineage
+web/src/lib/components/Lineage*	m3-lineage
+web/src/lib/lineageTree.ts	m3-lineage
+web/src/lib/components/LyricsPanel.svelte	m3-songwriting
+web/src/lib/components/LintPanel.svelte	m3-songwriting
+web/src/lib/components/Provenance*	m1-track
+web/src/lib/components/Recipe*	m1-library
+web/src/routes/Settings.svelte	m2a-backup m2a-audit
+web/src/routes/Board.svelte	l1-board
+web/src/lib/components/Board*	l1-board
+web/src/lib/components/MusePicker.svelte	l1-board l1-muse
+web/src/routes/Muse.svelte	l1-muse
+web/src/routes/Song.svelte	l1-song
+web/src/lib/components/TakeCard.svelte	l1-song
+web/src/lib/components/Pick*	l1-song
+web/src/lib/components/SongChip.svelte	l1-board l1-song
+web/src/routes/Sounds.svelte	l1-sounds
+# Go packages whose behaviour a spec exercises end to end. Packages not listed here (money, clock,
+# redact, canonjson, textfold, ...) are covered by their reverse dependencies' unit tests only.
+internal/duels/*	m2b-duels
+internal/ladder/*	m2b-duels
+internal/ears/*	m2b-ears
+internal/spend/*	m3-spend m3-approval
+internal/jobs/*	m3-jobs m3-batch
+internal/generation/*	m3-compose m3-variant
+internal/provider/*	m3-compose
+internal/songwriting/*	m3-songwriting
+internal/lineage/*	m3-lineage
+internal/exports/*	m2a-export
+internal/export/*	m2a-export
+internal/backup/*	m2a-backup
+internal/audit/*	m2a-audit
+internal/drafts/*	m2a-drafts
+internal/judgments/*	m2a-judge
+internal/listening/*	m2a-listen
+internal/playlists/*	m2a-playlists
+internal/importer/*	m1-import
+internal/upload/*	m1-import m1-backlog
+internal/library/*	m1-library m1-track
+internal/trackctx/*	m2a-context
+internal/auth/*	m2a-human
+internal/analysis/*	m1-track
+internal/media/*	m1-player
+internal/mediatool/*	m1-player
+internal/synth/*	core
+internal/httpserver/*	core
+internal/api/*	core
+internal/app/*	core
+internal/servertest/*	core
+internal/mcpgen/*	core
+internal/store/*	core
+internal/ratelimit/*	core
+internal/reqinfo/*	core
+internal/problem/*	core
+internal/engine/*	core
+internal/config/*	core
+cmd/*	core
+web/embed.go	core
+internal/muses/*	l1-muse
+internal/songs/*	l1-song l1-board
+internal/songview/*	l1-song
+internal/picks/*	l1-song
+internal/sessions/*	l1-song
+internal/sounds/*	l1-sounds
+internal/board/*	l1-board

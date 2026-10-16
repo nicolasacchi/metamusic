@@ -337,3 +337,76 @@ func TestRequestApproval_RateLimited(t *testing.T) {
 		t.Errorf("after approval: %+v %v", done, err)
 	}
 }
+
+// TestWithdrawBatch: cancelling a batch that awaits confirmation closes approval and batch together,
+// releases the whole reservation and makes approve and reject refuse with ErrBatchNotPending.
+func TestWithdrawBatch(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := context.Background()
+	a := r.awaiting("w1")
+	withdraw := func(b string, lease *store.LeaseFence) (bool, error) {
+		var ch bool
+		err := r.tx(func(tx *sql.Tx) (err error) {
+			ch, err = r.s.WithdrawBatch(ctx, tx, b, "agent:a1", "changed my mind", lease)
+			return
+		})
+		return ch, err
+	}
+	if ids, err := r.s.StuckWithdrawn(ctx, r.st.R, 10); err != nil || len(ids) != 0 {
+		t.Fatalf("a live awaiting batch is not stuck: %v %v", ids, err)
+	}
+	if ch, err := withdraw(a.Batch, nil); !ch || err != nil {
+		t.Fatalf("withdraw: %v %v", ch, err)
+	}
+	if got := r.str(`SELECT state || '|' || via || '|' || decided_by || '|' || reason FROM approvals WHERE batch_id = ?`, a.Batch); got != "rejected|cancel|agent:a1|changed my mind" {
+		t.Errorf("approval %q", got)
+	}
+	if got := r.str(`SELECT state FROM batches WHERE id = ?`, a.Batch); got != "rejected" {
+		t.Errorf("batch %q", got)
+	}
+	if r.str(`SELECT finished_at || reconciled_at FROM batches WHERE id = ?`, a.Batch) == "" {
+		t.Error("finished_at and reconciled_at must be set")
+	}
+	if got := r.val(`SELECT COALESCE(SUM(micro_usd),0) FROM ledger WHERE batch_id = ? AND kind = 'release' AND reason = 'rejected'`, a.Batch); got != 600 {
+		t.Errorf("released %d, want 600", got)
+	}
+	if out, err := func() (money.MicroUSD, error) {
+		var o money.MicroUSD
+		err := r.tx(func(tx *sql.Tx) (err error) { o, err = BatchOutstanding(ctx, tx, a.Batch); return })
+		return o, err
+	}(); err != nil || out != 0 {
+		t.Errorf("outstanding %d %v", out, err)
+	}
+	// idempotent
+	if ch, err := withdraw(a.Batch, nil); ch || err != nil {
+		t.Errorf("second withdraw: %v %v", ch, err)
+	}
+	// neither approve nor reject (not even the idempotent reject) is possible any more
+	for name, err := range map[string]error{
+		"approve": r.tx(func(tx *sql.Tx) error { _, err := r.s.ApproveBatch(ctx, tx, a.Batch, humanP, ""); return err }),
+		"reject":  r.tx(func(tx *sql.Tx) error { _, err := r.s.RejectBatch(ctx, tx, a.Batch, humanP, "no"); return err }),
+	} {
+		if !errors.Is(err, ErrBatchNotPending) {
+			t.Errorf("%s after cancel: %v", name, err)
+		}
+	}
+	// a plain human rejection is still idempotent and still INVALID_TRANSITION for approve
+	rj := r.awaiting("w2")
+	if err := r.tx(func(tx *sql.Tx) error { _, err := r.s.RejectBatch(ctx, tx, rj.Batch, humanP, "no"); return err }); err != nil {
+		t.Fatal(err)
+	}
+	if ch, err := withdraw(rj.Batch, nil); ch || err != nil {
+		t.Errorf("withdraw of a rejected batch: %v %v", ch, err)
+	}
+	// the lease predicate is honoured
+	lost := r.lease
+	lost.Owner = "intruder"
+	l := r.awaiting("w3")
+	if ch, err := withdraw(l.Batch, &lost); ch || err != nil {
+		t.Errorf("withdraw without the lease: %v %v", ch, err)
+	}
+	if got := r.str(`SELECT state FROM approvals WHERE batch_id = ?`, l.Batch); got != "pending" {
+		t.Errorf("approval %q after a fenced-out withdraw", got)
+	}
+}

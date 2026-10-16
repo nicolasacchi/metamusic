@@ -6,13 +6,17 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/app"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/providertest"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/runpodtest"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -227,5 +231,114 @@ func TestApp_GenerationEnabledNoNetwork(t *testing.T) {
 		if n := spy.Calls().Total(); n != 0 {
 			t.Errorf("%s: %d backend calls while computing the state", mode, n)
 		}
+	}
+}
+
+// TestApp_ProviderStatusIsWiredToTheSweep is the regression of the canary defect "max_workers_seen was 0 in
+// every run": get_provider_status showed `workers: null` and the stub capabilities because neither the
+// reconciler's snapshot nor the backend's capabilities were ever handed to the provider admin.
+func TestApp_ProviderStatusIsWiredToTheSweep(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake; c.FakeBackend = "slow:2s" })
+	s := e.build(t, app.Options{})
+	adm := s.Deps.Provider
+	before, err := adm.Status(ctx, auth.Principal{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Workers != nil {
+		t.Fatalf("workers before any sweep = %+v, want nil", before.Workers)
+	}
+	if !before.Capability.ScaleToZero || before.Capability.Billing != "hour" {
+		t.Errorf("capabilities %+v are not the backend's (the fake can scale to zero and reads hourly billing)", before.Capability)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); _ = s.Runner.Run(ctx) }()
+	defer func() { cancel(); <-done }()
+	deadline := time.Now().Add(20 * time.Second)
+	for !s.Runner.Holding() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !s.Runner.Holding() {
+		t.Fatal("the runner never took the lease")
+	}
+	if err := s.Reconciler.Pass(ctx); err != nil {
+		t.Fatal(err)
+	}
+	after, err := adm.Status(ctx, auth.Principal{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Workers == nil || after.LastReconcile == nil {
+		t.Errorf("after a sweep: workers=%+v last_reconcile=%v, want both set", after.Workers, after.LastReconcile)
+	}
+}
+
+// MM_RUNPOD_RECORD_DIR is read by the server process: the serverless backend it builds must record every
+// RunPod exchange (the runner and the reconciler make them), redacted. Before this the option was carried
+// into BackendOptions and then ignored, so a recording server wrote nothing.
+func TestApp_RunPodRecordDirRecordsServerExchanges(t *testing.T) {
+	t.Parallel()
+	rec := t.TempDir()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendRunPod; c.RunPodRecordDir = rec })
+	// built at run time so no key literal exists in the repository (C85's gitleaks rule)
+	set := runpodtest.KeySet{Jobs: "canary-" + "jobs-7001", Read: "canary-" + "read-7002", Write: "canary-" + "write-7003", Admin: "canary-" + "admin-7004"}
+	ep := "canary-" + "ep-7005"
+	rp := runpodtest.New(t, runpodtest.Options{Keys: set, EndpointID: ep})
+	if err := os.MkdirAll(e.cfg.SecretsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env := "RUNPOD_" + "JOBS_KEY=" + set.Jobs + "\nRUNPOD_" + "READ_KEY=" + set.Read + "\nRUNPOD_" + "WRITE_KEY=" + set.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+	if err := os.WriteFile(filepath.Join(e.cfg.SecretsDir, "runpod.env"), []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := e.build(t, app.Options{M3: app.M3Options{RunPod: &runpod.BackendOptions{MgmtBase: rp.URL, JobsBase: rp.URL}}})
+	if _, err := s.Backend.Sweep(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob(filepath.Join(rec, "*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("the server recorded nothing: %v %v", files, err)
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{set.Jobs, set.Read, set.Write, ep, "Bearer", "Authorization"} {
+			if strings.Contains(string(raw), secret) {
+				t.Errorf("%s contains %q", filepath.Base(f), secret)
+			}
+		}
+	}
+}
+
+// The server built its RunPod backend without the committed key probe, so Capabilities() stayed conservative
+// (billing "none") in production: the reconciler never read RunPod's hourly billing and every residual hold
+// waited out MM_RESIDUAL_HOLD. selectBackend must hand the embedded probe to the backend (the CLI always did).
+func TestApp_RunPodBackendUsesTheCommittedKeyProbe(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendRunPod })
+	// built at run time so no key literal exists in the repository (C85's gitleaks rule)
+	set := runpodtest.KeySet{Jobs: "canary-" + "jobs-7101", Read: "canary-" + "read-7102", Write: "canary-" + "write-7103", Admin: "canary-" + "admin-7104"}
+	ep := "canary-" + "ep-7105"
+	rp := runpodtest.New(t, runpodtest.Options{Keys: set, EndpointID: ep})
+	if err := os.MkdirAll(e.cfg.SecretsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env := "RUNPOD_" + "JOBS_KEY=" + set.Jobs + "\nRUNPOD_" + "READ_KEY=" + set.Read + "\nRUNPOD_" + "WRITE_KEY=" + set.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+	if err := os.WriteFile(filepath.Join(e.cfg.SecretsDir, "runpod.env"), []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := e.build(t, app.Options{M3: app.M3Options{RunPod: &runpod.BackendOptions{MgmtBase: rp.URL, JobsBase: rp.URL}}})
+	st, err := s.Deps.Provider.Status(ctx, auth.Principal{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Capability.Billing != "hour" {
+		t.Errorf("get_provider_status capabilities.billing = %q, want \"hour\" (read key present, committed probe says billing_readable)", st.Capability.Billing)
 	}
 }

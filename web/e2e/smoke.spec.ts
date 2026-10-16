@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// matrix: @mobile @firefox because the shell, nav, 404 and narrow-viewport nav are cheap and are what every device loads first
+import { expect, test } from "./fixtures";
 
 test("home shows identity and version", async ({ page }) => {
   await page.goto("/");

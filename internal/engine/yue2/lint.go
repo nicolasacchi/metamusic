@@ -2,6 +2,7 @@ package yue2
 
 import (
 	"encoding/json"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,6 +25,13 @@ type LintContext struct {
 	// KnownHash reports an existing recipe or draft with that canonical hash, ignoring the item's own
 	// draft and its own source recipe. Returns "recipe" | "draft:<id>". nil means no duplicate check.
 	KnownHash func(hash, selfDraftID, selfRecipeID string) (where string, ok bool)
+	// Targets are the operator's duration targets; nil means no duration_under_target / duration_outside_target warnings.
+	Targets *DurationTargets
+}
+
+// DurationTargets are the songwriting duration targets in seconds (MinS <= TargetMinS <= TargetMaxS).
+type DurationTargets struct {
+	MinS, TargetMinS, TargetMaxS int
 }
 
 // LintResult is the lint outcome of one item.
@@ -93,7 +101,7 @@ func Lint(items []LintItem, batch bool, c LintContext) LintReport {
 			res.RequestID = looseID(it.Request)
 		}
 		if perr == nil && len(res.Errors) == 0 {
-			lintSongwriting(&res, p.Request)
+			lintSongwriting(&res, p.Request, c.Targets)
 			if where, dup := knownOrEarlier(c, p.Hash, it, seenHash); dup {
 				res.Warnings = append(res.Warnings, Issue{Code: "duplicate_recipe", Field: "recipe", Severity: sevWarning,
 					Message: "same canonical request as " + where})
@@ -221,7 +229,7 @@ func styleLanguage(style string) string {
 
 var exemptEmpty = map[string]bool{"intro": true, "outro": true, "instrumental": true, "interlude": true, "solo": true}
 
-func lintSongwriting(res *LintResult, r Request) {
+func lintSongwriting(res *LintResult, r Request, targets *DurationTargets) {
 	warn := func(code, field, msg string, line int, section string) {
 		res.Warnings = append(res.Warnings, Issue{Code: code, Field: field, Severity: sevWarning, Message: msg, Line: line, Section: section})
 	}
@@ -268,6 +276,21 @@ func lintSongwriting(res *LintResult, r Request) {
 	res.EstimatedDurationS, res.DurationBasis = EstimateDuration(r)
 	if res.EstimatedDurationS > lintMaxDurationS {
 		warn("duration_over_cap", "lyrics", "estimated duration is over 360 seconds", 0, "")
+	}
+	if targets != nil {
+		// under the minimum is its own warning; the band warning covers the rest (between min and the band, or above it)
+		code, msg := "", ""
+		switch est := res.EstimatedDurationS; {
+		case est < float64(targets.MinS):
+			code, msg = "duration_under_target", "estimated duration is under the minimum song length"
+		case est < float64(targets.TargetMinS) || est > float64(targets.TargetMaxS):
+			code, msg = "duration_outside_target", "estimated duration is outside the target band"
+		}
+		if code != "" {
+			res.Warnings = append(res.Warnings, Issue{Code: code, Field: "lyrics", Severity: sevWarning, Message: msg, Details: map[string]any{
+				"estimated_s": math.Round(res.EstimatedDurationS*10) / 10, "min_s": targets.MinS,
+				"target_min_s": targets.TargetMinS, "target_max_s": targets.TargetMaxS}})
+		}
 	}
 	if _, bpm := StyleTerms(r.Style); bpm != 0 && (bpm < lintMinBPM || bpm > lintMaxBPM) {
 		warn("bpm_out_of_range", "style", "BPM is outside 60 to 180", 0, "")

@@ -31,6 +31,8 @@ type Issue struct {
 	Line     int    `json:"line,omitempty"`    // lyrics line (1-based) or JSONL line
 	Section  string `json:"section,omitempty"` // lyrics section label
 	Fatal    bool   `json:"fatal,omitempty"`   // ModeYuE2: aborts the whole batch in 0.1.6
+	// Details carries machine-readable numbers of a finding (the duration warnings: estimated_s, min_s, ...).
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // ABCResolver resolves an abc_path. nil means every abc_path is abc_path_unresolved.
