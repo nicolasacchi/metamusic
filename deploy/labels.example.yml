@@ -73,7 +73,7 @@ services:
       - traefik.http.routers.mm-device.tls=true
       - traefik.http.routers.mm-device.tls.certresolver=myresolver
       - traefik.http.routers.mm-device.service=metamusic
-      - traefik.http.routers.mm-device.rule=Host(`mm.example.com`) && HeaderRegexp(`Cookie`, `(^|;\s*)mm_dev=`) && !PathPrefix(`/human/`) && !PathPrefix(`/oauth/`) && !PathPrefix(`/auth/`)
+      - traefik.http.routers.mm-device.rule=Host(`mm.example.com`) && HeaderRegexp(`Cookie`, `(^|;\s*)mm_dev=`) && !Path(`/human`) && !PathPrefix(`/human/`) && !PathPrefix(`/oauth/`) && !PathPrefix(`/auth/`)
       - traefik.http.routers.mm-device.priority=50
       - traefik.http.routers.mm-device.middlewares=mm-strip-identity,sec-ratelimit@docker,sec-headers@docker,mm-compress
       # Identity headers: emptied on every router that skips Authelia. Never put this middleware on

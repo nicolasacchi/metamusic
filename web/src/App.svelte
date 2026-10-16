@@ -36,6 +36,7 @@
   import HumanGenerate from "./routes/HumanGenerate.svelte";
   import HumanConfirm from "./routes/HumanConfirm.svelte";
   import HumanSpend from "./routes/HumanSpend.svelte";
+  import Human from "./routes/Human.svelte";
   import Jobs from "./routes/Jobs.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -111,7 +112,7 @@
       <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
       <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
       <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
-      {#if approvalBadge}<a href="/jobs" class="approvals-link" data-testid="approvals-nav" aria-label="{approvalBadge} pending approvals">Approvals<span class="badge" data-testid="approvals-badge">{approvalBadge}</span></a>{/if}
+      <a href="/human/" onclick={humanClick} class="approvals-link" data-testid="approvals-nav" aria-current={$router.route?.name === "human" ? "page" : undefined} aria-label={approvalBadge ? `Approvals, ${approvalBadge} pending` : "Approvals"}>Approvals{#if approvalBadge}<span class="badge" data-testid="approvals-badge">{approvalBadge}</span>{/if}</a>
       <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
       <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
       <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
@@ -158,6 +159,8 @@
       <SettingsBackups />
     {:else if $router.route?.name === "settings-audit"}
       <SettingsAudit />
+    {:else if $router.route?.name === "human"}
+      <Human />
     {:else if $router.route?.name === "human-tokens"}
       <HumanTokens />
     {:else if $router.route?.name === "human-devices"}

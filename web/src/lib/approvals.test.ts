@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ageLabel, badgeText, confirmHref, expiryLabel, isPending, loadPendingApprovals, reasonLabel, type ApprovalsClient, type PendingBatch } from "./approvals";
+import { loadRecentDecisions, recentDecisions, ageLabel, badgeText, confirmHref, expiryLabel, isPending, loadPendingApprovals, reasonLabel, type ApprovalsClient, type PendingBatch } from "./approvals";
 
 const mk = (state: PendingBatch["state"], approval: PendingBatch["approval"]["state"]) => ({ state, approval: { state: approval } }) as unknown as PendingBatch;
 
@@ -52,5 +52,23 @@ describe("approvals", () => {
     expect(expiryLabel("2026-10-17T12:00:00Z", now)).toBe("expires in 24 h");
     expect(expiryLabel("2026-10-16T11:00:00Z", now)).toBe("expired");
     expect(ageLabel("bad", now)).toBe("");
+  });
+  test("recentDecisions keeps decided approvals, newest decision first, capped", () => {
+    const d = (id: string, state: string, at: string | null) => ({ id, created_at: "2026-10-01T00:00:00Z", approval: { state, decided_at: at } }) as unknown as PendingBatch;
+    const items = [d("a", "approved", "2026-10-02T00:00:00Z"), d("p", "pending", null), d("auto", "auto", null), d("r", "rejected", "2026-10-03T00:00:00Z"), d("e", "expired", "2026-10-01T12:00:00Z")];
+    expect(recentDecisions(items).map((b) => b.id)).toEqual(["r", "a", "e"]);
+    expect(recentDecisions(items, 2).map((b) => b.id)).toEqual(["r", "a"]);
+  });
+  test("loadRecentDecisions calls list_batches with a limit and tolerates failure", async () => {
+    const calls: unknown[] = [];
+    const ok = await loadRecentDecisions({
+      GET: (path, init) => {
+        calls.push([path, init.params.query]);
+        return Promise.resolve({ data: { items: [] } });
+      },
+    });
+    expect(ok).toEqual([]);
+    expect(calls).toEqual([["/api/batches", { limit: 50 }]]);
+    expect(await loadRecentDecisions({ GET: () => Promise.reject(new Error("x")) })).toBeNull();
   });
 });

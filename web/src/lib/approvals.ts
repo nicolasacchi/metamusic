@@ -75,3 +75,28 @@ export function expiryLabel(expiresAt: string, nowMs: number): string {
   if (Number.isNaN(t)) return "";
   return t <= nowMs ? "expired" : `expires in ${span(t - nowMs)}`;
 }
+
+export const DECISIONS_SHOWN = 10;
+
+export interface DecisionsClient {
+  GET(path: "/api/batches", init: { params: { query: { limit: number } } }): Promise<{ data?: Pick<BatchPage, "items">; error?: unknown }>;
+}
+
+/** Batches an approval was decided on (approved, rejected, expired; never auto), newest decision first. */
+export function recentDecisions(items: readonly PendingBatch[], n: number = DECISIONS_SHOWN): PendingBatch[] {
+  const at = (b: PendingBatch) => Date.parse(b.approval.decided_at ?? b.created_at) || 0;
+  return items
+    .filter((b) => b.approval.state === "approved" || b.approval.state === "rejected" || b.approval.state === "expired")
+    .sort((a, b) => at(b) - at(a))
+    .slice(0, n);
+}
+
+/** list_batches has no approval filter: the newest page is filtered here. */
+export async function loadRecentDecisions(client: DecisionsClient): Promise<PendingBatch[] | null> {
+  try {
+    const r = await client.GET("/api/batches", { params: { query: { limit: APPROVALS_LIMIT } } });
+    return r.data ? recentDecisions(r.data.items) : null;
+  } catch {
+    return null;
+  }
+}

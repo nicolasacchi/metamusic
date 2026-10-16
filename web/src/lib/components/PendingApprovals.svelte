@@ -3,6 +3,11 @@
   import { ageLabel, confirmHref, expiryLabel, reasonLabel } from "../approvals";
   import { formatMicroUSDCeil } from "../money";
 
+  interface Props {
+    /** The hub shows an explicit empty state; the Jobs page renders nothing when nothing waits. */
+    showEmpty?: boolean;
+  }
+  let { showEmpty = false }: Props = $props();
   let now = $state(Date.now());
   $effect(() => {
     const t = setInterval(() => (now = Date.now()), 30_000);
@@ -11,7 +16,12 @@
   const readOnly = $derived(approvals.viewer === "device");
 </script>
 
-{#if approvals.items.length > 0}
+{#if approvals.items.length === 0 && showEmpty && approvals.loaded}
+  <section class="pending" aria-label="Approvals" data-testid="approvals">
+    <h2>Approvals</h2>
+    <p class="muted" data-testid="approvals-empty">Nothing is waiting for your approval.</p>
+  </section>
+{:else if approvals.items.length > 0}
   <section class="pending" aria-label="Approvals" data-testid="approvals">
     <h2>Approvals <span class="count" data-testid="approvals-count">{approvals.items.length}{approvals.more ? "+" : ""}</span></h2>
     <p class="muted">Agent batches waiting for your approval. Nothing is spent until you approve.</p>
