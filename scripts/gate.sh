@@ -19,7 +19,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 2
 mode=${1:-incremental}
 
-ALL_SELFTESTS="public-gate-selftest loop-selftest coverage-gate-selftest ci-selftest deploy-preflight-selftest verify-selftest actions-pinned"
+ALL_SELFTESTS="public-gate-selftest loop-selftest coverage-gate-selftest ci-selftest e2e-cache-selftest deploy-preflight-selftest verify-selftest actions-pinned"
 
 run_one() {
   case "$1" in
@@ -40,6 +40,7 @@ select_tests() {
       scripts/public-gate.sh | scripts/public-gate-selftest.sh | .gitleaks.toml | .githooks/* | scripts/tools.sh | scripts/metrics-row.jq) add public-gate-selftest ;;&
       scripts/loop | scripts/loop-selftest.sh | scripts/metrics-row.jq | metrics/loop.schema.json) add loop-selftest ;;&
       scripts/coverage-gate.sh | scripts/coverage-gate-selftest.sh | coverage.thresholds) add coverage-gate-selftest ;;&
+      scripts/e2e-cache.sh | scripts/e2e-cache-selftest.sh | scripts/e2e.sh) add e2e-cache-selftest ;;&
       scripts/deploy-preflight.sh | scripts/deploy-preflight-selftest.sh | deploy/*) add deploy-preflight-selftest ;;&
       scripts/verify.sh | scripts/changed.sh | scripts/gate.sh | scripts/verify-selftest.sh | scripts/e2e-map.txt | web/e2e/*.spec.ts) add verify-selftest ;;&
       scripts/ci-* | Makefile | .github/* | go.mod | scripts/gate.sh | scripts/verify.sh | scripts/e2e.sh | scripts/loop | .githooks/* | scripts/tools.sh | scripts/actions-pinned.sh | scripts/deploy-preflight.sh) add ci-selftest ;;&
