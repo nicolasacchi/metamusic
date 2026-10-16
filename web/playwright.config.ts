@@ -9,7 +9,7 @@ const firefoxPrefs = { "media.autoplay.default": 0, "media.autoplay.blocking_pol
 
 // C41 time budget for the M2a specs: the mobile projects run only judge, comments, human and listen;
 // Firefox only the jump (comments) and listen specs; every other M2a spec runs on desktop Chrome only.
-const M2A = ["judge", "comments", "drafts", "playlists", "export", "backup", "audit", "human", "listen", "context"];
+const M2A = ["judge", "comments", "drafts", "playlists", "export", "backup", "audit", "human", "listen", "context", "draftplay"];
 const ignoreM2a = (keep: string[]) => M2A.filter((n) => !keep.includes(n)).map((n) => `**/m2a-${n}.spec.ts`);
 
 // M2b budget (rev 3): the duel specs (keyboard on desktop, toggle on mobile) skip Firefox, whose headless
@@ -35,7 +35,7 @@ const M3 = ["variant", "batch", "compose", "jobs", "approval", "lineage", "songw
 const ignoreM3 = (keep: string[]) => M3.filter((n) => !keep.includes(n)).map((n) => `**/m3-${n}.spec.ts`);
 const M3_SPECS = "**/m3-*.spec.ts";
 const AUTOADV = "**/m3-autoadvance.spec.ts";
-const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
+const mobileIgnore = [...ignoreM2a(["judge", "comments", "human", "listen", "draftplay"]), ...ignoreM2b(["duels"]), ...ignoreM3([])];
 const iphoneIgnore = [...mobileIgnore, ...ignoreM2c([]), AUTOADV];
 const firefoxIgnore = [...ignoreM2a(["comments", "listen"]), ...ignoreM2b(["ears", "compare"]), ...ignoreM2c([]), ...ignoreM3([]), AUTOADV];
 const phase1 = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox", "firefox-android", "firefox-android-strict"];

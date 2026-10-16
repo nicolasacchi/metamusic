@@ -9,6 +9,9 @@
 
   type Estimate = components["schemas"]["Estimate"];
 
+  /** Router navigate, for the post-confirm hop to the (SPA) batch page only; /human/* stays a document load. */
+  let { navigate }: { navigate: (to: string) => void } = $props();
+
   let intent = $state<GenerationIntent | null>(loadIntent(sessionStorage));
   let estimate = $state<Estimate | null>(null);
   let error = $state("");
@@ -60,7 +63,7 @@
   }
   function opened(id: string) {
     clearIntent(sessionStorage);
-    location.assign("/batches/" + id);
+    navigate("/batches/" + id);
   }
   function reestimate() {
     if (intent) void run(intent);
