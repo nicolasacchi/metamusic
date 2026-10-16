@@ -24,6 +24,7 @@ type seedOpts struct {
 	force   bool // --force
 	viaDev  bool // invoked by `dev --seed-synthetic`
 	refs    bool // --references: the reference profile, imported with both reference flags (C66)
+	short   bool // --short-audio: the e2e-only short take (synth.Options.ShortAudio)
 }
 
 func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) string, s streams) error {
@@ -32,6 +33,7 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	seed := fs.Int64("seed", 1, "audio variant seed")
 	force := fs.Bool("force", false, "seed a data directory that is not marked MM_E2E=1")
 	references := fs.Bool("references", false, "also seed recipe-less reference tracks (unmatched FLACs and lossy MP3s)")
+	short := fs.Bool("short-audio", false, "render the one short e2e take (only with --profile e2e)")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -41,11 +43,14 @@ func cmdSeedSynthetic(ctx context.Context, args []string, getenv func(string) st
 	if *profile != "dev" && *profile != "e2e" {
 		return usageError("seed-synthetic: --profile must be dev or e2e")
 	}
+	if *short && *profile != "e2e" {
+		return usageError("seed-synthetic: --short-audio needs --profile e2e")
+	}
 	cfg, err := config.Load(getenv)
 	if err != nil {
 		return fatal(err)
 	}
-	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references}
+	o := seedOpts{profile: synth.Profile(*profile), seed: *seed, force: *force, refs: *references, short: *short}
 	if o.refs {
 		o.profile = synth.ProfileReference
 	}
@@ -110,7 +115,7 @@ func seedSynthetic(ctx context.Context, cfg config.Config, st *store.Store, o se
 		if err := os.MkdirAll(tmp, 0o750); err != nil {
 			return err
 		}
-		if _, err := synth.Archive(ctx, toolsOf(cfg), tmp, o.profile, o.seed); err != nil {
+		if _, err := synth.ArchiveWith(ctx, toolsOf(cfg), tmp, o.profile, o.seed, synth.Options{ShortAudio: o.short}); err != nil {
 			_ = os.RemoveAll(tmp)
 			return err
 		}
