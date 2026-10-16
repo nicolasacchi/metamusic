@@ -171,7 +171,7 @@ var l1Rules = []rule{
 	// C99.1: the Muse-visibility rule. A package that serialises, ships or announces data must never reach Muse text.
 	{from: []string{"internal/export", "internal/exports", "internal/notify", "internal/audit", "internal/backup", "internal/importer", "internal/jobs",
 		"internal/generation", "internal/lineage", "internal/library", "internal/redact", "internal/subsonic"},
-		deny: []string{"internal/muses", "internal/songview", "internal/board"}, why: "Muse text never reaches exports, notifications, audit, backups, the importer, jobs, generation, lineage, library, redact or Subsonic (C99.1)"},
+		deny: []string{"internal/muses", "internal/songview", "internal/board", "internal/sessions", "internal/songs"}, why: "Muse text and collection-derived Session names never reaches exports, notifications, audit, backups, the importer, jobs, generation, lineage, library, redact or Subsonic (C99.1)"},
 }
 
 func TestImportGraph_L1(t *testing.T) {

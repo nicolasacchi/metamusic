@@ -1,12 +1,14 @@
 package api_test
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -75,12 +77,34 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = r.Store.R.QueryRow(`SELECT id FROM recipe_drafts ORDER BY id LIMIT 1`).Scan(&draft)
+	// a stored export (and a playlist zip when the rig can build one) must be swept too: "never in exports" is the rule
+	exp := obj(t, human.OK(t, "POST", "/api/exports/jsonl", map[string]any{"selection": "tracks", "tracks": map[string]any{"track_ids": []string{track}}}, "Idempotency-Key", "canary-export"))
+	exportID, _ := exp["id"].(string)
+	if exportID == "" {
+		t.Fatalf("export_jsonl: %v", exp)
+	}
+	for _, text := range c.texts() {
+		if strings.Contains(fmt.Sprint(exp), text) {
+			t.Errorf("the JSONL export response carries the Muse canary %q", text)
+		}
+	}
+	if pl := q1(r, `SELECT id FROM playlists ORDER BY id LIMIT 1`); pl != "" {
+		if z := human.Do(t, "POST", "/api/playlists/"+pl+"/exports", nil, "Idempotency-Key", "canary-zip"); z.Status/100 == 2 {
+			for _, text := range c.texts() {
+				if strings.Contains(string(z.Body), text) {
+					t.Errorf("the playlist export response carries the Muse canary %q", text)
+				}
+			}
+		}
+	}
 	ids := map[string]string{
 		"/api/tracks/": track, "/api/drafts/": draft, "/api/muses/": c.ID, "/api/songs/": c.SongID,
 		"/api/batches/": q1(r, `SELECT id FROM batches ORDER BY id LIMIT 1`), "/api/jobs/": q1(r, `SELECT id FROM jobs ORDER BY id LIMIT 1`),
 		"/api/duels/": q1(r, `SELECT id FROM duels ORDER BY id LIMIT 1`), "/api/imports/": q1(r, `SELECT id FROM import_runs ORDER BY id LIMIT 1`),
-		"/api/playlists/": q1(r, `SELECT id FROM playlists ORDER BY id LIMIT 1`),
+		"/api/playlists/": q1(r, `SELECT id FROM playlists ORDER BY id LIMIT 1`), "/api/exports/": exportID,
 	}
+	// {id} operations that the rig has no object for (the duel fixture is empty here); anything else must resolve
+	noObject := map[string]bool{"get_duel": true}
 	called := map[string]bool{}
 	for _, op := range api.Operations(r.API) {
 		if op.Method != "GET" || op.Meta.HumanOnly || op.Path == "/api/openapi.json" {
@@ -95,6 +119,9 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 				}
 			}
 			if id == "" {
+				if !noObject[op.ID] {
+					t.Errorf("%s (%s) has no object in the sweep rig: register its id or allowlist it", op.ID, path)
+				}
 				continue
 			}
 			path = strings.Replace(path, "{id}", id, 1)
@@ -218,5 +245,45 @@ func TestMuseOps_ErrorsCarryIDsOnly(t *testing.T) {
 		if !strings.Contains(resp.Header.Get("Content-Type"), "problem+json") {
 			t.Errorf("%s: content type %q", k.name, resp.Header.Get("Content-Type"))
 		}
+	}
+}
+
+// TestIdem_CreateMuseCacheExpires: the stored create_muse response carries Muse text, so it must not outlive the
+// idempotency window (C99.3): replayable inside 24 h, gone after the purge, never replayed afterwards.
+func TestIdem_CreateMuseCacheExpires(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{Fixture: true, M2c: true, M3: true, L1: true})
+	human := r.Human(t)
+	body := map[string]any{"kind": "reference", "title": "Expiry Title " + randHex(t), "artist": "Expiry Artist"}
+	first := human.Do(t, "POST", "/api/muses", body, "Idempotency-Key", "exp-1")
+	if first.Status != 201 && first.Status != 200 {
+		t.Fatalf("create_muse: %d %s", first.Status, first.Body)
+	}
+	rows := func() int {
+		var n int
+		if err := r.Store.R.QueryRow(`SELECT COUNT(*) FROM idempotency WHERE key = 'exp-1'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	r.Clock.Advance(23 * time.Hour)
+	again := human.Do(t, "POST", "/api/muses", body, "Idempotency-Key", "exp-1")
+	if again.Header.Get("Idempotent-Replayed") != "true" || string(again.Body) != string(first.Body) {
+		t.Fatalf("inside the window the response replays: %d replayed=%q", again.Status, again.Header.Get("Idempotent-Replayed"))
+	}
+	r.Clock.Advance(3 * time.Hour) // past ExplicitTTL (24 h) plus the prune grace
+	if rows() != 1 {
+		t.Fatalf("the cached row must still exist before the purge")
+	}
+	n, err := r.Services.Idem.Prune(context.Background())
+	if err != nil || n < 1 {
+		t.Fatalf("prune: %d, %v", n, err)
+	}
+	if rows() != 0 {
+		t.Errorf("the purge left the cached create_muse response")
+	}
+	late := human.Do(t, "POST", "/api/muses", body, "Idempotency-Key", "exp-1")
+	if late.Header.Get("Idempotent-Replayed") == "true" || string(late.Body) == string(first.Body) {
+		t.Errorf("an expired key must not replay the cached body: %d %.200s", late.Status, late.Body)
 	}
 }

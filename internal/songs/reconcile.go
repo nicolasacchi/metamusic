@@ -277,9 +277,29 @@ func reconcileDraft(ctx context.Context, tx *sql.Tx, env Env, d draftRow, sm fun
 		return reconcileLineageDraft(ctx, tx, env, d, lineageRoot, ch)
 	}
 	// own: a live Song of the draft exists => the never-set fill only
-	s, _, err := liveSongOfDraft(ctx, tx, d.ID)
+	s, sRoot, err := liveSongOfDraft(ctx, tx, d.ID)
 	if err != nil {
 		return err
+	}
+	if s != "" && !sRoot.Valid && d.Done.Valid {
+		// a fulfilled draft must not keep a takes-less Song next to the Song of the root that fulfilled it
+		t := d.Done.String
+		st, err := songOfRoot(ctx, tx, t)
+		if err != nil {
+			return err
+		}
+		switch {
+		case st != "" && st != s:
+			return retireInto(ctx, tx, env, s, st, ch)
+		case st == "":
+			if err := insertSongRoot(ctx, tx, env, t, s, "draft"); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE songs SET root_track_id = ? WHERE id = ? AND root_track_id IS NULL`, t, s); err != nil {
+				return fmt.Errorf("songs: set primary root: %w", err)
+			}
+			ch.Attached = append(ch.Attached, s)
+		}
 	}
 	if s != "" {
 		return fillDraftSong(ctx, tx, env, s, d, sm, ch)
@@ -344,6 +364,11 @@ func reconcileLineageDraft(ctx context.Context, tx *sql.Tx, env Env, d draftRow,
 	if sd == sr {
 		return nil
 	}
+	return retireInto(ctx, tx, env, sd, sr, ch)
+}
+
+// retireInto retires the takes-less Song sd into sr, carrying its Muse and angle when sr has none (the never-set rule).
+func retireInto(ctx context.Context, tx *sql.Tx, env Env, sd, sr string, ch *Changes) error {
 	old, err := readSong(ctx, tx, sd)
 	if err != nil {
 		return err

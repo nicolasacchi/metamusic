@@ -182,3 +182,33 @@ func TestMuses_EnsureReferenceRefusesLongArtist(t *testing.T) {
 		t.Fatalf("long artist = %v", err)
 	}
 }
+
+func TestMuses_OrderCaseInsensitive(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	ctx := context.Background()
+	for _, title := range []string{"Zebra", "apple", "Mango"} {
+		w.create(muses.KindReference, title, nil, nil)
+	}
+	var got []string
+	cursor := ""
+	for pages := 0; ; pages++ {
+		pg, err := w.svc.List(ctx, muses.ListFilter{Limit: 1, Cursor: cursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range pg.Items {
+			got = append(got, m.Title)
+		}
+		if pg.NextCursor == nil {
+			break
+		}
+		if pages > 5 {
+			t.Fatal("paging does not end")
+		}
+		cursor = *pg.NextCursor
+	}
+	if strings.Join(got, ",") != "apple,Mango,Zebra" {
+		t.Errorf("order = %v, want apple, Mango, Zebra with no skipped or duplicated rows", got)
+	}
+}

@@ -2,7 +2,11 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/board"
@@ -23,8 +27,8 @@ import (
 type L1Options struct {
 	// Log is the Reconciler's logger; nil => slog.Default().
 	Log *slog.Logger
-	// Owner identifies this process in provenance_lease; "" => "settler". Two processes on one database need
-	// different owners (tests that model two settlers set it).
+	// Owner identifies this process in provenance_lease; "" => hostname-pid-random per process, so two server
+	// processes on one database never share the settle lease (D-L1-4, D-L1-35).
 	Owner string
 	// BeforeSettle is called after the settle lease is taken, before the first pass (test seam: holds the first
 	// Settle of TestServe_SettlesBeforeListening).
@@ -48,6 +52,9 @@ type l1Services struct {
 // buildL1 constructs the L1 services and wires the cross-package seams: the ladder arrives at picks (and songview)
 // from duels so those packages import neither duels nor ears (C87).
 func buildL1(st *store.Store, now func() time.Time, newID func() string, ds *duels.Service, ea *ears.Service, o L1Options) *l1Services {
+	if o.Owner == "" {
+		o.Owner = processOwner()
+	}
 	ms := muses.New(st, now, newID)
 	ss := songs.New(st, now, newID)
 	se := sessions.New(st, now)
@@ -73,4 +80,12 @@ type libraryReader struct{ sv *songview.Service }
 func (r libraryReader) ForTrack(ctx context.Context, trackID string) (trackctx.LibrarySections, error) {
 	s, err := r.sv.ForTrack(ctx, trackID)
 	return trackctx.LibrarySections{Song: s.Song, Muse: s.Muse, Sounds: s.Sounds}, err
+}
+
+// processOwner is a lease owner unique to this Build: hostname, pid and a random suffix.
+func processOwner() string {
+	host, _ := os.Hostname()
+	var b [6]byte
+	_, _ = rand.Read(b[:])
+	return fmt.Sprintf("%s-%d-%s", host, os.Getpid(), hex.EncodeToString(b[:]))
 }

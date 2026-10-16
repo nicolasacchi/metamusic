@@ -35,7 +35,7 @@ import (
 // 200 characters; the seven M3 tools alone are still ~29 000 bytes, over the 16 000 byte rule, and the remaining
 // steps (demoting M2 tools) were NOT taken: the plan says to stop and ask the operator (see the M3-B2 report).
 //
-// L1-B2 (D-L1-20) re-baselined 87300 -> 102600 (measured 102587, +15 287, 39 tools): the seven first-class L1 tools
+// L1-B2 (D-L1-20) re-baselined 87300 -> 102600 (measured 102587, +15 287, 39 tools): the seven first-class L1 tools at that point (six after the list_songs demotion below)
 // (list_muses, get_muse, create_muse, list_songs, get_song, propose_pick, search_sounds) take 15 285 compact bytes, inside
 // the 16 000 byte rule (TestToolsList_L1Budget), so no demotion was needed; the nine other L1 operations and the two
 // human-judgment ones add nothing to tools/list.

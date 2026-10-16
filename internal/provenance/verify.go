@@ -63,7 +63,7 @@ func (s *Service) Verify(ctx context.Context) ([]Anomaly, error) {
 		{"song_without_anchor", `SELECT s.id FROM songs s WHERE s.retired_at IS NULL AND s.root_track_id IS NULL
 			AND (s.draft_id IS NULL OR NOT EXISTS (SELECT 1 FROM recipe_drafts d WHERE d.id = s.draft_id))`},
 		{"draft_song_should_retire", `SELECT s.id, s.draft_id FROM songs s JOIN recipe_drafts d ON d.id = s.draft_id
-			JOIN tracks t ON t.id = d.fulfilled_by_track_id WHERE s.retired_at IS NULL AND s.root_track_id IS NULL AND t.generation > 0`},
+			JOIN tracks t ON t.id = d.fulfilled_by_track_id WHERE s.retired_at IS NULL AND s.root_track_id IS NULL`},
 		// I3
 		{"duplicate_live_song_draft", `SELECT draft_id FROM songs WHERE retired_at IS NULL AND draft_id IS NOT NULL GROUP BY draft_id HAVING COUNT(*) > 1`},
 		{"duplicate_live_song_root", `SELECT root_track_id FROM songs WHERE retired_at IS NULL AND root_track_id IS NOT NULL GROUP BY root_track_id HAVING COUNT(*) > 1`},

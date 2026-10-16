@@ -3,6 +3,7 @@ package acceptance_test
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -318,5 +319,101 @@ func scanBackupText(t *testing.T, l *leaks, dir string) {
 	})
 	if err != nil {
 		t.Fatalf("scanning the backups: %v", err)
+	}
+}
+
+// masterState is what must never change for a master: the stored hash and size, plus (when the file exists on disk) the
+// content hash, mtime and mode.
+type masterState struct {
+	SHA, OnDisk string
+	Bytes       int64
+	MTime       int64
+	Mode        fs.FileMode
+	Exists      bool
+}
+
+func snapshotMasters(t *testing.T, r *servertest.Rig) map[string]masterState {
+	t.Helper()
+	rows, err := r.Store.R.Query(`SELECT id, master_path, COALESCE(master_sha256,''), COALESCE(master_bytes,0) FROM tracks WHERE master_path IS NOT NULL AND master_path <> ''`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	out := map[string]masterState{}
+	for rows.Next() {
+		var id, path string
+		var s masterState
+		if err := rows.Scan(&id, &path, &s.SHA, &s.Bytes); err != nil {
+			t.Fatal(err)
+		}
+		full := filepath.Join(r.DataDir, path)
+		if st, err := os.Stat(full); err == nil {
+			b, err := os.ReadFile(full) //nolint:gosec // fixture data dir
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256(b)
+			s.Exists, s.OnDisk, s.MTime, s.Mode = true, hex.EncodeToString(sum[:]), st.ModTime().UnixNano(), st.Mode().Perm()
+		}
+		out[id] = s
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// TestImmutableMastersUntouched: a full L1 cycle (Settle, Verify, propose, pin, create and assign a Muse, a second
+// Settle) leaves every master's recorded hash, size and file (content, mtime, mode) exactly as it was (invariant 7).
+func TestImmutableMastersUntouched(t *testing.T) {
+	r := l1Rig(t, servertest.Options{})
+	// the fixture rows name masters that are not on disk: materialise them (0444) so the file checks are not vacuous
+	for id := range snapshotMasters(t, r) {
+		var path string
+		if err := r.Store.R.QueryRow(`SELECT master_path FROM tracks WHERE id = ?`, id).Scan(&path); err != nil {
+			t.Fatal(err)
+		}
+		full := filepath.Join(r.DataDir, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("synthetic master "+id), 0o444); err != nil { //nolint:gosec // 0444 is the point
+			t.Fatal(err)
+		}
+	}
+	before := snapshotMasters(t, r)
+	if len(before) == 0 {
+		t.Fatal("the L1 rig has no masters to protect")
+	}
+	song, _, other := songWithTakes(t, r)
+	h := r.Human(t)
+	agent, _ := r.Agent(t, auth.ScopeRead, auth.ScopeWrite)
+	prop := obj(agent.OK(t, "POST", "/api/songs/"+song+"/pick-proposals", map[string]any{"take_id": other, "rationale": "synthetic rationale"}, "Idempotency-Key", "im-prop"))
+	pid, _ := prop["id"].(string)
+	h.OK(t, "PUT", "/api/songs/"+song+"/pin", map[string]any{"take_id": other, "proposal_id": pid})
+	m := obj(h.OK(t, "POST", "/api/muses", map[string]any{"kind": "reference", "title": "Synthetic Muse immutable", "artist": "Synthetic Artist"}, "Idempotency-Key", "im-muse"))
+	h.OK(t, "POST", "/api/muses/"+m["id"].(string)+"/songs", map[string]any{"song_ids": []string{song}}, "Idempotency-Key", "im-assign")
+	r.Settle(t)
+	if an, err := r.Provenance.Verify(context.Background()); err != nil || len(an) != 0 {
+		t.Fatalf("verify: %v %v", an, err)
+	}
+	after := snapshotMasters(t, r)
+	if len(after) != len(before) {
+		t.Fatalf("master set changed: %d -> %d", len(before), len(after))
+	}
+	disk := 0
+	for id, b := range before {
+		if a := after[id]; a != b {
+			t.Errorf("master of %s changed: %+v -> %+v", id, b, a)
+		}
+		if b.Exists {
+			disk++
+			if b.Mode != 0o444 {
+				t.Errorf("master of %s has mode %v, want 0444", id, b.Mode)
+			}
+		}
+	}
+	if disk == 0 {
+		t.Error("no master was on disk: the file checks were vacuous")
 	}
 }

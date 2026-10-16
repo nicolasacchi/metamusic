@@ -171,3 +171,49 @@ func TestSongs_RootsOrderIndependent(t *testing.T) {
 		t.Errorf("order-dependent structure: %q vs %q", a, b)
 	}
 }
+
+func TestSongs_TwoBacklogDraftsOneRoot(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	sc := w.sc
+	r := sc.Recipe("tb_v1", "pop")
+	d1 := sc.Draft("tb_1", librarytest.DraftOpts{Recipe: r, Group: "tb", Label: "one"})
+	r2 := sc.Recipe("tb_v2", "pop")
+	d2 := sc.Draft("tb_2", librarytest.DraftOpts{Recipe: r2, Group: "tb", Label: "two"})
+	w.settle()
+	if w.liveSongs() != 2 {
+		t.Fatalf("setup: %d live songs, want 2", w.liveSongs())
+	}
+	// one new root take fulfils both backlog drafts in one transaction (the importer's core-match flow)
+	root := sc.Track(r, "Core", "", sc.At(0))
+	sc.Fulfil(d1, root)
+	sc.Fulfil(d2, root)
+	w.settle()
+	if n := w.liveSongs(); n != 1 {
+		t.Fatalf("live songs = %d, want one Song per root", n)
+	}
+	if n := w.count(`SELECT COUNT(*) FROM songs WHERE retired_at IS NULL AND root_track_id IS NULL`); n != 0 {
+		t.Errorf("a live rootless Song remains: %d", n)
+	}
+	w.verify()
+}
+
+func TestSongs_LateFulfilOfReconciledRoot(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	sc := w.sc
+	r := sc.Recipe("lf_v1", "pop")
+	root := sc.Track(r, "Existing", "", sc.At(0))
+	w.settle() // the root already has its own Song
+	d := sc.Draft("lf_1", librarytest.DraftOpts{Recipe: r, Group: "lf", Label: "late"})
+	w.settle() // and the draft has its Song
+	if w.liveSongs() != 2 {
+		t.Fatalf("setup: %d live songs, want 2", w.liveSongs())
+	}
+	sc.Fulfil(d, root)
+	w.settle()
+	if n := w.liveSongs(); n != 1 {
+		t.Fatalf("live songs = %d, want 1 after the late fulfilment", n)
+	}
+	w.verify()
+}

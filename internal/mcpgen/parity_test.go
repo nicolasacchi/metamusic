@@ -630,7 +630,8 @@ func TestToolsListGolden(t *testing.T) {
 // generic (D-M3-36 demoted get_budget, list_jobs, get_batch and request_approval), and the track, draft and stats
 // shapes gained the C81.1 fields.
 //
-// L1-B2 re-baselined 207451 -> 243029 (+35 578): the seven first-class L1 tools with their full output schemas
+// L1-B2 re-baselined 207451 -> 243029 (+35 578): the first-class L1 tools (seven at the time; six after the
+// list_songs demotion, D-L1-20) with their full output schemas
 // (SongView, MuseDetail, SoundSearch, ...) and the L1 fields of the track shapes' neighbours; no other tool changed.
 const toolsListBaselineBytes = 243029
 

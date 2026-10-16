@@ -14,7 +14,7 @@ import (
 var museSQLAllowlist = []string{"internal/muses", "internal/board", "internal/store/migrations"}
 
 var (
-	museTableRE = regexp.MustCompile(`(?i)\b(?:from|join|into|update|table)\s+muses(?:_fts)?\b|\bmuses_fts\b`)
+	museTableRE = regexp.MustCompile("(?i)\\b(?:from|join|into|update|table)\\s+(?:main\\.)?[\"`\\[]?muses(?:_fts)?[\"`\\]]?\\b|\\bmuses_fts\\b|\\bfrom\\s[^;.]*?,\\s*(?:main\\.)?[\"`\\[]?muses(?:_fts)?[\"`\\]]?\\s+\\w")
 	writeRE     = regexp.MustCompile(`(?i)\b(?:insert\s+(?:or\s+\w+\s+)?into|update|delete\s+from)\s+([A-Za-z_][A-Za-z0-9_]*)`)
 )
 
@@ -142,10 +142,15 @@ func TestSQL_MuseTables_Allowlist(t *testing.T) {
 		"internal/songs/e.go": "// the muses package owns Muse text",
 		"internal/songs/f.go": "var q = `SELECT muse_id FROM songs`",
 		"internal/y/g.go":     "var q = `SELECT * FROM songs JOIN muses m ON m.id = songs.muse_id`",
+		"internal/y/h1.go":    "var q = `SELECT 1 FROM songs s, muses m`",
+		"internal/y/h2.go":    "var q = `SELECT 1 FROM \"muses\"`",
+		"internal/y/h3.go":    "var q = `SELECT 1 FROM [muses]`",
+		"internal/y/h4.go":    "var q = \"SELECT 1 FROM \\x60muses\\x60\" + \"SELECT 1 FROM `muses`\"",
+		"internal/y/h5.go":    "var q = `SELECT 1 FROM main.muses`",
 	}
 	off := museSQLOffenders(plant)
-	if len(off) != 3 {
-		t.Errorf("planted offenders: %v, want a.go, b.go and g.go", off)
+	if len(off) != 8 {
+		t.Errorf("planted offenders: %v, want a, b, g and h1..h5", off)
 	}
 }
 
