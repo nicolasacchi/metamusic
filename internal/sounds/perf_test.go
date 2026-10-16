@@ -46,7 +46,7 @@ func bulkLibrary(t *testing.T, w *world, n int) {
 }
 
 func TestPerf_TaxonomyRecompute(t *testing.T) {
-	budget := perftest.Budget(t, 5*time.Second)
+	budget := perftest.BudgetRace(t, 5*time.Second, 25) // CPU 57 s under -race with coverage on a CI runner (11x of the plain budget)
 	// serial on purpose: the budget is process CPU time, which concurrent tests of the package would inflate
 	w := newWorld(t, true)
 	bulkLibrary(t, w, 5000) // 5 000 takes + 5 000 Songs = 10 000 subjects, none computed yet
