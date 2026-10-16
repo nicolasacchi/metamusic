@@ -28,6 +28,7 @@ func (r *Reconciler) reconcileBilling(ctx context.Context) error {
 	if r.o.Backend.Capabilities().Billing != "hour" {
 		return r.holdRelease(ctx, now)
 	}
+	fetchFailed := false
 	if err := r.fetchBuckets(ctx, now); err != nil {
 		switch {
 		case errors.Is(err, provider.ErrNotPermitted):
@@ -35,11 +36,17 @@ func (r *Reconciler) reconcileBilling(ctx context.Context) error {
 		case errors.Is(err, provider.ErrAccess), errors.Is(err, provider.ErrEndpointNotFound):
 			return r.Trip(ctx, TripProviderAccess, map[string]any{"op": "billing"})
 		default:
+			// transient (5xx, timeout, decode): no window may close on buckets that could not be read, or it
+			// would settle against a billed amount of zero and release the residuals early. Retried next pass.
+			fetchFailed = true
 			r.o.Log.Warn("billing fetch", "err", redactErr(err))
 		}
 	}
 	if err := r.lateAdjustments(ctx, now); err != nil {
 		return err
+	}
+	if fetchFailed {
+		return r.stalled(ctx, now)
 	}
 	if r.skewed() {
 		r.notifyOnce(ctx, "skew", time.Hour, NoteClockSkew(r.o.PublicURL, int(r.skewAbs().Seconds())))
