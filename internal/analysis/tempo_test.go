@@ -164,7 +164,7 @@ func TestTempo_Golden(t *testing.T) {
 }
 
 func TestPerf_Tempo(t *testing.T) {
-	budget := perftest.Budget(t, 2*time.Second)
+	budget := perftest.BudgetRace(t, 2*time.Second, 20) // CPU 22.5 s under -race with coverage on a CI runner
 	x := clicks(110, 240, 0)
 	sw := perftest.Start()
 	got := ComputeTempo(x, tsr)

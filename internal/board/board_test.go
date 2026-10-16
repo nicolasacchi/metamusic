@@ -404,7 +404,7 @@ func TestPerf_MuseBoard(t *testing.T) {
 		t.Skip("scale fixture: too slow under -race -short; runs in make test")
 	}
 	// serial on purpose: the budget is CPU time of the process, which concurrent tests would inflate
-	budget := perftest.Budget(t, time.Second)
+	budget := perftest.BudgetRace(t, time.Second, 20) // headroom for -race with coverage on CI runners
 	st, err := store.Open(context.Background(), t.TempDir()+"/p.db")
 	if err != nil {
 		t.Fatal(err)
