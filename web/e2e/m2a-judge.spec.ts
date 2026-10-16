@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "./fixtures";
 import { apiJSON, ownTracks, tap, uniqTag } from "./helpers";
 
 // The tests share the project's seed track pair, so they run one after the other.

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { trackByTitle } from "./helpers";
 
 // The clipboard is not read: Firefox grants Playwright no clipboard permission. The displayed count is

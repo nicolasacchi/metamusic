@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext } from "./fixtures";
 import { trackByTitle, uniq } from "./helpers";
 
 // Contexts inherit the project's `use` options, proxy identity headers included, unless overridden.
@@ -9,7 +9,7 @@ async function plainContext(browser: Browser, baseURL: string): Promise<BrowserC
 
 const me = (ctx: BrowserContext) => ctx.request.get("/api/me").then((r) => r.json() as Promise<{ kind: string; name: string }>);
 
-async function mintCode(page: import("@playwright/test").Page, name: string): Promise<string> {
+async function mintCode(page: import("./fixtures").Page, name: string): Promise<string> {
   await page.goto("/human/devices");
   await page.getByTestId("pairing-name").fill(name);
   await page.getByTestId("pairing-create").click();
