@@ -59,6 +59,8 @@ fi
 # the seeded e2e server finds the pinned ffmpeg/metaflac in bin/
 export PATH="$root/bin:$PATH"
 rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
+# device matrix: pruned by the `// matrix:` headers (web/e2e/matrix.ts); MM_E2E_MATRIX=full runs every spec on every
+# project, MM_E2E_QUARANTINE=1 adds the @quarantine tests (skipped by default)
 # MM_E2E_SPECS (space separated spec paths relative to web/, set by `make verify`) runs just those specs; a partial
 # run never records coverage data (no stamp), so `make cover` cannot merge it as if it were the whole suite.
 # shellcheck disable=SC2086

@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is a settings form with no device-dependent behaviour
 import { expect, test } from "./fixtures";
 import { apiJSON } from "./helpers";
 import { recipe } from "./m3Api";

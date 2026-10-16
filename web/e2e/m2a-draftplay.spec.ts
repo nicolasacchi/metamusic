@@ -1,3 +1,4 @@
+// matrix: @mobile @realtime because the player must survive an in-app route hop on the phone shell
 import { expect, test, type Page } from "./fixtures";
 import { apiJSON, ownTracks, uniq } from "./helpers";
 

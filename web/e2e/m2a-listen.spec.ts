@@ -1,3 +1,4 @@
+// matrix: @mobile @firefox @realtime because it checks play events (offline IndexedDB queue, beacon on leave) in every browser engine
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
 import { allTracks, apiJSON, audioTime, tap, type Item } from "./helpers";
 

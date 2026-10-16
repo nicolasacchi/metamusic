@@ -1,3 +1,4 @@
+// matrix: @mobile @firefox @realtime because it is the player: touch seeking, signed ranged media, FLAC and auto-advance in the audio element
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 type Item = { id: string; title: string; duration_s: number };
