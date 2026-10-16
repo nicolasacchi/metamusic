@@ -11,18 +11,26 @@ given in your brief; never copy private content (hostnames, names, balances, lyr
 ## Commands
 
 ```bash
-make check      # gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit  (target <30s warm)
-make test       # go test -race -shuffle=on ./...  (no -short: media-tool + acceptance tiers; CI sets MM_REQUIRE_MEDIA_TOOLS=1)
-make e2e        # build SPA + cover binary, run Playwright (chrome + firefox) in proxy auth mode
+make verify     # THE ITERATION TARGET: only what changed vs origin/main (changed Go pkgs + reverse deps: gofmt, vet,
+                # lint, test -race -short; web checks if web/ changed; Playwright specs mapped from changed files
+                # (scripts/e2e-map.txt); incremental gate). Target <3 min. go.mod/.golangci.yml/unplaceable paths = all.
+make gate       # incremental privacy gate: origin/main..HEAD + working tree; selftests only if their scripts changed
+make gate-full  # complete gate: every selftest + full-history scan (CI and pre-push run this; run it before `git push`,
+                # the hook then accepts the green run for the same HEAD/scripts/patterns instead of repeating ~minutes)
+make check      # FINAL PASS (or leave to CI): gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit
+make test       # FINAL PASS: go test -race -shuffle=on ./...  (no -short: media-tool + acceptance tiers; CI sets MM_REQUIRE_MEDIA_TOOLS=1)
+make e2e        # FINAL PASS: build SPA + cover binary, run Playwright (chrome + firefox) in proxy auth mode
 make openapi    # regenerate openapi.json and web/src/api/schema.d.ts (commit both)
 make dev        # run locally: MM_AUTH=local, data in ./data/dev
-make gate       # public-repo privacy gate (same script as git hooks and CI)
-make hooks      # install .githooks (pre-commit, pre-push)
+make hooks      # install .githooks (pre-commit: staged gate; pre-push: gate-full)
 make tools      # download pinned golangci-lint, gitleaks, ffmpeg (LGPL, linux/amd64) into ./bin (sha256-verified);
                 # metaflac comes from the system flac package, else is built from the pinned xiph source
 ```
 
-Heavy suites (check, test, race, cover, e2e) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
+Iterate with `make verify`; run `make check`/`make test`/`make e2e` once at the end, or leave them to CI (full
+sharded verifier: all packages, no -short, every Playwright project, coverage, worker, history gate).
+
+Heavy suites (check, test, race, cover, e2e, and `verify` whenever its plan runs `go test -race` or Playwright) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
 slots, default 1; `MM_HEAVY_LOCK=0` disables) and memory-capped (`MM_HEAVY_MEM`, default 20G, via
 `systemd-run --user --scope`) by `scripts/loop`, because concurrent race suites triggered systemd-oomd.
 Agents must run whole-repo race suites only through `make`; single-package

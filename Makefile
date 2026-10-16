@@ -16,7 +16,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi test race lint check _check e2e gate hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
+.PHONY: build web openapi test race lint check _check e2e verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -81,8 +81,21 @@ seed:
 routing:
 	$(LOOP) routing -- env MM_REQUIRE_ROUTING=1 CGO_ENABLED=0 go test -tags routing -count=1 ./deploy/traefik-contract/
 
+# The inner loop: only what changed versus origin/main (changed Go packages + reverse deps, web if web/ changed, the
+# Playwright specs mapped from the changed files, the incremental gate). scripts/verify.sh runs itself under
+# scripts/loop (target verify), heavy only when its plan runs the whole module or any spec. See scripts/verify.sh.
+verify:
+	scripts/verify.sh
+
+# Incremental: origin/main..HEAD plus the working tree; a selftest runs only when the script it tests changed.
 gate:
-	$(LOOP) gate -- sh -c 'scripts/public-gate-selftest.sh && scripts/loop-selftest.sh && scripts/coverage-gate-selftest.sh && scripts/ci-selftest.sh && scripts/deploy-preflight-selftest.sh && scripts/actions-pinned.sh && scripts/public-gate.sh'
+	$(LOOP) gate -- scripts/gate.sh incremental
+
+# Complete: every selftest and the full-history scan with the private patterns required (what CI and the pre-push hook
+# run). A green run clears HEAD for the pre-push hook, which then does not repeat it (scripts/gate.sh prepush).
+# GATE_REQUIRE_PATTERNS=0 make gate-full runs it without the pattern requirement (no stamp is written).
+gate-full:
+	$(LOOP) gate-full -- env GATE_REQUIRE_PATTERNS=$(or $(GATE_REQUIRE_PATTERNS),1) scripts/gate.sh full
 
 # Worker (Python, C83): unit tests with the 90 % coverage gate, no torch, no network.
 worker:
