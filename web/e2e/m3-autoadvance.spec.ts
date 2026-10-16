@@ -1,7 +1,14 @@
 // Auto-advance hardening (Android Firefox: at the end of a song the next one did not start).
 // The "firefox-android" project runs this spec with an Android Firefox user agent, a phone viewport,
 // touch and Firefox's strict autoplay prefs; chrome and the Pixel 7 project run the same specs.
+//
+// These specs test the player's logic (queue, refused play(), watchdog), not media timing, so they never play a
+// track through: they start it, seek to 0.3 s before the end and await `ended` and the next track. The watchdog
+// timers run on `page.clock` (it fakes timers and Date only, never media playback). The single real-time test
+// here is tagged @realtime: it lets the 2 s seed take "Syn song 02" end by itself under strict autoplay. Where
+// @realtime tests run (every project, a nightly job, a quarantine) is decided by the e2e matrix rules (web/e2e/matrix.ts).
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { BASE_URL, HEADERS } from "./env";
 
 type Item = { id: string; title: string };
 
@@ -18,31 +25,58 @@ const audioState = (page: Page) =>
 
 const sessionState = (page: Page) => page.evaluate(() => navigator.mediaSession.playbackState);
 
-/** Listen-event kinds the SPA queued or already sent. */
+/**
+ * Listen-event kinds the SPA queued or already sent. Events leave the outbox once delivered (every 10 events, on the 30 s
+ * timer, on hide) and a request can be invisible to Playwright, so a single snapshot can lose events a previous one saw.
+ * The result is therefore the union, by event id, of every request body and outbox snapshot seen so far: it only grows,
+ * and an event counts once however many places it was seen in.
+ */
 function watchKinds(page: Page) {
-  const sent: string[] = [];
+  const seen = new Map<string, string>();
   page.on("request", (r) => {
     if (new URL(r.url()).pathname === "/api/listen-events" && r.postData()) {
-      for (const e of (JSON.parse(r.postData() ?? "{}") as { events?: { kind: string }[] }).events ?? []) sent.push(e.kind);
+      for (const e of (JSON.parse(r.postData() ?? "{}") as { events?: { id: string; kind: string }[] }).events ?? []) seen.set(e.id, e.kind);
     }
   });
   const queued = () =>
     page.evaluate(
       () =>
-        new Promise<string[]>((resolve) => {
+        new Promise<{ id: string; kind: string }[]>((resolve) => {
           const open = indexedDB.open("mm-outbox", 1);
           open.onerror = () => resolve([]);
           open.onsuccess = () => {
             const db = open.result;
             if (!db.objectStoreNames.contains("events")) return resolve([]);
             const r = db.transaction("events", "readonly").objectStore("events").getAll();
-            r.onsuccess = () => resolve((r.result as { event: { kind: string } }[]).map((x) => x.event.kind));
+            r.onsuccess = () => resolve((r.result as { event: { id: string; kind: string } }[]).map((x) => x.event));
             r.onerror = () => resolve([]);
           };
         }),
     );
-  return async () => [...sent, ...(await queued())];
+  return async () => {
+    for (const e of await queued()) seen.set(e.id, e.kind);
+    return [...seen.values()];
+  };
 }
+
+// Root cause of the Android-Firefox flake: the first test of every worker paid Firefox's cold start (context
+// creation plus the first SPA load, 10-40 s on a loaded machine) inside its 30 s test timeout, so it timed out in
+// startFirst before any player logic ran (the page snapshot of such a failure shows the finished Library). The
+// browser itself is worker-scoped, but the context and the first load are not: load the app once per worker, in a
+// hook that has its own budget, so every test starts with a warm browser, HTTP cache and server.
+// The warm-up cannot make a starved machine fast (a navigation of a warm Firefox still takes 15-20 s at a load
+// average of 60 on 8 cores), so the budget is also sized for it: the tests need about 5 s on an idle machine.
+test.describe.configure({ timeout: 90_000 });
+
+test.beforeAll(async ({ browser }) => {
+  test.setTimeout(120_000);
+  const ctx = await browser.newContext({ baseURL: BASE_URL, extraHTTPHeaders: HEADERS });
+  try {
+    await (await ctx.newPage()).goto("/", { waitUntil: "load" });
+  } finally {
+    await ctx.close();
+  }
+});
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -71,11 +105,12 @@ async function startFirst(page: Page, list: Item[], index: number) {
   if (!t) throw new Error("seed track missing");
   await page.goto("/");
   await page.getByRole("button", { name: `Play ${t.title}`, exact: true }).click();
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.2);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
   return t;
 }
 
-const toEnd = (page: Page, before = 0.5) =>
+/** Seek to `before` seconds short of the end; the native `ended` (or the watchdog) follows within a fraction of a second. */
+const toEnd = (page: Page, before = 0.3) =>
   page.evaluate((b) => {
     const a = document.querySelector("audio");
     if (a) a.currentTime = a.duration - b;
@@ -97,7 +132,7 @@ test("a refused play() after ended keeps the queue and resumes with the tap-to-c
   await page.getByTestId("player-continue").click();
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Pause");
   await expect(page.getByTestId("player-continue")).toHaveCount(0);
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.3);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
   expect(await sessionState(page)).toBe("playing");
   // the queue position survived: the track after the resumed one is next
   await toEnd(page);
@@ -120,24 +155,40 @@ test("any tap resumes a refused autoplay", async ({ page, request }) => {
 });
 
 test("a stream whose ended never fires still advances (watchdog), once, with one complete", async ({ page, request }) => {
+  // The watchdog is timer logic (500 ms interval, 1.5 s without progress at the end): page.clock drives it, so the
+  // test never sleeps. The media itself is real and only has to play the last quarter second.
+  await page.clock.install();
   const list = await tracks(request);
   const kinds = watchKinds(page);
   await startFirst(page, list, 7);
   await page.evaluate(() => ((window as unknown as { __noEnded: boolean }).__noEnded = true));
+  // Hold the page's timers while the media reaches its end: with them flowing, a slow machine could let the
+  // real-time watchdog fire before this test has looked, and the stream would already be gone.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
   await toEnd(page, 0.25);
+  // the stream sits at its end and `ended` never reached the page
+  await expect
+    .poll(async () => {
+      const a = await audioState(page);
+      return a.d - a.t;
+    }, { timeout: 8000 })
+    .toBeLessThan(0.05);
   const bar = page.getByTestId("player-bar");
+  await page.clock.runFor(700); // a tick records the final position ...
+  await page.clock.runFor(2000); // ... and the next ones see 1.5 s without progress
+  await page.clock.resume();
   await expect(bar.getByRole("link", { name: list[8]!.title })).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => ((window as unknown as { __noEnded: boolean }).__noEnded = false));
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Pause");
-  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.3);
-  // not advanced twice
-  await page.waitForTimeout(2500);
+  await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
+  // not advanced twice: three more seconds of watchdog ticks change nothing
+  await page.clock.fastForward(3000);
   await expect(bar.getByRole("link", { name: list[8]!.title })).toBeVisible();
   // The outbox persists asynchronously: the first IndexedDB open of a fresh Firefox profile can take seconds
   // under load, and every event queued meanwhile only becomes visible afterwards. Wait for the burst, then
-  // assert exactness (the earlier 2.5 s wait and the poll tail make a duplicate show up too).
+  // assert exactness; the short real wait lets a late duplicate from a real event show up too.
   await expect.poll(async () => (await kinds()).filter((k) => k === "complete").length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
   const all = await kinds();
   expect(all.filter((k) => k === "complete")).toHaveLength(1);
   expect(all.filter((k) => k === "advance")).toHaveLength(1);
@@ -167,10 +218,15 @@ test("play next puts a track right after the current one", async ({ page, reques
   await expect.poll(async () => (await audioState(page)).paused).toBe(false);
 });
 
-test("strict autoplay: every track change starts or asks for a tap, never a silent stop", async ({ page, request }) => {
+test("@realtime strict autoplay: every track change starts or asks for a tap, never a silent stop", async ({ page, request }) => {
   // Firefox policy 2 refuses any play() that is not synchronous inside an input handler: the first play
   // (links are fetched first) and the one in `ended` may both be refused. The ladder must still work.
+  // Real time on purpose: "Syn song 02" (2 s seed take) ends by itself, the refusal happens on a genuine `ended`.
   const list = await tracks(request);
+  const i = list.findIndex((x) => x.title === "Syn song 02");
+  const first = list[i];
+  const second = list[i + 1];
+  if (!first || !second) throw new Error("seed track Syn song 02 or its successor missing");
   const bar = page.getByTestId("player-bar");
   const toggle = page.getByTestId("play-toggle");
   const settle = async () => {
@@ -179,13 +235,13 @@ test("strict autoplay: every track change starts or asks for a tap, never a sile
       .not.toBe("silent");
     if ((await page.getByTestId("player-continue").count()) > 0) await page.getByTestId("player-continue").click();
     await expect(toggle).toHaveAttribute("aria-label", "Pause");
-    await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.3);
+    await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
   };
   await page.goto("/");
-  await page.getByRole("button", { name: `Play ${list[1]!.title}`, exact: true }).click();
+  await page.getByRole("button", { name: `Play ${first.title}`, exact: true }).click();
   await settle();
-  await toEnd(page);
-  await expect(bar.getByRole("link", { name: list[2]!.title })).toBeVisible({ timeout: 10_000 });
+  // no seeking: the take plays out and the player advances (or asks) on its own
+  await expect(bar.getByRole("link", { name: second.title })).toBeVisible({ timeout: 15_000 });
   await settle();
 });
 
