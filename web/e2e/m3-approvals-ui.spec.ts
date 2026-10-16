@@ -65,7 +65,7 @@ async function expectNotUnderPlayer(page: Page, target: Locator): Promise<void> 
 }
 
 // A real Playwright click (actionability checks on). On failure it names what sits on top of the control.
-async function press(page: Page, target: Locator): Promise<void> {
+async function press(page: Page, target: Locator, label: string): Promise<void> {
   await target.waitFor({ state: "visible" });
   await centre(target);
   try {
@@ -74,9 +74,11 @@ async function press(page: Page, target: Locator): Promise<void> {
     const cover = await target.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-      return `${top?.tagName}.${top?.className} [${top?.getAttribute("data-testid")}] at y=${Math.round(r.y)} h=${Math.round(r.height)} vh=${window.innerHeight}`;
+      const bar = document.querySelector('[data-testid="player-footer"]')?.getBoundingClientRect();
+      const main = document.querySelector("main");
+      return `${top?.tagName}.${top?.className} [${top?.getAttribute("data-testid")}] at y=${Math.round(r.y)} h=${Math.round(r.height)} vh=${window.innerHeight} barTop=${Math.round(bar?.top ?? -1)} scrollY=${Math.round(scrollY)} docH=${document.documentElement.scrollHeight} mainPadBottom=${main ? getComputedStyle(main).paddingBottom : "?"}`;
     });
-    throw new Error(`click failed; the control is covered by ${cover}`, { cause: e });
+    throw new Error(`click failed on ${label}; the control is covered by ${cover}`, { cause: e });
   }
 }
 
@@ -87,10 +89,10 @@ async function decide(page: Page, project: string): Promise<void> {
   await expectNotUnderPlayer(page, approve);
   await expectNotUnderPlayer(page, reject);
   if (project === "m3-chrome") {
-    await press(page, approve);
+    await press(page, approve, "approve");
   } else {
     await page.getByTestId("decision-reason").fill("e2e: not now");
-    await press(page, reject);
+    await press(page, reject, "reject");
   }
   await expect(page.getByTestId("decided")).toBeVisible();
 }
@@ -113,7 +115,7 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     await page.screenshot({ path: `test-results/approvals-badge-${info.project.name}.png` });
 
     // the badge leads to the human hub, whose Approvals section lists the batch
-    await press(page, page.getByTestId("approvals-nav"));
+    await press(page, page.getByTestId("approvals-nav"), "nav badge link");
     await expect(page).toHaveURL(/\/human\/$/);
     const row = page.locator(`[data-testid="approval-row"][data-batch="${batch.id}"]`);
     await expect(row).toBeVisible();
@@ -126,9 +128,9 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     // still clear of the player bar
     const [t] = await ownTracks(request, info);
     await page.goto(`/tracks/${t.id}`);
-    await press(page, page.getByTestId("track-play"));
+    await press(page, page.getByTestId("track-play"), "track play");
     await expect(page.getByTestId("player-footer")).toBeVisible();
-    await press(page, page.getByRole("link", { name: "Jobs", exact: true }));
+    await press(page, page.getByRole("link", { name: "Jobs", exact: true }), "Jobs nav link");
     await expect(page).toHaveURL(/\/jobs$/);
     await expect(row).toBeVisible();
     await expectNotUnderPlayer(page, row.getByTestId("approval-link"));
@@ -140,7 +142,7 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
 
     // the Jobs link opens the confirm page
     await page.goto("/jobs");
-    await press(page, row.getByTestId("approval-link"));
+    await press(page, row.getByTestId("approval-link"), "approval link");
     await expect(page).toHaveURL(new RegExp(`/human/confirm/${batch.id}$`));
     await decide(page, info.project.name);
     expect((await getBatch(request, batch.id)).approval.state).not.toBe("pending");
@@ -179,7 +181,7 @@ test("/human is the hub: both spellings land on it, it lists the batch, the link
     await expect(row).toBeVisible();
     await page.screenshot({ path: `test-results/human-hub-${info.project.name}.png` });
 
-    await press(page, row.getByTestId("approval-link"));
+    await press(page, row.getByTestId("approval-link"), "approval link");
     await expect(page).toHaveURL(new RegExp(`/human/confirm/${batch.id}$`));
     await decide(page, info.project.name);
 

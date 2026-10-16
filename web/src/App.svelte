@@ -81,6 +81,10 @@
   // The player bar is fixed to the viewport bottom; routed content reserves its (variable) height so that no control
   // (Approve, Reject, duel verdicts) can ever sit under it.
   let playerH = $state(0);
+  // scroll-padding keeps scrollIntoView, focus and find-in-page from parking a control under the bar.
+  $effect(() => {
+    document.documentElement.style.setProperty("scroll-padding-bottom", `${playerH}px`);
+  });
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
