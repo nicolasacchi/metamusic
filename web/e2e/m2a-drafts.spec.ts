@@ -1,3 +1,4 @@
+// matrix: chrome-only because the draft editor and uploads are data flows with no device-dependent behaviour
 import { expect, test } from "@playwright/test";
 import { apiJSON, uniq } from "./helpers";
 

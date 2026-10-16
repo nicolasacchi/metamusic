@@ -1,3 +1,4 @@
+// matrix: @mobile because the operator approves spend from the confirm page on the phone
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { BASE_URL } from "./env";
 import { agentCreateHeaders, allTerminal, assertOnlyDuplicateFailures, composeRoots, first, getBatch, pollBatch, type Batch, type Estimate } from "./m3Api";

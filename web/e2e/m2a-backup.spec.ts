@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is an admin settings action
 import { expect, test } from "@playwright/test";
 
 test("Back up now appears as a completed run in the list", async ({ page }) => {

@@ -1,3 +1,4 @@
+// matrix: @mobile because live job following and termination are watched from the phone
 import { expect, test, type Page } from "@playwright/test";
 import { composeRoots, first, getBatch, pollBatch, startSlowBatch } from "./m3Api";
 

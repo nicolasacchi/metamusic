@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is a data and layout table with no device-dependent behaviour
 import { expect, test } from "@playwright/test";
 import { siblings } from "./m2bApi";
 

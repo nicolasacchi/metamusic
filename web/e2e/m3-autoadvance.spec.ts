@@ -1,3 +1,4 @@
+// matrix: @android-firefox @realtime because auto-advance and refused-autoplay recovery is the operator's Android Firefox pain point; Chrome on a phone runs the same code as desktop Chrome, so the Pixel 7 and iPhone 15 emulations add nothing
 // Auto-advance hardening (Android Firefox: at the end of a song the next one did not start).
 // The "firefox-android" project runs this spec with an Android Firefox user agent, a phone viewport,
 // touch and Firefox's strict autoplay prefs; chrome and the Pixel 7 project run the same specs.

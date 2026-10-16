@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is a file export check (bytes and validation)
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";

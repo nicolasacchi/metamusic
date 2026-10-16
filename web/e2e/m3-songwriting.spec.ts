@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is a settings form with no device-dependent behaviour
 import { expect, test } from "@playwright/test";
 import { apiJSON } from "./helpers";
 

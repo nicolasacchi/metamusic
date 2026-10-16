@@ -1,3 +1,4 @@
+// matrix: chrome-only because it is an admin audit list and filters, with no device-dependent behaviour
 import { expect, test } from "@playwright/test";
 import { apiJSON, trackByTitle, uniq } from "./helpers";
 

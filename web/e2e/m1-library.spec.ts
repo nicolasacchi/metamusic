@@ -1,3 +1,4 @@
+// matrix: @mobile because the library is the main phone page (filters, facets, URL restore on a narrow layout)
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { SEED_RECIPE_TRACKS, SEED_TRACKS } from "./env";
 
