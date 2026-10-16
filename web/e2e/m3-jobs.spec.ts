@@ -44,8 +44,8 @@ test("a whole batch is terminated; month spend, ledger and provider tabs render"
   await expect(card).toHaveCount(1);
   await card.getByTestId("terminate-batch").click();
   for (const j of batch.jobs) await expect(jobRow(page, j.id)).toHaveAttribute("data-state", "cancelled", { timeout: 60_000 });
-  const done = await pollBatch(request, batch.id, (b) => b.jobs.every((j) => j.state === "cancelled"));
-  expect(done.state).toBe("finished");
+  // the batch is finished by a later runner phase (after the cancelled attempts settle), not in the job's own transaction
+  const done = await pollBatch(request, batch.id, (b) => b.state === "finished" && b.jobs.every((j) => j.state === "cancelled"));
   expect(done.jobs.map((j) => j.error_code)).toEqual(["CANCELLED_BY_USER", "CANCELLED_BY_USER"]);
 
   await page.getByTestId("tab-spend").click();

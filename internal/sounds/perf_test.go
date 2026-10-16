@@ -47,15 +47,15 @@ func bulkLibrary(t *testing.T, w *world, n int) {
 
 func TestPerf_TaxonomyRecompute(t *testing.T) {
 	budget := perftest.Budget(t, 5*time.Second)
-	// serial on purpose: a wall-clock budget measured next to other heavy parallel tests of the package is noise
+	// serial on purpose: the budget is process CPU time, which concurrent tests of the package would inflate
 	w := newWorld(t, true)
 	bulkLibrary(t, w, 5000) // 5 000 takes + 5 000 Songs = 10 000 subjects, none computed yet
-	start := time.Now()
+	sw := perftest.Start()
 	res, err := w.sv.Map(context.Background(), agentP, sounds.MapRequest{Mappings: []sounds.MapEntry{{Term: "wobble 3", Facet: "mood", Value: "dark", Op: "add"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if el := time.Since(start); el > budget {
+	if el := sw.Elapsed(); el > budget {
 		t.Errorf("recomputing 10 000 subjects took %v, budget %v", el, budget)
 	}
 	if res.RecomputedTakes != 5000 || res.RecomputedSongs != 5000 {
@@ -64,21 +64,22 @@ func TestPerf_TaxonomyRecompute(t *testing.T) {
 }
 
 func TestPerf_SearchSounds(t *testing.T) {
-	budget := perftest.Budget(t, 300*time.Millisecond)
-	// serial on purpose: a wall-clock budget measured next to other heavy parallel tests of the package is noise
+	budget := perftest.BudgetRace(t, 300*time.Millisecond, 50) // 83 ms plain, 3 s under -race (36x)
+	// serial on purpose: the budget is process CPU time, which concurrent tests of the package would inflate
 	w := newWorld(t, true)
 	bulkLibrary(t, w, 10000)
 	if _, err := w.sv.Map(context.Background(), agentP, sounds.MapRequest{Mappings: []sounds.MapEntry{{Term: "wobble 3", Facet: "mood", Value: "dark", Op: "add"}}}); err != nil {
 		t.Fatal(err)
 	}
 	f := songs.ListFilter{Sounds: map[string][]string{"genre_family": {"reggae", "jazz"}}}
-	start := time.Now()
+	sw := perftest.Start()
 	fc, err := w.sv.Facets(context.Background(), f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if el := time.Since(start); el > budget {
+	if el := sw.Elapsed(); el > budget {
 		t.Errorf("facet counts over 10 000 Songs took %v, budget %v", el, budget)
+
 	}
 	if fc.SongsMatching < 3000 {
 		t.Errorf("songs_matching %d", fc.SongsMatching)

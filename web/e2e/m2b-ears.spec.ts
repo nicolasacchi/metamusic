@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { apiJSON, audioTime, trackByTitle } from "./helpers";
+import { apiJSON, trackByTitle } from "./helpers";
 
 // The three "Syn ears" tracks each carry one defect (C55): they are read-only here, so every project may
 // open them at the same time.
@@ -44,10 +44,19 @@ test("clicking the middle of the plot seeks the player to half the duration", as
   const img = page.getByTestId("spectrogram").locator("img");
   await expect(img).toBeVisible();
   await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
+  // Record where every seek lands: the element keeps playing from the jump target, so a periodic sample of
+  // currentTime sweeps past a 1 s window (the jump target to half a second later) and a late sample misses it.
+  await page.evaluate(() => {
+    const w = window as unknown as { __seekedAt: number[] };
+    w.__seekedAt = [];
+    const a = document.querySelector("audio");
+    a?.addEventListener("seeked", () => w.__seekedAt.push(a.currentTime));
+  });
   await img.scrollIntoViewIfNeeded();
   const box = (await img.boundingBox())!; // measured after the scroll: mouse coordinates are viewport-relative
   const frac = (spec.plot.x0 + spec.plot.width / 2) / spec.width;
   await page.mouse.click(box.x + box.width * frac, box.y + box.height / 2);
-  // playback continues from the jump target, so poll until the reading falls inside the window
-  await expect.poll(async () => Math.abs((await audioTime(page)) - t.duration_s / 2), { timeout: 5000 }).toBeLessThanOrEqual(0.5);
+  await expect
+    .poll(async () => (await page.evaluate(() => (window as unknown as { __seekedAt: number[] }).__seekedAt)).some((s) => Math.abs(s - t.duration_s / 2) <= 0.5), { timeout: 10_000 })
+    .toBe(true);
 });

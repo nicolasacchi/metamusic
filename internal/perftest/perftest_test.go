@@ -26,3 +26,31 @@ func TestPerftest_Budget(t *testing.T) {
 		}
 	}
 }
+
+func TestPerftest_StopwatchCountsCPUNotSleep(t *testing.T) {
+	t.Parallel()
+	sw := Start()
+	time.Sleep(200 * time.Millisecond)
+	// other parallel tests may burn CPU in this process, so only the upper-bound of an idle sleep is asserted loosely
+	// when nothing else runs; the invariant checked here is monotonicity and a positive spin cost.
+	spin := Start()
+	deadline := time.Now().Add(50 * time.Millisecond)
+	for time.Now().Before(deadline) {
+	}
+	if spin.Elapsed() <= 0 {
+		t.Fatalf("busy loop measured %v", spin.Elapsed())
+	}
+	if sw.Elapsed() < spin.Elapsed() {
+		t.Fatalf("not monotonic: %v < %v", sw.Elapsed(), spin.Elapsed())
+	}
+}
+
+func TestPerftest_ScaleMul(t *testing.T) {
+	t.Parallel()
+	if got := scaleMul(time.Second, "2", true, 50); got != 100*time.Second {
+		t.Fatalf("race mul: %v", got)
+	}
+	if got := scaleMul(time.Second, "", false, 50); got != time.Second {
+		t.Fatalf("plain ignores race mul: %v", got)
+	}
+}

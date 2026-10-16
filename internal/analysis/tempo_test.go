@@ -166,9 +166,9 @@ func TestTempo_Golden(t *testing.T) {
 func TestPerf_Tempo(t *testing.T) {
 	budget := perftest.Budget(t, 2*time.Second)
 	x := clicks(110, 240, 0)
-	start := time.Now()
+	sw := perftest.Start()
 	got := ComputeTempo(x, tsr)
-	if el := time.Since(start); el > budget {
+	if el := sw.Elapsed(); el > budget {
 		t.Fatalf("240 s took %v, budget %v", el, budget)
 	}
 	if got.BPM == nil {

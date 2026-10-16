@@ -403,8 +403,8 @@ func TestPerf_MuseBoard(t *testing.T) {
 	if testing.Short() {
 		t.Skip("scale fixture: too slow under -race -short; runs in make test")
 	}
+	// serial on purpose: the budget is CPU time of the process, which concurrent tests would inflate
 	budget := perftest.Budget(t, time.Second)
-	t.Parallel()
 	st, err := store.Open(context.Background(), t.TempDir()+"/p.db")
 	if err != nil {
 		t.Fatal(err)
@@ -416,7 +416,7 @@ func TestPerf_MuseBoard(t *testing.T) {
 	bs := board.New(st, func() time.Time { return w.Now })
 	var durs []time.Duration
 	for i := 0; i < 20; i++ {
-		start := time.Now()
+		sw := perftest.Start()
 		cur := ""
 		for {
 			b := get(t, bs, board.Query{Detail: "chips", Cursor: cur})
@@ -425,7 +425,7 @@ func TestPerf_MuseBoard(t *testing.T) {
 			}
 			cur = *b.NextCursor
 		}
-		durs = append(durs, time.Since(start))
+		durs = append(durs, sw.Elapsed())
 	}
 	slices.Sort(durs)
 	if p95 := durs[18]; p95 > budget {
