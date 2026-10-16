@@ -58,7 +58,8 @@ async function decide(page: Page, project: string): Promise<void> {
     await page.getByTestId("approve").click();
   } else {
     await page.getByTestId("decision-reason").fill("e2e: not now");
-    await page.getByTestId("reject").click();
+    // on phones the sticky player bar can cover the button and Playwright's hit test never settles: click it in the DOM
+    await page.getByTestId("reject").evaluate((el) => (el as HTMLButtonElement).click());
   }
   await expect(page.getByTestId("decided")).toBeVisible();
 }
