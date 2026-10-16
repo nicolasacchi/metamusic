@@ -220,8 +220,8 @@ test("@realtime strict autoplay: every track change starts or asks for a tap, ne
   // Firefox policy 2 refuses any play() that is not synchronous inside an input handler: the first play
   // (links are fetched first) and the one in `ended` may both be refused. The ladder must still work.
   // Real time on purpose: the first take (a 4 s lossy seed track) ends by itself, so the refusal happens on a genuine
-  // `ended`. (Syn song 02, the 2 s FLAC take, is not used here: under CI's strict Firefox its first tap-to-continue
-  // did not start playback, a separate question from this test's.)
+  // `ended`. (Syn song 02, the 2 s FLAC take, is covered by the next test: its settle() polls currentTime, which a
+  // 2 s take can outrun on a slow runner, so it is not a fit for this ladder.)
   const list = await tracks(request);
   const first = list[1];
   const second = list[2];
@@ -284,4 +284,35 @@ test("Media Session: nexttrack is withdrawn when nothing is next", async ({ page
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __msHandlers: Record<string, string> }).__msHandlers["nexttrack"]))
     .toBe("fn");
+});
+
+test("@realtime strict autoplay: tap-to-continue starts the 2 s FLAC take", async ({ page, request }, info) => {
+  test.skip(info.project.name !== "firefox-android-strict", "only policy 2 refuses the first play(); other projects start without a tap");
+  // The FLAC path under policy 2: the first play() follows the link fetch (an await), so it is refused and the
+  // player asks for a tap; the tap must start the FLAC synchronously. The take lasts only 2 s, so a poll on
+  // currentTime can see the NEXT track (refused again, t = 0) instead: the page records `playing` and the furthest
+  // position of the FLAC element itself, and the assertions read that record, never a wall-clock window.
+  const first = (await tracks(request)).find((x) => x.title === "Syn song 02");
+  if (!first) throw new Error("seed take Syn song 02 missing");
+  await page.addInitScript(() => {
+    const rec = { flacPlaying: 0, flacMaxT: 0 };
+    (window as unknown as { __flac: typeof rec }).__flac = rec;
+    const seen = (e: Event) => {
+      const a = e.target as HTMLAudioElement;
+      if (!/\.flac(\?|$)/.test(a.currentSrc)) return;
+      if (e.type === "playing") rec.flacPlaying++;
+      rec.flacMaxT = Math.max(rec.flacMaxT, a.currentTime);
+    };
+    for (const t of ["playing", "timeupdate"]) document.addEventListener(t, seen, true);
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: `Play ${first.title}`, exact: true }).click();
+  const tap = page.getByTestId("player-continue");
+  await expect(tap).toBeVisible({ timeout: 10_000 });
+  await tap.click();
+  const flac = () => page.evaluate(() => (window as unknown as { __flac: { flacPlaying: number; flacMaxT: number } }).__flac);
+  await expect.poll(async () => (await flac()).flacMaxT, { timeout: 8000 }).toBeGreaterThan(0.1);
+  const rec = await flac();
+  expect(rec.flacPlaying).toBeGreaterThan(0);
+  expect(rec.flacMaxT).toBeGreaterThan(0.1);
 });
