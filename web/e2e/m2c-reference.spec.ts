@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
 import { SEED_LOSSY_TRACKS, SEED_REFERENCE_FLACS, SEED_TRACKS, SEED_UNKNOWN_TRACKS } from "./env";
 import { apiJSON, uniq } from "./helpers";
 

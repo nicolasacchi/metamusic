@@ -7,8 +7,7 @@
 // timers run on `page.clock` (it fakes timers and Date only, never media playback). The single real-time test
 // here is tagged @realtime: it lets the 2 s seed take "Syn song 02" end by itself under strict autoplay. Where
 // @realtime tests run (every project, a nightly job, a quarantine) is decided by the e2e matrix rules (web/e2e/matrix.ts).
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { BASE_URL, HEADERS } from "./env";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 type Item = { id: string; title: string };
 
@@ -59,24 +58,12 @@ function watchKinds(page: Page) {
   };
 }
 
-// Root cause of the Android-Firefox flake: the first test of every worker paid Firefox's cold start (context
-// creation plus the first SPA load, 10-40 s on a loaded machine) inside its 30 s test timeout, so it timed out in
-// startFirst before any player logic ran (the page snapshot of such a failure shows the finished Library). The
-// browser itself is worker-scoped, but the context and the first load are not: load the app once per worker, in a
-// hook that has its own budget, so every test starts with a warm browser, HTTP cache and server.
-// The warm-up cannot make a starved machine fast (a navigation of a warm Firefox still takes 15-20 s at a load
-// average of 60 on 8 cores), so the budget is also sized for it: the tests need about 5 s on an idle machine.
+// Root cause of the Android-Firefox flake: nothing in the player. Firefox's cold start (context creation, the first SPA
+// load, the worker's server start) takes 10-60 s on a starved machine and counted against the default 30 s test timeout,
+// so the first test of a worker died in startFirst before any player logic ran (the page snapshot of such a failure
+// shows the finished Library). The tests themselves need about 5 s on an idle machine, hence a budget sized for the
+// cold start rather than retries or sleeps.
 test.describe.configure({ timeout: 90_000 });
-
-test.beforeAll(async ({ browser }) => {
-  test.setTimeout(120_000);
-  const ctx = await browser.newContext({ baseURL: BASE_URL, extraHTTPHeaders: HEADERS });
-  try {
-    await (await ctx.newPage()).goto("/", { waitUntil: "load" });
-  } finally {
-    await ctx.close();
-  }
-});
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
