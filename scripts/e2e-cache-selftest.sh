@@ -73,4 +73,5 @@ chk "plain run drops covdata/e2e and unsets GOCOVERDIR" 'grep -q "rm -rf covdata
 chk "Makefile e2e-cover sets MM_E2E_COVER=1" 'awk "/^e2e-cover:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q "MM_E2E_COVER=1"'
 chk "Makefile e2e does not" '! awk "/^e2e:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q "MM_E2E_COVER"'
 chk "CI e2e job still builds the coverage binary and feeds the coverage job" 'grep -q "go build -cover -covermode=atomic -coverpkg=./..." "$root/.github/workflows/ci.yml" && grep -q "scripts/coverage-gate.sh covdata/unit covdata/e2e" "$root/.github/workflows/ci.yml"'
+chk "CI builds the coverage binary once (e2e-bin job) and the e2e shards download it" '[ "$(grep -c "go build -cover" "$root/.github/workflows/ci.yml")" = 1 ] && awk "/^  e2e-bin:/{f=1;next} /^  [a-z]/{f=0} f" "$root/.github/workflows/ci.yml" | grep -q "go build -cover" && grep -q "name: e2e-bin" "$root/.github/workflows/ci.yml" && awk "/^  e2e:/{f=1;next} /^  [a-z]/{f=0} f && /needs:/" "$root/.github/workflows/ci.yml" | grep -q e2e-bin'
 exit $fail
