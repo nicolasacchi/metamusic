@@ -13,13 +13,15 @@ import (
 // BatchTransition is one legal batch move and its single writer (C72.6).
 type BatchTransition struct{ From, To, Writer string }
 
-// BatchTransitions is the table of batch states and who writes them. cancel_batch changes no state.
+// BatchTransitions is the table of batch states and who writes them. cancel_batch changes no state of a
+// started batch; on one still awaiting confirmation it is WithdrawBatch (-> rejected, approval via cancel).
 var BatchTransitions = []BatchTransition{
 	{"", "active", "create"},
 	{"", "awaiting_confirmation", "create"},
 	{"awaiting_confirmation", "active", "ApproveBatch"},
 	{"awaiting_confirmation", "rejected", "RejectBatch"},
 	{"awaiting_confirmation", "expired", "ExpireApproval"},
+	{"awaiting_confirmation", "rejected", "WithdrawBatch"},
 	{"active", "finished", "FinishBatch"},
 	{"finished", "reconciled", "ReconcileBatch"}, // reconciled_at set; the state stays finished
 }

@@ -252,3 +252,48 @@ func TestSpend_ConcurrentCreatesNeverExceedCap(t *testing.T) {
 		t.Errorf("%d batches in the database, want 5", n)
 	}
 }
+
+// TestAcceptance_CancelAwaitingBatchWithdrawsApproval: an agent cancels its own batch while it waits for
+// the operator. The batch ends, the approval leaves the pending list, list_batches stops showing it as
+// awaiting, and approve or reject answer 409 BATCH_NOT_PENDING (production bug of 2026-10-16).
+func TestAcceptance_CancelAwaitingBatchWithdrawsApproval(t *testing.T) {
+	t.Parallel()
+	r := m3Rig(t)
+	agent, _ := r.Agent(t, auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate)
+	e := obj(agent.OK(t, "POST", "/api/generations/estimate", map[string]any{"items": []any{map[string]any{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 6}}}))
+	resp := agent.Do(t, "POST", "/api/generations", map[string]any{"confirmation_token": e["confirmation_token"]}, "Idempotency-Key", "cancel-awaiting")
+	if resp.Status != 201 {
+		t.Fatalf("create: %d %s", resp.Status, resp.Body)
+	}
+	b := obj(resp.JSON(t))
+	if b["state"] != "awaiting_confirmation" {
+		t.Fatalf("batch = %v", b)
+	}
+	id := b["id"].(string)
+
+	got := obj(agent.OK(t, "POST", "/api/batches/"+id+"/cancel", map[string]any{"reason": "wrong plan"}))
+	if got["state"] == "awaiting_confirmation" || got["state"] == "active" {
+		t.Errorf("batch state after cancel: %v", got["state"])
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM approvals WHERE batch_id = ? AND state = 'pending'`, id); n != 0 {
+		t.Errorf("%d pending approvals after the cancel", n)
+	}
+	for _, x := range arr(obj(agent.OK(t, "GET", "/api/batches?state=awaiting_confirmation", nil))["items"]) {
+		if obj(x)["id"] == id {
+			t.Error("the cancelled batch is still listed as awaiting_confirmation")
+		}
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM audit_log WHERE op = 'cancel_batch' AND status = 200`); n != 1 {
+		t.Errorf("%d cancel_batch audit rows", n)
+	}
+	h := r.Human(t)
+	for _, op := range []string{"approve", "reject"} {
+		res := h.Do(t, "POST", "/human/api/batches/"+id+"/"+op, map[string]any{"reason": "late"})
+		if res.Status != 409 || !strings.Contains(string(res.Body), "BATCH_NOT_PENDING") {
+			t.Errorf("%s after cancel: %d %s", op, res.Status, res.Body)
+		}
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM approvals WHERE batch_id = ? AND via = 'cancel'`, id); n != 1 {
+		t.Error("the approval must stay closed by the cancel")
+	}
+}

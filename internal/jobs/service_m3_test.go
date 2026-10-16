@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -201,5 +202,60 @@ func TestService_JobColdStart(t *testing.T) {
 	}
 	if j.Timings.ExecutionMS != nil {
 		t.Error("a live attempt has no execution time")
+	}
+}
+
+// TestCancelBatch_AwaitingConfirmationWithdrawsApproval: cancelling a batch that waits for a human closes
+// the approval and the batch, releases the reservation and audits, all in the cancel's transaction; the
+// jobs end on the runner's next step; list_batches no longer shows it as awaiting.
+func TestCancelBatch_AwaitingConfirmationWithdrawsApproval(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	svc := r.service(t.Context())
+	s := r.seedBatch(batchSpec{state: "awaiting_confirmation", jobs: 2, principal: "agent:a1"})
+	reserved := r.ledger(s.Batch, "reserve", "")
+	if reserved == 0 {
+		t.Fatal("seed reserved nothing")
+	}
+	owner := auth.Principal{Kind: auth.KindAgent, ID: "a1", Name: "a1"}
+	ctx := audit.WithPending(t.Context(), audit.Entry{At: t0, Principal: owner, Transport: reqinfo.REST, Op: "cancel_batch", Method: "POST", ArgsSHA256: "abc"})
+	if _, err := svc.CancelBatch(ctx, owner, s.Batch, "wrong plan"); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.str(`SELECT state || '|' || via || '|' || decided_by || '|' || reason FROM approvals WHERE batch_id = ?`, s.Batch); got != "rejected|cancel|agent:a1|wrong plan" {
+		t.Errorf("approval %q", got)
+	}
+	if got := r.str(`SELECT state FROM batches WHERE id = ?`, s.Batch); got != "rejected" {
+		t.Errorf("batch %q", got)
+	}
+	if r.outstanding(s.Batch) != 0 || r.ledger(s.Batch, "release", "rejected") != reserved {
+		t.Errorf("ledger: outstanding %d, released %d of %d", r.outstanding(s.Batch), r.ledger(s.Batch, "release", "rejected"), reserved)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM audit_log WHERE op = 'cancel_batch' AND status = 200`); n != 1 {
+		t.Errorf("audit rows %d", n)
+	}
+	for st, want := range map[string]int{"awaiting_confirmation": 0, "rejected": 1} {
+		page, err := svc.ListBatches(t.Context(), owner, BatchQuery{States: []string{st}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != want {
+			t.Errorf("list state=%s: %d items, want %d", st, len(page.Items), want)
+		}
+	}
+	// the runner ends the jobs, and the ledger stays balanced
+	r.step()
+	for _, j := range s.Jobs {
+		r.wantState(j, StateCancelled)
+	}
+	if r.outstanding(s.Batch) != 0 || r.ledger(s.Batch, "release", "") != reserved {
+		t.Errorf("after the runner: outstanding %d, released %d of %d", r.outstanding(s.Batch), r.ledger(s.Batch, "release", ""), reserved)
+	}
+	// cancelling again changes nothing
+	if _, err := svc.CancelBatch(t.Context(), owner, s.Batch, ""); err != nil {
+		t.Fatal(err)
+	}
+	if r.ledger(s.Batch, "release", "") != reserved {
+		t.Error("a second cancel released again")
 	}
 }
