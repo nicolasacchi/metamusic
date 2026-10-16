@@ -126,6 +126,11 @@ func selectBackend(cfg config.Config, o M3Options, clk clock.Clock, ups *upload.
 			bo = *o.RunPod
 		}
 		bo.Keys, bo.Clock = keys, clk
+		if bo.ProbeJSON == nil {
+			// the committed key probe: without it Capabilities() stays conservative (billing "none") and the
+			// reconciler never reads RunPod's hourly billing. A test may set its own.
+			bo.ProbeJSON = runpod.EmbeddedCapabilities
+		}
 		bo.MaxRuntime, bo.ColdStartS, bo.RecordDir = cfg.JobMaxRuntime, cfg.ColdStartS, cfg.RunPodRecordDir
 		if bo.Recorder == nil && cfg.RunPodRecordDir != "" {
 			// MM_RUNPOD_RECORD_DIR: the RunPod calls of the runner and the reconciler are made by this process, so
