@@ -11,6 +11,9 @@ from .errors import WorkerError
 CONTRACT = "mm.worker/1"
 RESULT = "mm-result.json"
 
+# yue2's semantic max_tokens is 9000 = 360 s at 25 semantic tokens per second of audio; min_tokens may not exceed it.
+MAX_MIN_AUDIO_S = 360
+
 KIB = 1 << 10
 MIB = 1 << 20
 
@@ -67,6 +70,7 @@ class TakeInput:
     start_url: str = field(repr=False)
     uploads: dict[str, Target] = field(repr=False)
     weights: dict[str, str]
+    min_audio_s: int = 0  # forced minimum render length in seconds (X4); 0 = none
 
 
 def _bad(msg: str) -> WorkerError:
@@ -107,7 +111,7 @@ def parse_input(job_input: Any) -> TakeInput:
         "contract", "take_id", "attempt_id", "engine", "request", "timeout_s", "upload_budget_s",
         "deadline_unix", "start", "uploads", "expect",
     }
-    _only(job_input, keys, keys, "input")
+    _only(job_input, keys | {"min_audio_s"}, keys, "input")
     for k in ("take_id", "attempt_id"):
         v = job_input[k]
         if not isinstance(v, str) or not _ID.fullmatch(v):
@@ -121,6 +125,7 @@ def parse_input(job_input: Any) -> TakeInput:
     timeout_s = _int(job_input["timeout_s"], "timeout_s", 1, 2700)
     budget = _int(job_input["upload_budget_s"], "upload_budget_s", 1, 2700)
     deadline = _int(job_input["deadline_unix"], "deadline_unix", 1)
+    min_audio_s = _int(job_input["min_audio_s"], "min_audio_s", 0, MAX_MIN_AUDIO_S) if "min_audio_s" in job_input else 0
 
     start = job_input["start"]
     if not isinstance(start, dict):
@@ -152,4 +157,4 @@ def parse_input(job_input: Any) -> TakeInput:
         if not isinstance(rev, str) or not _REV.fullmatch(rev):
             raise _bad("expect.weights revision is invalid")
     return TakeInput(job_input["take_id"], job_input["attempt_id"], eng, req, timeout_s, budget, deadline,
-                     start_url, targets, dict(w))
+                     start_url, targets, dict(w), min_audio_s)

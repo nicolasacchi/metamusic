@@ -13,7 +13,7 @@ from . import redact
 from .contract import ARTIFACTS, CONTRACT, MAX_BYTES, REQUIRED, RESULT, TakeInput
 from .env import ENGINE, fingerprint, flac_seconds
 from .errors import WorkerError
-from .pipeline import Pipeline
+from .pipeline import SEMANTIC_TOKENS_PER_S, Pipeline, with_min_audio
 from .start import CancelWatch, StartClient, _spawn_thread
 from .upload import Uploader, sha256_file
 
@@ -104,7 +104,7 @@ def _run(take, pipe, uploader, clock, start, job_id, spawn, tmp, gen_deadline, u
 
     # 3. request validation by the engine's own validator.
     try:
-        kwargs = pipe.request_kwargs(take.request)
+        kwargs = with_min_audio(pipe.request_kwargs(take.request), take.min_audio_s)
     except Exception as e:
         raise WorkerError("BAD_INPUT", redact.message(f"request rejected: {e}")) from None
 
@@ -136,6 +136,10 @@ def _run(take, pipe, uploader, clock, start, job_id, spawn, tmp, gen_deadline, u
         raise WorkerError("TRUNCATED_NOT_DICT", "truncated is not a dict of exactly abc and semantic booleans")
     truncated = dict(truncated)
     state["truncated"] = {"abc": truncated["abc"], "semantic": truncated["semantic"]}
+
+    # 6b. the forced minimum must be what yue2 recorded: config.json is the re-run record of the take.
+    if take.min_audio_s:
+        _check_min_tokens(tmp / "config.json", take.min_audio_s * SEMANTIC_TOKENS_PER_S)
 
     # 7. collect: allowlisted files only (never latent.npy), required present, sizes, hashes.
     found: dict[str, tuple[Path, str, int]] = {}
@@ -170,6 +174,15 @@ def _run(take, pipe, uploader, clock, start, job_id, spawn, tmp, gen_deadline, u
     final = output(None)
     put_result(tmp, final)
     return final
+
+
+def _check_min_tokens(config: Path, want: int) -> None:
+    try:
+        got = json.loads(config.read_text())["generation"]["semantic"]["min_tokens"]
+    except (OSError, ValueError, KeyError, TypeError):
+        got = None
+    if got is None or isinstance(got, bool) or not isinstance(got, int) or got < want:
+        raise WorkerError("PIPELINE_ERROR", f"config.json does not record semantic min_tokens >= {want}")
 
 
 def _stopped(watch: CancelWatch) -> None:

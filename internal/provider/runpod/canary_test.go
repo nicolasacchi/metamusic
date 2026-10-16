@@ -79,13 +79,13 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 	}
 	// the ceiling check uses the estimate's ceiling against --max-usd
 	lim := runpod.DefaultCanaryMaxUSD
-	if lim != 250_000 {
+	if lim != 500_000 {
 		t.Errorf("default limit = %d", lim)
 	}
 	for _, c := range []struct {
 		ceiling money.MicroUSD
 		want    bool
-	}{{0, false}, {1, true}, {250_000, true}, {250_001, false}} {
+	}{{0, false}, {1, true}, {500_000, true}, {500_001, false}} {
 		if got := runpod.CeilingAllowed(c.ceiling, lim); got != c.want {
 			t.Errorf("CeilingAllowed(%d) = %v", c.ceiling, got)
 		}
@@ -253,7 +253,7 @@ func TestCanary_RefusesOverCeilingAndDisarmed(t *testing.T) {
 	t.Run("ceiling over --max-usd", func(t *testing.T) {
 		t.Parallel()
 		s := ranStub(t, goodMain()...)
-		s.ceiling = 300_000
+		s.ceiling = 600_000
 		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseMain))
 		if err != nil || rep.Exit != runpod.ExitRefused || rep.Outcome != "refused" {
 			t.Fatalf("rep %+v err %v", rep, err)
@@ -262,7 +262,7 @@ func TestCanary_RefusesOverCeilingAndDisarmed(t *testing.T) {
 			t.Error("a batch was created above the ceiling")
 		}
 		o := canaryOpts(s, runpod.CaseMain)
-		o.MaxUSD = 300_000
+		o.MaxUSD = 600_000
 		if rep, err = runpod.RunCanary(context.Background(), o); err != nil || rep.Exit != runpod.ExitPass {
 			t.Fatalf("with a higher limit: %+v %v", rep, err)
 		}

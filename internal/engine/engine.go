@@ -35,3 +35,11 @@ type Engine interface {
 
 // Registry maps engine names to engines.
 type Registry map[string]Engine
+
+// MinAudioPlanner is implemented by engines whose renders can end well before the material does and that have
+// a supported control for it. MinAudioSeconds is the forced minimum length in seconds of a take expected to
+// last expectedS, given the operator's minimum song length minDurationS (0 = none). The planner records it per
+// take and quotes the take no shorter; the worker enforces it.
+type MinAudioPlanner interface {
+	MinAudioSeconds(expectedS, minDurationS int) int
+}

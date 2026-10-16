@@ -80,6 +80,30 @@ func (Engine) ExpectedAudioSeconds(request json.RawMessage) (int, error) {
 	return int(min(max(math.Ceil(secs), minAudioSeconds), maxAudioSeconds)), nil
 }
 
+// Minimum-render control. YuE2 sometimes writes its end-of-music token long before the material is sung
+// (measured: 76 s of a 288 s score), and its only supported control is the semantic sampler's min_tokens, which
+// suppresses that token until the step count is reached (yue2 sampling.distribution). Semantic tokens run at
+// 25 per second of audio.
+const (
+	// minAudioShareMilli is the part of the estimated length every take is forced to reach (70 percent, in
+	// thousandths below): the estimate is bars x tempo or lyric lines, so it is itself uncertain, and the
+	// song is allowed to finish up to 30 percent early.
+	minAudioShareMilli = 700
+	// MinAudioCapSeconds keeps the forced floor well under max_tokens (9000 = 360 s): the model needs room to
+	// close the song, and forcing the sampler past the material only produces rambling.
+	MinAudioCapSeconds = 330
+	// SemanticTokensPerSecond converts the floor to semantic min_tokens (worker side).
+	SemanticTokensPerSecond = 25
+)
+
+// MinAudioSeconds is the forced minimum length of a take: min(max(minDurationS, ceil(0.7 x expectedS)), 330).
+// minDurationS is the operator's songwriting.min_duration_s; 0 means none. The result is what the worker turns
+// into semantic min_tokens, and what the quote must assume as the take's length.
+func (Engine) MinAudioSeconds(expectedS, minDurationS int) int {
+	share := (expectedS*minAudioShareMilli + 999) / 1000
+	return min(max(minDurationS, share, 0), MinAudioCapSeconds)
+}
+
 // Artifacts is the upload allowlist for one take (C73.4). Always required: audio.flac, request.json,
 // config.json, result.json and mm-result.json (uploaded last). score.abc is never expected for cot=off;
 // otherwise score.abc, plan.json and plan_manifest.json are optional-but-verified-if-reported, and
