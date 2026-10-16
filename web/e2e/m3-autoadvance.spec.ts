@@ -22,6 +22,9 @@ const audioState = (page: Page) =>
     return { t: a?.currentTime ?? -1, d: a?.duration ?? NaN, paused: a?.paused ?? true, src: a?.currentSrc ?? "" };
   });
 
+/** How long an event may take to become visible: the IndexedDB open of a fresh Firefox profile, or the outbox's 30 s timer. */
+const OUTBOX_MS = 40_000;
+
 const sessionState = (page: Page) => page.evaluate(() => navigator.mediaSession.playbackState);
 
 /**
@@ -31,31 +34,33 @@ const sessionState = (page: Page) => page.evaluate(() => navigator.mediaSession.
  * and an event counts once however many places it was seen in.
  */
 function watchKinds(page: Page) {
-  const seen = new Map<string, string>();
+  const seen = new Map<string, { id: string; kind: string; track_id?: string; to_ms?: number; from_ms?: number }>();
   page.on("request", (r) => {
     if (new URL(r.url()).pathname === "/api/listen-events" && r.postData()) {
-      for (const e of (JSON.parse(r.postData() ?? "{}") as { events?: { id: string; kind: string }[] }).events ?? []) seen.set(e.id, e.kind);
+      for (const e of (JSON.parse(r.postData() ?? "{}") as { events?: { id: string; kind: string; track_id?: string; to_ms?: number; from_ms?: number }[] }).events ?? []) seen.set(e.id, e);
     }
   });
   const queued = () =>
     page.evaluate(
       () =>
-        new Promise<{ id: string; kind: string }[]>((resolve) => {
+        new Promise<{ id: string; kind: string; track_id?: string; to_ms?: number; from_ms?: number }[]>((resolve) => {
           const open = indexedDB.open("mm-outbox", 1);
           open.onerror = () => resolve([]);
           open.onsuccess = () => {
             const db = open.result;
             if (!db.objectStoreNames.contains("events")) return resolve([]);
             const r = db.transaction("events", "readonly").objectStore("events").getAll();
-            r.onsuccess = () => resolve((r.result as { event: { id: string; kind: string } }[]).map((x) => x.event));
+            r.onsuccess = () => resolve((r.result as { event: { id: string; kind: string; track_id?: string; to_ms?: number; from_ms?: number } }[]).map((x) => x.event));
             r.onerror = () => resolve([]);
           };
         }),
     );
-  return async () => {
-    for (const e of await queued()) seen.set(e.id, e.kind);
+  const events = async () => {
+    for (const e of await queued()) seen.set(e.id, e);
     return [...seen.values()];
   };
+  const kinds = async () => (await events()).map((e) => e.kind);
+  return Object.assign(kinds, { events });
 }
 
 // Root cause of the Android-Firefox flake: nothing in the player. Firefox's cold start (context creation, the first SPA
@@ -125,7 +130,7 @@ test("a refused play() after ended keeps the queue and resumes with the tap-to-c
   await toEnd(page);
   await expect(bar.getByRole("link", { name: list[5]!.title })).toBeVisible({ timeout: 10_000 });
   // diagnostics reached the outbox through the listen-events op
-  await expect.poll(async () => (await kinds()).filter((k) => k === "autoplay_blocked").length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(async () => (await kinds()).filter((k) => k === "autoplay_blocked").length, { timeout: OUTBOX_MS }).toBeGreaterThanOrEqual(1);
   expect(await kinds()).toEqual(expect.arrayContaining(["advance", "complete", "autoplay_blocked"]));
 });
 
@@ -172,13 +177,18 @@ test("a stream whose ended never fires still advances (watchdog), once, with one
   await page.clock.fastForward(3000);
   await expect(bar.getByRole("link", { name: list[8]!.title })).toBeVisible();
   // The outbox persists asynchronously: the first IndexedDB open of a fresh Firefox profile can take seconds
-  // under load, and every event queued meanwhile only becomes visible afterwards. Wait for the burst, then
-  // assert exactness; the short real wait lets a late duplicate from a real event show up too.
-  await expect.poll(async () => (await kinds()).filter((k) => k === "complete").length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+  // under load, and every event queued meanwhile only becomes visible afterwards (events also leave on the 30 s
+  // timer). The track now playing is 12 s long and would complete by itself while the test waits for that, adding a
+  // second `complete` that has nothing to do with the watchdog: pause it first, then wait for the burst and assert
+  // exactness; the short real wait lets a late duplicate from a real event show up too.
+  await page.getByTestId("play-toggle").click();
+  await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Play");
+  await expect.poll(async () => (await kinds()).filter((k) => k === "complete").length, { timeout: OUTBOX_MS }).toBeGreaterThanOrEqual(1);
   await page.waitForTimeout(500);
   const all = await kinds();
-  expect(all.filter((k) => k === "complete")).toHaveLength(1);
-  expect(all.filter((k) => k === "advance")).toHaveLength(1);
+  const detail = (await kinds.events()).map((e) => `${e.kind}:${e.track_id?.slice(-4)}:${e.from_ms ?? ""}-${e.to_ms ?? ""}`).join(" ");
+  expect(all.filter((k) => k === "complete"), detail).toHaveLength(1);
+  expect(all.filter((k) => k === "advance"), detail).toHaveLength(1);
 });
 
 test("the end of the queue stops visibly and the Media Session goes to none", async ({ page, request }) => {
