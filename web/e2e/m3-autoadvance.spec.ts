@@ -44,6 +44,11 @@ function watchKinds(page: Page) {
   return async () => [...sent, ...(await queued())];
 }
 
+// The per-test timeout also covers browser launch, context creation and the first page.goto; under a loaded
+// machine those alone took 20 s of the 30 s default while the assertions themselves were on schedule (trace of
+// a failed run), so this spec gets a larger overall budget. The assertion timeouts below are unchanged.
+test.describe.configure({ timeout: 75_000 });
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __blockPlay: boolean; __noEnded: boolean };
