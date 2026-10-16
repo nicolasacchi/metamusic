@@ -56,7 +56,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   // Seed the synthetic library (C22) plus the M2c reference and lossy takes (C66): synchronous; a failed seed fails the whole setup.
   const url = `http://127.0.0.1:${await freePort()}`;
-  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
+  const seed = spawnSync(bin, ["seed-synthetic", "--profile", "e2e", "--references", "--short-audio"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
   if (seed.status !== 0) {
     rmSync(root, { recursive: true, force: true });
     throw new Error(`seed-synthetic failed (exit ${seed.status ?? seed.signal ?? "unknown"}${seed.error ? `: ${seed.error.message}` : ""})`);

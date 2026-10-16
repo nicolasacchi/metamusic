@@ -4,7 +4,9 @@ import { allTracks, apiJSON, audioTime, tap, type Item } from "./helpers";
 
 // One seed track per project (this spec runs alone in the listen-* projects, see playwright.config.ts): plays are counted per track and the projects run in parallel.
 async function listenTrack(request: APIRequestContext, info: TestInfo): Promise<Item> {
-  const all = (await allTracks(request)).filter((x) => x.title.startsWith("Syn song")).sort((x, y) => (x.title === y.title ? (x.id < y.id ? -1 : 1) : x.title < y.title ? -1 : 1));
+  // Only takes of 6 s or more: a play must stay in progress while the spec navigates, and the 2 s take would end (and
+  // auto-advance) under it.
+  const all = (await allTracks(request)).filter((x) => x.title.startsWith("Syn song") && x.duration_s >= 6).sort((x, y) => (x.title === y.title ? (x.id < y.id ? -1 : 1) : x.title < y.title ? -1 : 1));
   const i = ["chrome", "chrome-pixel7", "chrome-iphone15", "firefox"].indexOf(info.project.name.replace(/^listen-/, ""));
   const t = all[Math.max(0, i)];
   if (!t) throw new Error("seed track missing");
@@ -44,9 +46,10 @@ test("boot makes one device-probe request, not a loop", async ({ page }) => {
   page.on("request", (r) => {
     if (new URL(r.url()).pathname === "/api/device-probe") probes++;
   });
+  await page.clock.install(); // timers only: a retry loop would show within five virtual seconds
   await page.goto("/");
   await expect(page.getByTestId("track-table")).toBeVisible();
-  await page.waitForTimeout(1500);
+  await page.clock.runFor(5000);
   expect(probes).toBeLessThanOrEqual(2);
 });
 
@@ -54,7 +57,7 @@ test("play, navigate away, pause: the plays count in the track context", async (
   const t = await listenTrack(request, info);
   const before = await plays(request, t.id);
   await page.goto(`/tracks/${t.id}`);
-  await playFor(page, 3);
+  await playFor(page, 1.2);
   // client-side navigation keeps playing; the recorder follows the one audio element
   await page.getByRole("link", { name: "Library" }).click();
   await expect(page.getByTestId("track-table")).toBeVisible();
@@ -69,14 +72,13 @@ test("offline: events stay in IndexedDB and are flushed when back online", async
   const t = await listenTrack(request, info);
   const before = await plays(request, t.id);
   await page.goto(`/tracks/${t.id}`);
-  await playFor(page, 1.5);
+  await playFor(page, 1.2);
   await context.setOffline(true);
-  await page.waitForTimeout(800);
   await page.getByTestId("track-play").click(); // pause: closes the segment while offline
   await expect(page.getByTestId("track-play")).toHaveText("Play");
   await expect.poll(() => pending(page)).toBeGreaterThan(0);
   const held = await pending(page);
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(400);
   expect(await pending(page)).toBeGreaterThanOrEqual(held);
   await context.setOffline(false);
   await expect.poll(() => pending(page), { timeout: 15_000 }).toBe(0);
@@ -99,7 +101,7 @@ test("leaving the page sends a beacon and the next load adds no duplicates", asy
     };
   });
   await page.goto(`/tracks/${t.id}`);
-  await playFor(page, 3);
+  await playFor(page, 1.2);
   await page.getByTestId("track-play").click();
   await expect(page.getByTestId("track-play")).toHaveText("Play");
   expect(await pending(page)).toBeGreaterThan(0);

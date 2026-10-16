@@ -415,6 +415,44 @@ func TestSynthArchive_E2EProfile(t *testing.T) {
 	}
 }
 
+// ShortAudio shortens exactly one take and leaves every other file, recipe and expectation as the default build has it.
+func TestSynthArchive_E2EShortAudio(t *testing.T) {
+	testtools.Require(t, "ffmpeg", "flac", "metaflac")
+	ctx := context.Background()
+	long, short := t.TempDir(), t.TempDir()
+	ml, err := synth.Archive(ctx, testtools.Tools(), long, synth.ProfileE2E, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := synth.ArchiveWith(ctx, testtools.Tools(), short, synth.ProfileE2E, 1, synth.Options{ShortAudio: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(ml.Expect, ms.Expect); diff != "" {
+		t.Errorf("expectations differ:\n%s", diff)
+	}
+	if diff := cmp.Diff(ml.Files, ms.Files); diff != "" {
+		t.Errorf("file lists differ:\n%s", diff)
+	}
+	var changed []string
+	for i, a := range ml.Audio {
+		if a.Seconds != ms.Audio[i].Seconds {
+			changed = append(changed, a.Path)
+		}
+	}
+	if diff := cmp.Diff([]string{"music/flac/syn_song_02.flac"}, changed); diff != "" {
+		t.Errorf("shortened takes:\n%s", diff)
+	}
+	info, _ := readInfo(t, filepath.Join(short, "music/flac/syn_song_02.flac"))
+	if d := info.Duration(); d != synth.ShortSeconds {
+		t.Errorf("short take lasts %v s, want %d", d, synth.ShortSeconds)
+	}
+	info, _ = readInfo(t, filepath.Join(long, "music/flac/syn_song_02.flac"))
+	if d := info.Duration(); d != 6 {
+		t.Errorf("default take lasts %v s, want 6", d)
+	}
+}
+
 func sortStrings(s []string) { sort.Strings(s) }
 
 func TestSynthEars_RecipesBatchValid(t *testing.T) {
