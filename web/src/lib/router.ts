@@ -1,5 +1,6 @@
 // Minimal History-API router: {path, params, query} store, link interception, 404.
 import { writable, type Readable } from "svelte/store";
+import { createScrollKeeper, isSheetEntry, READY_EVENT, READY_ROUTES } from "./scrollRestore";
 
 export interface Route {
   pattern: string;
@@ -115,24 +116,55 @@ export function createRouter(routes: Route[]) {
     const m = matchRoute(routes, loc.path);
     return { ...loc, route: m?.route ?? null, params: m?.params ?? {} };
   }
-  let key = window.location.pathname + window.location.search;
   function sync() {
-    key = window.location.pathname + window.location.search;
     state.set(compute());
   }
-  // Back from the now-playing sheet (and Forward into it) lands on the same URL with a {mmSheet} entry: not a
-  // navigation, so the page behind the sheet is left alone.
-  function onPop(e: PopStateEvent) {
-    if ((e.state as { mmSheet?: unknown } | null)?.mmSheet) return;
-    if (window.location.pathname + window.location.search === key) return;
-    sync();
-  }
+  // Scroll restoration (P0-9): the router owns it, one saved position per history entry.
+  const keeper = createScrollKeeper({
+    history,
+    scrollY: () => window.scrollY,
+    scrollTo: (y) => window.scrollTo(0, y),
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    newKey: () => Math.random().toString(36).slice(2, 10),
+  });
+  const prevRestoration = history.scrollRestoration;
+  history.scrollRestoration = "manual";
+  keeper.adopt();
+  let here = window.location.pathname + window.location.search;
+
   function navigate(to: string, replace = false, hash = "") {
     if (to + hash === window.location.pathname + window.location.search + window.location.hash) return;
-    if (replace) history.replaceState(null, "", to + hash);
-    else history.pushState(null, "", to + hash);
+    if (replace) {
+      history.replaceState(history.state, "", to + hash);
+    } else {
+      history.pushState(keeper.leave(), "", to + hash);
+    }
+    here = window.location.pathname + window.location.search;
     sync();
+    if (!replace) {
+      keeper.arrivedNew();
+      // the old page's height may outlast the first render: top again once the new route has painted
+      requestAnimationFrame(() => {
+        if (!keeper.restoring) window.scrollTo(0, 0);
+      });
+    }
   }
+  function onPop() {
+    // The now-playing sheet's own entries are not navigations.
+    if (isSheetEntry(history.state)) return;
+    const at = window.location.pathname + window.location.search;
+    const same = at === here;
+    here = at;
+    sync();
+    // Closing the sheet lands on the entry under it: same page, nothing to restore.
+    if (same) return;
+    const name = compute().route?.name ?? "";
+    keeper.arrivedPopped(READY_ROUTES.has(name));
+  }
+  const onReady = () => keeper.ready();
+  const onScroll = () => keeper.onScroll();
+  const onUser = () => keeper.abandon();
   function onClick(e: MouseEvent) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = (e.target as Element | null)?.closest?.("a");
@@ -146,13 +178,22 @@ export function createRouter(routes: Route[]) {
     navigate(url.pathname + url.search, false, url.hash);
   }
   window.addEventListener("popstate", onPop);
+  window.addEventListener(READY_EVENT, onReady);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("wheel", onUser, { passive: true });
+  window.addEventListener("touchstart", onUser, { passive: true });
   document.addEventListener("click", onClick);
   return {
     subscribe: state.subscribe as Readable<RouterState>["subscribe"],
     navigate,
     destroy() {
       window.removeEventListener("popstate", onPop);
+      window.removeEventListener(READY_EVENT, onReady);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onUser);
+      window.removeEventListener("touchstart", onUser);
       document.removeEventListener("click", onClick);
+      history.scrollRestoration = prevRestoration;
     },
   };
 }

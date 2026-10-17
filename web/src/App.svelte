@@ -13,6 +13,7 @@
   import { loadDuelBadge } from "./lib/navBadge";
   import { approvals, refreshApprovals } from "./lib/approvals.svelte";
   import { badgeText } from "./lib/approvals";
+  import { badge as inboxBadge, installHeard, refreshInboxBadge } from "./lib/inbox.svelte";
   import PlayerDock from "./lib/components/PlayerDock.svelte";
   import NowPlayingSheet from "./lib/components/NowPlayingSheet.svelte";
   import { installSheet, sheet } from "./lib/nowPlaying.svelte";
@@ -85,9 +86,15 @@
     void $router.path;
     void refreshApprovals();
   });
+  // New tab badge: unseen new takes plus needs-you items; refreshed on navigation and with the approvals poll.
+  $effect(() => {
+    void $router.path;
+    void refreshInboxBadge();
+  });
   $effect(() => {
     const t = setInterval(() => {
       if (!document.hidden) void refreshApprovals();
+      if (!document.hidden) void refreshInboxBadge();
     }, 30_000);
     return () => clearInterval(t);
   });
@@ -139,6 +146,8 @@
   const routeName = $derived($router.route?.name);
   const tabBadges = $derived.by(() => {
     const b: Partial<Record<Tab, { text: string; label: string; testid: string }>> = {};
+    const nb = inboxBadge();
+    if (nb) b.new = { text: nb, label: `${nb} new or waiting for you`, testid: "new-badge" };
     if (duelBadge) b.judge = { text: String(duelBadge), label: `${duelBadge} open duels`, testid: "duels-badge" };
     if (approvalBadge) b.more = { text: approvalBadge, label: `${approvalBadge} approvals pending`, testid: "approvals-badge" };
     return b;
@@ -158,6 +167,7 @@
       installDevice(player);
       const offMediaSession = installMediaSession(player, audio, mediaSessionEnv(covers.get));
       const offListen = installListen(player);
+      const offHeard = installHeard(player);
       const offActivation = player.watchActivation(document);
       const offSheet = installSheet();
       // Boot restore (D2): paused, one tap resumes. Before persistence is installed, so an empty player never
@@ -171,6 +181,7 @@
         offSheet();
         offActivation();
         offListen();
+        offHeard();
         offMediaSession();
         player.attach(null);
         router.destroy();

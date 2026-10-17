@@ -146,3 +146,184 @@ describe("L1 routes", () => {
     expect(isServerPath("/board")).toBe(false);
   });
 });
+
+import { createScrollKeeper, isSheetEntry, READY_TIMEOUT_MS, routeReady, type ScrollDeps } from "./scrollRestore";
+
+// A fake history entry list plus a fake clock: the keeper only touches these.
+function scrollWorld() {
+  const entries: unknown[] = [null];
+  let at = 0;
+  let y = 0;
+  const timers = new Map<number, { fn: () => void; at: number }>();
+  let tid = 0;
+  let clock = 0;
+  let keys = 0;
+  const deps: ScrollDeps = {
+    history: {
+      get state() {
+        return entries[at];
+      },
+      replaceState(s) {
+        entries[at] = s;
+      },
+    },
+    scrollY: () => y,
+    scrollTo: (v) => void (y = v),
+    setTimer: (fn, ms) => {
+      timers.set(++tid, { fn, at: clock + ms });
+      return tid;
+    },
+    clearTimer: (h) => void timers.delete(h as number),
+    newKey: () => `k${++keys}`,
+  };
+  const keeper = createScrollKeeper(deps);
+  return {
+    keeper,
+    entries,
+    get y() {
+      return y;
+    },
+    set y(v: number) {
+      y = v;
+    },
+    state: () => entries[at] as Record<string, unknown>,
+    push(s: unknown) {
+      entries.length = at + 1;
+      entries.push(s);
+      at++;
+    },
+    go(i: number) {
+      at = i;
+    },
+    advance(ms: number) {
+      clock += ms;
+      for (const [id, t] of [...timers]) if (t.at <= clock) {
+        timers.delete(id);
+        t.fn();
+      }
+    },
+  };
+}
+
+describe("scroll restoration (P0-9)", () => {
+  test("the first entry gets a key; scrolling saves its position (debounced)", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    expect(w.state().mmKey).toBe("k1");
+    w.y = 1672;
+    w.keeper.onScroll();
+    expect(w.state().mmScroll).toBeUndefined();
+    w.advance(200);
+    expect(w.state().mmScroll).toBe(1672);
+  });
+
+  test("leaving saves at once; the new entry starts at the top; Back restores the saved position once ready", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    w.y = 1672;
+    const next = w.keeper.leave(); // navigate to a take
+    expect(w.entries[0]).toMatchObject({ mmKey: "k1", mmScroll: 1672 });
+    w.push(next);
+    w.keeper.arrivedNew();
+    expect(w.y).toBe(0);
+    w.y = 300;
+    w.keeper.saveNow(); // the take page, scrolled a little
+    // Back
+    w.go(0);
+    expect(w.keeper.arrivedPopped(true)).toBe(true);
+    w.y = 0; // the list is empty while it loads
+    w.keeper.onScroll();
+    w.advance(500);
+    expect(w.state().mmScroll).toBe(1672); // the clamp to 0 must not overwrite the saved position
+    w.keeper.ready();
+    expect(w.y).toBe(1672);
+    // Forward again keeps the take's own position
+    w.go(1);
+    w.keeper.arrivedPopped(true);
+    w.keeper.ready();
+    expect(w.y).toBe(300);
+  });
+
+  test("a route that never signals is restored by the timeout, an unwired one shortly after render", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    w.y = 900;
+    w.push(w.keeper.leave());
+    w.keeper.arrivedNew();
+    w.go(0);
+    w.keeper.arrivedPopped(true);
+    w.advance(READY_TIMEOUT_MS - 1);
+    expect(w.y).toBe(0);
+    w.advance(1);
+    expect(w.y).toBe(900);
+    w.go(1);
+    w.y = 0;
+    w.go(0);
+    w.keeper.arrivedPopped(false);
+    w.advance(299);
+    expect(w.y).toBe(0);
+    w.advance(1);
+    expect(w.y).toBe(900);
+  });
+
+  test("the user scrolling by hand cancels a pending restore", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    w.y = 500;
+    w.push(w.keeper.leave());
+    w.go(0);
+    w.keeper.arrivedPopped(true);
+    w.keeper.abandon();
+    w.keeper.ready();
+    expect(w.y).toBe(500); // untouched (this fake does not reset y on navigation)
+    expect(w.keeper.restoring).toBe(false);
+  });
+
+  test("an entry without a saved position is left alone", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    w.push({ mmKey: "x" });
+    w.y = 40;
+    w.keeper.arrivedPopped(true);
+    expect(w.keeper.restoring).toBe(false);
+    expect(w.y).toBe(40);
+  });
+
+  test("now-playing sheet entries are never touched or restored", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    const sheet = { mmSheet: true };
+    w.push(sheet);
+    expect(isSheetEntry(w.state())).toBe(true);
+    w.y = 700;
+    w.keeper.onScroll();
+    w.keeper.saveNow();
+    w.advance(500);
+    expect(w.entries[1]).toBe(sheet); // same object: never rewritten
+    expect(w.keeper.arrivedPopped(true)).toBe(false);
+    w.keeper.adopt();
+    expect(w.entries[1]).toBe(sheet);
+  });
+
+  test("an entry pushed by another module (null state) is adopted on the next save", () => {
+    const w = scrollWorld();
+    w.keeper.adopt();
+    w.push(null);
+    w.y = 12;
+    w.keeper.saveNow();
+    expect(w.state()).toEqual({ mmScroll: 12 });
+  });
+
+  test("routeReady dispatches mm:route-ready", async () => {
+    const seen: string[] = [];
+    const g = globalThis as { window?: unknown };
+    const prev = g.window;
+    g.window = { dispatchEvent: (e: Event) => void seen.push(e.type) };
+    try {
+      await routeReady();
+    } finally {
+      g.window = prev;
+    }
+    expect(seen).toEqual(["mm:route-ready"]);
+  });
+});

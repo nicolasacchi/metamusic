@@ -6,6 +6,7 @@
   import { pushToast } from "../lib/judge.svelte";
   import { confirmHref } from "../lib/approvals";
   import { pollDelayMs, type Viewer } from "../lib/jobState";
+  import { player } from "../lib/player.svelte";
 
   type Batch = components["schemas"]["Batch"];
   interface Props {
@@ -40,6 +41,14 @@
     const t = setTimeout(() => void load().finally(() => tick++), delay);
     return () => clearTimeout(t);
   });
+
+  // Playing a finished take queues the batch's finished takes in take order.
+  function playTake(trackId: string) {
+    const done = (batch?.jobs ?? []).filter((j) => j.state === "completed" && j.track_id !== null);
+    const queue = done.map((j) => j.track_id as string);
+    const t = done.find((j) => j.track_id === trackId);
+    player.play(trackId, queue, t?.title ? { title: t.title } : {});
+  }
 
   async function terminateJob(jobId: string) {
     if (busy) return;
@@ -81,7 +90,7 @@
   <h2>Takes</h2>
   <table data-testid="batch-jobs">
     <tbody>
-      {#each batch.jobs as j (j.id)}<JobRow job={j} {viewer} {busy} onterminate={terminateJob} />{/each}
+      {#each batch.jobs as j (j.id)}<JobRow job={j} {viewer} {busy} onterminate={terminateJob} onplay={playTake} batchLink={false} />{/each}
     </tbody>
   </table>
 {:else if !error}
