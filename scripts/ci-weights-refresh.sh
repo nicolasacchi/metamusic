@@ -8,6 +8,7 @@
 # are downloaded with gh. To refresh after a change to the suite:
 #   scripts/ci-weights-refresh.sh write <run-id-of-a-green-main-run>      # then commit the two files
 # Package weight = the summed wall seconds of its `go test` runs in that CI run (all parts of a split package added up).
+# Every package of 1 s or more is listed (so a contention spike over the 15 s check limit does not flake the gate).
 # A package heavier than a third of a shard's even share is split K ways (K <= 4); the top-level tests of a split package
 # taking >= 8 s are pinned to parts by longest-first packing (ci-heavy-tests.txt), the rest fall back to the name hash.
 set -euo pipefail
@@ -73,7 +74,7 @@ case "$cmd" in
       echo "# structural (scripts/ci-go-test.sh --plan, asserted by scripts/ci-selftest.sh), so stale numbers cost time, never tests."
       echo "# scripts/ci-tiers-selftest.sh and the CI coverage job fail when a package slower than 15 s has no line here."
       awk -v n="$n" -v total="$total" '
-        $1 >= 5 { w = int($1 + 0.5); k = 1; share = total / n
+        $1 >= 1 { w = int($1 + 0.5); k = 1; share = total / n
                   if (w > share / 3) { k = int(w / (share / 3) + 0.999); if (k > 4) k = 4 }
                   if (k > 1) printf "%s %d %d\n", $2, w, k; else printf "%s %d\n", $2, w }' "$tmp/pkgs"
     } >"$tmp/weights"

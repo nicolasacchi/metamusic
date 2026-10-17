@@ -18,7 +18,7 @@ tev() { printf '{"Action":"pass","Package":"%s/%s","Test":"%s","Elapsed":%s}\n' 
 mkdir -p "$tmp/t"
 { ev internal/bigpkg 300; tev internal/bigpkg TestBigA 120; tev internal/bigpkg TestBigB 100; tev internal/bigpkg TestBigC 40
   tev internal/bigpkg TestParent 0; tev internal/bigpkg TestParent/a 15; tev internal/bigpkg TestParent/b 15
-  tev internal/bigpkg TestTiny 1; ev internal/slowunlisted 20; ev internal/quick 2; ev internal/filler 2000; echo 'not json'; } >"$tmp/t/a.jsonl"
+  tev internal/bigpkg TestTiny 1; ev internal/slowunlisted 20; ev internal/quick 0.5; ev internal/filler 2000; echo 'not json'; } >"$tmp/t/a.jsonl"
 { ev internal/bigpkg 100; tev internal/bigpkg TestBigD 90; ev internal/listed 40; } >"$tmp/t/b.jsonl"
 printf '# header\n./internal/listed 40\n' >"$tmp/w.txt"
 chk "check fails on a package slower than 15 s without a weight line" '! MM_WEIGHTS_FILE="$tmp/w.txt" "$refresh" check "$tmp/t" >"$tmp/out" 2>&1; grep -q "slowunlisted" "$tmp/out"'
