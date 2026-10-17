@@ -1,6 +1,7 @@
 // matrix: @mobile because the library is the main phone page (filters, facets, URL restore on a narrow layout)
 import { expect, test, type APIRequestContext } from "./fixtures";
 import { SEED_RECIPE_TRACKS, SEED_TRACKS } from "./env";
+import { openFilters } from "./helpers";
 
 const TITLES = ["Syn ears clip", "Syn ears gap", "Syn ears loop", "Syn song 01 s1001", "Syn song 01 s2001", "Syn song 02", "Syn song 03", "Syn song 04", "Syn song 05"];
 
@@ -23,6 +24,7 @@ test("seeded titles are listed", async ({ page, request }) => {
 test("q search is accent-insensitive", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
+  await openFilters(page);
   await page.getByTestId("filter-q").fill("Sýn sóng 03");
   await expect(page).toHaveURL(/[?&]q=/);
   await expect(page.getByTestId("track-row")).toHaveCount(1);
@@ -40,6 +42,7 @@ test("two style facets select the AND of both terms", async ({ page }) => {
   });
   await page.goto("/?recipe_known=true");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
+  await openFilters(page);
   const facets = page.getByTestId("style-facets");
 
   await facets.getByRole("button", { name: /^synthetic pop/ }).click();
@@ -63,6 +66,7 @@ test("duration filter and URL restore on back/forward", async ({ page }) => {
   await page.goto("/?recipe_known=true");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
 
+  await openFilters(page);
   await page.getByTestId("style-facets").getByRole("button", { name: /^synthetic pop/ }).click();
   await expect(page).toHaveURL(/style=synthetic/);
 
@@ -88,5 +92,6 @@ test("duration filter and URL restore on back/forward", async ({ page }) => {
   // a deep link restores the same state in a fresh load
   await page.reload();
   await expect(page.getByTestId("track-row")).toHaveCount(4);
+  await openFilters(page);
   await expect(page.getByTestId("style-facets").getByRole("button", { name: /^synthetic pop/ })).toHaveAttribute("aria-pressed", "true");
 });

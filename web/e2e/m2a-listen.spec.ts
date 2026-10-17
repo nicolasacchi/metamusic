@@ -48,7 +48,7 @@ test("boot makes one device-probe request, not a loop", async ({ page }) => {
   });
   await page.clock.install(); // timers only: a retry loop would show within five virtual seconds
   await page.goto("/");
-  await expect(page.getByTestId("track-table")).toBeVisible();
+  await expect(page.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await page.clock.runFor(5000);
   expect(probes).toBeLessThanOrEqual(2);
 });
@@ -60,7 +60,7 @@ test("play, navigate away, pause: the plays count in the track context", async (
   await playFor(page, 1.2);
   // client-side navigation keeps playing; the recorder follows the one audio element
   await openNav(page, "Library");
-  await expect(page.getByTestId("track-table")).toBeVisible();
+  await expect(page.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await tap(page, page.getByTestId("play-toggle")); // pause from the player bar
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Play");
   // leaving the page flushes the outbox by beacon
@@ -128,12 +128,12 @@ test("leaving the page sends a beacon and the next load adds no duplicates", asy
   // the beaconed rows stay in the outbox until the next load re-sends them; the server dedups by id
   const next = await context.newPage();
   await next.goto("/");
-  await expect(next.getByTestId("track-table")).toBeVisible();
+  await expect(next.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await expect.poll(() => pending(next), { timeout: 15_000 }).toBe(0);
   await expect.poll(() => plays(request, t.id), { timeout: 15_000 }).toBe(before + 1);
   // a second load re-sends nothing and the count stays
   await next.reload();
-  await expect(next.getByTestId("track-table")).toBeVisible();
+  await expect(next.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await next.waitForTimeout(500);
   expect(await plays(request, t.id)).toBe(before + 1);
 });

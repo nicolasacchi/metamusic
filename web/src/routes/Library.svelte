@@ -7,6 +7,8 @@
   import LibraryFilters from "../lib/components/LibraryFilters.svelte";
   import Pager from "../lib/components/Pager.svelte";
   import TrackTable from "../lib/components/TrackTable.svelte";
+  import TrackList from "../lib/components/TrackList.svelte";
+  import { viewport } from "../lib/viewport.svelte";
   import { composeIntent, mayGenerate, startGeneration, templateIntent, toggled, validateIntent, type VariantMode } from "../lib/genIntent";
 
   type Whoami = components["schemas"]["WhoamiOutBody"];
@@ -144,18 +146,22 @@
 
 <h1>Library</h1>
 
-<div class="strip" aria-label="Status">
-  {#if stats}
-    <span data-testid="library-counts">
-      {stats.tracks.total} tracks · {fmt(stats.tracks.duration_s_total)} total · {stats.backlog.drafts} drafts
-    </span>
-  {/if}
-</div>
+{#snippet counts()}
+  <div class="strip" class:touch={viewport.touch} aria-label="Status">
+    {#if stats}
+      <span data-testid="library-counts">
+        {stats.tracks.total} tracks · {fmt(stats.tracks.duration_s_total)} total · {stats.backlog.drafts} drafts
+      </span>
+    {/if}
+  </div>
+{/snippet}
+{#if !viewport.touch}{@render counts()}{/if}
 {#if headerError}<p role="alert">{headerError}</p>{/if}
 
-<LibraryFilters {filters} {facets} onchange={commit} />
+<LibraryFilters {filters} {facets} onchange={commit} sheet={viewport.touch} />
 
-{#if canGen}
+<!-- On touch the generate row sits under the list (music first), except while selecting tracks. -->
+{#snippet gen_row()}
   <div class="gen" data-testid="library-generate">
     <button type="button" onclick={() => toGenerate(composeIntent())} data-testid="new-song">New song</button>
     <button type="button" aria-pressed={selecting} onclick={() => { selecting = !selecting; selected = new Set(); }} data-testid="select-mode">
@@ -176,13 +182,22 @@
       {#if selected.size === 0}<span class="muted">Reference and lossy tracks cannot be selected: recipe unknown.</span>{/if}
     {/if}
   </div>
-{/if}
+{/snippet}
+{#if canGen && (!viewport.touch || selecting)}{@render gen_row()}{/if}
 
 {#if error}<p role="alert">{error}</p>{/if}
 <div aria-busy={loading}>
-  <TrackTable {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} selected={selecting ? selected : null} onselect={(id, on) => (selected = toggled(selected, id, on))} />
+  {#if viewport.touch}
+    <TrackList {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} selected={selecting ? selected : null} onselect={(id, on) => (selected = toggled(selected, id, on))} />
+  {:else}
+    <TrackTable {tracks} playingId={player.state.trackId} onplay={play} onplaynext={playNext} selected={selecting ? selected : null} onselect={(id, on) => (selected = toggled(selected, id, on))} />
+  {/if}
 </div>
 <Pager {page} offset={starts[page] ?? 0} count={tracks.length} {total} busy={loading} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
+{#if viewport.touch}
+  {#if canGen && !selecting}{@render gen_row()}{/if}
+  {@render counts()}
+{/if}
 
 <style>
   .gen {

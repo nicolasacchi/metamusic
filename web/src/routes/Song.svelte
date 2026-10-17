@@ -19,6 +19,7 @@
     pendingDelay,
     selectForDuel,
   } from "../lib/songView";
+  import { tokenLabel } from "../lib/soundsView";
   import { fetchViewer } from "../lib/viewer";
 
   type View = components["schemas"]["SongView"];
@@ -236,7 +237,7 @@
         <TempoBadge tempo={view.sounds?.tempo} />
         {#each Object.entries(view.sounds?.facets ?? {}) as [facet, entries] (facet)}
           {#each entries ?? [] as e (e.value)}
-            <a class="chip" href="/sounds?sound={encodeURIComponent(`${facet}:${e.value}`)}">{facet}:{e.value}</a>
+            <a class="chip" href="/sounds?sound={encodeURIComponent(`${facet}:${e.value}`)}">{tokenLabel(`${facet}:${e.value}`)}</a>
           {/each}
         {/each}
         {#each view.sessions ?? [] as ses (ses.id)}

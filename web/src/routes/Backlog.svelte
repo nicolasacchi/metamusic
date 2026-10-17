@@ -179,8 +179,11 @@
 </script>
 
 <h1>Backlog</h1>
-<p><a href="/board" data-testid="board-link">Muse Board</a></p>
-<p><a href="/backlog/new">New draft</a> · <a href="/backlog/upload">Upload JSONL</a></p>
+<nav class="links" aria-label="Backlog pages">
+  <a href="/board" data-testid="board-link">Muse Board</a>
+  <a href="/backlog/new">New draft</a>
+  <a href="/backlog/upload">Upload JSONL</a>
+</nav>
 
 <form class="filters" onsubmit={submit} role="search" aria-label="Filter drafts">
   <label>Search <input type="search" bind:value={qInput} maxlength="200" data-testid="backlog-q" /></label>
@@ -232,9 +235,9 @@
         {#each g.items as d (d.id)}
           <li data-testid="draft-row" data-draft-id={d.id}>
             {#if canSelect}
-              <input type="checkbox" data-testid="draft-select" aria-label="Select {d.label ?? d.request_id}" checked={selected.has(d.id)} onchange={(e) => (selected = toggled(selected, d.id, e.currentTarget.checked))} />
+              <label class="pick"><input type="checkbox" data-testid="draft-select" aria-label="Select {d.label ?? d.request_id}" checked={selected.has(d.id)} onchange={(e) => (selected = toggled(selected, d.id, e.currentTarget.checked))} /></label>
             {/if}
-            <a href="/backlog/{d.id}">{d.label ?? d.request_id}</a>
+            <a class="open" href="/backlog/{d.id}">{d.label ?? d.request_id}</a>
             <span class="muted">{d.request_id}</span>
             {#if d.lint.errors > 0}<span class="badge err" data-testid="lint-errors">{d.lint.errors} errors</span>{/if}
             {#if d.lint.warnings > 0}<span class="badge warn" data-testid="lint-warnings">{d.lint.warnings} warnings</span>{/if}
@@ -252,6 +255,31 @@
 <Pager {page} offset={starts[page] ?? 0} count={drafts.length} {total} busy={loading} hasNext={nextCursor !== null} onprev={() => go(-1)} onnext={() => go(1)} />
 
 <style>
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--sp-4);
+    margin: var(--sp-2) 0;
+  }
+  .links a,
+  .open {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--hit);
+    min-height: var(--hit);
+  }
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--hit);
+    height: var(--hit);
+    vertical-align: middle;
+  }
+  .pick input {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
   .filters {
     display: flex;
     flex-wrap: wrap;

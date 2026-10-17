@@ -1,5 +1,6 @@
 <script lang="ts">
   import { SONG_STATES, type BoardFilters } from "../boardView";
+  import { tokenLabel } from "../soundsView";
   import type { components } from "../../api/schema";
 
   type Session = components["schemas"]["SessionSummary"];
@@ -59,12 +60,12 @@
 {#if filters.sounds.length > 0 || facetNames.length > 0}
   <div class="facets" aria-label="Sound facets">
     {#each filters.sounds as token (token)}
-      <button type="button" class="pill on" aria-pressed="true" onclick={() => toggleSound(token)}>{token} ×</button>
+      <button type="button" class="pill on" aria-pressed="true" data-sound={token} onclick={() => toggleSound(token)}>{tokenLabel(token)} ×</button>
     {/each}
     {#each facetNames as f (f)}
       {#each facets[f] ?? [] as v (v.value)}
         {#if !filters.sounds.includes(`${f}:${v.value}`)}
-          <button type="button" class="pill" aria-pressed="false" onclick={() => toggleSound(`${f}:${v.value}`)}>{f}:{v.value} <span class="muted">{v.count}</span></button>
+          <button type="button" class="pill" aria-pressed="false" data-sound="{f}:{v.value}" onclick={() => toggleSound(`${f}:${v.value}`)}>{tokenLabel(`${f}:${v.value}`)} <span class="muted">{v.count}</span></button>
         {/if}
       {/each}
     {/each}

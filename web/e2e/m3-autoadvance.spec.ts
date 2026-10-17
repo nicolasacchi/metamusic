@@ -142,7 +142,7 @@ test("any tap resumes a refused autoplay", async ({ page, request }) => {
   await toEnd(page);
   await expect(page.getByTestId("player-continue")).toBeVisible({ timeout: 10_000 });
   await page.evaluate(() => ((window as unknown as { __blockPlay: boolean }).__blockPlay = false));
-  await page.getByRole("heading", { name: "Library" }).click();
+  await page.locator("main").click({ position: { x: 4, y: 4 } }); // any tap (the phone h1 is visually hidden)
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Pause", { timeout: 8000 });
   await expect.poll(async () => (await audioState(page)).paused).toBe(false);
 });
@@ -210,7 +210,11 @@ test("the end of the queue stops visibly and the Media Session goes to none", as
 test("play next puts a track right after the current one", async ({ page, request }) => {
   const list = await tracks(request);
   await startFirst(page, list, 0);
-  await page.getByRole("button", { name: `Queue ${list[5]!.title} next`, exact: true }).click();
+  // touch lists keep "Play next" in the row's ⋯ menu
+  const more = page.getByRole("button", { name: `More for ${list[5]!.title}`, exact: true });
+  const touchList = (await more.count()) > 0;
+  if (touchList) await more.click();
+  await page.getByRole(touchList ? "menuitem" : "button", { name: `Queue ${list[5]!.title} next`, exact: true }).click();
   await toEnd(page);
   await expect(page.getByTestId("player-bar").getByRole("link", { name: list[5]!.title })).toBeVisible({ timeout: 10_000 });
   await expect.poll(async () => (await audioState(page)).paused).toBe(false);
