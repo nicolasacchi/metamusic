@@ -88,7 +88,13 @@ test("saving an existing draft, and keeping mine after a conflict, keep the play
     await expect(lyrics).toHaveValue(LYRICS);
 
     await lyrics.fill(LYRICS.replace("latu koko satu", "latu koko satu nemo"));
+    // toBeDisabled alone is also true while the save is in flight, so wait for the page's own PATCH to land before the
+    // out-of-band bump below reads the revision (otherwise the two writers race: 409 REVISION_CONFLICT).
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === `/api/drafts/${made.id}`,
+    );
     await page.getByTestId("draft-save").click();
+    expect((await saved).ok()).toBe(true);
     await expect(page.getByTestId("draft-save")).toBeDisabled();
     await expectStillPlaying(page, before);
 

@@ -21,11 +21,16 @@ mode=${1:-incremental}
 
 ALL_SELFTESTS="public-gate-selftest loop-selftest coverage-gate-selftest ci-selftest e2e-cache-selftest deploy-preflight-selftest verify-selftest actions-pinned ci-tiers-selftest"
 
+# Each selftest runs under a wall-clock limit (seconds, GATE_SELFTEST_TIMEOUT, default 600): one that stalls (a lock wait,
+# a hung child) once held every `make gate` for 40-90 minutes. A timeout fails the gate with a clear message.
 run_one() {
+  local to=${GATE_SELFTEST_TIMEOUT:-600} rc=0
   case "$1" in
-    actions-pinned) scripts/actions-pinned.sh ;;
-    *) "scripts/$1.sh" ;;
+    actions-pinned) timeout -k 10 "$to" scripts/actions-pinned.sh || rc=$? ;;
+    *) timeout -k 10 "$to" "scripts/$1.sh" || rc=$? ;;
   esac
+  [ "$rc" != 124 ] || echo "gate: selftest $1 timed out after ${to}s (GATE_SELFTEST_TIMEOUT)" >&2
+  return $rc
 }
 
 # Which selftests does a set of changes call for? Over-selecting is fine, under-selecting is not: anything

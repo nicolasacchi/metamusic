@@ -9,6 +9,8 @@ export MM_METRICS_FILE="$tmp/m.jsonl" MM_LANE=selftest
 # never queue behind the machine-wide lock a real `make check`/`make e2e` holds (that made `make gate` wait for
 # as long as any suite ran, up to 44 min).
 export MM_HEAVY_LOCK_FILE="$tmp/heavy.lock" MM_HEAVY_SCOPE=0
+# `make verify` runs the gate with MM_LOOP_HEAVY=1 (and a held lock) in its environment; the selftest must not inherit either.
+unset MM_LOOP_HEAVY MM_HEAVY_HELD MM_HEAVY_MAX_LOAD MM_HEAVY_MAX_WAIT MM_LOADAVG_FILE
 fail=0
 chk() { if ! eval "$2"; then echo "FAIL: $1"; fail=1; else echo "ok:   $1"; fi; }
 
@@ -112,6 +114,93 @@ chk "MM_HEAVY_LOCK=0 skips the lock ($el)" '[ "$el" = overlap ]'
 rc=0
 timeout 20 "$root/scripts/loop" check -- "$root/scripts/loop" test -- true >/dev/null 2>&1 || rc=$?
 chk "nested heavy invocation does not deadlock" '[ "$rc" = 0 ]'
+# ---- FIFO ticket queue, max wait, holder info, load admission
+q="$tmp/fifo"
+mkdir -p "$q"
+export MM_HEAVY_LOCK_FILE="$tmp/fifo.lock"
+rm -rf "$MM_HEAVY_LOCK_FILE"*
+: >"$MM_METRICS_FILE"
+waitfor() { # path... : wait (bounded) until every path exists
+  local n=0 p
+  for p in "$@"; do
+    while [ ! -e "$p" ]; do
+      n=$((n + 1))
+      [ "$n" -lt 600 ] || return 1
+      sleep 0.1
+    done
+  done
+}
+nq() { find "$MM_HEAVY_LOCK_FILE.q" -type f 2>/dev/null | wc -l; }
+waitq() { # n : wait (bounded) until n tickets are queued
+  local n=0
+  while [ "$(nq)" -lt "$1" ]; do
+    n=$((n + 1))
+    [ "$n" -lt 600 ] || return 1
+    sleep 0.1
+  done
+}
+MM_LANE=holder "$root/scripts/loop" test -- sh -c "touch $q/a.up; while [ ! -e $q/a.go ]; do sleep 0.1; done" >/dev/null 2>&1 &
+pa=$!
+waitfor "$q/a.up"
+chk "holder info written next to the lock" 'grep -q "lane=holder" "$MM_HEAVY_LOCK_FILE.holder" && grep -q "target=test" "$MM_HEAVY_LOCK_FILE.holder" && grep -qE "pid=[0-9]+ .*since=20" "$MM_HEAVY_LOCK_FILE.holder"'
+"$root/scripts/loop" race -- sh -c "echo B >>$q/order" >/dev/null 2>"$q/b.err" &
+pb=$!
+waitq 1
+"$root/scripts/loop" e2e -- sh -c "echo C >>$q/order" >/dev/null 2>"$q/c.err" &
+pc=$!
+waitq 2
+# a stale ticket (its owner died: nobody holds a lock on it) ahead of everyone is reaped, not waited for
+: >"$MM_HEAVY_LOCK_FILE.q/000000000000"
+sleep 0.5
+touch "$q/a.go"
+wait "$pa" "$pb" "$pc"
+chk "waiters run in arrival order (FIFO)" '[ "$(tr -d "\n" <"$q/order")" = BC ]'
+chk "waiter prints queue position and the holder" 'grep -q "queue position 1" "$q/b.err" && grep -q "queue position 2" "$q/c.err" && grep -q "lane=holder" "$q/b.err"'
+chk "stale ticket reaped" '[ ! -e "$MM_HEAVY_LOCK_FILE.q/000000000000" ] && [ "$(nq)" = 0 ]'
+chk "holder file removed when the holder exits" '[ ! -e "$MM_HEAVY_LOCK_FILE.holder" ]'
+
+: >"$MM_METRICS_FILE"
+rm -f "$q"/a.up "$q"/a.go
+MM_LANE=holder "$root/scripts/loop" test -- sh -c "touch $q/a.up; while [ ! -e $q/a.go ]; do sleep 0.1; done" >/dev/null 2>&1 &
+pa=$!
+waitfor "$q/a.up"
+rc=0
+MM_HEAVY_MAX_WAIT=1s "$root/scripts/loop" race -- sh -c "touch $q/ran" >/dev/null 2>"$q/t.err" || rc=$?
+touch "$q/a.go"
+wait "$pa"
+chk "max wait: fails with 75 and does not run the command" '[ "$rc" = 75 ] && [ ! -e "$q/ran" ]'
+chk "max wait: message names the holder (lane, target, start)" 'grep -q "gave up" "$q/t.err" && grep -q "lane=holder" "$q/t.err" && grep -q "target=test" "$q/t.err" && grep -q "since=20" "$q/t.err"'
+chk "max wait: a row is recorded with exit 75 and the wait" 'jq -s -e "map(select(.target==\"race\")) | length == 1 and .[0].exit == 75 and .[0].wait_ms >= 900" "$MM_METRICS_FILE" >/dev/null'
+chk "max wait: queue left clean" '[ "$(nq)" = 0 ]'
+chk "max wait accepts minutes and plain seconds" 'rc=0; MM_HEAVY_MAX_WAIT=2m "$root/scripts/loop" test -- true >/dev/null 2>&1 || rc=$?; [ "$rc" = 0 ] && MM_HEAVY_MAX_WAIT=30 "$root/scripts/loop" test -- true >/dev/null 2>&1'
+
+# load admission: off by default; with MM_HEAVY_MAX_LOAD it refuses above the limit; the load at start is recorded
+printf '7.50 3.00 1.00 1/100 1\n' >"$tmp/loadavg"
+: >"$MM_METRICS_FILE"
+rc=0
+MM_LOADAVG_FILE="$tmp/loadavg" "$root/scripts/loop" check -- true >/dev/null 2>&1 || rc=$?
+chk "load admission is off by default" '[ "$rc" = 0 ] && jq -e ".load1_start == 7.5" "$MM_METRICS_FILE" >/dev/null'
+rc=0
+MM_LOADAVG_FILE="$tmp/loadavg" MM_HEAVY_MAX_LOAD=4 "$root/scripts/loop" check -- sh -c "touch $q/ran2" >/dev/null 2>"$q/l.err" || rc=$?
+chk "load above MM_HEAVY_MAX_LOAD refuses with 75" '[ "$rc" = 75 ] && [ ! -e "$q/ran2" ] && grep -q "refusing to start" "$q/l.err"'
+rc=0
+MM_LOADAVG_FILE="$tmp/loadavg" MM_HEAVY_MAX_LOAD=8 "$root/scripts/loop" check -- true >/dev/null 2>&1 || rc=$?
+chk "load below MM_HEAVY_MAX_LOAD runs" '[ "$rc" = 0 ]'
+chk "refused run released the lock" '[ ! -e "$MM_HEAVY_LOCK_FILE.holder" ]'
+chk "load rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+
+# failing test names (bounded, sanitised) and retry passes
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" test -- sh -c 'echo "--- FAIL: TestP (0.0s)"; echo "    --- FAIL: TestP/sub_a (0.0s)"; echo "--- FAIL: TestQ (0.0s)"; echo "(fail) a > b [0.1ms]"; echo "  1) [chromium] › e2e/x.spec.ts:70:5 › saves the draft ─────"; echo "  2 flaky"; echo "  1 failed"; for i in 1 2 3 4 5 6 7; do echo "--- FAIL: TestMany$i (0.0s)"; done; echo "--- FAIL: Test\"quote\\\\back (0.0s)"' >/dev/null || true
+chk "failing_names: leaf names only, bounded to 5" 'jq -e "(.failing_names | length) == 5 and .failing_names[0] == \"TestP/sub_a\" and (.failing_names | index(\"TestP\") | not)" "$MM_METRICS_FILE" >/dev/null'
+: >"$MM_METRICS_FILE"
+"$root/scripts/loop" e2e -- sh -c 'echo "(fail) a > b [0.1ms]"; echo "  1) [chromium] › e2e/x.spec.ts:70:5 › saves the draft ─────"; echo "  2 flaky"' >/dev/null || true
+chk "failing_names: bun and Playwright names, no spec path; retry_passes from flaky" 'jq -e ".failing_names == [\"a > b\", \"chromium: saves the draft\"] and .retry_passes == 2" "$MM_METRICS_FILE" >/dev/null'
+chk "names rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+chk "no failures: empty names, zero retry passes" '"$root/scripts/loop" lint -- true >/dev/null && tail -n1 "$MM_METRICS_FILE" | jq -e ".failing_names == [] and .retry_passes == 0" >/dev/null'
+chk "bad failing_names rejected by the validator" '! echo "{\"ts\":\"2026-01-01T00:00:00Z\",\"target\":\"check\",\"wall_ms\":1,\"exit\":0,\"compile_errors\":0,\"failing_tests\":0,\"sha\":\"abc1234\",\"lane\":\"main\",\"cache\":\"warm\",\"failing_names\":[\"/home/x/y\\\\\"z\"]}" | jq -e -f "$root/scripts/metrics-row.jq" >/dev/null 2>&1'
+chk "schema documents the new fields" 'jq -e ".properties | has(\"load1_start\") and has(\"failing_names\") and has(\"retry_passes\")" "$root/metrics/loop.schema.json" >/dev/null'
+
 # systemd path: fake systemd-run/systemctl on PATH prove the scope command line
 fake="$tmp/fakebin"
 mkdir -p "$fake"
