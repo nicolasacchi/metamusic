@@ -32,6 +32,15 @@ done
 chk "new-target rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 chk "schema enum has new targets" 'jq -e ".properties.target.enum | contains([\"cover\",\"routing\",\"seed\",\"fixture-db\"])" "$root/metrics/loop.schema.json" >/dev/null'
 
+# CI-rebalance targets: the long and perf tiers are allowlisted, heavy (scoped like test) and in the schema enum
+for t in test-long perf; do
+  "$root/scripts/loop" "$t" -- true >/dev/null
+  chk "target $t accepted" 'jq -e "select(.target==\"$t\")" "$MM_METRICS_FILE" >/dev/null'
+done
+chk "schema enum has test-long and perf" 'jq -e ".properties.target.enum | contains([\"test-long\",\"perf\"])" "$root/metrics/loop.schema.json" >/dev/null'
+chk "test-long and perf rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
+chk "test-long and perf are heavy targets" 'grep -Eq "check \\| test \\| test-long \\| perf \\|" "$root/scripts/loop"'
+
 # M3 targets (C85) are accepted, validate, and are in the schema enum
 for t in worker contract canary; do
   "$root/scripts/loop" "$t" -- true >/dev/null

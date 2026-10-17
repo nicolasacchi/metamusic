@@ -12,14 +12,14 @@ target=$1
 shift 2
 
 case "$target" in
-  check | test | race | lint | web | e2e | build | openapi | gate | gate-full | verify | docker | fixture-db | cover | routing | seed | worker | contract | canary) ;;
+  check | test | test-long | perf | race | lint | web | e2e | build | openapi | gate | gate-full | verify | docker | fixture-db | cover | routing | seed | worker | contract | canary) ;;
   *) echo "loop: target '$target' not in allowlist" >&2; exit 2 ;;
 esac
 
 # Heavy targets (whole-repo suites) are serialised machine-wide and memory-capped.
 # Single place to extend the list.
 heavy=0
-case "$target" in check | test | race | cover | e2e) heavy=1 ;; esac
+case "$target" in check | test | test-long | perf | race | cover | e2e) heavy=1 ;; esac
 # verify is light by default (a docs/scripts/web-unit-only change); scripts/verify.sh sets MM_LOOP_HEAVY=1 when its plan
 # runs go test -race (any package) or any Playwright spec, so those runs queue and are memory-capped like `make check`.
 [ "$target" = verify ] && [ "${MM_LOOP_HEAVY:-}" = 1 ] && heavy=1

@@ -1,0 +1,53 @@
+name: nightly
+
+# The PR shards compile modernc.org/* (the transpiled SQLite stack) without race instrumentation; that is where about two thirds
+# of the suite CPU went. This runs the same shards with every package under -race, so nothing that policy leaves out goes
+# unwatched for more than a day. Same plan and script as ci.yml (MM_FULL_RACE=1 only drops the gcflags); no coverage upload.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CGO_ENABLED: "1"
+
+jobs:
+  go-full-race:
+    name: go full race (${{ matrix.shard }}/6)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: apt flac
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flac
+      - name: cache tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+      - name: install tools
+        run: scripts/tools.sh
+      - name: media tools on PATH
+        run: |
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+      - name: test (shard ${{ matrix.shard }} of 6, full race)
+        env:
+          MM_FULL_RACE: "1"
+        run: scripts/ci-go-test.sh run ${{ matrix.shard }} 6 covdata/unit

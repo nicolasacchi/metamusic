@@ -65,18 +65,32 @@ case "$cmd" in
     mapfile -t plan < <("$0" plan "$s" "$n")
     [ "${#plan[@]}" -gt 0 ] || { echo "ci-go-test: shard $s/$n is empty" >&2; exit 2; }
     whole=(); pids=(); fail=0
+    # TestPerf_* budget tests run in the perf job (no race, no cover), not under -race -cover here (scripts/go-suite.sh).
+    # modernc.org/* (the transpiled SQLite stack, no project logic) is compiled without race instrumentation, as in
+    # `make check`; everything else, ours included, stays under -race. The nightly sets MM_FULL_RACE=1 for full instrumentation.
+    flags=(-timeout 18m -race -shuffle=on -cover -skip '^TestPerf_')
+    [ "${MM_FULL_RACE:-0}" = 1 ] || flags+=(-gcflags=modernc.org/...=-race=false)
+    # With MM_GO_TIMINGS=<dir> every go test run also writes its `-json` event stream to <dir>/<name>.jsonl (the weights
+    # source: scripts/ci-weights-refresh.sh); the log shows the usual text.
+    tdir=${MM_GO_TIMINGS:-}
+    [ -z "$tdir" ] || { mkdir -p "$tdir"; tdir=$(cd "$tdir" && pwd); flags+=(-json); }
+    emit() { # emit <name>: pass a go test stream through; with -json keep it in <name>.jsonl and print the plain text
+      if [ -z "$tdir" ]; then cat; return; fi
+      tee "$tdir/$1.jsonl" | jq -rRj '(try fromjson catch {Action:"output",Output:(.+"\n")}) | select(.Action=="output" or .Action=="build-output") | .Output'
+    }
     for u in "${plan[@]}"; do
       read -r pkg part <<<"$u"
       if [ -z "$part" ]; then whole+=("$pkg"); continue; fi
       names=$(tests_in_shard "$pkg" "${part%/*}" "${part#*/}" | paste -sd'|')
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
-      go test -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
+      tag=$(printf '%s' "${pkg#./}-${part/\//of}" | tr -c 'A-Za-z0-9_.-' '_')
+      { go test "${flags[@]}" -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-$tag" | sed "s|^|[$pkg $part] |"; } &
       pids+=($!)
     done
     if [ "${#whole[@]}" -gt 0 ]; then
       echo "== ${#whole[@]} whole packages"
-      go test -timeout 18m -race -shuffle=on -cover "${whole[@]}" -args -test.gocoverdir="$cov" || fail=1
+      go test "${flags[@]}" "${whole[@]}" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-whole" || fail=1
     fi
     for p in "${pids[@]}"; do wait "$p" || fail=1; done
     exit $fail
