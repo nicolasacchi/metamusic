@@ -3,6 +3,8 @@
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import BoardGrid from "../lib/components/BoardGrid.svelte";
+  import BoardCards from "../lib/components/BoardCards.svelte";
+  import { viewport } from "../lib/viewport.svelte";
   import BoardToolbar from "../lib/components/BoardToolbar.svelte";
   import MusePicker from "../lib/components/MusePicker.svelte";
   import SessionPanel from "../lib/components/SessionPanel.svelte";
@@ -155,6 +157,14 @@
       error = r.kind === "failed" ? r.message || "Could not assign the songs." : "Network error.";
     }
   }
+  // Phone: Muse cards, tapping a chip opens the Song; selection is an explicit mode with a sticky action bar.
+  let selectMode = $state(false);
+  function toggleSelectMode() {
+    selectMode = !selectMode;
+    selection = emptySelection();
+    assigning = false;
+  }
+  const showActions = $derived(!viewport.phone || selectMode);
   const openId = $derived(selection.ids.size === 1 ? [...selection.ids][0]! : "");
 </script>
 
@@ -163,15 +173,22 @@
 
 <BoardToolbar {filters} {sessions} {facets} onchange={commit} />
 
-<div class="actions" role="toolbar" aria-label="Selection actions">
+{#if viewport.phone}
+  <button type="button" class="selecttoggle" aria-pressed={selectMode} onclick={toggleSelectMode} data-testid="select-toggle">{selectMode ? "Done selecting" : "Select"}</button>
+{/if}
+
+{#if showActions}
+<div class="actions" class:sticky={viewport.phone} role="toolbar" aria-label="Selection actions">
   <span data-testid="selection-count">{selection.ids.size} selected</span>
   <button type="button" onclick={selectDrafts} data-testid="select-drafts">Select all drafts in view</button>
   <button type="button" disabled={!canEstimate} onclick={startEstimate} data-testid="estimate">Estimate &amp; render{#if estimate.draftIds.length > 0} ({estimate.draftIds.length}){/if}</button>
   <button type="button" disabled={selection.ids.size === 0} onclick={() => (assigning = !assigning)} data-testid="assign-open">Assign to Muse…</button>
   {#if openId}<a href="/songs/{openId}" data-testid="open-song">Open</a>{/if}
   <button type="button" disabled={selection.ids.size === 0} onclick={() => (selection = emptySelection())}>Clear</button>
-  <span class="muted">limit {MAX_TAKES} drafts per batch</span>
+  {#if !viewport.phone}<span class="muted">limit {MAX_TAKES} drafts per batch</span>{/if}
 </div>
+{#if viewport.phone}<div class="spacer" aria-hidden="true"></div>{/if}
+{/if}
 {#if estimate.note}<p class="muted" data-testid="estimate-note">{estimate.note}</p>{/if}
 {#if note}<p role="status" data-testid="board-note">{note}</p>{/if}
 {#if assigning}<MusePicker onpick={assign} oncancel={() => (assigning = false)} />{/if}
@@ -182,7 +199,11 @@
   {#if board.rows.length === 0}
     <p class="muted" data-testid="board-empty">Nothing on the Board for these filters.</p>
   {:else}
-    <BoardGrid {grid} {selection} {onchip} {loadingMore} onmore={(r) => void more(null, r.nextUnassignedCursor)} />
+    {#if viewport.phone}
+      <BoardCards {grid} {selection} selecting={selectMode} {onchip} {loadingMore} onmore={(r) => void more(null, r.nextUnassignedCursor)} />
+    {:else}
+      <BoardGrid {grid} {selection} {onchip} {loadingMore} onmore={(r) => void more(null, r.nextUnassignedCursor)} />
+    {/if}
   {/if}
   <p class="muted totals" data-testid="board-totals">
     {board.totals.muses} Muses · {board.totals.songs} songs · {board.totals.draft} draft · {board.totals.rendered} rendered · {board.totals.judged} judged · {board.totals.picked} picked
@@ -201,6 +222,29 @@
     gap: 0.5rem;
     align-items: center;
     margin: 0.5rem 0;
+  }
+  .selecttoggle {
+    margin: 0.5rem 0;
+  }
+  .actions.sticky {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--player-h, 0px) + var(--nav-b, 0px));
+    z-index: 4;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--bg-raised);
+    border-top: 1px solid var(--line-strong);
+  }
+  .actions.sticky > * {
+    flex: none;
+    white-space: nowrap;
+  }
+  .spacer {
+    height: 4rem;
   }
   .totals {
     font-size: 0.8rem;

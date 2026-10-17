@@ -44,7 +44,7 @@
     text-decoration: none;
     cursor: pointer;
   }
-  @media (pointer: coarse) {
+  @media (pointer: coarse), (max-width: 767px) {
     .chip {
       min-height: 44px;
     }

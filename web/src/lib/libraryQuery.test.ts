@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createApi } from "../api/client";
-import { defaultFilters, isDirty, parseFilters, toApiQuery, toSearch, type Status } from "./libraryQuery";
+import { activeCount, defaultFilters, isDirty, parseFilters, toApiQuery, toSearch, type Status } from "./libraryQuery";
 
 describe("libraryQuery", () => {
   test("defaults are omitted", () => {
@@ -44,6 +44,15 @@ describe("libraryQuery", () => {
     expect(f.sort).toBe("recorded_desc");
     expect(f.status).toEqual([]);
     expect(f.style).toHaveLength(5);
+  });
+
+  test("open comments round-trips and activeCount counts groups", () => {
+    const f = { ...defaultFilters(), openComments: true, unrated: true, status: ["final", "draft"] as Status[] };
+    expect(toSearch(f)).toContain("has_open_comments=true");
+    expect(parseFilters(toSearch(f)).openComments).toBe(true);
+    expect(toApiQuery(f).has_open_comments).toBe(true);
+    expect(activeCount(defaultFilters())).toBe(0);
+    expect(activeCount(f)).toBe(3);
   });
 
   test("toApiQuery maps to search_tracks params", () => {

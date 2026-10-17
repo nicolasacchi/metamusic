@@ -76,7 +76,7 @@
   {#if rows.length > 0}
     <ol>
       {#each rows as r (r.trackId)}
-        <li><a href={r.href}>{r.title}</a> <span class="muted">{r.u} · {r.record}</span></li>
+        <li><a class="tap" href={r.href}>{r.title}</a> <span class="muted">{r.u} · {r.record}</span></li>
       {/each}
     </ol>
   {:else}
@@ -87,7 +87,7 @@
     {#if !canBlindRound(trackIds.length)}<span class="muted">Needs at least 2 tracks in the lineage.</span>{/if}
     {#if parentId}
       <button type="button" onclick={() => void abWithParent()} disabled={abBusy} data-testid="ab-parent">A/B with parent</button>
-      <a href="/compare?a={parentId}&b={trackId}">Compare with parent</a>
+      <a class="tap" href="/compare?a={parentId}&b={trackId}">Compare with parent</a>
     {/if}
   </div>
   {#if progress && busy}

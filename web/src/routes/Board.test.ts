@@ -34,7 +34,7 @@ describe("Board page", () => {
     const f = page(board, "?state=draft&sound=era%3A90s&angle=acoustic");
     expect(f).toContain('data-testid="filter-state-draft"');
     expect(f).toMatch(/aria-pressed="true"[^>]*data-testid="filter-state-draft"/);
-    expect(f).toContain("era:90s ×");
+    expect(f).toContain("Era: 90s ×");
     expect(f).toContain("angle: acoustic ×");
   });
   test("an empty Board says so; a next_cursor offers Load more", () => {

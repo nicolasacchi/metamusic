@@ -107,6 +107,19 @@ export function orderedFacets(counts: Record<string, readonly Count[] | null | u
   }));
 }
 
+/** "genre_family:pop" -> "Genre: pop"; anything that is not a known facet token is returned unchanged. */
+export function tokenLabel(token: string): string {
+  const p = parseSound(token);
+  return p ? `${FACET_LABELS[p.facet]}: ${p.value}` : token;
+}
+
+/** Facets worth showing: those with values or a selection; the rest sit behind "Show all facets". */
+export function visibleFacets(blocks: readonly FacetBlock[], selected: readonly string[], showAll: boolean): { shown: FacetBlock[]; hidden: number } {
+  const keep = (b: FacetBlock) => b.values.length > 0 || selected.some((s) => s.startsWith(`${b.facet}:`));
+  const shown = showAll ? [...blocks] : blocks.filter(keep);
+  return { shown, hidden: blocks.length - blocks.filter(keep).length };
+}
+
 const ERA = /^(5|6|7|8|9|0|1|2)0s$/;
 const LANG = /^[a-z]{2}$/;
 const SLUG = /^[a-z][a-z0-9-]{0,39}$/;

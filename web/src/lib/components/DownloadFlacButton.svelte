@@ -60,4 +60,11 @@
     border-radius: 0.3rem;
     text-decoration: none;
   }
+  @media (pointer: coarse) {
+    .dl {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--hit);
+    }
+  }
 </style>

@@ -43,4 +43,4 @@
 {:else}
   <DuelCard {duel} onsubmit={(s) => submitVerdict(api, duel!.id, s)} remint={() => remintClips(api, id)} />
 {/if}
-<p><a href="/duels">All duels</a></p>
+<p><a class="tap" href="/duels">All duels</a></p>

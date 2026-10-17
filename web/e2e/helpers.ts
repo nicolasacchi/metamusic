@@ -101,3 +101,63 @@ export async function spaGoto(page: Page, path: string): Promise<void> {
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, path);
 }
+
+/**
+ * Library filters: on a phone (touch) they live in a "Filters (n)" sheet. Opens it if it is there and closed;
+ * a no-op on desktop, where the form is inline. The sheet is a modal dialog, so close it (closeFilters) before tapping the list.
+ */
+export async function openFilters(page: Page): Promise<void> {
+  const open = page.getByTestId("filters-open");
+  if ((await open.count()) === 0) return;
+  if (await page.getByTestId("filters-sheet").evaluate((d) => (d as HTMLDialogElement).open)) return;
+  await open.click();
+  await page.getByTestId("filters-sheet").waitFor({ state: "visible" });
+}
+
+export async function closeFilters(page: Page): Promise<void> {
+  const sheet = page.getByTestId("filters-sheet");
+  if ((await sheet.count()) === 0 || !(await sheet.evaluate((d) => (d as HTMLDialogElement).open))) return;
+  await sheet.getByRole("button", { name: "Done" }).click();
+}
+
+interface Small {
+  what: string;
+  w: number;
+  h: number;
+}
+
+/**
+ * Every visible interactive element must be at least 44x44 CSS px. A checkbox or radio counts by its label,
+ * inline prose links (an anchor inside running text) are exempt, and elements clipped away or off-screen
+ * (screen-reader-only) are not targets.
+ */
+export async function smallTargets(page: Page): Promise<Small[]> {
+  return page.evaluate(() => {
+    const MIN = 43.5;
+    const sel = 'a[href], button, input, select, textarea, summary, [role="button"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
+    const out: { what: string; w: number; h: number }[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>(sel)) {
+      if (el instanceof HTMLInputElement && el.type === "hidden") continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === "hidden" || cs.display === "none" || cs.pointerEvents === "none") continue;
+      if (el.closest("[inert], [hidden], dialog:not([open])")) continue;
+      let box: HTMLElement = el;
+      if (el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio")) box = el.closest("label") ?? el;
+      const r = box.getBoundingClientRect();
+      if (r.width <= 2 || r.height <= 2) continue; // visually hidden
+      if (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth) continue; // off-screen
+      if (el.tagName === "A" && el.closest("p, li, td, span, label, h1, h2, h3") && !el.closest("nav, header, [role=menu]")) {
+        // an anchor within running text: its parent has other text next to it
+        const parent = el.parentElement;
+        const own = [...(parent?.childNodes ?? [])].filter((n) => n.nodeType === 3 && (n.textContent ?? "").trim() !== "").length;
+        if (own > 0) continue;
+      }
+      if (r.width < MIN || r.height < MIN) {
+        const name = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
+        out.push({ what: `${el.tagName.toLowerCase()}${el.getAttribute("data-testid") ? `[${el.getAttribute("data-testid")}]` : ""} "${name}"`, w: Math.round(r.width), h: Math.round(r.height) });
+      }
+    }
+    return out;
+  });
+}
+

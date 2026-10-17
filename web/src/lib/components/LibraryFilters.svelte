@@ -1,14 +1,25 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
-  import { MAX_STYLE_TERMS, defaultFilters, defaultSort, isDirty, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
+  import { MAX_STYLE_TERMS, activeCount, defaultFilters, defaultSort, isDirty, SORTS, STATUSES, type Filters, type Sort } from "../libraryQuery";
 
   type Facets = components["schemas"]["Facets"];
   interface Props {
     filters: Filters;
     facets: Facets | null;
     onchange: (f: Filters) => void;
+    /** Phone / touch: the form lives in a sheet behind "Filters (n)", with quick chips in front. */
+    sheet?: boolean;
   }
-  let { filters, facets, onchange }: Props = $props();
+  let { filters, facets, onchange, sheet = false }: Props = $props();
+
+  let dlg = $state<HTMLDialogElement>();
+  function openSheet() {
+    dlg?.showModal();
+  }
+  function closeSheet() {
+    dlg?.close();
+  }
+  const n = $derived(activeCount(filters));
 
   const SORT_LABELS: Record<Sort, string> = {
     recorded_desc: "Newest first",
@@ -92,6 +103,7 @@
   }
 </script>
 
+{#snippet form()}
 <form class="filters" role="search" aria-label="Filter tracks" onsubmit={(e) => e.preventDefault()}>
   <div class="row">
     <label>
@@ -212,8 +224,80 @@
     </fieldset>
   {/if}
 </form>
+{/snippet}
+
+{#if sheet}
+  <div class="quick" data-testid="library-quick">
+    <button type="button" class="qbtn" data-testid="filters-open" onclick={openSheet}>Filters ({n})</button>
+    {#if filters.q}
+      <button type="button" class="qbtn on" aria-label="Clear search {filters.q}" onclick={() => patch({ q: "", sort: defaultSort("") })}>“{filters.q}” ×</button>
+    {/if}
+    <button type="button" class="qbtn" aria-pressed={filters.unrated} data-testid="quick-unrated" onclick={() => patch({ unrated: !filters.unrated, minStars: null })}>Unrated</button>
+    <button type="button" class="qbtn" aria-pressed={filters.status.includes("to_relisten")} data-testid="quick-relisten" onclick={() => toggleStatus("to_relisten")}>To relisten</button>
+    <button type="button" class="qbtn" aria-pressed={filters.openComments} data-testid="quick-openfix" onclick={() => patch({ openComments: !filters.openComments })}>Open fix</button>
+    <button type="button" class="qbtn" aria-pressed={filters.isPick} data-testid="quick-picks" onclick={() => patch({ isPick: !filters.isPick })}>Picks</button>
+  </div>
+  <dialog bind:this={dlg} class="sheet" aria-label="Filters" data-testid="filters-sheet">
+    <div class="sheethead">
+      <strong>Filters ({n})</strong>
+      <button type="button" class="primary" onclick={closeSheet}>Done</button>
+    </div>
+    {@render form()}
+  </dialog>
+{:else}
+  {@render form()}
+{/if}
 
 <style>
+  .quick {
+    display: flex;
+    gap: var(--sp-2);
+    overflow-x: auto;
+    margin-bottom: var(--sp-2);
+    scrollbar-width: none;
+  }
+  .qbtn {
+    flex: none;
+    white-space: nowrap;
+    min-width: var(--hit);
+    min-height: var(--hit);
+    padding: 0 var(--sp-4);
+  }
+  .qbtn[aria-pressed="true"],
+  .qbtn.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: var(--fw-bold);
+  }
+  .sheet {
+    box-sizing: border-box;
+    margin: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: 88dvh;
+    border: 1px solid var(--line-strong);
+    border-bottom: none;
+    border-radius: var(--r-lg, 16px) var(--r-lg, 16px) 0 0;
+    background: var(--bg-raised);
+    color: var(--text);
+    padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + var(--safe-b, 0px));
+  }
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 0.6);
+  }
+  .sheethead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--sp-3);
+  }
+  .sheet label.check {
+    min-height: var(--hit);
+  }
+  .sheet .term {
+    min-height: var(--hit);
+  }
   .filters {
     display: grid;
     gap: 0.6rem;
@@ -258,6 +342,18 @@
     border-radius: 1rem;
     padding: 0.2rem 0.7rem;
     min-height: 2rem;
+  }
+  @media (pointer: coarse) {
+    .term {
+      min-height: var(--hit);
+    }
+    label.check {
+      min-height: var(--hit);
+    }
+    label.check input {
+      width: 1.4rem;
+      height: 1.4rem;
+    }
   }
   .term.on {
     background: #f2a65a;
