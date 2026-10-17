@@ -108,9 +108,14 @@
     document.documentElement.style.setProperty("--footer-h", `${playerH}px`);
   });
   // A route change under an open phone sheet (not one the sheet made itself) dismisses it.
+  // (Closing the sheet with Back re-publishes the same location: only a changed path counts.)
+  let sheetPath = "";
+  const sheetKey = $derived($router.path + "?" + JSON.stringify($router.query));
   $effect(() => {
-    void $router.path;
-    if (untrack(() => sheet.open && viewport.phone)) sheet.dismissForNavigation();
+    const k = sheetKey;
+    const changed = sheetPath !== "" && k !== sheetPath;
+    sheetPath = k;
+    if (changed && untrack(() => sheet.open && viewport.phone)) sheet.dismissForNavigation();
   });
   // A new service worker is waiting: offer the update (C115.1); never forced.
   let waitingWorker = $state<ServiceWorkerRegistration | null>(null);

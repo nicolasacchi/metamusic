@@ -74,10 +74,11 @@ class Sheet {
     this.pushed = false;
     const o = this.opener;
     this.opener = null;
-    queueMicrotask(() => {
+    // After the sheet's DOM is gone (removing the focused close button would otherwise drop focus to the body).
+    setTimeout(() => {
       const target = o && o.isConnected ? o : document.querySelector<HTMLElement>(OPENER);
-      target?.focus();
-    });
+      target?.focus({ preventScroll: true });
+    }, 0);
   }
 }
 
