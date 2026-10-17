@@ -19,7 +19,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 2
 mode=${1:-incremental}
 
-ALL_SELFTESTS="public-gate-selftest loop-selftest coverage-gate-selftest ci-selftest e2e-cache-selftest deploy-preflight-selftest verify-selftest actions-pinned"
+ALL_SELFTESTS="public-gate-selftest loop-selftest coverage-gate-selftest ci-selftest e2e-cache-selftest deploy-preflight-selftest verify-selftest actions-pinned ci-tiers-selftest"
 
 # Each selftest runs under a wall-clock limit (seconds, GATE_SELFTEST_TIMEOUT, default 600): one that stalls (a lock wait,
 # a hung child) once held every `make gate` for 40-90 minutes. A timeout fails the gate with a clear message.
@@ -50,6 +50,7 @@ select_tests() {
       scripts/verify.sh | scripts/changed.sh | scripts/gate.sh | scripts/verify-selftest.sh | scripts/e2e-map.txt | web/e2e/*.spec.ts) add verify-selftest ;;&
       scripts/ci-* | Makefile | .github/* | go.mod | scripts/gate.sh | scripts/verify.sh | scripts/e2e.sh | scripts/loop | .githooks/* | scripts/tools.sh | scripts/actions-pinned.sh | scripts/deploy-preflight.sh) add ci-selftest ;;&
       scripts/actions-pinned.sh | .github/*) add actions-pinned ;;&
+      scripts/ci-* | scripts/go-suite.sh | scripts/check-stamp.sh | Makefile | .github/*) add ci-tiers-selftest ;;&
       # ci-selftest asserts the Go shards cover every package once: a package or test file that appears or
       # disappears changes the package/test set
       *_test.go | *.go) case "$st" in A | D) add ci-selftest ;; esac ;;

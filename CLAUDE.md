@@ -17,8 +17,12 @@ make verify     # THE ITERATION TARGET: only what changed vs origin/main (change
 make gate       # incremental privacy gate: origin/main..HEAD + working tree; selftests only if their scripts changed
 make gate-full  # complete gate: every selftest + full-history scan (CI and pre-push run this; run it before `git push`,
                 # the hook then accepts the green run for the same HEAD/scripts/patterns instead of repeating ~minutes)
-make check      # FINAL PASS (or leave to CI): gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit
-make test       # FINAL PASS: go test -race -shuffle=on ./...  (no -short: media-tool + acceptance tiers; CI sets MM_REQUIRE_MEDIA_TOOLS=1)
+make check      # FINAL PASS (or leave to CI): gofmt + vet + golangci-lint + go test -race -short + web lint/check/unit;
+                # a tree identical to a prior green run (scripts/check-stamp.sh) returns in ~1 s and says so (FORCE=1 reruns)
+make test       # FINAL PASS: go test -race -shuffle=on, no -short, minus the long tier and TestPerf_*; then the perf tests plain
+make test-long  # the long tier, -race: internal/acceptance + TestAcceptance_/Property_/Chaos_/*_EveryDatabaseCallMayFail anywhere
+make perf       # TestPerf_* only, no -race, no -cover (their one mode; CI has its own job). CI runs all of these tiers
+                # (the race shards cover test + test-long, minus perf); MM_REQUIRE_MEDIA_TOOLS=1 there
 make e2e        # FINAL PASS: Playwright (chrome + firefox), cached SPA/binary builds (scripts/e2e-cache.sh), plain binary;
                 # `make e2e-cover` = coverage binary feeding `make cover` (as CI does)
 make openapi    # regenerate openapi.json and web/src/api/schema.d.ts (commit both)
@@ -28,10 +32,10 @@ make tools      # download pinned golangci-lint, gitleaks, ffmpeg (LGPL, linux/a
                 # metaflac comes from the system flac package, else is built from the pinned xiph source
 ```
 
-Iterate with `make verify`; run `make check`/`make test`/`make e2e` once at the end, or leave them to CI (full
+Iterate with `make verify`; run `make check`/`make test`/`make test-long`/`make e2e` once at the end (test-long only if you touched jobs, acceptance or a TestAcceptance_ package), or leave them to CI (full
 sharded verifier: all packages, no -short, every Playwright project, coverage, worker, history gate).
 
-Heavy suites (check, test, race, cover, e2e, and `verify` whenever its plan runs `go test -race` or Playwright) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
+Heavy suites (check, test, test-long, perf, race, cover, e2e, and `verify` whenever its plan runs `go test -race` or Playwright) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
 slots, default 1; `MM_HEAVY_LOCK=0` disables) and memory-capped (`MM_HEAVY_MEM`, default 20G, via
 `systemd-run --user --scope`) by `scripts/loop`, because concurrent race suites triggered systemd-oomd.
 Agents must run whole-repo race suites only through `make`. Any other `go test -race` or Playwright run goes
@@ -41,6 +45,9 @@ their queue position and the holder (lane, worktree, target, start time; kept in
 `MM_HEAVY_MAX_WAIT` (default 45m, `90`/`300s`/`45m`, 0 = no limit) fails with exit 75 naming the holder. `MM_HEAVY_MAX_LOAD`
 (off by default) refuses to start above that 1-minute load. Rows in `metrics/loop.jsonl` also carry `load1_start`,
 `failing_names` (up to 5) and `retry_passes`.
+
+CI Go shards are balanced by `scripts/ci-shard-weights.txt` + `ci-heavy-tests.txt`, generated from a CI run's `gotimings-*` artifacts:
+`scripts/ci-weights-refresh.sh write <run-id>` (CI fails when a package slower than 15 s has no weight line).
 
 Every `make` target runs through `scripts/loop`, which appends a metrics row (no command lines,
 paths or secrets) to the shared `metrics/loop.jsonl` (gitignored). This project is also an

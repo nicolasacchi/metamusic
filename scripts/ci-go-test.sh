@@ -13,13 +13,18 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 weights="$root/scripts/ci-shard-weights.txt"
 
-# unit lines: "<weight> <pkg> <i>/<K>" for split packages, "<weight> <pkg>" otherwise (pkg is ./-relative)
+# unit lines: "<weight> <pkg> <i>/<K>" for split packages, "<weight> <pkg>" otherwise (pkg is ./-relative).
+# A split package's parts are not equal: the tests pinned to part i in scripts/ci-heavy-tests.txt weigh what they weigh
+# (a single 180 s test makes its part >= 180), the rest of the package is spread evenly over the K parts.
 units() {
-  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" '
-    BEGIN { while ((getline l < wf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); w[f[1]] = f[2]; k[f[1]] = (f[3] ? f[3] : 1) } }
+  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" -v hf="$root/scripts/ci-heavy-tests.txt" '
+    BEGIN { while ((getline l < wf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); w[f[1]] = f[2]; k[f[1]] = (f[3] ? f[3] : 1) }
+            while ((getline l < hf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); if (f[1] in k && k[f[1]] > 1) { q = f[4] % k[f[1]]; pin[f[1], q] += f[3]; pt[f[1]] += f[3] } } }
     { p = $0; wt = (p in w) ? w[p] : 3; n = (p in k) ? k[p] : 1
-      if (n > 1) for (i = 0; i < n; i++) printf "%.3f %s %d/%d\n", wt / n, p, i, n
-      else printf "%.3f %s\n", wt, p }'
+      if (n > 1) {
+        sc = (pt[p] > 0.9 * wt) ? 0.9 * wt / pt[p] : 1; rest = wt - pt[p] * sc
+        for (i = 0; i < n; i++) printf "%.3f %s %d/%d\n", rest / n + pin[p, i] * sc, p, i, n
+      } else printf "%.3f %s\n", wt, p }'
 }
 
 plan_all() { # prints "<shard> <unit>" for shard 1..n
@@ -65,18 +70,32 @@ case "$cmd" in
     mapfile -t plan < <("$0" plan "$s" "$n")
     [ "${#plan[@]}" -gt 0 ] || { echo "ci-go-test: shard $s/$n is empty" >&2; exit 2; }
     whole=(); pids=(); fail=0
+    # TestPerf_* budget tests run in the perf job (no race, no cover), not under -race -cover here (scripts/go-suite.sh).
+    # modernc.org/* (the transpiled SQLite stack, no project logic) is compiled without race instrumentation, as in
+    # `make check`; everything else, ours included, stays under -race. The nightly sets MM_FULL_RACE=1 for full instrumentation.
+    flags=(-timeout 18m -race -shuffle=on -cover -skip '^TestPerf_')
+    [ "${MM_FULL_RACE:-0}" = 1 ] || flags+=(-gcflags=modernc.org/...=-race=false)
+    # With MM_GO_TIMINGS=<dir> every go test run also writes its `-json` event stream to <dir>/<name>.jsonl (the weights
+    # source: scripts/ci-weights-refresh.sh); the log shows the usual text.
+    tdir=${MM_GO_TIMINGS:-}
+    [ -z "$tdir" ] || { mkdir -p "$tdir"; tdir=$(cd "$tdir" && pwd); flags+=(-json); }
+    emit() { # emit <name>: pass a go test stream through; with -json keep it in <name>.jsonl and print the plain text
+      if [ -z "$tdir" ]; then cat; return; fi
+      tee "$tdir/$1.jsonl" | jq -rRj '(try fromjson catch {Action:"output",Output:(.+"\n")}) | select(.Action=="output" or .Action=="build-output") | .Output'
+    }
     for u in "${plan[@]}"; do
       read -r pkg part <<<"$u"
       if [ -z "$part" ]; then whole+=("$pkg"); continue; fi
       names=$(tests_in_shard "$pkg" "${part%/*}" "${part#*/}" | paste -sd'|')
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
-      go test -timeout 18m -race -shuffle=on -cover -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | sed "s|^|[$pkg $part] |" &
+      tag=$(printf '%s' "${pkg#./}-${part/\//of}" | tr -c 'A-Za-z0-9_.-' '_')
+      { go test "${flags[@]}" -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-$tag" | sed "s|^|[$pkg $part] |"; } &
       pids+=($!)
     done
     if [ "${#whole[@]}" -gt 0 ]; then
       echo "== ${#whole[@]} whole packages"
-      go test -timeout 18m -race -shuffle=on -cover "${whole[@]}" -args -test.gocoverdir="$cov" || fail=1
+      go test "${flags[@]}" "${whole[@]}" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-whole" || fail=1
     fi
     for p in "${pids[@]}"; do wait "$p" || fail=1; done
     exit $fail

@@ -28,6 +28,7 @@ chk "a new Go file selects ci-selftest (package/test set moved)" '[[ "$(sel "A\t
 chk "a deleted Go package selects ci-selftest" '[[ "$(sel "D\tinternal/x/x.go\n")" == *ci-selftest* ]]'
 chk "deploy/ selects deploy-preflight-selftest" '[[ "$(sel "M\tdeploy/worker-image.digest\n")" == *deploy-preflight-selftest* ]]'
 chk "selection scripts select verify-selftest" '[[ "$(sel "M\tscripts/verify.sh\n")" == *verify-selftest* ]]'
+chk "tier scripts select ci-tiers-selftest" '[[ "$(sel "M\tscripts/go-suite.sh\n")" == *ci-tiers-selftest* ]]'
 
 # ---- verify --plan on the real module
 p=$(plan "M\tdocs/architecture.md\nM\tREADME.md\nM\tworker/mmworker/x.py\nM\tscripts/gate.sh\n")
