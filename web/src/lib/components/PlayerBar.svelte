@@ -1,4 +1,8 @@
 <script lang="ts">
+  import PrevIcon from "./icons/PrevIcon.svelte";
+  import NextIcon from "./icons/NextIcon.svelte";
+  import PlayIcon from "./icons/PlayIcon.svelte";
+  import PauseIcon from "./icons/PauseIcon.svelte";
   import { api } from "../../api/client";
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
@@ -69,15 +73,15 @@
 
 <div class="bar" data-testid="player-bar">
   <div class="buttons">
-    <button type="button" aria-label="Previous" onclick={() => player.prev()} disabled={!player.state.trackId}>⏮</button>
+    <button type="button" aria-label="Previous" onclick={() => player.prev()} disabled={!player.state.trackId}><PrevIcon size={20} /></button>
     <button
       type="button"
       aria-label={player.state.playing ? "Pause" : "Play"}
       data-testid="play-toggle"
       onclick={() => player.toggle()}
-      disabled={!player.state.trackId}>{player.state.playing ? "⏸" : "▶"}</button
+      disabled={!player.state.trackId}>{#if player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button
     >
-    <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}>⏭</button>
+    <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}><NextIcon size={20} /></button>
   </div>
   {#if trackId}<CoverArt {trackId} title={player.title} size={40} />{/if}
   <div class="mid">
@@ -137,6 +141,9 @@
     gap: 0.25rem;
   }
   .buttons button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.5rem;
     min-height: 2.5rem;
   }
