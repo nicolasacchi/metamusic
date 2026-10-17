@@ -10,12 +10,20 @@
     "ts": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
     "target": { "enum": ["check", "test", "race", "lint", "web", "e2e", "build", "openapi", "gate", "gate-full", "verify", "docker", "fixture-db", "cover", "routing", "seed", "worker", "contract", "canary"] },
     "wall_ms": { "type": "integer", "minimum": 0 },
-    "wait_ms": { "type": "integer", "minimum": 0, "description": "Time spent waiting for a heavy-run slot; wall_ms excludes it. Absent on older rows." },
+    "wait_ms": { "type": "integer", "minimum": 0, "description": "Time spent waiting for a heavy-run slot; wall_ms excludes it (a run refused or timed out by the lock exits 75 with wait_ms set). Absent on older rows." },
     "exit": { "type": "integer", "minimum": 0 },
     "compile_errors": { "type": "integer", "minimum": 0 },
     "failing_tests": { "type": "integer", "minimum": 0 },
     "sha": { "type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$" },
     "lane": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" },
-    "cache": { "enum": ["warm", "cold"] }
+    "cache": { "enum": ["warm", "cold"] },
+    "load1_start": { "type": "number", "minimum": 0, "description": "1-minute load average when the run started (after any lock wait). Absent on older rows or hosts without /proc/loadavg." },
+    "failing_names": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "type": "string", "maxLength": 100, "pattern": "^[A-Za-z0-9_./:#()\\[\\] +=,<>-]+$" },
+      "description": "Names of up to 5 failing leaf tests (Go --- FAIL, bun (fail), Playwright [project]: title). Reduced to a safe character set; never holds paths, URLs or output text. Absent on older rows."
+    },
+    "retry_passes": { "type": "integer", "minimum": 0, "description": "Tests that failed and then passed on retry (Playwright flaky count). 0 when nothing retried. Absent on older rows." }
   }
 }

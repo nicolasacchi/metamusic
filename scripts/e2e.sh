@@ -63,10 +63,11 @@ rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
 # project, MM_E2E_QUARANTINE=1 adds the @quarantine tests (skipped by default)
 # MM_E2E_SPECS (space separated spec paths relative to web/, set by `make verify`) runs just those specs; a partial
 # run never records coverage data (no stamp), so `make cover` cannot merge it as if it were the whole suite.
+# MM_E2E_ARGS (scripts/pw) appends arbitrary `playwright test` arguments (spec paths, --repeat-each=N, -g ...).
 # shellcheck disable=SC2086
-(cd web && bun run e2e ${MM_E2E_SPECS:+--pass-with-no-tests $MM_E2E_SPECS})
+(cd web && bun run e2e ${MM_E2E_SPECS:+--pass-with-no-tests $MM_E2E_SPECS} ${MM_E2E_ARGS:-})
 
-if [ "$cover" = 1 ] && [ -z "${MM_E2E_SPECS:-}" ]; then
+if [ "$cover" = 1 ] && [ -z "${MM_E2E_SPECS:-}${MM_E2E_ARGS:-}" ]; then
   go tool covdata percent -i="$root/covdata/e2e" || true
   echo "$stamp" >covdata/e2e.stamp # scripts/coverage-gate.sh refuses covdata/e2e once sources move on
 elif [ "$cover" = 1 ]; then

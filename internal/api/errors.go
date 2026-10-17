@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -67,6 +68,23 @@ func codeFor(status int) string {
 	return fmt.Sprintf("HTTP_%d", status)
 }
 
+type loggerKey struct{}
+
+// WithLogger returns a context whose handler errors are logged to l instead of the process default. Tests inject a
+// logger this way rather than mutating the process-global slog default (which races with parallel tests).
+func WithLogger(ctx context.Context, l *slog.Logger) context.Context {
+	return context.WithValue(ctx, loggerKey{}, l)
+}
+
+func loggerFrom(ctx huma.Context) *slog.Logger {
+	if ctx != nil {
+		if l, ok := ctx.Context().Value(loggerKey{}).(*slog.Logger); ok && l != nil {
+			return l
+		}
+	}
+	return slog.Default()
+}
+
 func init() {
 	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
 		return newProblem(nil, status, msg, errs...)
@@ -89,7 +107,7 @@ func newProblem(ctx huma.Context, status int, msg string, errs ...error) huma.St
 					}
 					attrs = append(attrs, "path", ctx.URL().Path)
 				}
-				slog.Error("handler error", attrs...)
+				loggerFrom(ctx).Error("handler error", attrs...)
 			}
 		}
 		if msg == "" || msg == "unexpected error occurred" {

@@ -98,7 +98,7 @@ chk "scratch: go.mod change selects everything" '[ "$(val all "$p")" = 1 ]'
 r=$tmp/repo
 mkdir -p "$r"
 (
-  cd "$r" && git init -q -b main && git config user.email t@example.invalid && git config user.name t
+  cd "$r" && git init -q -b main && . "$root/scripts/selftest-lib.sh" && assert_scratch_repo "$r" "$root" && git config user.email t@example.invalid && git config user.name t
   mkdir -p src && echo 1 >src/keep && echo 1 >src/gone && echo 1 >src/edit && echo 1 >src/staged
   git add -A && git commit -qm base && git tag base
   echo 2 >src/edit && echo 3 >src/staged && git add src/staged && rm src/gone
@@ -116,7 +116,7 @@ mkdir -p "$g/scripts"
 cp "$root/scripts/gate.sh" "$root/scripts/public-gate.sh" "$root/scripts/metrics-row.jq" "$g/scripts/"
 cp "$root/.gitleaks.toml" "$g/"
 (
-  cd "$g" && git init -q -b main && git config user.email t@example.invalid && git config user.name t
+  cd "$g" && git init -q -b main && . "$root/scripts/selftest-lib.sh" && assert_scratch_repo "$g" "$root" && git config user.email t@example.invalid && git config user.name t
   echo a >f && git add -A && git commit -qm one && echo b >f && git commit -qam two
 ) >/dev/null 2>&1
 h1=$(cd "$g" && git rev-parse HEAD~1) h2=$(cd "$g" && git rev-parse HEAD)
@@ -156,7 +156,13 @@ chk "prepush: deleting a remote ref needs no scan" '[ ! -s "$tmp/gl" ]'
 for f in "$root"/scripts/*selftest.sh; do
   grep -q "git init" "$f" || continue
   chk "$(basename "$f") drops inherited GIT_* variables" 'grep -q "git rev-parse --local-env-vars" "$f"'
+  chk "$(basename "$f") asserts it works inside its own scratch repository" 'grep -q "assert_scratch_repo " "$f"'
 done
+# the assertion itself: refuses when git resolves to a different repository than the scratch dir
+chk "assert_scratch_repo passes inside a scratch repo" '(cd "$r" && . "$root/scripts/selftest-lib.sh" && assert_scratch_repo "$r" "$root")'
+chk "assert_scratch_repo refuses a hook-like GIT_DIR pointing at the real repo" '! (cd "$r" && . "$root/scripts/selftest-lib.sh" && GIT_DIR=$(git -C "$root" rev-parse --path-format=absolute --git-dir) assert_scratch_repo "$r" "$root") 2>/dev/null'
+chk "assert_scratch_repo refuses a scratch dir inside the real repo" '! (cd "$root" && . "$root/scripts/selftest-lib.sh" && assert_scratch_repo "$root" "$root") 2>/dev/null'
+chk "gate.sh bounds every selftest with a timeout" 'grep -q "timeout -k" "$root/scripts/gate.sh" && grep -q "GATE_SELFTEST_TIMEOUT" "$root/scripts/gate.sh"'
 chk "gate.sh drops inherited GIT_* variables" 'grep -q "git rev-parse --local-env-vars" "$root/scripts/gate.sh"'
 # the dangerous case itself: run the changed.sh scratch-repo block with a hook-like environment pointing at the real repo
 real_git=$(git -C "$root" rev-parse --path-format=absolute --git-dir)

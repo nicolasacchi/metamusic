@@ -16,6 +16,9 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 cd "$tmp"
 git init -q .
+# shellcheck source=selftest-lib.sh
+. "$root/scripts/selftest-lib.sh"
+assert_scratch_repo "$tmp"
 git config user.email selftest@example.invalid
 git config user.name selftest
 git config commit.gpgsign false

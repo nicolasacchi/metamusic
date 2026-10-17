@@ -112,9 +112,9 @@ func TestInnerMuxProblems(t *testing.T) {
 func TestProblem5xxLogRedacted(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	old := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
-	defer slog.SetDefault(old)
+	// The logger is injected through the request context: the test never touches the process-global default,
+	// so parallel tests that log a 5xx cannot write into (or race on) this buffer.
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 	canary := "mmp_" + strings.Repeat("a2b3", 13)
 
 	mux := http.NewServeMux()
@@ -124,10 +124,12 @@ func TestProblem5xxLogRedacted(t *testing.T) {
 	api.Register(a, huma.Operation{OperationID: "boom", Method: "GET", Path: "/api/boom", Summary: "s", Description: "d"},
 		api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "none:test"},
 		func(context.Context, *nothing) (*outT, error) {
-			return nil, huma.Error500InternalServerError("x", errors.New("upstream said no for "+canary))
+			// a plain error is what real handlers return for an upstream failure; huma turns it into a 500 through
+			// NewErrorWithContext, which logs through the logger carried by the request context
+			return nil, errors.New("upstream said no for " + canary)
 		})
 	p := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}
-	r := httptest.NewRequest("GET", "/api/boom", nil).WithContext(auth.WithPrincipal(context.Background(), p))
+	r := httptest.NewRequest("GET", "/api/boom", nil).WithContext(api.WithLogger(auth.WithPrincipal(context.Background(), p), logger))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
 	if w.Code != 500 {
