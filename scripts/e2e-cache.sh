@@ -25,6 +25,10 @@ bin_fresh() {
   [ -x "$1" ] && [ -f "$2" ] && [ "$(cat "$2")" = "$3" ]
 }
 
+# bin_want <mode> <go-source-stamp> <web-hash>: the stamp the server binary must carry. The binary embeds web/dist
+# (//go:embed all:dist), so the SPA hash is part of it; decide it only after the SPA is built or confirmed fresh.
+bin_want() { printf '%s:%s:%s' "$1" "$2" "$3"; }
+
 # firefox_installed: the firefox revision pinned by the installed Playwright is in the browser cache.
 # Run from web/. Override the cache dir with PLAYWRIGHT_BROWSERS_PATH.
 firefox_installed() {
