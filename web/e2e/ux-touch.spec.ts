@@ -22,7 +22,7 @@ test("library shows music above the fold", async ({ page }) => {
   await expect(page.getByTestId("filters-open")).toBeVisible();
 });
 
-test("touch targets: Library, Track, Backlog and Duel", async ({ page, request }, info) => {
+test("touch targets: Library, New, Track, Backlog and Duel", async ({ page, request }, info) => {
   test.skip(!isPhone(page), "phone layout");
   const [t] = await ownTracks(request, info);
   const { root, child } = await siblings(request);
@@ -36,7 +36,10 @@ test("touch targets: Library, Track, Backlog and Duel", async ({ page, request }
   await expectTouchable(page, "library filters sheet");
   await page.getByTestId("filters-sheet").getByRole("button", { name: "Done" }).click();
 
-  // The New page is covered by its own lane (ui-inbox, which rewrites it); it calls the same probe: smallTargets(page).
+  await page.goto("/new");
+  await expect(page.getByTestId("topbar-title")).toHaveText("New");
+  await page.waitForLoadState("networkidle");
+  await expectTouchable(page, "new");
 
   await page.goto(`/tracks/${t.id}`);
   await expect(page.getByTestId("track-judge")).toBeVisible();
