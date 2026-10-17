@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { routeReady } from "../lib/scrollRestore";
   import { untrack } from "svelte";
   import { api } from "../api/client";
   import { newIdempotencyKey } from "../api/idem";
@@ -82,6 +83,8 @@
       }
     } catch {
       if (!quiet && mine === seq) error = "Failed to load the Song";
+    } finally {
+      if (mine === seq) void routeReady();
     }
   }
 

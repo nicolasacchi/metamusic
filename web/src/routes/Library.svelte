@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { routeReady } from "../lib/scrollRestore";
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import { player } from "../lib/player.svelte";
@@ -65,7 +66,10 @@
     } catch {
       if (mine === seq) error = "Failed to load tracks";
     } finally {
-      if (mine === seq) loading = false;
+      if (mine === seq) {
+        loading = false;
+        void routeReady();
+      }
     }
   }
 

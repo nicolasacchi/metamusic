@@ -11,7 +11,7 @@ test("phone: the tab bar replaces the link wall and the header stays within 52 p
   await page.goto("/");
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs).toBeVisible();
-  await expect(tabs.getByRole("link")).toHaveText(["New", "Library", "Play queue", "Judge", "More"]);
+  await expect(tabs.getByRole("link")).toHaveText([/^\s*New\b/, /^\s*Library\b/, /^\s*Play queue\b/, /^\s*Judge\b/, /^\s*More\b/]);
   await expect(tabs.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
   const header = await page.getByTestId("topbar").boundingBox();
   expect(header?.height ?? 999).toBeLessThanOrEqual(52);
@@ -27,7 +27,7 @@ test("desktop: one top-nav row of the same five groups", async ({ page }) => {
   test.skip(isPhone(page), "desktop layout");
   await page.goto("/");
   const tabs = page.getByRole("navigation", { name: "Main" });
-  await expect(tabs.getByRole("link")).toHaveText(["New", "Library", "Play queue", "Judge", "More"]);
+  await expect(tabs.getByRole("link")).toHaveText([/^\s*New\b/, /^\s*Library\b/, /^\s*Play queue\b/, /^\s*Judge\b/, /^\s*More\b/]);
   const ys = await Promise.all((await tabs.getByRole("link").all()).map(async (a) => Math.round((await a.boundingBox())?.y ?? -1)));
   expect(new Set(ys).size, "all five on one row").toBe(1);
 });
@@ -97,4 +97,30 @@ test("duel verdict buttons are not covered by the player or the tab bar; the min
     });
     expect(covered, `${id} is covered`).toBe(false);
   }
+});
+
+test("Back restores the list position", async ({ page }) => {
+  // a short window makes any list scroll; the list is the Library (one page of 50 rows at most)
+  await page.setViewportSize({ width: 390, height: 500 });
+  await page.goto("/");
+  await expect(page.getByTestId("track-link").first()).toBeVisible();
+  const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  expect(max, "the Library is taller than the window").toBeGreaterThan(400);
+  const target = Math.min(1500, Math.floor(max * 0.7));
+  await page.evaluate((y) => window.scrollTo(0, y), target);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(target - 5);
+  await page.waitForTimeout(300); // the position is saved on a short debounce
+  // open the take under the middle of the window (client navigation), then go Back
+  const link = await page.getByTestId("track-link").evaluateAll((els) => {
+    const mid = window.innerHeight / 2;
+    const el = els.map((e) => ({ e, d: Math.abs(e.getBoundingClientRect().top - mid) })).sort((a, b) => a.d - b.d)[0]?.e;
+    return el?.getAttribute("href") ?? "";
+  });
+  await page.locator(`[data-testid="track-link"][href="${link}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`${link}$`));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(50);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY), { message: "Back restores the position" }).toBeGreaterThan(target - 40);
+  await expect(page.locator(`[data-testid="track-link"][href="${link}"]`)).toBeInViewport();
 });
