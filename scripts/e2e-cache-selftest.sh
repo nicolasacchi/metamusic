@@ -54,6 +54,45 @@ chk "no stamp -> rebuild" '! bin_fresh bin.x bin.stamp plain:abc'
 echo 'plain:abc' >bin.stamp; rm bin.x
 chk "no binary -> rebuild" '! bin_fresh bin.x bin.stamp plain:abc'
 
+# --- SPA + binary together (the order e2e.sh uses): a web-only edit must rebuild both, a Go-only edit only the binary
+rm -rf web/src; mkdir -p web/src web/dist; echo 'a' >web/src/a.ts
+echo '<html>' >web/index.html; echo lock1 >web/bun.lock
+gostamp=g1
+sim() { # one e2e.sh pass: sets spa_built / bin_built, records what the "build" produced
+  spa_built=0 bin_built=0
+  local wh want; wh=$(web_hash)
+  if ! spa_fresh web/dist web/dist/.mm-hash "$wh"; then spa_built=1; echo "built:$wh" >web/dist/index.html; echo "$wh" >web/dist/.mm-hash; fi
+  want=$(bin_want plain "$gostamp" "$wh")
+  if ! bin_fresh bin.x bin.stamp "$want"; then bin_built=1; printf '#!/bin/sh\n' >bin.x; chmod +x bin.x; echo "$want" >bin.stamp; fi
+}
+sim
+chk "first pass builds both" '[ $spa_built$bin_built = 11 ]'
+sim
+chk "no change -> SPA and binary both reused" '[ $spa_built$bin_built = 00 ]'
+echo 'b' >web/src/a.ts; sim
+chk "web-only change -> SPA rebuilt AND binary rebuilt" '[ $spa_built$bin_built = 11 ]'
+gostamp=g2; sim
+chk "Go-only change -> binary rebuilt, SPA reused" '[ $spa_built$bin_built = 01 ]'
+sim
+chk "and then both reused again" '[ $spa_built$bin_built = 00 ]'
+rm -f web/node_modules/.mm-lock-hash bin.x bin.stamp
+# every //go:embed input outside web/ is part of the Go source stamp
+tmpgit="$tmp/g"; mkdir -p "$tmpgit/scripts" "$tmpgit/internal/p"
+cp "$root/scripts/source-stamp.sh" "$tmpgit/scripts/"
+s1=; s2=
+(
+  cd "$tmpgit"; unset $(git rev-parse --local-env-vars); git init -q .
+  . "$root/scripts/selftest-lib.sh"; assert_scratch_repo "$tmpgit" "$root"
+  printf 'module x\n' >go.mod
+  printf 'package p\n\nimport _ "embed"\n\n//go:embed data.json\nvar d string\n' >internal/p/p.go
+  echo '{}' >internal/p/data.json; git add -A
+  scripts/source-stamp.sh >"$tmp/s1"; echo '{"a":1}' >internal/p/data.json; scripts/source-stamp.sh >"$tmp/s2"
+) || exit 2
+s1=$(cat "$tmp/s1"); s2=$(cat "$tmp/s2")
+chk "editing a go:embed file changes the source stamp" '[ "$s1" != "$s2" ]'
+chk "every go:embed in the module is covered by the stamp (non-web)" '! grep -rl "^//go:embed" --include=*.go "$root" 2>/dev/null | grep -v node_modules | grep -v "/web/" | while read -r f; do d=$(dirname "$f"); git -C "$root" ls-files -co --exclude-standard -- "$d" | grep -qv "\.go$" || echo "$f"; done | grep -q .'
+cd "$tmp/r"
+
 # --- firefox: installed iff the pinned revision is in the browser cache
 mkdir -p web/node_modules/playwright-core "$tmp/pw"
 echo '{"browsers":[{"name":"chromium","revision":"1"},{"name":"firefox","revision":"4242"}]}' >web/node_modules/playwright-core/browsers.json

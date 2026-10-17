@@ -27,8 +27,9 @@ else
 fi
 
 mkdir -p bin
-want="plain:$stamp"
-[ "$cover" = 1 ] && want="cover:$stamp"
+# the binary embeds web/dist (//go:embed all:dist): its stamp carries the SPA hash, so a web-only edit rebuilds it
+want=$(bin_want plain "$stamp" "$wh")
+[ "$cover" = 1 ] && want=$(bin_want cover "$stamp" "$wh")
 if ! bin_fresh bin/metamusic-e2e bin/metamusic-e2e.stamp "$want"; then
   rm -f bin/metamusic-e2e.stamp
   if [ "$cover" = 1 ]; then
