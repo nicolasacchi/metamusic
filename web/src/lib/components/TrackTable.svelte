@@ -6,6 +6,7 @@
   import { judge } from "../judge.svelte";
   import { templateSelectable } from "../genIntent";
   import TrackBadges from "./TrackBadges.svelte";
+  import QueueButtons from "./QueueButtons.svelte";
 
   type Track = components["schemas"]["TrackSummary"];
   interface Props {
@@ -76,6 +77,7 @@
             <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}><PlayIcon size={18} /></button>
             {#if onplaynext}
               <button type="button" class="play" aria-label="Queue {t.title} next" title="Play next" onclick={() => onplaynext(t.id)}><PlayNextIcon size={18} /></button>
+              <QueueButtons id={t.id} title={t.title} nextToo={false} />
             {/if}
           </td>
           <td>

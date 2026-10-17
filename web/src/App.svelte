@@ -3,7 +3,7 @@
   import { APP_ROUTES, createRouter } from "./lib/router";
   import { randomId } from "./lib/id";
   import { player } from "./lib/player.svelte";
-  import { dismissToast, toasts } from "./lib/judge.svelte";
+  import { dismissToast, toasts } from "./lib/toast.svelte";
   import { installDevice } from "./lib/device.svelte";
   import { installMediaSession, mediaSessionEnv } from "./lib/mediaSession";
   import { covers } from "./lib/cover";
@@ -14,6 +14,9 @@
   import { approvals, refreshApprovals } from "./lib/approvals.svelte";
   import { badgeText } from "./lib/approvals";
   import PlayerDock from "./lib/components/PlayerDock.svelte";
+  import NowPlayingSheet from "./lib/components/NowPlayingSheet.svelte";
+  import { installSheet, sheet } from "./lib/nowPlaying.svelte";
+  import { installPersistence, load as loadSaved, persistEnv } from "./lib/playerStore";
   import TopBar from "./lib/components/shell/TopBar.svelte";
   import TabBar from "./lib/components/shell/TabBar.svelte";
   import SubNav from "./lib/components/shell/SubNav.svelte";
@@ -95,6 +98,12 @@
   // scroll-padding keeps scrollIntoView, focus and find-in-page from parking a control under the bar.
   $effect(() => {
     document.documentElement.style.setProperty("scroll-padding-bottom", `calc(${playerH}px + var(--nav-b))`);
+    document.documentElement.style.setProperty("--footer-h", `${playerH}px`);
+  });
+  // A route change under an open phone sheet (not one the sheet made itself) dismisses it.
+  $effect(() => {
+    void $router.path;
+    if (untrack(() => sheet.open && viewport.phone)) sheet.dismissForNavigation();
   });
   // A new service worker is waiting: offer the update (C115.1); never forced.
   let waitingWorker = $state<ServiceWorkerRegistration | null>(null);
@@ -150,7 +159,16 @@
       const offMediaSession = installMediaSession(player, audio, mediaSessionEnv(covers.get));
       const offListen = installListen(player);
       const offActivation = player.watchActivation(document);
+      const offSheet = installSheet();
+      // Boot restore (D2): paused, one tap resumes. Before persistence is installed, so an empty player never
+      // overwrites the saved queue; after the Media Session, so the lock screen shows the restored track at once.
+      const env = persistEnv();
+      const saved = loadSaved(env.kv, env.now());
+      if (saved) player.restore(saved);
+      const offPersist = installPersistence(player, env);
       return () => {
+        offPersist();
+        offSheet();
         offActivation();
         offListen();
         offMediaSession();
@@ -280,12 +298,18 @@
 
   <div class="toasts" role="status" aria-live="polite">
     {#each toasts as t (t.id)}
-      <div class="toast" data-testid="toast">
+      <div class="toast {t.kind}" data-testid="toast">
         {t.message}
+        {#if t.action}
+          {@const act = t.action}
+          <button type="button" class="act" data-testid="toast-action" onclick={() => { dismissToast(t.id); act.run(); }}>{act.label}</button>
+        {/if}
         <button type="button" aria-label="Dismiss" onclick={() => dismissToast(t.id)}>×</button>
       </div>
     {/each}
   </div>
+
+  <NowPlayingSheet />
 
   <footer class="player" class:idle={!player.state.trackId} aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
     <PlayerDock {player} duel={routeName === "duel"} />
@@ -321,6 +345,8 @@
     min-width: 0;
     padding: 1rem;
     padding-bottom: calc(1rem + var(--player-h, 0px) + var(--nav-b));
+    /* the desktop now-playing panel takes the right edge while it is open */
+    padding-right: calc(1rem + var(--panel-pad, 0px));
   }
   .player {
     display: flex;
@@ -354,13 +380,28 @@
     bottom: calc(7rem + var(--nav-b));
     display: grid;
     gap: 0.4rem;
-    z-index: 10;
+    z-index: var(--z-toast, 30);
   }
   .toast {
     background: #5a2a22;
     border: 1px solid #a02a1f;
     border-radius: 0.4rem;
     padding: 0.4rem 0.7rem;
+  }
+  .toast.info,
+  .toast.success {
+    background: var(--surface-2, #2c2620);
+    border-color: var(--line-strong, #786a5e);
+  }
+  .toast.success {
+    border-color: var(--ok, #7bc47f);
+  }
+  .toast .act {
+    border: 1px solid currentColor;
+    border-radius: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    margin: 0 0.3rem;
+    min-height: var(--hit, 44px);
   }
   .toast button {
     background: none;

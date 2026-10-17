@@ -115,8 +115,17 @@ export function createRouter(routes: Route[]) {
     const m = matchRoute(routes, loc.path);
     return { ...loc, route: m?.route ?? null, params: m?.params ?? {} };
   }
+  let key = window.location.pathname + window.location.search;
   function sync() {
+    key = window.location.pathname + window.location.search;
     state.set(compute());
+  }
+  // Back from the now-playing sheet (and Forward into it) lands on the same URL with a {mmSheet} entry: not a
+  // navigation, so the page behind the sheet is left alone.
+  function onPop(e: PopStateEvent) {
+    if ((e.state as { mmSheet?: unknown } | null)?.mmSheet) return;
+    if (window.location.pathname + window.location.search === key) return;
+    sync();
   }
   function navigate(to: string, replace = false, hash = "") {
     if (to + hash === window.location.pathname + window.location.search + window.location.hash) return;
@@ -136,13 +145,13 @@ export function createRouter(routes: Route[]) {
     e.preventDefault();
     navigate(url.pathname + url.search, false, url.hash);
   }
-  window.addEventListener("popstate", sync);
+  window.addEventListener("popstate", onPop);
   document.addEventListener("click", onClick);
   return {
     subscribe: state.subscribe as Readable<RouterState>["subscribe"],
     navigate,
     destroy() {
-      window.removeEventListener("popstate", sync);
+      window.removeEventListener("popstate", onPop);
       document.removeEventListener("click", onClick);
     },
   };

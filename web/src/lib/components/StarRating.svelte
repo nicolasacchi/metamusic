@@ -6,8 +6,10 @@
     onchange?: (stars: number | null) => void;
     readonly?: boolean;
     label?: string;
+    /** Touch size of each star in px (the now-playing sheet uses 52); default is the compact desktop size. */
+    size?: number;
   }
-  let { value, onchange, readonly = false, label = "Rating" }: Props = $props();
+  let { value, onchange, readonly = false, label = "Rating", size }: Props = $props();
 
   function onkey(e: KeyboardEvent) {
     if (readonly || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -19,7 +21,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="stars" role="group" aria-label={label} onkeydown={onkey} data-testid="star-rating">
+<div class="stars" role="group" aria-label={label} onkeydown={onkey} data-testid="star-rating" style={size ? `--star-hit:${size}px;--star-fs:${Math.round(size * 0.62)}px` : undefined}>
   {#each [1, 2, 3, 4, 5] as n (n)}
     <button
       type="button"
@@ -47,9 +49,9 @@
     border: none;
     color: inherit;
     cursor: pointer;
-    font-size: 1.25rem;
-    min-width: 2rem;
-    min-height: 2rem;
+    font-size: var(--star-fs, 1.25rem);
+    min-width: var(--star-hit, 2rem);
+    min-height: var(--star-hit, 2rem);
     padding: 0;
   }
   button:disabled {

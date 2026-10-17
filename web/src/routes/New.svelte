@@ -6,6 +6,7 @@
   import PendingApprovals from "../lib/components/PendingApprovals.svelte";
   import PlayIcon from "../lib/components/icons/PlayIcon.svelte";
   import CoverArt from "../lib/components/CoverArt.svelte";
+  import QueueButtons from "../lib/components/QueueButtons.svelte";
 
   type Track = components["schemas"]["TrackSummary"];
 
@@ -51,6 +52,7 @@
           <span class="title">{t.title}</span>
           <span class="meta muted">{day(t.recorded_at)} · {fmt(t.duration_s)}</span>
         </a>
+        <QueueButtons id={t.id} title={t.title} />
       </li>
     {:else}
       {#if !loading && !error}<li class="muted">No takes yet.</li>{/if}

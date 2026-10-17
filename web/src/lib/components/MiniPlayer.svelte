@@ -4,6 +4,8 @@
   import PauseIcon from "./icons/PauseIcon.svelte";
   import type { Player } from "../player.svelte";
   import CoverArt from "./CoverArt.svelte";
+  import { fmt } from "../time";
+  import { sheet } from "../nowPlaying.svelte";
 
   interface Props {
     player: Player;
@@ -13,6 +15,8 @@
   let { player, duel = false }: Props = $props();
 
   const s = $derived(player.state);
+  // One string: the clamped (-webkit-box) button would otherwise lay its text nodes out as separate flex items.
+  const restoredLabel = $derived(`Resume ${player.title}${s.restored !== null && s.restored >= 1 ? ` at ${fmt(s.restored)}` : ""}`);
   const pct = $derived(s.duration > 0 ? Math.min(100, Math.max(0, (s.current / s.duration) * 100)) : 0);
 </script>
 
@@ -21,7 +25,18 @@
     <div class="body"><span class="state" data-testid="player-duel">Paused for duel</span></div>
   {:else}
     {#if s.trackId}<CoverArt trackId={s.trackId} title="" size={48} />{/if}
-    <a class="body" href="/queue" aria-label="Open play queue, now playing {player.title}">
+    <!-- The body opens the now-playing sheet; the href keeps /queue reachable (middle click, long press, no JS). -->
+    <a
+      class="body"
+      href="/queue"
+      aria-label="Open now playing: {player.title}"
+      data-testid="player-open-sheet"
+      onclick={(e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        sheet.show(e.currentTarget);
+      }}
+    >
       <span class="title">{player.title}{#if s.noFlac}<span class="mp3chip" data-testid="player-mp3-chip" title="This track has no lossless file; its master is an MP3">MP3</span>{/if}</span>
       {#if s.error}
         <span role="alert" class="sub err">{s.error}</span>
@@ -33,6 +48,12 @@
     </a>
     {#if s.pendingPlay}
       <button type="button" class="continue" data-testid="player-continue" onclick={() => player.resume()}>Tap to continue</button>
+    {:else if s.held}
+      <button type="button" class="continue resume" data-testid="player-resume-hold" onclick={() => player.resume()}>{`Resume ${player.title}`}</button>
+    {:else if s.restored !== null && !s.playing}
+      <button type="button" class="continue resume" data-testid="player-resume" onclick={() => player.resume()}
+        >{restoredLabel}</button
+      >
     {/if}
     <button
       type="button"
@@ -99,6 +120,16 @@
     flex: none;
     min-height: var(--hit);
     padding: 0 var(--sp-3);
+  }
+  .resume {
+    flex: 0 1 40%;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-tight);
+    max-height: calc(var(--mini-h) - var(--sp-2));
+    overflow: hidden;
+    text-align: left;
   }
   .mp3chip {
     font-size: var(--fs-xs);

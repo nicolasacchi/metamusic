@@ -7,6 +7,8 @@
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
   import { judge } from "../judge.svelte";
+  import { sheet } from "../nowPlaying.svelte";
+  import QueueIcon from "./icons/QueueIcon.svelte";
   import CoverArt from "./CoverArt.svelte";
   import CommentComposer from "./CommentComposer.svelte";
   import StarRating from "./StarRating.svelte";
@@ -20,6 +22,9 @@
   let peaksFor = "";
   let commenting = $state(false);
   const trackId = $derived(player.state.trackId);
+  const restoredLabel = $derived(
+    `Resume ${player.title}${player.state.restored !== null && player.state.restored >= 1 ? ` at ${fmt(player.state.restored)}` : ""}`,
+  );
   const j = $derived(trackId ? judge.get(trackId) : undefined);
 
   // Seed the judging state for the current track unless a page already did.
@@ -96,6 +101,12 @@
     <div class="status">
         {#if player.state.pendingPlay}
           <button type="button" class="continue" data-testid="player-continue" onclick={() => player.resume()}>Tap to continue</button>
+        {:else if player.state.held}
+          <button type="button" class="continue" data-testid="player-resume-hold" onclick={() => player.resume()}>Resume {player.title}</button>
+        {:else if player.state.restored !== null && !player.state.playing}
+          <button type="button" class="continue" data-testid="player-resume" onclick={() => player.resume()}
+            >{restoredLabel}</button
+          >
         {:else if player.state.error}
           <span role="alert" class="err">{player.state.error}</span>
         {:else if player.state.endOfQueue}
@@ -112,6 +123,15 @@
       onseek={(s) => player.seek(s)}
     />
   </div>
+  <button
+    type="button"
+    class="open"
+    aria-label="Now playing and queue"
+    aria-expanded={sheet.open}
+    data-testid="player-open-sheet"
+    disabled={!trackId}
+    onclick={(e) => (sheet.open ? sheet.close() : sheet.show(e.currentTarget))}><QueueIcon size={20} /></button
+  >
   <span class="time" data-testid="player-time">{fmt(player.state.current)} / {fmt(player.state.duration)}</span>
   {#if trackId && j}
     <div class="judge" data-testid="player-judge">
@@ -193,6 +213,13 @@
   }
   .err {
     color: #ff9a7a;
+  }
+  .open {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
   }
   .time {
     font-variant-numeric: tabular-nums;
