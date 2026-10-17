@@ -84,6 +84,7 @@ describe("APP_ROUTES (C40)", () => {
     ["/human", "human"],
     ["/human/tokens", "human-tokens"],
     ["/human/devices", "human-devices"],
+    ["/judge", "judge"],
     ["/duels", "duels"],
     ["/duels/d1", "duel", { id: "d1" }],
     ["/ladder", "ladder"],

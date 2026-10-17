@@ -58,6 +58,12 @@ web/src/lib/jump.ts	m2a-comments
 web/src/lib/components/VerdictBar.svelte	m2a-judge
 web/src/lib/components/StarRating.svelte	m2a-judge
 web/src/lib/components/StatusSelect.svelte	m2a-judge
+web/src/routes/Judge.svelte	ux-judge
+web/src/lib/components/JudgeCard.svelte	ux-judge
+web/src/lib/judgeQueue.ts	ux-judge
+web/src/lib/judgeCard.svelte.ts	ux-judge
+web/src/lib/songLine.ts	ux-judge ux-inbox
+web/src/lib/queueSource.ts	ux-player
 web/src/lib/judge*	m2a-judge
 web/src/lib/components/ContextButton.svelte	m2a-context
 web/src/routes/Jobs.svelte	m3-jobs

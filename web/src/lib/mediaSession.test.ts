@@ -62,6 +62,23 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
 }
 
 describe("mediaSession", () => {
+  test("a masked (blind) player puts no title, album or artwork into the metadata", async () => {
+    const { player, ms, el } = setup();
+    const p = player as typeof player & { mask?: string | null };
+    p.mask = "Take B";
+    el.dispatchEvent(new Event("mm:meta"));
+    const m = (ms.metadata as { init: { title: string; album: string; artist: string; artwork: unknown[] } }).init;
+    expect(m.title).toBe("Take B");
+    expect(m.album).toBe("");
+    expect(JSON.stringify(m)).not.toContain("Alb");
+    expect(m.artwork).toEqual(artworkList(null));
+    p.mask = null;
+    el.dispatchEvent(new Event("mm:meta"));
+    const n = (ms.metadata as { init: { title: string; album: string } }).init;
+    expect(n.title).toBe("T");
+    expect(n.album).toBe("Alb");
+  });
+
   test("registers 5 handlers and nulls seekforward/backward", () => {
     const { handlers } = setup();
     for (const a of ["play", "pause", "previoustrack", "nexttrack", "seekto"]) expect(typeof handlers.get(a)).toBe("function");

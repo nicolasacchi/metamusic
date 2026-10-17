@@ -1,4 +1,4 @@
-// matrix: @mobile because the now-playing sheet, Android Back, drag-to-close and the reload restore are phone behaviours (desktop runs the panel and the queue/persistence parts)
+// matrix: @mobile because the now-playing sheet, Android Back, drag-to-close, the inert page behind the sheet and the reload restore are phone behaviours (desktop runs the panel and the queue/persistence parts)
 // Wave 3a: now-playing sheet, queue editing, playback that survives reloads, duels that borrow and return audio focus.
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { allTracks, openNav, spaGoto, type Item } from "./helpers";
@@ -313,4 +313,76 @@ test("Play on another take replaces the queue and offers Undo", async ({ page, r
   await openNav(page, "Play queue");
   await expect(page.getByTestId("queue-now")).toContainText(a.title);
   await expect(page.getByTestId("queue-item")).toContainText(b.title);
+});
+
+// ---- wave 4b: sheet and toast polish, restored queue paging
+
+const overlaps = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+test("a toast over the open sheet sits clear of the transport and stars, and the page behind is inert", async ({ page, request }) => {
+  const [a] = await four(request);
+  await page.goto(`/tracks/${a.id}`);
+  await page.getByTestId("track-play").click();
+  await expect.poll(async () => (await audio(page)).t, { timeout: 10_000 }).toBeGreaterThan(0.2);
+  await openSheet(page);
+  const dlg = page.getByTestId("now-playing");
+  await expect(dlg.getByTestId("np-judge")).toBeVisible();
+
+  if (isPhone(page)) {
+    for (const sel of ["main", '[data-testid="topbar"]', "footer"]) await expect(page.locator(sel).first()).toHaveAttribute("inert", "");
+  } else {
+    await expect(page.locator("main")).not.toHaveAttribute("inert", "");
+  }
+
+  // a failed save raises an error toast while the sheet is open
+  await page.route("**/api/tracks/*/rating", (r) => r.fulfill({ status: 500, contentType: "application/problem+json", body: JSON.stringify({ code: "INTERNAL", message: "no save", details: null }) }));
+  await dlg.getByRole("button", { name: "4 stars" }).click();
+  const toast = page.getByTestId("toast").first();
+  await expect(toast).toBeVisible();
+  const tb = (await toast.boundingBox())!;
+  for (const id of ["np-play", "np-judge"]) {
+    const b = (await dlg.getByTestId(id).boundingBox())!;
+    expect(overlaps(tb, b), `the toast ${JSON.stringify(tb)} covers ${id} ${JSON.stringify(b)}`).toBe(false);
+  }
+  expect(tb.y).toBeLessThan(120); // the top of the viewport
+  await page.unroute("**/api/tracks/*/rating");
+
+  await page.getByTestId("np-close").click();
+  await expect(page.locator("main")).not.toHaveAttribute("inert", "");
+  await expect(page.locator("footer").first()).not.toHaveAttribute("inert", "");
+});
+
+test("a restored Library queue keeps paging", async ({ page, request }) => {
+  const [a, b] = await four(request);
+  await page.goto("/");
+  await page.getByRole("button", { name: `Play ${a.title}`, exact: true }).click();
+  await expect.poll(async () => (await audio(page)).t, { timeout: 10_000 }).toBeGreaterThan(0.2);
+  await page.getByTestId("play-toggle").click(); // pause: nothing drifts
+  await expect.poll(async () => (await audio(page)).paused).toBe(true);
+  // the saved source is the Library page; cut the saved queue to two takes so only paging can bring the others back
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("mm:player:v1") ?? "")).toContain('"source":{"label":"Library"');
+  // edit the storage from a second tab: this page's own pagehide would save its full queue over the edit
+  const tab = await page.context().newPage();
+  await tab.goto("/");
+  await tab.evaluate(
+    ([x, y]) => {
+      const s = JSON.parse(localStorage.getItem("mm:player:v1") ?? "{}") as Record<string, unknown>;
+      s.queue = [x, y];
+      s.index = 0;
+      s.queuedNext = 0;
+      s.trackId = x;
+      s.position = 0;
+      localStorage.setItem("mm:player:v1", JSON.stringify(s));
+    },
+    [a.id, b.id],
+  );
+  await tab.reload();
+  await expect(tab.getByTestId("player-resume")).toBeVisible();
+  await openNav(tab, "Play queue");
+  await expect(tab.getByTestId("queue-now")).toContainText(a.title);
+  // one tap resumes; the saved queue ends right after b, so the player asks the rebuilt source for the next page of the Library
+  await tab.getByTestId("player-resume").click();
+  await expect.poll(() => tab.getByTestId("queue-item").count(), { timeout: 15_000 }).toBeGreaterThan(2);
+  await expect(tab.getByTestId("queue-item").first()).toContainText(b.title);
 });

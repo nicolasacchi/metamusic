@@ -13114,8 +13114,22 @@
             "format": "int64",
             "type": "integer"
           },
+          "song_angle": {
+            "description": "The Song's angle; null when unset or the take has no Song",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "song_id": {
             "description": "The Song this take belongs to; null before the Song exists or on a pre-L1 schema",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "song_title": {
+            "description": "Title of the take's Song; null when it has none",
             "type": [
               "string",
               "null"
@@ -13190,7 +13204,9 @@
           "cost_display_micro_usd",
           "cost_display_usd",
           "song_id",
-          "is_pick"
+          "is_pick",
+          "song_title",
+          "song_angle"
         ],
         "type": "object"
       },
@@ -19060,7 +19076,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
