@@ -295,18 +295,6 @@
 </div>
 
 <style>
-  :global(body) {
-    margin: 0;
-    font-family: system-ui, sans-serif;
-    background: #14110f;
-    color: #f4ece4;
-  }
-  :global(a) {
-    color: #f2a65a;
-  }
-  :global(.muted) {
-    opacity: 0.6;
-  }
   .shell {
     min-height: 100dvh;
     display: grid;
@@ -319,7 +307,7 @@
     gap: 0.5rem 1.5rem;
     align-items: center;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #3a322b;
+    border-bottom: 1px solid var(--line);
   }
   nav {
     display: flex;
@@ -334,14 +322,14 @@
     margin-left: 0.3rem;
     padding: 0 0.4rem;
     border-radius: 0.6rem;
-    background: #f2a65a;
-    color: #14110f;
+    background: var(--accent);
+    color: var(--accent-ink);
     font-size: 0.75rem;
   }
   .update {
     margin: 0 0 1rem;
     padding: 0.4rem 0.7rem;
-    border: 1px solid #3a322b;
+    border: 1px solid var(--line);
     border-radius: 0.4rem;
   }
   main {
@@ -353,14 +341,14 @@
     gap: 1rem;
     align-items: center;
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
-    border-top: 1px solid #3a322b;
+    border-top: 1px solid var(--line);
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 5;
     box-sizing: border-box;
-    background: #1d1814;
+    background: var(--bg-raised);
   }
   .toasts {
     position: fixed;

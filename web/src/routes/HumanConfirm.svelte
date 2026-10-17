@@ -118,6 +118,11 @@
 {/if}
 
 <style>
+  label {
+    display: grid;
+    gap: var(--sp-1);
+    margin-bottom: var(--sp-2);
+  }
   th {
     text-align: left;
     padding-right: 1.5rem;

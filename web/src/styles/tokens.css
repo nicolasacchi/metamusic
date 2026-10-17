@@ -1,0 +1,95 @@
+/* Design tokens. Dark only: no light block and no theme switch. */
+:root {
+  color-scheme: dark; /* native controls (select, scrollbars, date pickers) render dark */
+  /* type */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --lh-tight: 1.2;
+  --lh-body: 1.45;
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --tracking-label: 0.08em;
+  /* space: 4 px grid */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  /* shape */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+  /* touch + shell */
+  --hit: 44px;
+  --hit-lg: 56px;
+  --hit-xl: 72px;
+  --topbar-h: 52px;
+  --mini-h: 64px;
+  --tabbar-h: 56px;
+  --bar-desktop-h: 72px;
+  --rail-w: 220px;
+  --panel-w: 360px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  /* motion */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* z */
+  --z-bar: 10;
+  --z-sheet: 20;
+  --z-toast: 30;
+
+  /* palette ("studio at night"): today's warm amber identity */
+  --bg: #14110f;
+  --bg-raised: #1d1814;
+  --bg-sunken: #0e0c0a;
+  --surface: #231d17;
+  --surface-2: #2c2620;
+  --line: #3a322b;
+  --line-strong: #786a5e;
+  --text: #f4ece4;
+  --text-2: #b8ada2;
+  --text-3: #8a7f74; /* decorative/tertiary only (section labels, placeholders); see tokens.test.ts */
+  --accent: #f2a65a;
+  --accent-ink: #14110f;
+  --accent-soft: #3d2a17;
+  --focus: #ffd29a;
+  --ok: #7bc47f;
+  --ok-soft: #1f3a22;
+  --warn: #e0a030;
+  --warn-soft: #3d2f12;
+  --bad: #f27a6a;
+  --bad-soft: #4a201b;
+  --info: #8fb8de;
+  --info-soft: #1c2a38;
+  --star: var(--accent);
+  --pick: var(--accent);
+  --wave: #5e5248;
+  --wave-played: var(--accent);
+  --wave-pin: var(--info);
+  --spectro-lo: #120e0b;
+  --spectro-hi: #ffd29a;
+  --scrim: rgb(0 0 0 / 0.5);
+  --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: var(--line-strong);
+    --text-2: var(--text);
+  }
+}

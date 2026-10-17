@@ -59,3 +59,30 @@ test("unknown route shows 404", async ({ page }) => {
   await page.goto("/no/such/page");
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
 });
+
+test("dark color-scheme: native controls render on dark backgrounds", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("dark");
+  const lum = (rgb: string) => {
+    const n = (rgb.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+    return (0.2126 * n[0]! + 0.7152 * n[1]! + 0.0722 * n[2]!) / 255;
+  };
+  const bg = await page.evaluate(() => {
+    const mk = (tag: string) => {
+      const el = document.body.appendChild(document.createElement(tag));
+      const c = getComputedStyle(el).backgroundColor;
+      const col = getComputedStyle(el).color;
+      el.remove();
+      return { c, col };
+    };
+    return { select: mk("select"), button: mk("button"), body: getComputedStyle(document.body).backgroundColor };
+  });
+  expect(lum(bg.body)).toBeLessThan(0.2);
+  // a native select/button must not paint a light slab: transparent or dark background, light text
+  for (const k of ["select", "button"] as const) {
+    const { c, col } = bg[k];
+    if (c !== "rgba(0, 0, 0, 0)") expect(lum(c)).toBeLessThan(0.3);
+    expect(lum(col)).toBeGreaterThan(0.5);
+  }
+});
