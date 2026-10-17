@@ -8,7 +8,7 @@ const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
 
 test("phone: the tab bar replaces the link wall and the header stays within 52 px", async ({ page }) => {
   test.skip(!isPhone(page), "phone layout");
-  await page.goto("/");
+  await page.goto("/library");
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs).toBeVisible();
   await expect(tabs.getByRole("link")).toHaveText([/^\s*New\b/, /^\s*Library\b/, /^\s*Play queue\b/, /^\s*Judge\b/, /^\s*More\b/]);
@@ -44,9 +44,9 @@ test("every route is reachable within two taps from its tab", async ({ page }) =
     await expect.poll(() => new URL(page.url()).pathname.replace(/\/$/, "") || "/", { message: l.label }).toBe(want);
   }
   // the three tabs that are pages of their own
-  for (const [label, path] of [["New", "/new"], ["Play queue", "/queue"], ["More", "/more"]] as const) {
+  for (const [label, path] of [["New", "/"], ["Play queue", "/queue"], ["More", "/more"]] as const) {
     await openNav(page, label);
-    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page).toHaveURL(new RegExp(`${path === "/" ? "/" : path}$`));
   }
 });
 
@@ -105,7 +105,7 @@ test("duel verdict buttons are not covered by the player or the tab bar; the min
 test("Back restores the list position", async ({ page }) => {
   // a short window makes any list scroll; the list is the Library (one page of 50 rows at most)
   await page.setViewportSize({ width: 390, height: 500 });
-  await page.goto("/");
+  await page.goto("/library");
   await expect(page.getByTestId("track-link").first()).toBeVisible();
   const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   expect(max, "the Library is taller than the window").toBeGreaterThan(400);
@@ -123,7 +123,7 @@ test("Back restores the list position", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`${link}$`));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(50);
   await page.goBack();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/library$/);
   await expect.poll(() => page.evaluate(() => window.scrollY), { message: "Back restores the position" }).toBeGreaterThan(target - 40);
   await expect(page.locator(`[data-testid="track-link"][href="${link}"]`)).toBeInViewport();
 });

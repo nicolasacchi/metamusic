@@ -84,7 +84,7 @@ test.describe("pairing", () => {
     const ctx = await plainContext(browser, baseURL ?? "");
     try {
       const dev = await pairWith(ctx, code);
-      await dev.goto("/");
+      await dev.goto("/library");
       await expect(dev.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
       // first thing: the principal really is a device, not the human
       expect((await me(ctx)).kind).toBe("device");
@@ -118,7 +118,7 @@ test.describe("pairing", () => {
     const ctx = await plainContext(browser, baseURL ?? "");
     try {
       const dev = await pairWith(ctx, code);
-      await dev.goto("/");
+      await dev.goto("/library");
       expect((await me(ctx)).kind).toBe("device");
 
       await page.goto("/human/devices");

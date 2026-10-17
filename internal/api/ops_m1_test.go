@@ -107,8 +107,8 @@ type opWant struct {
 }
 
 var m1Ops = []opWant{
-	{"search_tracks", "GET", "/api/tracks", "tool", "/", auth.ScopeRead, []string{"status", "style", "tag"}},
-	{"get_library_facets", "GET", "/api/library/facets", "generic", "/", auth.ScopeRead, nil},
+	{"search_tracks", "GET", "/api/tracks", "tool", "/library", auth.ScopeRead, []string{"status", "style", "tag"}},
+	{"get_library_facets", "GET", "/api/library/facets", "generic", "/library", auth.ScopeRead, nil},
 	{"get_track", "GET", "/api/tracks/{id}", "tool", "/tracks/:id", auth.ScopeRead, nil},
 	{"get_track_peaks", "GET", "/api/tracks/{id}/peaks", "generic", "/tracks/:id", auth.ScopeRead, nil},
 	{"get_media_links", "GET", "/api/tracks/{id}/media", "tool", "/tracks/:id", auth.ScopeRead, nil},

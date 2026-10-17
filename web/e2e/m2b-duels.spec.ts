@@ -203,7 +203,7 @@ test.describe("clips, player and nav", () => {
       const u = new URL(r.url());
       if (u.pathname.startsWith("/api/duels")) urls.push(u.pathname + u.search);
     });
-    await page.goto("/");
+    await page.goto("/library");
     await expect.poll(() => urls.some((u) => u.startsWith("/api/duels?"))).toBe(true);
     const badge = urls.filter((u) => u.startsWith("/api/duels?"));
     expect(badge.some((u) => new URL(u, "http://x").searchParams.get("state") === "open" && new URL(u, "http://x").searchParams.get("limit") === "1")).toBe(true);

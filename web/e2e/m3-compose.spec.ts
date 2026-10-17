@@ -10,7 +10,7 @@ test.describe.configure({ timeout: 240_000 });
 async function newSong(page: Page, request: APIRequestContext): Promise<boolean> {
   const id = uniq("m3c");
   const title = `New song ${id}`;
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByTestId("new-song").click();
   await expect(page).toHaveURL(/\/human\/generate$/);
 

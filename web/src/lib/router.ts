@@ -21,8 +21,8 @@ export interface RouterState extends Location {
 
 /** Every SPA route (C40); specific before parametric. `/human/*` pages are SPA routes too (D1); only `/human/api` belongs to the server. */
 export const APP_ROUTES: Route[] = [
-  { pattern: "/", name: "home" },
-  { pattern: "/new", name: "new" },
+  { pattern: "/", name: "new" }, // the landing page (a PWA cold start); /new redirects here (legacyUrl)
+  { pattern: "/library", name: "home" },
   { pattern: "/queue", name: "queue" },
   { pattern: "/more", name: "more" },
   { pattern: "/tracks/:id", name: "track" },
@@ -87,6 +87,19 @@ export function parseLocation(href: string): Location {
   return { path: path || "/", query };
 }
 
+/**
+ * URLs that moved when New became the landing page. Library deep links used to live at `/` (`/?status=draft`): a root
+ * URL that carries a query belongs to the Library, the same query on `/library`. A bare `/` stays New, and `/new`
+ * (wave 2's address of New) is now `/`. Returns null when nothing changes.
+ */
+export function legacyUrl(path: string, search: string, hash = ""): string | null {
+  const p = path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
+  const q = search === "?" ? "" : search;
+  if (p === "/" && q !== "") return "/library" + (q.startsWith("?") ? q : "?" + q) + hash;
+  if (p === "/new") return "/" + q + hash;
+  return null;
+}
+
 export function matchRoute(routes: Route[], path: string): Match | null {
   const segs = path.split("/").filter(Boolean);
   for (const route of routes) {
@@ -110,6 +123,9 @@ export function matchRoute(routes: Route[], path: string): Match | null {
 }
 
 export function createRouter(routes: Route[]) {
+  // An old bookmark of the Library at `/?filters` lands on `/library?filters`; the entry is replaced, not added.
+  const legacy = legacyUrl(window.location.pathname, window.location.search, window.location.hash);
+  if (legacy) history.replaceState(history.state, "", legacy);
   const state = writable<RouterState>(compute());
 
   function compute(): RouterState {
@@ -135,6 +151,9 @@ export function createRouter(routes: Route[]) {
   let here = window.location.pathname + window.location.search;
 
   function navigate(to: string, replace = false, hash = "") {
+    const q = to.indexOf("?");
+    const moved = legacyUrl(q < 0 ? to : to.slice(0, q), q < 0 ? "" : to.slice(q));
+    if (moved) to = moved;
     if (to + hash === window.location.pathname + window.location.search + window.location.hash) return;
     if (replace) {
       history.replaceState(history.state, "", to + hash);

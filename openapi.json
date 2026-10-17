@@ -16645,7 +16645,7 @@
           "scope": "read",
           "cost": "free",
           "mcp": "generic",
-          "ui": "/",
+          "ui": "/library",
           "human_only": false
         }
       }
@@ -19351,7 +19351,7 @@
           "scope": "read",
           "cost": "free",
           "mcp": "tool",
-          "ui": "/",
+          "ui": "/library",
           "human_only": false
         }
       }

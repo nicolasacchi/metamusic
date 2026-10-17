@@ -284,6 +284,7 @@
     {#if takes.length > 0}
       <section aria-labelledby="takes-h">
         <h2 id="takes-h">Takes <span class="muted">({view.takes_total})</span></h2>
+        <p><a class="btn" href="/judge?song={encodeURIComponent(s.id)}" data-testid="song-judge">Judge takes one by one</a></p>
         {#if human}
           <p class="duelbar">
             <button type="button" disabled={selected.length !== 2} onclick={startDuel} data-testid="duel-start">Blind duel{selected.length === 2 ? "" : ` (${selected.length}/2 selected)`}</button>

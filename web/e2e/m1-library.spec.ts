@@ -13,7 +13,7 @@ async function listTitles(request: APIRequestContext): Promise<string[]> {
 
 test("seeded titles are listed", async ({ page, request }) => {
   expect((await listTitles(request)).sort()).toEqual(TITLES);
-  await page.goto("/");
+  await page.goto("/library");
   const rows = page.getByTestId("track-row");
   expect(TITLES).toHaveLength(SEED_RECIPE_TRACKS);
   await expect(rows).toHaveCount(SEED_TRACKS);
@@ -22,7 +22,7 @@ test("seeded titles are listed", async ({ page, request }) => {
 });
 
 test("q search is accent-insensitive", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/library");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
   await openFilters(page);
   await page.getByTestId("filter-q").fill("Sýn sóng 03");
@@ -40,7 +40,7 @@ test("two style facets select the AND of both terms", async ({ page }) => {
     body.style_terms.push({ term: "ambient", count: 1 });
     await route.fulfill({ response: res, json: body });
   });
-  await page.goto("/?recipe_known=true");
+  await page.goto("/library?recipe_known=true");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
   await openFilters(page);
   const facets = page.getByTestId("style-facets");
@@ -63,7 +63,7 @@ test("two style facets select the AND of both terms", async ({ page }) => {
 });
 
 test("duration filter and URL restore on back/forward", async ({ page }) => {
-  await page.goto("/?recipe_known=true");
+  await page.goto("/library?recipe_known=true");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_RECIPE_TRACKS);
 
   await openFilters(page);

@@ -114,7 +114,7 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
   try {
     // the badge on the More tab of the main navigation, also on a narrow viewport: other specs may decide batches at the same time,
     // so the count is only checked against a fresh server read taken in the same poll
-    await page.goto("/");
+    await page.goto("/library");
     const badge = page.getByTestId("approvals-badge");
     await expect(badge).toBeVisible();
     expect(Number(await badge.innerText())).toBeGreaterThanOrEqual(1);

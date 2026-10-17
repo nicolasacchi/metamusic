@@ -46,7 +46,7 @@
   const filters = $derived(parseFilters(search));
 
   function commit(f: Filters) {
-    navigate("/" + toSearch(f), false);
+    navigate("/library" + toSearch(f), false);
   }
 
   async function load(f: Filters, cursor: string | undefined) {
@@ -134,7 +134,7 @@
       {
         ...(t ? { title: t.title } : {}),
         // "Playing from Library": the href also lets a restored queue rebuild its paging (queueSource.ts)
-        source: { label: "Library", href: "/" + toSearch(f) },
+        source: { label: "Library", href: "/library" + toSearch(f) },
         more: async () => {
           if (!cursor) return [];
           const r = await api.GET("/api/tracks", { params: { query: { ...toApiQuery(f), limit: PAGE, cursor } } });
