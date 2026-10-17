@@ -10,7 +10,6 @@
   import { composeIntent, mayGenerate, startGeneration, templateIntent, toggled, validateIntent, type VariantMode } from "../lib/genIntent";
 
   type Whoami = components["schemas"]["WhoamiOutBody"];
-  type Ping = components["schemas"]["PingOutBody"];
   type Stats = components["schemas"]["Stats"];
   type Facets = components["schemas"]["Facets"];
   type Track = components["schemas"]["TrackSummary"];
@@ -25,7 +24,6 @@
   let { search, navigate }: Props = $props();
 
   let me = $state<Whoami | null>(null);
-  let ping = $state<Ping | null>(null);
   let stats = $state<Stats | null>(null);
   let facets = $state<Facets | null>(null);
   let headerError = $state("");
@@ -93,17 +91,15 @@
 
   $effect(() => {
     void (async () => {
-      const [m, p, s, fc] = await Promise.allSettled([
+      const [m, s, fc] = await Promise.allSettled([
         api.GET("/api/me"),
-        api.GET("/api/ping"),
         api.GET("/api/stats"),
         api.GET("/api/library/facets"),
       ]);
       if (m.status === "fulfilled" && m.value.data) me = m.value.data;
-      if (p.status === "fulfilled" && p.value.data) ping = p.value.data;
       if (s.status === "fulfilled" && s.value.data) stats = s.value.data;
       if (fc.status === "fulfilled" && fc.value.data) facets = fc.value.data;
-      if (!me || !ping) headerError = "Failed to load";
+      if (!me) headerError = "Failed to load";
     })();
   });
 
@@ -149,9 +145,6 @@
 <h1>Library</h1>
 
 <div class="strip" aria-label="Status">
-  <span>Identity <b data-testid="identity">{me ? me.name : "…"}</b></span>
-  <span>Access <b data-testid="via">{me ? `${me.kind} via ${me.via} (${me.scopes.join(", ")})` : "…"}</b></span>
-  <span>Server <b data-testid="version">{ping ? `${ping.ok ? "ok" : "down"} ${ping.version}` : "…"}</b></span>
   {#if stats}
     <span data-testid="library-counts">
       {stats.tracks.total} tracks · {fmt(stats.tracks.duration_s_total)} total · {stats.backlog.drafts} drafts

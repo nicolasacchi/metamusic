@@ -1,6 +1,6 @@
 // matrix: @mobile @firefox @realtime because comment-and-jump seeks the audio element (Firefox runs only the jump: tests) and the comment form is used on phones
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
-import { apiJSON, audioTime, trackByTitle, uniq } from "./helpers";
+import { apiJSON, audioTime, openNav, trackByTitle, uniq } from "./helpers";
 
 type Comment = { id: string; at_second: number | null; body: string; hidden: boolean; state: string; link: string; section: { label: string } | null };
 const list = async (request: APIRequestContext, id: string) =>
@@ -120,7 +120,7 @@ test("jump: a timestamped comment starts its track when another track is playing
   await page.getByTestId("track-play").click();
   await expect.poll(() => audioTime(page)).toBeGreaterThan(0.5);
   // client-side navigation keeps the one audio element playing track 05
-  await page.getByRole("link", { name: "Library" }).click();
+  await openNav(page, "Library");
   await page.getByTestId("track-link").filter({ hasText: "Syn song 03" }).click();
   await expect(page.getByTestId("track-title")).toHaveText("Syn song 03");
   await row(page, body).getByTestId("comment-at").click();

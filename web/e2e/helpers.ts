@@ -71,3 +71,33 @@ export async function tap(page: Page, target: Locator): Promise<void> {
   if (!b) throw new Error("tap target has no box");
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
 }
+
+const TAB_LABELS = ["New", "Library", "Play queue", "Judge", "More"];
+/** Sub-views of the Library and Judge tabs; "Takes" and "Duels" are the tabs' own landing pages. */
+const SUB_VIEWS: Record<string, string> = { Sounds: "Library", Playlists: "Library", Ladder: "Judge" };
+
+/**
+ * Navigate by the app shell like a user: tap the tab, then (if the destination is a sub-view or a More row) the link on
+ * the page it opens. The same two taps on a phone (tab bar) and on desktop (top nav). Secure (/human/*) rows do a
+ * full-page load.
+ */
+export async function openNav(page: Page, label: string): Promise<void> {
+  const nav = page.getByRole("navigation", { name: "Main" });
+  const tab = (name: string) => nav.getByRole("link", { name: new RegExp(`^${name}\\b`) });
+  const top = TAB_LABELS.includes(label) ? label : label === "Takes" ? "Library" : label === "Duels" ? "Judge" : (SUB_VIEWS[label] ?? "More");
+  await tab(top).click();
+  if (top === label || (label === "Takes" && top === "Library") || (label === "Duels" && top === "Judge")) return;
+  const dest = SUB_VIEWS[label] ? page.getByRole("navigation", { name: `${top} views` }) : page.getByRole("main");
+  await dest.getByRole("link", { name: new RegExp(`^${label}\\b`) }).click();
+}
+
+/**
+ * Client-side navigation without touching the shell (history + popstate, what the router listens to). For specs that
+ * mock or count requests the More page would also make (/api/me, /api/ping).
+ */
+export async function spaGoto(page: Page, path: string): Promise<void> {
+  await page.evaluate((p) => {
+    history.pushState(null, "", p);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, path);
+}

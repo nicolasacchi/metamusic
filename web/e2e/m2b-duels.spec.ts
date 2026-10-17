@@ -4,7 +4,7 @@
 // queue head. Keyboard specs run on the desktop Chrome project, toggle specs on the mobile projects.
 import { expect, test, type Page, type Response } from "./fixtures";
 import { crossfades, installAbSpy, readAb } from "./abSpy";
-import { trackByTitle } from "./helpers";
+import { openNav, trackByTitle } from "./helpers";
 import { createDuel, decide, getDuel, ladder, siblings } from "./m2bApi";
 
 const isDesktop = (name: string) => name === "chrome";
@@ -208,7 +208,7 @@ test.describe("clips, player and nav", () => {
     const badge = urls.filter((u) => u.startsWith("/api/duels?"));
     expect(badge.some((u) => new URL(u, "http://x").searchParams.get("state") === "open" && new URL(u, "http://x").searchParams.get("limit") === "1")).toBe(true);
     expect(urls.some((u) => u.startsWith("/api/duels/next"))).toBe(false);
-    await page.getByRole("link", { name: /^Duels/ }).click();
+    await openNav(page, "Duels");
     await expect.poll(() => urls.some((u) => u.startsWith("/api/duels/next"))).toBe(true);
   });
 });

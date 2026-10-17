@@ -1,6 +1,7 @@
 // matrix: @mobile @firefox @realtime because it covers the PWA manifest, Media Session, session-loss banner and the device codec probe
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { SEED_TRACKS } from "./env";
+import { spaGoto } from "./helpers";
 
 async function trackId(request: APIRequestContext, title: string): Promise<string> {
   const r = await request.get("/api/tracks?limit=50");
@@ -87,7 +88,7 @@ test.describe("session loss", () => {
       }
       return route.continue();
     });
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect.poll(() => alive(page)).toBe(false); // full reload
     await expect(page.getByTestId("system-info")).toBeVisible();
     await expect(page.getByTestId("session-banner")).toHaveCount(0);
@@ -102,7 +103,7 @@ test.describe("session loss", () => {
     await page.route("**/api/system", (route) =>
       route.fulfill({ status: 401, contentType: "application/problem+json", body: '{"code":"UNAUTHENTICATED","message":"x","details":{}}' }),
     );
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect(page.getByTestId("session-banner")).toBeVisible();
     expect(await alive(page)).toBe(true);
     const t = await now(page);
@@ -122,7 +123,7 @@ test.describe("session loss", () => {
       }
       return route.continue();
     });
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect(page.getByTestId("system-info")).toBeVisible({ timeout: 10_000 });
     expect(await alive(page)).toBe(true);
     await expect(page.getByTestId("session-banner")).toHaveCount(0);
@@ -146,7 +147,7 @@ test.describe("session loss", () => {
       if (pings++ === 0) return route.fulfill({ status: 302, headers: { location: "/auth/login" }, body: "" });
       return route.continue();
     });
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect.poll(() => alive(page), { timeout: 10_000 }).toBe(false);
     await expect(page.getByTestId("system-info")).toBeVisible();
   });
@@ -177,7 +178,7 @@ test.describe("device probe", () => {
     await page.goto(`/tracks/${id}`);
     await page.getByTestId("track-play").click();
     await expect.poll(() => now(page), { timeout: 5000 }).toBeGreaterThan(0.2);
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect(page.getByTestId("probe-result")).toHaveText("ok", { timeout: 10_000 });
     await expect(profileRow(page)).toContainText("ok");
     await expect(page.getByTestId("quality-source")).toContainText("lossless");
@@ -192,7 +193,7 @@ test.describe("device probe", () => {
     await page.goto(`/tracks/${id}`);
     await page.getByTestId("track-play").click();
     await expect.poll(() => now(page), { timeout: 5000 }).toBeGreaterThan(0.2);
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect(page.getByTestId("probe-result")).toHaveText("failed", { timeout: 15_000 });
     await expect(page.getByTestId("quality-source")).toContainText("high (probe)");
     await expect(profileRow(page)).toContainText("failed");
@@ -216,7 +217,7 @@ test.describe("device probe", () => {
     await page.getByTestId("track-play").click();
     await expect.poll(() => now(page), { timeout: 5000 }).toBeGreaterThan(0.2);
     expect((await stored).status()).toBe(200); // written when the 10 s probe timeout fires
-    await page.getByRole("link", { name: "Settings" }).click();
+    await spaGoto(page, "/settings");
     await expect(profileRow(page)).toContainText("inconclusive");
     await expect(page.getByTestId("probe-result")).toHaveText("none");
     await expect(page.getByTestId("quality-source")).toContainText("lossless (default)");

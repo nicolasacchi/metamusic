@@ -1,8 +1,9 @@
 // matrix: @mobile @firefox because the shell, nav, 404 and narrow-viewport nav are cheap and are what every device loads first
 import { expect, test } from "./fixtures";
+import { openNav } from "./helpers";
 
-test("home shows identity and version", async ({ page }) => {
-  await page.goto("/");
+test("More shows identity and version", async ({ page }) => {
+  await page.goto("/more");
   await expect(page.getByTestId("identity")).toHaveText("e2e");
   await expect(page.getByTestId("version")).toHaveText(/^ok \S+/);
 });
@@ -19,17 +20,17 @@ test("navigation keeps the same audio element", async ({ page }) => {
   await audio.evaluate((el) => {
     (el as HTMLElement).dataset.e2eMark = "kept";
   });
-  await page.getByRole("link", { name: "Settings" }).click();
+  await openNav(page, "Settings");
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByTestId("system-info")).toContainText("proxy");
   await expect(audio).toHaveAttribute("data-e2e-mark", "kept");
-  await page.getByRole("link", { name: "Library" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await openNav(page, "More");
+  await expect(page).toHaveURL(/\/more$/);
   await expect(page.getByTestId("identity")).toHaveText("e2e");
   await expect(audio).toHaveAttribute("data-e2e-mark", "kept");
 });
 
-// CI-only failure: with a wider system font the header overflowed on phones and the nav links were
+// CI-only failure (old link wall): with a wider system font the header overflowed on phones and the nav links were
 // covered by each other / the header. Force a wide font at a narrow viewport so this is font-independent.
 test("main nav stays reachable at a narrow viewport with a wide font", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
@@ -44,14 +45,14 @@ test("main nav stays reachable at a narrow viewport with a wide font", async ({ 
         .filter((a) => {
           const r = a.getBoundingClientRect();
           const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-          return r.right > window.innerWidth || hit !== a;
+          return r.right > window.innerWidth || r.left < 0 || !(hit === a || a.contains(hit));
         })
         .map((a) => a.textContent),
     };
   });
   expect(report).toEqual({ overflowX: 0, covered: [] });
   for (const name of ["Backlog", "Import", "Settings", "Library"]) {
-    await page.getByRole("link", { name }).click({ timeout: 5000 });
+    await openNav(page, name);
   }
 });
 

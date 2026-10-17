@@ -8,12 +8,16 @@
   import { installMediaSession, mediaSessionEnv } from "./lib/mediaSession";
   import { covers } from "./lib/cover";
   import { installListen } from "./lib/listen.svelte";
-  import { createNav } from "./lib/nav";
+  import { isTabRoot, tabFor, titleFor, TABS, type Tab } from "./lib/nav";
   import { api } from "./api/client";
   import { loadDuelBadge } from "./lib/navBadge";
   import { approvals, refreshApprovals } from "./lib/approvals.svelte";
   import { badgeText } from "./lib/approvals";
-  import PlayerBar from "./lib/components/PlayerBar.svelte";
+  import PlayerDock from "./lib/components/PlayerDock.svelte";
+  import TopBar from "./lib/components/shell/TopBar.svelte";
+  import TabBar from "./lib/components/shell/TabBar.svelte";
+  import SubNav from "./lib/components/shell/SubNav.svelte";
+  import { viewport } from "./lib/viewport.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
@@ -49,18 +53,15 @@
   import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
   import Offline from "./routes/Offline.svelte";
+  import New from "./routes/New.svelte";
+  import Queue from "./routes/Queue.svelte";
+  import More from "./routes/More.svelte";
   import NotFound from "./routes/NotFound.svelte";
   import { offline } from "./lib/offline.svelte";
   import { applyUpdate, watchForUpdate } from "./api/swRegister";
 
   const router = createRouter(APP_ROUTES);
   const audioId = randomId();
-  // /human/* is always a full-page load so the server's second-factor / step-up check runs first.
-  const nav = createNav({ assign: (u) => location.assign(u), route: (u) => router.navigate(u) });
-  const humanClick = (e: MouseEvent) => {
-    const href = (e.currentTarget as HTMLAnchorElement).getAttribute("href") ?? "";
-    nav.onLinkClick(e, href);
-  };
   // The router's query map collapses repeated keys; the library needs the raw string.
   // The argument only makes the call re-run on every navigation.
   function searchOf(_loc: unknown): string {
@@ -93,7 +94,7 @@
   let playerH = $state(0);
   // scroll-padding keeps scrollIntoView, focus and find-in-page from parking a control under the bar.
   $effect(() => {
-    document.documentElement.style.setProperty("scroll-padding-bottom", `${playerH}px`);
+    document.documentElement.style.setProperty("scroll-padding-bottom", `calc(${playerH}px + var(--nav-b))`);
   });
   // A new service worker is waiting: offer the update (C115.1); never forced.
   let waitingWorker = $state<ServiceWorkerRegistration | null>(null);
@@ -126,6 +127,19 @@
     }),
   );
 
+  const routeName = $derived($router.route?.name);
+  const tabBadges = $derived.by(() => {
+    const b: Partial<Record<Tab, { text: string; label: string; testid: string }>> = {};
+    if (duelBadge) b.judge = { text: String(duelBadge), label: `${duelBadge} open duels`, testid: "duels-badge" };
+    if (approvalBadge) b.more = { text: approvalBadge, label: `${approvalBadge} approvals pending`, testid: "approvals-badge" };
+    return b;
+  });
+  // Phone Back button: one step in history, or the tab's landing page for a deep link.
+  function goBack() {
+    if (history.length > 1) history.back();
+    else router.navigate(TABS.find((t) => t.id === tabFor(routeName))?.path ?? "/");
+  }
+
   let audio: HTMLAudioElement;
   // Install once: untracked, because attach() writes player.el and the installers read player state;
   // tracked, the effect would re-run itself forever (one device-probe request per iteration).
@@ -148,34 +162,13 @@
 </script>
 
 <div class="shell">
-  <header>
-    <strong>metamusic</strong>
-    <nav aria-label="Main">
-      <a href="/" aria-current={$router.route?.name === "home" ? "page" : undefined}>Library</a>
-      <a href="/backlog" aria-current={$router.route?.name === "backlog" || $router.route?.name === "draft" ? "page" : undefined}>Backlog</a>
-      <a href="/board" aria-current={["board", "muse", "song"].includes($router.route?.name ?? "") ? "page" : undefined}>Board</a>
-      <a href="/sounds" aria-current={$router.route?.name === "sounds" ? "page" : undefined}>Sounds</a>
-      <a href="/duels" aria-current={$router.route?.name === "duels" || $router.route?.name === "duel" ? "page" : undefined}>Duels{#if duelBadge}<span class="badge" data-testid="duels-badge" aria-label="{duelBadge} open">{duelBadge}</span>{/if}</a>
-      <a href="/ladder" aria-current={$router.route?.name === "ladder" ? "page" : undefined}>Ladder</a>
-      <a href="/playlists" aria-current={$router.route?.name === "playlists" || $router.route?.name === "playlist" ? "page" : undefined}>Playlists</a>
-      <a href="/export" aria-current={$router.route?.name === "export" ? "page" : undefined}>Export</a>
-      <a href="/import" aria-current={$router.route?.name === "import" ? "page" : undefined}>Import</a>
-      <a href="/settings" aria-current={$router.route?.name === "settings" ? "page" : undefined}>Settings</a>
-      {#if offline.available}
-        <a href="/offline" aria-current={$router.route?.name === "offline" ? "page" : undefined} data-testid="nav-offline">Offline{#if offline.badge}<span class="badge" data-testid="offline-badge">{offline.badge}</span>{/if}</a>
-      {/if}
-      <a href="/jobs" aria-current={["jobs", "job", "batch"].includes($router.route?.name ?? "") ? "page" : undefined}>Jobs</a>
-      <a href="/human/" onclick={humanClick} class="approvals-link" data-testid="approvals-nav" aria-current={$router.route?.name === "human" ? "page" : undefined} aria-label={approvalBadge ? `Approvals, ${approvalBadge} pending` : "Approvals"}>Approvals{#if approvalBadge}<span class="badge" data-testid="approvals-badge">{approvalBadge}</span>{/if}</a>
-      <a href="/human/spend" onclick={humanClick} aria-current={$router.route?.name === "human-spend" ? "page" : undefined}>Spend</a>
-      <a href="/human/tokens" onclick={humanClick} aria-current={$router.route?.name === "human-tokens" ? "page" : undefined}>Tokens</a>
-      <a href="/human/devices" onclick={humanClick} aria-current={$router.route?.name === "human-devices" ? "page" : undefined}>Devices</a>
-      <a href="/human/connectors" onclick={humanClick} aria-current={$router.route?.name === "human-connectors" ? "page" : undefined}>Connectors</a>
-      <a href="/human/subsonic" onclick={humanClick} aria-current={$router.route?.name === "human-subsonic" ? "page" : undefined}>Subsonic</a>
-    </nav>
-  </header>
+  <TopBar title={titleFor(routeName)} back={viewport.phone && !isTabRoot(routeName)} onback={goBack}>
+    <TabBar {routeName} badges={tabBadges} />
+  </TopBar>
 
-  <main style:padding-bottom="calc(1rem + {playerH}px)">
+  <main style:--player-h="{playerH}px">
     <SessionBanner />
+    {#if isTabRoot(routeName)}<SubNav tab={tabFor(routeName)} {routeName} />{/if}
     {#if waitingWorker}
       <p class="update" role="status" data-testid="sw-update">
         A new version is available.
@@ -186,7 +179,13 @@
         {/if}
       </p>
     {/if}
-    {#if $router.route?.name === "home"}
+    {#if $router.route?.name === "new"}
+      <New />
+    {:else if $router.route?.name === "queue"}
+      <Queue />
+    {:else if $router.route?.name === "more"}
+      <More />
+    {:else if $router.route?.name === "home"}
       <Library search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "track"}
       {#key $router.params.id}
@@ -288,43 +287,27 @@
     {/each}
   </div>
 
-  <footer class="player" aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
-    <PlayerBar {player} />
+  <footer class="player" class:idle={!player.state.trackId} aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
+    <PlayerDock {player} duel={routeName === "duel"} />
     <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
 </div>
 
 <style>
+  :global(:root) {
+    /* Space the phone tab bar takes at the bottom (the desktop nav is a top row). */
+    --nav-b: 0px;
+  }
+  @media (max-width: 767px) {
+    :global(:root) {
+      --nav-b: calc(var(--tabbar-h) + var(--safe-b));
+    }
+  }
   .shell {
     min-height: 100dvh;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr auto;
-  }
-  header {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.5rem;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--line);
-  }
-  nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1rem;
-  }
-  nav a[aria-current="page"] {
-    font-weight: 700;
-    text-decoration: none;
-  }
-  .badge {
-    margin-left: 0.3rem;
-    padding: 0 0.4rem;
-    border-radius: 0.6rem;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 0.75rem;
   }
   .update {
     margin: 0 0 1rem;
@@ -332,15 +315,19 @@
     border: 1px solid var(--line);
     border-radius: 0.4rem;
   }
+  /* The player is fixed to the viewport bottom (above the phone tab bar); main reserves its height plus the tab bar's,
+     so no control (Approve, Reject, duel verdicts) can ever sit under either. */
   main {
     min-width: 0;
     padding: 1rem;
+    padding-bottom: calc(1rem + var(--player-h, 0px) + var(--nav-b));
   }
   .player {
     display: flex;
     gap: 1rem;
     align-items: center;
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
+    min-height: var(--bar-desktop-h);
     border-top: 1px solid var(--line);
     position: fixed;
     left: 0;
@@ -350,10 +337,21 @@
     box-sizing: border-box;
     background: var(--bg-raised);
   }
+  @media (max-width: 767px) {
+    .player {
+      padding: 0;
+      min-height: 0;
+      height: var(--mini-h);
+      bottom: var(--nav-b);
+    }
+    .player.idle {
+      display: none;
+    }
+  }
   .toasts {
     position: fixed;
     right: 1rem;
-    bottom: 7rem;
+    bottom: calc(7rem + var(--nav-b));
     display: grid;
     gap: 0.4rem;
     z-index: 10;

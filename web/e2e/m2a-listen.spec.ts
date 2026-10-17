@@ -1,6 +1,6 @@
 // matrix: @mobile @firefox @realtime because it checks play events (offline IndexedDB queue, beacon on leave) in every browser engine
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
-import { allTracks, apiJSON, audioTime, tap, type Item } from "./helpers";
+import { allTracks, apiJSON, audioTime, openNav, tap, type Item } from "./helpers";
 
 // One seed track per project (this spec runs alone in the listen-* projects, see playwright.config.ts): plays are counted per track and the projects run in parallel.
 async function listenTrack(request: APIRequestContext, info: TestInfo): Promise<Item> {
@@ -59,7 +59,7 @@ test("play, navigate away, pause: the plays count in the track context", async (
   await page.goto(`/tracks/${t.id}`);
   await playFor(page, 1.2);
   // client-side navigation keeps playing; the recorder follows the one audio element
-  await page.getByRole("link", { name: "Library" }).click();
+  await openNav(page, "Library");
   await expect(page.getByTestId("track-table")).toBeVisible();
   await tap(page, page.getByTestId("play-toggle")); // pause from the player bar
   await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Play");
