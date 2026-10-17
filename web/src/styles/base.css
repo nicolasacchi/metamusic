@@ -63,11 +63,38 @@ button.danger {
 button.danger:hover:not(:disabled) {
   background: var(--bad-soft);
 }
+/* Phone: the top bar already names the page, so the page's own h1 stays for screen readers and tests only. */
+@media (max-width: 767px) {
+  main > h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A link that is its own row or block (not inside running text) gets a 44 px touch target on touch devices. */
+@media (pointer: coarse) {
+  a.tap {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--hit);
+    min-height: var(--hit);
+  }
+}
+
 @media (pointer: coarse) {
   button,
   input:not([type="checkbox"], [type="radio"]),
   select {
     min-height: var(--hit);
+  }
+  button {
+    min-width: var(--hit);
   }
 }
 

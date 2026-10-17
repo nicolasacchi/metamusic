@@ -29,6 +29,8 @@ export interface Filters {
   unrated: boolean;
   /** Only takes that are their Song's current Pick. */
   isPick: boolean;
+  /** Only takes with an open comment (the "Open fix" quick chip). */
+  openComments: boolean;
   tag: string[];
   sort: Sort;
 }
@@ -49,6 +51,7 @@ export function defaultFilters(): Filters {
     minStars: null,
     unrated: false,
     isPick: false,
+    openComments: false,
     tag: [],
     sort: "recorded_desc",
   };
@@ -71,8 +74,30 @@ export function isDirty(f: Filters): boolean {
     f.minStars !== null ||
     f.unrated ||
     f.isPick ||
+    f.openComments ||
     f.tag.length > 0
   );
+}
+
+/** How many filter groups are active (the "Filters (n)" badge); the sort does not count. */
+export function activeCount(f: Filters): number {
+  return [
+    f.q !== "",
+    f.style.length > 0,
+    f.status.length > 0,
+    f.minDuration !== null,
+    f.maxDuration !== null,
+    f.recordedFrom !== "",
+    f.recordedTo !== "",
+    f.hasScore !== null,
+    f.truncated !== null,
+    f.recipeKnown !== null,
+    f.lossy !== null,
+    f.minStars !== null || f.unrated,
+    f.isPick,
+    f.openComments,
+    f.tag.length > 0,
+  ].filter(Boolean).length;
 }
 
 /** The server's default sort: relevance when q is set, else newest first. */
@@ -106,6 +131,7 @@ export function parseFilters(search: string | URLSearchParams): Filters {
   f.lossy = bool(p.get("lossy"));
   f.unrated = p.get("unrated") === "true";
   f.isPick = p.get("is_pick") === "true";
+  f.openComments = p.get("has_open_comments") === "true";
   const ms = num(p.get("min_stars"));
   f.minStars = !f.unrated && ms !== null && Number.isInteger(ms) && ms >= 1 && ms <= 5 ? ms : null;
   f.tag = [...new Set(p.getAll("tag").filter(Boolean))];
@@ -130,6 +156,7 @@ function pairs(f: Filters): [string, string][] {
   if (f.unrated) out.push(["unrated", "true"]);
   else if (f.minStars !== null) out.push(["min_stars", String(f.minStars)]);
   if (f.isPick) out.push(["is_pick", "true"]);
+  if (f.openComments) out.push(["has_open_comments", "true"]);
   for (const t of f.tag) out.push(["tag", t]);
   if (f.sort !== defaultSort(f.q)) out.push(["sort", f.sort]);
   return out;
@@ -159,6 +186,7 @@ export function toApiQuery(f: Filters): SearchQuery {
   if (f.unrated) q.unrated = true;
   else if (f.minStars !== null) q.min_stars = f.minStars;
   if (f.isPick) q.is_pick = true;
+  if (f.openComments) q.has_open_comments = true;
   if (f.tag.length) q.tag = f.tag;
   if (f.sort !== defaultSort(f.q)) q.sort = f.sort;
   return q;

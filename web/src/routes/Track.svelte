@@ -8,7 +8,7 @@
   import { judge, createTagSuggestions } from "../lib/judge.svelte";
   import { jumpTo } from "../lib/jump";
   import StarRating from "../lib/components/StarRating.svelte";
-  import StatusSelect from "../lib/components/StatusSelect.svelte";
+  import StatusChips from "../lib/components/StatusChips.svelte";
   import TagEditor from "../lib/components/TagEditor.svelte";
   import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
@@ -189,7 +189,7 @@
 
 {#if error}
   <p role="alert">{error}</p>
-  <p><a href="/">Back to the library</a></p>
+  <p><a class="tap" href="/">Back to the library</a></p>
 {:else if !track}
   <p class="muted">Loading…</p>
 {:else}
@@ -241,7 +241,7 @@
     {#if j}
       <div class="judge" data-testid="track-judge">
         <StarRating value={j.stars} onchange={(n) => judge.rate(id, n)} label="Your rating" />
-        <StatusSelect value={j.status} onchange={(st) => judge.setStatus(id, st)} />
+        <StatusChips value={j.status} onchange={(st) => judge.setStatus(id, st)} />
         {#if j.critic}
           <span class="muted" data-testid="critic">critic ★{j.critic.stars ?? "—"}{j.critic.verdict ? ` — ${j.critic.verdict}` : ""}</span>
         {/if}
@@ -301,7 +301,7 @@
         {/if}
         <section class="card">
           <h2>Lineage</h2>
-          <p><a href="/lineage/{id}" data-testid="lineage-link">Full lineage tree</a></p>
+          <p><a class="tap" href="/lineage/{id}" data-testid="lineage-link">Full lineage tree</a></p>
           <p class="muted">
             generation {track.lineage.generation}{track.lineage.inferred ? " (inferred)" : ""}
             {#if track.lineage.parent_track_id}
@@ -314,7 +314,7 @@
           {#if track.lineage.siblings.length > 0}
             <ul>
               {#each track.lineage.siblings as s (s.id)}
-                <li><a href="/tracks/{s.id}">{s.title}</a> <span class="muted">seed {s.seed}</span></li>
+                <li><a class="tap" href="/tracks/{s.id}">{s.title}</a> <span class="muted">seed {s.seed}</span></li>
               {/each}
             </ul>
           {/if}

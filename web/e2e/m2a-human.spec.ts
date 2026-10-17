@@ -81,7 +81,7 @@ test.describe("pairing", () => {
     try {
       const dev = await pairWith(ctx, code);
       await dev.goto("/");
-      await expect(dev.getByTestId("track-table")).toBeVisible();
+      await expect(dev.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
       // first thing: the principal really is a device, not the human
       expect((await me(ctx)).kind).toBe("device");
 

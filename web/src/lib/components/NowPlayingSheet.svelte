@@ -4,7 +4,7 @@
   import { tick } from "svelte";
   import { api } from "../../api/client";
   import { fmt } from "../time";
-  import { judge, type TrackStatus } from "../judge.svelte";
+  import { judge } from "../judge.svelte";
   import { player } from "../player.svelte";
   import { dragCloses, sheet } from "../nowPlaying.svelte";
   import { viewport } from "../viewport.svelte";
@@ -12,6 +12,7 @@
   import CommentComposer from "./CommentComposer.svelte";
   import QueueList from "./QueueList.svelte";
   import StarRating from "./StarRating.svelte";
+  import StatusChips from "./StatusChips.svelte";
   import Waveform from "./Waveform.svelte";
   import DownIcon from "./icons/DownIcon.svelte";
   import NextIcon from "./icons/NextIcon.svelte";
@@ -19,12 +20,6 @@
   import PlayIcon from "./icons/PlayIcon.svelte";
   import PrevIcon from "./icons/PrevIcon.svelte";
   import QueueIcon from "./icons/QueueIcon.svelte";
-
-  const STATUS_CHIPS: { status: TrackStatus; label: string }[] = [
-    { status: "to_relisten", label: "To relisten" },
-    { status: "final", label: "Final" },
-    { status: "discarded", label: "Discard" },
-  ];
 
   const s = $derived(player.state);
   const trackId = $derived(s.trackId);
@@ -210,11 +205,7 @@
           <div class="stars" data-testid="np-judge">
             <StarRating value={j.stars} onchange={(n) => judge.rate(trackId, n)} label="Your rating" size={52} />
           </div>
-          <div class="chips" role="group" aria-label="Status">
-            {#each STATUS_CHIPS as c (c.status)}
-              <button type="button" class="chip" aria-pressed={status === c.status} data-testid="np-status-{c.status}" onclick={() => judge.setStatus(trackId, status === c.status ? "draft" : c.status)}>{c.label}</button>
-            {/each}
-          </div>
+          <div class="chips"><StatusChips value={status} onchange={(st) => judge.setStatus(trackId, st)} /></div>
         {/if}
 
         <div class="acts">
@@ -396,20 +387,6 @@
     flex-wrap: wrap;
     gap: var(--sp-2);
     justify-content: center;
-  }
-  .chip {
-    min-height: var(--hit);
-    padding: 0 var(--sp-4);
-    border-radius: var(--r-pill);
-    border: 1px solid var(--line-strong);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-  }
-  .chip[aria-pressed="true"] {
-    background: var(--accent);
-    color: var(--accent-ink);
-    border-color: var(--accent);
   }
   .acts {
     display: flex;

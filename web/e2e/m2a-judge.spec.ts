@@ -1,6 +1,6 @@
 // matrix: @mobile @realtime because rating and tagging happen from the player bar, whose controls must not overflow a phone viewport
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
-import { apiJSON, openNav, ownTracks, tap, uniqTag } from "./helpers";
+import { apiJSON, openFilters, openNav, ownTracks, tap, uniqTag } from "./helpers";
 
 // The tests share the project's seed track pair, so they run one after the other.
 test.describe.configure({ mode: "serial" });
@@ -28,13 +28,15 @@ test("rate 4 and set to_relisten from the player bar (on a phone: from the track
     await expect(bar).toBeVisible();
     await tap(page, bar.getByRole("button", { name: "4 stars", exact: true }));
     await expect(bar.getByRole("button", { name: "4 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await bar.getByTestId("status-select").selectOption("to_relisten");
+    // the track page has status chips; the desktop player bar keeps its select
+    if (isPhone(page)) await bar.getByRole("button", { name: "To relisten" }).click();
+    else await bar.getByTestId("status-select").selectOption("to_relisten");
     await expect.poll(async () => (await detail(request, t.id)).rating.human?.stars).toBe(4);
     await expect.poll(async () => (await detail(request, t.id)).status).toBe("to_relisten");
     // the track page shows the same state without a reload
     await expect(page.getByTestId("track-judge").getByRole("button", { name: "4 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.reload();
-    await expect(page.getByTestId("track-judge").getByTestId("status-select")).toHaveValue("to_relisten");
+    await expect(page.getByTestId("track-judge").getByRole("button", { name: "To relisten" })).toHaveAttribute("aria-pressed", "true");
   } finally {
     await reset(request, t.id, []);
   }
@@ -100,6 +102,7 @@ test("library filters: status, two tags AND, min stars, back/forward", async ({ 
   try {
     await page.goto("/");
     await expect(page.getByTestId("track-row").first()).toBeVisible();
+    await openFilters(page);
 
     const status = page.waitForRequest((r) => search(r) && params(r).getAll("status").includes("to_relisten"));
     await page.getByRole("group", { name: "Status" }).getByLabel("to_relisten").check();

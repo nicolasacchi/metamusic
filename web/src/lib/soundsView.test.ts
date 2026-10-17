@@ -10,7 +10,9 @@ import {
   soundsToQuery,
   soundsToSearch,
   toggleSound,
+  tokenLabel,
   validateMapping,
+  visibleFacets,
 } from "./soundsView";
 
 describe("facet selection <-> sound= params", () => {
@@ -103,5 +105,22 @@ describe("Map… form validation per facet", () => {
     expect(validateMapping({ facet: "mood", value: "dark", term: "123" })).not.toBe("");
     expect(validateMapping({ facet: "mood", value: "dark", term: "x".repeat(61) })).not.toBe("");
     expect(validateMapping({ facet: "mood", value: "dark", term: "gloomy" })).toBe("");
+  });
+});
+
+describe("human labels and empty facets", () => {
+  test("tokenLabel shows the facet's label, unknown tokens pass through", () => {
+    expect(tokenLabel("genre_family:pop")).toBe("Genre: pop");
+    expect(tokenLabel("tempo_band:upbeat")).toBe("Tempo: upbeat");
+    expect(tokenLabel("bogus:x")).toBe("bogus:x");
+    expect(tokenLabel("plain")).toBe("plain");
+  });
+  test("empty facets hide unless selected or shown all", () => {
+    const blocks = orderedFacets({ genre_family: [{ value: "pop", count: 2 }], mood: [] });
+    const names = (v: { shown: { facet: string }[] }) => v.shown.map((b) => b.facet);
+    expect(names(visibleFacets(blocks, [], false))).toEqual(["genre_family"]);
+    expect(visibleFacets(blocks, [], false).hidden).toBe(FACETS.length - 1);
+    expect(names(visibleFacets(blocks, ["mood:dreamy"], false))).toEqual(["genre_family", "mood"]);
+    expect(names(visibleFacets(blocks, [], true))).toHaveLength(FACETS.length);
   });
 });

@@ -15,6 +15,7 @@
     soundsToQuery,
     soundsToSearch,
     toggleSound,
+    visibleFacets,
     type MappableFacet,
     type SoundsState,
   } from "../lib/soundsView";
@@ -56,6 +57,8 @@
   let seq = 0;
 
   const blocks = $derived(result ? orderedFacets(result.facets) : []);
+  let showAll = $state(false);
+  const vis = $derived(visibleFacets(blocks, sel.sounds, showAll));
   const pills = $derived(selectedPills(sel.sounds));
   const canMap = $derived(me !== null && me.kind !== "device" && me.scopes.includes("write"));
 
@@ -176,9 +179,14 @@
   </section>
 
   <div class="facets" data-testid="facets">
-    {#each blocks as b (b.facet)}
+    {#each vis.shown as b (b.facet)}
       <FacetPanel block={b} selected={sel.sounds} ontoggle={(f, v) => commit({ ...sel, sounds: toggleSound(sel.sounds, f, v) })} />
     {/each}
+    {#if vis.hidden > 0 || showAll}
+      <button type="button" class="allfacets" aria-pressed={showAll} data-testid="show-all-facets" onclick={() => (showAll = !showAll)}>
+        {showAll ? "Hide empty facets" : `Show all facets (${vis.hidden} empty)`}
+      </button>
+    {/if}
   </div>
 
   <section aria-label="Songs" aria-busy={loading}>

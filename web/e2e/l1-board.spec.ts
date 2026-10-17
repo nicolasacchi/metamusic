@@ -12,6 +12,12 @@ const expect = baseExpect.configure({ timeout: 20_000 });
 
 test.describe.configure({ timeout: 120_000 });
 
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
+/** Phone: chips open the Song until the explicit Select mode is on (it also shows the action bar). */
+async function enterSelect(page: Page) {
+  if (isPhone(page)) await page.getByTestId("select-toggle").click();
+}
+
 interface BoardOut {
   totals: { songs: number; muses: number };
 }
@@ -36,7 +42,7 @@ test("the Board shows a Muse with its chips under their angles", async ({ page, 
     await expect(row).toHaveCount(1);
     await expect(row).toContainText(`Muse ${tag}`);
     await expect(row.getByTestId("song-chip")).toHaveCount(3);
-    const cols = page.getByTestId("board-column");
+    const cols = page.getByTestId(isPhone(page) ? "board-angle" : "board-column");
     await expect(cols.filter({ hasText: "alpha" })).toHaveCount(1);
     await expect(cols.filter({ hasText: "beta" })).toHaveCount(1);
     await expect(row.locator(`[data-song-id="${c.songId}"]`)).toBeVisible();
@@ -53,6 +59,7 @@ test("a new Muse takes two selected chips", async ({ page, request }) => {
     await page.goto(`/board?q=${tag}`);
     const chips = page.getByTestId("song-chip");
     await expect(chips).toHaveCount(2);
+    await enterSelect(page);
     await chips.nth(0).click();
     await chips.nth(1).click();
     await expect(page.getByTestId("selection-count")).toHaveText("2 selected");
@@ -110,7 +117,7 @@ test("the Board filters by session and by a Sound facet", async ({ page, request
 
   const pill = page.getByLabel("Sound facets").locator('button[aria-pressed="false"]').first();
   await expect(pill).toBeVisible();
-  const token = ((await pill.innerText()).split(/\s+/)[0] ?? "").trim();
+  const token = (await pill.getAttribute("data-sound")) ?? "";
   expect(token).toMatch(/^[a-z_]+:.+/);
   const soundURL = `/api/board?detail=counts&limit=1&sound=${encodeURIComponent(token)}`;
   const soundBefore = (await apiJSON<BoardOut>(request, "GET", soundURL)).totals.songs;
@@ -154,6 +161,7 @@ test("Estimate hands off to /human/generate with the draft count", async ({ page
   try {
     await page.goto(`/board?q=${tag}`);
     await expect(page.getByTestId("song-chip")).toHaveCount(3);
+    await enterSelect(page);
     await page.getByTestId("select-drafts").click();
     await expect(page.getByTestId("selection-count")).toHaveText("3 selected");
     const estimate = page.getByTestId("estimate");
@@ -176,10 +184,39 @@ test("selecting all drafts stops at the 50-take cap with a note", async ({ page,
     await assignSongs(request, muse.id, songs.map((s) => s.songId));
     await page.goto(`/board?muse=${muse.id}`);
     await expect(page.getByTestId("board-totals")).toContainText("52 songs");
+    await enterSelect(page);
     await page.getByTestId("select-drafts").click();
     await expect(page.getByTestId("selection-count")).toHaveText("50 selected");
     await expect(page.getByTestId("board-note")).toContainText("Selected the first 50 drafts");
     await expect(page.getByTestId("estimate")).toContainText("(50)");
+  } finally {
+    await archiveDrafts(request, songs.map((s) => s.draftId));
+  }
+});
+
+test("phone: tapping a chip opens its Song; Select mode shows the sticky action bar", async ({ page, request }) => {
+  test.skip(!isPhone(page), "phone layout");
+  const tag = uniq("l1b").toLowerCase();
+  const songs = await makeDraftSongs(request, 2, tag, true);
+  try {
+    await page.goto(`/board?q=${tag}`);
+    await expect(page.getByTestId("board-cards")).toBeVisible();
+    await expect(page.getByTestId("board-grid")).toHaveCount(0);
+    await expect(page.getByTestId("estimate")).toHaveCount(0);
+    const first = page.getByTestId("song-chip").first();
+    const id = (await first.getAttribute("data-song-id")) ?? "";
+    await first.click();
+    await expect(page).toHaveURL(new RegExp(`/songs/${id}$`));
+    await page.goBack();
+    await page.getByTestId("select-toggle").click();
+    await page.getByTestId("song-chip").first().click();
+    await expect(page.getByTestId("selection-count")).toHaveText("1 selected");
+    const bar = page.getByRole("toolbar", { name: "Selection actions" });
+    await expect(bar).toBeVisible();
+    await expect(page.getByTestId("estimate")).toBeVisible();
+    await expect(page.getByTestId("assign-open")).toBeEnabled();
+    const b = await bar.boundingBox();
+    expect((b?.y ?? 0) + (b?.height ?? 0)).toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) + 1);
   } finally {
     await archiveDrafts(request, songs.map((s) => s.draftId));
   }

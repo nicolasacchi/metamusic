@@ -42,11 +42,20 @@
     position: relative;
   }
   summary {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 2rem;
     cursor: pointer;
     padding: 0.25rem 0.6rem;
     border: 1px solid #8a7f74;
     border-radius: 0.3rem;
     user-select: none;
+  }
+  @media (pointer: coarse) {
+    summary {
+      min-height: var(--hit);
+    }
   }
   ul {
     list-style: none;
