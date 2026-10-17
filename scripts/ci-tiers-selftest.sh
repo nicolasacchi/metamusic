@@ -55,6 +55,7 @@ chk "a nightly job runs the shards with full race instrumentation" 'grep -q "MM_
 r="$tmp/repo"; mkdir -p "$r/scripts"; cp "$root/scripts/check-stamp.sh" "$r/scripts/"
 (
   cd "$r"; unset $(git rev-parse --local-env-vars); git init -q .
+  . "$root/scripts/selftest-lib.sh"; assert_scratch_repo "$r" "$root"
   echo a >a.txt; git add a.txt
   s=scripts/check-stamp.sh
   ! $s match >/dev/null 2>&1 || { echo "FAIL: match before any write"; exit 1; }
