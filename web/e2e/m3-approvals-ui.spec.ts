@@ -53,9 +53,14 @@ async function centre(target: Locator): Promise<void> {
 // control is what the browser hits at its centre.
 async function expectNotUnderPlayer(page: Page, target: Locator): Promise<void> {
   await centre(target);
-  const bar = await page.getByTestId("player-footer").boundingBox();
+  // the fixed bottom chrome: the player (absent on a phone while nothing is loaded) and, on a phone, the tab bar
+  const footer = await page.getByTestId("player-footer").boundingBox();
+  const tabs = await page.getByTestId("tabbar").boundingBox();
+  const vh = page.viewportSize()?.height ?? 0;
+  const tops = [footer, tabs && tabs.y > vh / 2 ? tabs : null].flatMap((x) => (x ? [x.y] : []));
   const box = await target.boundingBox();
-  if (!bar || !box) throw new Error("no box for the player bar or the control");
+  if (!box || tops.length === 0) throw new Error("no box for the control or the fixed bottom chrome");
+  const bar = { y: Math.min(...tops) };
   expect(box.y + box.height, "control ends above the player bar").toBeLessThanOrEqual(bar.y + 0.5);
   const hit = await target.evaluate((el) => {
     const r = el.getBoundingClientRect();
@@ -107,7 +112,7 @@ async function pendingCount(request: APIRequestContext): Promise<number> {
 test("a pending agent batch shows in the nav badge, the hub and Jobs, links to the confirm page and leaves the lists when decided", async ({ page, request, playwright, baseURL, agentToken }, info) => {
   const { batch, agentName, dispose } = await ownPendingBatch(request, playwright, baseURL, agentToken);
   try {
-    // the badge in the main navigation, also on a narrow viewport: other specs may decide batches at the same time,
+    // the badge on the More tab of the main navigation, also on a narrow viewport: other specs may decide batches at the same time,
     // so the count is only checked against a fresh server read taken in the same poll
     await page.goto("/");
     const badge = page.getByTestId("approvals-badge");
@@ -116,7 +121,8 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     await page.screenshot({ path: `test-results/approvals-badge-${info.project.name}.png` });
 
     // the badge leads to the human hub, whose Approvals section lists the batch
-    await press(page, page.getByTestId("approvals-nav"), "nav badge link");
+    await press(page, page.getByTestId("tab-more"), "More tab");
+    await press(page, page.getByTestId("approvals-nav"), "Approvals row");
     await expect(page).toHaveURL(/\/human\/$/);
     const row = page.locator(`[data-testid="approval-row"][data-batch="${batch.id}"]`);
     await expect(row).toBeVisible();
@@ -131,7 +137,8 @@ test("a pending agent batch shows in the nav badge, the hub and Jobs, links to t
     await page.goto(`/tracks/${t.id}`);
     await press(page, page.getByTestId("track-play"), "track play");
     await expect(page.getByTestId("player-footer")).toBeVisible();
-    await press(page, page.getByRole("link", { name: "Jobs", exact: true }), "Jobs nav link");
+    await press(page, page.getByTestId("tab-more"), "More tab");
+    await press(page, page.getByRole("main").getByRole("link", { name: "Jobs", exact: true }), "Jobs row");
     await expect(page).toHaveURL(/\/jobs$/);
     await expect(row).toBeVisible();
     await expectNotUnderPlayer(page, row.getByTestId("approval-link"));

@@ -1,6 +1,6 @@
 // matrix: @mobile because it covers the human pages (tokens, pairing and devices) the operator uses from the phone (pairing tests run on chrome only at run time)
 import { expect, test, type Browser, type BrowserContext } from "./fixtures";
-import { trackByTitle, uniq } from "./helpers";
+import { openNav, trackByTitle, uniq } from "./helpers";
 
 // Contexts inherit the project's `use` options, proxy identity headers included, unless overridden.
 // A paired device must arrive with none of them.
@@ -31,7 +31,7 @@ async function pairWith(ctx: BrowserContext, code: string) {
 test("the Tokens link is a full-page navigation; a token authenticates as an agent until revoked", async ({ page, playwright, baseURL }) => {
   await page.goto("/");
   const doc = page.waitForRequest((r) => r.resourceType() === "document" && new URL(r.url()).pathname === "/human/tokens");
-  await page.getByRole("link", { name: "Tokens" }).click();
+  await openNav(page, "Tokens");
   await doc;
   await expect(page.getByRole("heading", { name: "Tokens" })).toBeVisible();
 

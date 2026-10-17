@@ -21,6 +21,9 @@ export interface RouterState extends Location {
 /** Every SPA route (C40); specific before parametric. `/human/*` pages are served by the Go shell, never client-navigated. */
 export const APP_ROUTES: Route[] = [
   { pattern: "/", name: "home" },
+  { pattern: "/new", name: "new" },
+  { pattern: "/queue", name: "queue" },
+  { pattern: "/more", name: "more" },
   { pattern: "/tracks/:id", name: "track" },
   { pattern: "/board", name: "board" },
   { pattern: "/muses/:id", name: "muse" },

@@ -1,6 +1,6 @@
 // matrix: @mobile @realtime because rating and tagging happen from the player bar, whose controls must not overflow a phone viewport
-import { expect, test, type APIRequestContext } from "./fixtures";
-import { apiJSON, ownTracks, tap, uniqTag } from "./helpers";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
+import { apiJSON, openNav, ownTracks, tap, uniqTag } from "./helpers";
 
 // The tests share the project's seed track pair, so they run one after the other.
 test.describe.configure({ mode: "serial" });
@@ -15,12 +15,16 @@ async function reset(request: APIRequestContext, id: string, tags: string[]) {
   if (tags.length > 0) await apiJSON(request, "PATCH", `/api/tracks/${id}/tags`, { remove: tags });
 }
 
-test("rate 4 and set to_relisten from the player bar", async ({ page, request }, info) => {
+// The desktop player bar carries the judging controls; the phone mini-player does not (they live on the track page).
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
+const judgeBar = (page: Page) => page.getByTestId(isPhone(page) ? "track-judge" : "player-judge");
+
+test("rate 4 and set to_relisten from the player bar (on a phone: from the track page)", async ({ page, request }, info) => {
   const [t] = await ownTracks(request, info);
   try {
     await page.goto(`/tracks/${t.id}`);
     await page.getByTestId("track-play").click();
-    const bar = page.getByTestId("player-judge");
+    const bar = judgeBar(page);
     await expect(bar).toBeVisible();
     await tap(page, bar.getByRole("button", { name: "4 stars", exact: true }));
     await expect(bar.getByRole("button", { name: "4 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -40,14 +44,16 @@ test("the player bar with its judging controls never overflows the viewport", as
   const [t] = await ownTracks(request, info);
   await page.goto(`/tracks/${t.id}`);
   await page.getByTestId("track-play").click();
-  await expect(page.getByTestId("player-judge")).toBeVisible();
+  await expect(page.getByTestId("player-bar")).toBeVisible();
   // the visual viewport is what the user sees: overflow widens the layout viewport (innerWidth) instead
   const measure = () => page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.visualViewport?.width ?? window.innerWidth }));
   // client-side navigation keeps the player (and its judging controls) alive
   for (const where of ["track", "library", "backlog"]) {
-    if (where === "library") await page.getByRole("link", { name: "Library" }).click();
-    if (where === "backlog") await page.getByRole("link", { name: "Backlog" }).click();
-    await expect(page.getByTestId("player-judge")).toBeVisible();
+    if (where === "library") await openNav(page, "Library");
+    if (where === "backlog") await openNav(page, "Backlog");
+    await expect(page.getByTestId("player-bar")).toBeVisible();
+    if (isPhone(page)) expect((await page.getByTestId("player-footer").boundingBox())?.height ?? 0).toBeLessThanOrEqual(64);
+    else await expect(page.getByTestId("player-judge")).toBeVisible();
     const m = await measure();
     expect(m.sw, `scrollWidth ${m.sw} > visual viewport ${m.iw} on ${where}`).toBeLessThanOrEqual(m.iw);
   }

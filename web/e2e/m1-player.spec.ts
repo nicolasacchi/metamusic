@@ -1,5 +1,6 @@
 // matrix: @mobile @firefox @realtime because it is the player: touch seeking, signed ranged media, FLAC and auto-advance in the audio element
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
+import { openNav } from "./helpers";
 
 type Item = { id: string; title: string; duration_s: number };
 
@@ -71,12 +72,17 @@ test("playback persists across navigation", async ({ page, request }) => {
   await page.getByTestId("track-play").click();
   await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.2);
 
-  await page.getByRole("link", { name: "Library" }).click();
+  await openNav(page, "Library");
   await expect(page).toHaveURL(/\/$/);
-  await page.getByRole("link", { name: "Backlog" }).click();
+  await openNav(page, "Backlog");
   await expect(page).toHaveURL(/\/backlog$/);
   const a = await audioState(page);
+  // the bar's title opens the track on desktop; on a phone the mini-player body opens the play queue
   await page.getByTestId("player-bar").getByRole("link", { name: /Syn song 03/ }).click();
+  if ((page.viewportSize()?.width ?? 1280) < 768) {
+    await expect(page).toHaveURL(/\/queue$/);
+    await page.getByTestId("queue-now").getByRole("link", { name: /Syn song 03/ }).click();
+  }
   await expect(page).toHaveURL(new RegExp(`/tracks/${t?.id}$`));
 
   await expect(audio).toHaveAttribute("data-audio-id", id ?? "");

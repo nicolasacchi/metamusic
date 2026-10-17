@@ -1,6 +1,6 @@
 // matrix: @mobile @realtime because the player must survive an in-app route hop on the phone shell
 import { expect, test, type Page } from "./fixtures";
-import { apiJSON, ownTracks, uniq } from "./helpers";
+import { apiJSON, openNav, ownTracks, uniq } from "./helpers";
 
 // Saving a draft is an in-app hop: it must go through the SPA router, never a document load, or the player dies.
 // Each test starts playback on the project's own seed track, then proves the document survived the save: a window
@@ -47,7 +47,7 @@ async function archive(request: Parameters<typeof apiJSON>[0], id: string) {
 test("saving a new draft keeps the player playing (no document load)", async ({ page, request }, info) => {
   const [t] = await ownTracks(request, info);
   const before = await startPlayback(page, t.id);
-  await page.getByRole("link", { name: "Backlog" }).click();
+  await openNav(page, "Backlog");
   await page.getByRole("link", { name: "New draft" }).click();
   await expect(page).toHaveURL(/\/backlog\/new$/);
   await page.getByTestId("draft-label").fill("e2e playing new");
@@ -81,7 +81,7 @@ test("saving an existing draft, and keeping mine after a conflict, keep the play
   let mineId = "";
   try {
     const before = await startPlayback(page, t.id);
-    await page.getByRole("link", { name: "Backlog" }).click();
+    await openNav(page, "Backlog");
     await page.getByRole("link", { name: label }).first().click();
     await expect(page).toHaveURL(new RegExp(`/backlog/${made.id}$`));
     const lyrics = page.getByTestId("draft-lyrics");
