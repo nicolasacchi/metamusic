@@ -4,6 +4,8 @@ import { artworkList, type CoverSet } from "./coverLinks";
 export interface MSPlayer {
   title: string;
   album: string;
+  /** Blind listening: this label replaces the title, album and cover on the lock screen. */
+  mask?: string | null;
   state: { trackId: string; endOfQueue?: boolean; pendingPlay?: boolean };
   /** A next track exists (undefined: assume yes). */
   hasNext?: boolean;
@@ -79,7 +81,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   let asked = "";
   const wantArt = () => {
     const id = player.state.trackId;
-    if (!env.cover || !id || asked === id) return;
+    if (!env.cover || !id || asked === id || player.mask) return;
     asked = id;
     void env
       .cover(id)
@@ -97,11 +99,12 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
 
   const metadata = () => {
     if (!env.MediaMetadata) return;
+    const masked = player.mask ?? null;
     ms.metadata = new env.MediaMetadata({
-      title: player.title,
+      title: masked ?? player.title,
       artist: "metamusic",
-      album: player.album,
-      artwork: art && art.id === player.state.trackId ? art.list : artworkList(null),
+      album: masked !== null ? "" : player.album,
+      artwork: masked === null && art && art.id === player.state.trackId ? art.list : artworkList(null),
     });
     wantArt();
   };

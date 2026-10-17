@@ -43,7 +43,7 @@ export const TABS: TabDef[] = [
   { id: "new", label: "New", path: "/new" },
   { id: "library", label: "Library", path: "/" },
   { id: "queue", label: "Play queue", path: "/queue" },
-  { id: "judge", label: "Judge", path: "/duels" },
+  { id: "judge", label: "Judge", path: "/judge" },
   { id: "more", label: "More", path: "/more" },
 ];
 
@@ -57,6 +57,7 @@ const TAB_OF: Record<string, Tab> = {
   playlists: "library",
   playlist: "library",
   queue: "queue",
+  judge: "judge",
   duels: "judge",
   duel: "judge",
   ladder: "judge",
@@ -120,6 +121,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Takes", path: "/", tab: "library" },
   { label: "Sounds", path: "/sounds", tab: "library" },
   { label: "Playlists", path: "/playlists", tab: "library" },
+  { label: "One by one", path: "/judge", tab: "judge" },
   { label: "Duels", path: "/duels", tab: "judge" },
   { label: "Ladder", path: "/ladder", tab: "judge" },
   { label: "Board", path: "/board", tab: "more", group: "Make" },
@@ -154,6 +156,8 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "sounds";
     case "/playlists":
       return routeName === "playlists" || routeName === "playlist";
+    case "/judge":
+      return routeName === "judge";
     case "/duels":
       return routeName === "duels" || routeName === "duel";
     case "/ladder":
@@ -178,6 +182,7 @@ const TITLES: Record<string, string> = {
   playlist: "Playlist",
   lineage: "Lineage",
   queue: "Play queue",
+  judge: "Judge",
   duels: "Duels",
   duel: "Duel",
   ladder: "Ladder",
@@ -215,5 +220,5 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "playlists", "queue", "duels", "ladder", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
 }

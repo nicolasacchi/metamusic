@@ -1532,7 +1532,19 @@
                     "format": "int64",
                     "type": "integer"
                   },
+                  "song_angle": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "song_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "song_title": {
                     "type": [
                       "string",
                       "null"
@@ -8171,7 +8183,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -8400,7 +8412,19 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "song_angle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "song_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "song_title": {
                 "type": [
                   "string",
                   "null"

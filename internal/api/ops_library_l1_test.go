@@ -424,6 +424,10 @@ func trackAmendments(t *testing.T, r *servertest.Rig) {
 		if row["song_id"] != song["id"] {
 			t.Errorf("take %v: song_id %v", row["id"], row["song_id"])
 		}
+		// wave 4b: the Song's title and angle ride on the summary (null-safe: the angle may be unset)
+		if row["song_title"] != song["title"] || row["song_angle"] != song["angle"] {
+			t.Errorf("take %v: song_title/song_angle %v/%v, the Song has %v/%v", row["id"], row["song_title"], row["song_angle"], song["title"], song["angle"])
+		}
 		if row["is_pick"] == true {
 			picks++
 			if row["id"] != pickTake {
