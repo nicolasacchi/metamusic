@@ -6,6 +6,9 @@ import { session } from "../api/session";
 import { offline } from "./offline.svelte";
 import type { LocalSource } from "../api/offline";
 import type { components } from "../api/schema";
+import { createAudioFocus, type Lease, type LeaseHandlers, type LeaseOptions } from "./audioFocus";
+import { pushToast } from "./toast.svelte";
+import type { PlayerSnapshot, SavedPlayer, SavedSource } from "./playerStore";
 
 export type MediaLinks = components["schemas"]["MediaLinksOutBody"];
 export type Format = "flac" | "mp3";
@@ -74,6 +77,10 @@ export interface PlayerDeps {
   fetchMeta?(trackId: string): Promise<{ title: string; album: string } | null>;
   /** Warms the first bytes of a signed media URL (the next track) so the swap at `ended` starts quickly. */
   warm?(url: string): void;
+  /** A queue change or undo offer to announce (live region + toast); absent: silent. */
+  notice?(message: string, action?: { label: string; run(): void }): void;
+  /** Inside a user gesture (transient activation)? Decides whether a lease release may resume at once. */
+  inGesture?(): boolean;
 }
 
 export interface PlayOptions {
@@ -85,6 +92,22 @@ export interface PlayOptions {
   autoplay?: boolean;
   /** Fetches more queue entries (the next list page); asked when the queue is about to run out. */
   more?: () => Promise<string[]>;
+  /** Where the queue came from ("Playing from <label>", linking to href). Kept when the queue is only repositioned. */
+  source?: SavedSource;
+  /** An explicit replacement of a loaded queue: offer "Queue replaced · Undo" (backed by restoreQueue). */
+  undo?: boolean;
+}
+
+/** Everything restoreQueue needs to put a replaced queue back. */
+export interface QueueSnapshot {
+  queue: string[];
+  index: number;
+  queuedNext: number;
+  trackId: string;
+  position: number;
+  wasPlaying: boolean;
+  source: SavedSource | null;
+  more: (() => Promise<string[]>) | null;
 }
 
 /** A playback diagnostic; the listen recorder turns it into an outbox event (kinds autoplay_blocked|stall_end|advance|error). */
@@ -135,6 +158,12 @@ export class Player {
     pendingPlay: false,
     /** The queue played out: nothing is next (visible state, Media Session `none`). */
     endOfQueue: false,
+    /** "Playing from <label>" for the queue. */
+    source: null as SavedSource | null,
+    /** Restored from the last session, paused at this position (s): "Resume <title> at m:ss" needs one tap. */
+    restored: null as number | null,
+    /** A duel (audio focus lease) paused the player and gave the output back outside a gesture: "Resume <title>". */
+    held: false,
   });
 
   /* Non-reactive bookkeeping: nothing renders from these collections. */
@@ -179,9 +208,133 @@ export class Player {
   private sourceBusy = false;
   private sourceDone = false;
   private stopActivation: (() => void) | null = null;
+  private focus = createAudioFocus({
+    wasPlaying: () => this.wantPlay,
+    trackId: () => this.state.trackId,
+    // Not a user pause: the intent is remembered by the lease, and the lock screen must not offer a stale "pause".
+    suspend: () => {
+      this.wantPlay = false;
+      this.autoplay = false;
+      this.el?.pause();
+    },
+    resume: () => this.resume(),
+    hold: (on) => {
+      this.state.held = on;
+    },
+    inGesture: () => (this.deps.inGesture ? this.deps.inGesture() : false),
+    changed: () => this.notify(),
+  });
 
   constructor(deps: PlayerDeps) {
     this.deps = deps;
+  }
+
+  /**
+   * Borrow the audio output (a duel, an A/B comparison): the player pauses, and release({resume:true}) gives it back,
+   * resuming at once inside a gesture or leaving "Resume <title>" in the mini-player. Any user transport action on
+   * the player ends the lease. The lock screen's play/pause control the owner's handlers meanwhile.
+   */
+  acquireFocus(owner: string, o?: LeaseOptions): Lease {
+    return this.focus.acquire(owner, o);
+  }
+
+  /** The Media Session handlers of the current lease owner, or null when the player owns the transport. */
+  get leaseHandlers(): LeaseHandlers | null {
+    return this.focus.handlers();
+  }
+
+  private say(message: string, action?: { label: string; run(): void }) {
+    this.deps.notice?.(message, action);
+  }
+
+  /** "<verb>: <title>" once the title is known (cached or fetched); never blocks the queue change itself. */
+  private sayTitled(verb: string, id: string) {
+    if (!this.deps.notice) return;
+    const known = this.meta.get(id)?.title;
+    if (known) return this.say(`${verb}: ${known}`);
+    void this.loadMeta(id)
+      .catch(() => null)
+      .then((m) => this.say(`${verb}: ${m?.title ?? "this take"}`));
+  }
+
+  /** The queue as it is now, for a later restoreQueue. */
+  snapshotQueue(): QueueSnapshot {
+    const s = this.state;
+    return {
+      queue: [...s.queue],
+      index: s.index,
+      queuedNext: this.queuedNext,
+      trackId: s.trackId,
+      position: s.current,
+      wasPlaying: this.wantPlay,
+      source: s.source,
+      more: this.source,
+    };
+  }
+
+  /** Put a replaced queue back (the Undo of "Queue replaced"). Runs from a click: it may start playback. */
+  restoreQueue(p: QueueSnapshot) {
+    if (!p.trackId || !p.queue.includes(p.trackId)) return;
+    this.deps.device.onGesture?.();
+    this.start(p.trackId, p.queue, { startAt: p.position, autoplay: p.wasPlaying, ...(p.more ? { more: p.more } : {}), ...(p.source ? { source: p.source } : {}) });
+    this.queuedNext = Math.max(0, Math.min(p.queuedNext, p.queue.length - 1 - this.state.index));
+    this.say("Queue restored");
+  }
+
+  /** The persistable part of the state (ids and numbers only): see playerStore.ts. */
+  snapshot(): PlayerSnapshot {
+    const s = this.state;
+    return {
+      queue: [...s.queue],
+      index: s.index,
+      queuedNext: this.queuedNext,
+      position: s.current,
+      trackId: s.trackId,
+      source: s.source,
+    };
+  }
+
+  /**
+   * Boot restore (D2): the saved queue comes back PAUSED at its position; nothing plays and no media is fetched
+   * but the link of the current track, minted ahead so the one tap that resumes can apply it synchronously.
+   */
+  restore(v: SavedPlayer): boolean {
+    const s = this.state;
+    if (s.trackId || !v.trackId) return false;
+    this.epoch++;
+    this.queuedNext = v.queuedNext;
+    this.setQueueSource(null);
+    s.queue = [...v.queue];
+    s.index = v.queue.indexOf(v.trackId);
+    s.trackId = v.trackId;
+    s.source = v.source;
+    s.current = v.position;
+    s.duration = 0;
+    s.restored = v.position;
+    s.playing = false;
+    s.pendingPlay = false;
+    s.endOfQueue = false;
+    s.error = "";
+    this.autoplay = false;
+    this.wantPlay = false;
+    this.pendingSeek = v.position > 0 ? v.position : null;
+    this.syncMeta(v.trackId);
+    void this.links(v.trackId);
+    this.notify();
+    return true;
+  }
+
+  /**
+   * The page became visible again: a long-paused track's signed link may have expired meanwhile. Mint it now (into
+   * the cache only) so the next tap applies it inside the gesture. A playing track is never touched: its src is
+   * never swapped from under it.
+   */
+  prewarmPaused() {
+    const s = this.state;
+    if (!s.trackId || s.playing || this.wantPlay) return;
+    if (this.localEligible(s.trackId) && this.localInfo.get(s.trackId)) return;
+    if (this.cached(s.trackId)) return;
+    void this.links(s.trackId);
   }
 
   configure(d: Partial<PlayerDeps>) {
@@ -257,6 +410,7 @@ export class Player {
     const vis = () => {
       if (doc.visibilityState !== "visible") return;
       this.tick();
+      this.prewarmPaused();
       act();
     };
     const types = ["click", "keydown", "touchend"];
@@ -283,10 +437,11 @@ export class Player {
   }
 
   /** Insert a track right after the current one (after earlier "play next" entries). */
-  playNext(trackId: string) {
+  playNext(trackId: string, quiet = false) {
     const s = this.state;
     if (!s.trackId) {
       this.load(trackId, [trackId]);
+      if (!quiet) this.sayTitled("Plays next", trackId);
       return;
     }
     if (trackId === s.trackId) return;
@@ -304,18 +459,87 @@ export class Player {
     s.index = index;
     this.prefetchNext();
     this.notify();
+    if (!quiet) this.sayTitled("Plays next", trackId);
   }
 
-  /** Append a track to the end of the queue. */
+  /** "Add to queue": append a track to the end; already queued (not the current one): move it to the end. */
   enqueue(trackId: string) {
     const s = this.state;
     if (!s.trackId) {
       this.load(trackId, [trackId]);
+      this.sayTitled("Added to queue", trackId);
       return;
     }
-    if (!s.queue.includes(trackId)) s.queue = [...s.queue, trackId];
+    if (trackId === s.trackId) return this.sayTitled("Already playing", trackId);
+    const q = [...s.queue];
+    const at = q.indexOf(trackId);
+    let index = s.index;
+    if (at !== -1) {
+      q.splice(at, 1);
+      if (at < index) index--;
+      else if (at <= index + this.queuedNext) this.queuedNext--;
+    }
+    q.push(trackId);
+    s.queue = q;
+    s.index = index;
     this.prefetchNext();
     this.notify();
+    this.sayTitled(at !== -1 ? "Moved to the end of the queue" : "Added to queue", trackId);
+  }
+
+  /** Remove an upcoming (or already played) entry; the current track cannot be removed. */
+  remove(i: number): boolean {
+    const s = this.state;
+    if (!Number.isInteger(i) || i < 0 || i >= s.queue.length || i === s.index) return false;
+    const id = s.queue[i]!;
+    const q = [...s.queue];
+    q.splice(i, 1);
+    if (i < s.index) s.index--;
+    else if (i <= s.index + this.queuedNext) this.queuedNext--;
+    s.queue = q;
+    this.prefetchNext();
+    this.notify();
+    this.sayTitled("Removed from the queue", id);
+    return true;
+  }
+
+  /**
+   * Move an upcoming entry to position `to` (its index after the move). Both positions are after the current
+   * track; the current track and the history stay put. An entry moved into the "play next" run joins it, one
+   * moved out of it leaves it.
+   */
+  move(from: number, to: number): boolean {
+    const s = this.state;
+    const n = s.queue.length;
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from === to) return false;
+    if (from <= s.index || to <= s.index || from >= n || to >= n) return false;
+    const id = s.queue[from]!;
+    const q = [...s.queue];
+    q.splice(from, 1);
+    let qn = this.queuedNext;
+    if (from <= s.index + qn) qn--;
+    q.splice(to, 0, id);
+    if (to <= s.index + qn) qn++;
+    s.queue = q;
+    this.queuedNext = qn;
+    this.prefetchNext();
+    this.notify();
+    this.sayTitled(to < from ? "Moved up" : "Moved down", id);
+    return true;
+  }
+
+  /** Drop everything after the current track (and the source that would refill it). */
+  clearUpcoming(): boolean {
+    const s = this.state;
+    if (s.index < 0 || s.index + 1 >= s.queue.length) return false;
+    const dropped = s.queue.length - s.index - 1;
+    s.queue = s.queue.slice(0, s.index + 1);
+    this.queuedNext = 0;
+    this.setQueueSource(null);
+    this.sourceDone = true;
+    this.notify();
+    this.say(dropped === 1 ? "Cleared 1 upcoming take" : `Cleared ${dropped} upcoming takes`);
+    return true;
   }
 
   setQueueSource(more: (() => Promise<string[]>) | null) {
@@ -326,7 +550,11 @@ export class Player {
   /** Start playing a track (optionally with a queue it belongs to). Must be called from a user gesture. */
   play(trackId: string, queue?: string[], opts: PlayOptions = {}) {
     this.deps.device.onGesture?.();
+    const s = this.state;
+    const replaces = !!opts.undo && s.trackId !== "" && trackId !== s.trackId && (queue !== undefined || !s.queue.includes(trackId));
+    const prev = replaces ? this.snapshotQueue() : null;
     this.start(trackId, queue, opts);
+    if (prev) this.say("Queue replaced", { label: "Undo", run: () => this.restoreQueue(prev) });
   }
 
   /** Load a track paused; if it is already current, just seek. */
@@ -351,6 +579,7 @@ export class Player {
 
   /** User pause: the only place playback intent is cleared. */
   pause() {
+    this.focus.interrupt();
     this.wantPlay = false;
     this.autoplay = false;
     this.el?.pause();
@@ -361,6 +590,9 @@ export class Player {
     const el = this.el;
     if (!el || !this.state.trackId) return;
     this.deps.device.onGesture?.();
+    this.focus.interrupt();
+    this.state.held = false;
+    this.state.restored = null;
     this.wantPlay = true;
     this.autoplay = true;
     this.playCause = "resume";
@@ -379,7 +611,7 @@ export class Player {
       this.seek(0);
     }
     this.state.endOfQueue = false;
-    if (el.error || (el.readyState === 0 && !this.cached(this.state.trackId))) {
+    if (el.error || this.appliedTrack !== this.state.trackId || (el.readyState === 0 && !this.cached(this.state.trackId))) {
       // Errored element (failed FLAC and MP3), or nothing was ever fetched (preload=none) and the
       // links expired meanwhile: apply/mint a source again instead of play()ing a dead element.
       const at = this.state.current;
@@ -399,11 +631,11 @@ export class Player {
     this.state.current = t;
   }
 
-  next() {
+  next(startAt?: number) {
     const s = this.state;
     if (s.index + 1 < s.queue.length) {
       if (this.queuedNext > 0) this.queuedNext--;
-      this.goto(s.index + 1);
+      this.goto(s.index + 1, startAt);
     }
   }
 
@@ -484,20 +716,24 @@ export class Player {
     return p;
   }
 
-  private goto(index: number) {
+  private goto(index: number, startAt?: number) {
     const id = this.state.queue[index];
     if (id === undefined) return;
-    this.start(id, this.state.queue, { autoplay: true });
+    this.start(id, this.state.queue, { autoplay: true, ...(startAt !== undefined ? { startAt } : {}) });
   }
 
   private start(trackId: string, queue: string[] | undefined, opts: PlayOptions) {
     const s = this.state;
+    this.focus.interrupt();
     this.epoch++;
     const q = queue && queue.includes(trackId) ? [...queue] : queue ? [trackId] : s.queue.includes(trackId) ? s.queue : [trackId];
     if (queue || !s.queue.includes(trackId)) {
       this.queuedNext = 0;
       this.setQueueSource(opts.more ?? null);
-    }
+      s.source = opts.source ?? null;
+    } else if (opts.source) s.source = opts.source;
+    s.held = false;
+    s.restored = null;
     s.queue = q;
     s.index = q.indexOf(trackId);
     s.trackId = trackId;
@@ -988,6 +1224,8 @@ export const player = new Player({
   now: () => Date.now(),
   fetchMeta: (id) => resolveMeta(id, getTrackRef),
   warm,
+  notice: (message, action) => void pushToast(message, { kind: "info", ...(action ? { action, ms: 8000 } : {}) }),
+  inGesture: () => typeof navigator !== "undefined" && !!(navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive,
   local: offline.hooks,
   hasController: () => typeof navigator !== "undefined" && !!navigator.serviceWorker?.controller,
   online: () => typeof navigator === "undefined" || navigator.onLine !== false,

@@ -8,6 +8,7 @@
   import { judge } from "../judge.svelte";
   import { pinAction } from "../songView";
   import PickBadge from "./PickBadge.svelte";
+  import QueueButtons from "./QueueButtons.svelte";
   import StarRating from "./StarRating.svelte";
   import StatusSelect from "./StatusSelect.svelte";
   import TempoBadge from "./TempoBadge.svelte";
@@ -107,6 +108,7 @@
   </p>
   <div class="wave">
     <button type="button" class="play" onclick={() => play()} aria-label={isCurrent && player.state.playing ? "Pause" : "Play"} data-testid="take-play">{#if isCurrent && player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button>
+    {#if !isCurrent}<QueueButtons id={take.id} title={take.title} />{/if}
     <div class="w"><Waveform {peaks} {duration} current={position} onseek={(s) => play(s)} {bits} height={48} label="Waveform of {take.title}" /></div>
   </div>
   <div class="row">

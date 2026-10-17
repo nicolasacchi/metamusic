@@ -77,11 +77,11 @@ test("playback persists across navigation", async ({ page, request }) => {
   await openNav(page, "Backlog");
   await expect(page).toHaveURL(/\/backlog$/);
   const a = await audioState(page);
-  // the bar's title opens the track on desktop; on a phone the mini-player body opens the play queue
+  // the bar's title opens the track on desktop; on a phone the mini-player body opens the now-playing sheet
   await page.getByTestId("player-bar").getByRole("link", { name: /Syn song 03/ }).click();
   if ((page.viewportSize()?.width ?? 1280) < 768) {
-    await expect(page).toHaveURL(/\/queue$/);
-    await page.getByTestId("queue-now").getByRole("link", { name: /Syn song 03/ }).click();
+    await expect(page.getByTestId("now-playing")).toBeVisible();
+    await page.getByTestId("now-playing").getByRole("link", { name: "Open take" }).click();
   }
   await expect(page).toHaveURL(new RegExp(`/tracks/${t?.id}$`));
 

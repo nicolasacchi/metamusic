@@ -60,8 +60,11 @@ test("the phone footer stays within 64 px while playing and sits above the tab b
   const bar = await page.getByRole("navigation", { name: "Main" }).boundingBox();
   expect(footer?.height ?? 999).toBeLessThanOrEqual(64);
   expect((footer?.y ?? 0) + (footer?.height ?? 0)).toBeLessThanOrEqual((bar?.y ?? 0) + 1);
-  // the mini-player body opens the queue, which lists the track playing
+  // the mini-player body opens the now-playing sheet; the Play queue tab lists the track playing
   await page.getByTestId("player-bar").getByRole("link").click();
+  await expect(page.getByTestId("now-playing")).toBeVisible();
+  await page.getByTestId("np-close").click();
+  await openNav(page, "Play queue");
   await expect(page).toHaveURL(/\/queue$/);
   await expect(page.getByTestId("queue-now")).toBeVisible();
   // the last row of a long page can be scrolled clear of both bars (client navigation keeps the player)

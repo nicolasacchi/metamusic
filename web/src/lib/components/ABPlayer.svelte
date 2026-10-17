@@ -4,6 +4,7 @@
   import { createAB, playGesture, type AB, type Slot } from "../ab";
   import { getAudioContext } from "../audioContext";
   import { player } from "../player.svelte";
+  import type { Lease } from "../audioFocus";
 
   interface Props {
     aUrl: string;
@@ -25,6 +26,8 @@
   let raf = 0;
   let aborter: AbortController | null = null;
   let firstPlayed = false;
+  /** Audio focus lease on the main player: held from the first Play until the verdict or leaving the duel. */
+  let lease: Lease | null = null;
 
   async function loadPair(urls: { aUrl: string; bUrl: string }, signal: AbortSignal) {
     const ctx = getAudioContext();
@@ -79,7 +82,12 @@
   /** Play handler: ctx.resume() runs synchronously inside the click (iOS), before any await. */
   export function play() {
     if (!ab) return;
-    player.pause();
+    // Borrow the output instead of pausing the player for good: the verdict (or leaving the route) gives it back.
+    lease = player.acquireFocus("duel", {
+      handlers: { play: () => play(), pause: () => pause(), playing: () => playing },
+      // The shared AudioContext only stops holding the iOS audio session; it is never closed.
+      onEnd: () => void getAudioContext().suspend().catch(() => {}),
+    });
     if (ab.playing) {
       void ab.resume();
     } else {
@@ -92,11 +100,19 @@
     }
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(tick);
+    lease?.changed();
   }
   export function pause() {
     if (!ab) return;
     void ab.pause();
     playing = false;
+    lease?.changed();
+  }
+  /** Verdict submitted or duel left: stop the A/B and hand the audio back (resume at once inside the gesture). */
+  export function releaseFocus(o: { resume?: boolean } = { resume: true }) {
+    if (playing) pause();
+    lease?.release(o);
+    lease = null;
   }
   export function playPause() {
     if (playing) pause();
@@ -129,6 +145,8 @@
   }
 
   onDestroy(() => {
+    lease?.release({ resume: true });
+    lease = null;
     aborter?.abort();
     cancelAnimationFrame(raf);
     ab?.dispose();

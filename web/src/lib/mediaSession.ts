@@ -9,6 +9,8 @@ export interface MSPlayer {
   hasNext?: boolean;
   /** The user wants playback (survives the element being paused during a src swap). */
   playIntent?: boolean;
+  /** Audio focus lease owner's transport (a duel): while set, play/pause control it and prev/next do nothing. */
+  leaseHandlers?: { play(): void; pause(): void; playing(): boolean } | null;
   prev(): void;
   next(): void;
   seek(s: number): void;
@@ -57,10 +59,14 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
         /* action unsupported by this browser */
       }
     };
-    set("play", () => player.resume());
-    set("pause", () => player.pause());
-    set("previoustrack", () => player.prev());
-    set("nexttrack", player.hasNext === false ? null : () => player.next());
+    set("play", () => (player.leaseHandlers ? player.leaseHandlers.play() : player.resume()));
+    set("pause", () => (player.leaseHandlers ? player.leaseHandlers.pause() : player.pause()));
+    set("previoustrack", () => {
+      if (!player.leaseHandlers) player.prev();
+    });
+    set("nexttrack", player.hasNext === false ? null : () => {
+      if (!player.leaseHandlers) player.next();
+    });
     set("seekto", (d) => {
       if (typeof d.seekTime === "number") player.seek(d.seekTime);
     });
@@ -124,7 +130,9 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   const state = () => {
     const st = player.state;
     let v: string;
-    if (st.endOfQueue) v = "none";
+    const lease = player.leaseHandlers;
+    if (lease) v = lease.playing() ? "playing" : "paused";
+    else if (st.endOfQueue) v = "none";
     else if (st.pendingPlay) v = "paused";
     else v = (player.playIntent ?? !el.paused) ? "playing" : "paused";
     try {

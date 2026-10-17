@@ -1,6 +1,7 @@
 // Per-track judging state (rating, status, tags) with optimistic updates and rollback (C40.1).
 import { api as appApi, RateLimited, type createApi } from "../api/client";
 import type { components } from "../api/schema";
+import { pushToast } from "./toast.svelte";
 
 type Api = ReturnType<typeof createApi>;
 type TagRef = components["schemas"]["TagRef"];
@@ -170,25 +171,7 @@ export function createTagSuggestions(api: Api) {
   };
 }
 
-export interface Toast {
-  id: number;
-  message: string;
-}
-/** App-wide toast list; mutated in place (never reassigned). */
-export const toasts = $state<Toast[]>([]);
-let toastSeq = 0;
-const TOAST_MS = 6000;
-
-export function dismissToast(id: number) {
-  const i = toasts.findIndex((t) => t.id === id);
-  if (i >= 0) toasts.splice(i, 1);
-}
-
-export function pushToast(message: string) {
-  const id = ++toastSeq;
-  toasts.push({ id, message });
-  setTimeout(() => dismissToast(id), TOAST_MS);
-}
+export { dismissToast, pushToast, toasts, type Toast } from "./toast.svelte";
 
 /** The app-wide judging store. */
 export const judge = createJudge({ api: appApi, notify: pushToast });

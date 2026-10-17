@@ -20,6 +20,7 @@
   import LineageDuels from "../lib/components/LineageDuels.svelte";
   import TrackBadges from "../lib/components/TrackBadges.svelte";
   import PickBadge from "../lib/components/PickBadge.svelte";
+  import QueueButtons from "../lib/components/QueueButtons.svelte";
   import RecipeUnknownPanel from "../lib/components/RecipeUnknownPanel.svelte";
   import CoverArt from "../lib/components/CoverArt.svelte";
   import DownloadFlacButton from "../lib/components/DownloadFlacButton.svelte";
@@ -143,7 +144,11 @@
     const tr = track;
     const start = parseT(t);
     if (!tr || tr.id !== id || start === null) return;
-    player.load(id, untrack(() => trackPageQueue(id, player.state.queue, tr.lineage.siblings)), { title: tr.title, startAt: start, autoplay: false });
+    // A deep link never takes over the player: it seeks only when the take is the current one. Only a cold
+    // load (nothing loaded, nothing restored) keeps the old behaviour of loading the take paused.
+    const loaded = untrack(() => player.state.trackId);
+    if (loaded === id) player.load(id, undefined, { title: tr.title, startAt: start, autoplay: false });
+    else if (loaded === "") player.load(id, untrack(() => trackPageQueue(id, player.state.queue, tr.lineage.siblings)), { title: tr.title, startAt: start, autoplay: false });
     navigate?.(`/tracks/${encodeURIComponent(id)}`, true);
   });
 
@@ -174,7 +179,7 @@
       if (!player.state.playing) player.toggle();
       return;
     }
-    player.play(id, trackPageQueue(id, player.state.queue, track.lineage.siblings), { title: track.title, ...(startAt !== undefined ? { startAt } : {}) });
+    player.play(id, trackPageQueue(id, player.state.queue, track.lineage.siblings), { title: track.title, undo: true, ...(startAt !== undefined ? { startAt } : {}) });
   }
   function seek(s: number) {
     if (isCurrent) player.seek(s);
@@ -219,6 +224,7 @@
       <button type="button" data-testid="track-play" onclick={() => play()}>
         {isCurrent && player.state.playing ? "Pause" : "Play"}
       </button>
+      {#if !isCurrent}<QueueButtons id={id} title={track.title} />{/if}
       <span class="time" data-testid="track-time">{fmt(position)} / {fmt(duration)}</span>
       <GenerateButton trackId={id} recipeKnown={track.recipe_known} lossy={track.lossy} {me} />
     </div>

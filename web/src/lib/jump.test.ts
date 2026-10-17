@@ -4,14 +4,33 @@ import { jumpTo, type JumpPlayer } from "./jump";
 function fake(trackId: string, paused: boolean, duration = 100) {
   const calls: string[] = [];
   const player: JumpPlayer = {
-    state: { trackId, duration },
+    state: { trackId, duration, current: 12 },
+    title: "Old title",
+    playNext: (id, quiet) => void calls.push(`playNext ${id} ${String(quiet)}`),
+    next: (at) => void calls.push(`next ${String(at)}`),
     el: { paused },
     seek: (s) => void calls.push(`seek ${s}`),
     resume: () => void calls.push("resume"),
     play: (id, q, o) => void calls.push(`play ${id} ${String(q)} ${JSON.stringify(o)}`),
   };
   const nav: string[] = [];
-  return { player, calls, nav, deps: { player, navigate: (to: string) => void nav.push(to) } };
+  const backs: string[] = [];
+  const backRuns: (() => void)[] = [];
+  return {
+    player,
+    calls,
+    nav,
+    backs,
+    backRuns,
+    deps: {
+      player,
+      navigate: (to: string) => void nav.push(to),
+      offerBack: (title: string, run: () => void) => {
+        backs.push(title);
+        backRuns.push(run);
+      },
+    },
+  };
 }
 
 describe("jumpTo", () => {
@@ -26,11 +45,21 @@ describe("jumpTo", () => {
     jumpTo("t1", 72, f.deps);
     expect(f.calls).toEqual(["seek 72"]);
   });
-  test("other track: navigates and plays with startAt", () => {
+  test("other track while one is loaded: play next + next + seek, queue kept, Back offered", () => {
     const f = fake("t1", false);
     jumpTo("t2", 72, f.deps);
     expect(f.nav).toEqual(["/tracks/t2?t=72"]);
+    expect(f.calls).toEqual(["playNext t2 true", "next 72"]);
+    expect(f.backs).toEqual(["Old title"]);
+    f.backRuns[0]!();
+    expect(f.calls.at(-1)).toBe('play t1 undefined {"startAt":12,"title":"Old title"}');
+  });
+  test("nothing loaded: plays the take with startAt (no Back offer)", () => {
+    const f = fake("", true);
+    jumpTo("t2", 72, f.deps);
+    expect(f.nav).toEqual(["/tracks/t2?t=72"]);
     expect(f.calls).toEqual(['play t2 undefined {"startAt":72}']);
+    expect(f.backs).toEqual([]);
   });
   test("t is clamped to [0, duration]", () => {
     const f = fake("t1", false, 100);

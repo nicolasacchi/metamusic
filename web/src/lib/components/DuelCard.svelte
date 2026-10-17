@@ -41,7 +41,7 @@
       const switches = player?.stats().switches ?? 0;
       const latency = firstPlayAt > 0 ? Math.round(performance.now() - firstPlayAt) : 0;
       result = await onsubmit({ verdict: chosen, note: note.trim(), latency_ms: latency, switches });
-      player?.pause();
+      player?.releaseFocus({ resume: true });
     } catch (e) {
       error = e instanceof Error ? e.message : "Could not submit";
     } finally {

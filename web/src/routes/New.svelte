@@ -182,9 +182,10 @@
 
   // ---- playing
 
-  /** The label the mini-player shows; PlayOptions.source exists once the player lane lands. */
-  function opts(base: PlayOptions & { source?: string }): PlayOptions {
-    return base;
+  /** "Playing from <label>" links back here; an explicit replacement of a loaded queue offers Undo. */
+  function opts(base: Omit<PlayOptions, "source"> & { source: string }): PlayOptions {
+    const { source, ...rest } = base;
+    return { ...rest, source: { label: source, href: "/new" }, undo: true };
   }
   function moreNew(): () => Promise<string[]> {
     let cursor = nextCursor;
