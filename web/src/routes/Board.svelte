@@ -145,7 +145,7 @@
       note = bad;
       return;
     }
-    startGeneration(sessionStorage, intent, (to) => location.assign(to));
+    startGeneration(sessionStorage, intent, navigate);
   }
   async function assign(muse: { id: string; title: string }) {
     const r = await assignSongs(api, muse.id, [...selection.ids]);

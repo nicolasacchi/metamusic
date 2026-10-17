@@ -2,6 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { get } from "svelte/store";
 import { createApi, RateLimited } from "./client";
 import { createSession } from "./session";
+import { createStepUp, type StepUpDeps } from "./stepup";
+
+function stepDeps(events: string[] = []): StepUpDeps {
+  return {
+    open: () => true,
+    assign: () => {},
+    here: () => "/human/",
+    snapshot: () => void events.push("snapshot"),
+    standalone: () => false,
+    listen: () => () => {},
+    gateOpen: async () => true,
+  };
+}
 
 function setup(respond: (req: Request) => Response | Promise<Response>, playing = false) {
   const seen: Request[] = [];
@@ -106,32 +119,19 @@ describe("429 and step-up handling", () => {
     expect((err as RateLimited).retryAfterS).toBe(30);
   });
 
-  test("403 STEP_UP_REQUIRED navigates to the step-up form", async () => {
+  test("403 STEP_UP_REQUIRED with no second tab falls back to the full-page step-up form, snapshotting first", async () => {
     const assigned: string[] = [];
-    const seen: string[] = [];
+    const events: string[] = [];
     const api = createApi({
       baseUrl: "http://localhost",
       session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
       fetch: async () => problem(403, "STEP_UP_REQUIRED")(),
-      assign: (u) => void assigned.push(u),
-      currentPath: () => "/human/tokens?x=1",
+      stepUp: createStepUp({ ...stepDeps(events), open: () => false, assign: (u) => void assigned.push(u), here: () => "/human/tokens?x=1" }),
     });
     const r = await api.GET("/api/ping");
-    seen.push(String(r.response.status));
+    expect(r.response.status).toBe(403);
     expect(assigned).toEqual(["/auth/step-up?next=" + encodeURIComponent("/human/tokens?x=1")]);
-  });
-
-  test("403 STEP_UP_REQUIRED on /human/tokens goes to /auth/step-up?next=/human/tokens", async () => {
-    const assigned: string[] = [];
-    const api = createApi({
-      baseUrl: "http://localhost",
-      session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
-      fetch: async () => problem(403, "STEP_UP_REQUIRED")(),
-      assign: (u) => void assigned.push(u),
-      currentPath: () => "/human/tokens",
-    });
-    await api.GET("/human/api/tokens" as never, {} as never).catch(() => {});
-    expect(decodeURIComponent(assigned[0] ?? "")).toBe("/auth/step-up?next=/human/tokens");
+    expect(events).toEqual(["snapshot"]);
   });
 
   test("other 403s do not navigate", async () => {
@@ -140,7 +140,7 @@ describe("429 and step-up handling", () => {
       baseUrl: "http://localhost",
       session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} } }),
       fetch: async () => problem(403, "FORBIDDEN")(),
-      assign: (u) => void assigned.push(u),
+      stepUp: createStepUp({ ...stepDeps(), open: () => false, assign: (u) => void assigned.push(u) }),
     });
     await api.GET("/api/ping");
     expect(assigned).toEqual([]);

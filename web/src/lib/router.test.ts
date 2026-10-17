@@ -58,9 +58,9 @@ describe("isServerPath", () => {
 });
 
 describe("human and pairing pages", () => {
-  test("/human (the hub; /human/ is stripped to it), /start and /pair are server paths, never client-routed", () => {
-    for (const p of ["/human", "/human/tokens", "/human/devices", "/start", "/pair", "/pair/x"]) expect(isServerPath(p)).toBe(true);
-    for (const p of ["/humane", "/started", "/pairs"]) expect(isServerPath(p)).toBe(false);
+  test("only /human/api is a server path; every /human page is client-routed (D1), /start and /pair stay server pages", () => {
+    for (const p of ["/human/api", "/human/api/devices", "/start", "/pair", "/pair/x"]) expect(isServerPath(p)).toBe(true);
+    for (const p of ["/human", "/human/", "/human/tokens", "/human/devices", "/human/spend", "/human/generate", "/human/confirm/b1", "/humane", "/started", "/pairs", "/human/apix"]) expect(isServerPath(p)).toBe(false);
   });
 });
 
@@ -124,8 +124,8 @@ describe("M4a routes (C115)", () => {
     expect(name("/offline")).toBe("offline");
     expect(name("/human/connectors")).toBe("human-connectors");
     expect(name("/human/subsonic")).toBe("human-subsonic");
-    expect(isServerPath("/human/connectors")).toBe(true);
-    expect(isServerPath("/human/subsonic")).toBe(true);
+    expect(isServerPath("/human/connectors")).toBe(false);
+    expect(isServerPath("/human/subsonic")).toBe(false);
     expect(isServerPath("/offline")).toBe(false);
   });
   test("the worker script and the Subsonic API are server paths", () => {

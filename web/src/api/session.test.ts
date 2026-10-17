@@ -136,7 +136,7 @@ describe("session loss", () => {
   test("POST is never retried", async () => {
     const { session } = setup();
     const { api, seen } = client(session, typeErr);
-    await expect(api.POST("/human/api/x" as never, {} as never)).rejects.toBeInstanceOf(TypeError);
+    await expect(api.POST("/api/x" as never, {} as never)).rejects.toBeInstanceOf(TypeError);
     expect(seen).toHaveLength(1);
   });
   test("PUT is retried once with its body intact", async () => {
@@ -146,7 +146,7 @@ describe("session loss", () => {
       bodies.push(await req.clone().text());
       return n === 1 ? typeErr() : json();
     });
-    await api.PUT("/human/api/devices/{device_id}" as never, { params: { path: { device_id: "a" } }, body: { a: 1 } } as never);
+    await api.PUT("/api/devices/{device_id}" as never, { params: { path: { device_id: "a" } }, body: { a: 1 } } as never);
     expect(seen).toHaveLength(2);
     expect(bodies[1]).toBe(bodies[0]!);
   });

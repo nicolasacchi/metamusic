@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"database/sql"
+	_ "embed"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -333,6 +334,20 @@ func (l *LocalAuth) StepUpFresh(p Principal) bool {
 	return !p.StepUpAt.IsZero() && l.now().Sub(p.StepUpAt) <= stepUpWindow
 }
 
+// StepUpUntil is the instant until which a local human session's password confirmation lets /human/ calls through
+// (the epoch when it never confirmed); nil when step-up does not apply to p (proxy mode leaves it to the edge's
+// two-factor rule, and agents, devices and other sessions never reach /human/).
+func StepUpUntil(p Principal) *time.Time {
+	if p.Kind != KindHuman || p.Via != "local" {
+		return nil
+	}
+	t := time.Unix(0, 0).UTC()
+	if !p.StepUpAt.IsZero() {
+		t = p.StepUpAt.Add(stepUpWindow).UTC()
+	}
+	return &t
+}
+
 // StepUp verifies the operator's password for the session behind cookieValue
 // and records the confirmation (D-M2a-13). It is bounded like Login.
 func (l *LocalAuth) StepUp(ctx context.Context, cookieValue, password string) error {
@@ -368,9 +383,16 @@ func (l *LocalAuth) StepUp(ctx context.Context, cookieValue, password string) er
 
 const defaultNext = "/human/tokens"
 
-// safeNext confines a post-step-up redirect to the /human/ area: it must
+// stepUpDonePath is the one page outside /human/ a step-up may land on: the second-tab flow ends there (it tells the
+// tab that opened it, over BroadcastChannel, that the confirmation is done).
+const stepUpDonePath = "/auth/step-up/done"
+
+// safeNext confines a post-step-up redirect to the /human/ area (or the exact step-up done page): it must
 // start with /human/ and contain no "//", backslash or control character.
 func safeNext(next string) string {
+	if next == stepUpDonePath {
+		return next
+	}
 	if !strings.HasPrefix(next, "/human/") || strings.Contains(next, "//") || strings.Contains(next, `\`) {
 		return defaultNext
 	}
@@ -401,6 +423,33 @@ func writeStepUp(w http.ResponseWriter, status int, next, msg string) {
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, stepUpPage, msg, html.EscapeString(next))
+}
+
+//go:embed stepupdone.js
+var stepUpDoneJS []byte
+
+const stepUpDoneBody = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>metamusic - confirmed</title></head>
+<body><main><h1>Confirmed</h1><p role="status">%s</p>%s</main></body></html>`
+
+// writeStepUpDone answers GET /auth/step-up/done. The page only carries the script that signals the opener when
+// this session's confirmation really is fresh; otherwise it says so and links back to the form. Either way the
+// signal is a hint: the retried request is gated by the server on its own.
+func writeStepUpDone(w http.ResponseWriter, fresh bool) {
+	h := w.Header()
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	h.Set("Cache-Control", "no-store")
+	h.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("X-Content-Type-Options", "nosniff")
+	if !fresh {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, stepUpDoneBody, "Your password was not confirmed.", `<p><a href="/auth/step-up?next=`+stepUpDonePath+`">Confirm your password</a></p>`)
+		return
+	}
+	fmt.Fprintf(w, stepUpDoneBody, "You can close this tab; the other one continues.", `<script src="/auth/step-up/done.js" defer></script>`)
 }
 
 func (l *LocalAuth) Logout(ctx context.Context, cookieValue string) error {
@@ -488,6 +537,26 @@ func (l *LocalAuth) Handler() http.Handler {
 	})))
 	mux.HandleFunc("GET /auth/step-up", func(w http.ResponseWriter, r *http.Request) {
 		writeStepUp(w, 200, safeNext(r.URL.Query().Get("next")), "")
+	})
+	mux.HandleFunc("GET /auth/step-up/done", func(w http.ResponseWriter, r *http.Request) {
+		fresh := false
+		for i, c := range r.CookiesNamed(l.CookieName()) {
+			if i >= maxSessionCookies {
+				break
+			}
+			if p, err := l.VerifySession(r.Context(), c.Value); err == nil {
+				fresh = l.StepUpFresh(p)
+				break
+			}
+		}
+		writeStepUpDone(w, fresh)
+	})
+	mux.HandleFunc("GET /auth/step-up/done.js", func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Content-Type", "text/javascript; charset=utf-8")
+		h.Set("Cache-Control", "no-store")
+		h.Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write(stepUpDoneJS)
 	})
 	mux.Handle("POST /auth/step-up", cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)

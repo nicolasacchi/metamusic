@@ -5825,6 +5825,8 @@ export interface components {
             name: string;
             /** @description Granted scopes */
             scopes: string[];
+            /** @description RFC 3339 UTC: until when a recent password confirmation lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode, agents, devices) */
+            step_up_until: string | null;
             /** @description How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app) */
             via: string;
         };

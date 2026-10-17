@@ -8,8 +8,8 @@
     recipeKnown: boolean;
     lossy: boolean;
     me: Viewer | null;
-    /** Defaults to a full-page navigation (the /human/generate page reads the intent from sessionStorage). */
-    go?: (to: string) => void;
+    /** Client-router navigation to /human/generate (the page reads the intent from sessionStorage). */
+    go: (to: string) => void;
   }
   let { trackId, recipeKnown, lossy, me, go }: Props = $props();
 
@@ -21,7 +21,7 @@
   ];
 
   function pick(mode: VariantMode) {
-    startGeneration(sessionStorage, variantIntent(trackId, mode), go ?? ((to) => location.assign(to)));
+    startGeneration(sessionStorage, variantIntent(trackId, mode), go);
   }
 </script>
 

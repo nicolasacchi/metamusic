@@ -54,7 +54,7 @@
       {#if x.cost}<span class="muted" data-testid="lineage-cost">{formatMicroUSD(x.cost.display_micro_usd)}</span>{/if}
       {#if r.collapsed}<span class="muted">(+{r.hidden} hidden)</span>{/if}
       <span class="actions">
-        <GenerateButton trackId={x.id} recipeKnown={x.recipe_known} lossy={x.lossy} {me} />
+        <GenerateButton trackId={x.id} recipeKnown={x.recipe_known} lossy={x.lossy} {me} go={navigate ?? pushNavigate} />
         {#if x.parent_id}
           <button type="button" disabled={busy === x.id} onclick={() => void ab(x.parent_id ?? "", x.id)} data-testid="lineage-ab-parent">A/B with parent</button>
           <a href="/compare?a={x.parent_id}&b={x.id}" data-testid="lineage-compare">Compare</a>

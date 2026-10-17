@@ -175,6 +175,12 @@ export function persistEnv(): PersistEnv {
   };
 }
 
+/** Saves the player right now (same rule as the automatic saves). For the moments the page may be about to unload. */
+export function persistNow(player: Persisted, env: PersistEnv = persistEnv()): void {
+  // A restored, not yet resumed player keeps its original save time: looking at it must not extend the 24 h.
+  if (player.state.trackId && player.state.restored === null) save(env.kv, player.snapshot(), env.now());
+}
+
 /**
  * Saves on track change / queue edit (mm:state; a position-only change is the interval's job), pause, visibilitychange:hidden, pagehide, and every 5 s while
  * playing. Returns a cleanup. Call after the boot restore so an empty player never overwrites a saved queue.
@@ -182,10 +188,7 @@ export function persistEnv(): PersistEnv {
 export function installPersistence(player: Persisted, env: PersistEnv = persistEnv()): () => void {
   const el = player.el;
   if (!el) return () => {};
-  const write = () => {
-    // A restored, not yet resumed player keeps its original save time: looking at it must not extend the 24 h.
-    if (player.state.trackId && player.state.restored === null) save(env.kv, player.snapshot(), env.now());
-  };
+  const write = () => persistNow(player, env);
   const onHidden = () => {
     if (env.doc.visibilityState === "hidden") write();
   };

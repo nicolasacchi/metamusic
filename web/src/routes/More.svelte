@@ -1,9 +1,8 @@
 <script lang="ts">
   import { api } from "../api/client";
   import type { components } from "../api/schema";
-  import { NAV_LINKS, createNav, type NavLink } from "../lib/nav";
-  import { player } from "../lib/player.svelte";
-  import { offline } from "../lib/offline.svelte";
+  import { NAV_LINKS } from "../lib/nav";
+    import { offline } from "../lib/offline.svelte";
   import { approvals } from "../lib/approvals.svelte";
   import { badgeText } from "../lib/approvals";
   import LockIcon from "../lib/components/icons/LockIcon.svelte";
@@ -24,15 +23,8 @@
     })();
   });
 
-  // /human/* is always a full-page load so the server's second-factor / step-up check runs first.
-  const nav = createNav({ assign: (u) => location.assign(u), route: () => {} });
-  const click = (e: MouseEvent, l: NavLink) => {
-    if (l.secure) nav.onLinkClick(e, l.path);
-  };
-
   const GROUPS = ["Make", "Library tools", "Settings", "Secure"] as const;
   const rows = (g: string) => NAV_LINKS.filter((l) => l.group === g && (l.path !== "/offline" || offline.available));
-  const busy = $derived(player.state.playing || player.state.pendingPlay);
   const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
 </script>
 
@@ -46,7 +38,6 @@
         <li>
           <a
             href={l.path}
-            onclick={(e) => click(e, l)}
             data-testid={l.testid}
             aria-label={l.testid === "approvals-nav" && approvalBadge ? `Approvals, ${approvalBadge} pending` : undefined}
           >
@@ -55,7 +46,6 @@
             {#if l.testid === "approvals-nav" && approvalBadge}<span class="badge" data-testid="approvals-row-badge">{approvalBadge}</span>{/if}
             {#if l.secure}
               <span class="lock" title="Secure page"><LockIcon size={16} /></span>
-              {#if busy}<small class="muted" data-testid="secure-note">opens a secure page</small>{/if}
             {/if}
           </a>
         </li>

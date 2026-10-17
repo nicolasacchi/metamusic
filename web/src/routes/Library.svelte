@@ -117,7 +117,7 @@
   const intent = $derived(templateIntent([...selected], templateMode));
   const selError = $derived(selected.size === 0 ? "" : (validateIntent(intent) ?? ""));
   function toGenerate(i: ReturnType<typeof templateIntent>) {
-    startGeneration(sessionStorage, i, (to) => location.assign(to));
+    startGeneration(sessionStorage, i, navigate);
   }
 
   /**

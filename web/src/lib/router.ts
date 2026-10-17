@@ -19,7 +19,7 @@ export interface RouterState extends Location {
   params: Record<string, string>;
 }
 
-/** Every SPA route (C40); specific before parametric. `/human/*` pages are served by the Go shell, never client-navigated. */
+/** Every SPA route (C40); specific before parametric. `/human/*` pages are SPA routes too (D1); only `/human/api` belongs to the server. */
 export const APP_ROUTES: Route[] = [
   { pattern: "/", name: "home" },
   { pattern: "/new", name: "new" },
@@ -61,7 +61,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/human/subsonic", name: "human-subsonic" },
 ];
 
-const SERVER_PREFIXES = ["/api", "/human", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];
+const SERVER_PREFIXES = ["/api", "/human/api", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];
 
 /** Paths owned by the Go server; links to them must be left to the browser. */
 export function isServerPath(path: string): boolean {
