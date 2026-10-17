@@ -35,7 +35,7 @@ const slot = (info: TestInfo) => (info.project.name === "chrome" ? 0 : 1);
 
 test("library filter Recipe: unknown lists exactly the reference and lossy tracks, with chips", async ({ page, request }) => {
   const errors = watchConsole(page);
-  await page.goto("/");
+  await page.goto("/library");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
   await page.locator('select[name="recipe_known"]').selectOption("false");
   await expect(page).toHaveURL(/recipe_known=false/);

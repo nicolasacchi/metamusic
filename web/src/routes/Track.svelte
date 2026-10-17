@@ -190,7 +190,7 @@
 
 {#if error}
   <p role="alert">{error}</p>
-  <p><a class="tap" href="/">Back to the library</a></p>
+  <p><a class="tap" href="/library">Back to the library</a></p>
 {:else if !track}
   <p class="muted">Loading…</p>
 {:else}

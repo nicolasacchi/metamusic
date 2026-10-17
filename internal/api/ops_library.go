@@ -14,7 +14,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
 		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/library"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -36,7 +36,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "get_library_facets", Method: "GET", Path: "/api/library/facets",
 		Summary:     "Get library facets",
 		Description: "Top style terms, status counts and duration and recording-date ranges, for building filters.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/library"},
 		func(ctx context.Context, _ *empty) (*facetsOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")

@@ -340,7 +340,7 @@
     {/key}
   {:else if done}
     <p data-testid="judge-done">All done: {st.rated} rated.</p>
-    <p><a class="btn" href="/">Back to the Library</a></p>
+    <p><a class="btn" href="/library">Back to the Library</a></p>
   {:else}
     <p class="muted" data-testid="judge-empty">Nothing to judge here. {src.kind === "unrated" ? "Every take has a rating." : ""}</p>
   {/if}

@@ -100,7 +100,7 @@ test("library filters: status, two tags AND, min stars, back/forward", async ({ 
   const search = (r: { url(): string }) => new URL(r.url()).pathname === "/api/tracks";
   const params = (r: { url(): string }) => new URL(r.url()).searchParams;
   try {
-    await page.goto("/");
+    await page.goto("/library");
     await expect(page.getByTestId("track-row").first()).toBeVisible();
     await openFilters(page);
 

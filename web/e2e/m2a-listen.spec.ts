@@ -47,7 +47,7 @@ test("boot makes one device-probe request, not a loop", async ({ page }) => {
     if (new URL(r.url()).pathname === "/api/device-probe") probes++;
   });
   await page.clock.install(); // timers only: a retry loop would show within five virtual seconds
-  await page.goto("/");
+  await page.goto("/library");
   await expect(page.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await page.clock.runFor(5000);
   expect(probes).toBeLessThanOrEqual(2);
@@ -127,7 +127,7 @@ test("leaving the page sends a beacon and the next load adds no duplicates", asy
 
   // the beaconed rows stay in the outbox until the next load re-sends them; the server dedups by id
   const next = await context.newPage();
-  await next.goto("/");
+  await next.goto("/library");
   await expect(next.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
   await expect.poll(() => pending(next), { timeout: 15_000 }).toBe(0);
   await expect.poll(() => plays(request, t.id), { timeout: 15_000 }).toBe(before + 1);

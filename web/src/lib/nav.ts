@@ -14,8 +14,8 @@ export interface TabDef {
 }
 
 export const TABS: TabDef[] = [
-  { id: "new", label: "New", path: "/new" },
-  { id: "library", label: "Library", path: "/" },
+  { id: "new", label: "New", path: "/" },
+  { id: "library", label: "Library", path: "/library" },
   { id: "queue", label: "Play queue", path: "/queue" },
   { id: "judge", label: "Judge", path: "/judge" },
   { id: "more", label: "More", path: "/more" },
@@ -92,7 +92,7 @@ export interface NavLink {
 
 /** Every static destination reachable from its tab: sub-views (Library, Judge) and the More page rows. */
 export const NAV_LINKS: NavLink[] = [
-  { label: "Takes", path: "/", tab: "library" },
+  { label: "Takes", path: "/library", tab: "library" },
   { label: "Sounds", path: "/sounds", tab: "library" },
   { label: "Playlists", path: "/playlists", tab: "library" },
   { label: "One by one", path: "/judge", tab: "judge" },
@@ -124,7 +124,7 @@ export function subLinks(tab: Tab): NavLink[] {
 /** Whether a sub-view is the current page. */
 export function subActive(l: NavLink, routeName: string | null | undefined): boolean {
   switch (l.path) {
-    case "/":
+    case "/library":
       return routeName === "home" || routeName === "track" || routeName === "lineage" || routeName === "song";
     case "/sounds":
       return routeName === "sounds";

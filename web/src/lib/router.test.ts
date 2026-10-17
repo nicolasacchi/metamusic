@@ -64,11 +64,12 @@ describe("human and pairing pages", () => {
   });
 });
 
-import { APP_ROUTES } from "./router";
+import { APP_ROUTES, legacyUrl } from "./router";
 
 describe("APP_ROUTES (C40)", () => {
   const cases: [string, string, Record<string, string>?][] = [
-    ["/", "home"],
+    ["/", "new"],
+    ["/library", "home"],
     ["/tracks/abc", "track", { id: "abc" }],
     ["/backlog", "backlog"],
     ["/backlog/new", "draft-new"],
@@ -326,5 +327,21 @@ describe("scroll restoration (P0-9)", () => {
       g.window = prev;
     }
     expect(seen).toEqual(["mm:route-ready"]);
+  });
+});
+
+describe("legacy Library URLs at the root", () => {
+  test("a root URL with a query moves to /library with the query kept exactly", () => {
+    expect(legacyUrl("/", "?status=draft&tag=a%20b&tag=c")).toBe("/library?status=draft&tag=a%20b&tag=c");
+    expect(legacyUrl("/", "?recipe_known=true", "#x")).toBe("/library?recipe_known=true#x");
+  });
+  test("/new, the old address of New, is the root now", () => {
+    expect(legacyUrl("/new", "")).toBe("/");
+    expect(legacyUrl("/new/", "")).toBe("/");
+  });
+  test("a bare root stays New; other paths are untouched", () => {
+    expect(legacyUrl("/", "")).toBeNull();
+    expect(legacyUrl("/", "?")).toBeNull();
+    expect(legacyUrl("/library", "?status=draft")).toBeNull();
   });
 });

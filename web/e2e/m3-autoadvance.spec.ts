@@ -96,7 +96,7 @@ test.beforeEach(async ({ page }) => {
 async function startFirst(page: Page, list: Item[], index: number) {
   const t = list[index];
   if (!t) throw new Error("seed track missing");
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByRole("button", { name: `Play ${t.title}`, exact: true }).click();
   await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
   return t;
@@ -240,7 +240,7 @@ test("@realtime strict autoplay: every track change starts or asks for a tap, ne
     await expect(toggle).toHaveAttribute("aria-label", "Pause");
     await expect.poll(async () => (await audioState(page)).t, { timeout: 8000 }).toBeGreaterThan(0.1);
   };
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByRole("button", { name: `Play ${first.title}`, exact: true }).click();
   await settle();
   // no seeking: the take plays out and the player advances (or asks) on its own
@@ -309,7 +309,7 @@ test("@realtime strict autoplay: tap-to-continue starts the 2 s FLAC take", asyn
     };
     for (const t of ["playing", "timeupdate"]) document.addEventListener(t, seen, true);
   });
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByRole("button", { name: `Play ${first.title}`, exact: true }).click();
   const tap = page.getByTestId("player-continue");
   await expect(tap).toBeVisible({ timeout: 10_000 });

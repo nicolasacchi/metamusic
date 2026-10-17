@@ -73,7 +73,7 @@ test("playback persists across navigation", async ({ page, request }) => {
   await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.2);
 
   await openNav(page, "Library");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/library$/);
   await openNav(page, "Backlog");
   await expect(page).toHaveURL(/\/backlog$/);
   const a = await audioState(page);
@@ -100,7 +100,7 @@ test("@realtime auto-advances to the next queue track without a gap", async ({ p
   const i = list.findIndex((x) => x.title === "Syn song 02");
   const next = list[i + 1];
   if (!next) throw new Error("no track after Syn song 02");
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByRole("button", { name: "Play Syn song 02" }).click();
   await expect.poll(async () => (await audioState(page)).t, { timeout: 5000 }).toBeGreaterThan(0.1);
   // no seek: the take ends by itself

@@ -12,7 +12,7 @@ async function expectTouchable(page: Page, where: string) {
 
 test("library shows music above the fold", async ({ page }) => {
   test.skip(!isPhone(page), "phone layout");
-  await page.goto("/");
+  await page.goto("/library");
   const row = page.getByTestId("track-row").first();
   await expect(row).toBeVisible();
   const box = await row.boundingBox();
@@ -28,7 +28,7 @@ test("touch targets: Library, New, Track, Backlog and Duel", async ({ page, requ
   const { root, child } = await siblings(request);
   const duel = await createDuel(request, root.id, child.id);
 
-  await page.goto("/");
+  await page.goto("/library");
   await expect(page.getByTestId("track-row").first()).toBeVisible();
   await expectTouchable(page, "library");
   await page.getByTestId("filters-open").click();

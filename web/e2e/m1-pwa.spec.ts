@@ -77,7 +77,7 @@ test("media session handlers and metadata", async ({ page, request }) => {
 
 test.describe("session loss", () => {
   test("401 while paused reloads", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/library");
     await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
     await markAlive(page);
     let first = true;
@@ -112,7 +112,7 @@ test.describe("session loss", () => {
   });
 
   test("one aborted request then success does not reload", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/library");
     await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
     await markAlive(page);
     let first = true;
@@ -130,7 +130,7 @@ test.describe("session loss", () => {
   });
 
   test("two aborts and a redirecting ping reload while paused", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/library");
     await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
     await markAlive(page);
     let aborts = 0;

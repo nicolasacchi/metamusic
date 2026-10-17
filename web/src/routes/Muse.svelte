@@ -143,6 +143,7 @@
 
     <section aria-labelledby="muse-songs-h">
       <h2 id="muse-songs-h">Songs <span class="muted">({detail.songs_total})</span></h2>
+      {#if detail.coverage.rendered > 0}<p><a class="btn" href="/judge?muse={encodeURIComponent(m.id)}" data-testid="muse-judge">Judge takes one by one</a></p>{/if}
       <div class="songs">
         {#each detail.songs as s (s.id)}
           <SongChip chip={summaryToChip(s)} href="/songs/{encodeURIComponent(s.id)}" />

@@ -72,7 +72,7 @@
 
 <h1>Generate</h1>
 {#if !intent}
-  <p data-testid="no-intent">Nothing to generate yet. Start from a <a href="/">track</a>, the <a href="/backlog">backlog</a> or the library.</p>
+  <p data-testid="no-intent">Nothing to generate yet. Start from a <a href="/library">track</a>, the <a href="/backlog">backlog</a> or the library.</p>
 {:else}
   <p class="muted" data-testid="intent-summary">
     {intent.mode.replaceAll("_", " ")}

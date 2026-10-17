@@ -355,7 +355,7 @@ test("a toast over the open sheet sits clear of the transport and stars, and the
 
 test("a restored Library queue keeps paging", async ({ page, request }) => {
   const [a, b] = await four(request);
-  await page.goto("/");
+  await page.goto("/library");
   await page.getByRole("button", { name: `Play ${a.title}`, exact: true }).click();
   await expect.poll(async () => (await audio(page)).t, { timeout: 10_000 }).toBeGreaterThan(0.2);
   await page.getByTestId("play-toggle").click(); // pause: nothing drifts
@@ -364,7 +364,7 @@ test("a restored Library queue keeps paging", async ({ page, request }) => {
   await expect.poll(() => page.evaluate(() => localStorage.getItem("mm:player:v1") ?? "")).toContain('"source":{"label":"Library"');
   // edit the storage from a second tab: this page's own pagehide would save its full queue over the edit
   const tab = await page.context().newPage();
-  await tab.goto("/");
+  await tab.goto("/library");
   await tab.evaluate(
     ([x, y]) => {
       const s = JSON.parse(localStorage.getItem("mm:player:v1") ?? "{}") as Record<string, unknown>;
