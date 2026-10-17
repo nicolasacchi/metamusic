@@ -26,7 +26,7 @@ const generation: Gen = {
   recipe_patch_json: null,
 } as unknown as Gen;
 
-const gb = (t: { recipe_known: boolean; lossy: boolean }, me: Viewer | null) => html(GenerateButton, { trackId: "t1", recipeKnown: t.recipe_known, lossy: t.lossy, me });
+const gb = (t: { recipe_known: boolean; lossy: boolean }, me: Viewer | null) => html(GenerateButton, { trackId: "t1", recipeKnown: t.recipe_known, lossy: t.lossy, me, go: () => {} });
 
 describe("GenerateButton visibility", () => {
   test("humans with generate see the Variant menu on a known lossless track", () => {

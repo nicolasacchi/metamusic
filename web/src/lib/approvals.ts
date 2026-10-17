@@ -100,3 +100,10 @@ export async function loadRecentDecisions(client: DecisionsClient): Promise<Pend
     return null;
   }
 }
+
+/** whoami.step_up_until: a time at or before now means the next /human call asks for a confirmation first. null: step-up does not apply. */
+export function stepUpExpired(until: string | null | undefined, now: number): boolean {
+  if (!until) return false;
+  const t = Date.parse(until);
+  return Number.isFinite(t) && t <= now;
+}

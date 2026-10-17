@@ -23,6 +23,8 @@ type whoamiOut struct {
 		Name   string   `json:"name" doc:"Username or token name"`
 		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
 		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)"`
+		// StepUpUntil is null when the second factor is the edge's (proxy mode) or the caller is not a local human session.
+		StepUpUntil *string `json:"step_up_until" nullable:"true" doc:"RFC 3339 UTC: until when a recent password confirmation lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode, agents, devices)"`
 	}
 }
 
@@ -59,6 +61,10 @@ func registerSystem(a huma.API, d Deps) {
 			p := auth.FromContext(ctx)
 			out := &whoamiOut{}
 			out.Body.Kind, out.Body.Name, out.Body.Via = string(p.Kind), p.Name, p.Via
+			if t := auth.StepUpUntil(p); t != nil {
+				v := t.Format(time.RFC3339)
+				out.Body.StepUpUntil = &v
+			}
 			out.Body.Scopes = make([]string, 0, len(p.Scopes))
 			for _, s := range p.Scopes {
 				out.Body.Scopes = append(out.Body.Scopes, string(s))

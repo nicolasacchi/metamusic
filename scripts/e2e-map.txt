@@ -46,6 +46,9 @@ web/src/lib/components/BackupList.svelte	m2a-backup
 web/src/routes/SettingsAudit.svelte	m2a-audit
 web/src/lib/components/AuditTable.svelte	m2a-audit
 web/src/routes/HumanDevices.svelte	m2a-human
+web/src/api/stepup*	ux-secure
+web/src/lib/components/SecureGate.svelte	ux-secure m2a-human m4a-human
+web/src/lib/components/StepUpBanner.svelte	ux-secure
 web/src/routes/HumanConfirm.svelte	m2a-human
 web/src/lib/components/PairingPanel.svelte	m2a-human
 web/src/lib/humanView.ts	m2a-human
@@ -135,7 +138,7 @@ internal/importer/*	m1-import
 internal/upload/*	m1-import m1-backlog
 internal/library/*	m1-library m1-track
 internal/trackctx/*	m2a-context
-internal/auth/*	m2a-human
+internal/auth/*	m2a-human ux-secure
 internal/analysis/*	m1-track
 internal/media/cover/*	m4a-track
 internal/media/tagged/*	m4a-track

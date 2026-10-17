@@ -3,6 +3,8 @@
   import type { components } from "../api/schema";
   import { formatMicroUSD, formatMicroUSDCeil } from "../lib/money";
   import { pushToast } from "../lib/judge.svelte";
+  import { approvals } from "../lib/approvals.svelte";
+  import { stepUpExpired } from "../lib/approvals";
 
   type Batch = components["schemas"]["Batch"];
   type Budget = components["schemas"]["Budget"];
@@ -33,6 +35,14 @@
     void id;
     void load();
   });
+
+  // Local mode only (null elsewhere): tell the operator before the tap that Approve will ask for the password first.
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 15_000);
+    return () => clearInterval(t);
+  });
+  const confirmNeeded = $derived(stepUpExpired(approvals.stepUpUntil, now));
 
   const pending = $derived(b?.state === "awaiting_confirmation");
 
@@ -105,6 +115,11 @@
       <label>Reason (required to reject)
         <input type="text" bind:value={reason} maxlength="500" data-testid="decision-reason" />
       </label>
+      {#if confirmNeeded}
+        <p class="muted" role="status" data-testid="confirm-needed">
+          Password confirmation needed: Approve or Reject opens it in a new tab, then continues here.
+        </p>
+      {/if}
       <p>
         <button type="button" class="primary" disabled={busy} onclick={() => decide(true)} data-testid="approve">Approve</button>
         <button type="button" disabled={busy} onclick={() => decide(false)} data-testid="reject">Reject</button>

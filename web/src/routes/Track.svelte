@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushNavigate } from "../lib/abParent";
   import { untrack } from "svelte";
   import { api } from "../api/client";
   import type { components } from "../api/schema";
@@ -226,7 +227,7 @@
       </button>
       {#if !isCurrent}<QueueButtons id={id} title={track.title} />{/if}
       <span class="time" data-testid="track-time">{fmt(position)} / {fmt(duration)}</span>
-      <GenerateButton trackId={id} recipeKnown={track.recipe_known} lossy={track.lossy} {me} />
+      <GenerateButton trackId={id} recipeKnown={track.recipe_known} lossy={track.lossy} {me} go={navigate ?? pushNavigate} />
     </div>
 
     <div class="controls" data-testid="track-actions">

@@ -173,7 +173,7 @@
   function generate() {
     const i = draftsIntent([...selected]);
     if (validateIntent(i)) return;
-    startGeneration(sessionStorage, i, (to) => location.assign(to));
+    startGeneration(sessionStorage, i, navigate);
   }
 
   function submit(e: Event) {

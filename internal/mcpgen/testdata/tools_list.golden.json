@@ -9654,6 +9654,12 @@
           },
           "type": "array"
         },
+        "step_up_until": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "via": {
           "type": "string"
         }

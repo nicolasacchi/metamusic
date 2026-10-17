@@ -1,32 +1,6 @@
-// Navigation to /human/* is always a full-page load (C40): the request must reach the server so the
-// edge two-factor rule or the local step-up check runs before the page shell is served.
-export function isHumanPath(path: string): boolean {
-  const p = path.split(/[?#]/, 1)[0] ?? "";
-  return p === "/human" || p.startsWith("/human/");
-}
-
-export interface NavDeps {
-  assign(url: string): void;
-  /** The client router's navigate. */
-  route(to: string): void;
-}
-
-export function createNav(deps: NavDeps) {
-  return {
-    navigate(to: string) {
-      if (isHumanPath(to)) deps.assign(to);
-      else deps.route(to);
-    },
-    /** Click handler for an <a href>; returns true when it took over. */
-    onLinkClick(e: MouseEvent, href: string): boolean {
-      if (!isHumanPath(href)) return false;
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
-      e.preventDefault();
-      deps.assign(href);
-      return true;
-    },
-  };
-}
+// Secure (/human/*) pages are ordinary SPA routes (D1): an in-app click renders them without a document load, so the
+// music keeps playing. Nothing here gates anything: their data calls hit /human/api/*, which the server gates on its own,
+// and a DOCUMENT request to /human/* (typed URL, notification link) still goes through the edge and the step-up check.
 
 // App shell (wave 2): five tabs, listen-first. Every route belongs to exactly one tab (tabFor); the phone tab bar and the
 // desktop top nav render the same groups. Make (Board, Backlog, Jobs, Generate) lives under More.
@@ -100,7 +74,7 @@ export function mappedRouteNames(): string[] {
   return Object.keys(TAB_OF);
 }
 
-/** The /human/* pages: a full-page load through the server's second-factor / step-up check (secure). */
+/** The /human/* pages: SPA routes whose data is gated server-side (/human/api, edge two-factor or local step-up). */
 export function isSecureRoute(routeName: string | null | undefined): boolean {
   return !!routeName && (routeName === "human" || routeName.startsWith("human-"));
 }

@@ -14,6 +14,8 @@ function rig(handler: Handler) {
     baseUrl: "http://localhost",
     session: createSession({ reload: () => {}, storage: { getItem: () => null, setItem: () => {} }, sleep: async () => {}, onLine: () => true, fetch: async () => new Response("{}") }),
     fetch: async (req) => {
+      // the client's "is the app reachable?" probe after a failed /human/api call: the app is down in these tests
+      if (new URL(req.url).pathname === "/api/ping") return new Response("down", { status: 503 });
       keys.push(req.headers.get("Idempotency-Key"));
       paths.push(new URL(req.url).pathname);
       return handler(req, n++);

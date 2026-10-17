@@ -116,6 +116,7 @@
     {#if budget.caps.tokens.length === 0}
       <p class="muted">No agent tokens have limits. Blank fields use the defaults above.</p>
     {:else}
+      <div class="scroll">
       <table data-testid="token-limits">
         <thead><tr><th scope="col">Token</th><th scope="col">Daily (USD)</th><th scope="col">Auto-approve takes</th><th scope="col">Auto-approve (USD)</th></tr></thead>
         <tbody>
@@ -132,6 +133,7 @@
           {/each}
         </tbody>
       </table>
+      </div>
     {/if}
     {#if capsError}<p role="alert" data-testid="caps-error">{capsError}</p>{/if}
     <p><button type="submit" class="primary" disabled={busy} data-testid="save-caps">Save caps</button></p>
@@ -176,6 +178,10 @@
 {/if}
 
 <style>
+  /* a wide table scrolls inside the page: it must not widen the layout viewport (the tab bar would leave the screen on a phone) */
+  .scroll {
+    overflow-x: auto;
+  }
   label {
     display: grid;
     gap: 0.2rem;

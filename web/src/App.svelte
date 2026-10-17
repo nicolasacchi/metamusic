@@ -17,12 +17,15 @@
   import PlayerDock from "./lib/components/PlayerDock.svelte";
   import NowPlayingSheet from "./lib/components/NowPlayingSheet.svelte";
   import { installSheet, sheet } from "./lib/nowPlaying.svelte";
-  import { installPersistence, load as loadSaved, persistEnv } from "./lib/playerStore";
+  import { installPersistence, load as loadSaved, persistEnv, persistNow } from "./lib/playerStore";
   import TopBar from "./lib/components/shell/TopBar.svelte";
   import TabBar from "./lib/components/shell/TabBar.svelte";
   import SubNav from "./lib/components/shell/SubNav.svelte";
   import { viewport } from "./lib/viewport.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
+  import StepUpBanner from "./lib/components/StepUpBanner.svelte";
+  import SecureGate from "./lib/components/SecureGate.svelte";
+  import { setStepUpSnapshot } from "./api/stepup";
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
   import Backlog from "./routes/Backlog.svelte";
@@ -181,6 +184,8 @@
       const saved = loadSaved(env.kv, env.now());
       if (saved) player.restore(saved);
       const offPersist = installPersistence(player, env);
+      // Before a confirmation takes the user away from this page (second tab, or the full-page fallback), save the queue.
+      setStepUpSnapshot(() => persistNow(player, env));
       return () => {
         offPersist();
         offSheet();
@@ -202,6 +207,7 @@
 
   <main style:--player-h="{playerH}px">
     <SessionBanner />
+    <StepUpBanner />
     {#if isTabRoot(routeName)}<SubNav tab={tabFor(routeName)} {routeName} />{/if}
     {#if waitingWorker}
       <p class="update" role="status" data-testid="sw-update">
@@ -270,19 +276,19 @@
     {:else if $router.route?.name === "settings-audit"}
       <SettingsAudit />
     {:else if $router.route?.name === "human"}
-      <Human />
+      <SecureGate><Human /></SecureGate>
     {:else if $router.route?.name === "human-tokens"}
-      <HumanTokens />
+      <SecureGate><HumanTokens /></SecureGate>
     {:else if $router.route?.name === "human-devices"}
-      <HumanDevices />
+      <SecureGate><HumanDevices /></SecureGate>
     {:else if $router.route?.name === "human-generate"}
-      <HumanGenerate navigate={router.navigate} />
+      <SecureGate><HumanGenerate navigate={router.navigate} /></SecureGate>
     {:else if $router.route?.name === "human-confirm"}
       {#key $router.params.batch}
-        <HumanConfirm batch={$router.params.batch ?? ""} />
+        <SecureGate><HumanConfirm batch={$router.params.batch ?? ""} /></SecureGate>
       {/key}
     {:else if $router.route?.name === "human-spend"}
-      <HumanSpend />
+      <SecureGate><HumanSpend /></SecureGate>
     {:else if $router.route?.name === "jobs"}
       <Jobs />
     {:else if $router.route?.name === "job"}
@@ -300,9 +306,9 @@
     {:else if $router.route?.name === "offline"}
       <Offline />
     {:else if $router.route?.name === "human-connectors"}
-      <HumanConnectors />
+      <SecureGate><HumanConnectors /></SecureGate>
     {:else if $router.route?.name === "human-subsonic"}
-      <HumanSubsonic />
+      <SecureGate><HumanSubsonic /></SecureGate>
     {:else if $router.route?.name === "import"}
       <Import />
     {:else if $router.route?.name === "settings"}

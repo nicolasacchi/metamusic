@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushNavigate } from "../lib/abParent";
   import { routeReady } from "../lib/scrollRestore";
   import { untrack } from "svelte";
   import { api } from "../api/client";
@@ -204,7 +205,7 @@
   }
 
   function generate() {
-    if (view?.draft) startGeneration(sessionStorage, draftsIntent([view.draft.id]), (to) => location.assign(to));
+    if (view?.draft) startGeneration(sessionStorage, draftsIntent([view.draft.id]), navigate ?? pushNavigate);
   }
 </script>
 

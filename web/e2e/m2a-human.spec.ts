@@ -28,11 +28,15 @@ async function pairWith(ctx: BrowserContext, code: string) {
   return p;
 }
 
-test("the Tokens link is a full-page navigation; a token authenticates as an agent until revoked", async ({ page, playwright, baseURL }) => {
+test("the Tokens link opens inside the app (no document load); a token authenticates as an agent until revoked", async ({ page, playwright, baseURL }) => {
   await page.goto("/");
-  const doc = page.waitForRequest((r) => r.resourceType() === "document" && new URL(r.url()).pathname === "/human/tokens");
+  const docs: string[] = [];
+  page.on("request", (r) => {
+    if (r.resourceType() === "document") docs.push(new URL(r.url()).pathname);
+  });
   await openNav(page, "Tokens");
-  await doc;
+  await expect(page).toHaveURL(/\/human\/tokens$/);
+  expect(docs).toEqual([]);
   await expect(page.getByRole("heading", { name: "Tokens" })).toBeVisible();
 
   const name = uniq("e2e-token");

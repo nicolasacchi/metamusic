@@ -17,7 +17,7 @@
   });
 
   function generate(draftId: string) {
-    startGeneration(sessionStorage, draftsIntent([draftId]), (to) => location.assign(to));
+    startGeneration(sessionStorage, draftsIntent([draftId]), navigate);
   }
 
   $effect(() => {
