@@ -1,4 +1,6 @@
 <script lang="ts">
+  import PlayIcon from "./icons/PlayIcon.svelte";
+  import PlayNextIcon from "./icons/PlayNextIcon.svelte";
   import type { components } from "../../api/schema";
   import { fmt } from "../time";
   import { judge } from "../judge.svelte";
@@ -71,9 +73,9 @@
             </td>
           {/if}
           <td>
-            <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}>▶</button>
+            <button type="button" class="play" aria-label="Play {t.title}" onclick={() => onplay(t.id)}><PlayIcon size={18} /></button>
             {#if onplaynext}
-              <button type="button" class="play" aria-label="Queue {t.title} next" title="Play next" onclick={() => onplaynext(t.id)}>⤵</button>
+              <button type="button" class="play" aria-label="Queue {t.title} next" title="Play next" onclick={() => onplaynext(t.id)}><PlayNextIcon size={18} /></button>
             {/if}
           </td>
           <td>
@@ -131,6 +133,9 @@
     background: #231d17;
   }
   .play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.25rem;
     min-height: 2.25rem;
   }

@@ -1,0 +1,136 @@
+/* Global element styles on top of tokens.css. Component-scoped styles still win. */
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1 {
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+}
+@media (min-width: 768px) {
+  h1 {
+    font-size: var(--fs-2xl);
+  }
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  font-size: var(--fs-sm);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  color: var(--text);
+}
+button:hover:not(:disabled) {
+  background: var(--surface);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: var(--fw-bold);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--focus);
+}
+button.danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+button.danger:hover:not(:disabled) {
+  background: var(--bad-soft);
+}
+@media (pointer: coarse) {
+  button,
+  input:not([type="checkbox"], [type="radio"]),
+  select {
+    min-height: var(--hit);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+input:not([type="checkbox"], [type="radio"], [type="range"]),
+select,
+textarea {
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-md);
+}
+
+.chip,
+.pill {
+  display: inline-block;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 0 var(--sp-2);
+}
+.chip.ok,
+.pill.ok {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+.chip.warn,
+.pill.warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.chip.bad,
+.pill.bad {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+.chip.pick,
+.pill.pick {
+  color: var(--pick);
+  background: var(--accent-soft);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.mono {
+  font-family: var(--font-mono);
+}
+
+.section-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-3);
+}
+
+.muted {
+  color: var(--text-2);
+}

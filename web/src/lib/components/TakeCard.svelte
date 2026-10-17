@@ -1,4 +1,6 @@
 <script lang="ts">
+  import PlayIcon from "./icons/PlayIcon.svelte";
+  import PauseIcon from "./icons/PauseIcon.svelte";
   import { api } from "../../api/client";
   import type { components } from "../../api/schema";
   import { fmt } from "../time";
@@ -104,7 +106,7 @@
     {#if take.cost_display_usd} · {take.cost_display_usd}{/if}
   </p>
   <div class="wave">
-    <button type="button" class="play" onclick={() => play()} aria-label={isCurrent && player.state.playing ? "Pause" : "Play"} data-testid="take-play">{isCurrent && player.state.playing ? "⏸" : "▶"}</button>
+    <button type="button" class="play" onclick={() => play()} aria-label={isCurrent && player.state.playing ? "Pause" : "Play"} data-testid="take-play">{#if isCurrent && player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button>
     <div class="w"><Waveform {peaks} {duration} current={position} onseek={(s) => play(s)} {bits} height={48} label="Waveform of {take.title}" /></div>
   </div>
   <div class="row">
