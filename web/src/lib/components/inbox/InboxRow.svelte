@@ -5,6 +5,7 @@
   import { STATUSES } from "../../libraryQuery";
   import { ageShort } from "../../inbox";
   import { fmt } from "../../time";
+  import { songLine } from "../../songLine";
   import CoverArt from "../CoverArt.svelte";
   import MoreIcon from "../icons/MoreIcon.svelte";
   import StarRating from "../StarRating.svelte";
@@ -61,7 +62,7 @@
       <span class="title">
         {#if unheard}<span class="dot" data-testid="unheard-dot" aria-label="Not heard yet">•</span>{/if}{track.title}
       </span>
-      <span class="meta muted">{fmt(track.duration_s)} · {ageShort(track.recorded_at, now)}{#if track.is_pick}&nbsp;· Pick{/if}{#if track.truncated}&nbsp;· truncated{/if}</span>
+      <span class="meta muted" data-testid="inbox-meta">{#if songLine(track)}{songLine(track)} · {/if}{fmt(track.duration_s)} · {ageShort(track.recorded_at, now)}{#if track.is_pick}&nbsp;· Pick{/if}{#if track.truncated}&nbsp;· truncated{/if}</span>
     </span>
   </button>
   <button type="button" class="more" aria-label="More for {track.title}" aria-expanded={open} aria-haspopup="menu" onclick={toggle} data-testid="inbox-more"><MoreIcon size={20} /></button>

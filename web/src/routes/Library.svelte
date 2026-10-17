@@ -133,6 +133,8 @@
       tracks.map((x) => x.id),
       {
         ...(t ? { title: t.title } : {}),
+        // "Playing from Library": the href also lets a restored queue rebuild its paging (queueSource.ts)
+        source: { label: "Library", href: "/" + toSearch(f) },
         more: async () => {
           if (!cursor) return [];
           const r = await api.GET("/api/tracks", { params: { query: { ...toApiQuery(f), limit: PAGE, cursor } } });

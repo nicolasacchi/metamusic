@@ -8,11 +8,13 @@
     onback?: () => void;
     /** The tab navigation: inline on desktop, a fixed bottom bar on the phone (CSS). */
     children?: Snippet;
+    /** The page is behind a modal sheet. */
+    inert?: boolean;
   }
-  let { title, back = false, onback, children }: Props = $props();
+  let { title, back = false, onback, children, inert = false }: Props = $props();
 </script>
 
-<header class="topbar" data-testid="topbar">
+<header class="topbar" data-testid="topbar" {inert}>
   {#if back}
     <button type="button" class="back" aria-label="Back" onclick={onback}>‹</button>
   {/if}

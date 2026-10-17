@@ -234,6 +234,7 @@
   <button type="button" class="primary" disabled={model.playOrder.length === 0} onclick={playAll} data-testid="play-all-new">
     <PlayIcon size={22} /> Play all new{model.count > 0 ? ` (${model.count})` : ""}
   </button>
+  {#if model.count > 0}<a class="btn" href="/judge?from=new" data-testid="judge-new">Judge one by one</a>{/if}
   <button type="button" onclick={() => void markSeen()} disabled={model.count === 0 && model.failures.length === 0} data-testid="mark-all-seen">Mark all seen</button>
 </div>
 {#if error}<p role="alert">{error}</p>{/if}
@@ -338,7 +339,8 @@
     opacity: 0.5;
     cursor: default;
   }
-  .actions button:not(.primary) {
+  .actions button:not(.primary),
+  .actions .btn {
     min-height: var(--hit);
   }
   h2 {

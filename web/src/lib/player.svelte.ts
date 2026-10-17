@@ -142,6 +142,11 @@ export class Player {
   el = $state<HTMLAudioElement | null>(null);
   title = $state("Nothing playing");
   album = $state("");
+  /**
+   * A blind Judge card hides the take's identity outside the page too: while set, the Media Session shows this label
+   * ("Take A") instead of the title, album and cover.
+   */
+  mask = $state<string | null>(null);
   src = $state("");
   state = $state({
     trackId: "",
@@ -649,6 +654,12 @@ export class Player {
     if (this.state.trackId) this.meta.set(this.state.trackId, { title, album });
     this.title = title;
     this.album = album;
+    this.announce();
+  }
+
+  setMask(label: string | null) {
+    if (this.mask === label) return;
+    this.mask = label;
     this.announce();
   }
 

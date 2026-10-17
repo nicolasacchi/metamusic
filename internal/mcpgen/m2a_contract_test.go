@@ -48,7 +48,9 @@ import (
 // lint Issue's optional details object.
 //
 // M4a-X1 merge: 104300 -> 104500 (measured 104472, +206): the nullable cover object of get_media_links.
-const toolsCeilingBytes = 104500
+//
+// Wave 4b: 104500 -> 104700 (measured 104656, +156): song_title and song_angle on the TrackSummary rows.
+const toolsCeilingBytes = 104700
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

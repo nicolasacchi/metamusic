@@ -13,7 +13,7 @@ func registerLibrary(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
-		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {

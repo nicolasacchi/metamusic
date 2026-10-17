@@ -8,6 +8,7 @@
   import { ageLabel } from "../approvals";
   import { judge } from "../judge.svelte";
   import { templateSelectable } from "../genIntent";
+  import { songLine } from "../songLine";
 
   type Track = components["schemas"]["TrackSummary"];
   interface Props {
@@ -27,7 +28,7 @@
   }
   function meta(t: Track): string {
     const first = t.style_terms[0];
-    return [first, fmt(t.duration_s), ageLabel(t.recorded_at, Date.now())].filter(Boolean).join(" · ");
+    return [songLine(t), first, fmt(t.duration_s), ageLabel(t.recorded_at, Date.now())].filter(Boolean).join(" · ");
   }
   let menuFor = $state("");
   function pick(fn: (() => void) | undefined) {

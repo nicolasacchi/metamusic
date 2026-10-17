@@ -1473,7 +1473,7 @@ export interface paths {
         };
         /**
          * Search tracks
-         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
          */
         get: operations["search_tracks"];
         put?: never;
@@ -5606,8 +5606,12 @@ export interface components {
             root_track_id: string;
             /** Format: int64 */
             seed: number;
+            /** @description The Song's angle; null when unset or the take has no Song */
+            song_angle: string | null;
             /** @description The Song this take belongs to; null before the Song exists or on a pre-L1 schema */
             song_id: string | null;
+            /** @description Title of the take's Song; null when it has none */
+            song_title: string | null;
             /**
              * Format: int64
              * @description Human stars; null when unrated

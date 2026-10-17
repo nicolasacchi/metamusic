@@ -13,7 +13,8 @@
   import { loadDuelBadge } from "./lib/navBadge";
   import { approvals, refreshApprovals } from "./lib/approvals.svelte";
   import { badgeText } from "./lib/approvals";
-  import { badge as inboxBadge, installHeard, refreshInboxBadge } from "./lib/inbox.svelte";
+  import { badge as inboxBadge, inbox, installHeard, refreshInboxBadge } from "./lib/inbox.svelte";
+  import { restoreMore } from "./lib/queueSource";
   import PlayerDock from "./lib/components/PlayerDock.svelte";
   import NowPlayingSheet from "./lib/components/NowPlayingSheet.svelte";
   import { installSheet, sheet } from "./lib/nowPlaying.svelte";
@@ -22,6 +23,7 @@
   import TabBar from "./lib/components/shell/TabBar.svelte";
   import SubNav from "./lib/components/shell/SubNav.svelte";
   import { viewport } from "./lib/viewport.svelte";
+  import { judgeCard } from "./lib/judgeCard.svelte";
   import SessionBanner from "./lib/components/SessionBanner.svelte";
   import Library from "./routes/Library.svelte";
   import Track from "./routes/Track.svelte";
@@ -44,6 +46,7 @@
   import HumanConnectors from "./routes/HumanConnectors.svelte";
   import HumanSubsonic from "./routes/HumanSubsonic.svelte";
   import HumanDevices from "./routes/HumanDevices.svelte";
+  import Judge from "./routes/Judge.svelte";
   import Duels from "./routes/Duels.svelte";
   import Duel from "./routes/Duel.svelte";
   import Ladder from "./routes/Ladder.svelte";
@@ -149,6 +152,8 @@
   );
 
   const routeName = $derived($router.route?.name);
+  // The phone sheet is modal: the page behind it cannot be focused or tapped.
+  const modalSheet = $derived(sheet.open && viewport.phone);
   const tabBadges = $derived.by(() => {
     const b: Partial<Record<Tab, { text: string; label: string; testid: string }>> = {};
     const nb = inboxBadge();
@@ -179,7 +184,15 @@
       // overwrites the saved queue; after the Media Session, so the lock screen shows the restored track at once.
       const env = persistEnv();
       const saved = loadSaved(env.kv, env.now());
-      if (saved) player.restore(saved);
+      if (saved && player.restore(saved) && saved.source) {
+        // a restored /new or Library queue keeps paging: more() is rebuilt lazily from the saved source href
+        const more = restoreMore(saved.source.href, {
+          search: (query) => api.GET("/api/tracks", { params: { query } }).then((r) => r.data ?? null),
+          seenAt: () => inbox.seenAt,
+          queue: () => player.state.queue,
+        });
+        if (more) player.setQueueSource(more);
+      }
       const offPersist = installPersistence(player, env);
       return () => {
         offPersist();
@@ -196,11 +209,11 @@
 </script>
 
 <div class="shell">
-  <TopBar title={titleFor(routeName)} back={viewport.phone && !isTabRoot(routeName)} onback={goBack}>
+  <TopBar title={titleFor(routeName)} back={viewport.phone && !isTabRoot(routeName)} onback={goBack} inert={modalSheet}>
     <TabBar {routeName} badges={tabBadges} />
   </TopBar>
 
-  <main style:--player-h="{playerH}px">
+  <main style:--player-h="{playerH}px" inert={modalSheet}>
     <SessionBanner />
     {#if isTabRoot(routeName)}<SubNav tab={tabFor(routeName)} {routeName} />{/if}
     {#if waitingWorker}
@@ -247,6 +260,8 @@
       {#key $router.params.id}
         <Draft id={$router.params.id ?? ""} navigate={router.navigate} />
       {/key}
+    {:else if $router.route?.name === "judge"}
+      <Judge search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "duels"}
       <Duels navigate={router.navigate} />
     {:else if $router.route?.name === "duel"}
@@ -312,7 +327,7 @@
     {/if}
   </main>
 
-  <div class="toasts" role="status" aria-live="polite">
+  <div class="toasts" class:above-sheet={sheet.open} role="status" aria-live="polite">
     {#each toasts as t (t.id)}
       <div class="toast {t.kind}" data-testid="toast">
         {t.message}
@@ -327,7 +342,7 @@
 
   <NowPlayingSheet />
 
-  <footer class="player" class:idle={!player.state.trackId} aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
+  <footer class="player" class:idle={!player.state.trackId} class:card={judgeCard.active} inert={modalSheet} aria-label="Player" bind:clientHeight={playerH} data-testid="player-footer">
     <PlayerDock {player} duel={routeName === "duel"} />
     <audio bind:this={audio} data-audio-id={audioId} preload="none"></audio>
   </footer>
@@ -398,6 +413,14 @@
     gap: 0.4rem;
     z-index: var(--z-toast, 30);
   }
+  /* While the now-playing sheet is open the toasts sit at the top of the viewport: never over its transport and stars. */
+  .toasts.above-sheet {
+    top: calc(var(--safe-t, 0px) + 0.5rem);
+    bottom: auto;
+    left: 1rem;
+    right: calc(1rem + var(--panel-pad, 0px));
+    justify-items: end;
+  }
   .toast {
     background: #5a2a22;
     border: 1px solid #a02a1f;
@@ -424,6 +447,10 @@
     border: none;
     color: inherit;
     cursor: pointer;
+  }
+  /* The Judge card is the player while it is on screen. */
+  .player.card {
+    display: none;
   }
   .player audio {
     display: none;

@@ -59,6 +59,10 @@ type TrackSummary struct {
 	SongID *string `json:"song_id" doc:"The Song this take belongs to; null before the Song exists or on a pre-L1 schema"`
 	IsPick bool    `json:"is_pick" doc:"The take is its Song's current Pick"`
 
+	// Wave 4b: list rows show "Song · angle" without a second request.
+	SongTitle *string `json:"song_title" doc:"Title of the take's Song; null when it has none"`
+	SongAngle *string `json:"song_angle" doc:"The Song's angle; null when unset or the take has no Song"`
+
 	jobID string // the job of a generated take (not part of the response)
 }
 
@@ -420,7 +424,7 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 	return out, rows.Err()
 }
 
-// fillSongs sets song_id and is_pick of a page (L1, C98): two lookups per page, no per-row query.
+// fillSongs sets song_id, song_title, song_angle and is_pick of a page (L1, C98): two lookups per page, no per-row query.
 func (s *Service) fillSongs(ctx context.Context, sums []TrackSummary) error {
 	if len(sums) == 0 {
 		return nil
@@ -431,8 +435,8 @@ func (s *Service) fillSongs(ctx context.Context, sums []TrackSummary) error {
 		idx[x.ID] = i
 		args[i] = x.ID
 	}
-	const base = `SELECT ts.track_id, ts.song_id, EXISTS(SELECT 1 FROM song_picks sp WHERE sp.take_id = ts.track_id)
-		FROM take_songs ts WHERE ts.track_id IN (`
+	const base = `SELECT ts.track_id, ts.song_id, so.title, so.angle, EXISTS(SELECT 1 FROM song_picks sp WHERE sp.take_id = ts.track_id)
+		FROM take_songs ts LEFT JOIN songs so ON so.id = ts.song_id WHERE ts.track_id IN (`
 	q := base + placeholders(len(sums)) + `)` //nolint:gosec // G202: only "?" placeholders are concatenated
 	rows, err := s.st.R.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -441,11 +445,18 @@ func (s *Service) fillSongs(ctx context.Context, sums []TrackSummary) error {
 	defer rows.Close()
 	for rows.Next() {
 		var tid, sid string
+		var title, angle sql.NullString
 		var pick bool
-		if err := rows.Scan(&tid, &sid, &pick); err != nil {
+		if err := rows.Scan(&tid, &sid, &title, &angle, &pick); err != nil {
 			return err
 		}
 		sums[idx[tid]].SongID, sums[idx[tid]].IsPick = &sid, pick
+		if title.Valid {
+			sums[idx[tid]].SongTitle = &title.String
+		}
+		if angle.Valid && angle.String != "" {
+			sums[idx[tid]].SongAngle = &angle.String
+		}
 	}
 	return rows.Err()
 }
