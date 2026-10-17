@@ -61,7 +61,8 @@ test("opening and closing the sheet never pauses", async ({ page, request }) => 
   expect((await audio(page)).paused).toBe(false);
 
   // the judging controls: 52 px stars, status chips instead of the select
-  expect((await dlg.getByRole("button", { name: "3 stars" }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(52);
+  // (stars are 52 px on touch devices; a fine pointer gets the compact size)
+  if (isPhone(page)) expect((await dlg.getByRole("button", { name: "3 stars" }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(52);
   await expect(dlg.getByRole("button", { name: "To relisten" })).toBeVisible();
   await expect(dlg.getByRole("button", { name: "Final" })).toBeVisible();
   await expect(dlg.getByRole("button", { name: "Discard" })).toBeVisible();
