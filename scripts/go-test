@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Usage: scripts/go-test <go test args...>
+# The only allowed way to run `go test -race` by hand: it takes the machine-wide heavy lock (FIFO, max wait, holder info,
+# see scripts/loop) and writes a metrics row, like `make race`. Runs `go test -race` with CGO_ENABLED=1.
+#   scripts/go-test -count=20 ./internal/api/
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec scripts/loop race -- env CGO_ENABLED=1 go test -race "$@"

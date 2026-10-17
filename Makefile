@@ -16,7 +16,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi test race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
+.PHONY: build web openapi test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -27,8 +27,18 @@ web:
 openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
 
+# Local full suites, three tiers with no overlap (scripts/go-suite.sh): `test` = -race, everything but the long tier and the
+# perf tests, then the perf tests in plain mode (their one mode: budgets are only real uninstrumented); `test-long` = -race,
+# the acceptance package and the property/chaos/fault-sweep tests. CI runs all of them: the race shards cover test + test-long
+# (perf skipped), the perf job runs `perf`. `make race` stays the one-command everything-under-race pass.
 test:
-	$(LOOP) test -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -timeout $(TEST_TIMEOUT) ./...
+	$(LOOP) test -- env TMPDIR=$(TEST_TMPDIR) scripts/go-suite.sh test
+
+test-long:
+	$(LOOP) test-long -- env TMPDIR=$(TEST_TMPDIR) scripts/go-suite.sh test-long
+
+perf:
+	$(LOOP) perf -- env TMPDIR=$(TEST_TMPDIR) scripts/go-suite.sh perf
 
 race:
 	$(LOOP) race -- env TMPDIR=$(TEST_TMPDIR) CGO_ENABLED=1 go test -race -shuffle=on -timeout $(TEST_TIMEOUT) ./...
@@ -36,8 +46,11 @@ race:
 lint:
 	$(LOOP) lint -- $(GOLINT) run ./...
 
+# A green run is stamped with a hash of the whole working tree (scripts/check-stamp.sh): `make check` on an unchanged tree
+# prints which run it reused and returns at once. `make check FORCE=1` always runs.
 check:
-	$(LOOP) check -- $(MAKE) --no-print-directory _check
+	@if [ "$(FORCE)" != 1 ] && scripts/check-stamp.sh match; then exit 0; fi; \
+	$(LOOP) check -- $(MAKE) --no-print-directory _check && scripts/check-stamp.sh write
 
 # Fast-loop only: the transpiled SQLite stack (modernc.org/*: sqlite, libc, memory) is compiled without
 # race/checkptr instrumentation. It is generated C-to-Go code with no project logic, and instrumenting it

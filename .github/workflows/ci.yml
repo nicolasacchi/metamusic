@@ -57,12 +57,39 @@ jobs:
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
       - name: test (shard ${{ matrix.shard }} of 6)
         # the full tier; MM_REQUIRE_MEDIA_TOOLS=1 makes a missing media tool fail
+        # TestPerf_* run in the perf job, not here; MM_GO_TIMINGS keeps each go test -json stream for the weights refresh
+        env:
+          MM_GO_TIMINGS: gotimings
         run: scripts/ci-go-test.sh run ${{ matrix.shard }} 6 covdata/unit
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: covdata-unit-${{ matrix.shard }}
           path: covdata/unit
           retention-days: 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: gotimings-${{ matrix.shard }}
+          path: gotimings
+          retention-days: 30
+
+  perf:
+    # The TestPerf_* budget tests (C101.4), alone: uninstrumented (no race detector, no coverage), one at a time, so a budget is a number about our code and
+    # not about the instrumentation. The race shards skip them (scripts/ci-go-test.sh). `make test` runs the same command.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: perf tests (uninstrumented)
+        run: scripts/go-suite.sh perf
 
   worker-py:
     # Python worker unit tests (C83.5): no torch, no network, no path filter (≈ 1 min). The slow contract
@@ -319,6 +346,14 @@ jobs:
           pattern: covdata-e2e-*
           merge-multiple: true
           path: covdata/e2e
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: gotimings-*
+          merge-multiple: true
+          path: gotimings
+      - name: shard weights are fresh (a package slower than 15 s needs a weight entry)
+        # a stale weight only warns; refresh with: scripts/ci-weights-refresh.sh write <run id>
+        run: scripts/ci-weights-refresh.sh check gotimings
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.3

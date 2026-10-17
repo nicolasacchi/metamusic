@@ -77,7 +77,7 @@ chk "root .dockerignore excludes worker/ and runpod*.env" 'grep -qx "worker/" "$
 chk "deploy/worker-image.digest exists" 'test -f "$root/deploy/worker-image.digest"'
 chk "Makefile has worker, contract, canary targets" 'grep -Eq "^worker:" "$root/Makefile" && grep -Eq "^contract:" "$root/Makefile" && grep -Eq "^canary:" "$root/Makefile"'
 chk "make check keeps go test cacheable (no -shuffle)" '! awk "/^_check:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q -- "-shuffle"'
-chk "make test, race and cover keep -shuffle=on" '[ "$(grep -c -E "go test .*-shuffle=on" "$root/Makefile")" -ge 3 ]'
+chk "make race and cover keep -shuffle=on, and so do make test and test-long (scripts/go-suite.sh)" '[ "$(grep -c -E "go test .*-shuffle=on" "$root/Makefile")" -ge 2 ] && grep -q -- "-race -shuffle=on" "$root/scripts/go-suite.sh"'
 chk "make gate is incremental and make gate-full is complete" 'grep -q "gate.sh incremental" "$root/Makefile" && grep -q "gate.sh full" "$root/Makefile"'
 chk "gate-full runs every selftest, actions-pinned and the full-history scan" 'g=$(awk "/^  full\\)/{f=1} f" "$root/scripts/gate.sh"); grep -q "^ALL_SELFTESTS=.*public-gate-selftest.*loop-selftest.*coverage-gate-selftest.*ci-selftest.*deploy-preflight-selftest.*actions-pinned" "$root/scripts/gate.sh" && grep -q -- "--history" <<<"$g"'
 chk "pre-push runs the complete gate (gate.sh prepush -> gate-full with the patterns required)" 'grep -q "gate.sh\" prepush" "$root/.githooks/pre-push" && grep -q "GATE_REQUIRE_PATTERNS=1 exec scripts/loop gate-full -- scripts/gate.sh full" "$root/scripts/gate.sh"'
