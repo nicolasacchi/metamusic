@@ -199,3 +199,49 @@ func TestLocalStepUp_BareHumanRedirectsToSlashForm(t *testing.T) {
 		t.Fatalf("anonymous /human: %d %q", anon.Code, anon.Header().Get("Location"))
 	}
 }
+
+func TestLocalStepUp_DonePage(t *testing.T) {
+	t.Parallel()
+	s := newStepRig(t)
+	s.clk.Advance(11 * time.Minute) // the login's own step-up window has passed (a fresh login has none)
+
+	stale := s.do("GET", "/auth/step-up/done", "")
+	if stale.Code != 403 || strings.Contains(stale.Body.String(), "<script") || !strings.Contains(stale.Body.String(), "/auth/step-up?next=/auth/step-up/done") {
+		t.Fatalf("stale: %d %s", stale.Code, stale.Body)
+	}
+	rec := s.stepUp("/auth/step-up/done", stepPW)
+	if rec.Code != 303 || rec.Header().Get("Location") != "/auth/step-up/done" {
+		t.Fatalf("step-up: %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	done := s.do("GET", "/auth/step-up/done", "")
+	if done.Code != 200 || !strings.Contains(done.Body.String(), `<script src="/auth/step-up/done.js"`) ||
+		!strings.Contains(done.Header().Get("Content-Security-Policy"), "default-src 'self'") {
+		t.Fatalf("fresh: %d %s", done.Code, done.Body)
+	}
+	js := s.do("GET", "/auth/step-up/done.js", "")
+	if js.Code != 200 || !strings.Contains(js.Body.String(), `"mm-stepup"`) || !strings.HasPrefix(js.Header().Get("Content-Type"), "text/javascript") {
+		t.Fatalf("js: %d %s", js.Code, js.Header())
+	}
+	for _, next := range []string{"/auth/step-up/done/", "/auth/step-up/done?x=1", "/auth/login"} {
+		if got := safeNext(next); got != defaultNext {
+			t.Errorf("safeNext(%q) = %q", next, got)
+		}
+	}
+}
+
+func TestStepUpUntil(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	if u := StepUpUntil(Principal{Kind: KindAgent, Via: "token"}); u != nil {
+		t.Errorf("agent: %v", u)
+	}
+	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "proxy"}); u != nil {
+		t.Errorf("proxy human: %v", u)
+	}
+	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "local", StepUpAt: at}); u == nil || !u.Equal(at.Add(stepUpWindow)) {
+		t.Errorf("confirmed: %v", u)
+	}
+	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "local"}); u == nil || u.Unix() != 0 {
+		t.Errorf("never confirmed: %v", u)
+	}
+}
