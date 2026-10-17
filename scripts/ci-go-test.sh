@@ -13,13 +13,18 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 weights="$root/scripts/ci-shard-weights.txt"
 
-# unit lines: "<weight> <pkg> <i>/<K>" for split packages, "<weight> <pkg>" otherwise (pkg is ./-relative)
+# unit lines: "<weight> <pkg> <i>/<K>" for split packages, "<weight> <pkg>" otherwise (pkg is ./-relative).
+# A split package's parts are not equal: the tests pinned to part i in scripts/ci-heavy-tests.txt weigh what they weigh
+# (a single 180 s test makes its part >= 180), the rest of the package is spread evenly over the K parts.
 units() {
-  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" '
-    BEGIN { while ((getline l < wf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); w[f[1]] = f[2]; k[f[1]] = (f[3] ? f[3] : 1) } }
+  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" -v hf="$root/scripts/ci-heavy-tests.txt" '
+    BEGIN { while ((getline l < wf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); w[f[1]] = f[2]; k[f[1]] = (f[3] ? f[3] : 1) }
+            while ((getline l < hf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); if (f[1] in k && k[f[1]] > 1) { q = f[4] % k[f[1]]; pin[f[1], q] += f[3]; pt[f[1]] += f[3] } } }
     { p = $0; wt = (p in w) ? w[p] : 3; n = (p in k) ? k[p] : 1
-      if (n > 1) for (i = 0; i < n; i++) printf "%.3f %s %d/%d\n", wt / n, p, i, n
-      else printf "%.3f %s\n", wt, p }'
+      if (n > 1) {
+        sc = (pt[p] > 0.9 * wt) ? 0.9 * wt / pt[p] : 1; rest = wt - pt[p] * sc
+        for (i = 0; i < n; i++) printf "%.3f %s %d/%d\n", rest / n + pin[p, i] * sc, p, i, n
+      } else printf "%.3f %s\n", wt, p }'
 }
 
 plan_all() { # prints "<shard> <unit>" for shard 1..n
