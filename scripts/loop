@@ -58,37 +58,131 @@ if command -v go >/dev/null 2>&1; then
 fi
 
 log=$(mktemp)
-trap 'rm -f "$log"' EXIT
+ticket_file=
+holder_file=
+cleanup() {
+  rm -f "$log"
+  [ -z "$ticket_file" ] || rm -f "$ticket_file"
+  [ -z "$holder_file" ] || rm -f "$holder_file"
+}
+trap cleanup EXIT
+
+# 1-minute load average at start (empty when the host does not say); kept in the metrics row.
+load1=
+loadavg_file=${MM_LOADAVG_FILE:-/proc/loadavg} # overridable for the selftest
+if [ -r "$loadavg_file" ]; then read -r load1 _ <"$loadavg_file" || load1=; fi
+case "$load1" in '' | *[!0-9.]* | *.*.*) load1= ;; esac
+
+# Seconds from "90", "300s", "45m" or "2h"; 0 or garbage disables the limit.
+to_secs() {
+  case "$1" in
+    *[!0-9smh]* | '') echo 0 ;;
+    *h) echo $((${1%h} * 3600)) ;;
+    *m) echo $((${1%m} * 60)) ;;
+    *s) echo "${1%s}" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# What the holder of a slot recorded (lane, worktree, target, start time), for waiters' messages.
+holder_desc() {
+  local i=0 f h out=
+  while [ "$i" -lt "$slots" ]; do
+    f=$lockbase; [ "$i" -gt 0 ] && f=$lockbase.$i
+    h=$f.holder
+    if [ -r "$h" ] && ! (flock -n 3) 3<"$f" 2>/dev/null; then out="$out ${out:+; }$(tr '\n' ' ' <"$h")"; fi
+    i=$((i + 1))
+  done
+  echo "${out:-unknown (no holder file)}"
+}
+
+# Try every slot once; on success fd 9 holds it and slot_file names it.
+slot_file=
+try_slots() {
+  local i=0 f
+  while [ "$i" -lt "$slots" ]; do
+    f=$lockbase; [ "$i" -gt 0 ] && f=$lockbase.$i
+    if { exec 9>>"$f"; } 2>/dev/null && flock -n 9; then slot_file=$f; return 0; fi
+    { exec 9>&-; } 2>/dev/null || true
+    i=$((i + 1))
+  done
+  return 1
+}
 
 wait_ms=0
 scoped=0
+skip_rc=
 if [ "$heavy" = 1 ]; then
   if [ "${MM_HEAVY_LOCK:-1}" != 0 ] && command -v flock >/dev/null 2>&1; then
     slots=${MM_HEAVY_SLOTS:-1}
     case "$slots" in '' | *[!0-9]* | 0) slots=1 ;; esac
     lockbase=${MM_HEAVY_LOCK_FILE:-${XDG_RUNTIME_DIR:-/tmp}/metamusic-heavy.lock}
+    max_wait=$(to_secs "${MM_HEAVY_MAX_WAIT:-45m}")
+    qdir=$lockbase.q
+    mkdir -p "$qdir"
     wstart=$(now_ns)
-    announced=0
+    # FIFO ticket queue. A ticket is a file in $qdir named by a zero-padded sequence number; its owner holds an flock on it
+    # (fd 7) for as long as it lives, so a crashed waiter's ticket is detectable (lockable) and reaped. Taking a number
+    # and checking the queue both happen under the short-lived mutex on fd 8, so a half-created ticket is never seen.
+    exec 8>>"$lockbase.ticket"
+    flock 8
+    seq=$(cat "$lockbase.seq" 2>/dev/null || true)
+    case "$seq" in '' | *[!0-9]*) seq=0 ;; esac
+    seq=$((seq + 1))
+    echo "$seq" >"$lockbase.seq"
+    ticket=$(printf '%012d' "$seq")
+    ticket_file=$qdir/$ticket
+    : >"$ticket_file"
+    exec 7>>"$ticket_file"
+    flock -n 7
+    exec 8>&-
+    announced_pos=
+    last_note=$(now_ns)
     acquired=0
     while [ "$acquired" = 0 ]; do
-      i=0
-      while [ "$i" -lt "$slots" ]; do
-        f=$lockbase; [ "$i" -gt 0 ] && f=$lockbase.$i
-        if { exec 9>>"$f"; } 2>/dev/null && flock -n 9; then acquired=1; break; fi
-        exec 9>&- 2>/dev/null || true
-        i=$((i + 1))
+      exec 8>>"$lockbase.ticket"
+      flock 8
+      ahead=0
+      for t in "$qdir"/*; do
+        [ -e "$t" ] || continue
+        b=${t##*/}
+        [[ "$b" < "$ticket" ]] || continue
+        if (flock -n 3) 3<"$t" 2>/dev/null; then rm -f "$t"; else ahead=$((ahead + 1)); fi
       done
-      if [ "$acquired" = 0 ]; then
-        if [ "$announced" = 0 ]; then
-          echo "loop: waiting for a heavy-run slot (held by another suite)" >&2
-          announced=1
-        fi
-        sleep 0.2
+      if [ "$ahead" = 0 ] && try_slots; then acquired=1; fi
+      exec 8>&-
+      [ "$acquired" = 1 ] && break
+      waited_s=$((($(now_ns) - wstart) / 1000000000))
+      if [ "$max_wait" -gt 0 ] && [ "$waited_s" -ge "$max_wait" ]; then
+        echo "loop: gave up after ${waited_s}s waiting for a heavy-run slot (MM_HEAVY_MAX_WAIT=${MM_HEAVY_MAX_WAIT:-45m}); queue position $((ahead + 1)); current holder: $(holder_desc)" >&2
+        skip_rc=75
+        break
       fi
+      now=$(now_ns)
+      if [ "$announced_pos" != "$ahead" ] || [ $(((now - last_note) / 1000000000)) -ge 60 ]; then
+        echo "loop: waiting for a heavy-run slot: queue position $((ahead + 1)) (waited ${waited_s}s); current holder: $(holder_desc)" >&2
+        announced_pos=$ahead
+        last_note=$now
+      fi
+      sleep 0.2
     done
+    rm -f "$ticket_file"
+    ticket_file=
+    exec 7>&-
     wait_ms=$((($(now_ns) - wstart) / 1000000))
+    if [ "$acquired" = 1 ]; then
+      holder_file=$slot_file.holder
+      printf 'pid=%s lane=%s worktree=%s target=%s since=%s\n' "$$" "$lane" \
+        "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" | tr -c 'A-Za-z0-9._-' '_')" "$target" \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$holder_file"
+    fi
   fi
   export MM_HEAVY_HELD=1
+  max_load=${MM_HEAVY_MAX_LOAD:-}
+  if [ -z "$skip_rc" ] && [ -n "$max_load" ] && [ -n "$load1" ] && awk -v l="$load1" -v m="$max_load" 'BEGIN { exit !(m + 0 > 0 && l + 0 > m + 0) }'; then
+    echo "loop: refusing to start: 1-minute load $load1 is above MM_HEAVY_MAX_LOAD=$max_load; retry when the machine is quieter" >&2
+    skip_rc=75
+  fi
   if [ "${MM_HEAVY_SCOPE:-1}" != 0 ] && command -v systemd-run >/dev/null 2>&1; then
     state=$(systemctl --user is-system-running 2>/dev/null || true)
     case "$state" in running | degraded) scoped=1 ;; esac
@@ -98,12 +192,16 @@ heavy_mem=${MM_HEAVY_MEM:-20G}
 
 start=$(now_ns)
 
-if [ "$scoped" = 1 ]; then
+if [ -n "$skip_rc" ]; then
+  : >"$log"
+  rc=$skip_rc
+elif [ "$scoped" = 1 ]; then
   systemd-run --user --scope --quiet --collect -p "MemoryMax=$heavy_mem" -p MemorySwapMax=0 -- "$@" 2>&1 | tee "$log"
 else
   "$@" 2>&1 | tee "$log"
 fi
-rc=${PIPESTATUS[0]}
+rc_cmd=${PIPESTATUS[0]}
+[ -n "$skip_rc" ] || rc=$rc_cmd
 if [ "$scoped" = 1 ] && [ "$rc" = 137 ]; then
   echo "loop: killed by MemoryMax=$heavy_mem; raise MM_HEAVY_MEM or run fewer suites" >&2
 fi
@@ -129,9 +227,25 @@ bun_failing=$(grep -cE '^\(fail\) ' "$log" || true)
 pw_failing=$(sed -nE 's/^[[:space:]]+([0-9]+) failed[[:space:]]*$/\1/p' "$log" | awk '{s += $1} END {print s + 0}')
 failing_tests=$((${go_failing:-0} + ${bun_failing:-0} + ${pw_failing:-0}))
 
+
+# Names of the failing leaf tests, for the next audit: bounded (5 names of at most 100 characters, de-duplicated) and
+# reduced to a safe character set, so a row never carries a path, a URL, a quote or a stray secret-shaped string. Go
+# leaf "--- FAIL:" names, bun "(fail)" names, and Playwright "[project] spec › title" headers (the spec file:line is dropped).
+failing_names=$({
+  awk '
+    /^[[:space:]]*--- FAIL: / { match($0, /^[[:space:]]*/); d = RLENGTH; n++; depth[n] = d; line = $0
+      sub(/^[[:space:]]*--- FAIL: /, "", line); sub(/ \([0-9.]+s\).*$/, "", line); nm[n] = line; next }
+    END { for (i = 1; i <= n; i++) { leaf = 1; if (i < n && depth[i+1] > depth[i]) leaf = 0; if (leaf) print nm[i] } }' "$log"
+  sed -nE 's/^\(fail\) //p' "$log" | sed -E 's/ \[[0-9.]+m?s\]$//'
+  sed -nE 's/^[[:space:]]+[0-9]+\) \[([^]]+)\] › [^ ]+:[0-9]+:[0-9]+ › (.*)$/\1: \2/p' "$log" | sed -E 's/ *─.*$//'
+} | tr -cd 'A-Za-z0-9_./:#()[] +=,<>\n-' | cut -c1-100 | awk 'NF && !seen[$0]++' | head -n 5 \
+  | awk '{ printf "%s\"%s\"", (c++ ? "," : ""), $0 }')
+# A retry that passed: Playwright's "N flaky" summary (a test failed, its retry passed). Go and bun have no retries.
+retry_passes=$(sed -nE 's/^[[:space:]]+([0-9]+) flaky[[:space:]]*$/\1/p' "$log" | awk '{s += $1} END {print s + 0}')
+
 mkdir -p "$(dirname "$metrics")"
-printf '{"ts":"%s","target":"%s","wall_ms":%d,"wait_ms":%d,"exit":%d,"compile_errors":%d,"failing_tests":%d,"sha":"%s","lane":"%s","cache":"%s"}\n' \
+printf '{"ts":"%s","target":"%s","wall_ms":%d,"wait_ms":%d,"exit":%d,"compile_errors":%d,"failing_tests":%d,"sha":"%s","lane":"%s","cache":"%s"%s,"failing_names":[%s],"retry_passes":%d}\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$target" "$wall_ms" "$wait_ms" "$rc" "${compile_errors:-0}" "${failing_tests:-0}" \
-  "$sha" "$lane" "$cache" >>"$metrics"
+  "$sha" "$lane" "$cache" "${load1:+,\"load1_start\":$load1}" "$failing_names" "${retry_passes:-0}" >>"$metrics"
 
 exit "$rc"

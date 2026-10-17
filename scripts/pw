@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Usage: scripts/pw <playwright test args...>
+# The only allowed way to run Playwright by hand: it takes the machine-wide heavy lock (FIFO, max wait, holder info, see
+# scripts/loop) and goes through scripts/e2e.sh (cached SPA/binary builds, seeded server, device matrix), like `make e2e`.
+# Arguments are passed to `playwright test` after the build; a partial run never records coverage data.
+#   scripts/pw e2e/m2a-draftplay.spec.ts --repeat-each=10
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# a filtered run serves only some operations: skip the whole-registry served check (global-setup.ts)
+MM_E2E_COVERAGE=${MM_E2E_COVERAGE:-0} MM_E2E_ARGS="$*" exec scripts/loop e2e -- scripts/e2e.sh

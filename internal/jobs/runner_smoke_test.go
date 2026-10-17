@@ -33,8 +33,14 @@ func TestRunner_HappyPath(t *testing.T) {
 	if s := r.state(job); s != StateCompleted {
 		t.Fatalf("state %s events %v", s, r.events(job))
 	}
-	if rep := r.step(); rep.Finished != 1 {
-		t.Errorf("report %+v", rep)
+	// The ingest pool completes the job on its own goroutine while the step above is still running its later phases, so
+	// the batch is finished either by that step (the pool won) or by the next one (the step won). Which one is scheduler
+	// luck, so count Finished across both: exactly one batch is finished exactly once.
+	finished := rep.Finished
+	next := r.step()
+	finished += next.Finished
+	if finished != 1 {
+		t.Errorf("batch finished %d times (%+v then %+v), want once", finished, rep, next)
 	}
 	if s := r.str(`SELECT state FROM batches WHERE id = ?`, b.Batch); s != "finished" {
 		t.Fatalf("batch %s", s)

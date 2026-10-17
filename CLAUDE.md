@@ -34,8 +34,13 @@ sharded verifier: all packages, no -short, every Playwright project, coverage, w
 Heavy suites (check, test, race, cover, e2e, and `verify` whenever its plan runs `go test -race` or Playwright) are serialised machine-wide (flock, `MM_HEAVY_SLOTS`
 slots, default 1; `MM_HEAVY_LOCK=0` disables) and memory-capped (`MM_HEAVY_MEM`, default 20G, via
 `systemd-run --user --scope`) by `scripts/loop`, because concurrent race suites triggered systemd-oomd.
-Agents must run whole-repo race suites only through `make`; single-package
-`go test -race ./internal/x/` is fine.
+Agents must run whole-repo race suites only through `make`. Any other `go test -race` or Playwright run goes
+through the lock-taking shims `scripts/go-test <args>` and `scripts/pw <playwright args>`, the only allowed way to run
+them directly (single-package `go test -race ./internal/x/` stays fine). The lock is a FIFO ticket queue: waiters print
+their queue position and the holder (lane, worktree, target, start time; kept in `<lock>.holder`), and a wait longer than
+`MM_HEAVY_MAX_WAIT` (default 45m, `90`/`300s`/`45m`, 0 = no limit) fails with exit 75 naming the holder. `MM_HEAVY_MAX_LOAD`
+(off by default) refuses to start above that 1-minute load. Rows in `metrics/loop.jsonl` also carry `load1_start`,
+`failing_names` (up to 5) and `retry_passes`.
 
 Every `make` target runs through `scripts/loop`, which appends a metrics row (no command lines,
 paths or secrets) to the shared `metrics/loop.jsonl` (gitignored). This project is also an
