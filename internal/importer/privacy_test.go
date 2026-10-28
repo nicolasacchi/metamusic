@@ -213,6 +213,9 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// M3: batches and jobs hold ids, states and money, never recipe reference metadata
 		case strings.HasPrefix(p, "/api/muses/{") || strings.HasPrefix(p, "/api/songs/{"):
 			// L1: Muse reads hold reference text by design (D-L1-6); their confinement is the L1 canary test (TestMuseText_OnlyInAllowlistedOps)
+		case strings.HasPrefix(p, "/api/records/{") || strings.HasPrefix(p, "/api/crates/{") || strings.HasPrefix(p, "/api/tapes/{"):
+			// L2: Records, Crates and tapes hold ids, titles, numbers and signed links, never recipe reference metadata; Muse text in
+			// get_record is the one allowlisted surface (TestMuseText_OnlyInAllowlistedOps, lane INT-B's leak sweep)
 		case p == "/api/compare":
 			// M2b compare_tracks needs two distinct takes and reads recipes, never reference metadata
 		case strings.Contains(p, "{"):
