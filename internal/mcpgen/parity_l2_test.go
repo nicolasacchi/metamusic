@@ -37,11 +37,11 @@ var l2Cases = []ParityCase{
 	{Op: "propose_record", Args: fixedArgs(map[string]any{"id": "rec-stub", "revision": 1, "rationale": "ready to hear"}), Status: l2StubStatus},
 	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: l2StubStatus},
 	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: l2StubStatus},
-	{Op: "list_crates", Status: l2StubStatus},
-	{Op: "get_crate", Args: fixedArgs(map[string]any{"id": "crate-stub"}), Status: l2StubStatus},
-	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Status: l2StubStatus},
-	{Op: "update_crate", Args: fixedArgs(map[string]any{"id": "crate-stub", "revision": 1, "name": "Synthetic Crate 002"}), Status: l2StubStatus},
-	{Op: "edit_crate_items", Args: fixedArgs(map[string]any{"id": "crate-stub", "add": []map[string]any{{"song_id": "song-stub"}}}), Status: l2StubStatus},
+	{Op: "list_crates"},
+	{Op: "get_crate", Args: fixedArgs(map[string]any{"id": "crate-stub"}), Status: 404},
+	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Masks: []string{"id", "created_by", "created_at", "updated_at"}},
+	{Op: "update_crate", Args: fixedArgs(map[string]any{"id": "crate-stub", "revision": 1, "name": "Synthetic Crate 002"}), Status: 404},
+	{Op: "edit_crate_items", Args: fixedArgs(map[string]any{"id": "crate-stub", "add": []map[string]any{{"song_id": "song-stub"}}}), Status: 404},
 	{Op: "get_curation_settings", Status: l2StubStatus},
 }
 

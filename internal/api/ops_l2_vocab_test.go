@@ -37,4 +37,5 @@ func TestCrateVocabulary_EqualsListOps(t *testing.T) {
 			t.Errorf("%s: %s parameters minus the non-saved set = %v, vocabulary keys = %v", subject, opID, params, keys)
 		}
 	}
+	vocabularyBehaviour(t)
 }

@@ -24,6 +24,9 @@ func registerSoundsL1(a huma.API, d Deps) {
 			}
 			f, err := soundSearchFilter(in.SongFilterIn)
 			if err != nil {
+				return nil, m2bErr(err, "L1-B6")
+			}
+			if f, err = expandSongCrate(ctx, d, f); err != nil {
 				return nil, err
 			}
 			counts, err := d.Sounds.Facets(ctx, f)

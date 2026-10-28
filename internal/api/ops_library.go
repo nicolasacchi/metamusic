@@ -27,7 +27,10 @@ func registerLibrary(a huma.API, d Deps) {
 				SongID: in.SongID, IsPick: in.IsPick.ptr(), SessionID: in.SessionID, Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor,
 			})
 			if err != nil {
-				return nil, err // the L2 predicates answer 501 until lane K
+				return nil, m2bErr(err, taskK)
+			}
+			if params, err = expandTrackCrate(ctx, d, params); err != nil {
+				return nil, err
 			}
 			page, err := d.Library.SearchTracks(ctx, params)
 			if err != nil {
