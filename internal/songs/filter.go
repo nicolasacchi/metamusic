@@ -1,6 +1,7 @@
 package songs
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"sort"
@@ -55,6 +56,9 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		args = append(args, a...)
 	}
 	c = append(c, "s.retired_at IS NULL")
+	if f.None {
+		c = append(c, "0 = 1")
+	}
 	if !f.IncludeHidden {
 		c = append(c, "s.hidden_at IS NULL")
 	}
@@ -124,6 +128,7 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		}
 		c = append(c, neg+"EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.take_id IS NOT NULL)")
 	}
+	l2Clauses(f, add)
 	if f.HasOpenProposals != nil {
 		neg := "NOT "
 		if *f.HasOpenProposals {
@@ -142,4 +147,115 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		add("s.id = (SELECT song_id FROM take_songs WHERE track_id = ?)", f.TrackID)
 	}
 	return strings.Join(c, " AND "), args
+}
+
+// subjectTake is the SQL expression of a Song's subject take (C125.3): its Pick take, else its newest eligible take
+// (D-L1-14's representative without the draft fallback). NULL for a Song with no take.
+const subjectTake = `COALESCE((SELECT p.take_id FROM song_picks p WHERE p.song_id = s.id),
+	(SELECT t.id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = s.id AND t.status <> 'discarded'
+	 ORDER BY t.recorded_at DESC, t.created_at DESC, t.id DESC LIMIT 1))`
+
+// normTag is the filter-side tag normalisation (lower case, single spaces); stored names already satisfy the full rule.
+func normTag(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// ValidateL2 checks the L2 predicates of f (C125.3): the star bounds, the exclusive pair and the tag count. A nil error means
+// FilterSQL can render them.
+func (f ListFilter) ValidateL2() error {
+	bad := func(field, msg string) error {
+		return problem.E(http.StatusUnprocessableEntity, "VALIDATION_FAILED", msg, map[string]any{"field": field})
+	}
+	if f.MinStars != nil && (*f.MinStars < 1 || *f.MinStars > 5) {
+		return bad("min_stars", "must be 1..5")
+	}
+	if f.MinStars != nil && f.Unrated != nil && *f.Unrated {
+		return bad("unrated", "cannot be combined with min_stars")
+	}
+	if len(f.Tags) > 5 {
+		return bad("tag", "at most 5 tags")
+	}
+	if f.MinDurationS != nil && *f.MinDurationS < 0 {
+		return bad("min_duration_s", "must not be negative")
+	}
+	if f.MaxDurationS != nil && *f.MaxDurationS < 0 {
+		return bad("max_duration_s", "must not be negative")
+	}
+	return nil
+}
+
+// l2Clauses renders the L2 predicates of C125.3. The take predicates (duration, stars, tags, lossy, recipe_known) are one
+// EXISTS over the Song's subject take, so a Song with no take never matches any of them.
+func l2Clauses(f ListFilter, add func(string, ...any)) {
+	if f.PickDecided != nil {
+		neg := "NOT "
+		if *f.PickDecided {
+			neg = ""
+		}
+		add(neg + "EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.source IN ('pinned','ladder'))")
+	}
+	if f.Unheard != nil {
+		neg := ""
+		if *f.Unheard {
+			neg = "NOT "
+		}
+		add(neg + `EXISTS (SELECT 1 FROM take_songs ts JOIN listen_events le ON le.track_id = ts.track_id
+			WHERE ts.song_id = s.id AND le.kind = 'start' AND le.principal_kind IN ('human','device'))`)
+	}
+	var cond []string
+	var args []any
+	var joins string
+	if f.MinDurationS != nil {
+		cond, args = append(cond, "t.duration_s >= ?"), append(args, *f.MinDurationS)
+	}
+	if f.MaxDurationS != nil {
+		cond, args = append(cond, "t.duration_s <= ?"), append(args, *f.MaxDurationS)
+	}
+	if f.MinStars != nil || f.Unrated != nil {
+		joins += " LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human'"
+	}
+	if f.MinStars != nil {
+		cond, args = append(cond, "hs.stars >= ?"), append(args, *f.MinStars)
+	}
+	if f.Unrated != nil {
+		if *f.Unrated {
+			cond = append(cond, "hs.stars IS NULL")
+		} else {
+			cond = append(cond, "hs.stars IS NOT NULL")
+		}
+	}
+	for _, tag := range f.Tags {
+		cond = append(cond, "EXISTS (SELECT 1 FROM track_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.track_id = t.id AND g.name = ? AND tt.removed_at IS NULL)")
+		args = append(args, normTag(tag))
+	}
+	if f.Lossy != nil {
+		cond, args = append(cond, "t.lossy = ?"), append(args, b2i(*f.Lossy))
+	}
+	if f.RecipeKnown != nil {
+		joins += " JOIN recipes r ON r.id = t.recipe_id"
+		cond, args = append(cond, "(r.engine <> 'unknown') = ?"), append(args, b2i(*f.RecipeKnown))
+	}
+	if len(cond) > 0 {
+		add(fmt.Sprintf(`EXISTS (SELECT 1 FROM tracks t%s WHERE t.id = %s AND %s)`, joins, subjectTake, strings.Join(cond, " AND ")), args...)
+	}
+	if f.InRecord != nil {
+		neg := "NOT "
+		if *f.InRecord {
+			neg = ""
+		}
+		add(neg + `EXISTS (SELECT 1 FROM record_slots rs JOIN records rc ON rc.id = rs.record_id
+			WHERE rs.song_id = s.id AND rs.removed_at IS NULL AND rc.hidden_at IS NULL)`)
+	}
+	if f.CrateID != "" {
+		// A member that was retired is followed to the Song it was merged into (C125.3); retired Songs never match themselves.
+		add(`s.id IN (WITH RECURSIVE m(id, hop) AS (
+			SELECT ci.song_id, 0 FROM crate_items ci WHERE ci.crate_id = ? AND ci.song_id IS NOT NULL AND ci.removed_at IS NULL
+			UNION SELECT so.retired_into, m.hop + 1 FROM m JOIN songs so ON so.id = m.id WHERE so.retired_into IS NOT NULL AND m.hop < 16)
+			SELECT id FROM m)`, f.CrateID)
+	}
 }

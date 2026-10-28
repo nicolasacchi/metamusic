@@ -97,6 +97,9 @@ type ListFilter struct {
 	RecipeKnown  *bool
 	InRecord     *bool  // a live slot in any non-hidden Record of any status
 	CrateID      string // membership of a manual Crate, or the expansion of a smart one
+	// None makes the filter match nothing: crates.ExpandSongs sets it when a stored list and a request list intersect to the
+	// empty set (an empty list alone means "unset").
+	None bool
 }
 
 // Page is one page of Songs.
