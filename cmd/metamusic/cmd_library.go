@@ -116,6 +116,9 @@ func cmdLibraryReconcile(ctx context.Context, args []string, getenv func(string)
 	}
 	if *dry {
 		fmt.Fprintf(s.out, "queue: %s (dry-run: nothing written)\n", provenance.FormatQueue(q))
+		if err := l2Reconcile(ctx, st, true, s.out); err != nil {
+			return fatal(err)
+		}
 		return nil
 	}
 	if err := ensureTaxonomy(ctx, st); err != nil {
@@ -151,11 +154,15 @@ func cmdLibraryReconcile(ctx context.Context, args []string, getenv func(string)
 	for _, a := range rep.Anomalies {
 		fmt.Fprintf(s.out, "anomaly: %s %s\n", a.Code, a.Subject)
 	}
+	if err := l2Reconcile(ctx, st, false, s.out); err != nil { // the Record syncer settles after the provenance Settle
+		return fatal(fmt.Errorf("library reconcile: records: %w", err))
+	}
 	return nil
 }
 
 func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("library verify", s)
+	files := fs.Bool("files", false, "also check that every ready tape's file exists with its recorded size")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -171,12 +178,26 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 	if err != nil {
 		return fatal(err)
 	}
-	if len(an) == 0 {
-		fmt.Fprintln(s.out, "library model: consistent")
-		return nil
-	}
 	for _, a := range an {
 		fmt.Fprintf(s.out, "%s %s %s\n", a.Code, a.Subject, a.Detail)
 	}
-	return exitError{code: 1, err: fmt.Errorf("%d anomalies", len(an))}
+	// the L2 invariants run after L1's (C130.9): only findings of severity error count, warnings are printed only
+	bad, err := l2Verify(ctx, st, s.out)
+	if err != nil {
+		return fatal(err)
+	}
+	if *files {
+		n, err := l2VerifyTapeFiles(ctx, st, getenv, s.out)
+		if err != nil {
+			return fatal(err)
+		}
+		bad += n
+	}
+	if total := len(an) + bad; total > 0 {
+		return exitError{code: 1, err: fmt.Errorf("%d anomalies", total)}
+	}
+	if len(an) == 0 {
+		fmt.Fprintln(s.out, "library model: consistent")
+	}
+	return nil
 }

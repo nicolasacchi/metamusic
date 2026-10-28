@@ -48,8 +48,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod/runpodtest"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
+	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/tape/tapetest"
 	"github.com/nicolasacchi/metamusic/internal/testtools"
 )
 
@@ -94,6 +96,14 @@ type Options struct {
 	// default) leaves it idle and the queue untouched, tests call Rig.Settle(t); true starts Run.
 	L1        bool
 	Reconcile bool
+	// L2 (C132.2b). L2 adds librarytest.FixtureL2's rows (Records, Crates, changelogs and loudness on top of FixtureL1);
+	// it requires L1. The Syncer and the tape runner are always built and idle by default: tests call Rig.Settle (which
+	// drains the provenance queue and then the Syncer) and Rig.Tapes.RunOne. Sync starts both loops instead (the plan's
+	// ManualSync, inverted so the zero value is the idle default, as Reconcile is). RealTape (media tier) uses the production
+	// pipeline and the real flac encoder; the default is tapetest.FakePipeline and a constant encoder version.
+	L2       bool
+	Sync     bool
+	RealTape bool
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -162,6 +172,11 @@ type Rig struct {
 	OIDC *oidctest.Provider
 	// Provenance is the L1 Reconciler (never started unless Options.Reconcile); Settle drains it.
 	Provenance *provenance.Service
+	// Syncer is the L2 changelog syncer (never started unless Options.Sync); Settle drains it after the Reconciler.
+	Syncer *records.Syncer
+	// Tapes drives the tape runner by hand (Rig.Tapes.RunOne); Pipeline is the fake behind it unless Options.RealTape.
+	Tapes    TapeRunner
+	Pipeline *tapetest.FakePipeline
 
 	edge, humanUser, mode string
 	password              string
@@ -314,6 +329,12 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyL1(tb, st, clock.Now())
 	}
+	if o.L2 {
+		if !o.L1 {
+			tb.Fatal("servertest: L2 requires L1")
+		}
+		librarytest.ApplyL2(tb, st, clock.Now())
+	}
 	if o.Caps != nil {
 		c := o.Caps
 		if _, err := st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd=?, batch_micro_usd=?, human_daily_micro_usd=?, agent_daily_micro_usd=?, auto_approve_takes=?, auto_approve_micro_usd=?, updated_by='system:test', updated_at=? WHERE id = 1`,
@@ -351,6 +372,16 @@ func New(tb testing.TB, o Options) *Rig {
 	}
 	if o.OIDC {
 		ao.M4a.OIDCClient = &http.Client{}
+	}
+	if o.RealTape {
+		testtools.Require(tb, "ffmpeg", "flac")
+		cfg.FFmpeg, cfg.FLAC = testtools.Tools().FFmpeg, testtools.Tools().FLAC
+	} else {
+		// No rig spawns a process for the encoder version, and the tape pipeline renders no audio.
+		fv := "flac 1.5.0 (tapetest)"
+		ao.L2.FlacVersion = &fv
+		r.Pipeline = tapetest.NewFakePipeline(tb.TempDir())
+		ao.L2.Pipeline = r.Pipeline
 	}
 	if ao.Rand == nil {
 		ao.Rand = SeededReader(1)
@@ -434,6 +465,15 @@ func New(tb testing.TB, o Options) *Rig {
 		tb.Cleanup(func() { cancel(); wg.Wait() })
 	}
 	r.Provenance = svc.Provenance
+	r.Syncer, r.Tapes = svc.Syncer, TapeRunner{svc: svc.Tapes}
+	if o.Sync {
+		rctx, cancel := context.WithCancel(ctx)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); svc.Syncer.Run(rctx) }()
+		go func() { defer wg.Done(); svc.Tapes.Run(rctx) }()
+		tb.Cleanup(func() { cancel(); wg.Wait() })
+	}
 	if o.Reconcile {
 		rctx, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})
@@ -688,6 +728,10 @@ func (r *Rig) Settle(tb testing.TB) provenance.Report {
 	}
 	if err := r.Provenance.Sweep(context.Background()); err != nil {
 		tb.Fatalf("servertest: sweep: %v", err)
+	}
+	// The Record changelog follows the Picks the Reconciler just derived (C132.2b).
+	if _, err := r.Syncer.Settle(context.Background()); err != nil {
+		tb.Fatalf("servertest: records sync: %v", err)
 	}
 	return rep
 }

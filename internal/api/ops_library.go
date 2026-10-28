@@ -13,19 +13,23 @@ func registerLibrary(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
-		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/library"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
-			page, err := d.Library.SearchTracks(ctx, library.SearchParams{
+			params, err := l2TrackParams(*in, library.SearchParams{
 				Q: in.Q, Status: in.Status, Style: in.Style, MinDurationS: in.MinDurationS.ptr(), MaxDurationS: in.MaxDurationS.ptr(),
 				RecordedFrom: in.RecordedFrom, RecordedTo: in.RecordedTo, HasScore: in.HasScore.ptr(), Truncated: in.Truncated.ptr(),
 				RootTrackID: in.RootTrackID, MinStars: in.MinStars.ptr(), Unrated: in.Unrated.ptr() != nil && *in.Unrated.ptr(),
 				Tags: in.Tag, HasOpenComments: in.HasOpenComments.ptr(), RecipeKnown: in.RecipeKnown.ptr(), Lossy: in.Lossy.ptr(),
 				SongID: in.SongID, IsPick: in.IsPick.ptr(), SessionID: in.SessionID, Sort: in.Sort, Limit: in.Limit, Cursor: in.Cursor,
 			})
+			if err != nil {
+				return nil, err // the L2 predicates answer 501 until lane K
+			}
+			page, err := d.Library.SearchTracks(ctx, params)
 			if err != nil {
 				return nil, libErr(err)
 			}

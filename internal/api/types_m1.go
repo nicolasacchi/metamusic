@@ -112,6 +112,10 @@ type searchTracksIn struct {
 	SongID          string            `query:"song_id" doc:"Only takes of this Song"`
 	IsPick          optParam[bool]    `query:"is_pick" doc:"true lists only the takes that are their Song's current Pick; false only the others"`
 	SessionID       string            `query:"session_id" doc:"Only takes in this Session (derived membership)"`
+	Unheard         optParam[bool]    `query:"unheard"`
+	InRecord        optParam[bool]    `query:"in_record"`
+	Sound           []string          `query:"sound,explode" nullable:"false" maxItems:"30" doc:"facet:value, repeatable"`
+	CrateID         string            `query:"crate_id"`
 	Sort            string            `query:"sort" enum:"recorded_desc,recorded_asc,duration_desc,duration_asc,title_asc,relevance,stars_desc" doc:"Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last"`
 	Limit           int               `query:"limit" minimum:"1" maximum:"100" default:"50"`
 	Cursor          string            `query:"cursor" doc:"Opaque cursor from next_cursor"`

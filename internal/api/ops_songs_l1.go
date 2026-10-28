@@ -15,7 +15,7 @@ func registerSongsL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_songs", Method: "GET", Path: "/api/songs",
 		Summary:     "List Songs",
-		Description: "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
+		Description: "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take. Curation filters: pick_decided (the Pick is pinned or won duels), unheard (never played by the operator), min_duration_s, max_duration_s, min_stars, unrated, tag, lossy and recipe_known (on the Song's subject take: its Pick, else its newest eligible take), in_record (in a live Record slot) and crate_id (members of a Crate).",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "none:agent-face (the Sound browser lists Songs through search_sounds)"},
 		func(ctx context.Context, in *listSongsIn) (*songsOut, error) {
 			if d.Songs == nil {
