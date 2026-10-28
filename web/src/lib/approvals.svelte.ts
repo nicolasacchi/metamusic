@@ -26,10 +26,15 @@ async function loadViewer() {
   }
 }
 
+// Refreshes overlap (every navigation, the hub, Jobs and the poll each start one) and answers may arrive out of order:
+// only the newest request may write, or an older read could hide a batch an agent has just created.
+let latest = 0;
+
 export async function refreshApprovals(): Promise<void> {
   void loadViewer();
+  const mine = ++latest;
   const p = await loadPendingApprovals({ GET: (path, init) => api.GET(path, init) });
-  if (!p) return;
+  if (!p || mine !== latest) return;
   approvals.items = p.items;
   approvals.more = p.more;
   approvals.loaded = true;

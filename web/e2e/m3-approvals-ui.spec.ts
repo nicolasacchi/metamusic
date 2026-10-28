@@ -218,3 +218,21 @@ test("/human is the hub: both spellings land on it, it lists the batch, the link
     await dispose();
   }
 });
+
+test("the hub retries a dropped access probe on its own and still lists the batch", async ({ page, request, playwright, baseURL, agentToken }) => {
+  const { batch, dispose } = await ownPendingBatch(request, playwright, baseURL, agentToken);
+  try {
+    // the hub's gate probe fails once with a server error, as a dropped request or a busy database would
+    let failed = 0;
+    await page.route("**/human/api/devices", async (route) => {
+      if (failed++ === 0) await route.fulfill({ status: 503, contentType: "application/problem+json", body: '{"code":"UNAVAILABLE","message":"e2e","details":null}' });
+      else await route.continue();
+    });
+    await page.goto("/human/");
+    await expect(page.locator(`[data-testid="approval-row"][data-batch="${batch.id}"]`)).toBeVisible();
+    expect(failed).toBeGreaterThanOrEqual(2);
+    await expect(page.getByTestId("secure-failed")).toHaveCount(0);
+  } finally {
+    await dispose();
+  }
+});

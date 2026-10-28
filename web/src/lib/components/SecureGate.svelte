@@ -9,18 +9,35 @@
   let { children }: { children: Snippet } = $props();
   let phase = $state<"checking" | "open" | "denied" | "failed">("checking");
 
-  async function check() {
-    phase = "checking";
+  // One probe. "failed" is a transient fault (network error, 5xx, an unanswered whoami); "denied" is an answer.
+  async function probe(): Promise<"open" | "denied" | "failed"> {
     try {
       const me = await api.GET("/api/me", {});
-      if (me.data?.kind !== "human") {
-        phase = me.data ? "denied" : "failed";
+      if (me.data?.kind !== "human") return me.data ? "denied" : "failed";
+      const r = await api.GET("/human/api/devices", {});
+      return r.response.status === 200 ? "open" : r.response.status === 403 ? "denied" : "failed";
+    } catch {
+      return "failed";
+    }
+  }
+
+  // A transient fault is retried in place a few times before the page asks the operator to tap "Try again": the hub
+  // is opened to act on what is waiting, and one dropped request must not leave it on an error.
+  const RETRY_DELAYS_MS = [300, 900, 2000];
+  let run = 0;
+  async function check() {
+    const mine = ++run;
+    phase = "checking";
+    for (let i = 0; ; i++) {
+      const r = await probe();
+      if (mine !== run) return;
+      const delay = RETRY_DELAYS_MS[i];
+      if (r !== "failed" || delay === undefined) {
+        phase = r;
         return;
       }
-      const r = await api.GET("/human/api/devices", {});
-      phase = r.response.status === 200 ? "open" : r.response.status === 403 ? "denied" : "failed";
-    } catch {
-      phase = "failed";
+      await new Promise((ok) => setTimeout(ok, delay));
+      if (mine !== run) return;
     }
   }
   $effect(() => {
