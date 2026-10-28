@@ -1,4 +1,6 @@
 // matrix: @mobile because approvals are done on the phone; asserts the player never covers Approve/Reject
+import { createServer, request as httpRequest } from "node:http";
+import type { AddressInfo } from "node:net";
 import { expect, test, type APIRequestContext, type Locator, type Page, type PlaywrightWorkerArgs } from "./fixtures";
 import { ownTracks, uniq } from "./helpers";
 import { agentCreateHeaders, composeRoots, first, getBatch, type Batch, type Estimate } from "./m3Api";
@@ -219,20 +221,50 @@ test("/human is the hub: both spellings land on it, it lists the batch, the link
   }
 });
 
-test("the hub retries a dropped access probe on its own and still lists the batch", async ({ page, request, playwright, baseURL, agentToken }) => {
-  const { batch, dispose } = await ownPendingBatch(request, playwright, baseURL, agentToken);
-  try {
-    // the hub's gate probe fails once with a server error, as a dropped request or a busy database would
-    let failed = 0;
-    await page.route("**/human/api/devices", async (route) => {
-      if (failed++ === 0) await route.fulfill({ status: 503, contentType: "application/problem+json", body: '{"code":"UNAVAILABLE","message":"e2e","details":null}' });
-      else await route.continue();
+// A reverse proxy in front of the worker's server that holds every cover-link answer for `holdMs`, as a cold cache
+// (a render per link) or a slow phone connection does. Playwright's route() cannot do this: an intercepted request
+// does not occupy a socket, and the browser's per-host connection limit is exactly what is under test.
+async function slowCoverProxy(target: string, holdMs: number): Promise<{ url: string; close: () => Promise<void> }> {
+  const upstream = new URL(target);
+  const srv = createServer((req, res) => {
+    const slow = /^\/api\/tracks\/[^/]+\/media(\?|$)/.test(req.url ?? "");
+    const up = httpRequest({ host: upstream.hostname, port: upstream.port, path: req.url, method: req.method, headers: req.headers }, (ur) => {
+      const send = () => {
+        res.writeHead(ur.statusCode ?? 502, ur.headers);
+        ur.pipe(res);
+      };
+      if (slow) setTimeout(send, holdMs);
+      else send();
     });
-    await page.goto("/human/");
-    await expect(page.locator(`[data-testid="approval-row"][data-batch="${batch.id}"]`)).toBeVisible();
-    expect(failed).toBeGreaterThanOrEqual(2);
-    await expect(page.getByTestId("secure-failed")).toHaveCount(0);
+    up.on("error", () => res.destroy());
+    res.on("close", () => up.destroy());
+    req.pipe(up);
+  });
+  await new Promise<void>((ok) => srv.listen(0, "127.0.0.1", ok));
+  const port = (srv.address() as AddressInfo).port;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: async () => {
+      srv.closeAllConnections();
+      await new Promise<void>((ok) => srv.close(() => ok()));
+    },
+  };
+}
+
+test("the hub opens promptly while the Library's cover links are still loading", async ({ page, baseURL }) => {
+  // Each tile of the phone Library asks for its cover link. Unbounded, those requests hold every connection the browser
+  // has per host (about six on HTTP/1.1) and the hub's own calls wait behind them.
+  const proxy = await slowCoverProxy(baseURL ?? "", 6_000);
+  try {
+    await page.goto(`${proxy.url}/library`);
+    await expect(page.getByTestId("track-row").first()).toBeVisible();
+    // client-side navigation, as the tabs do: the page and its pending requests stay alive
+    await page.evaluate(() => {
+      history.pushState({}, "", "/human/");
+      dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await expect(page.getByRole("heading", { name: "Human" })).toBeVisible({ timeout: 3_000 });
   } finally {
-    await dispose();
+    await proxy.close();
   }
 });

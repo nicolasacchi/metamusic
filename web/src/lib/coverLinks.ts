@@ -29,6 +29,8 @@ export interface CoverDeps {
   local(trackId: string): Promise<string | null>;
   online(): boolean;
   now(): number;
+  /** At most this many link requests in flight (default 3): a browser allows about six connections per host over HTTP/1.1, and the rest must stay free for the page's own calls. */
+  maxConcurrent?: number;
 }
 
 /** Refresh a signed link this long before it expires. */
@@ -47,10 +49,31 @@ export function createCovers(deps: CoverDeps) {
     }
   };
 
+  // A grid of tiles asks for many links at once and each one costs the server a cover render on a cold cache: they
+  // queue here, first come first served, instead of taking every connection the browser has.
+  const limit = deps.maxConcurrent ?? 3;
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  const slot = async (): Promise<void> => {
+    if (active >= limit) await new Promise<void>((go) => waiting.push(go));
+    else active++;
+  };
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next(); // the slot passes straight to the next waiter
+    else active--;
+  };
+
   const load = async (id: string): Promise<CoverSet | null> => {
     if (!deps.online()) return fromLocal(id);
     try {
-      const l = await deps.links(id);
+      await slot();
+      let l: Awaited<ReturnType<CoverDeps["links"]>>;
+      try {
+        l = await deps.links(id);
+      } finally {
+        release();
+      }
       if (l?.cover) {
         const set = { url512: l.cover.url_512, url1024: l.cover.url_1024 };
         const exp = Date.parse(l.cover.expires_at);

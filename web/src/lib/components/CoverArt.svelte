@@ -12,11 +12,27 @@
 
   let src = $state<string | null>(null);
   let failed = $state(false);
+  let box = $state<HTMLElement | null>(null);
+  // Only a tile that is (nearly) on screen asks for its link: a long list must not fetch every cover at once.
+  let seen = $state(typeof IntersectionObserver === "undefined");
+
+  $effect(() => {
+    if (seen || !box) return;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) seen = true;
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(box);
+    return () => io.disconnect();
+  });
 
   $effect(() => {
     const id = trackId;
     src = null;
     failed = false;
+    if (!seen) return;
     void covers.get(id).then((c) => {
       if (id === trackId) src = c?.url512 ?? null;
     });
@@ -24,9 +40,9 @@
 </script>
 
 {#if src && !failed}
-  <img class="cover" data-testid="cover-art" {src} alt={title} width={size} height={size} onerror={() => (failed = true)} />
+  <img bind:this={box} class="cover" data-testid="cover-art" {src} alt={title} width={size} height={size} onerror={() => (failed = true)} />
 {:else}
-  <div class="cover ph" data-testid="cover-placeholder" style:width="{size}px" style:height="{size}px" aria-hidden="true"></div>
+  <div bind:this={box} class="cover ph" data-testid="cover-placeholder" style:width="{size}px" style:height="{size}px" aria-hidden="true"></div>
 {/if}
 
 <style>
