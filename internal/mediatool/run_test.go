@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,5 +152,31 @@ func TestRun_Stdin(t *testing.T) {
 	out, err := Run(context.Background(), script(t, `cat | wc -c`), nil, RunOpts{Timeout: 5 * time.Second, MaxStdout: 1 << 10})
 	if err != nil || strings.TrimSpace(string(out)) != "0" {
 		t.Fatalf("out=%q err=%v", out, err)
+	}
+}
+
+func TestRun_StdinReader(t *testing.T) {
+	var sink bytes.Buffer
+	_, err := Run(context.Background(), script(t, `cat`), nil, RunOpts{Timeout: 5 * time.Second, Stdout: &sink, Stdin: strings.NewReader("piped bytes")})
+	if err != nil || sink.String() != "piped bytes" {
+		t.Fatalf("sink=%q err=%v", sink.String(), err)
+	}
+	// a nil reader keeps /dev/null even when the tool reads
+	out, err := Run(context.Background(), script(t, `cat | wc -c`), nil, RunOpts{Timeout: 5 * time.Second, MaxStdout: 1 << 10, Stdin: nil})
+	if err != nil || strings.TrimSpace(string(out)) != "0" {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+}
+
+// A cancelled run must not wait for a stdin reader that never produces or ends.
+func TestRun_StdinBlockedReaderCancel(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
+	start := time.Now()
+	_, err := Run(ctx, script(t, `exec cat`), nil, RunOpts{Timeout: 30 * time.Second, Stdout: io.Discard, Stdin: pr})
+	if err == nil || time.Since(start) > waitDelay+2*time.Second {
+		t.Fatalf("err=%v after %v", err, time.Since(start))
 	}
 }
