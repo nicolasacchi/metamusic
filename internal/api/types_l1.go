@@ -86,6 +86,8 @@ type MuseDetail struct {
 	Angles     []MuseAngleCount `json:"angles" nullable:"false"`
 	Songs      []SongSummary    `json:"songs" nullable:"false"`
 	SongsTotal int              `json:"songs_total"`
+	// Catalog (L2 lane A2, C130.3) is the Muse's automatic album: null while the Muse has none or A2 is not built.
+	Catalog *MuseCatalog `json:"catalog"`
 }
 
 // AssignResult is the outcome of assign_muse_songs.
@@ -331,6 +333,9 @@ type SongView struct {
 	Sessions   []SongSession  `json:"sessions" nullable:"false"`
 	Lineage    *SongLineage   `json:"lineage"`
 	Pending    bool           `json:"pending"`
+	// L2 (C130.3): the Records and manual Crates that hold the Song, at most ten each; empty until the lane that fills them.
+	Records []SongRecordRef `json:"records" nullable:"false"`
+	Crates  []SongCrateRef  `json:"crates" nullable:"false"`
 }
 
 // PinResult is the outcome of pin_pick.
@@ -357,6 +362,21 @@ type SongFilterIn struct {
 	Q                string         `query:"q" maxLength:"200" doc:"Case-insensitive substring of the Song title"`
 	IncludeHidden    bool           `query:"include_hidden"`
 	IncludeArchived  bool           `query:"include_archived"`
+
+	// L2 predicates (C125.3, C130.1): accepted now, answering 501 NOT_IMPLEMENTED until lane K evaluates them. The take
+	// predicates apply to the Song's subject take (its Pick take, else its newest eligible take). Their semantics are in the
+	// list_songs description; the tags stay short because search_sounds is a first-class tool (tools/list ceiling).
+	PickDecided  optParam[bool]    `query:"pick_decided" doc:"Pick source is pinned or ladder; has_pick is unchanged"`
+	Unheard      optParam[bool]    `query:"unheard"`
+	MinDurationS optParam[float64] `query:"min_duration_s" minimum:"0"`
+	MaxDurationS optParam[float64] `query:"max_duration_s" minimum:"0"`
+	MinStars     optParam[int]     `query:"min_stars" minimum:"1" maximum:"5"`
+	Unrated      optParam[bool]    `query:"unrated"`
+	Tag          []string          `query:"tag,explode" nullable:"false" maxItems:"5"`
+	Lossy        optParam[bool]    `query:"lossy"`
+	RecipeKnown  optParam[bool]    `query:"recipe_known"`
+	InRecord     optParam[bool]    `query:"in_record"`
+	CrateID      string            `query:"crate_id"`
 }
 type listSongsIn struct {
 	SongFilterIn

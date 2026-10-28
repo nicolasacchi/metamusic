@@ -3994,6 +3994,20 @@
           },
           "type": "array"
         },
+        "catalog": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "neutral_name": {
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "coverage": {
           "properties": {
             "draft": {
@@ -4213,6 +4227,20 @@
     "name": "get_song",
     "outputSchema": {
       "properties": {
+        "crates": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
         "draft": {
           "properties": {
             "group_key": {
@@ -4489,6 +4517,35 @@
                 "type": "string"
               },
               "take_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "mode": {
+                "enum": [
+                  "floating",
+                  "pinned"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "draft",
+                  "proposed",
+                  "published"
+                ],
+                "type": "string"
+              },
+              "title": {
                 "type": "string"
               }
             },
@@ -4967,6 +5024,97 @@
             }
           },
           "type": "object"
+        },
+        "curation": {
+          "properties": {
+            "crates": {
+              "properties": {
+                "manual": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "smart": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "opt_ins": {
+              "properties": {
+                "export_muse_names": {
+                  "type": "boolean"
+                },
+                "subsonic_muse_names": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
+            "pending": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "records": {
+              "properties": {
+                "draft": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "proposed": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "published": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "total": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "review": {
+              "properties": {
+                "pin_ineligible": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "undecided": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "tapes": {
+              "properties": {
+                "failed": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "queued": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "ready": {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "running": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "drafts_by_origin": {
           "type": "object"
@@ -6521,6 +6669,12 @@
         "_links": {
           "type": "object"
         },
+        "curation": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "format": {
           "type": "string"
         },
@@ -7984,11 +8138,14 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search Sounds\n\nSongs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
+    "description": "Search Sounds\n\nSongs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only. Accepts the curation filters of list_songs.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "angle": {
+          "type": "string"
+        },
+        "crate_id": {
           "type": "string"
         },
         "cursor": {
@@ -8002,6 +8159,9 @@
           "type": "boolean"
         },
         "has_pick": {
+          "type": "boolean"
+        },
+        "in_record": {
           "type": "boolean"
         },
         "include_archived": {
@@ -8018,10 +8178,33 @@
           "minimum": 0,
           "type": "integer"
         },
+        "lossy": {
+          "type": "boolean"
+        },
+        "max_duration_s": {
+          "format": "double",
+          "minimum": 0,
+          "type": "number"
+        },
+        "min_duration_s": {
+          "format": "double",
+          "minimum": 0,
+          "type": "number"
+        },
+        "min_stars": {
+          "format": "int64",
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
         "muse_id": {
           "type": "string"
         },
         "no_muse": {
+          "type": "boolean"
+        },
+        "pick_decided": {
+          "description": "Pick source is pinned or ladder; has_pick is unchanged",
           "type": "boolean"
         },
         "q": {
@@ -8030,6 +8213,9 @@
           "type": "string"
         },
         "queued": {
+          "type": "boolean"
+        },
+        "recipe_known": {
           "type": "boolean"
         },
         "session_id": {
@@ -8055,12 +8241,25 @@
           },
           "type": "array"
         },
+        "tag": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "type": "array"
+        },
         "tempo_mismatch": {
           "type": "boolean"
         },
         "track_id": {
           "description": "The single Song of this take",
           "type": "string"
+        },
+        "unheard": {
+          "type": "boolean"
+        },
+        "unrated": {
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -8183,10 +8382,13 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "crate_id": {
+          "type": "string"
+        },
         "cursor": {
           "description": "Opaque cursor from next_cursor",
           "type": "string"
@@ -8195,6 +8397,9 @@
           "type": "boolean"
         },
         "has_score": {
+          "type": "boolean"
+        },
+        "in_record": {
           "type": "boolean"
         },
         "is_pick": {
@@ -8270,6 +8475,14 @@
           ],
           "type": "string"
         },
+        "sound": {
+          "description": "facet:value, repeatable",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
         "status": {
           "description": "Repeatable status filter",
           "items": {
@@ -8300,6 +8513,9 @@
           "type": "array"
         },
         "truncated": {
+          "type": "boolean"
+        },
+        "unheard": {
           "type": "boolean"
         },
         "unrated": {

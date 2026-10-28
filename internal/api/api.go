@@ -14,12 +14,15 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
+	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
+	"github.com/nicolasacchi/metamusic/internal/crates"
+	"github.com/nicolasacchi/metamusic/internal/curation"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -40,6 +43,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/prompts"
+	"github.com/nicolasacchi/metamusic/internal/records"
+	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
@@ -47,6 +52,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/tape"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 )
 
@@ -115,6 +121,15 @@ type Deps struct {
 	Board    *board.Service
 	// Songwriting holds the duration targets (settings table); nil makes its operations answer 503 UNAVAILABLE.
 	Songwriting *songwriting.Service
+
+	// L2 (C118). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component} (records,
+	// crates, tape, curation). Albums has no operation: it is wired for the Subsonic server (lane S1) and the tests.
+	Records    *records.Service
+	RecordView *recordview.Service
+	Crates     *crates.Service
+	Tapes      *tape.Service
+	Curation   *curation.Service
+	Albums     *albums.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -245,6 +260,10 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerPromptsM4a(a, d)
 	registerConnectorsM4a(a, d)
 	registerSubsonicClientsM4a(a, d)
+	registerRecordsL2(a, d)
+	registerCratesL2(a, d)
+	registerTapeL2(a, d)
+	registerSettingsL2(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

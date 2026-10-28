@@ -268,6 +268,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/crates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Crates
+         * @description Crates (working sets of Songs or Takes, manual or saved filters) by kind, subject or name. Smart Crate counts are computed only with counts=true.
+         */
+        get: operations["list_crates"];
+        put?: never;
+        /**
+         * Create a Crate
+         * @description Creates a manual Crate (with up to 200 Songs or Takes) or a smart Crate (a saved list_songs or search_tracks filter). Returns the live count. Needs an Idempotency-Key.
+         */
+        post: operations["create_crate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/crates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Crate
+         * @description One Crate with its live count; list its members through list_songs or search_tracks with crate_id.
+         */
+        get: operations["get_crate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a Crate
+         * @description Renames, hides, or changes the saved filter of a smart Crate under optimistic locking: send the revision you read.
+         */
+        patch: operations["update_crate"];
+        trace?: never;
+    };
+    "/api/crates/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a Crate's items
+         * @description Adds and removes up to 200 members each of a manual Crate. Adding a present member counts as already; removing an absent one as not_member. Not revision-locked.
+         */
+        post: operations["edit_crate_items"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/curation/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the curation settings
+         * @description The two privacy opt-ins: whether tape files carry a Muse's name (export_muse_names) and whether automatic Subsonic groupings are named by their Muse (subsonic_muse_names). Both default to off.
+         */
+        get: operations["get_curation_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/device-probe": {
         parameters: {
             query?: never;
@@ -1096,6 +1184,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Records
+         * @description Records (ordered listening sequences of Songs) by status, title, or a Song they hold; newest first. Hidden ones only with include_hidden.
+         */
+        get: operations["list_records"];
+        put?: never;
+        /**
+         * Create a Record
+         * @description Creates a draft Record, optionally with Songs (at most 60) as floating slots in order. Floating slots follow each Song's current Pick. Needs an Idempotency-Key.
+         */
+        post: operations["create_record"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/records/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Record
+         * @description One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes or the publish preview.
+         */
+        get: operations["get_record"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a Record
+         * @description Changes title, subtitle, liner note, hides or unhides, or re-rolls the cover, under optimistic locking: send the revision you read. A published Record is edited by a human only.
+         */
+        patch: operations["update_record"];
+        trace?: never;
+    };
+    "/api/records/{id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Record's changelog
+         * @description The append-only changelog of a Record: edits, Pick-driven upgrades with their evidence, proposals and publications. Newest first unless order is asc; cursor is the last seq.
+         */
+        get: operations["get_record_changes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/records/{id}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a Record
+         * @description Proposes a draft Record for a human to publish, with a rationale of up to 500 characters. Only a human publishes.
+         */
+        post: operations["propose_record"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/records/{id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a Record's slots
+         * @description Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all. Send the revision you read; any error rolls everything back.
+         */
+        post: operations["edit_record_slots"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/records/{id}/tapes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export a Record as a tape
+         * @description Queues one lossless 24-bit FLAC with chapters, loudness-matched and gapless, for a published Record; an identical live export is returned instead (reused). Poll get_tape. Needs an Idempotency-Key.
+         */
+        post: operations["export_record_tape"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions": {
         parameters: {
             query?: never;
@@ -1165,7 +1381,7 @@ export interface paths {
         };
         /**
          * List Songs
-         * @description Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.
+         * @description Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take. Curation filters: pick_decided (the Pick is pinned or won duels), unheard (never played by the operator), min_duration_s, max_duration_s, min_stars, unrated, tag, lossy and recipe_known (on the Song's subject take: its Pick, else its newest eligible take), in_record (in a live Record slot) and crate_id (members of a Crate).
          */
         get: operations["list_songs"];
         put?: never;
@@ -1269,7 +1485,7 @@ export interface paths {
         };
         /**
          * Search Sounds
-         * @description Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.
+         * @description Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only. Accepts the curation filters of list_songs.
          */
         get: operations["search_sounds"];
         put?: never;
@@ -1424,6 +1640,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tapes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a tape
+         * @description A tape's state, progress, loudness plan, chapters and, when ready, its signed download link (14 days).
+         */
+        get: operations["get_tape"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tokens": {
         parameters: {
             query?: never;
@@ -1473,7 +1709,7 @@ export interface paths {
         };
         /**
          * Search tracks
-         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
          */
         get: operations["search_tracks"];
         put?: never;
@@ -1812,6 +2048,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/human/api/curation/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the curation settings
+         * @description Human only. Turns the Muse-name opt-ins on or off; send only the keys to change. An agent reads them with get_curation_settings.
+         */
+        put: operations["set_curation_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/human/api/devices": {
         parameters: {
             query?: never;
@@ -1906,6 +2162,26 @@ export interface paths {
          * @description The operator arms or disarms generation and/or resets an open trip. A reason is required. Arming after a restore waits for a billing reconciliation.
          */
         post: operations["update_provider_state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/records/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish or unpublish a Record
+         * @description Human only. published true publishes a draft or proposed Record (Subsonic clients and tapes then see it); false sends a proposal back to draft or unpublishes. Send the revision you reviewed.
+         */
+        post: operations["publish_record"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2484,6 +2760,29 @@ export interface components {
             updated_at: string;
             updated_by: components["schemas"]["PrincipalRef"];
         };
+        ChangeView: {
+            actor: components["schemas"]["PrincipalRef"];
+            at: string;
+            evidence: {
+                [key: string]: unknown;
+            } | null;
+            from: {
+                id: string;
+                title: string;
+            } | null;
+            kind: string;
+            /** Format: int64 */
+            position: number | null;
+            reason: string | null;
+            /** Format: int64 */
+            seq: number;
+            slot_id: string | null;
+            text: string;
+            to: {
+                id: string;
+                title: string;
+            } | null;
+        };
         ClipLink: {
             /**
              * Format: int64
@@ -2720,6 +3019,10 @@ export interface components {
             _links: {
                 [key: string]: unknown;
             };
+            /** @description Records whose slot resolves to this take and manual Crates holding it or its Song; absent when there are none */
+            curation?: {
+                [key: string]: unknown;
+            } | null;
             /** @example mm.context/1 */
             format: string;
             judgments: {
@@ -2763,6 +3066,91 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        CoverLinks: {
+            /** @description RFC 3339 UTC */
+            expires_at: string;
+            url_1024: string;
+            /** @description Signed, relative /media/<key>.png URL */
+            url_512: string;
+        };
+        Crate: {
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            description: string;
+            /** @description A smart Crate's saved filter (mm.crate-filter/1); null for a manual one */
+            filter: {
+                [key: string]: unknown;
+            } | null;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            kind: "manual" | "smart";
+            name: string;
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            subject: "song" | "take";
+            updated_at: string;
+        };
+        CrateDetail: {
+            /** Format: int64 */
+            count: number;
+            crate: components["schemas"]["Crate"];
+            warnings: string[];
+        };
+        CrateMember: {
+            song_id?: string;
+            track_id?: string;
+        };
+        CrateStats: {
+            /** Format: int64 */
+            manual: number;
+            /** Format: int64 */
+            smart: number;
+        };
+        CrateSummary: {
+            /** Format: int64 */
+            count: number | null;
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            description: string;
+            /** @description A smart Crate's saved filter (mm.crate-filter/1); null for a manual one */
+            filter: {
+                [key: string]: unknown;
+            } | null;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            kind: "manual" | "smart";
+            name: string;
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            subject: "song" | "take";
+            updated_at: string;
+        };
+        CratesOutBody: {
+            items: components["schemas"]["CrateSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        CreateCrateInBody: {
+            description?: string;
+            /** @description Smart only: the keys of list_songs (song) or search_tracks (take) */
+            filter?: {
+                [key: string]: unknown;
+            };
+            items?: components["schemas"]["CrateMember"][] | null;
+            /** @enum {string} */
+            kind: "manual" | "smart";
+            name: string;
+            /**
+             * @description Default song; fixed at creation
+             * @enum {string}
+             */
+            subject?: "song" | "take";
+        };
         CreateDraftInBody: {
             collection?: string;
             label?: string;
@@ -2802,6 +3190,13 @@ export interface components {
             description?: string;
             name: string;
             track_ids?: string[] | null;
+        };
+        CreateRecordInBody: {
+            liner_note?: string;
+            /** @description Songs, in order; each becomes a floating slot */
+            song_ids?: string[] | null;
+            subtitle?: string;
+            title: string;
         };
         CreateSubsonicClientInBody: {
             /** @description Create an API key (default true) */
@@ -2843,6 +3238,14 @@ export interface components {
             scopes: string[];
             /** @description The new token; null on an idempotent replay */
             token: string | null;
+        };
+        CurationSettings: {
+            /** @description Tape files carry the inspiring Muse's name */
+            export_muse_names: boolean;
+            /** @description Automatic Subsonic groupings are named by their Muse */
+            subsonic_muse_names: boolean;
+            updated_at: string | null;
+            updated_by: components["schemas"]["PrincipalRef"];
         };
         Device: {
             created_at: string;
@@ -3224,6 +3627,35 @@ export interface components {
             state: "open" | "decided" | "expired";
             window: components["schemas"]["ClipWindow"];
         };
+        EditCrateItemsInBody: {
+            add?: components["schemas"]["CrateMember"][] | null;
+            remove?: components["schemas"]["CrateMember"][] | null;
+        };
+        EditRecordSlotsInBody: {
+            ops: components["schemas"]["SlotOp"][] | null;
+            /** Format: int64 */
+            revision: number;
+        };
+        Energy: {
+            slots: components["schemas"]["EnergySlot"][];
+            /** Format: double */
+            target_lufs: number;
+            /** Format: double */
+            total_duration_s: number;
+        };
+        EnergySlot: {
+            /** Format: double */
+            bpm: number | null;
+            /** Format: double */
+            duration_s: number;
+            /** Format: double */
+            gain_db: number | null;
+            /** @description Short-term loudness after the plan gain, at most 120 points; empty without an analysis */
+            lufs: number[];
+            /** Format: double */
+            mean_lufs: number | null;
+            slot_id: string;
+        };
         EnvDetail: {
             cuda: string;
             gpu_name: string;
@@ -3394,6 +3826,22 @@ export interface components {
                 [key: string]: unknown;
             };
             message: string;
+        };
+        ExportRecordTapeInBody: {
+            /** @description Humans only: accept pin_ineligible and undecided_pick slots */
+            accept_warnings?: boolean;
+            /** @description Default true */
+            include_liner?: boolean;
+            /**
+             * Format: int64
+             * @description Refuse (409) unless the Record is still at this revision
+             */
+            revision?: number;
+            /**
+             * Format: double
+             * @description Rounded to 0.1 LU; default: the automatic target
+             */
+            target_lufs?: number;
         };
         ExportRename: {
             from: string;
@@ -3604,6 +4052,18 @@ export interface components {
             template_mode?: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
             /** @description compose_new, single-take items */
             title?: string;
+        };
+        ItemsResult: {
+            /** Format: int64 */
+            added: number;
+            /** Format: int64 */
+            already: number;
+            /** Format: int64 */
+            count: number;
+            /** Format: int64 */
+            not_member: number;
+            /** Format: int64 */
+            removed: number;
         };
         Job: {
             artifacts: components["schemas"]["JobArtifact"][];
@@ -4135,6 +4595,11 @@ export interface components {
         };
         MuseDetail: {
             angles: components["schemas"]["MuseAngleCount"][];
+            catalog: {
+                /** @description The catalog id the Subsonic server lists the grouping under */
+                id: string;
+                neutral_name: string;
+            } | null;
             coverage: components["schemas"]["MuseCoverage"];
             muse: components["schemas"]["Muse"];
             songs: components["schemas"]["SongSummary"][];
@@ -4325,6 +4790,10 @@ export interface components {
             /** Format: int64 */
             mp3_bytes: number;
         };
+        OptInStats: {
+            export_muse_names: boolean;
+            subsonic_muse_names: boolean;
+        };
         PairStats: {
             critic: components["schemas"]["VerdictCounts"];
             human: components["schemas"]["VerdictCounts"];
@@ -4482,6 +4951,15 @@ export interface components {
             used_micro_usd: number;
             used_usd: string;
         };
+        PreviewChapter: {
+            name: string;
+            /** Format: int64 */
+            position: number;
+        };
+        PreviewTag: {
+            key: string;
+            value: string;
+        };
         PrincipalRef: {
             /** @description Principal key (kind:id); "human" for the operator as seen by an agent */
             id: string;
@@ -4535,6 +5013,11 @@ export interface components {
         ProposePickInBody: {
             rationale: string;
             take_id: string;
+        };
+        ProposeRecordInBody: {
+            rationale: string;
+            /** Format: int64 */
+            revision: number;
         };
         ProviderBrief: {
             armed: boolean;
@@ -4628,6 +5111,12 @@ export interface components {
                 unhealthy: number;
             } | null;
         };
+        PublishRecordInBody: {
+            /** @description true publishes; false sends a proposal back or unpublishes */
+            published: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
         PutDeviceProfileInBody: {
             /** @description canPlayType('audio/flac') result: probably, maybe or empty */
             flac_can_play: string;
@@ -4698,8 +5187,129 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        Record: {
+            /** Format: int64 */
+            cover_rerolls: number;
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            hidden: boolean;
+            id: string;
+            /** @description The operator's own note, prepended to the generated liner notes */
+            liner_note: string;
+            proposal: {
+                /** @description RFC 3339 UTC */
+                at: string;
+                by: components["schemas"]["PrincipalRef"];
+                note: string;
+            } | null;
+            published: {
+                at: string;
+                by: components["schemas"]["PrincipalRef"];
+                /** @description The first time this Record was ever published */
+                first_at: string;
+            } | null;
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            status: "draft" | "proposed" | "published";
+            subtitle: string;
+            title: string;
+            updated_at: string;
+        };
+        RecordChangesOutBody: {
+            items: components["schemas"]["ChangeView"][];
+            /** Format: int64 */
+            next_cursor: number | null;
+        };
+        RecordLiner: {
+            markdown: string;
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        RecordPreview: {
+            chapters: components["schemas"]["PreviewChapter"][];
+            description: string;
+            tags: components["schemas"]["PreviewTag"][];
+            warnings: components["schemas"]["TapeWarning"][];
+        };
+        RecordStats: {
+            /** Format: int64 */
+            draft: number;
+            /** Format: int64 */
+            proposed: number;
+            /** Format: int64 */
+            published: number;
+            /** Format: int64 */
+            total: number;
+        };
+        RecordSummary: {
+            cover: components["schemas"]["CoverLinks"];
+            /** Format: double */
+            duration_s: number;
+            hidden: boolean;
+            id: string;
+            /** Format: int64 */
+            playable: number;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            slots: number;
+            /** @enum {string} */
+            status: "draft" | "proposed" | "published";
+            subtitle: string;
+            title: string;
+            updated_at: string;
+            /** Format: int64 */
+            warnings: number;
+        };
+        RecordTotals: {
+            /** Format: double */
+            duration_s: number;
+            /** Format: int64 */
+            lossy: number;
+            /** Format: int64 */
+            playable: number;
+            /** Format: int64 */
+            slots: number;
+            /** Format: int64 */
+            undecided: number;
+            /** Format: int64 */
+            warnings: number;
+        };
+        RecordView: {
+            changes?: components["schemas"]["ChangeView"][] | null;
+            cover: components["schemas"]["CoverLinks"];
+            energy?: components["schemas"]["Energy"];
+            /** @description get_record only (Muse text) */
+            liner?: components["schemas"]["RecordLiner"];
+            /** @description The changelog may lag by one sync pass; the resolved Takes are never stale */
+            pending: boolean;
+            preview?: components["schemas"]["RecordPreview"];
+            record: components["schemas"]["Record"];
+            slots: components["schemas"]["SlotView"][];
+            tapes?: components["schemas"]["TapeBrief"][] | null;
+            totals: components["schemas"]["RecordTotals"];
+            warnings: components["schemas"]["RecordWarning"][];
+        };
+        RecordWarning: {
+            code: string;
+            slot_id: string | null;
+        };
+        RecordsOutBody: {
+            items: components["schemas"]["RecordSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
         RejectBatchInBody: {
             reason: string;
+        };
+        ReviewStats: {
+            /** Format: int64 */
+            pin_ineligible: number;
+            /** Format: int64 */
+            undecided: number;
         };
         SectionOut: {
             /** Format: double */
@@ -4753,6 +5363,10 @@ export interface components {
             /** @description Must contain read */
             scopes?: ("read" | "write" | "generate")[] | null;
         };
+        SetCurationSettingsInBody: {
+            export_muse_names?: boolean;
+            subsonic_muse_names?: boolean;
+        };
         SetSpendCapsInBody: {
             /** Format: int64 */
             agent_daily_micro_usd?: number;
@@ -4799,6 +5413,36 @@ export interface components {
             /** Format: double */
             window_lufs: number | null;
         };
+        SlotOp: {
+            /** @enum {string} */
+            op: "add" | "remove" | "move" | "reorder" | "pin" | "unpin" | "set_side" | "pin_all" | "unpin_all";
+            /**
+             * Format: int64
+             * @description add (optional, default end) and move; 1-based
+             */
+            position?: number;
+            /**
+             * @description set_side (required: a letter or null) and add (optional)
+             * @enum {string|null}
+             */
+            side?: "A" | "B" | "C" | "D" | null;
+            /** @description remove, move, pin, unpin, set_side */
+            slot_id?: string;
+            /** @description reorder: the complete new order */
+            slot_ids?: string[] | null;
+            /** @description add */
+            song_id?: string;
+            /** @description pin; add with a Take pins the new slot */
+            take_id?: string;
+        };
+        SlotSong: {
+            angle: string | null;
+            id: string;
+            retired: boolean;
+            retired_into: string | null;
+            state: string;
+            title: string;
+        };
         SlotSummary: {
             track: {
                 /** Format: double */
@@ -4812,6 +5456,45 @@ export interface components {
                 seed: number;
                 title: string;
             } | null;
+        };
+        SlotView: {
+            /**
+             * Format: double
+             * @description The plan gain with the automatic target; null when unmeasured
+             */
+            gain_db: number | null;
+            id: string;
+            /** @enum {string} */
+            mode: "floating" | "pinned";
+            pick: {
+                source: string;
+                take_id: string | null;
+            } | null;
+            pin_differs: boolean;
+            /** Format: int64 */
+            position: number;
+            /** @enum {string|null} */
+            side: "A" | "B" | "C" | "D" | null;
+            song: components["schemas"]["SlotSong"];
+            /** @enum {string} */
+            state: "ok" | "empty" | "pin_ineligible";
+            take: {
+                /** Format: double */
+                duration_s: number;
+                id: string;
+                lossy: boolean;
+                recipe_known: boolean;
+                /**
+                 * Format: int64
+                 * @description Human stars
+                 */
+                stars: number | null;
+                status: string;
+                title: string;
+            } | null;
+            warnings: string[];
+            /** @description Why the Song's current Pick is what it is */
+            why: string | null;
         };
         SongChip: {
             /** @description Only when state is draft */
@@ -4851,6 +5534,10 @@ export interface components {
             title: string;
             updated_at: string;
         };
+        SongCrateRef: {
+            id: string;
+            name: string;
+        };
         SongDraft: {
             group_key: string | null;
             id: string;
@@ -4871,6 +5558,14 @@ export interface components {
             /** @enum {string} */
             source: "pinned" | "ladder" | "stars" | "newest";
             take_id: string;
+        };
+        SongRecordRef: {
+            id: string;
+            /** @enum {string} */
+            mode: "floating" | "pinned";
+            /** @enum {string} */
+            status: "draft" | "proposed" | "published";
+            title: string;
         };
         SongSession: {
             id: string;
@@ -4919,6 +5614,7 @@ export interface components {
             updated_at: string;
         };
         SongView: {
+            crates: components["schemas"]["SongCrateRef"][];
             draft: components["schemas"]["SongDraft"];
             events: components["schemas"]["PickEvent"][];
             lineage: components["schemas"]["SongLineage"];
@@ -4926,6 +5622,7 @@ export interface components {
             pending: boolean;
             pick: components["schemas"]["PickView"];
             proposals: components["schemas"]["PickProposal"][];
+            records: components["schemas"]["SongRecordRef"][];
             sessions: components["schemas"]["SongSession"][];
             song: components["schemas"]["SongCore"];
             sounds: components["schemas"]["SongSounds"];
@@ -5072,6 +5769,19 @@ export interface components {
             backups: components["schemas"]["BackupStatus"];
             bandwidth: components["schemas"]["BandwidthStats"];
             breakdown: components["schemas"]["Breakdown"];
+            /** @description Records, Crates, tapes and the two opt-ins; null when the curation services are absent */
+            curation: {
+                crates: components["schemas"]["CrateStats"];
+                opt_ins: components["schemas"]["OptInStats"];
+                /**
+                 * Format: int64
+                 * @description Slots with Pick events the changelog has not consumed yet
+                 */
+                pending: number;
+                records: components["schemas"]["RecordStats"];
+                review: components["schemas"]["ReviewStats"];
+                tapes: components["schemas"]["TapeStats"];
+            } | null;
             drafts_by_origin: {
                 [key: string]: number;
             };
@@ -5260,6 +5970,111 @@ export interface components {
             measured_bpm: number | null;
             /** Format: double */
             requested_bpm: number | null;
+        };
+        Tape: {
+            accepted_warnings: boolean;
+            /** Format: int64 */
+            bytes: number | null;
+            chapters: components["schemas"]["TapeChapter"][] | null;
+            contains_lossy: boolean;
+            created_at: string;
+            download: {
+                /** Format: int64 */
+                bytes: number;
+                /** @description Only when a sidecar cue sheet exists */
+                cue_url?: string;
+                expires_at: string;
+                filename: string;
+                url: string;
+            } | null;
+            error: {
+                code: string;
+                message: string;
+            } | null;
+            finished_at: string | null;
+            id: string;
+            items: components["schemas"]["TapeItem"][];
+            /** Format: int64 */
+            lossy_sources: number;
+            progress: {
+                /** Format: int64 */
+                item: number;
+                /** Format: int64 */
+                items: number;
+                /** @enum {string} */
+                phase: "decode" | "encode" | "rewrite" | "verify";
+            } | null;
+            record_id: string;
+            /** Format: int64 */
+            record_revision: number;
+            /** @description An identical export was already live and was returned instead of a new one */
+            reused: boolean;
+            sha256: string | null;
+            spread_lu: {
+                /** Format: double */
+                after: number;
+                /** Format: double */
+                before: number;
+            } | null;
+            started_at: string | null;
+            /** @enum {string} */
+            state: "queued" | "running" | "ready" | "failed" | "expired";
+            /** Format: double */
+            target_lufs: number;
+            /** Format: int64 */
+            total_ms: number | null;
+            warnings: components["schemas"]["TapeWarning"][];
+        };
+        TapeBrief: {
+            /** Format: int64 */
+            bytes: number | null;
+            contains_lossy: boolean;
+            created_at: string;
+            expires_at: string | null;
+            finished_at: string | null;
+            id: string;
+            /** @enum {string} */
+            state: "queued" | "running" | "ready" | "failed" | "expired";
+        };
+        TapeChapter: {
+            /** Format: int64 */
+            index: number;
+            /** Format: int64 */
+            samples: number;
+            slot_id: string;
+            /** Format: int64 */
+            start_ms: number;
+        };
+        TapeItem: {
+            downmixed: boolean;
+            /** Format: double */
+            gain_db: number;
+            lossy: boolean;
+            /** Format: int64 */
+            position: number;
+            /** Format: double */
+            predicted_lufs: number | null;
+            resampled: boolean;
+            slot_id: string;
+            /** @enum {string} */
+            status: "matched" | "cut_clamped" | "boost_clamped" | "peak_limited" | "silent" | "unmeasured";
+            take_id: string;
+            upmixed: boolean;
+        };
+        TapeStats: {
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            ready: number;
+            /** Format: int64 */
+            running: number;
+        };
+        TapeWarning: {
+            /** @enum {string} */
+            code: "pin_ineligible" | "undecided_pick";
+            slot_id: string;
         };
         Targets: {
             /** Format: int64 */
@@ -5652,6 +6467,16 @@ export interface components {
             /** @enum {string} */
             state?: "open" | "resolved" | "addressed" | "regressed";
         };
+        UpdateCrateInBody: {
+            description?: string;
+            filter?: {
+                [key: string]: unknown;
+            };
+            hidden?: boolean;
+            name?: string;
+            /** Format: int64 */
+            revision: number;
+        };
         UpdateDraftInBody: {
             /** @description null or empty clears */
             label?: string | null;
@@ -5690,6 +6515,16 @@ export interface components {
             reason: string;
             /** @description Clear the open trip (no-op when none is open) */
             reset_trip?: boolean;
+        };
+        UpdateRecordInBody: {
+            /** @description Draw a new cover layout; the palette stays */
+            cover_reroll?: boolean;
+            hidden?: boolean;
+            liner_note?: string;
+            /** Format: int64 */
+            revision: number;
+            subtitle?: string;
+            title?: string;
         };
         UpdateSessionInBody: {
             hidden?: boolean;
@@ -6305,6 +7140,210 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConnectorGrant"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_crates: {
+        parameters: {
+            query?: {
+                kind?: "manual" | "smart";
+                subject?: "song" | "take";
+                q?: string;
+                include_hidden?: boolean;
+                /** @description Compute the live count of smart Crates */
+                counts?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CratesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_crate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCrateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrateDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_crate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrateDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_crate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCrateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrateDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_crate_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditCrateItemsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemsResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_curation_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurationSettings"];
                 };
             };
             /** @description Error */
@@ -7914,6 +8953,293 @@ export interface operations {
             };
         };
     };
+    list_records: {
+        parameters: {
+            query?: {
+                status?: ("draft" | "proposed" | "published")[];
+                q?: string;
+                song_id?: string;
+                include_hidden?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_record: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecordInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_record: {
+        parameters: {
+            query?: {
+                /** @description Optional parts; default liner,tapes,changes */
+                include?: ("liner" | "energy" | "tapes" | "changes" | "preview")[];
+                changes_limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecordInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_record_changes: {
+        parameters: {
+            query?: {
+                order?: "desc" | "asc";
+                /** @description The seq of the previous page's last item */
+                cursor?: number;
+                kind?: string[];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordChangesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    propose_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeRecordInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_record_slots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditRecordSlotsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_record_tape: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRecordTapeInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tape"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_sessions: {
         parameters: {
             query?: {
@@ -8036,6 +9362,18 @@ export interface operations {
                 q?: string;
                 include_hidden?: boolean;
                 include_archived?: boolean;
+                /** @description Pick source is pinned or ladder; has_pick is unchanged */
+                pick_decided?: boolean;
+                unheard?: boolean;
+                min_duration_s?: number;
+                max_duration_s?: number;
+                min_stars?: number;
+                unrated?: boolean;
+                tag?: string[];
+                lossy?: boolean;
+                recipe_known?: boolean;
+                in_record?: boolean;
+                crate_id?: string;
                 limit?: number;
                 cursor?: string;
             };
@@ -8267,6 +9605,18 @@ export interface operations {
                 q?: string;
                 include_hidden?: boolean;
                 include_archived?: boolean;
+                /** @description Pick source is pinned or ladder; has_pick is unchanged */
+                pick_decided?: boolean;
+                unheard?: boolean;
+                min_duration_s?: number;
+                max_duration_s?: number;
+                min_stars?: number;
+                unrated?: boolean;
+                tag?: string[];
+                lossy?: boolean;
+                recipe_known?: boolean;
+                in_record?: boolean;
+                crate_id?: string;
                 /** @description 0 returns facet counts only */
                 limit?: number;
                 cursor?: string;
@@ -8549,6 +9899,37 @@ export interface operations {
             };
         };
     };
+    get_tape: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tape"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_tokens: {
         parameters: {
             query?: never;
@@ -8642,6 +10023,11 @@ export interface operations {
                 is_pick?: boolean;
                 /** @description Only takes in this Session (derived membership) */
                 session_id?: string;
+                unheard?: boolean;
+                in_record?: boolean;
+                /** @description facet:value, repeatable */
+                sound?: string[];
+                crate_id?: string;
                 /** @description Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last */
                 sort?: "recorded_desc" | "recorded_asc" | "duration_desc" | "duration_asc" | "title_asc" | "relevance" | "stars_desc";
                 limit?: number;
@@ -9312,6 +10698,39 @@ export interface operations {
             };
         };
     };
+    set_curation_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCurationSettingsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurationSettings"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_devices: {
         parameters: {
             query?: never;
@@ -9465,6 +10884,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    publish_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRecordInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordView"];
                 };
             };
             /** @description Error */

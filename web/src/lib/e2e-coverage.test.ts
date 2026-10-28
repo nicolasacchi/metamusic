@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { missingOperations, servedUnion, uiOperations } from "../../e2e/coverage";
+import { readFileSync } from "node:fs";
+import { PENDING_UI, missingOperations, servedUnion, uiOperations } from "../../e2e/coverage";
 
 test("missingOperations lists ops never served", () => {
   expect(missingOperations(["a", "b", "c"], ["b"])).toEqual(["a", "c"]);
@@ -14,6 +15,19 @@ test("uiOperations reads committed openapi.json", () => {
   const ids = uiOperations();
   expect(ids).toContain("whoami");
   expect(ids).toContain("ping");
+});
+
+test("PENDING_UI holds only operations that have a UI route, and uiOperations leaves them out", () => {
+  const doc = JSON.parse(readFileSync(resolve(import.meta.dirname, "../../../openapi.json"), "utf8")) as {
+    paths: Record<string, Record<string, { operationId?: string; "x-mm"?: { ui?: string } }>>;
+  };
+  const withRoute = new Set<string>();
+  for (const item of Object.values(doc.paths)) {
+    for (const op of Object.values(item)) if (op.operationId && op["x-mm"]?.ui?.startsWith("/")) withRoute.add(op.operationId);
+  }
+  for (const id of PENDING_UI) expect(withRoute.has(id)).toBe(true); // a stale entry fails here: remove it with its spec
+  const served = new Set(uiOperations());
+  for (const id of PENDING_UI) expect(served.has(id)).toBe(false);
 });
 
 test("uiOperations excludes none:* ops and ops without x-mm", () => {

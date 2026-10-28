@@ -92,6 +92,10 @@ type SearchParams struct {
 	SongID                     string   // take belongs to this Song (L1, C98)
 	IsPick                     *bool    // take is (not) its Song's current Pick (L1, C98)
 	SessionID                  string   // take is in this Session by derived membership (L1, C98)
+	Unheard                    *bool    // L2 (C125.3): no human or device start event on the Take
+	InRecord                   *bool    // L2: the Take is the resolved Take of a live slot
+	Sounds                     []string // L2: facet:value pairs over take_sounds, OR inside a facet, AND across facets
+	CrateID                    string   // L2: membership of a manual Crate, or the expansion of a smart one
 	noSongs                    bool     // set by the service: the schema has no Song tables, so L1 filters match nothing
 	Sort                       string
 	Limit                      int

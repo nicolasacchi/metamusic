@@ -16,7 +16,7 @@ func registerSoundsL1(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "search_sounds", Method: "GET", Path: "/api/sounds/search",
 		Summary:     "Search Sounds",
-		Description: "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
+		Description: "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only. Accepts the curation filters of list_songs.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/sounds"},
 		func(ctx context.Context, in *searchSoundsIn) (*soundSearchOut, error) {
 			if d.Sounds == nil {
@@ -132,7 +132,7 @@ func soundSearchFilter(in SongFilterIn) (songs.ListFilter, error) {
 			f.Sounds[facet] = append(f.Sounds[facet], value)
 		}
 	}
-	return f, nil
+	return l2SongFilter(in, f)
 }
 
 func contains(xs []string, x string) bool {

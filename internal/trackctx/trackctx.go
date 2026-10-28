@@ -42,11 +42,13 @@ const (
 // shape C35 documents; unknown values are null, never invented. Marshalling
 // writes the keys in the order C35 lists them.
 type Bundle struct {
-	Format     string         `json:"format" example:"mm.context/1"`
-	Track      map[string]any `json:"track"`
-	Song       map[string]any `json:"song" nullable:"true" doc:"The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent"`
-	Muse       map[string]any `json:"muse" nullable:"true" doc:"The Song's Muse (title, artist or brief up to 500 characters); null without a Muse"`
-	Sounds     map[string]any `json:"sounds" nullable:"true" doc:"Sound facets and the tempo check of the take; null without a Song"`
+	Format string         `json:"format" example:"mm.context/1"`
+	Track  map[string]any `json:"track"`
+	Song   map[string]any `json:"song" nullable:"true" doc:"The take's Song with its Pick and up to 12 sibling takes; null while the Song is pending or when the library services are absent"`
+	Muse   map[string]any `json:"muse" nullable:"true" doc:"The Song's Muse (title, artist or brief up to 500 characters); null without a Muse"`
+	Sounds map[string]any `json:"sounds" nullable:"true" doc:"Sound facets and the tempo check of the take; null without a Song"`
+	// Curation (L2, C130.4) lists the Records and Crates the take is in; absent unless UseCuration wired a reader.
+	Curation   map[string]any `json:"curation,omitempty" nullable:"true" doc:"Records whose slot resolves to this take and manual Crates holding it or its Song; absent when there are none"`
 	Recipe     map[string]any `json:"recipe"`
 	Provenance map[string]any `json:"provenance"`
 	Score      map[string]any `json:"score" nullable:"true"`
@@ -433,7 +435,8 @@ type Builder struct {
 	per       PerceptionSource
 	str       StrengthSource
 	gen       func(ctx context.Context) bool
-	lib1      LibraryReader // L1 (C98): nil => the song, muse and sounds sections are null
+	lib1      LibraryReader  // L1 (C98): nil => the song, muse and sounds sections are null
+	curation  CurationReader // L2 (C130.4): nil => no curation section
 	sw        TargetSource
 }
 

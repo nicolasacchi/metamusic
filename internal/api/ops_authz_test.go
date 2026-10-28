@@ -273,7 +273,7 @@ func asProblem(err error, target **api.Problem) bool {
 	return errors.As(err, target)
 }
 
-var humanOnlyOps = []string{"create_token", "revoke_token", "list_devices", "create_pairing_code", "revoke_device"}
+var humanOnlyOps = []string{"create_token", "revoke_token", "list_devices", "create_pairing_code", "revoke_device", "publish_record", "set_curation_settings"}
 
 func TestHumanOnly_RefusedForAgentsDevicesStdio(t *testing.T) {
 	t.Parallel()

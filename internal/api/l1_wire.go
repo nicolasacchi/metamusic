@@ -101,6 +101,7 @@ func songViewWire(v auth.Principal, w songview.View) SongView {
 			UpdatedAt: w.Song.UpdatedAt, RootTrackID: w.Song.RootTrackID, RootTrackIDs: w.Song.RootTrackIDs, DraftID: w.Song.DraftID,
 			Retired: w.Song.Retired, RetiredInto: w.Song.RetiredInto},
 		Takes: []TakeCard{}, TakesTotal: w.TakesTotal, Pick: svPick(v, w.Pick), Proposals: []PickProposal{}, Events: []PickEvent{}, Sessions: []SongSession{}, Pending: w.Pending,
+		Records: []SongRecordRef{}, Crates: []SongCrateRef{},
 		Muse: w.Muse,
 	}
 	if w.Muse != nil {
@@ -188,7 +189,7 @@ func songFilter(in SongFilterIn) (songs.ListFilter, error) {
 	if err != nil {
 		return songs.ListFilter{}, err
 	}
-	return songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, States: songStates(in.State), Queued: in.Queued.ptr(), SessionID: in.SessionID,
+	return l2SongFilter(in, songs.ListFilter{MuseID: in.MuseID, NoMuse: in.NoMuse, Angle: in.Angle, States: songStates(in.State), Queued: in.Queued.ptr(), SessionID: in.SessionID,
 		Sounds: sounds, DraftID: in.DraftID, TrackID: in.TrackID, HasOpenProposals: in.HasOpenProposals.ptr(), TempoMismatch: in.TempoMismatch.ptr(), Q: in.Q,
-		HasPick: in.HasPick.ptr(), IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived}, nil
+		HasPick: in.HasPick.ptr(), IncludeHidden: in.IncludeHidden, IncludeArchived: in.IncludeArchived})
 }

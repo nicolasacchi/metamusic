@@ -52,7 +52,13 @@ import (
 // Wave 4b: 104500 -> 104700 (measured 104656, +156): song_title and song_angle on the TrackSummary rows.
 //
 // Wave 4a (D1) on top of 4b: 104700 -> 104800 (measured 104699, +43): the nullable step_up_until of whoami.
-const toolsCeilingBytes = 104800
+//
+// L2-F2 (D-L2-21) re-baselined 104800 -> 107100 (measured 106964, +2 265, 39 tools): L2 adds no dedicated tool. The five planned
+// tools measured 15 645 bytes, over the 9 000 byte rule; after the rule's demotions get_record and propose_record still took
+// 10 940, and the operator decided on 2026-10-28 to make them generic too (15 generic, 2 human-only). The +2 265 bytes are
+// the curation filters of search_sounds and search_tracks and the L2 fields of get_song, get_muse, get_stats and the
+// context bundle.
+const toolsCeilingBytes = 107100
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.
