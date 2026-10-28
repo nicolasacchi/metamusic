@@ -247,13 +247,12 @@ func (e *edit) unpinAt(i int) error {
 	if sl.PinnedTakeID == nil {
 		return nil
 	}
-	seq, err := songMaxSeq(e.ctx, e.tx, sl.SongID)
+	if _, err := e.tx.ExecContext(e.ctx, `UPDATE record_slots SET pinned_take_id = NULL, pinned_by = NULL, pinned_at = NULL WHERE id = ?`, sl.ID); err != nil {
+		return fmt.Errorf("records: unpin slot: %w", err)
+	}
+	seq, err := restartCursorTx(e.ctx, e.tx, sl.ID, sl.SongID, sl.SyncedSeq)
 	if err != nil {
 		return err
-	}
-	seq = max(seq, sl.SyncedSeq)
-	if _, err := e.tx.ExecContext(e.ctx, `UPDATE record_slots SET pinned_take_id = NULL, pinned_by = NULL, pinned_at = NULL, synced_seq = ? WHERE id = ?`, seq, sl.ID); err != nil {
-		return fmt.Errorf("records: unpin slot: %w", err)
 	}
 	from := sl.PinnedTakeID
 	sl.PinnedTakeID, sl.PinnedBy, sl.PinnedAt, sl.SyncedSeq = nil, nil, nil, seq
