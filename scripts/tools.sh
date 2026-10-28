@@ -17,8 +17,8 @@ GITLEAKS_VERSION=8.30.1
 # tags are pruned, so the archive is re-hosted unchanged (with source tarball, licence and configure
 # files) as an asset of the repo release tools-ffmpeg-<FFMPEG_VERSION>. tools.sh tries the release
 # first and falls back to the upstream URL; both are verified against the same sha256.
-FFMPEG_VERSION=9.0.2
-FFMPEG_BUILD=n9.0.2-27-g7e93014c5b
+FFMPEG_VERSION=9.0.2-36
+FFMPEG_BUILD=n9.0.2-36-g6882969ce9
 FFMPEG_ARCHIVE="ffmpeg-${FFMPEG_BUILD}-linux64-lgpl-9.0.tar.xz"
 # flac: xiph keeps old releases; opt-in (`tools.sh flac`) and only when flac/metaflac are missing; CI uses apt.
 FLAC_VERSION=1.5.0
@@ -32,7 +32,7 @@ declare -A SHA=(
   [gitleaks-darwin-arm64]=b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5
   [gitleaks-linux-amd64]=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
   [gitleaks-linux-arm64]=e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
-  [ffmpeg-linux-amd64]=12445b38a4700ba1ae7c9c7e57062f602c927dc4187555bfadc9f3e2f75f05b0
+  [ffmpeg-linux-amd64]=e8fc4c4ad4dd432bd3c09f07d223a5656a1025ef95667151fbb4a7ed41a0e76e
   [flac-src]=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
 )
 
@@ -105,7 +105,7 @@ urls_gitleaks() {
 urls_ffmpeg() {
   [ "$os-$arch" = linux-amd64 ] || return 0
   echo "https://github.com/nicolasacchi/metamusic/releases/download/tools-ffmpeg-${FFMPEG_VERSION}/${FFMPEG_ARCHIVE}"
-  echo "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-12-13-12/${FFMPEG_ARCHIVE}"
+  echo "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/${FFMPEG_ARCHIVE}"
 }
 urls_flac() { echo "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz"; }
 
