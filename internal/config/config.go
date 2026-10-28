@@ -61,26 +61,40 @@ type Config struct {
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
-// Load builds a Config from getenv. MM_AUTH must be "proxy" or "local".
+// Load builds a Config from getenv. MM_AUTH must be "proxy" or "local". It returns the
+// first error of LoadAll.
 func Load(getenv func(string) string) (Config, error) {
-	c, err := load(getenv)
-	if err != nil {
-		return Config{}, err
-	}
-	if c.AuthMode != "proxy" && c.AuthMode != "local" {
-		return Config{}, fmt.Errorf("config: MM_AUTH must be %q or %q (got %q)", "proxy", "local", c.AuthMode)
+	c, errs := LoadAll(getenv)
+	if len(errs) > 0 {
+		return Config{}, errs[0]
 	}
 	return c, nil
+}
+
+// LoadAll is the single validation path of Load and `metamusic config check`: it runs
+// every rule and returns every violation in the order Load would hit them (Load
+// reports only the first). The Config is only meaningful when the slice is empty.
+func LoadAll(getenv func(string) string) (Config, []error) {
+	c, errs := loadAll(getenv)
+	if c.AuthMode != "proxy" && c.AuthMode != "local" {
+		errs = append(errs, fmt.Errorf("config: MM_AUTH must be %q or %q (got %q)", "proxy", "local", c.AuthMode))
+	}
+	return c, errs
 }
 
 // LoadOffline is Load without the MM_AUTH requirement, for commands that never
 // serve HTTP (mcp-stdio, export, backup, restore, validate-batch, token, user).
 // AuthMode stays as given, possibly empty.
 func LoadOffline(getenv func(string) string) (Config, error) {
-	return load(getenv)
+	c, errs := loadAll(getenv)
+	if len(errs) > 0 {
+		return Config{}, errs[0]
+	}
+	return c, nil
 }
 
-func load(getenv func(string) string) (Config, error) {
+func loadAll(getenv func(string) string) (Config, []error) {
+	var errs []error
 	c := Config{
 		Addr:     orDefault(getenv("MM_ADDR"), "127.0.0.1:8080"),
 		AuthMode: getenv("MM_AUTH"),
@@ -96,24 +110,18 @@ func load(getenv func(string) string) (Config, error) {
 	for _, p := range splitList(getenv("MM_TRUSTED_PROXY")) {
 		pfx, err := parsePrefix(p)
 		if err != nil {
-			return Config{}, fmt.Errorf("config: MM_TRUSTED_PROXY entry %q: %w", p, err)
+			errs = append(errs, fmt.Errorf("config: MM_TRUSTED_PROXY entry %q: %w", p, err))
+			continue
 		}
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
-	if err := loadM2a(&c, getenv); err != nil {
-		return Config{}, err
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a} {
+		if err := stage(&c, getenv); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	if err := loadM2b(&c, getenv); err != nil {
-		return Config{}, err
-	}
-	if err := loadM3(&c, getenv); err != nil {
-		return Config{}, err
-	}
-	if err := loadM4a(&c, getenv); err != nil {
-		return Config{}, err
-	}
-	return c, nil
+	return c, errs
 }
 
 // loadM2b reads the M2b settings (C43).

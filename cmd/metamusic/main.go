@@ -50,6 +50,8 @@ commands:
                                  settle the derived library model (Songs, Muses, Sessions) now, or check its invariants
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
+  config check                   validate the MM_* environment exactly as serve does, without touching data, ports or network
+                                 (exit 0 ok, 1 invalid with one "config:" error per line on stderr, 2 usage)
   oidc probe --server URL --client-id ID [--client-secret-file FILE] [--redirect URL]
                                  run the real OAuth flow against the live provider and print a redacted claims report
 dev flags: --data-dir DIR  --seed-synthetic  --fake-provider (default true)
@@ -119,6 +121,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdLibrary(ctx, rest, getenv, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
+	case "config":
+		err = cmdConfig(rest, getenv, s)
 	case "oidc":
 		err = cmdOIDC(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
