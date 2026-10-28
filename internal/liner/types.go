@@ -65,4 +65,7 @@ type Liner struct {
 	Summary Summary
 	Lines   []Line
 	Notices []string
+
+	// The operator's own text and the date, kept for Markdown; unexported so the frozen wire shape is unchanged.
+	subtitle, note, date string
 }
