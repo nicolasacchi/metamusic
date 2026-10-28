@@ -22,6 +22,13 @@ func registerStats(a huma.API, d Deps) {
 			if err != nil {
 				return nil, libErr(err)
 			}
+			if d.Curation != nil { // C130.5: library cannot import curation's store reads, so the block is attached here
+				c, err := d.Curation.Stats(ctx)
+				if err != nil {
+					return nil, m2bErr(err, taskA)
+				}
+				s.Curation = &c
+			}
 			return &statsOut{Body: s}, nil
 		})
 }
