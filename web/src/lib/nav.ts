@@ -28,6 +28,10 @@ const TAB_OF: Record<string, Tab> = {
   lineage: "library",
   song: "library",
   sounds: "library",
+  records: "library",
+  record: "library",
+  crates: "library",
+  crate: "library",
   playlists: "library",
   playlist: "library",
   queue: "queue",
@@ -56,6 +60,7 @@ const TAB_OF: Record<string, Tab> = {
   settings: "more",
   "settings-backups": "more",
   "settings-audit": "more",
+  "settings-curation": "more",
   // Secure
   human: "more",
   "human-tokens": "more",
@@ -63,6 +68,8 @@ const TAB_OF: Record<string, Tab> = {
   "human-spend": "more",
   "human-connectors": "more",
   "human-subsonic": "more",
+  "human-record-publish": "more",
+  "human-curation": "more",
 };
 
 /** The tab a route belongs to; an unknown route (404) sits under More. */
@@ -94,6 +101,8 @@ export interface NavLink {
 export const NAV_LINKS: NavLink[] = [
   { label: "Takes", path: "/library", tab: "library" },
   { label: "Sounds", path: "/sounds", tab: "library" },
+  { label: "Records", path: "/records", tab: "library" },
+  { label: "Crates", path: "/crates", tab: "library" },
   { label: "Playlists", path: "/playlists", tab: "library" },
   { label: "One by one", path: "/judge", tab: "judge" },
   { label: "Duels", path: "/duels", tab: "judge" },
@@ -108,12 +117,14 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Settings", path: "/settings", tab: "more", group: "Settings" },
   { label: "Backups", path: "/settings/backups", tab: "more", group: "Settings" },
   { label: "Audit", path: "/settings/audit", tab: "more", group: "Settings" },
+  { label: "Curation", path: "/settings/curation", tab: "more", group: "Settings" },
   { label: "Approvals", path: "/human/", tab: "more", group: "Secure", secure: true, testid: "approvals-nav" },
   { label: "Spend", path: "/human/spend", tab: "more", group: "Secure", secure: true },
   { label: "Tokens", path: "/human/tokens", tab: "more", group: "Secure", secure: true },
   { label: "Devices", path: "/human/devices", tab: "more", group: "Secure", secure: true },
   { label: "Connectors", path: "/human/connectors", tab: "more", group: "Secure", secure: true },
   { label: "Subsonic", path: "/human/subsonic", tab: "more", group: "Secure", secure: true },
+  { label: "Opt-ins", path: "/human/curation", tab: "more", group: "Secure", secure: true },
 ];
 
 /** The sub-views a tab shows as a segmented row (Library, Judge). */
@@ -128,6 +139,10 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "home" || routeName === "track" || routeName === "lineage" || routeName === "song";
     case "/sounds":
       return routeName === "sounds";
+    case "/records":
+      return routeName === "records" || routeName === "record";
+    case "/crates":
+      return routeName === "crates" || routeName === "crate";
     case "/playlists":
       return routeName === "playlists" || routeName === "playlist";
     case "/judge":
@@ -144,6 +159,7 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
 /** Routes that are only reached from a page (an id, a form, query arguments), not from a tab. */
 export const CONTEXTUAL_ROUTES = new Set([
   "track", "muse", "song", "draft-new", "draft-upload", "draft", "playlist", "duel", "compare", "job", "batch", "lineage", "human-confirm",
+  "record", "crate", "human-record-publish",
 ]);
 
 const TITLES: Record<string, string> = {
@@ -152,6 +168,10 @@ const TITLES: Record<string, string> = {
   track: "Take",
   song: "Song",
   sounds: "Sounds",
+  records: "Records",
+  record: "Record",
+  crates: "Crates",
+  crate: "Crate",
   playlists: "Playlists",
   playlist: "Playlist",
   lineage: "Lineage",
@@ -177,6 +197,9 @@ const TITLES: Record<string, string> = {
   settings: "Settings",
   "settings-backups": "Backups",
   "settings-audit": "Audit",
+  "settings-curation": "Curation",
+  "human-curation": "Curation",
+  "human-record-publish": "Publish",
   human: "Approvals",
   "human-tokens": "Tokens",
   "human-devices": "Devices",
@@ -194,5 +217,5 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "records", "crates", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
 }

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { APP_ROUTES } from "./router";
-import { CONTEXTUAL_ROUTES, NAV_LINKS, TABS, isSecureRoute, mappedRouteNames, tabFor, titleFor } from "./nav";
+import { CONTEXTUAL_ROUTES, NAV_LINKS, TABS, isSecureRoute, isTabRoot, mappedRouteNames, subActive, subLinks, tabFor, titleFor } from "./nav";
 
 test("every APP_ROUTES entry maps to exactly one tab, and nothing else is mapped", () => {
   const names = APP_ROUTES.map((r) => r.name);
@@ -36,4 +36,28 @@ test("every static route has a nav link or is reached from a page; each link sit
 
 test("every route has a title", () => {
   for (const r of APP_ROUTES) expect(titleFor(r.name), r.name).not.toBe("Not found");
+});
+
+test("L2: Records and Crates are Library sub-views; curation lives under More", () => {
+  for (const n of ["records", "record", "crates", "crate"]) expect(tabFor(n), n).toBe("library");
+  for (const n of ["settings-curation", "human-record-publish", "human-curation"]) expect(tabFor(n), n).toBe("more");
+  expect(subLinks("library").map((l) => l.label)).toEqual(["Takes", "Sounds", "Records", "Crates", "Playlists"]);
+  const secure = NAV_LINKS.find((l) => l.path === "/human/curation");
+  expect(secure).toMatchObject({ label: "Opt-ins", tab: "more", group: "Secure", secure: true });
+  expect(NAV_LINKS.find((l) => l.path === "/settings/curation")).toMatchObject({ tab: "more", group: "Settings" });
+  expect(NAV_LINKS.some((l) => l.path.includes("/publish"))).toBe(false);
+});
+
+test("L2: sub-view highlighting, tab roots, contextual routes and titles", () => {
+  const link = (p: string) => NAV_LINKS.find((l) => l.path === p)!;
+  expect(subActive(link("/records"), "record")).toBe(true);
+  expect(subActive(link("/records"), "crates")).toBe(false);
+  expect(subActive(link("/crates"), "crate")).toBe(true);
+  expect(isTabRoot("records")).toBe(true);
+  expect(isTabRoot("crates")).toBe(true);
+  expect(isTabRoot("record")).toBe(false);
+  for (const n of ["record", "crate", "human-record-publish"]) expect(CONTEXTUAL_ROUTES.has(n), n).toBe(true);
+  for (const [n, t] of [["records", "Records"], ["record", "Record"], ["crates", "Crates"], ["crate", "Crate"], ["settings-curation", "Curation"], ["human-curation", "Curation"], ["human-record-publish", "Publish"]] as const) {
+    expect(titleFor(n)).toBe(t);
+  }
 });

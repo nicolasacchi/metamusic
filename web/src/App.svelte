@@ -40,6 +40,13 @@
   import Settings from "./routes/Settings.svelte";
   import DraftNew from "./routes/DraftNew.svelte";
   import DraftUpload from "./routes/DraftUpload.svelte";
+  import Records from "./routes/Records.svelte";
+  import RecordPage from "./routes/Record.svelte"; // not "Record": that would shadow the TS utility type
+  import Crates from "./routes/Crates.svelte";
+  import Crate from "./routes/Crate.svelte";
+  import SettingsCuration from "./routes/SettingsCuration.svelte";
+  import HumanPublish from "./routes/HumanPublish.svelte";
+  import HumanCuration from "./routes/HumanCuration.svelte";
   import Playlists from "./routes/Playlists.svelte";
   import Playlist from "./routes/Playlist.svelte";
   import Export from "./routes/Export.svelte";
@@ -278,6 +285,26 @@
       <Ladder root={$router.query.root ?? ""} />
     {:else if $router.route?.name === "compare"}
       <Compare a={$router.query.a ?? ""} b={$router.query.b ?? ""} />
+    {:else if $router.route?.name === "records"}
+      <Records />
+    {:else if $router.route?.name === "record"}
+      {#key $router.params.id}
+        <RecordPage id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "crates"}
+      <Crates />
+    {:else if $router.route?.name === "crate"}
+      {#key $router.params.id}
+        <Crate id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "settings-curation"}
+      <SettingsCuration />
+    {:else if $router.route?.name === "human-curation"}
+      <SecureGate><HumanCuration /></SecureGate>
+    {:else if $router.route?.name === "human-record-publish"}
+      {#key $router.params.id}
+        <SecureGate><HumanPublish id={$router.params.id ?? ""} /></SecureGate>
+      {/key}
     {:else if $router.route?.name === "playlists"}
       <Playlists />
     {:else if $router.route?.name === "playlist"}

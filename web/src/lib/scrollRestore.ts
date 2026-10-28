@@ -9,7 +9,7 @@ import { tick } from "svelte";
 
 export const READY_EVENT = "mm:route-ready";
 /** Routes that call routeReady() after their first load; Back waits for it (up to READY_TIMEOUT_MS). */
-export const READY_ROUTES: ReadonlySet<string> = new Set(["home", "new", "backlog", "board", "song"]);
+export const READY_ROUTES: ReadonlySet<string> = new Set(["home", "new", "backlog", "board", "song", "records", "record", "crates", "crate"]);
 export const READY_TIMEOUT_MS = 4000;
 /** Routes without the signal restore after this short delay instead. */
 export const FALLBACK_DELAY_MS = 300;
