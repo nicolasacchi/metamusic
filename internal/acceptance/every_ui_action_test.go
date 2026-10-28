@@ -49,6 +49,18 @@ type uiState struct {
 	song, muse, session string
 	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
 	songRev, sessionRev int
+	// L2: the Record, Crate and tape the script creates; while an L2 stub stands they stay empty and l2ID falls back to a
+	// placeholder the stub answers before it looks at
+	record, crate, tape string
+	recordRev, crateRev int
+}
+
+// l2ID is the id an L2 script step uses: the created object's, or a placeholder while the operation that creates it is a stub.
+func l2ID(have, placeholder string) string {
+	if have != "" {
+		return have
+	}
+	return placeholder
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -215,6 +227,35 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"mappings": []map[string]any{{"term": "dub", "facet": "genre_family", "value": "reggae", "op": "add"}}}
 	},
 	"get_muse_board": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+
+	// L2 (C129): the 15 operations with a UI route and an MCP face (publish_record and set_curation_settings are human-only).
+	"list_records": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"create_record": func(s *uiState) map[string]any {
+		return map[string]any{"title": "Synthetic Record 001", "song_ids": []string{s.song}}
+	},
+	"get_record": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub")} },
+	"update_record": func(s *uiState) map[string]any {
+		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "subtitle": "scripted"}
+	},
+	"edit_record_slots": func(s *uiState) map[string]any {
+		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "ops": []map[string]any{{"op": "pin_all"}}}
+	},
+	"get_record_changes": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub"), "limit": 10} },
+	"propose_record": func(s *uiState) map[string]any {
+		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "rationale": "scripted"}
+	},
+	"export_record_tape": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub")} },
+	"get_tape":           func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.tape, "tape-stub")} },
+	"list_crates":        func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"create_crate":       func(*uiState) map[string]any { return map[string]any{"name": "Synthetic Crate 001", "kind": "manual"} },
+	"get_crate":          func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.crate, "crate-stub")} },
+	"update_crate": func(s *uiState) map[string]any {
+		return map[string]any{"id": l2ID(s.crate, "crate-stub"), "revision": max(s.crateRev, 1), "description": "scripted"}
+	},
+	"edit_crate_items": func(s *uiState) map[string]any {
+		return map[string]any{"id": l2ID(s.crate, "crate-stub"), "add": []map[string]any{{"song_id": s.song}}}
+	},
+	"get_curation_settings": func(*uiState) map[string]any { return nil },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -256,6 +297,9 @@ var uiOrder = []string{
 	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them
 	"list_songs", "create_muse", "list_muses", "get_muse", "update_muse", "list_sessions", "update_session", "get_song", "update_song",
 	"assign_muse_songs", "list_pick_events", "search_sounds", "get_sound_taxonomy", "map_sound_term", "get_muse_board",
+	// L2: create first (a Record from the Song, a Crate), then read and edit what they made; the tape comes last
+	"create_record", "list_records", "get_record", "update_record", "edit_record_slots", "get_record_changes", "propose_record",
+	"create_crate", "list_crates", "get_crate", "update_crate", "edit_crate_items", "get_curation_settings", "export_record_tape", "get_tape",
 }
 
 // afterStep records the ids later steps need.
@@ -288,6 +332,24 @@ func (s *uiState) afterStep(op string, res any) {
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
+		}
+	case "create_record":
+		if rec, _ := m["record"].(map[string]any); rec != nil {
+			s.record, _ = rec["id"].(string)
+			if rv, ok := rec["revision"].(float64); ok {
+				s.recordRev = int(rv)
+			}
+		}
+	case "create_crate":
+		if c, _ := m["crate"].(map[string]any); c != nil {
+			s.crate, _ = c["id"].(string)
+			if rv, ok := c["revision"].(float64); ok {
+				s.crateRev = int(rv)
+			}
+		}
+	case "export_record_tape":
+		if id, _ := m["id"].(string); id != "" {
+			s.tape = id
 		}
 	case "list_import_runs":
 		if items, _ := m["items"].([]any); len(items) > 0 {
@@ -359,6 +421,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 	}
 	var called []string
+	l2Stubbed := map[string]string{}
 	for _, id := range uiOrder {
 		op, ok := have[id]
 		script := uiScript[id]
@@ -375,6 +438,10 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		raw := rawTool(t, sess, id, args, generic)
 		if task := m4aStubOf(raw); raw.IsError && task != "" {
 			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): M4a-B3 left no pending stub", id, task)
+		}
+		if task := l2StubOf(raw); task != "" { // an L2 lane has not replaced this stub yet: skip by name (INT-B turns the skip into a failure)
+			l2Stubbed[id] = task
+			continue
 		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
@@ -404,6 +471,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	slices.Reverse(rows) // newest first => call order
 	var gotOps []string
 	for _, row := range rows {
+		if op, _ := row["op"].(string); l2Stubbed[op] != "" && row["status"] == float64(501) {
+			continue // the audited answer of a skipped L2 stub
+		}
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}
@@ -439,6 +509,27 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if d := cmp.Diff(wantTx, gotTx); d != "" {
 		t.Errorf("in-transaction audit rows differ (-called +audited):\n%s", d)
 	}
+}
+
+// l2StubOf returns the task of an L2 stub's tool error (the problem 501 NOT_IMPLEMENTED with details.task "L2-..."), else "".
+func l2StubOf(res *mcp.CallToolResult) string {
+	if res == nil || !res.IsError || len(res.Content) == 0 {
+		return ""
+	}
+	tc, ok := res.Content[0].(*mcp.TextContent)
+	if !ok {
+		return ""
+	}
+	var p struct {
+		Code    string `json:"code"`
+		Details struct {
+			Task string `json:"task"`
+		} `json:"details"`
+	}
+	if json.Unmarshal([]byte(tc.Text), &p) != nil || p.Code != "NOT_IMPLEMENTED" || !strings.HasPrefix(p.Details.Task, "L2-") {
+		return ""
+	}
+	return p.Details.Task
 }
 
 // m4aStubOf returns the task of an M4a stub's tool error (the problem 501 NOT_IMPLEMENTED with details.task "M4a-..."), else "".

@@ -636,7 +636,11 @@ func TestToolsListGolden(t *testing.T) {
 // L1-B2 re-baselined 207451 -> 243029 (+35 578): the first-class L1 tools (seven at the time; six after the
 // list_songs demotion, D-L1-20) with their full output schemas
 // (SongView, MuseDetail, SoundSearch, ...) and the L1 fields of the track shapes' neighbours; no other tool changed.
-const toolsListBaselineBytes = 243029
+//
+// L2-F2 re-baselined 243029 -> 285516 (+42 487): the two first-class L2 tools get_record and propose_record with the RecordView
+// output schema (update_crate, create_crate and list_records were demoted to generic, D-L2-21), the curation filters on
+// search_sounds and search_tracks, and the L2 fields of get_song, get_muse, get_stats and the context bundle.
+const toolsListBaselineBytes = 284424
 
 func checkToolsListBudget(n int) error {
 	if n*2 > toolsListBaselineBytes*3 {
