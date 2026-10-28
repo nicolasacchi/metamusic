@@ -62,17 +62,12 @@ func (p *pipeline) log(msg string, args ...any) {
 	}
 }
 
-// decodeArgs is the ffmpeg argv of one item: first audio stream, no metadata, 48 kHz, stereo (a mono source is duplicated to
-// both channels, anything wider is folded down by the default matrix), raw s32le on stdout.
-func decodeArgs(masterAbs string, upmixed bool) []string {
-	a := []string{"-nostdin", "-hide_banner", "-nostats", "-v", "error", "-protocol_whitelist", "file,pipe",
-		"-i", "file:" + masterAbs, "-map", "0:a:0", "-map_metadata", "-1", "-vn"}
-	if upmixed {
-		a = append(a, "-af", "pan=stereo|c0=c0|c1=c0")
-	} else {
-		a = append(a, "-ac", "2")
-	}
-	return append(a, "-ar", "48000", "-f", "s32le", "pipe:1")
+// decodeArgs is the ffmpeg argv of one item: first audio stream, no metadata, 48 kHz, stereo, raw s32le on stdout. "-ac 2"
+// duplicates a mono source to both channels at -3 dB each (swr's constant-power rule), so the stereo loudness equals the
+// loudness measured on the mono master and the gain plan holds; anything wider is folded down by the default matrix.
+func decodeArgs(masterAbs string) []string {
+	return []string{"-nostdin", "-hide_banner", "-nostats", "-v", "error", "-protocol_whitelist", "file,pipe",
+		"-i", "file:" + masterAbs, "-map", "0:a:0", "-map_metadata", "-1", "-vn", "-ac", "2", "-ar", "48000", "-f", "s32le", "pipe:1"}
 }
 
 // encodeArgs is the flac argv: raw 24-bit stereo from stdin, -8, no padding. inputSamples (an upper bound of the real count)
@@ -208,7 +203,7 @@ func (p *pipeline) transcode(ctx context.Context, j Job, work string, durationS 
 	for i, it := range j.Items {
 		progress(Progress{Phase: "decode", Item: i + 1, Items: n})
 		stage := newGainStage(pw, it.Gain.GainCDB)
-		_, runErr := mediatool.Run(ctx2, p.o.Tools.FFmpeg, decodeArgs(filepath.Join(p.o.DataDir, it.Item.MasterRel), it.Upmixed),
+		_, runErr := mediatool.Run(ctx2, p.o.Tools.FFmpeg, decodeArgs(filepath.Join(p.o.DataDir, it.Item.MasterRel)),
 			mediatool.RunOpts{Timeout: ItemTimeout, Stdout: stage})
 		closeErr := stage.Close()
 		if runErr != nil || closeErr != nil {

@@ -234,7 +234,7 @@ func TestPipeline_ArgvGolden(t *testing.T) {
 	e.master(t, "masters/aa/mono.flac", 480, constGen(2))
 	e.fixtureFLAC(t, 960)
 	one, mono := e.item("masters/aa/one.flac", 0.01, 0), e.item("masters/aa/mono.flac", 0.01, 0)
-	mono.Upmixed = true
+	mono.Upmixed = true // the flag changes the label, not the argv
 	res, err := e.pipeline().Render(context.Background(), e.job(one, mono), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -242,11 +242,8 @@ func TestPipeline_ArgvGolden(t *testing.T) {
 	defer res.Cleanup()
 	// decode argv: literals plus the app-created absolute master path
 	abs := func(rel string) string { return "file:" + filepath.Join(e.data, rel) }
-	common := "-nostdin -hide_banner -nostats -v error -protocol_whitelist file,pipe -i %s -map 0:a:0 -map_metadata -1 -vn %s -ar 48000 -f s32le pipe:1"
-	wantFF := []string{
-		fmt.Sprintf(common, abs("masters/aa/one.flac"), "-ac 2"),
-		fmt.Sprintf(common, abs("masters/aa/mono.flac"), "-af pan=stereo|c0=c0|c1=c0"),
-	}
+	common := "-nostdin -hide_banner -nostats -v error -protocol_whitelist file,pipe -i %s -map 0:a:0 -map_metadata -1 -vn -ac 2 -ar 48000 -f s32le pipe:1"
+	wantFF := []string{fmt.Sprintf(common, abs("masters/aa/one.flac")), fmt.Sprintf(common, abs("masters/aa/mono.flac"))}
 	if diff := cmp.Diff(wantFF, readLines(t, e.ffLog)); diff != "" {
 		t.Fatal(diff)
 	}
