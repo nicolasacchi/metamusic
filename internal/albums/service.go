@@ -74,8 +74,8 @@ type Settings interface {
 	SubsonicMuseNames(ctx context.Context) (bool, error)
 }
 
-// Service is the album catalog. The method set is frozen by F2; lane A replaces stub_a.go (the record kind and the token)
-// and lane A2 adds the muse and unfiled kinds in muse.go and naming.go.
+// Service is the album catalog. The method set is frozen by F2. membership.go and token.go carry the record kind and the
+// change token (lane A); lane A2 adds the muse and unfiled kinds in muse.go and naming.go.
 type Service struct {
 	st    *store.Store
 	rec   *records.Service
