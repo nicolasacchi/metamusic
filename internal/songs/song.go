@@ -82,6 +82,21 @@ type ListFilter struct {
 	IncludeArchived  bool
 	Limit            int
 	Cursor           string
+
+	// L2 predicates (C125.3, C130.1), frozen by F2 and evaluated by lane K in filter.go. The take predicates apply to the
+	// Song's subject take (its Pick take, else its newest eligible take); a Song with no take never matches a duration,
+	// star or tag predicate.
+	PickDecided  *bool    // Pick source is pinned or ladder (the Board's picked chip, D-L2-36); has_pick is unchanged
+	Unheard      *bool    // no human or device start event on any Take of the Song
+	MinDurationS *float64 // subject take duration
+	MaxDurationS *float64
+	MinStars     *int // exclusive with Unrated
+	Unrated      *bool
+	Tags         []string // all must match
+	Lossy        *bool
+	RecipeKnown  *bool
+	InRecord     *bool  // a live slot in any non-hidden Record of any status
+	CrateID      string // membership of a manual Crate, or the expansion of a smart one
 }
 
 // Page is one page of Songs.

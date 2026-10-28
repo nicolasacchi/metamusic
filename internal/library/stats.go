@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/curation"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -35,6 +36,9 @@ type Stats struct {
 
 	// L1 (C98)
 	LibraryModel *LibraryModel `json:"library_model" doc:"Songs, Muses and Sessions; null on a pre-L1 schema"`
+
+	// L2 (C130.5): Records, Crates, tapes, the opt-ins and the review queue; null until lane A fills it
+	Curation *curation.Stats `json:"curation" doc:"Records, Crates, tapes and the two opt-ins; null when the curation services are absent"`
 }
 
 // LibraryModel counts the live, non-hidden rows of the L1 model (C98). Retired and hidden Songs, archived
