@@ -107,4 +107,5 @@ export const museDetail: S["MuseDetail"] = {
   angles: [{ angle: "acoustic", songs: 2 }],
   songs: [sum("s1", "Synthetic song one"), sum("s2", "Synthetic song two")],
   songs_total: 2,
+  catalog: null,
 };

@@ -1721,6 +1721,105 @@
         ],
         "type": "object"
       },
+      "ChangeView": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "at": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "from": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slot_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "seq",
+          "at",
+          "kind",
+          "text",
+          "slot_id",
+          "position",
+          "from",
+          "to",
+          "reason",
+          "evidence",
+          "actor"
+        ],
+        "type": "object"
+      },
       "ClipLink": {
         "additionalProperties": false,
         "properties": {
@@ -2533,6 +2632,14 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "curation": {
+            "additionalProperties": {},
+            "description": "Records whose slot resolves to this take and manual Crates holding it or its Song; absent when there are none",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "format": {
             "examples": [
               "mm.context/1"
@@ -2625,6 +2732,298 @@
           "_links",
           "next_actions",
           "_budget"
+        ],
+        "type": "object"
+      },
+      "CoverLinks": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "description": "RFC 3339 UTC",
+            "type": "string"
+          },
+          "url_1024": {
+            "type": "string"
+          },
+          "url_512": {
+            "description": "Signed, relative /media/\u003ckey\u003e.png URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_512",
+          "url_1024",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "Crate": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "description": {
+            "type": "string"
+          },
+          "filter": {
+            "additionalProperties": {},
+            "description": "A smart Crate's saved filter (mm.crate-filter/1); null for a manual one",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "manual",
+              "smart"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "subject": {
+            "enum": [
+              "song",
+              "take"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "kind",
+          "subject",
+          "filter",
+          "revision",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "CrateDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "crate": {
+            "$ref": "#/components/schemas/Crate"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "crate",
+          "count",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "CrateMember": {
+        "additionalProperties": false,
+        "properties": {
+          "song_id": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CrateStats": {
+        "additionalProperties": false,
+        "properties": {
+          "manual": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "smart": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "manual",
+          "smart"
+        ],
+        "type": "object"
+      },
+      "CrateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "description": {
+            "type": "string"
+          },
+          "filter": {
+            "additionalProperties": {},
+            "description": "A smart Crate's saved filter (mm.crate-filter/1); null for a manual one",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "manual",
+              "smart"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "subject": {
+            "enum": [
+              "song",
+              "take"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "id",
+          "name",
+          "description",
+          "kind",
+          "subject",
+          "filter",
+          "revision",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "CratesOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CrateSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
+      "CreateCrateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "filter": {
+            "additionalProperties": {},
+            "description": "Smart only: the keys of list_songs (song) or search_tracks (take)",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CrateMember"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "manual",
+              "smart"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "description": "Default song; fixed at creation",
+            "enum": [
+              "song",
+              "take"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
         ],
         "type": "object"
       },
@@ -2766,6 +3165,39 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "CreateRecordInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "liner_note": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "song_ids": {
+            "description": "Songs, in order; each becomes a floating slot",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 60,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "subtitle": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
         ],
         "type": "object"
       },
@@ -2928,6 +3360,35 @@
           "created_at",
           "last_used_at",
           "revoked_at"
+        ],
+        "type": "object"
+      },
+      "CurationSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "export_muse_names": {
+            "description": "Tape files carry the inspiring Muse's name",
+            "type": "boolean"
+          },
+          "subsonic_muse_names": {
+            "description": "Automatic Subsonic groupings are named by their Muse",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          }
+        },
+        "required": [
+          "export_muse_names",
+          "subsonic_muse_names",
+          "updated_at",
+          "updated_by"
         ],
         "type": "object"
       },
@@ -4378,6 +4839,133 @@
         ],
         "type": "object"
       },
+      "EditCrateItemsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "add": {
+            "items": {
+              "$ref": "#/components/schemas/CrateMember"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "remove": {
+            "items": {
+              "$ref": "#/components/schemas/CrateMember"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "EditRecordSlotsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOp"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "ops"
+        ],
+        "type": "object"
+      },
+      "Energy": {
+        "additionalProperties": false,
+        "properties": {
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/EnergySlot"
+            },
+            "type": "array"
+          },
+          "target_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "total_duration_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "target_lufs",
+          "total_duration_s",
+          "slots"
+        ],
+        "type": "object"
+      },
+      "EnergySlot": {
+        "additionalProperties": false,
+        "properties": {
+          "bpm": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "gain_db": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lufs": {
+            "description": "Short-term loudness after the plan gain, at most 120 points; empty without an analysis",
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "mean_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "slot_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_id",
+          "duration_s",
+          "gain_db",
+          "mean_lufs",
+          "bpm",
+          "lufs"
+        ],
+        "type": "object"
+      },
       "EnvDetail": {
         "additionalProperties": false,
         "properties": {
@@ -4982,6 +5570,33 @@
           "code",
           "message"
         ],
+        "type": "object"
+      },
+      "ExportRecordTapeInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "accept_warnings": {
+            "description": "Humans only: accept pin_ineligible and undecided_pick slots",
+            "type": "boolean"
+          },
+          "include_liner": {
+            "description": "Default true",
+            "type": "boolean"
+          },
+          "revision": {
+            "description": "Refuse (409) unless the Record is still at this revision",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "target_lufs": {
+            "description": "Rounded to 0.1 LU; default: the automatic target",
+            "format": "double",
+            "maximum": -9,
+            "minimum": -30,
+            "type": "number"
+          }
+        },
         "type": "object"
       },
       "ExportRename": {
@@ -5766,6 +6381,39 @@
         },
         "required": [
           "mode"
+        ],
+        "type": "object"
+      },
+      "ItemsResult": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "already": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "not_member": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "already",
+          "removed",
+          "not_member",
+          "count"
         ],
         "type": "object"
       },
@@ -7690,6 +8338,26 @@
             },
             "type": "array"
           },
+          "catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The catalog id the Subsonic server lists the grouping under",
+                "type": "string"
+              },
+              "neutral_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "neutral_name"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "coverage": {
             "$ref": "#/components/schemas/MuseCoverage"
           },
@@ -7712,7 +8380,8 @@
           "coverage",
           "angles",
           "songs",
-          "songs_total"
+          "songs_total",
+          "catalog"
         ],
         "type": "object"
       },
@@ -8386,6 +9055,22 @@
         ],
         "type": "object"
       },
+      "OptInStats": {
+        "additionalProperties": false,
+        "properties": {
+          "export_muse_names": {
+            "type": "boolean"
+          },
+          "subsonic_muse_names": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "export_muse_names",
+          "subsonic_muse_names"
+        ],
+        "type": "object"
+      },
       "PairStats": {
         "additionalProperties": false,
         "properties": {
@@ -9000,6 +9685,39 @@
         ],
         "type": "object"
       },
+      "PreviewChapter": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "name"
+        ],
+        "type": "object"
+      },
+      "PreviewTag": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
       "PrincipalRef": {
         "additionalProperties": false,
         "properties": {
@@ -9183,6 +9901,26 @@
         },
         "required": [
           "take_id",
+          "rationale"
+        ],
+        "type": "object"
+      },
+      "ProposeRecordInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "rationale": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
           "rationale"
         ],
         "type": "object"
@@ -9551,6 +10289,25 @@
         ],
         "type": "object"
       },
+      "PublishRecordInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "published": {
+            "description": "true publishes; false sends a proposal back or unpublishes",
+            "type": "boolean"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "published"
+        ],
+        "type": "object"
+      },
       "PutDeviceProfileInBody": {
         "additionalProperties": false,
         "properties": {
@@ -9792,6 +10549,434 @@
         ],
         "type": "object"
       },
+      "Record": {
+        "additionalProperties": false,
+        "properties": {
+          "cover_rerolls": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "liner_note": {
+            "description": "The operator's own note, prepended to the generated liner notes",
+            "type": "string"
+          },
+          "proposal": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "note",
+              "by",
+              "at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "published": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "first_at": {
+                "description": "The first time this Record was ever published",
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "at",
+              "first_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "proposed",
+              "published"
+            ],
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "subtitle",
+          "liner_note",
+          "status",
+          "revision",
+          "cover_rerolls",
+          "hidden",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "proposal",
+          "published"
+        ],
+        "type": "object"
+      },
+      "RecordChangesOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeView"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "RecordLiner": {
+        "additionalProperties": false,
+        "properties": {
+          "markdown": {
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "markdown",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "RecordPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewChapter"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewTag"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TapeWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapters",
+          "tags",
+          "description",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "RecordStats": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "proposed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "published": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "draft",
+          "proposed",
+          "published"
+        ],
+        "type": "object"
+      },
+      "RecordSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cover": {
+            "$ref": "#/components/schemas/CoverLinks"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "playable": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slots": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "proposed",
+              "published"
+            ],
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "warnings": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "subtitle",
+          "status",
+          "slots",
+          "playable",
+          "duration_s",
+          "revision",
+          "updated_at",
+          "hidden",
+          "warnings",
+          "cover"
+        ],
+        "type": "object"
+      },
+      "RecordTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "lossy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "playable": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slots": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "undecided": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warnings": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slots",
+          "playable",
+          "duration_s",
+          "lossy",
+          "warnings",
+          "undecided"
+        ],
+        "type": "object"
+      },
+      "RecordView": {
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cover": {
+            "$ref": "#/components/schemas/CoverLinks"
+          },
+          "energy": {
+            "$ref": "#/components/schemas/Energy"
+          },
+          "liner": {
+            "$ref": "#/components/schemas/RecordLiner",
+            "description": "get_record only (Muse text)"
+          },
+          "pending": {
+            "description": "The changelog may lag by one sync pass; the resolved Takes are never stale",
+            "type": "boolean"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/RecordPreview"
+          },
+          "record": {
+            "$ref": "#/components/schemas/Record"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotView"
+            },
+            "type": "array"
+          },
+          "tapes": {
+            "items": {
+              "$ref": "#/components/schemas/TapeBrief"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "totals": {
+            "$ref": "#/components/schemas/RecordTotals"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/RecordWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "record",
+          "slots",
+          "totals",
+          "warnings",
+          "cover",
+          "pending"
+        ],
+        "type": "object"
+      },
+      "RecordWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "slot_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "slot_id",
+          "code"
+        ],
+        "type": "object"
+      },
+      "RecordsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecordSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
       "RejectBatchInBody": {
         "additionalProperties": false,
         "properties": {
@@ -9803,6 +10988,24 @@
         },
         "required": [
           "reason"
+        ],
+        "type": "object"
+      },
+      "ReviewStats": {
+        "additionalProperties": false,
+        "properties": {
+          "pin_ineligible": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "undecided": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "undecided",
+          "pin_ineligible"
         ],
         "type": "object"
       },
@@ -10003,6 +11206,18 @@
         },
         "type": "object"
       },
+      "SetCurationSettingsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "export_muse_names": {
+            "type": "boolean"
+          },
+          "subsonic_muse_names": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "SetSpendCapsInBody": {
         "additionalProperties": false,
         "properties": {
@@ -10178,6 +11393,108 @@
         ],
         "type": "object"
       },
+      "SlotOp": {
+        "additionalProperties": false,
+        "properties": {
+          "op": {
+            "enum": [
+              "add",
+              "remove",
+              "move",
+              "reorder",
+              "pin",
+              "unpin",
+              "set_side",
+              "pin_all",
+              "unpin_all"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "description": "add (optional, default end) and move; 1-based",
+            "format": "int64",
+            "type": "integer"
+          },
+          "side": {
+            "description": "set_side (required: a letter or null) and add (optional)",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slot_id": {
+            "description": "remove, move, pin, unpin, set_side",
+            "type": "string"
+          },
+          "slot_ids": {
+            "description": "reorder: the complete new order",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 60,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "song_id": {
+            "description": "add",
+            "type": "string"
+          },
+          "take_id": {
+            "description": "pin; add with a Take pins the new slot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      },
+      "SlotSong": {
+        "additionalProperties": false,
+        "properties": {
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "retired": {
+            "type": "boolean"
+          },
+          "retired_into": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "angle",
+          "state",
+          "retired",
+          "retired_into"
+        ],
+        "type": "object"
+      },
       "SlotSummary": {
         "additionalProperties": false,
         "properties": {
@@ -10229,6 +11546,154 @@
         },
         "required": [
           "track"
+        ],
+        "type": "object"
+      },
+      "SlotView": {
+        "additionalProperties": false,
+        "properties": {
+          "gain_db": {
+            "description": "The plan gain with the automatic target; null when unmeasured",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "floating",
+              "pinned"
+            ],
+            "type": "string"
+          },
+          "pick": {
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "take_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "take_id",
+              "source"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pin_differs": {
+            "type": "boolean"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "side": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "song": {
+            "$ref": "#/components/schemas/SlotSong"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty",
+              "pin_ineligible"
+            ],
+            "type": "string"
+          },
+          "take": {
+            "additionalProperties": false,
+            "properties": {
+              "duration_s": {
+                "format": "double",
+                "type": "number"
+              },
+              "id": {
+                "type": "string"
+              },
+              "lossy": {
+                "type": "boolean"
+              },
+              "recipe_known": {
+                "type": "boolean"
+              },
+              "stars": {
+                "description": "Human stars",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status",
+              "duration_s",
+              "lossy",
+              "stars",
+              "recipe_known"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "why": {
+            "description": "Why the Song's current Pick is what it is",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "side",
+          "mode",
+          "state",
+          "song",
+          "take",
+          "pick",
+          "pin_differs",
+          "gain_db",
+          "why",
+          "warnings"
         ],
         "type": "object"
       },
@@ -10405,6 +11870,22 @@
         ],
         "type": "object"
       },
+      "SongCrateRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "SongDraft": {
         "additionalProperties": false,
         "properties": {
@@ -10482,6 +11963,39 @@
         "required": [
           "take_id",
           "source"
+        ],
+        "type": "object"
+      },
+      "SongRecordRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "floating",
+              "pinned"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "proposed",
+              "published"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "mode"
         ],
         "type": "object"
       },
@@ -10663,6 +12177,12 @@
       "SongView": {
         "additionalProperties": false,
         "properties": {
+          "crates": {
+            "items": {
+              "$ref": "#/components/schemas/SongCrateRef"
+            },
+            "type": "array"
+          },
           "draft": {
             "$ref": "#/components/schemas/SongDraft"
           },
@@ -10687,6 +12207,12 @@
           "proposals": {
             "items": {
               "$ref": "#/components/schemas/PickProposal"
+            },
+            "type": "array"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/SongRecordRef"
             },
             "type": "array"
           },
@@ -10725,7 +12251,9 @@
           "sounds",
           "sessions",
           "lineage",
-          "pending"
+          "pending",
+          "records",
+          "crates"
         ],
         "type": "object"
       },
@@ -11211,6 +12739,44 @@
           "breakdown": {
             "$ref": "#/components/schemas/Breakdown"
           },
+          "curation": {
+            "additionalProperties": false,
+            "description": "Records, Crates, tapes and the two opt-ins; null when the curation services are absent",
+            "properties": {
+              "crates": {
+                "$ref": "#/components/schemas/CrateStats"
+              },
+              "opt_ins": {
+                "$ref": "#/components/schemas/OptInStats"
+              },
+              "pending": {
+                "description": "Slots with Pick events the changelog has not consumed yet",
+                "format": "int64",
+                "type": "integer"
+              },
+              "records": {
+                "$ref": "#/components/schemas/RecordStats"
+              },
+              "review": {
+                "$ref": "#/components/schemas/ReviewStats"
+              },
+              "tapes": {
+                "$ref": "#/components/schemas/TapeStats"
+              }
+            },
+            "required": [
+              "records",
+              "crates",
+              "tapes",
+              "opt_ins",
+              "pending",
+              "review"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "drafts_by_origin": {
             "additionalProperties": {
               "format": "int64",
@@ -11262,7 +12828,8 @@
           "backups",
           "generation",
           "breakdown",
-          "library_model"
+          "library_model",
+          "curation"
         ],
         "type": "object"
       },
@@ -11882,6 +13449,423 @@
         "required": [
           "requested_bpm",
           "measured_bpm"
+        ],
+        "type": "object"
+      },
+      "Tape": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_warnings": {
+            "type": "boolean"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/TapeChapter"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "contains_lossy": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "download": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "cue_url": {
+                "description": "Only when a sidecar cue sheet exists",
+                "type": "string"
+              },
+              "expires_at": {
+                "type": "string"
+              },
+              "filename": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "filename",
+              "bytes",
+              "expires_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TapeItem"
+            },
+            "type": "array"
+          },
+          "lossy_sources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "progress": {
+            "additionalProperties": false,
+            "properties": {
+              "item": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "phase": {
+                "enum": [
+                  "decode",
+                  "encode",
+                  "rewrite",
+                  "verify"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "phase",
+              "item",
+              "items"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "record_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reused": {
+            "description": "An identical export was already live and was returned instead of a new one",
+            "type": "boolean"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spread_lu": {
+            "additionalProperties": false,
+            "properties": {
+              "after": {
+                "format": "double",
+                "type": "number"
+              },
+              "before": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "before",
+              "after"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "target_lufs": {
+            "format": "double",
+            "type": "number"
+          },
+          "total_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TapeWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "record_id",
+          "record_revision",
+          "state",
+          "reused",
+          "progress",
+          "target_lufs",
+          "spread_lu",
+          "items",
+          "chapters",
+          "warnings",
+          "accepted_warnings",
+          "contains_lossy",
+          "lossy_sources",
+          "total_ms",
+          "bytes",
+          "sha256",
+          "download",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "type": "object"
+      },
+      "TapeBrief": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "contains_lossy": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "created_at",
+          "finished_at",
+          "contains_lossy",
+          "bytes",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "TapeChapter": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "samples": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slot_id": {
+            "type": "string"
+          },
+          "start_ms": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "slot_id",
+          "start_ms",
+          "samples"
+        ],
+        "type": "object"
+      },
+      "TapeItem": {
+        "additionalProperties": false,
+        "properties": {
+          "downmixed": {
+            "type": "boolean"
+          },
+          "gain_db": {
+            "format": "double",
+            "type": "number"
+          },
+          "lossy": {
+            "type": "boolean"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "predicted_lufs": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "resampled": {
+            "type": "boolean"
+          },
+          "slot_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "matched",
+              "cut_clamped",
+              "boost_clamped",
+              "peak_limited",
+              "silent",
+              "unmeasured"
+            ],
+            "type": "string"
+          },
+          "take_id": {
+            "type": "string"
+          },
+          "upmixed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "slot_id",
+          "take_id",
+          "position",
+          "gain_db",
+          "status",
+          "predicted_lufs",
+          "lossy",
+          "resampled",
+          "upmixed",
+          "downmixed"
+        ],
+        "type": "object"
+      },
+      "TapeStats": {
+        "additionalProperties": false,
+        "properties": {
+          "failed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ready": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued",
+          "running",
+          "ready",
+          "failed"
+        ],
+        "type": "object"
+      },
+      "TapeWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "pin_ineligible",
+              "undecided_pick"
+            ],
+            "type": "string"
+          },
+          "slot_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_id",
+          "code"
         ],
         "type": "object"
       },
@@ -13313,6 +15297,36 @@
         },
         "type": "object"
       },
+      "UpdateCrateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "filter": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
       "UpdateDraftInBody": {
         "additionalProperties": false,
         "properties": {
@@ -13451,6 +15465,40 @@
         },
         "required": [
           "reason"
+        ],
+        "type": "object"
+      },
+      "UpdateRecordInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "cover_reroll": {
+            "description": "Draw a new cover layout; the palette stays",
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "liner_note": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "subtitle": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
         ],
         "type": "object"
       },
@@ -14849,6 +16897,367 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/connectors",
+          "human_only": false
+        }
+      }
+    },
+    "/api/crates": {
+      "get": {
+        "description": "Crates (working sets of Songs or Takes, manual or saved filters) by kind, subject or name. Smart Crate counts are computed only with counts=true.",
+        "operationId": "list_crates",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "manual",
+                "smart"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "subject",
+            "schema": {
+              "enum": [
+                "song",
+                "take"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Compute the live count of smart Crates",
+            "explode": false,
+            "in": "query",
+            "name": "counts",
+            "schema": {
+              "description": "Compute the live count of smart Crates",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CratesOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Crates",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/crates",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Creates a manual Crate (with up to 200 Songs or Takes) or a smart Crate (a saved list_songs or search_tracks filter). Returns the live count. Needs an Idempotency-Key.",
+        "operationId": "create_crate",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCrateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrateDetail"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a Crate",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/crates",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/crates/{id}": {
+      "get": {
+        "description": "One Crate with its live count; list its members through list_songs or search_tracks with crate_id.",
+        "operationId": "get_crate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrateDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Crate",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/crates/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Renames, hides, or changes the saved filter of a smart Crate under optimistic locking: send the revision you read.",
+        "operationId": "update_crate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCrateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrateDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a Crate",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/crates/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/crates/{id}/items": {
+      "post": {
+        "description": "Adds and removes up to 200 members each of a manual Crate. Adding a present member counts as already; removing an absent one as not_member. Not revision-locked.",
+        "operationId": "edit_crate_items",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditCrateItemsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemsResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit a Crate's items",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/crates/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/curation/settings": {
+      "get": {
+        "description": "The two privacy opt-ins: whether tape files carry a Muse's name (export_muse_names) and whether automatic Subsonic groupings are named by their Muse (subsonic_muse_names). Both default to off.",
+        "operationId": "get_curation_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the curation settings",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/settings/curation",
           "human_only": false
         }
       }
@@ -17698,6 +20107,574 @@
         }
       }
     },
+    "/api/records": {
+      "get": {
+        "description": "Records (ordered listening sequences of Songs) by status, title, or a Song they hold; newest first. Hidden ones only with include_hidden.",
+        "operationId": "list_records",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "items": {
+                "enum": [
+                  "draft",
+                  "proposed",
+                  "published"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "song_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "include_hidden",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Records",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Creates a draft Record, optionally with Songs (at most 60) as floating slots in order. Floating slots follow each Song's current Pick. Needs an Idempotency-Key.",
+        "operationId": "create_record",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecordInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a Record",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/records/{id}": {
+      "get": {
+        "description": "One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes or the publish preview.",
+        "operationId": "get_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional parts; default liner,tapes,changes",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "description": "Optional parts; default liner,tapes,changes",
+              "items": {
+                "enum": [
+                  "liner",
+                  "energy",
+                  "tapes",
+                  "changes",
+                  "preview"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "changes_limit",
+            "schema": {
+              "default": 10,
+              "format": "int64",
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Record",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      },
+      "patch": {
+        "description": "Changes title, subtitle, liner note, hides or unhides, or re-rolls the cover, under optimistic locking: send the revision you read. A published Record is edited by a human only.",
+        "operationId": "update_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecordInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a Record",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/records/{id}/changes": {
+      "get": {
+        "description": "The append-only changelog of a Record: edits, Pick-driven upgrades with their evidence, proposals and publications. Newest first unless order is asc; cursor is the last seq.",
+        "operationId": "get_record_changes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "desc",
+                "asc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The seq of the previous page's last item",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "The seq of the previous page's last item",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordChangesOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Record's changelog",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/records/{id}/proposal": {
+      "post": {
+        "description": "Proposes a draft Record for a human to publish, with a rationale of up to 500 characters. Only a human publishes.",
+        "operationId": "propose_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeRecordInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Propose a Record",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "tool",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/records/{id}/slots": {
+      "post": {
+        "description": "Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all. Send the revision you read; any error rolls everything back.",
+        "operationId": "edit_record_slots",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditRecordSlotsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit a Record's slots",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/records/{id}/tapes": {
+      "post": {
+        "description": "Queues one lossless 24-bit FLAC with chapters, loudness-matched and gapless, for a published Record; an identical live export is returned instead (reused). Poll get_tape. Needs an Idempotency-Key.",
+        "operationId": "export_record_tape",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRecordTapeInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tape"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Export a Record as a tape",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records/:id",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
     "/api/sessions": {
       "get": {
         "description": "Sessions (an import run, a draft collection or a generation batch) newest first, with their draft, take and Song counts.",
@@ -17886,7 +20863,7 @@
     },
     "/api/songs": {
       "get": {
-        "description": "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take.",
+        "description": "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take. Curation filters: pick_decided (the Pick is pinned or won duels), unheard (never played by the operator), min_duration_s, max_duration_s, min_stars, unrated, tag, lossy and recipe_known (on the Song's subject take: its Pick, else its newest eligible take), in_record (in a live Record slot) and crate_id (members of a Crate).",
         "operationId": "list_songs",
         "parameters": [
           {
@@ -18029,6 +21006,107 @@
             "name": "include_archived",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Pick source is pinned or ladder; has_pick is unchanged",
+            "explode": false,
+            "in": "query",
+            "name": "pick_decided",
+            "schema": {
+              "description": "Pick source is pinned or ladder; has_pick is unchanged",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "unheard",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "min_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "max_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "min_stars",
+            "schema": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "unrated",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 5,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "lossy",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "recipe_known",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "in_record",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "crate_id",
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -18405,7 +21483,7 @@
     },
     "/api/sounds/search": {
       "get": {
-        "description": "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only.",
+        "description": "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only. Accepts the curation filters of list_songs.",
         "operationId": "search_sounds",
         "parameters": [
           {
@@ -18548,6 +21626,107 @@
             "name": "include_archived",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Pick source is pinned or ladder; has_pick is unchanged",
+            "explode": false,
+            "in": "query",
+            "name": "pick_decided",
+            "schema": {
+              "description": "Pick source is pinned or ladder; has_pick is unchanged",
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "unheard",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "min_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "max_duration_s",
+            "schema": {
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "min_stars",
+            "schema": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "unrated",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 5,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "lossy",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "recipe_known",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "in_record",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "crate_id",
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -19002,6 +22181,52 @@
         }
       }
     },
+    "/api/tapes/{id}": {
+      "get": {
+        "description": "A tape's state, progress, loudness plan, chapters and, when ready, its signed download link (14 days).",
+        "operationId": "get_tape",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tape"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a tape",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/records/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/tokens": {
       "get": {
         "description": "Token names, prefixes, scopes and last use. Never the tokens themselves.",
@@ -19076,7 +22301,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick and session_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -19279,6 +22504,44 @@
             "name": "session_id",
             "schema": {
               "description": "Only takes in this Session (derived membership)",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "unheard",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "in_record",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "facet:value, repeatable",
+            "explode": true,
+            "in": "query",
+            "name": "sound",
+            "schema": {
+              "description": "facet:value, repeatable",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "crate_id",
+            "schema": {
               "type": "string"
             }
           },
@@ -20497,6 +23760,52 @@
         }
       }
     },
+    "/human/api/curation/settings": {
+      "put": {
+        "description": "Human only. Turns the Muse-name opt-ins on or off; send only the keys to change. An agent reads them with get_curation_settings.",
+        "operationId": "set_curation_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCurationSettingsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change the curation settings",
+        "x-mm": {
+          "scope": "admin",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/curation",
+          "human_only": true
+        }
+      }
+    },
     "/human/api/devices": {
       "get": {
         "description": "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
@@ -20753,6 +24062,62 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/spend",
+          "human_only": true
+        }
+      }
+    },
+    "/human/api/records/{id}/publish": {
+      "post": {
+        "description": "Human only. published true publishes a draft or proposed Record (Subsonic clients and tapes then see it); false sends a proposal back to draft or unpublishes. Send the revision you reviewed.",
+        "operationId": "publish_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRecordInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Publish or unpublish a Record",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/records/:id/publish",
           "human_only": true
         }
       }
