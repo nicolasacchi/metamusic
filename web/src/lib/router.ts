@@ -34,6 +34,10 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/backlog/new", name: "draft-new" },
   { pattern: "/backlog/upload", name: "draft-upload" },
   { pattern: "/backlog/:id", name: "draft" },
+  { pattern: "/records", name: "records" },
+  { pattern: "/records/:id", name: "record" },
+  { pattern: "/crates", name: "crates" },
+  { pattern: "/crates/:id", name: "crate" },
   { pattern: "/playlists", name: "playlists" },
   { pattern: "/playlists/:id", name: "playlist" },
   { pattern: "/judge", name: "judge" },
@@ -46,6 +50,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/settings", name: "settings" },
   { pattern: "/settings/backups", name: "settings-backups" },
   { pattern: "/settings/audit", name: "settings-audit" },
+  { pattern: "/settings/curation", name: "settings-curation" },
   { pattern: "/human", name: "human" }, // also /human/: parseLocation strips the trailing slash
   { pattern: "/human/tokens", name: "human-tokens" },
   { pattern: "/human/devices", name: "human-devices" },
@@ -59,6 +64,8 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/offline", name: "offline" },
   { pattern: "/human/connectors", name: "human-connectors" },
   { pattern: "/human/subsonic", name: "human-subsonic" },
+  { pattern: "/human/records/:id/publish", name: "human-record-publish" },
+  { pattern: "/human/curation", name: "human-curation" },
 ];
 
 const SERVER_PREFIXES = ["/api", "/human/api", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];

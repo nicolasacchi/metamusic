@@ -345,3 +345,29 @@ describe("legacy Library URLs at the root", () => {
     expect(legacyUrl("/library", "?status=draft")).toBeNull();
   });
 });
+
+describe("L2 routes (C131.1)", () => {
+  const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+  test("the seven routes match, with params", () => {
+    expect(name("/records")).toBe("records");
+    expect(matchRoute(APP_ROUTES, "/records/r1")?.params).toEqual({ id: "r1" });
+    expect(name("/records/r1")).toBe("record");
+    expect(name("/crates")).toBe("crates");
+    expect(matchRoute(APP_ROUTES, "/crates/c1")?.params).toEqual({ id: "c1" });
+    expect(name("/crates/c1")).toBe("crate");
+    expect(name("/settings/curation")).toBe("settings-curation");
+    expect(matchRoute(APP_ROUTES, "/human/records/r1/publish")?.params).toEqual({ id: "r1" });
+    expect(name("/human/records/r1/publish")).toBe("human-record-publish");
+    expect(name("/human/curation")).toBe("human-curation");
+  });
+  test("the secure pages are client routes, not server paths", () => {
+    expect(isServerPath("/human/curation")).toBe(false);
+    expect(isServerPath("/human/records/r1/publish")).toBe(false);
+    expect(isServerPath("/human/api/curation/settings")).toBe(true);
+  });
+  test("specific patterns come before parametric ones", () => {
+    const idx = (n: string) => APP_ROUTES.findIndex((r) => r.name === n);
+    expect(idx("records")).toBeLessThan(idx("record"));
+    expect(idx("crates")).toBeLessThan(idx("crate"));
+  });
+});

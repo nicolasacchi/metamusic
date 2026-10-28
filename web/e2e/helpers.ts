@@ -74,7 +74,7 @@ export async function tap(page: Page, target: Locator): Promise<void> {
 
 const TAB_LABELS = ["New", "Library", "Play queue", "Judge", "More"];
 /** Sub-views of the Library and Judge tabs; "Takes" and "One by one" are the tabs' own landing pages. */
-const SUB_VIEWS: Record<string, string> = { Sounds: "Library", Playlists: "Library", Duels: "Judge", Ladder: "Judge" };
+const SUB_VIEWS: Record<string, string> = { Sounds: "Library", Records: "Library", Crates: "Library", Playlists: "Library", Duels: "Judge", Ladder: "Judge" };
 const LANDINGS: Record<string, string> = { Takes: "Library", "One by one": "Judge" };
 
 /**
