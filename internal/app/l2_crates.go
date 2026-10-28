@@ -8,7 +8,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/songs"
 )
 
-// crateCounter adapts the Song and Take lists to crates.Counter: the live match count is the list's own total for one row,
+// crateCounter adapts the Song and Take lists to crates.Counter: the live match count is the list's own COUNT (one row of work, no page),
 // so a Crate view and an ad-hoc query run the same Go filter (D-L2-13).
 type crateCounter struct {
 	songs *songs.Service
@@ -16,9 +16,7 @@ type crateCounter struct {
 }
 
 func (c crateCounter) CountSongs(ctx context.Context, f songs.ListFilter) (int, error) {
-	f.Limit, f.Cursor = 1, ""
-	p, err := c.songs.List(ctx, f)
-	return p.Total, err
+	return c.songs.Count(ctx, f)
 }
 
 func (c crateCounter) CountTracks(ctx context.Context, p library.SearchParams) (int, error) {

@@ -12,6 +12,7 @@
 ./internal/provenance 64
 ./internal/media/cover 55
 ./internal/subsonic 46
+./internal/crates 45
 ./internal/api 39
 ./internal/synth 38
 ./internal/media/ingest 37
