@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"image/png"
 	"io/fs"
 	"os"
@@ -69,7 +70,11 @@ func (s *Service) EnsureAlbum(ctx context.Context, rootID string, size int) (ser
 
 func (s *Service) ensure(rootID string, seed int64, size int) (serve.Object, string, error) {
 	size = ClampSize(size)
-	key := Key(rootID, seed, size)
+	return s.ensureImage(Key(rootID, seed, size), func() *image.Paletted { return Render(rootID, seed, size) })
+}
+
+// ensureImage is the write path shared by every cover kind: serve key if cached, else render, encode and claim the name.
+func (s *Service) ensureImage(key string, render func() *image.Paletted) (serve.Object, string, error) {
 	if obj, err := s.Resolve(context.Background(), key, "png"); err == nil {
 		return obj, key, nil
 	} else if !errors.Is(err, serve.ErrNotFound) {
@@ -77,7 +82,7 @@ func (s *Service) ensure(rootID string, seed int64, size int) (serve.Object, str
 	}
 	var buf bytes.Buffer
 	enc := png.Encoder{CompressionLevel: png.BestCompression}
-	if err := enc.Encode(&buf, Render(rootID, seed, size)); err != nil {
+	if err := enc.Encode(&buf, render()); err != nil {
 		return serve.Object{}, "", fmt.Errorf("cover: encode: %w", err)
 	}
 	if err := s.data.MkdirAll("incoming", 0o755); err != nil {

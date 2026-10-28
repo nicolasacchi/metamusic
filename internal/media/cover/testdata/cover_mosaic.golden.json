@@ -1,0 +1,26 @@
+[
+  {
+    "name": "no parts",
+    "parts": 0,
+    "size": 128,
+    "sha256": "e10c89a92acea0ff4dd1212e8c40c79a8030d896f0fc566670ca195e0782f607"
+  },
+  {
+    "name": "three",
+    "parts": 3,
+    "size": 96,
+    "sha256": "5ccc050654c765803b570608cd66a2fcf072a0c4521cb0fd9dedc3684208208e"
+  },
+  {
+    "name": "nine",
+    "parts": 9,
+    "size": 100,
+    "sha256": "d66ddb58e86baf158955e97411c39fddb40c69bb0d7062186b7d1dc2c52ddede"
+  },
+  {
+    "name": "twelve",
+    "parts": 12,
+    "size": 128,
+    "sha256": "33fb4405835e400bb58d7b2c0462fef05369de76b883f0d1fa1d1291f54f94d4"
+  }
+]
