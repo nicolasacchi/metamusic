@@ -93,6 +93,7 @@
       </p>
     {/if}
     <h2>Takes</h2>
+    <div class="scroll">
     <table data-testid="batch-takes">
       <thead><tr><th scope="col">#</th><th scope="col">Request</th><th scope="col">Title</th><th scope="col">Seed</th><th scope="col">Source</th></tr></thead>
       <tbody>
@@ -111,6 +112,7 @@
         {/each}
       </tbody>
     </table>
+    </div>
     {#if pending}
       <label>Reason (required to reject)
         <input type="text" bind:value={reason} maxlength="500" data-testid="decision-reason" />
@@ -133,6 +135,12 @@
 {/if}
 
 <style>
+  /* The takes table is as wide as its longest title/seed/request id: on a phone it scrolls inside this box instead of
+     widening the page (a page wider than the viewport makes the browser shrink the layout viewport, so taps land off target). */
+  .scroll {
+    overflow-x: auto;
+    max-width: 100%;
+  }
   label {
     display: grid;
     gap: var(--sp-1);

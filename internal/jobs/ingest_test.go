@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -397,17 +398,28 @@ func (b *bridgeRig) capture(job string, flac []byte) (JobRow, AttemptRow, []uplo
 		"audio.flac": flac, "result.json": resultJSON(false, false), "score.abc": []byte(bridgeABC),
 		"request.json": []byte(`{"id":"x"}`), "config.json": []byte(`{}`)}})
 	b.setStatus(b.refOf(job, 1), completed(out, 71000))
+	// The pool hands the job to its ingest goroutine asynchronously, so a Step returns before the stub is entered; a
+	// non-blocking check right after it raced the scheduler (one CI shard under load never saw the entry in eight Steps).
+	// Each Step is therefore followed by a short bounded wait, and the last dispatch gets a generous one.
+	entered := false
 	for range 8 {
 		if _, err := b.run.Step(b.t.Context()); err != nil {
 			b.t.Fatal(err)
 		}
 		select {
 		case <-stub.entered:
-		default:
+			entered = true
+		case <-time.After(50 * time.Millisecond):
 			b.advance(3e9)
 			continue
 		}
 		break
+	}
+	if !entered {
+		select {
+		case <-stub.entered:
+		case <-time.After(10 * time.Second):
+		}
 	}
 	stub.mu.Lock()
 	jr, ar, files, o := stub.lastJob, stub.lastAtt, append([]upload.Received(nil), stub.last...), stub.lastOut

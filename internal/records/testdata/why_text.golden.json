@@ -1,0 +1,84 @@
+[
+  {
+    "name": "ladder, 1 duel",
+    "source": "ladder",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "ladder",
+      "eligible": 2,
+      "duels_n": 1
+    },
+    "text": "won 1 blind duel"
+  },
+  {
+    "name": "ladder, 4 duels",
+    "source": "ladder",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "ladder",
+      "eligible": 3,
+      "duels_n": 4
+    },
+    "text": "won 4 blind duels"
+  },
+  {
+    "name": "pinned",
+    "source": "pinned",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "pinned",
+      "eligible": 2
+    },
+    "text": "pinned as the song's Pick"
+  },
+  {
+    "name": "stars, untied",
+    "source": "stars",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "stars",
+      "eligible": 2,
+      "stars": 4,
+      "tied": 1
+    },
+    "text": "4★ · undecided"
+  },
+  {
+    "name": "stars, tied 3",
+    "source": "stars",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "stars",
+      "eligible": 4,
+      "stars": 5,
+      "tied": 3
+    },
+    "text": "5★ (newest of 3 tied) · undecided"
+  },
+  {
+    "name": "newest",
+    "source": "newest",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "newest",
+      "eligible": 2
+    },
+    "text": "newest take · undecided"
+  },
+  {
+    "name": "none",
+    "source": "none",
+    "evidence": {
+      "def": "mm.pick/1",
+      "rule": "none",
+      "eligible": 0
+    },
+    "text": ""
+  },
+  {
+    "name": "ladder, evidence missing",
+    "source": "ladder",
+    "evidence": null,
+    "text": "won blind duels"
+  }
+]
