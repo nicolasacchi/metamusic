@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -151,5 +152,30 @@ func TestDeps_NewIDFunc(t *testing.T) {
 	}
 	if got := (api.Deps{NewID: func() string { return "fixed" }}).NewIDFunc()(); got != "fixed" {
 		t.Fatalf("injected id = %q", got)
+	}
+}
+
+func TestProblemCanceledRequestLogsInfoNotError(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	mux := http.NewServeMux()
+	cfg := huma.DefaultConfig("t", "1")
+	cfg.CreateHooks = nil
+	a := humago.New(mux, cfg)
+	api.Register(a, huma.Operation{OperationID: "gone", Method: "GET", Path: "/api/gone", Summary: "s", Description: "d"},
+		api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "none:test"},
+		func(context.Context, *nothing) (*outT, error) {
+			return nil, fmt.Errorf("track refs: %w", context.Canceled)
+		})
+	p := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}
+	r := httptest.NewRequest("GET", "/api/gone", nil).WithContext(api.WithLogger(auth.WithPrincipal(context.Background(), p), logger))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != 500 {
+		t.Fatalf("response contract changed: status %d", w.Code)
+	}
+	if got := buf.String(); strings.Contains(got, `"level":"ERROR"`) || !strings.Contains(got, `"level":"INFO"`) {
+		t.Fatalf("a client-canceled request must log at INFO, got %s", got)
 	}
 }

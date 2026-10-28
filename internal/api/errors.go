@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -106,6 +107,11 @@ func newProblem(ctx huma.Context, status int, msg string, errs ...error) huma.St
 						attrs = append(attrs, "operation", op.OperationID)
 					}
 					attrs = append(attrs, "path", ctx.URL().Path)
+				}
+				if errors.Is(e, context.Canceled) {
+					// the client went away mid-request (a navigation, an aborted fetch): nobody reads the response
+					loggerFrom(ctx).Info("request canceled by client", attrs...)
+					continue
 				}
 				loggerFrom(ctx).Error("handler error", attrs...)
 			}
