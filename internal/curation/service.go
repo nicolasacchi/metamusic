@@ -9,8 +9,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// Service reads and writes the curation settings. The reads are final (F2) so the catalog, tape and recordview never wait for
-// lane A; Set and Stats are lane A's (stub_a.go).
+// Service reads and writes the curation settings. Get and the flag readers are what the catalog, tape and recordview call; Set
+// (settings.go) is the only writer of the curation.* keys and Stats (stats.go) feeds get_stats.
 type Service struct {
 	st  *store.Store
 	now func() time.Time
@@ -25,31 +25,7 @@ func New(st *store.Store, now func() time.Time) *Service {
 }
 
 // Get returns the effective settings: absent flags are false.
-func (s *Service) Get(ctx context.Context) (Settings, error) {
-	rows, err := s.st.R.QueryContext(ctx, `SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)`, KeyExport, KeySubsonic, KeyUpdatedAt, KeyUpdatedBy)
-	if err != nil {
-		return Settings{}, err
-	}
-	defer func() { _ = rows.Close() }()
-	var out Settings
-	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return Settings{}, err
-		}
-		switch k {
-		case KeyExport:
-			out.ExportMuseNames = v == "true"
-		case KeySubsonic:
-			out.SubsonicMuseNames = v == "true"
-		case KeyUpdatedAt:
-			out.UpdatedAt = v
-		case KeyUpdatedBy:
-			out.UpdatedBy = v
-		}
-	}
-	return out, rows.Err()
-}
+func (s *Service) Get(ctx context.Context) (Settings, error) { return readSettings(ctx, s.st.R) }
 
 // flag reads one boolean setting; absent is false.
 func (s *Service) flag(ctx context.Context, key string) (bool, error) {

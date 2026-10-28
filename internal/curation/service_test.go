@@ -2,13 +2,12 @@ package curation_test
 
 import (
 	"context"
-	"errors"
+	"github.com/danielgtaylor/huma/v2"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/curation"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -28,8 +27,7 @@ func open(t *testing.T) *store.Store {
 	return st
 }
 
-// TestService_ReadsSettings: absent keys read false, stored keys read as written, and Get carries who and when. Set and Stats are
-// lane A's stubs.
+// TestService_ReadsSettings: absent keys read false, stored keys read as written, and Get carries who and when.
 func TestService_ReadsSettings(t *testing.T) {
 	t.Parallel()
 	st := open(t)
@@ -55,18 +53,42 @@ func TestService_ReadsSettings(t *testing.T) {
 	}
 }
 
-// TestStubsA_FrozenMethodSet: the stubs answer errors.ErrUnsupported (the API maps it to 501). Lane A deletes stub_a.go and
-// this test.
-func TestStubsA_FrozenMethodSet(t *testing.T) {
+// TestKeys_Frozen pins the four settings keys (C118, C127.1).
+func TestKeys_Frozen(t *testing.T) {
 	t.Parallel()
-	s := curation.New(nil, nil)
-	if _, err := s.Set(context.Background(), auth.Principal{Kind: auth.KindHuman}, curation.SettingsPatch{}); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("Set: %v", err)
-	}
-	if _, err := s.Stats(context.Background()); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("Stats: %v", err)
-	}
-	if len(curation.Keys) != 4 {
+	if len(curation.Keys) != 4 || curation.KeyExport != "curation.export_muse_names" || curation.KeySubsonic != "curation.subsonic_muse_names" ||
+		curation.KeyUpdatedAt != "curation.updated_at" || curation.KeyUpdatedBy != "curation.updated_by" {
 		t.Errorf("keys = %v", curation.Keys)
+	}
+}
+
+// TestService_ErrorsSurface: a closed store is an error from every reader and from Set and Stats, never a false flag.
+func TestService_ErrorsSurface(t *testing.T) {
+	t.Parallel()
+	st := open(t)
+	s := curation.New(st, nil)
+	_ = st.Close()
+	ctx := context.Background()
+	if _, err := s.Get(ctx); err == nil {
+		t.Error("Get")
+	}
+	if _, err := s.ExportMuseNames(ctx); err == nil {
+		t.Error("ExportMuseNames")
+	}
+	if _, err := s.SubsonicMuseNames(ctx); err == nil {
+		t.Error("SubsonicMuseNames")
+	}
+	if _, err := s.Stats(ctx); err == nil {
+		t.Error("Stats")
+	}
+}
+
+// TestStats_Schema: the block is nullable inline, since Huma refuses nullable on an object $ref.
+func TestStats_Schema(t *testing.T) {
+	t.Parallel()
+	reg := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
+	sc := curation.Stats{}.Schema(reg)
+	if !sc.Nullable || sc.Type != "object" || sc.Properties["review"] == nil {
+		t.Errorf("schema = %+v", sc)
 	}
 }
