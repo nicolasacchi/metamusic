@@ -88,10 +88,28 @@ async function press(page: Page, target: Locator, label: string): Promise<void> 
   }
 }
 
+// The page never grows wider than the viewport (a wider page shrinks the layout viewport and taps land off target; the
+// takes table once did that with a long title), and the reason input does not intersect the Approve/Reject buttons.
+async function expectPhoneLayoutSound(page: Page): Promise<void> {
+  const vw = page.viewportSize()?.width ?? 0;
+  const w = await page.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+  expect(w.inner, "layout viewport equals the device width").toBe(vw);
+  expect(w.scroll, "no horizontal overflow").toBeLessThanOrEqual(w.client);
+  const input = await page.getByTestId("decision-reason").boundingBox();
+  if (!input) throw new Error("no box for the reason input");
+  for (const id of ["approve", "reject"]) {
+    const b = await page.getByTestId(id).boundingBox();
+    if (!b) throw new Error(`no box for ${id}`);
+    const apart = b.y >= input.y + input.height || input.y >= b.y + b.height || b.x >= input.x + input.width || input.x >= b.x + b.width;
+    expect(apart, `the reason input and ${id} do not intersect`).toBe(true);
+  }
+}
+
 async function decide(page: Page, project: string): Promise<void> {
   await expect(page.getByTestId("batch-state")).toHaveText("awaiting confirmation");
   const approve = page.getByTestId("approve");
   const reject = page.getByTestId("reject");
+  await expectPhoneLayoutSound(page);
   await expectNotUnderPlayer(page, approve);
   await expectNotUnderPlayer(page, reject);
   if (project === "m3-chrome") {
