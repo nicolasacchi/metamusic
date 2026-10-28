@@ -53,13 +53,12 @@ import (
 //
 // Wave 4a (D1) on top of 4b: 104700 -> 104800 (measured 104699, +43): the nullable step_up_until of whoami.
 //
-// L2-F2 (D-L2-21) re-baselined 104800 -> 118000 (measured 117906, +13 207, 41 tools): the five planned L2 tools measured 15 645
-// bytes, over the 9 000 byte rule, so the demotion order was applied (update_crate, create_crate, list_records are generic);
-// get_record and propose_record, whose RecordView output schema is about 4 900 bytes each, still take 10 940. Beyond that the
-// rule is to stop and ask the operator (D-M3-36 pattern): that decision is open and is reported in the PR. The other +2 267
-// bytes are the curation filters of search_sounds and search_tracks and the L2 fields of get_song, get_muse, get_stats and
-// the context bundle.
-const toolsCeilingBytes = 118000
+// L2-F2 (D-L2-21) re-baselined 104800 -> 107100 (measured 106964, +2 265, 39 tools): L2 adds no dedicated tool. The five planned
+// tools measured 15 645 bytes, over the 9 000 byte rule; after the rule's demotions get_record and propose_record still took
+// 10 940, and the operator decided on 2026-10-28 to make them generic too (15 generic, 2 human-only). The +2 265 bytes are
+// the curation filters of search_sounds and search_tracks and the L2 fields of get_song, get_muse, get_stats and the
+// context bundle.
+const toolsCeilingBytes = 107100
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

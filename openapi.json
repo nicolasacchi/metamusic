@@ -20338,7 +20338,7 @@
         "x-mm": {
           "scope": "read",
           "cost": "free",
-          "mcp": "tool",
+          "mcp": "generic",
           "ui": "/records/:id",
           "human_only": false
         }
@@ -20542,7 +20542,7 @@
         "x-mm": {
           "scope": "write",
           "cost": "free",
-          "mcp": "tool",
+          "mcp": "generic",
           "ui": "/records/:id",
           "human_only": false
         }

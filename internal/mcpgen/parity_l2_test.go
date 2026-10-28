@@ -80,22 +80,13 @@ func TestParity_L2Cases(t *testing.T) {
 	}
 }
 
-// l2Tools are the first-class L2 tools. D-L2-21 planned five (list_records, get_record, propose_record, create_crate,
-// update_crate); the five measured 15 645 compact bytes, over the 9 000 byte rule, so F2 demoted update_crate, create_crate and
-// list_records to generic in the rule's order. create_record was generic from the start.
-var l2Tools = []string{"get_record", "propose_record"}
+// l2Operations are the 17 operations of C129. D-L2-21 planned five dedicated tools; they measured 15 645 compact bytes, and
+// after the demotion order the last two still took 10 940, so the operator decided (2026-10-28) that L2 adds no tool: every
+// L2 operation is reachable through call_operation.
+var l2Operations = append(slices.Clone(l2ParityIDs), "publish_record", "set_curation_settings")
 
-// l2ToolsRule is the D-L2-21 budget of the L2 tools; l2ToolsBudget is what this test enforces. The two remaining tools take
-// 10 940 bytes (their RecordView output schema is about 4 900 bytes each), so the rule is exceeded after every demotion it
-// names; beyond that D-L2-21 says to stop and ask the operator (the D-M3-36 pattern), and that decision is open. The budget is
-// the measured size rounded up, so the tools cannot grow unnoticed meanwhile.
-const (
-	l2ToolsRule   = 9000
-	l2ToolsBudget = 11000
-)
-
-// TestToolsList_L2Ceiling: the two L2 tools are listed, together take at most l2ToolsBudget compact bytes, and tools/list as a
-// whole stays within toolsCeilingBytes (re-baselined by F2). It prints the measurements.
+// TestToolsList_L2Ceiling: no L2 operation is a first-class tool, and tools/list stays within toolsCeilingBytes. It prints the
+// measurement.
 func TestToolsList_L2Ceiling(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
@@ -104,30 +95,16 @@ func TestToolsList_L2Ceiling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	total, found := 0, 0
 	for _, tl := range res.Tools {
-		if slices.Contains(l2Tools, tl.Name) {
-			b, err := json.Marshal(tl)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("%s: %d bytes", tl.Name, len(b))
-			total += len(b)
-			found++
+		if slices.Contains(l2Operations, tl.Name) {
+			t.Errorf("%s is listed as a tool: L2 adds no dedicated MCP tool (D-L2-21 as decided)", tl.Name)
 		}
 	}
 	all, err := json.Marshal(res.Tools)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("the %d L2 tools take %d compact bytes of tools/list (rule: %d, enforced: %d); tools/list is %d bytes over %d tools (ceiling %d)",
-		found, total, l2ToolsRule, l2ToolsBudget, len(all), len(res.Tools), toolsCeilingBytes)
-	if found != len(l2Tools) {
-		t.Fatalf("found %d of the %d L2 tools in tools/list", found, len(l2Tools))
-	}
-	if total > l2ToolsBudget {
-		t.Errorf("the L2 tools take %d bytes, over the enforced %d (rule %d): the D-L2-21 demotions are done, so this needs the operator", total, l2ToolsBudget, l2ToolsRule)
-	}
+	t.Logf("tools/list is %d compact bytes over %d tools (ceiling %d)", len(all), len(res.Tools), toolsCeilingBytes)
 	if len(all) > toolsCeilingBytes {
 		t.Errorf("tools/list is %d bytes, over the %d ceiling", len(all), toolsCeilingBytes)
 	}

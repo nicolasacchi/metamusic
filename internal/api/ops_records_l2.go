@@ -34,7 +34,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "get_record", Method: "GET", Path: "/api/records/{id}",
 		Summary:     "Get a Record",
 		Description: "One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes or the publish preview.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/records/:id"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err
@@ -94,7 +94,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "propose_record", Method: "POST", Path: "/api/records/{id}/proposal",
 		Summary:     "Propose a Record",
 		Description: "Proposes a draft Record for a human to publish, with a rationale of up to 500 characters. Only a human publishes.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/records/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *proposeRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err

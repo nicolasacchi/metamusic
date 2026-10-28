@@ -32,12 +32,12 @@ type l2Op struct {
 
 var l2Ops = []l2Op{
 	{id: "list_records", method: "GET", path: "/api/records", scope: auth.ScopeRead, mcp: "generic", ui: "/records", component: "records", task: "L2-V2"},
-	{id: "get_record", method: "GET", path: "/api/records/{id}", scope: auth.ScopeRead, mcp: "tool", ui: "/records/:id", component: "records", task: "L2-V2"},
+	{id: "get_record", method: "GET", path: "/api/records/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
 	{id: "create_record", method: "POST", path: "/api/records", scope: auth.ScopeWrite, mcp: "generic", ui: "/records", create: true, status: 201, body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"title":"Synthetic Record 001"}`},
 	{id: "update_record", method: "PATCH", path: "/api/records/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "edit_record_slots", method: "POST", path: "/api/records/{id}/slots", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"ops":[{"op":"pin_all"}]}`},
 	{id: "get_record_changes", method: "GET", path: "/api/records/{id}/changes", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
-	{id: "propose_record", method: "POST", path: "/api/records/{id}/proposal", scope: auth.ScopeWrite, mcp: "tool", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"rationale":"ready"}`},
+	{id: "propose_record", method: "POST", path: "/api/records/{id}/proposal", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"rationale":"ready"}`},
 	{id: "publish_record", method: "POST", path: "/human/api/records/{id}/publish", scope: auth.ScopeWrite, mcp: "exclude:human-only", ui: "/human/records/:id/publish", humanOnly: true, body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"published":true}`},
 	{id: "export_record_tape", method: "POST", path: "/api/records/{id}/tapes", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", create: true, heavy: true, status: 201, body: 64 * kib, component: "tape", task: "L2-T2", reqBody: `{}`},
 	{id: "get_tape", method: "GET", path: "/api/tapes/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "tape", task: "L2-T2"},
@@ -141,10 +141,9 @@ func TestOps_RegisteredWithMetaL2(t *testing.T) {
 			t.Errorf("%s: default status %d, want %d", w.id, o.DefaultStatus, want)
 		}
 	}
-	// D-L2-21 planned 5 tools and 10 generic; the L2 tools measured 15 645 compact bytes, over the 9 000 byte rule, so F2 applied
-	// the demotion order update_crate, create_crate, list_records: 2 tools (get_record, propose_record) and 13 generic.
-	if tools != 2 || generic != 13 || excluded != 2 || humanOnly != 2 {
-		t.Errorf("tools/generic/excluded/human-only = %d/%d/%d/%d, want 2/13/2/2 (D-L2-21 after the F2 demotions)", tools, generic, excluded, humanOnly)
+	// D-L2-21 planned 5 tools and 10 generic; the operator decided (2026-10-28) that L2 adds no dedicated MCP tool: 0 tools, 15 generic.
+	if tools != 0 || generic != 15 || excluded != 2 || humanOnly != 2 {
+		t.Errorf("tools/generic/excluded/human-only = %d/%d/%d/%d, want 0/15/2/2 (D-L2-21 as decided)", tools, generic, excluded, humanOnly)
 	}
 	if withUI != 15 { // every op with an MCP face has a UI route: the 15 parity cases and every_ui_action entries
 		t.Errorf("%d ops have an MCP face and a UI route, want 15", withUI)
@@ -188,7 +187,7 @@ func TestOps_BodyLimitsL2(t *testing.T) {
 	}
 }
 
-// TestOps_ToolDescriptionsShortL2: the five first-class tools keep their descriptions at 200 characters (their schemas
+// TestOps_ToolDescriptionsShortL2: the first-class tools keep their descriptions at 200 characters (their schemas
 // count against the tools/list ceiling).
 func TestOps_ToolDescriptionsShortL2(t *testing.T) {
 	t.Parallel()
