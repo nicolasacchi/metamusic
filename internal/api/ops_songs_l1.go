@@ -25,6 +25,9 @@ func registerSongsL1(a huma.API, d Deps) {
 			if err != nil {
 				return nil, m2bErr(err, "L1-B5")
 			}
+			if f, err = expandSongCrate(ctx, d, f); err != nil {
+				return nil, err
+			}
 			f.Limit, f.Cursor = in.Limit, in.Cursor
 			p, err := d.Songs.List(ctx, f)
 			if err != nil {

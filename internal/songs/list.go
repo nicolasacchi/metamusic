@@ -79,20 +79,41 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	}
 	where, args := FilterSQL(f, "")
 	var page Page
-	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM songs s WHERE `+where, args...).Scan(&page.Total); err != nil {
-		return Page{}, fmt.Errorf("songs: count: %w", err)
-	}
-	pageWhere, pageArgs := where, append([]any(nil), args...)
+	var cur cursor
 	if f.Cursor != "" {
-		cur, err := decodeCursor(f.Cursor)
-		if err != nil {
+		var err error
+		if cur, err = decodeCursor(f.Cursor); err != nil {
 			return Page{}, err
 		}
-		pageWhere += " AND (s.created_at < ? OR (s.created_at = ? AND s.id < ?))"
-		pageArgs = append(pageArgs, cur.At, cur.At, cur.ID)
 	}
-	pageArgs = append(pageArgs, limit+1)
-	rows, err := s.st.R.QueryContext(ctx, `SELECT `+SummaryColumns+`, s.created_at `+SummaryFrom+` WHERE `+pageWhere+` ORDER BY s.created_at DESC, s.id DESC LIMIT ?`, pageArgs...) //nolint:gosec // G202: fragments are fixed strings built in this function
+	// One pass over the filter, on ids alone: it counts every match and keeps the first limit+1 after the cursor. (Ordering the
+	// whole table with the state columns in the select list would evaluate every correlated state subquery for every Song,
+	// and a separate COUNT would evaluate the filter twice.)
+	idRows, err := s.st.R.QueryContext(ctx, `SELECT s.id, s.created_at FROM songs s WHERE `+where+` ORDER BY s.created_at DESC, s.id DESC`, args...) //nolint:gosec // G202: fragments are fixed strings built in this function
+	if err != nil {
+		return Page{}, fmt.Errorf("songs: list: %w", err)
+	}
+	var pageIDs []any
+	for idRows.Next() {
+		var id, at string
+		if err := idRows.Scan(&id, &at); err != nil {
+			idRows.Close()
+			return Page{}, fmt.Errorf("songs: list: %w", err)
+		}
+		page.Total++
+		if len(pageIDs) <= limit && (f.Cursor == "" || at < cur.At || (at == cur.At && id < cur.ID)) {
+			pageIDs = append(pageIDs, id)
+		}
+	}
+	if err := idRows.Err(); err != nil {
+		idRows.Close()
+		return Page{}, fmt.Errorf("songs: list: %w", err)
+	}
+	idRows.Close()
+	if len(pageIDs) == 0 {
+		return page, nil
+	}
+	rows, err := s.st.R.QueryContext(ctx, `SELECT `+SummaryColumns+`, s.created_at `+SummaryFrom+` WHERE s.id IN (`+placeholders(len(pageIDs))+`) ORDER BY s.created_at DESC, s.id DESC`, pageIDs...) //nolint:gosec // G202: fragments are fixed strings built in this function
 	if err != nil {
 		return Page{}, fmt.Errorf("songs: list: %w", err)
 	}
@@ -127,4 +148,14 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 		page.NextCursor = &c
 	}
 	return page, nil
+}
+
+// Count is the number of Songs f selects (Limit and Cursor are ignored): the COUNT List runs, without building a page.
+func (s *Service) Count(ctx context.Context, f ListFilter) (int, error) {
+	where, args := FilterSQL(f, "")
+	var n int
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM songs s WHERE `+where, args...).Scan(&n); err != nil {
+		return 0, fmt.Errorf("songs: count: %w", err)
+	}
+	return n, nil
 }

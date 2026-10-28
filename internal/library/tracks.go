@@ -96,7 +96,9 @@ type SearchParams struct {
 	InRecord                   *bool    // L2: the Take is the resolved Take of a live slot
 	Sounds                     []string // L2: facet:value pairs over take_sounds, OR inside a facet, AND across facets
 	CrateID                    string   // L2: membership of a manual Crate, or the expansion of a smart one
+	None                       bool     // L2: matches nothing (set by crates.ExpandTracks for an empty list intersection)
 	noSongs                    bool     // set by the service: the schema has no Song tables, so L1 filters match nothing
+	noL2                       l2Gates  // set by the service: which L2 tables the schema lacks (D-M3-35 pattern)
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -322,6 +324,10 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 			}
 		}
 	}
+	where, err = compileL2(p, where, args)
+	if err != nil {
+		return q, err
+	}
 	q.where = where
 	q.order = map[string]string{
 		"recorded_desc": `t.recorded_at DESC, t.id DESC`,
@@ -342,6 +348,9 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 		return TrackPage{}, err
 	}
 	p.noSongs = !has
+	if p.noL2, err = s.l2Gates(ctx); err != nil {
+		return TrackPage{}, err
+	}
 	q, err := compileSearch(p)
 	if err != nil {
 		return TrackPage{}, err
@@ -408,6 +417,9 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 		return nil, err
 	}
 	p.noSongs = !has
+	if p.noL2, err = s.l2Gates(ctx); err != nil {
+		return nil, err
+	}
 	q, err := compileSearch(p)
 	if err != nil {
 		return nil, err

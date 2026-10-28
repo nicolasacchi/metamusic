@@ -133,7 +133,8 @@ func TestLibrary_OldSchemaFixturesStillRead(t *testing.T) {
 				}
 			}
 			// the new filters match nothing instead of failing
-			for _, p := range []library.SearchParams{{SongID: "x"}, {IsPick: &yes}, {SessionID: "x"}} {
+			// (the L2 filters too: before any Record, Crate or Sound exists they match nothing, and unheard matches everything)
+			for _, p := range []library.SearchParams{{SongID: "x"}, {IsPick: &yes}, {SessionID: "x"}, {InRecord: &yes}, {CrateID: "x"}, {Sounds: []string{"genre_family:reggae"}}} {
 				if got := searchOn(t, e.svc, p); len(got.Items) != 0 {
 					t.Errorf("%+v matched %v", p, ids(got))
 				}

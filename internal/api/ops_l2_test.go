@@ -10,11 +10,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/crates"
 	"github.com/nicolasacchi/metamusic/internal/curation"
-	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
-	"github.com/nicolasacchi/metamusic/internal/songs"
-	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
@@ -52,7 +49,9 @@ var l2Ops = []l2Op{
 
 // implementedL2 lists the operations whose stub a lane has replaced (the lane adds its ids here and the handler tests of
 // that lane cover the behaviour).
-var implementedL2 = map[string]bool{}
+var implementedL2 = map[string]bool{
+	"list_crates": true, "get_crate": true, "create_crate": true, "update_crate": true, "edit_crate_items": true, // L2-K
+}
 
 func l2Deps() api.Deps {
 	return api.Deps{
@@ -284,35 +283,6 @@ func TestOps_AuthorizationL2(t *testing.T) {
 		if code, _ := l2Call(r, auth.Principal{}, w); code != 401 {
 			t.Errorf("%s anonymous: %d, want 401", w.id, code)
 		}
-	}
-}
-
-// TestOps_L2FilterParamsAnswer501: the new list_songs, search_sounds and search_tracks parameters are accepted by the
-// schema and answer 501 NOT_IMPLEMENTED (task L2-K) until lane K evaluates them; the existing parameters are untouched.
-func TestOps_L2FilterParamsAnswer501(t *testing.T) {
-	t.Parallel()
-	r := l2Rig(t, api.Deps{Songs: songs.New(nil, nil, nil), Sounds: sounds.New(nil, nil, nil), Library: library.New(nil, nil, nil)})
-	songParams := []string{"pick_decided=false", "unheard=true", "min_duration_s=240", "max_duration_s=300", "min_stars=3", "unrated=true", "tag=ballad",
-		"lossy=false", "recipe_known=true", "in_record=true", "crate_id=x"}
-	trackParams := []string{"unheard=true", "in_record=false", "sound=genre_family:reggae", "crate_id=x"}
-	check := func(path string, params []string) {
-		for _, q := range params {
-			rec := r.call(l2Agent(auth.ScopeRead), "GET", path+"?"+q, "")
-			var m map[string]any
-			_ = json.Unmarshal(rec.Body.Bytes(), &m)
-			d, _ := m["details"].(map[string]any)
-			// search_tracks reaches the same guard; the guard runs before any store access
-			if rec.Code != 501 || m["code"] != "NOT_IMPLEMENTED" || d["task"] != "L2-K" {
-				t.Errorf("GET %s?%s: %d %s, want 501 NOT_IMPLEMENTED task L2-K", path, q, rec.Code, rec.Body)
-			}
-		}
-	}
-	check("/api/songs", songParams)
-	check("/api/sounds/search", songParams)
-	check("/api/tracks", trackParams)
-	// an out-of-range value is still refused by the schema first
-	if rec := r.call(l2Agent(auth.ScopeRead), "GET", "/api/songs?min_stars=9", ""); rec.Code != 422 {
-		t.Errorf("min_stars=9: %d, want 422", rec.Code)
 	}
 }
 
