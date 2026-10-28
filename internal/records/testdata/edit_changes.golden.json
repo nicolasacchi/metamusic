@@ -1,0 +1,133 @@
+[
+  {
+    "seq": 1,
+    "kind": "created",
+    "position": null,
+    "reason": "initial",
+    "actor_kind": "agent",
+    "text": "Record created"
+  },
+  {
+    "seq": 2,
+    "kind": "slot_added",
+    "slot": "slot1",
+    "position": 1,
+    "reason": "initial",
+    "actor_kind": "agent",
+    "text": "Slot 1 added: Synthetic Take S1A"
+  },
+  {
+    "seq": 3,
+    "kind": "slot_added",
+    "slot": "slot2",
+    "position": 2,
+    "reason": "initial",
+    "actor_kind": "agent",
+    "text": "Slot 2 added: Synthetic Take B1"
+  },
+  {
+    "seq": 4,
+    "kind": "slot_added",
+    "slot": "slot3",
+    "position": 3,
+    "reason": "initial",
+    "actor_kind": "agent",
+    "text": "Slot 3 added: Synthetic Take C1"
+  },
+  {
+    "seq": 5,
+    "kind": "slot_added",
+    "slot": "new",
+    "position": 1,
+    "reason": "initial",
+    "actor_kind": "agent",
+    "text": "Slot 1 added: Synthetic Take A1"
+  },
+  {
+    "seq": 6,
+    "kind": "slot_moved",
+    "slot": "slot3",
+    "position": 1,
+    "reason": null,
+    "detail": "{\"from\":4}",
+    "actor_kind": "agent",
+    "text": "Slot moved 4 → 1"
+  },
+  {
+    "seq": 7,
+    "kind": "slot_moved",
+    "slot": "new",
+    "position": 2,
+    "reason": null,
+    "detail": "{\"from\":1}",
+    "actor_kind": "agent",
+    "text": "Slot moved 1 → 2"
+  },
+  {
+    "seq": 8,
+    "kind": "slot_moved",
+    "slot": "slot1",
+    "position": 3,
+    "reason": null,
+    "detail": "{\"from\":2}",
+    "actor_kind": "agent",
+    "text": "Slot moved 2 → 3"
+  },
+  {
+    "seq": 9,
+    "kind": "slot_moved",
+    "slot": "slot2",
+    "position": 4,
+    "reason": null,
+    "detail": "{\"from\":3}",
+    "actor_kind": "agent",
+    "text": "Slot moved 3 → 4"
+  },
+  {
+    "seq": 10,
+    "kind": "slot_side",
+    "slot": "slot1",
+    "position": 3,
+    "reason": null,
+    "detail": "{\"side\":\"A\"}",
+    "actor_kind": "agent",
+    "text": "Slot 3 side A"
+  },
+  {
+    "seq": 11,
+    "kind": "slot_side",
+    "slot": "slot1",
+    "position": 3,
+    "reason": null,
+    "detail": "{\"side\":null}",
+    "actor_kind": "agent",
+    "text": "Slot 3 side cleared"
+  },
+  {
+    "seq": 12,
+    "kind": "slot_pinned",
+    "slot": "slot2",
+    "position": 4,
+    "reason": "pin",
+    "actor_kind": "agent",
+    "text": "Slot 4 pinned to Synthetic Take B2"
+  },
+  {
+    "seq": 13,
+    "kind": "slot_removed",
+    "slot": "slot1",
+    "position": 3,
+    "reason": null,
+    "actor_kind": "agent",
+    "text": "Slot 3 removed (Synthetic Take S1A)"
+  },
+  {
+    "seq": 14,
+    "kind": "slot_unpinned",
+    "slot": "slot2",
+    "position": 3,
+    "reason": "unpin",
+    "actor_kind": "agent",
+    "text": "Slot 3 unpinned: follows the Pick (Synthetic Take B1)"
+  }
+]
