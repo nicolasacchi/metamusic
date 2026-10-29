@@ -2,14 +2,32 @@ package api
 
 import (
 	"context"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/curation"
 )
 
-// registerSettingsL2 registers the two curation-settings operations of C129. STUB(L2-A): lane A replaces the handler
-// bodies only.
+// settingsOut renders the settings for viewer: the operator's key is hidden from agents by RefFor, and a store that has never
+// been written has no author and no time.
+func settingsOut(viewer auth.Principal, s curation.Settings) CurationSettings {
+	out := CurationSettings{ExportMuseNames: s.ExportMuseNames, SubsonicMuseNames: s.SubsonicMuseNames}
+	if s.UpdatedAt != "" {
+		at := s.UpdatedAt
+		out.UpdatedAt = &at
+	}
+	if s.UpdatedBy != "" {
+		kind, name, _ := strings.Cut(s.UpdatedBy, ":")
+		ref := RefFor(viewer, s.UpdatedBy, kind, name)
+		out.UpdatedBy = &ref
+	}
+	return out
+}
+
+// registerSettingsL2 registers the two curation-settings operations of C129 (lane A): the read for everyone with read scope,
+// and the human-only write under /human/api, which the registry refuses for any other principal before the handler runs.
 func registerSettingsL2(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_curation_settings", Method: "GET", Path: "/api/curation/settings",
@@ -20,7 +38,11 @@ func registerSettingsL2(a huma.API, d Deps) {
 			if d.Curation == nil {
 				return nil, unavailable("curation")
 			}
-			return nil, notImplemented(taskA) // STUB(L2-A)
+			set, err := d.Curation.Get(ctx)
+			if err != nil {
+				return nil, m2bErr(err, taskA)
+			}
+			return &curationSettingsOut{Body: settingsOut(auth.FromContext(ctx), set)}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -32,6 +54,11 @@ func registerSettingsL2(a huma.API, d Deps) {
 			if d.Curation == nil {
 				return nil, unavailable("curation")
 			}
-			return nil, notImplemented(taskA) // STUB(L2-A)
+			viewer := auth.FromContext(ctx)
+			set, err := d.Curation.Set(ctx, viewer, curation.SettingsPatch{ExportMuseNames: in.Body.ExportMuseNames, SubsonicMuseNames: in.Body.SubsonicMuseNames})
+			if err != nil {
+				return nil, m2bErr(err, taskA)
+			}
+			return &curationSettingsOut{Body: settingsOut(viewer, set)}, nil
 		})
 }

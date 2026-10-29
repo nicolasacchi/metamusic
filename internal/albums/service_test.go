@@ -2,7 +2,6 @@ package albums_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
@@ -30,25 +29,14 @@ func TestIDs_Frozen(t *testing.T) {
 	}
 }
 
-// TestStubsA_FrozenMethodSet: List and Get answer errors.ErrUnsupported and Token is the empty token until lane A. Lane A
-// deletes stub_a.go and this test; the interface pin moves into its tests.
-func TestStubsA_FrozenMethodSet(t *testing.T) {
+// TestService_MethodSet pins the frozen method set and the sentinel error.
+func TestService_MethodSet(t *testing.T) {
 	t.Parallel()
 	var _ interface {
 		List(context.Context, ...albums.Kind) ([]albums.Album, error)
 		Get(context.Context, string) (albums.Album, []albums.Song, error)
 		Token(context.Context) (string, error)
 	} = (*albums.Service)(nil)
-	s := albums.New(nil, nil, nil, nil, nil)
-	if _, err := s.List(context.Background()); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("List: %v", err)
-	}
-	if _, _, err := s.Get(context.Background(), "rec-x"); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("Get: %v", err)
-	}
-	if tok, err := s.Token(context.Background()); tok != "" || err != nil {
-		t.Errorf("Token: %q %v", tok, err)
-	}
 	if albums.ErrNotFound == nil {
 		t.Error("ErrNotFound is part of the frozen contract")
 	}

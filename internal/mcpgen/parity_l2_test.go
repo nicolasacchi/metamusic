@@ -42,7 +42,7 @@ var l2Cases = []ParityCase{
 	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Masks: []string{"id", "created_by", "created_at", "updated_at"}},
 	{Op: "update_crate", Args: fixedArgs(map[string]any{"id": "crate-stub", "revision": 1, "name": "Synthetic Crate 002"}), Status: 404},
 	{Op: "edit_crate_items", Args: fixedArgs(map[string]any{"id": "crate-stub", "add": []map[string]any{{"song_id": "song-stub"}}}), Status: 404},
-	{Op: "get_curation_settings", Status: l2StubStatus},
+	{Op: "get_curation_settings"},
 }
 
 func init() {

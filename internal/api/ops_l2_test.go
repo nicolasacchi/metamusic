@@ -51,6 +51,7 @@ var l2Ops = []l2Op{
 // that lane cover the behaviour).
 var implementedL2 = map[string]bool{
 	"list_crates": true, "get_crate": true, "create_crate": true, "update_crate": true, "edit_crate_items": true, // L2-K
+	"get_curation_settings": true, "set_curation_settings": true, // L2-A
 }
 
 func l2Deps() api.Deps {
@@ -276,6 +277,9 @@ func TestOps_AuthorizationL2(t *testing.T) {
 			if code != 403 || body["code"] != "HUMAN_ONLY" {
 				t.Errorf("%s as %s: %d %v, want 403 HUMAN_ONLY", w.id, name, code, body)
 			}
+		}
+		if implementedL2[w.id] { // the operator's path through a real handler is covered by the lane's own tests
+			continue
 		}
 		if code, _ := l2Call(r, human, w); code != 501 {
 			t.Errorf("%s as the operator: %d, want 501 from the stub", w.id, code)
