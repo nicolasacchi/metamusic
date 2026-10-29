@@ -2,7 +2,6 @@ package tagged
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"image/png"
@@ -19,7 +18,6 @@ const Version = "mm-dl/1"
 
 const (
 	maxValueBytes = 1024
-	maxBlockLen   = 1<<24 - 1 // a FLAC metadata block length is 24 bits
 	pictureFront  = 3
 	pictureColors = 16 // the covers are 16-colour paletted PNGs (C110.1)
 )
@@ -68,11 +66,11 @@ func plainASCII(s string) bool {
 
 // comments lists the VORBIS_COMMENT entries in the contractual order; GENRE and the ReplayGain pair are
 // omitted when empty.
-func (t Tags) comments() []string {
-	var out []string
+func (t Tags) comments() []flacmeta.Comment {
+	var out []flacmeta.Comment
 	add := func(k, v string, omitEmpty bool) {
 		if v = sanitize(v); v != "" || !omitEmpty {
-			out = append(out, k+"="+v)
+			out = append(out, flacmeta.Comment{Key: k, Value: v})
 		}
 	}
 	add("TITLE", t.Title, false)
@@ -90,27 +88,9 @@ func (t Tags) comments() []string {
 	return out
 }
 
-// u32 converts a length that is bounded by the callers (values are capped at 1 KiB, the comment count by the
-// block size check below) to a uint32.
-func u32(n int) uint32 { return uint32(n) } //nolint:gosec // see above
-
-func blockHeader(typ byte, last bool, n int) []byte {
-	if last {
-		typ |= 0x80
-	}
-	return []byte{typ, byte(n >> 16 & 0xff), byte(n >> 8 & 0xff), byte(n & 0xff)}
-}
-
-func vorbisBlock(c []string) ([]byte, error) {
-	vendor := "metamusic " + Version
-	b := binary.LittleEndian.AppendUint32(nil, u32(len(vendor)))
-	b = append(b, vendor...)
-	b = binary.LittleEndian.AppendUint32(b, u32(len(c)))
-	for _, e := range c {
-		b = binary.LittleEndian.AppendUint32(b, u32(len(e)))
-		b = append(b, e...)
-	}
-	if len(b) > maxBlockLen {
+func vorbisBlock(c []flacmeta.Comment) ([]byte, error) {
+	b := flacmeta.VorbisComment("metamusic "+Version, c)
+	if len(b) > flacmeta.MaxBlockLen {
 		return nil, errors.New("tagged: VORBIS_COMMENT exceeds the block size limit")
 	}
 	return b, nil
@@ -121,18 +101,11 @@ func pictureBlock(cover []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tagged: cover is not a PNG: %w", err)
 	}
-	const mime = "image/png"
-	b := binary.BigEndian.AppendUint32(nil, pictureFront)
-	b = binary.BigEndian.AppendUint32(b, uint32(len(mime)))
-	b = append(b, mime...)
-	b = binary.BigEndian.AppendUint32(b, 0) // empty description
-	b = binary.BigEndian.AppendUint32(b, u32(cfg.Width))
-	b = binary.BigEndian.AppendUint32(b, u32(cfg.Height))
-	b = binary.BigEndian.AppendUint32(b, 8)
-	b = binary.BigEndian.AppendUint32(b, pictureColors)
-	b = binary.BigEndian.AppendUint32(b, u32(len(cover)))
-	b = append(b, cover...)
-	if len(b) > maxBlockLen {
+	b := flacmeta.PictureBlock(flacmeta.Picture{
+		Type: pictureFront, MIME: "image/png", W: uint32(cfg.Width), H: uint32(cfg.Height), //nolint:gosec // PNG dimensions are bounded by DecodeConfig
+		Depth: 8, Colors: pictureColors, Data: cover,
+	})
+	if len(b) > flacmeta.MaxBlockLen {
 		return nil, errors.New("tagged: PICTURE exceeds the block size limit")
 	}
 	return b, nil
@@ -158,7 +131,7 @@ func Write(dst io.Writer, master io.ReaderAt, size int64, info flacmeta.Info, ta
 			}
 			return fmt.Errorf("tagged: read master block: %w", err)
 		}
-		head.Write(blockHeader(byte(bl.Type), false, len(data)))
+		head.Write(flacmeta.BlockHeader(bl.Type, false, len(data)))
 		head.Write(data)
 		return nil
 	}
@@ -183,10 +156,10 @@ func Write(dst io.Writer, master io.ReaderAt, size int64, info flacmeta.Info, ta
 			return 0, err
 		}
 	}
-	head.Write(blockHeader(byte(flacmeta.BlockVorbisComment), pic == nil, len(vc)))
+	head.Write(flacmeta.BlockHeader(flacmeta.BlockVorbisComment, pic == nil, len(vc)))
 	head.Write(vc)
 	if pic != nil {
-		head.Write(blockHeader(byte(flacmeta.BlockPicture), true, len(pic)))
+		head.Write(flacmeta.BlockHeader(flacmeta.BlockPicture, true, len(pic)))
 		head.Write(pic)
 	}
 	n, err := dst.Write(head.Bytes())

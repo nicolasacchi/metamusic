@@ -11,14 +11,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
-// TestStubsT1_Pipeline: the stub pipeline answers errors.ErrUnsupported. Lane T1 deletes stub_t1.go and this test (NewPipeline returns tape.Pipeline, so its type is pinned by the call).
-func TestStubsT1_Pipeline(t *testing.T) {
-	t.Parallel()
-	if _, err := tape.NewPipeline(tape.PipelineOptions{}).Render(context.Background(), tape.Job{}, nil); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("Render: %v", err)
-	}
-}
-
 // TestStubsT2_FrozenMethodSet pins the method set of C128 and checks the stubs: Export, Get and Brief answer
 // errors.ErrUnsupported; the calls every process makes (Run, RunOne, Recover, Sweep) are harmless; Resolve is serve.ErrNotFound
 // so the media chain falls through to the next resolver. Lane T2 deletes stub_t2.go and this test.
