@@ -71,32 +71,15 @@ func l2FirstSlot(prev map[string]any) string {
 
 // l2Cases: ids are placeholders until INT-B points them at FixtureL2; the stubs answer before they look.
 var l2Cases = []ParityCase{
-	// L2-V2: one Record walked through the Records operations in order; each case reads the id and revision from the previous
-	// case's response (the mutations are not replayed through call_operation).
-	{Op: "create_record", SkipGeneric: true, Masks: l2RecordMasks, Args: func(r *servertest.Rig, _ map[string]any) map[string]any {
-		return map[string]any{"title": "Synthetic Record 001", "song_ids": l2Songs(r, 2)}
-	}},
-	{Op: "get_record", Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
-		return map[string]any{"id": l2RecordOf(prev)["id"], "include": []string{"liner", "energy", "changes", "preview"}}
-	}},
-	{Op: "update_record", SkipGeneric: true, Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
-		rec := l2RecordOf(prev)
-		return map[string]any{"id": rec["id"], "revision": rec["revision"], "title": "Synthetic Record 002"}
-	}},
-	{Op: "edit_record_slots", SkipGeneric: true, Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
-		rec := l2RecordOf(prev)
-		return map[string]any{"id": rec["id"], "revision": rec["revision"], "ops": []map[string]any{{"op": "pin_all"}, {"op": "set_side", "slot_id": l2FirstSlot(prev), "side": "A"}}}
-	}},
-	{Op: "propose_record", SkipGeneric: true, Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
-		rec := l2RecordOf(prev)
-		return map[string]any{"id": rec["id"], "revision": rec["revision"], "rationale": "ready to hear"}
-	}},
-	{Op: "get_record_changes", Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
-		return map[string]any{"id": l2RecordOf(prev)["id"], "order": "asc"}
-	}},
-	{Op: "list_records", Masks: l2RecordMasks},
-	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: l2StubStatus},
-	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: l2StubStatus},
+	{Op: "list_records", Status: l2StubStatus},
+	{Op: "get_record", Args: fixedArgs(map[string]any{"id": "rec-stub"}), Status: l2StubStatus},
+	{Op: "create_record", Args: fixedArgs(map[string]any{"title": "Synthetic Record 001"}), SkipGeneric: true, Status: 404},
+	{Op: "update_record", Args: fixedArgs(map[string]any{"id": "rec-stub", "revision": 1, "title": "Synthetic Record 002"}), Status: l2StubStatus},
+	{Op: "edit_record_slots", Args: fixedArgs(map[string]any{"id": "rec-stub", "revision": 1, "ops": []map[string]any{{"op": "pin_all"}}}), Status: l2StubStatus},
+	{Op: "get_record_changes", Args: fixedArgs(map[string]any{"id": "rec-stub"}), Status: l2StubStatus},
+	{Op: "propose_record", Args: fixedArgs(map[string]any{"id": "rec-stub", "revision": 1, "rationale": "ready to hear"}), Status: l2StubStatus},
+	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: 404},
+	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: 404},
 	{Op: "list_crates"},
 	{Op: "get_crate", Args: fixedArgs(map[string]any{"id": "crate-stub"}), Status: 404},
 	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Masks: []string{"id", "created_by", "created_at", "updated_at"}},

@@ -54,6 +54,7 @@ var implementedL2 = map[string]bool{
 	"get_curation_settings": true, "set_curation_settings": true, // L2-A
 	"list_records": true, "get_record": true, "create_record": true, "update_record": true, "edit_record_slots": true,
 	"get_record_changes": true, "propose_record": true, "publish_record": true, // L2-V2
+	"export_record_tape": true, "get_tape": true, // L2-T2
 }
 
 func l2Deps() api.Deps {
