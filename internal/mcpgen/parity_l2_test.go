@@ -64,7 +64,28 @@ func l2FirstSlot(prev map[string]any) string {
 	return id
 }
 
-// l2Cases: ids are placeholders until INT-B points them at FixtureL2; the stubs answer before they look.
+// l2CrateMasks hide the per-face principal of a Crate's author (the faces differ in who made the edit, not in what it did).
+var l2CrateMasks = []string{"created_by", "updated_by", "by"}
+
+// l2FixtureRecord addresses a Record of FixtureL2 by its title label ("R1" is published, "R2" an agent draft); the parity rigs
+// carry the fixture, so every face reads the same ids.
+func l2FixtureRecord(label string, extra map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	title := map[string]string{"R1": "Synthetic Record One", "R2": "Synthetic Record Two"}[label]
+	return func(r *servertest.Rig, _ map[string]any) map[string]any {
+		return withID(oneID(r, `SELECT id FROM records WHERE title = '`+title+`'`), extra)
+	}
+}
+
+// l2FixtureCrate addresses a Crate of FixtureL2 by its (never edited) description, since the cases rename it: "manual_song" is
+// the manual Song Crate.
+func l2FixtureCrate(label string, extra map[string]any) func(*servertest.Rig, map[string]any) map[string]any {
+	desc := map[string]string{"manual_song": "Synthetic songs to remake"}[label]
+	return func(r *servertest.Rig, _ map[string]any) map[string]any {
+		return withID(oneID(r, `SELECT id FROM crates WHERE description = '`+desc+`'`), extra)
+	}
+}
+
+// l2Cases run on rigs that carry FixtureL2 (Records R1 and R2, four Crates), so a get, update or edit reads real rows.
 var l2Cases = []ParityCase{
 	// L2-V2: one Record walked through the Records operations in order; each case reads the id and revision from the previous
 	// case's response (the mutations are not replayed through call_operation).
@@ -90,13 +111,19 @@ var l2Cases = []ParityCase{
 		return map[string]any{"id": l2RecordOf(prev)["id"], "order": "asc"}
 	}},
 	{Op: "list_records", Masks: l2RecordMasks},
-	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: 404},
-	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: 404},
-	{Op: "list_crates"},
-	{Op: "get_crate", Args: fixedArgs(map[string]any{"id": "crate-stub"}), Status: 404},
+	// FixtureL2's published Record R1 carries review warnings, so an agent's export is the same 409 on every face (an
+	// agent cannot accept warnings; the tape that does render is covered by TestAcceptance_L2_TapeExport and the e2e specs).
+	{Op: "export_record_tape", Args: l2FixtureRecord("R1", nil), SkipGeneric: true, Status: 409},
+	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "01900000-0000-7000-8000-00000000dead"}), Status: 404},
+	{Op: "list_crates", Masks: l2CrateMasks},
+	{Op: "get_crate", Masks: l2CrateMasks, Args: l2FixtureCrate("manual_song", nil)},
 	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Masks: []string{"id", "created_by", "created_at", "updated_at"}},
-	{Op: "update_crate", Args: fixedArgs(map[string]any{"id": "crate-stub", "revision": 1, "name": "Synthetic Crate 002"}), Status: 404},
-	{Op: "edit_crate_items", Args: fixedArgs(map[string]any{"id": "crate-stub", "add": []map[string]any{{"song_id": "song-stub"}}}), Status: 404},
+	{Op: "update_crate", Masks: l2CrateMasks, Args: l2FixtureCrate("manual_song", map[string]any{"revision": 1, "name": "Synthetic Crate 002"})},
+	{Op: "edit_crate_items", Masks: l2CrateMasks, Args: func(r *servertest.Rig, _ map[string]any) map[string]any {
+		// a Song the manual Crate does not hold yet (the fixture's Crate has three members)
+		song := oneID(r, `SELECT id FROM songs WHERE retired_at IS NULL AND id NOT IN (SELECT song_id FROM crate_items WHERE crate_id = (SELECT id FROM crates WHERE description = 'Synthetic songs to remake') AND removed_at IS NULL) ORDER BY id LIMIT 1`)
+		return map[string]any{"id": oneID(r, `SELECT id FROM crates WHERE description = 'Synthetic songs to remake'`), "add": []map[string]any{{"song_id": song}}}
+	}},
 	{Op: "get_curation_settings"},
 }
 

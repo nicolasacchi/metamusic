@@ -420,7 +420,7 @@ func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name 
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
+	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, L1: true, L2: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	// The Reconciler builds the Songs before any case runs: every face then draws its Song and Session ids from the same
 	// point of the id sequence, whatever replays (tool plus call_operation) the cases make on one face and not another.
