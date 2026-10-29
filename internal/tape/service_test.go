@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -219,6 +220,15 @@ func wantProblem(t *testing.T, err error, status int, code string) *problem.Erro
 		t.Fatalf("err = %v, want %d %s", err, status, code)
 	}
 	return pe
+}
+
+func hasTag(tags []flacmeta.Comment, k, v string) bool {
+	for _, c := range tags {
+		if c.Key == k && c.Value == v {
+			return true
+		}
+	}
+	return false
 }
 
 func f64(v float64) *float64 { return &v }
@@ -493,7 +503,7 @@ func TestTape_Runner_States(t *testing.T) {
 	}
 	// the pipeline got the plan: chapter names, tags and cover key, and no row of titles was stored
 	job := r.pipe.Jobs()[0]
-	if len(job.Chapters) != 3 || job.Chapters[0] != titleOne || job.CoverKey != "cover-512" || len(job.Tags) != 2 || job.TargetLUFS != -14 {
+	if len(job.Chapters) != 3 || job.Chapters[0] != titleOne || job.CoverKey != "cover-512" || !hasTag(job.Tags, "MM_TARGET_LUFS", "-14.0") || !hasTag(job.Tags, "TITLE", "Synthetic Record") || job.TargetLUFS != -14 {
 		t.Errorf("job %+v", job)
 	}
 	if plan := r.scalar(`SELECT plan_json FROM tapes WHERE id = ?`, q.ID); strings.Contains(plan, "Synthetic Take Title") || strings.Contains(plan, "Synthetic Record") {
@@ -501,7 +511,7 @@ func TestTape_Runner_States(t *testing.T) {
 	}
 	// a second identical tape finds the same bytes under the same name: expire the first, export again
 	// failure: no file, a code, no leftover
-	r.pipe.Err = fmt.Errorf("TAPE_CLIPPED: item 2: samples clipped at %s", r.dir)
+	r.pipe.Err = &tape.RenderError{Code: tape.ErrClipped, Item: 2, Err: fmt.Errorf("samples clipped at %s", r.dir)}
 	r.exec(`UPDATE tapes SET state='expired' WHERE id=?`, q.ID)
 	f := r.mustExport(tape.ExportInput{})
 	if f.ID == q.ID {
@@ -526,8 +536,14 @@ func TestTape_Runner_States(t *testing.T) {
 		t.Fatalf("second run: %+v", got)
 	}
 	// the other failure codes
-	for msg, want := range map[string]string{"plain failure": tape.ErrEncodeFailed, "TAPE_DECODE_FAILED: item 1": tape.ErrDecodeFailed} {
+	for msg, want := range map[string]string{"plain failure": tape.ErrEncodeFailed, "decode": tape.ErrDecodeFailed, "disk": tape.ErrDiskFull} {
 		r.pipe.Err = errors.New(msg)
+		switch want {
+		case tape.ErrDecodeFailed:
+			r.pipe.Err = &tape.RenderError{Code: want, Item: 1}
+		case tape.ErrDiskFull:
+			r.pipe.Err = fmt.Errorf("write: %w", syscall.ENOSPC)
+		}
 		x := r.mustExport(tape.ExportInput{TargetLUFS: f64(-20 - float64(len(msg)%7))})
 		r.runOne()
 		if got := r.get(x.ID); got.Error == nil || got.Error.Code != want {
@@ -838,7 +854,7 @@ func TestTape_LossyLabel_Table(t *testing.T) {
 	}
 	r.runOne()
 	job := r.pipe.Jobs()[0]
-	want := []string{titleOne + " (lossy source)", "Spaced Out", "Synthetic Take Title 3", "Synthetic Take Title 4"}
+	want := []string{titleOne + " [lossy source]", "Spaced   Out", "Synthetic Take Title 3", "Synthetic Take Title 4"}
 	for i, w := range want {
 		if job.Chapters[i] != w {
 			t.Errorf("chapter %d = %q, want %q", i, job.Chapters[i], w)

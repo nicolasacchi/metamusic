@@ -193,7 +193,7 @@ func (s *Service) render(ctx context.Context, id string, pr prepared, params par
 		b, _ := json.Marshal(progressDoc{Phase: p.Phase, Item: p.Item, Items: p.Items})
 		_, _ = s.o.Store.W.ExecContext(rctx, `UPDATE tapes SET progress_json = ? WHERE id = ? AND state = 'running' AND owner = ?`, string(b), id, s.owner())
 	}
-	job := Job{Snapshot: pr.snap, Items: pr.items, TargetLUFS: pr.target, Chapters: pr.chapters, Tags: pr.snap.Tags, CoverKey: pr.coverKey}
+	job := Job{Snapshot: pr.snap, Items: pr.items, TargetLUFS: pr.target, Chapters: pr.chapters, Tags: pr.tags, CoverKey: pr.coverKey}
 	res, err := s.o.Pipeline.Render(rctx, job, progress)
 	if err != nil {
 		if res.Cleanup != nil {
@@ -242,23 +242,22 @@ func (s *Service) renew(ctx context.Context, id string) bool {
 	return n == 1
 }
 
-var knownCodes = []string{ErrDecodeFailed, ErrEncodeFailed, ErrClipped, ErrSampleMismatch, ErrVerifyFailed, ErrDiskFull, ErrSourceChanged, ErrInterrupted}
-
-// failureOf maps an error of the Pipeline to a stored code and message. The Pipeline's errors start with their code (the
-// message form "TAPE_CLIPPED: item 2: ..."); anything else is TAPE_ENCODE_FAILED, and ENOSPC is TAPE_DISK_FULL.
+// failureOf maps an error of the Pipeline (or of claiming its file) to a stored code and message: a *RenderError or a
+// *runFailure carries its code, ENOSPC is
+// TAPE_DISK_FULL and anything else is TAPE_ENCODE_FAILED. The data root's path is masked in the message.
 func (s *Service) failureOf(err error) (code, msg string) {
 	msg = err.Error()
+	var re *RenderError
+	var rf *runFailure
 	switch {
+	case errors.As(err, &rf):
+		code, msg = rf.code, rf.msg
+	case errors.As(err, &re) && re.Code != "":
+		code = re.Code
 	case errors.Is(err, syscall.ENOSPC):
 		code = ErrDiskFull
 	default:
 		code = ErrEncodeFailed
-		for _, c := range knownCodes {
-			if strings.HasPrefix(msg, c) {
-				code = c
-				break
-			}
-		}
 	}
 	if s.o.Data != nil {
 		if root := s.o.Data.Name(); root != "" {

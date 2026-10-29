@@ -29,12 +29,8 @@ const (
 	// TargetMinInput and TargetMaxInput bound a caller's target in LUFS (the plan clamps its own automatic target tighter).
 	TargetMinInput = -30.0
 	TargetMaxInput = -9.0
-	// lossyLabel ends the chapter name of a lossy source.
-	lossyLabel = " (lossy source)"
 	// coverSize is the pixel size of the front cover a tape carries.
 	coverSize = 512
-	// maxChapterName caps a chapter name; the Take title rules already keep titles short.
-	maxChapterName = 200
 )
 
 var liveStates = `('queued','running','ready')`
@@ -111,6 +107,7 @@ type prepared struct {
 	items    []PlannedItem
 	target   float64
 	chapters []string
+	tags     []flacmeta.Comment
 	coverKey string
 	doc      planDoc
 	key      string
@@ -256,18 +253,6 @@ func (s *Service) measure(ctx context.Context, in []Item) []Item {
 // roundTenthsInt rounds LU to whole tenths, half away from zero.
 func roundTenthsInt(x float64) int { return int(math.Round(x * tenthStep)) }
 
-// chapterName is the chapter name of an item: its Take title, with the lossy label when the source is lossy.
-func chapterName(it Item) string {
-	name := strings.Join(strings.Fields(it.Title), " ")
-	if r := []rune(name); len(r) > maxChapterName {
-		name = string(r[:maxChapterName])
-	}
-	if it.Lossy {
-		name += lossyLabel
-	}
-	return name
-}
-
 // prepare turns a snapshot (measures already filled in) into the plan, the cover key and the input key. The runner calls it
 // again with a fresh snapshot: a key that differs from the stored one means the inputs changed (TAPE_SOURCE_CHANGED).
 func (s *Service) prepare(ctx context.Context, snap Snapshot, params paramsDoc, accepted bool) (prepared, error) {
@@ -284,7 +269,7 @@ func (s *Service) prepare(ctx context.Context, snap Snapshot, params paramsDoc, 
 		g := plans[i]
 		pi := PlannedItem{Item: it, Gain: g, Resampled: it.SampleRate != Rate, Upmixed: it.Channels == 1, Downmixed: it.Channels > 2}
 		pr.items[i] = pi
-		pr.chapters[i] = chapterName(it)
+		pr.chapters[i] = ChapterName(it.Title, "", it.Lossy) // Item carries no side yet: sided prefixes are not applied
 		if it.Lossy {
 			pr.lossy++
 		}
@@ -307,6 +292,7 @@ func (s *Service) prepare(ctx context.Context, snap Snapshot, params paramsDoc, 
 		doc.Warnings = append(doc.Warnings, warningDoc{SlotID: w.SlotID, Code: w.Code})
 	}
 	pr.doc = doc
+	pr.tags = BuildTags(TagsInput{Snapshot: snap, Items: pr.items, TargetLUFS: target, IncludeLiner: params.IncludeLiner})
 	if s.o.Covers != nil {
 		_, key, err := s.o.Covers.EnsureMosaic(ctx, snap.CoverInput, coverSize)
 		if err != nil {
@@ -363,7 +349,7 @@ func inputKey(flacVersion, buildVersion string, pr prepared, params paramsDoc) s
 		k.Items = append(k.Items, keyItem{MasterSHA256: it.Item.MasterSHA256, GainCDB: it.Gain.GainCDB, Resampled: it.Resampled,
 			Upmixed: it.Upmixed, Downmixed: it.Downmixed})
 	}
-	k.Tags = sortedTags(pr.snap.Tags)
+	k.Tags = sortedTags(pr.tags)
 	b, _ := json.Marshal(k) // plain structs of strings and numbers: no error
 	sum := sha256.Sum256([]byte(KeyVersion + "\n" + flacVersion + "\n" + string(b)))
 	return hex.EncodeToString(sum[:])
