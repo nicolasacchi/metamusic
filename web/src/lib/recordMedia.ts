@@ -103,7 +103,7 @@ export async function tapeMediaLinks(item: string): Promise<MediaLinks | null> {
 }
 
 /** `fetchMeta` for a `tape:<id>` queue item. */
-export async function tapeMeta(item: string): Promise<{ title: string; album: string } | null> {
+export async function tapeMeta(item: string): Promise<{ title: string; subtitle: string } | null> {
   const id = tapeIdOf(item);
   let title = tapeTitles.get(id);
   if (!title) {
@@ -117,5 +117,5 @@ export async function tapeMeta(item: string): Promise<{ title: string; album: st
     }
     if (title) tapeTitles.set(id, title);
   }
-  return { title: title ?? "Tape", album: "Tape" };
+  return { title: title ?? "Tape", subtitle: "Tape" };
 }

@@ -92,6 +92,8 @@ export interface PlayerDeps {
 export interface PlayOptions {
   title?: string;
   album?: string;
+  /** Same as `album` (the secondary line); wins when both are given. Lets L2 sources avoid the Subsonic word. */
+  subtitle?: string;
   /** Seconds; applied in `loadedmetadata` (iOS ignores earlier writes). */
   startAt?: number;
   /** false: load paused (deep link). Default true. */
@@ -789,7 +791,8 @@ export class Player {
     this.probePending.delete(trackId);
     this.reminted.delete(trackId);
     // Cache only a complete pair; a title alone is shown at once while the album still resolves.
-    if (opts.title && opts.album !== undefined) this.meta.set(trackId, { title: opts.title, album: opts.album });
+    const second = opts.subtitle ?? opts.album;
+    if (opts.title && second !== undefined) this.meta.set(trackId, { title: opts.title, album: second });
     this.syncMeta(trackId, opts.title);
     this.begin(trackId);
     this.notify();
@@ -1333,7 +1336,11 @@ export const player = new Player({
   },
   device: localDevice,
   now: () => Date.now(),
-  fetchMeta: (id) => (isTapeItem(id) ? tapeMeta(id) : resolveMeta(id, getTrackRef)),
+  fetchMeta: async (id) => {
+    if (!isTapeItem(id)) return resolveMeta(id, getTrackRef);
+    const m = await tapeMeta(id);
+    return m ? { title: m.title, album: m.subtitle } : null;
+  },
   rebuildGains: (href) => {
     const id = recordIdOfHref(href);
     return id ? fetchRecordGains(id) : Promise.resolve(null);

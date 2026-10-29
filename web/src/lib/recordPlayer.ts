@@ -82,7 +82,7 @@ export function playRecord(view: RecordView, opts: { from?: string } = {}, p: Pi
   const t = view.slots.find((s) => s.take?.id === first)?.take;
   p.play(first, queue, {
     ...(t ? { title: t.title } : {}),
-    album: view.record.title,
+    subtitle: view.record.title,
     source: sourceOf(view.record.id, view.record.title),
     undo: true,
     gains: gainMap(view),
@@ -95,7 +95,7 @@ export function enqueueRecord(view: RecordView, p: Pick<Player, "load" | "enqueu
   const queue = takeQueue(view);
   if (queue.length === 0) return false;
   if (!p.state.trackId) {
-    p.load(queue[0]!, queue, { album: view.record.title, source: sourceOf(view.record.id, view.record.title), gains: gainMap(view) });
+    p.load(queue[0]!, queue, { subtitle: view.record.title, source: sourceOf(view.record.id, view.record.title), gains: gainMap(view) });
   } else {
     for (const id of queue) p.enqueue(id, true);
     p.mergeGains(gainMap(view));
@@ -187,7 +187,7 @@ export async function playAsTape(recordId: string, revision: number, opts: PlayA
     activeTape.set({ tape: t, recordId, title, names: opts.names ?? {} });
     env.player.play(item, [item], {
       ...(title ? { title } : {}),
-      album: "Tape",
+      subtitle: "Tape",
       source: sourceOf(recordId, title),
       undo: true,
     });

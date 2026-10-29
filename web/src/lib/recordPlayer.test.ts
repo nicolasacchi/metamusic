@@ -87,7 +87,7 @@ describe("playRecord", () => {
       [
         "t1",
         ["t1", "t3", "t6"],
-        { title: "One", album: "Night Drive", source: { label: "Night Drive", href: "/records/r1" }, undo: true, gains: { t1: -3.5, t6: 1.25 } },
+        { title: "One", subtitle: "Night Drive", source: { label: "Night Drive", href: "/records/r1" }, undo: true, gains: { t1: -3.5, t6: 1.25 } },
       ],
     ]);
   });
@@ -143,7 +143,7 @@ describe("playAsTape", () => {
     const r = await playAsTape("r1", 4, {}, e);
     expect(r.kind).toBe("playing");
     expect(log).toEqual(["get:t1"]);
-    expect(p.calls.play).toEqual([["tape:t1", ["tape:t1"], { title: "Night Drive", album: "Tape", source: { label: "Night Drive", href: "/records/r1" }, undo: true }]]);
+    expect(p.calls.play).toEqual([["tape:t1", ["tape:t1"], { title: "Night Drive", subtitle: "Tape", source: { label: "Night Drive", href: "/records/r1" }, undo: true }]]);
     expect(isTapeItem(p.calls.play[0]![0] as string)).toBe(true);
   });
 
