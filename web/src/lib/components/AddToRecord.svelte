@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../../api/client";
+  import { canEdit, type Viewer } from "../recordView";
   import { MAX_RECORD_SONGS, addSongsToRecord, capForRecord, createRecord, listRecordsForPicker, type RecordSummary } from "../crateApi";
 
   interface Props {
@@ -8,14 +9,14 @@
     member?: readonly { id: string; title: string; status: string }[];
     /** Track page: offer to pin this Take in the new slot (one Song only). */
     pinTake?: string;
-    /** Published Records are edited by humans only. */
-    human?: boolean;
+    /** The caller; published Records are offered only when `canEdit` (recordView.ts, the single rule) allows it. */
+    viewer?: Viewer | null;
     heading?: string;
     /** Test seam: skip the fetch. */
     initialRecords?: RecordSummary[];
     onadded?: (record: { id: string; title: string }) => void;
   }
-  let { songIds, member = [], pinTake, human = false, heading = "Records", initialRecords, onadded }: Props = $props();
+  let { songIds, member = [], pinTake, viewer = null, heading = "Records", initialRecords, onadded }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let records = $state<RecordSummary[]>(initialRecords ?? []);
@@ -29,7 +30,7 @@
   let failed = $state(false);
   let opened = $state<{ id: string; title: string }[]>([]);
   const inRecords = $derived([...member, ...opened.filter((a) => !member.some((m) => m.id === a.id)).map((a) => ({ ...a, status: "" }))]);
-  const open = $derived(records.filter((r) => !r.hidden && (human || r.status !== "published")));
+  const open = $derived(records.filter((r) => !r.hidden && (r.status !== "published" || canEdit(viewer, r))));
   const capped = $derived(capForRecord(songIds));
 
   $effect(() => {

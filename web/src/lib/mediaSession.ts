@@ -1,4 +1,5 @@
 // Media Session glue (C22.2): lock-screen metadata, transport handlers, position state.
+import { isTapeItem } from "./recordMedia";
 import { artworkList, type CoverSet } from "./coverLinks";
 
 export interface MSPlayer {
@@ -81,7 +82,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   let asked = "";
   const wantArt = () => {
     const id = player.state.trackId;
-    if (!env.cover || !id || asked === id || player.mask) return;
+    if (!env.cover || !id || isTapeItem(id) || asked === id || player.mask) return;
     asked = id;
     void env
       .cover(id)

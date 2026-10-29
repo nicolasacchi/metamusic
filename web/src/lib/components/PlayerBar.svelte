@@ -6,6 +6,7 @@
   import { api } from "../../api/client";
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
+  import { isTapeItem } from "../recordMedia";
   import { judge } from "../judge.svelte";
   import { sheet } from "../nowPlaying.svelte";
   import QueueIcon from "./icons/QueueIcon.svelte";
@@ -22,17 +23,19 @@
   let peaksFor = "";
   let commenting = $state(false);
   const trackId = $derived(player.state.trackId);
+  /** A `tape:<id>` current item is not a take: no rating, comments, cover fetch, peaks or take link. */
+  const tape = $derived(isTapeItem(trackId));
   const restoredLabel = $derived(
     `Resume ${player.title}${player.state.restored !== null && player.state.restored >= 1 ? ` at ${fmt(player.state.restored)}` : ""}`,
   );
-  const j = $derived(trackId ? judge.get(trackId) : undefined);
+  const j = $derived(trackId && !tape ? judge.get(trackId) : undefined);
 
   // Seed the judging state for the current track unless a page already did.
   $effect(() => {
     const id = trackId;
     commenting = false;
     // Offline there is no API to ask: the bar works without judging controls and a waveform.
-    if (!id || judge.get(id) || navigator.onLine === false) return;
+    if (!id || tape || judge.get(id) || navigator.onLine === false) return;
     void (async () => {
       try {
         const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
@@ -54,6 +57,10 @@
   $effect(() => {
     const id = player.state.trackId;
     if (!id || id === peaksFor) return;
+    if (isTapeItem(id)) {
+      peaks = null;
+      return;
+    }
     if (navigator.onLine === false) {
       peaks = null;
       return;
@@ -88,10 +95,10 @@
     >
     <button type="button" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}><NextIcon size={20} /></button>
   </div>
-  {#if trackId}<CoverArt {trackId} title={player.title} size={40} />{/if}
+  {#if trackId && !tape}<CoverArt {trackId} title={player.title} size={40} />{/if}
   <div class="mid">
     <div class="title">
-      {#if player.state.trackId}
+      {#if player.state.trackId && !tape}
         <a href="/tracks/{player.state.trackId}">{player.title}</a>
       {:else}
         <span class="muted">{player.title}</span>
@@ -140,7 +147,7 @@
       <button type="button" aria-expanded={commenting} data-testid="player-comment" onclick={() => (commenting = !commenting)}>Comment</button>
     </div>
   {/if}
-  {#if commenting && trackId}
+  {#if commenting && trackId && !tape}
     <div class="pop" data-testid="player-composer">
       <CommentComposer {trackId} current={player.state.current} playing={player.state.playing} oncreated={() => (commenting = false)} oncancel={() => (commenting = false)} />
     </div>

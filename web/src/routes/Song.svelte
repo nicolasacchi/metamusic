@@ -322,7 +322,7 @@
     {#if !s.retired}
       <section class="curation" aria-labelledby="cur-h" data-testid="song-curation">
         <h2 id="cur-h">Records and Crates</h2>
-        <AddToRecord songIds={[s.id]} member={view.records ?? []} {human} heading="Records" />
+        <AddToRecord songIds={[s.id]} member={view.records ?? []} viewer={me} heading="Records" />
         <AddToCrate subject="song" ids={[s.id]} member={view.crates ?? []} heading="Crates" />
       </section>
     {/if}
