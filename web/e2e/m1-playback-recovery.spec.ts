@@ -1,6 +1,7 @@
 // matrix: @mobile @firefox because the premature-end bug is Firefox audio output behaviour; phones and Chrome run the same player code and prove the guard does not disturb their normal end
 // A song that stops mid-way and skips to the next one ("on library the song never finishes"). Operator telemetry: an
 // `error` event, playback bookkeeping continues normally for 10-60 s, then `complete` + `advance` far before the end.
+// (The first test models a sink error; the operator's real errors were MEDIA_ERR_ABORTED, see the second test.)
 // Every one of those errors left the position untouched (no source swap), which only the Firefox audio-sink path
 // does: the player ignores that error (the media clock keeps running) and then believed the stream's early `ended`.
 // Headless browsers have no audio output to break, so the test injects what Firefox does: a MediaSink DECODE error on
@@ -74,6 +75,43 @@ test("an `ended` after a Firefox audio-output error does not finish the song or 
   expect(mid.paused).toBe(false);
 
   // It still completes at its real end, once, and the queue moves on then.
+  await expect(bar.getByRole("link", { name: next.title })).toBeVisible({ timeout: 30_000 });
+  expect(await finishes(page)).toBe(1);
+});
+
+// Operator telemetry (7 days, one Android Firefox profile): the `error` events are MEDIA_ERR_ABORTED (code 1), never a sink
+// error. The player did nothing for them; Firefox plays out the buffer and fires `ended`, which skipped the song.
+// Playwright cannot make a browser abort a media fetch mid-stream with a chosen code (route.abort only yields
+// code 2/4 on a fresh load), so this injects the code-1 error on the element. The assertion is on the recovery: the
+// source must be reloaded at the position and the song must play on to its real end.
+test("an aborted media fetch (MEDIA_ERR_ABORTED) reloads the source at the position and the song plays to its real end", async ({ page, request }) => {
+  const list = await tracks(request);
+  const first = list.find((x) => x.title === "Syn song 03");
+  if (!first) throw new Error("seed track missing");
+  const next = list[list.indexOf(first) + 1];
+  if (!next) throw new Error("seed queue has no track after the 12 s take");
+  await page.addInitScript(() => {
+    const w = window as unknown as { __meta: number };
+    w.__meta = 0;
+    document.addEventListener("loadedmetadata", () => w.__meta++, true);
+  });
+  const bar = page.getByTestId("player-bar");
+  await page.goto("/library");
+  await page.getByRole("button", { name: `Play ${first.title}`, exact: true }).click();
+  await expect.poll(async () => (await audio(page)).t, { timeout: 8000 }).toBeGreaterThan(1.5);
+  const before = await page.evaluate(() => (window as unknown as { __meta: number }).__meta);
+  const errAt = await page.evaluate(() => {
+    const a = document.querySelector("audio") as HTMLAudioElement;
+    Object.defineProperty(a, "error", { configurable: true, get: () => ({ code: 1, message: "aborted" }) });
+    a.dispatchEvent(new Event("error"));
+    a.addEventListener("loadedmetadata", () => Reflect.deleteProperty(a, "error"), { once: true });
+    return a.currentTime;
+  });
+  // reloaded: new metadata for the same track, and the position is put back
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __meta: number }).__meta), { timeout: 8000 }).toBeGreaterThan(before);
+  await expect(bar.getByRole("link", { name: first.title })).toBeVisible();
+  await expect.poll(async () => (await audio(page)).t, { timeout: 8000 }).toBeGreaterThan(errAt - 0.5);
+  expect(await finishes(page)).toBe(0);
   await expect(bar.getByRole("link", { name: next.title })).toBeVisible({ timeout: 30_000 });
   expect(await finishes(page)).toBe(1);
 });
