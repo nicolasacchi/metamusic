@@ -146,6 +146,10 @@ const END_STALL_MS = 1500;
 const WATCHDOG_MS = 500;
 const STALL_REPORT_MS = 500;
 const PREFETCH_AT = 0.8;
+/** After a dead-output error the media clock may only reach the end this many seconds early (clock jitter) before an `ended` is believed. */
+const SINK_END_SLACK_S = 3;
+/** How often one track may be reloaded after an `ended` that followed a dead-output error (a really dead device must still let the queue move on). */
+const SINK_RECOVERIES = 2;
 const LOADING_TITLE = "Loading…";
 const FALLBACK_TITLE = "Untitled track";
 
@@ -200,6 +204,8 @@ export class Player {
   private meta = new Map<string, { title: string; album: string }>();
   private metaInflight = new Map<string, Promise<{ title: string; album: string } | null>>();
   private probePending = new Set<string>();
+  /** Reloads done per track after an `ended` that followed a sink error (see prematureSinkEnd). */
+  private sinkRecoveries = new Map<string, number>();
   /* eslint-enable svelte/prefer-svelte-reactivity */
   private cleanup: (() => void) | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
@@ -208,6 +214,8 @@ export class Player {
   private playingLocal = "";
   /** Track whose links were last applied to the element: only its metadata may consume a pending seek. */
   private appliedTrack = "";
+  /** Firefox reported a failing audio output (`MediaSink` error) on this track: where, and when (deps.now). Cleared by any seek or track change. */
+  private sinkErr: { id: string; at: number; t: number } | null = null;
   /** Bumped on every track change so a slow async link fetch never clobbers a newer play. */
   private epoch = 0;
   /** The current play already advanced/ended: `ended`, the watchdog and a late event act once. */
@@ -369,7 +377,7 @@ export class Player {
     this.cleanup = null;
     this.el = el;
     if (!el) return;
-    const on = (type: string, fn: () => void) => {
+    const on = (type: string, fn: (e: Event) => void) => {
       el.addEventListener(type, fn);
       return () => el.removeEventListener(type, fn);
     };
@@ -401,7 +409,7 @@ export class Player {
       // The media load algorithm (src change, load()) pauses the element without a `pause` event.
       on("emptied", () => (this.state.playing = !el.paused)),
       on("abort", () => (this.state.playing = !el.paused)),
-      on("ended", () => this.onEnded()),
+      on("ended", (e) => this.onEnded(e)),
       on("error", () => this.onError()),
     ];
     try {
@@ -653,6 +661,7 @@ export class Player {
     if (!el || !Number.isFinite(s)) return;
     const max = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : Infinity;
     const t = Math.min(Math.max(0, s), max);
+    this.sinkErr = null; // a deliberate move: the clock estimate of prematureSinkEnd no longer holds
     el.currentTime = t;
     this.state.current = t;
   }
@@ -782,6 +791,8 @@ export class Player {
     s.pendingPlay = false;
     s.endOfQueue = false;
     this.finished = false;
+    this.sinkErr = null;
+    this.sinkRecoveries.delete(trackId);
     this.playCause = "user";
     s.current = opts.startAt ?? 0;
     s.duration = 0;
@@ -1155,13 +1166,49 @@ export class Player {
     }
   }
 
-  private onEnded() {
+  private onEnded(e?: Event) {
     // An `ended` that arrives while the next track's source is not applied yet is the old stream's.
     if (this.appliedTrack !== this.state.trackId) return;
     // A late `ended` of the stream the watchdog already advanced past: the element now holds the next
     // source, whose `ended` is false (a real end of the current source always reads true).
     if (this.el?.ended === false) return;
+    if (this.prematureSinkEnd()) {
+      // Not a finish: keep the listen recorder (a later listener on the same element) and the Media Session from
+      // treating it as one.
+      e?.stopImmediatePropagation();
+      return;
+    }
     this.advance("ended");
+  }
+
+  /**
+   * An `ended` after a Firefox audio-output error that the media clock cannot have reached yet is the dead output's
+   * stream giving up, not the end of the song (the listener hears the song stop and the queue skip ahead). Reload the
+   * same source where the error hit instead of advancing. Bounded: a device that stays dead still moves on.
+   * Headless Firefox without any audio device raises the same error but its clock runs to the real end, which this
+   * lets through (the clock needs `duration - at` seconds to get there).
+   */
+  private prematureSinkEnd(): boolean {
+    const el = this.el;
+    const s = this.sinkErr;
+    const id = this.state.trackId;
+    if (!el || !s || s.id !== id) return false;
+    const d = el.duration;
+    if (!Number.isFinite(d) || !(d > 0)) return false;
+    const clockS = (this.deps.now() - s.t) / 1000;
+    if (clockS >= d - s.at - SINK_END_SLACK_S) return false;
+    const n = this.sinkRecoveries.get(id) ?? 0;
+    if (n >= SINK_RECOVERIES) return false;
+    this.sinkRecoveries.set(id, n + 1);
+    this.sinkErr = null;
+    this.diag("error", `sink_end=1,at=${Math.round(s.at * 1000)}`);
+    this.pendingSeek = s.at > 0 ? s.at : null;
+    this.autoplay = true;
+    this.wantPlay = true;
+    this.finished = false;
+    this.epoch++;
+    this.begin(id);
+    return true;
   }
 
   /** The current track is over (native `ended`, or the watchdog): act exactly once per play. */
@@ -1222,7 +1269,11 @@ export class Player {
     // Firefox reports a failing audio output (no device, e.g. headless CI) as MEDIA_ERR_DECODE with this message
     // after decoding already worked, and keeps the media clock running. It says nothing about the codec: do not
     // fall back to MP3, record a failed probe, or touch playback state.
-    if (/MediaSink/i.test(el.error?.message ?? "")) return;
+    if (/MediaSink/i.test(el.error?.message ?? "")) {
+      // Remember it: the output may be dead although the clock runs on (see prematureSinkEnd).
+      if (this.sinkErr?.id !== id) this.sinkErr = { id, at: el.currentTime || this.state.current || 0, t: this.deps.now() };
+      return;
+    }
     const at = el.currentTime || this.state.current || 0;
     const resume = this.wantPlay;
     if (this.playingLocal === id && this.appliedTrack === id) {

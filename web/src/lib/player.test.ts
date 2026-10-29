@@ -374,6 +374,84 @@ describe("player store", () => {
     expect(p.state.error).toBe("");
   });
 
+  describe("an ended that follows a Firefox audio-sink error", () => {
+    /** Plays "a" (queue a, b) for `at` seconds of a 100 s track, then raises the sink error. */
+    async function sunk(at = 20) {
+      const s = setup();
+      s.p.play("a", ["a", "b"]);
+      await s.flush();
+      s.el.duration = 100;
+      s.el.currentTime = at;
+      s.el.emit("playing");
+      s.el.fail(3, "OnMediaSinkAudioError");
+      return s;
+    }
+    const end = (el: FakeAudio) => {
+      (el as unknown as { ended: boolean }).ended = true;
+      const e = new Event("ended", { cancelable: true });
+      let seen = false;
+      el.addEventListener("ended", () => (seen = true)); // a later listener, like the listen recorder
+      el.dispatchEvent(e);
+      return seen;
+    };
+
+    test("before the clock could reach the end it reloads the same source at the error position and does not advance", async () => {
+      const { p, el, flush, advance } = await sunk(20);
+      advance(5_000); // 25 s of clock: far from the end of a 100 s track
+      el.currentTime = 100;
+      el.log.length = 0;
+      expect(end(el)).toBe(false); // the recorder never sees a finish
+      await flush();
+      expect(p.state.trackId).toBe("a");
+      expect(el.src).toBe("/media/a.flac?exp=1");
+      expect(el.log).toContain("play");
+      el.duration = 100;
+      el.emit("loadedmetadata");
+      expect(el.currentTime).toBe(20);
+    });
+
+    test("a clock that really reached the end is a normal finish (headless Firefox without a device)", async () => {
+      const { p, el, advance } = await sunk(20);
+      advance(80_000);
+      el.currentTime = 100;
+      expect(end(el)).toBe(true);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("it gives up after two reloads so a dead device still moves the queue on", async () => {
+      const { p, el, flush, advance } = await sunk(20);
+      for (let i = 0; i < 2; i++) {
+        advance(1_000);
+        end(el);
+        await flush();
+        expect(p.state.trackId).toBe("a");
+        el.duration = 100;
+        el.emit("loadedmetadata");
+        el.fail(3, "OnMediaSinkAudioError");
+      }
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("a deliberate seek forgets the error: an end near the new position is a finish", async () => {
+      const { p, el, advance } = await sunk(20);
+      p.seek(98);
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("another track's error does not make this track's end premature", async () => {
+      const { p, el, advance } = await sunk(20);
+      p.play("b", ["a", "b", "c"]);
+      el.duration = 100;
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("c");
+    });
+  });
+
   test("Chromium event order: re-mint after code 2 still resumes playback", async () => {
     const { p, el, flush } = setup();
     p.play("a");
