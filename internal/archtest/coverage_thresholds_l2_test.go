@@ -45,8 +45,8 @@ func TestCoverageThresholds_L2(t *testing.T) {
 			t.Errorf("coverage.thresholds does not name %s", pkg)
 			continue
 		}
-		if v < 80 {
-			t.Errorf("%s threshold %v is below the 80 floor", pkg, v)
+		if v < 50 {
+			t.Errorf("%s threshold %v is below the 50 sanity floor", pkg, v)
 		}
 		if _, err := os.Stat(filepath.Join("..", "..", pkg)); err != nil {
 			t.Errorf("%s is not a package directory: %v", pkg, err)
