@@ -1,6 +1,7 @@
 // The Muse Board view model (C100.2, C100.6): the Board payload as a grid, chip selection with the
 // 50-take cap, and the filter <-> query string mapping. Pure functions; the page owns the state.
 import type { components } from "../api/schema";
+import { capForRecord } from "./crateApi";
 import { MAX_TAKES } from "./genIntent";
 
 type S = components["schemas"];
@@ -165,6 +166,33 @@ export function draftsForEstimate(g: GridModel, s: Selection): { draftIds: strin
   }
   const note = skipped > 0 ? `${skipped} selected ${skipped === 1 ? "song is" : "songs are"} not drafts and will be skipped.` : "";
   return { draftIds, skipped, note };
+}
+
+// ---- curation entry points (L2): the selection feeds "Add to Crate" and "New Record" ----
+
+/** The selected Song ids in grid order (chips are Songs); ids selected on a page no longer in view keep their place last. */
+export function selectedSongIds(g: GridModel, s: Selection): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const ch of chipsInOrder(g)) {
+    if (s.ids.has(ch.id) && !seen.has(ch.id)) {
+      seen.add(ch.id);
+      out.push(ch.id);
+    }
+  }
+  for (const id of s.ids) if (!seen.has(id)) out.push(id);
+  return out;
+}
+
+/** "New Record from selection" / "Add to Record": at most 60 Songs, with a note about what was left out. */
+export function recordFromSelection(g: GridModel, s: Selection): { songIds: string[]; note: string } {
+  const c = capForRecord(selectedSongIds(g, s));
+  return { songIds: c.ids, note: c.note };
+}
+
+/** "Add to Crate": a Song Crate takes every selected Song (the API call is chunked at 200). */
+export function crateFromSelection(g: GridModel, s: Selection): { subject: "song"; ids: string[] } {
+  return { subject: "song", ids: selectedSongIds(g, s) };
 }
 
 // ---- filters ----

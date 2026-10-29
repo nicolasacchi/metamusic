@@ -72,3 +72,13 @@ describe("Track page Song strip (L1)", () => {
     expect(page(trackKnown)).not.toContain('data-testid="song-strip"');
   });
 });
+
+describe("Track page curation entry points (L2)", () => {
+  test("Add to Record and the Take Crate menu are on the page", () => {
+    const h = page(trackKnown);
+    expect(h).toContain('data-testid="track-curation"');
+    expect(h).toContain('data-testid="add-to-record"');
+    expect(h).toContain('data-testid="add-to-crate"');
+    expect(h).toContain("Take Crates");
+  });
+});
