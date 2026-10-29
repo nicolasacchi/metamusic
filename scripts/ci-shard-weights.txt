@@ -80,7 +80,7 @@
 ./internal/config 1
 ./internal/export 1
 ./internal/liner 1
-./internal/tape 1
+./internal/tape 43
 ./deploy 1
 ./internal/albums 1
 ./internal/analysis/npy 1

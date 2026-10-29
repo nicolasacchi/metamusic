@@ -27,6 +27,7 @@ type RunOpts struct {
 	Stdout    io.Writer     // streaming consumer; nil => captured and returned
 	MaxStdout int64         // required (> 0) when Stdout is nil: cap for captured stdout; exceeded => process killed, ErrOutputLimit
 	MaxStderr int           // ring buffer size (default 64 KiB); errors carry its last 2 KiB
+	Stdin     io.Reader     // fed to the tool's stdin; nil => /dev/null. Run does not wait for a reader blocked in Read.
 }
 
 // ErrOutputLimit is returned when captured stdout exceeds RunOpts.MaxStdout.
@@ -109,7 +110,7 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 	return l.buf.Write(p)
 }
 
-// Run executes bin with args under a timeout. Stdin is /dev/null and the
+// Run executes bin with args under a timeout. Stdin is /dev/null unless RunOpts.Stdin is set, and the
 // environment is LC_ALL=C plus PATH only.
 func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, error) {
 	if o.Timeout <= 0 {
@@ -128,6 +129,22 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 	cmd := exec.CommandContext(ctx, bin, args...) // #nosec G204 -- argv rule in package doc
 	cmd.WaitDelay = waitDelay
 	cmd.Stdin = nil // /dev/null
+	if o.Stdin != nil {
+		// Feed the tool through our own OS pipe rather than cmd.Stdin = reader: exec waits for its copier goroutine, which
+		// never returns while the reader blocks in Read, so a cancelled run could hang. Here the copier is detached: it ends
+		// at the reader's EOF or error, or at EPIPE once the tool is gone; a reader that blocks forever is released only
+		// by its owner (the pipeline closes its io.Pipe on every exit path).
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: "cannot run tool"}
+		}
+		defer func() { _ = pr.Close() }()
+		cmd.Stdin = pr
+		go func() {
+			_, _ = io.Copy(pw, o.Stdin)
+			_ = pw.Close()
+		}()
+	}
 	cmd.Env = []string{"LC_ALL=C", "PATH=" + os.Getenv("PATH")}
 	size := o.MaxStderr
 	if size <= 0 {
