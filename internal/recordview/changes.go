@@ -2,92 +2,10 @@ package recordview
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 
 	"github.com/nicolasacchi/metamusic/internal/records"
 )
-
-// readChanges reads one page of a Record's changelog straight from record_changes (a read of the append-only table, which
-// is the same data records.Service.Changes pages over). The page holds at most f.Limit rows; next is the seq to continue from.
-func (s *Service) readChanges(ctx context.Context, f records.ChangeFilter) (items []records.Change, next *int, err error) {
-	if s.o.Store == nil {
-		return nil, nil, nil
-	}
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 50
-	}
-	limit = min(limit, records.MaxChangesPage)
-	desc := f.Order != "asc"
-	q := `SELECT id, seq, at, kind, slot_id, position, from_take_id, to_take_id, reason, pick_event_id, evidence_json, detail_json,
-		actor, actor_kind, actor_name FROM record_changes WHERE record_id = ?`
-	args := []any{f.RecordID}
-	if f.Cursor > 0 {
-		if desc {
-			q += ` AND seq < ?`
-		} else {
-			q += ` AND seq > ?`
-		}
-		args = append(args, f.Cursor)
-	}
-	if len(f.Kinds) > 0 {
-		q += ` AND kind IN (` + placeholders(len(f.Kinds)) + `)` //nolint:gosec // G202: only "?" placeholders are concatenated
-		for _, k := range f.Kinds {
-			args = append(args, k)
-		}
-	}
-	if desc {
-		q += ` ORDER BY seq DESC`
-	} else {
-		q += ` ORDER BY seq ASC`
-	}
-	q += ` LIMIT ?`
-	args = append(args, limit+1)
-	rows, err := s.o.Store.R.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("recordview: changes: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var c records.Change
-		var slot, from, to, reason, event, ev, det sql.NullString
-		var pos sql.NullInt64
-		if err := rows.Scan(&c.ID, &c.Seq, &c.At, &c.Kind, &slot, &pos, &from, &to, &reason, &event, &ev, &det, &c.Actor, &c.ActorKind, &c.ActorName); err != nil {
-			return nil, nil, err
-		}
-		c.SlotID, c.FromTakeID, c.ToTakeID, c.Reason, c.PickEventID = nstr(slot), nstr(from), nstr(to), nstr(reason), nstr(event)
-		if pos.Valid {
-			n := int(pos.Int64)
-			c.Position = &n
-		}
-		if ev.Valid {
-			c.Evidence = json.RawMessage(ev.String)
-		}
-		if det.Valid {
-			c.Detail = json.RawMessage(det.String)
-		}
-		items = append(items, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
-	if len(items) > limit {
-		items = items[:limit]
-		n := items[limit-1].Seq
-		next = &n
-	}
-	return items, next, nil
-}
-
-func nstr(n sql.NullString) *string {
-	if !n.Valid {
-		return nil
-	}
-	s := n.String
-	return &s
-}
 
 // changeViews splices the Take titles (read now, never stored) and the text into changelog rows.
 func changeViews(cs []records.Change, title func(takeID string) string) []ChangeView {
@@ -118,29 +36,22 @@ func takeIDsOf(cs []records.Change) []string {
 	return ids
 }
 
-// Changes returns one page of a Record's changelog with the titles at read time and the text of each row (get_record_changes).
-// An unknown Record is the 404 of records.Service.Get. next is the seq the following page continues from.
-func (s *Service) Changes(ctx context.Context, f records.ChangeFilter) (items []ChangeView, next *int, err error) {
-	if _, err := s.o.Records.Get(ctx, f.RecordID); err != nil {
-		return nil, nil, err
-	}
-	cs, next, err := s.readChanges(ctx, f)
-	if err != nil {
-		return nil, nil, err
-	}
-	var refs = map[string]string{}
+// ChangeViews splices the Take titles (read now, never stored) and the text into changelog rows read by records.Service.Changes
+// (get_record_changes); one title lookup however many rows.
+func (s *Service) ChangeViews(ctx context.Context, cs []records.Change) ([]ChangeView, error) {
+	titles := map[string]string{}
 	if s.o.Library != nil {
 		if ids := distinct(takeIDsOf(cs)); len(ids) > 0 {
 			m, err := s.o.Library.TrackRefs(ctx, ids)
 			if err != nil {
-				return nil, nil, fmt.Errorf("recordview: takes: %w", err)
+				return nil, fmt.Errorf("recordview: takes: %w", err)
 			}
 			for id, r := range m {
-				refs[id] = r.Title
+				titles[id] = r.Title
 			}
 		}
 	}
-	return changeViews(cs, func(id string) string { return refs[id] }), next, nil
+	return changeViews(cs, func(id string) string { return titles[id] }), nil
 }
 
 // pending reports whether the changelog may lag (C122.6): a floating slot has a Pick event beyond its synced_seq, or a Take of

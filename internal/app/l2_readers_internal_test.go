@@ -161,10 +161,10 @@ func TestBatchReaders_OneStatement(t *testing.T) {
 // TestRecordView_NoN1: Get with every include runs the same number of statements at 6 and at 60 slots, at most maxStatements.
 func TestRecordView_NoN1(t *testing.T) {
 	t.Parallel()
-	// Record 1, Resolved 3, songs 1, picks 1, takes 1, stars 1, loudness 1, pending 1, plus the includes: changes 1, Muses,
-	// sessions, sounds and costs (liner) 4, the export settings (preview) 1, tapes (none wired here) = 16. The plan listed 12; it
+	// Record 1, Resolved 3, songs 1, picks 1, takes 1, stars 1, loudness 1, pending 1, plus the includes: changes 2 (records.Changes checks the Record exists), Muses,
+	// sessions, sounds and costs (liner) 4, the export settings (preview) 1, tapes (none wired here) = 17. The plan listed 12; it
 	// left out the Pick rows, the Take titles, the stars, the costs and the pending probe.
-	const maxStatements = 16
+	const maxStatements = 17
 	counts := map[int]int64{}
 	for _, slots := range []int{6, 60} {
 		cst, n, id, _, _ := scale(t, slots)

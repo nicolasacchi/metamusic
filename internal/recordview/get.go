@@ -33,9 +33,11 @@ func (s *Service) Get(ctx context.Context, viewer auth.Principal, id string, o G
 		if limit <= 0 {
 			limit = defaultChanges
 		}
-		if changes, _, err = s.readChanges(ctx, records.ChangeFilter{RecordID: id, Order: "desc", Limit: min(limit, 50)}); err != nil {
+		page, err := s.o.Records.Changes(ctx, records.ChangeFilter{RecordID: id, Order: "desc", Limit: min(limit, 50)})
+		if err != nil {
 			return View{}, err
 		}
+		changes = page.Items
 	}
 	d, err := s.load(ctx, rec, rs, takeIDsOf(changes))
 	if err != nil {

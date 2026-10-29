@@ -126,7 +126,7 @@ func TestRecordView_Pending(t *testing.T) {
 	if _, err := r.Store.W.Exec(`DELETE FROM provenance_dirty`); err != nil {
 		t.Fatal(err)
 	}
-	// a human pin of a Song's older Take is a Pick event the floating slot has not consumed (the Syncer is lane R-b's)
+	// a human pin of a Song's older Take is a Pick event the floating slot has not consumed
 	human := r.Human(t)
 	b2 := idOf(t, r, "tracks", "Synthetic Take B2")
 	song := idOf(t, r, "songs", "Synthetic Song S3")
@@ -135,6 +135,14 @@ func TestRecordView_Pending(t *testing.T) {
 	}
 	if !pending() {
 		t.Error("not pending with an unconsumed Pick event")
+	}
+	r.Settle(t) // provenance, then the real Syncer: the event becomes a changelog row
+	if pending() {
+		t.Error("still pending after Settle")
+	}
+	page, err := r.Services.Records.Changes(ctx, records.ChangeFilter{RecordID: id, Limit: 1})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Kind != "slot_upgraded" {
+		t.Errorf("newest change after Settle: %+v %v", page.Items, err)
 	}
 }
 

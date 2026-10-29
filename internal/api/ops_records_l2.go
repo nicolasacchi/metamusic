@@ -282,10 +282,15 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			items, next, err := d.RecordView.Changes(ctx, recordsChangeFilter(in))
+			page, err := d.Records.Changes(ctx, recordsChangeFilter(in))
 			if err != nil {
 				return nil, m2bErr(err, taskV2)
 			}
+			items, err := d.RecordView.ChangeViews(ctx, page.Items)
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			next := page.NextCursor
 			p := auth.FromContext(ctx)
 			out := &recordChangesOut{}
 			out.Body.Items = make([]ChangeView, len(items))
