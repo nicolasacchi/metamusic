@@ -43,7 +43,7 @@ describe("CurationToggles", () => {
 
 describe("curation pages", () => {
   test("render their shells (data loads in the browser)", () => {
-    expect(render(SettingsCuration as never).body).toContain('data-testid="settings-curation-page"');
-    expect(render(HumanCuration as never).body).toContain('data-testid="human-curation-page"');
+    expect(render(SettingsCuration as never, {} as never).body).toContain('data-testid="settings-curation-page"');
+    expect(render(HumanCuration as never, {} as never).body).toContain('data-testid="human-curation-page"');
   });
 });
