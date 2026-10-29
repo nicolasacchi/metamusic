@@ -14,17 +14,37 @@ import (
 // muse (ordinal), unfiled. Without a Muse directory only the record kind exists (the auto-kinds need the Muses' neutral
 // facts), so asking for muse or unfiled then yields nothing.
 func (s *Service) List(ctx context.Context, kinds ...Kind) ([]Album, error) {
+	es, err := s.ListWithSongs(ctx, kinds...)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Album, len(es))
+	for i, e := range es {
+		out[i] = e.Album
+	}
+	return out, nil
+}
+
+// Entry is one album with its songs in order.
+type Entry struct {
+	Album
+	Songs []Song
+}
+
+// ListWithSongs is List with every album's songs, in a constant number of statements (one published-Records read, one
+// Muse-facts read, one Pick read, plus one Labels call when the opt-in is on): the Subsonic consumer's list path.
+func (s *Service) ListWithSongs(ctx context.Context, kinds ...Kind) ([]Entry, error) {
 	want := func(k Kind) bool { return len(kinds) == 0 || slices.Contains(kinds, k) }
-	var out []Album
+	var out []Entry
 	if want(KindRecord) {
 		pubs, err := s.rec.ResolvedPublished(ctx)
 		if err != nil {
 			return nil, err
 		}
-		out = make([]Album, 0, len(pubs))
+		out = make([]Entry, 0, len(pubs))
 		for _, p := range pubs {
 			if a, songs := recordAlbum(p); len(songs) > 0 {
-				out = append(out, a)
+				out = append(out, Entry{a, songs})
 			}
 		}
 	}
@@ -33,7 +53,7 @@ func (s *Service) List(ctx context.Context, kinds ...Kind) ([]Album, error) {
 		return nil, err
 	}
 	for _, a := range auto {
-		out = append(out, a.Album)
+		out = append(out, Entry{a.Album, a.songs})
 	}
 	return out, nil
 }

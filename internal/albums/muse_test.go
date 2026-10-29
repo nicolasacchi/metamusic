@@ -461,3 +461,36 @@ func TestAlbums_TokenMuseChanges(t *testing.T) {
 		t.Errorf("Token called Ordinals %d / Labels %d", d.ordinals.Load(), d.labels.Load())
 	}
 }
+
+// TestAlbums_ListWithSongs: the batch read returns every album with the songs Get returns for it, in a constant number of
+// statements however many albums there are (the Subsonic list path, no read per Muse).
+func TestAlbums_ListWithSongs(t *testing.T) {
+	t.Parallel()
+	w, _ := autoWorld(t, false)
+	w.unpublish(t, w.Info.Records["R1"])
+	w.setFlag(t, true)
+	ctx := context.Background()
+	before := w.N.Load()
+	got, err := w.Svc.ListWithSongs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := w.N.Load() - before; n > 6 || n < 1 {
+		t.Errorf("ListWithSongs: %d statements, want 1..6", n)
+	}
+	if len(got) < 3 {
+		t.Fatalf("only %d albums: %v", len(got), got)
+	}
+	for _, e := range got {
+		a, songs, err := w.Svc.Get(ctx, e.ID)
+		if err != nil {
+			t.Fatalf("Get %s: %v", e.ID, err)
+		}
+		if a.Name != e.Name || cmp.Diff(songs, e.Songs) != "" {
+			t.Errorf("%s: ListWithSongs and Get disagree: %v / %v", e.ID, e.Songs, songs)
+		}
+	}
+	if only := list(t, w, albums.KindUnfiled); len(only) != 1 || only[0].ID != albums.IDUnfiled {
+		t.Errorf("List(unfiled) = %v", only)
+	}
+}

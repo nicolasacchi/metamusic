@@ -532,7 +532,15 @@ func TestSubsonic_LineageUnchanged(t *testing.T) {
 	}
 	e.publish(rec, false)
 	albBefore, dirBefore := pick()
-	listBefore := e.albumIDs("alphabeticalByName")
+	var listBefore []string
+	for _, id := range e.albumIDs("alphabeticalByName") {
+		if strings.HasPrefix(id, "al-") {
+			listBefore = append(listBefore, id)
+		}
+	}
+	if !slices.ContainsFunc(e.albumIDs("alphabeticalByName"), func(id string) bool { return strings.HasPrefix(id, "mus-") }) {
+		t.Fatal("the rig lists no Muse album: the check below would not cover the auto-albums")
+	}
 	e.publish(rec, true)
 	albAfter, dirAfter := pick()
 	if albBefore != albAfter || dirBefore != dirAfter {
@@ -541,7 +549,7 @@ func TestSubsonic_LineageUnchanged(t *testing.T) {
 	after := e.albumIDs("alphabeticalByName")
 	var without []string
 	for _, id := range after {
-		if !strings.HasPrefix(id, "rec-") {
+		if strings.HasPrefix(id, "al-") {
 			without = append(without, id)
 		}
 	}
@@ -570,6 +578,7 @@ func TestSubsonic_NoMuseText(t *testing.T) {
 	t.Parallel()
 	e := newRecEnv(t)
 	r1 := "rec-" + e.record("Synthetic Record One")
+	m1 := e.one(`SELECT 'mus-' || id FROM muses WHERE title = ?`, librarytest.L2Muse1Title)
 	e.sql(`UPDATE muses SET title = title || ' canary-muse-title'`) // a marker the fixture text does not contain
 	canaries := []string{librarytest.L2Muse1Title, librarytest.L2Muse1Artist, librarytest.L2Muse2Title, librarytest.L2Muse2Artist, "canary-muse-title"}
 	calls := []struct {
@@ -583,8 +592,14 @@ func TestSubsonic_NoMuseText(t *testing.T) {
 		{"getAlbumList2", []string{"type", "random", "size", "50"}}, {"getStarred2", nil}, {"getGenres", nil},
 		{"search2", []string{"query", "synthetic"}}, {"search3", []string{"query", ""}}, {"search3", []string{"query", "inspiration"}},
 		{"getRandomSongs", []string{"size", "50"}}, {"getSimilarSongs2", []string{"id", r1}},
+		// the auto-albums: a Muse album and unfiled, in every browse and search form
+		{"getAlbum", []string{"id", m1}}, {"getAlbum", []string{"id", "unf"}}, {"getMusicDirectory", []string{"id", m1}},
+		{"getMusicDirectory", []string{"id", "unf"}}, {"getAlbumInfo2", []string{"id", m1}}, {"getAlbumInfo", []string{"id", "unf"}},
+		{"getAlbumList2", []string{"type", "alphabeticalByName", "size", "50"}}, {"getAlbumList2", []string{"type", "newest", "size", "50"}},
+		{"getAlbumList", []string{"type", "random", "size", "50"}}, {"search3", []string{"query", "unfiled"}},
+		{"search2", []string{"query", "canary-muse-title"}}, {"search3", []string{"query", "synthetic curation"}},
 	}
-	sawRecord := false
+	sawRecord, sawMuse, sawUnf := false, false, false
 	for _, cl := range calls {
 		for _, asJSON := range []bool{true, false} {
 			resp := e.c.Call(t, cl.ep, qv(cl.kv...), subsonictest.CallOpts{JSON: asJSON})
@@ -594,7 +609,29 @@ func TestSubsonic_NoMuseText(t *testing.T) {
 				}
 			}
 			sawRecord = sawRecord || bytes.Contains(resp.Body, []byte(r1))
+			sawMuse = sawMuse || bytes.Contains(resp.Body, []byte(m1))
+			sawUnf = sawUnf || bytes.Contains(resp.Body, []byte(`unf`))
 		}
+	}
+	for _, id := range []string{m1, "unf"} { // the cover is an image, but its answer must not carry Muse text either
+		resp := e.c.Call(t, "getCoverArt", qv("id", id), subsonictest.CallOpts{})
+		if resp.HTTP != 200 {
+			t.Errorf("cover %s: http %d", id, resp.HTTP)
+		}
+		for _, can := range canaries {
+			if bytes.Contains(bytes.ToLower(resp.Body), []byte(strings.ToLower(can))) {
+				t.Errorf("cover %s contains the Muse text %q", id, can)
+			}
+		}
+	}
+	// positive control: with the opt-in on, the same canary reaches the answer, so the checks above can fail
+	e.names(true)
+	if resp := e.c.Call(t, "getAlbum", qv("id", m1), subsonictest.CallOpts{JSON: true}); !bytes.Contains(resp.Body, []byte("canary-muse-title")) {
+		t.Errorf("with the opt-in on the Muse title is missing: %.300s", resp.Body)
+	}
+	e.names(false)
+	if !sawMuse || !sawUnf {
+		t.Error("no answer carried a Muse album or unf: the canary check was vacuous for the auto-albums")
 	}
 	if !sawRecord {
 		t.Error("no answer carried the Record album: the canary check was vacuous")

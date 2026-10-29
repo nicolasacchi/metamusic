@@ -61,9 +61,9 @@ func (s *server) registerStubs() {
 			} else if ok {
 				return nil
 			}
-		case kindRecord:
+		case kindRecord, kindAuto:
 			if c.s.alb != nil {
-				if _, _, err := c.s.alb.Get(c.ctx, prefixRecord+raw); err == nil {
+				if _, _, err := c.s.alb.Get(c.ctx, c.str("id")); err == nil {
 					return nil
 				} else if !errors.Is(err, albums.ErrNotFound) {
 					return err

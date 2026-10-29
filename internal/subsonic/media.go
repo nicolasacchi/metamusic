@@ -192,8 +192,8 @@ func (c *call) coverArt() error {
 			return fail(errNotFound, "cover art not found")
 		}
 		obj, _, err = c.s.covers.EnsureAlbum(c.ctx, raw, size)
-	case kindRecord:
-		obj, err = c.recordCover(raw, size)
+	case kindRecord, kindAuto:
+		obj, err = c.albumCover(c.str("id"), size)
 	case kindTrack, kindSong:
 		if _, ok, err := cat.song(c.ctx, raw); err != nil {
 			return err

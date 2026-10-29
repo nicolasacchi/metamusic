@@ -38,7 +38,7 @@ type mediaResolver interface {
 
 // albumSource is the part of *albums.Service the Record albums use (C126.7).
 type albumSource interface {
-	List(ctx context.Context, kinds ...albums.Kind) ([]albums.Album, error)
+	ListWithSongs(ctx context.Context, kinds ...albums.Kind) ([]albums.Entry, error)
 	Get(ctx context.Context, id string) (albums.Album, []albums.Song, error)
 	Token(ctx context.Context) (string, error)
 }
