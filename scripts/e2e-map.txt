@@ -102,6 +102,19 @@ web/src/lib/components/TakeCard.svelte	l1-song
 web/src/lib/components/Pick*	l1-song
 web/src/lib/components/SongChip.svelte	l1-board l1-song
 web/src/routes/Sounds.svelte	l1-sounds
+# L2 (C132.1): INT-W adds web/e2e/l2-{records,tape,crates,curation}.spec.ts; verify-selftest requires every named spec to exist,
+# so until then these lines point at the closest shipped specs. INT-W swaps each line to its l2-* spec.
+web/src/routes/Record*.svelte	l1-song m1-player
+web/src/lib/components/SlotRow*	l1-song m1-player
+web/src/lib/components/Tape*	l1-song m1-player
+web/src/lib/recordView.ts	l1-song m1-player
+web/src/lib/recordPlayer.ts	l1-song m1-player
+web/src/lib/tapeView.ts	l1-song m1-player
+web/src/lib/energy.ts	l1-song m1-player
+web/src/routes/Crate*.svelte	m1-library l1-song
+web/src/routes/SettingsCuration.svelte	m2a-human
+web/src/routes/HumanCuration.svelte	m2a-human
+web/src/routes/HumanPublish.svelte	m2a-human
 web/src/api/sw/*	m4a-offline
 web/src/api/swRegister.ts	m4a-offline
 web/src/api/offline.ts	m4a-offline
@@ -175,3 +188,11 @@ internal/connectors/*	m4a-human
 internal/oidc/*	m4a-human
 internal/subsonic/*	m4a-human
 internal/prompts/*	m4a-track
+# L2 (until INT-W's l2-* specs exist)
+internal/records/*	l1-song m1-player
+internal/recordview/*	l1-song m1-player
+internal/tape/*	l1-song m1-player
+internal/liner/*	l1-song m1-player
+internal/albums/*	l1-song m1-library
+internal/crates/*	m1-library l1-song
+internal/curation/*	m2a-human
