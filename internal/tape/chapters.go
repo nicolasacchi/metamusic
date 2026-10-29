@@ -71,7 +71,7 @@ func TotalSamples(chs []Chapter) int64 {
 // CuesheetOf is the binary CUESHEET block's content: one TRACK per chapter with INDEX 01 at the track's own offset (the index
 // offset is relative to the track, so 0), lead-out at the total.
 func CuesheetOf(chs []Chapter) flacmeta.Cuesheet {
-	c := flacmeta.Cuesheet{LeadOut: uint64(TotalSamples(chs))}
+	c := flacmeta.Cuesheet{LeadOut: uint64(TotalSamples(chs))} //nolint:gosec // sample counts are non-negative
 	for _, ch := range chs {
 		c.Tracks = append(c.Tracks, flacmeta.CueTrack{
 			Offset: uint64(ch.StartSample), Number: uint8(ch.Index), //nolint:gosec // at most MaxItems (60) chapters

@@ -42,7 +42,7 @@ const (
 func CuesheetBlock(c Cuesheet) []byte {
 	b := make([]byte, cueHeaderLen, cueHeaderLen+(len(c.Tracks)+1)*cueTrackLen)
 	// media catalog number (128 bytes), lead-in (8 bytes), is_cd bit and reserved: all zero
-	b[cueHeaderLen-1] = byte(len(c.Tracks) + 1)
+	b[cueHeaderLen-1] = byte(len(c.Tracks) + 1) //nolint:gosec // at most MaxCueTracks+1 (validated by the caller)
 	for _, t := range c.Tracks {
 		b = appendCueTrack(b, t.Offset, t.Number, t.Indexes)
 	}
@@ -53,7 +53,7 @@ func appendCueTrack(b []byte, off uint64, num uint8, idx []CueIndex) []byte {
 	b = binary.BigEndian.AppendUint64(b, off)
 	b = append(b, num)
 	b = append(b, make([]byte, 12+1+13)...) // ISRC, type/pre-emphasis bits, reserved
-	b = append(b, byte(len(idx)))
+	b = append(b, byte(len(idx)))           //nolint:gosec // at most 255 (validated by the caller)
 	for _, i := range idx {
 		b = binary.BigEndian.AppendUint64(b, i.Offset)
 		b = append(b, i.Number, 0, 0, 0)

@@ -72,7 +72,7 @@ func (g *gainStage) convert(b []byte) error {
 		k := min(len(b)/inSampleBytes, len(g.vals))
 		v := g.vals[:k]
 		for i := range v {
-			s := int32(uint32(b[4*i]) | uint32(b[4*i+1])<<8 | uint32(b[4*i+2])<<16 | uint32(b[4*i+3])<<24)
+			s := int32(uint32(b[4*i]) | uint32(b[4*i+1])<<8 | uint32(b[4*i+2])<<16 | uint32(b[4*i+3])<<24) //nolint:gosec // reinterpreting the little-endian bits as signed
 			v[i] = s >> 8
 		}
 		if ApplyGain(v, v, g.gain) > 0 {
@@ -83,7 +83,7 @@ func (g *gainStage) convert(b []byte) error {
 			if a := abs32(x); a > g.peak {
 				g.peak = a
 			}
-			g.buf = append(g.buf, byte(x), byte(x>>8), byte(x>>16))
+			g.buf = append(g.buf, byte(x), byte(x>>8), byte(x>>16)) //nolint:gosec // the low three bytes of a 24-bit value
 		}
 		g.frames += int64(k / 2)
 		b = b[k*inSampleBytes:]

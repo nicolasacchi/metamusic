@@ -138,7 +138,7 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 		if err != nil {
 			return nil, &ToolError{Tool: name, ExitCode: -1, StderrTail: "cannot run tool"}
 		}
-		defer pr.Close()
+		defer func() { _ = pr.Close() }()
 		cmd.Stdin = pr
 		go func() {
 			_, _ = io.Copy(pw, o.Stdin)

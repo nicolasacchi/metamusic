@@ -184,7 +184,7 @@ func (p *pipeline) transcode(ctx context.Context, j Job, work string, durationS 
 		_, e := mediatool.Run(ctx2, p.o.Tools.FLAC, encodeArgs(encOut, estimateSamples(j.Items)),
 			mediatool.RunOpts{Timeout: toolBudget(durationS), Stdin: pr, Stdout: io.Discard})
 		if e == nil {
-			pr.Close() // a clean exit follows the end of input; if the feeder is still writing, its next write fails
+			_ = pr.Close() // a clean exit follows the end of input; if the feeder is still writing, its next write fails
 			return
 		}
 		ce := renderErr(ErrEncodeFailed, 0, e)
@@ -227,7 +227,7 @@ func (p *pipeline) transcode(ctx context.Context, j Job, work string, durationS 
 		peak = max(peak, stage.peak)
 	}
 	progress(Progress{Phase: "encode", Item: n, Items: n})
-	pw.Close()
+	_ = pw.Close()
 	<-encDone
 	if cause := context.Cause(ctx2); cause != nil {
 		return nil, 0, cause
@@ -247,7 +247,7 @@ func (p *pipeline) finish(ctx context.Context, j Job, rel, work string, frames [
 	if err != nil {
 		return Result{}, renderErr(ErrEncodeFailed, 0, err)
 	}
-	defer tapeFile.Close()
+	defer func() { _ = tapeFile.Close() }()
 	st, err := tapeFile.Stat()
 	if err != nil {
 		return Result{}, renderErr(ErrEncodeFailed, 0, err)
@@ -365,7 +365,7 @@ func (p *pipeline) verifyFinal(rel, finalRel string, tapeFile *os.File, tapeSize
 	if err != nil {
 		return bad("open final: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	st, err := f.Stat()
 	if err != nil {
 		return bad("stat final: %v", err)
