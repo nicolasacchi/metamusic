@@ -3,6 +3,7 @@ package subsonic
 import (
 	"context"
 
+	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
@@ -33,4 +34,11 @@ type playlister interface {
 // mediaResolver is the part of *library.Service the stream endpoint uses.
 type mediaResolver interface {
 	Resolve(ctx context.Context, sha, ext string) (serve.Object, error)
+}
+
+// albumSource is the part of *albums.Service the Record albums use (C126.7).
+type albumSource interface {
+	List(ctx context.Context, kinds ...albums.Kind) ([]albums.Album, error)
+	Get(ctx context.Context, id string) (albums.Album, []albums.Song, error)
+	Token(ctx context.Context) (string, error)
 }

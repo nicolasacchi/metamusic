@@ -29,13 +29,22 @@ func (c *call) albumList(cat *catalog) ([]albumRow, error) {
 	size := c.intParam("size", 10, maxCount)
 	offset := c.intParam("offset", 0, 1<<30)
 	q := albumQuery{folderWhere: frag, limit: max(size, 1), offset: offset}
-	switch typ := c.str("type"); typ {
+	typ := c.str("type")
+	from, to, desc := 0, 9999, false
+	switch typ {
 	case "":
 		return nil, fail(errMissingParam, "required parameter is missing: type")
 	case "random":
 		ids, err := cat.albumIDs(c.ctx, frag)
 		if err != nil {
 			return nil, err
+		}
+		recs, err := c.recordAlbums(cat)
+		if err != nil {
+			return nil, err
+		}
+		if len(recs) > 0 {
+			return c.randomWithRecords(cat, frag, ids, recs, size)
 		}
 		c.s.shuffle(ids)
 		if len(ids) > size {
@@ -57,10 +66,10 @@ func (c *call) albumList(cat *catalog) ([]albumRow, error) {
 		if !c.params.Has("fromYear") || !c.params.Has("toYear") {
 			return nil, fail(errMissingParam, "required parameter is missing: fromYear and toYear")
 		}
-		from, to := c.intParam("fromYear", 0, 9999), c.intParam("toYear", 9999, 9999)
+		from, to = c.intParam("fromYear", 0, 9999), c.intParam("toYear", 9999, 9999)
 		dir := "ASC"
 		if from > to {
-			from, to, dir = to, from, "DESC"
+			from, to, dir, desc = to, from, "DESC", true
 		}
 		q.where, q.args = "a.year BETWEEN ? AND ?", []any{from, to}
 		q.order = "a.year " + dir + ", lower(a.name), a.id"
@@ -76,6 +85,13 @@ func (c *call) albumList(cat *catalog) ([]albumRow, error) {
 	}
 	if size == 0 {
 		return []albumRow{}, nil
+	}
+	recs, err := c.recordAlbums(cat)
+	if err != nil {
+		return nil, err
+	}
+	if len(recs) > 0 {
+		return c.listWithRecords(cat, recs, typ, q, size, offset, from, to, desc)
 	}
 	return cat.albums(c.ctx, q)
 }

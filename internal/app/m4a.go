@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -70,6 +71,7 @@ type m4aInputs struct {
 	covers    *cover.Service
 	downloads *tagged.Service
 	ctxb      *trackctx.Builder
+	albums    *albums.Service // the Record albums the Subsonic server lists (L2 C126.7)
 }
 
 // oidcHTTPClient is the production client of the OIDC verifier: 5 s timeout, redirects refused (C114).
@@ -111,7 +113,7 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 	}
 	m.SubsonicHandler = subsonic.NewHandler(subsonic.Options{
 		Cfg: in.cfg, Version: in.version, Store: in.st, Data: in.data, Lib: in.lib, Judgments: in.judg, Playlists: in.pls,
-		Listening: in.listen, Covers: in.covers, Downloads: in.downloads, Creds: m.Subsonic, Audit: in.audit, Limiter: in.limiter,
+		Listening: in.listen, Covers: in.covers, Albums: in.albums, Downloads: in.downloads, Creds: m.Subsonic, Audit: in.audit, Limiter: in.limiter,
 		Now: in.now, Sleep: o.SubsonicSleep,
 	})
 	return m

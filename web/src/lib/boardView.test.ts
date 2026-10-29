@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { MAX_TAKES } from "./genIntent";
 import {
   buildGrid,
+  crateFromSelection,
+  recordFromSelection,
+  selectedSongIds,
   draftsForEstimate,
   mergeBoards,
   emptySelection,
@@ -127,5 +130,25 @@ describe("mergeBoards", () => {
     const un = m.rows.find((r) => r.muse === null)!;
     expect(un.cells.flatMap((c) => c.chips.map((x) => x.id))).toEqual(["song-7", "song-8"]);
     expect(buildGrid(m).rows.at(-1)!.muse).toBeNull();
+  });
+});
+
+describe("curation entry points (L2)", () => {
+  const g = buildGrid(board);
+  test("the selected Song ids come in grid order, ids out of view last", () => {
+    const sel = { ids: new Set(["song-1", "song-3", "gone"]), anchor: null };
+    expect(selectedSongIds(g, sel)).toEqual(["song-3", "song-1", "gone"]);
+  });
+  test("Add to Crate uses subject Song and every selected id", () => {
+    const sel = { ids: new Set(["song-1", "song-2"]), anchor: null };
+    expect(crateFromSelection(g, sel)).toEqual({ subject: "song", ids: ["song-1", "song-2"] });
+  });
+  test("New Record from selection collects the Song ids, capped at 60 with a note", () => {
+    const small = recordFromSelection(g, { ids: new Set(["song-1"]), anchor: null });
+    expect(small).toEqual({ songIds: ["song-1"], note: "" });
+    const many = new Set(Array.from({ length: 75 }, (_, i) => `x${i}`));
+    const r = recordFromSelection(g, { ids: many, anchor: null });
+    expect(r.songIds.length).toBe(60);
+    expect(r.note).toContain("15 left out");
   });
 });
