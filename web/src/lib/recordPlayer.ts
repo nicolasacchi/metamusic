@@ -182,17 +182,32 @@ export async function playAsTape(recordId: string, revision: number, opts: PlayA
   return start(tape);
 
   function start(t: Tape): TapeOutcome {
-    const item = tapeItem(t.id);
-    if (title) rememberTapeTitle(t.id, title);
-    activeTape.set({ tape: t, recordId, title, names: opts.names ?? {} });
-    env.player.play(item, [item], {
-      ...(title ? { title } : {}),
-      subtitle: "Tape",
-      source: sourceOf(recordId, title),
-      undo: true,
-    });
+    playTape(t, { recordId, title, ...(opts.names ? { names: opts.names } : {}) }, env.player);
     return { kind: "playing", tape: t };
   }
+}
+
+/**
+ * Play a tape that is already in hand (ready, with a download link), synchronously: use it from a click so the
+ * player keeps the user gesture. `startAtMs` opens it at a chapter. false: the tape is not ready.
+ */
+export function playTape(
+  t: Tape,
+  o: { recordId: string; title: string; names?: Record<string, string>; startAtMs?: number },
+  p: Pick<Player, "play"> = sharedPlayer,
+): boolean {
+  if (!ready(t)) return false;
+  const item = tapeItem(t.id);
+  if (o.title) rememberTapeTitle(t.id, o.title);
+  activeTape.set({ tape: t, recordId: o.recordId, title: o.title, names: o.names ?? {} });
+  p.play(item, [item], {
+    ...(o.title ? { title: o.title } : {}),
+    subtitle: "Tape",
+    source: sourceOf(o.recordId, o.title),
+    undo: true,
+    ...(o.startAtMs && o.startAtMs > 0 ? { startAt: o.startAtMs / 1000 } : {}),
+  });
+  return true;
 }
 
 /** start_ms of chapter `index`, or null when the tape has no such chapter. */

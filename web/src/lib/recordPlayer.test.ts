@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chapterAt, chapterNames, chapterStartMs, enqueueRecord, playAsTape, playRecord, seekToChapter, type ExportResult, type TapeEnv } from "./recordPlayer";
+import { chapterAt, chapterNames, chapterStartMs, enqueueRecord, playAsTape, playRecord, playTape, seekToChapter, type ExportResult, type TapeEnv } from "./recordPlayer";
 import { gainMap, isTapeItem, recordIdOfHref, takeQueue, tapeToLinks, type RecordView, type Tape } from "./recordMedia";
 
 type Slot = { id: string; take: { id: string; title: string; status?: string } | null; state?: string; gain_db?: number | null; song?: string };
@@ -217,6 +217,16 @@ describe("playAsTape", () => {
   test("get_tape unavailable (501 reads as null) never throws", async () => {
     const { e } = env({ tapes: [brief("t1")], exp: { status: 501, code: "NOT_IMPLEMENTED", message: "x" } });
     expect((await playAsTape("r1", 4, {}, e)).kind).toBe("failed");
+  });
+});
+
+describe("playTape", () => {
+  test("starts a ready tape in hand, optionally at a chapter; a tape not ready is refused", () => {
+    const p = fakePlayer();
+    expect(playTape(tape(), { recordId: "r1", title: "Night Drive", startAtMs: 61_500 }, p as never)).toBe(true);
+    expect(p.calls.play[0]).toEqual(["tape:t1", ["tape:t1"], { title: "Night Drive", subtitle: "Tape", source: { label: "Night Drive", href: "/records/r1" }, undo: true, startAt: 61.5 }]);
+    expect(playTape(tape({ state: "running", download: null }), { recordId: "r1", title: "x" }, p as never)).toBe(false);
+    expect(p.calls.play).toHaveLength(1);
   });
 });
 
