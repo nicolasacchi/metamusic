@@ -269,6 +269,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	l2 := buildL2(l2Inputs{cfg: cfg, st: st, data: data, lib: lib, signer: signer, covers: covers, muses: l1.Muses, songs: l1.Songs, ears: media.Ears,
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
+	wireL2Curation(st, l1.SongView, ctxb)
 
 	s := &Services{
 		Records: l2.Records, Syncer: l2.Syncer, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,

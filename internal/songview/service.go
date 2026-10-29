@@ -108,6 +108,25 @@ type View struct {
 	Sessions   []SessionRef
 	Lineage    *LineageBlock
 	Pending    bool
+	// L2 (C130.3): the Records and manual Crates that hold the Song, at most MaxCurationRefs each; empty without UseCuration.
+	Records []RecordRef
+	Crates  []CrateRef
+}
+
+// MaxCurationRefs bounds get_song.records and get_song.crates.
+const MaxCurationRefs = 10
+
+// RecordRef is a non-hidden Record with a live slot of the Song.
+type RecordRef struct{ ID, Title, Status, Mode string }
+
+// CrateRef is a manual Crate holding the Song.
+type CrateRef struct{ ID, Name string }
+
+// Curation reads the L2 memberships of a Song. songview declares it so it imports neither records nor crates (C118); app.Build
+// adapts the tables to it. RecordsOf lists newest first, CratesOf includes the Crates that hold a Song retired into this one.
+type Curation interface {
+	RecordsOf(ctx context.Context, songID string, limit int) ([]RecordRef, error)
+	CratesOf(ctx context.Context, songID string, limit int) ([]CrateRef, error)
 }
 
 // Coverage is the per-Muse Song count by state.
@@ -129,8 +148,12 @@ type Service struct {
 	sounds   *sounds.Service
 	ladder   Ladder
 	flags    Flags
+	curation Curation // L2 (C130.3); nil => get_song.records and .crates are empty
 	now      func() time.Time
 }
+
+// UseCuration wires the L2 membership reader. A nil reader leaves records and crates empty.
+func (s *Service) UseCuration(c Curation) { s.curation = c }
 
 // New builds the Service (C90.8).
 func New(st *store.Store, m *muses.Service, so *songs.Service, se *sessions.Service, pi *picks.Service, sd *sounds.Service, l Ladder, f Flags, now func() time.Time) *Service {

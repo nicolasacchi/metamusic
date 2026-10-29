@@ -173,6 +173,14 @@ func (s *Service) Get(ctx context.Context, p auth.Principal, id string, o GetOpt
 	if err := s.fill(ctx, &v, row, takeLimit, events); err != nil {
 		return View{}, err
 	}
+	if s.curation != nil {
+		if v.Records, err = s.curation.RecordsOf(ctx, row.ID, MaxCurationRefs); err != nil {
+			return View{}, fmt.Errorf("songview: records: %w", err)
+		}
+		if v.Crates, err = s.curation.CratesOf(ctx, row.ID, MaxCurationRefs); err != nil {
+			return View{}, fmt.Errorf("songview: crates: %w", err)
+		}
+	}
 	return v, nil
 }
 
