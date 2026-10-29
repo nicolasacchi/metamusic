@@ -1,6 +1,8 @@
 // Global player store (C22.1). The single audio element lives in App.svelte's footer and is
 // handed over by attach(); it is never re-created on navigation.
 import { playerInUse } from "./playerUse";
+import { dbToGain, fetchRecordGains, isTapeItem, recordIdOfHref, tapeMediaLinks, tapeMeta } from "./recordMedia";
+import { getAudioContext } from "./audioContext";
 import { api } from "../api/client";
 import { session } from "../api/session";
 import { offline } from "./offline.svelte";
@@ -81,11 +83,17 @@ export interface PlayerDeps {
   notice?(message: string, action?: { label: string; run(): void }): void;
   /** Inside a user gesture (transient activation)? Decides whether a lease release may resume at once. */
   inGesture?(): boolean;
+  /** The shared AudioContext for the gain stage (gained plays only); absent: the real one. Throws when Web Audio is missing. */
+  audioContext?(): AudioContext;
+  /** The plan gains of the Record behind a restored queue's source href (`/records/:id`); absent: no rebuild. */
+  rebuildGains?(href: string): Promise<Record<string, number> | null>;
 }
 
 export interface PlayOptions {
   title?: string;
   album?: string;
+  /** Same as `album` (the secondary line); wins when both are given. Lets L2 sources avoid the Subsonic word. */
+  subtitle?: string;
   /** Seconds; applied in `loadedmetadata` (iOS ignores earlier writes). */
   startAt?: number;
   /** false: load paused (deep link). Default true. */
@@ -96,6 +104,8 @@ export interface PlayOptions {
   source?: SavedSource;
   /** An explicit replacement of a loaded queue: offer "Queue replaced · Undo" (backed by restoreQueue). */
   undo?: boolean;
+  /** take_id -> gain in dB, applied through one GainNode on the single element at each track start. In memory only. */
+  gains?: Record<string, number>;
 }
 
 /** Everything restoreQueue needs to put a replaced queue back. */
@@ -108,6 +118,7 @@ export interface QueueSnapshot {
   wasPlaying: boolean;
   source: SavedSource | null;
   more: (() => Promise<string[]>) | null;
+  gains: Record<string, number> | null;
 }
 
 /** A playback diagnostic; the listen recorder turns it into an outbox event (kinds autoplay_blocked|stall_end|advance|error). */
@@ -213,6 +224,11 @@ export class Player {
   private sourceBusy = false;
   private sourceDone = false;
   private stopActivation: (() => void) | null = null;
+  /** The queue's gain map (take_id -> dB); never persisted, rebuilt for a restored `/records/:id` queue. */
+  private gains: Record<string, number> | null = null;
+  /** The one gain stage: the element's MediaElementAudioSourceNode -> GainNode -> destination, built on the first gained play. */
+  private stage: { ctx: AudioContext; gain: GainNode } | null = null;
+  private stageFailed = false;
   private focus = createAudioFocus({
     wasPlaying: () => this.wantPlay,
     trackId: () => this.state.trackId,
@@ -274,6 +290,7 @@ export class Player {
       wasPlaying: this.wantPlay,
       source: s.source,
       more: this.source,
+      gains: this.gains,
     };
   }
 
@@ -281,7 +298,7 @@ export class Player {
   restoreQueue(p: QueueSnapshot) {
     if (!p.trackId || !p.queue.includes(p.trackId)) return;
     this.deps.device.onGesture?.();
-    this.start(p.trackId, p.queue, { startAt: p.position, autoplay: p.wasPlaying, ...(p.more ? { more: p.more } : {}), ...(p.source ? { source: p.source } : {}) });
+    this.start(p.trackId, p.queue, { startAt: p.position, autoplay: p.wasPlaying, ...(p.more ? { more: p.more } : {}), ...(p.source ? { source: p.source } : {}), ...(p.gains ? { gains: p.gains } : {}) });
     this.queuedNext = Math.max(0, Math.min(p.queuedNext, p.queue.length - 1 - this.state.index));
     this.say("Queue restored");
   }
@@ -325,6 +342,7 @@ export class Player {
     this.pendingSeek = v.position > 0 ? v.position : null;
     this.syncMeta(v.trackId);
     void this.links(v.trackId);
+    this.rebuildGains(v.source);
     this.notify();
     return true;
   }
@@ -468,14 +486,14 @@ export class Player {
   }
 
   /** "Add to queue": append a track to the end; already queued (not the current one): move it to the end. */
-  enqueue(trackId: string) {
+  enqueue(trackId: string, quiet = false) {
     const s = this.state;
     if (!s.trackId) {
       this.load(trackId, [trackId]);
-      this.sayTitled("Added to queue", trackId);
+      if (!quiet) this.sayTitled("Added to queue", trackId);
       return;
     }
-    if (trackId === s.trackId) return this.sayTitled("Already playing", trackId);
+    if (trackId === s.trackId) return quiet ? undefined : this.sayTitled("Already playing", trackId);
     const q = [...s.queue];
     const at = q.indexOf(trackId);
     let index = s.index;
@@ -489,7 +507,7 @@ export class Player {
     s.index = index;
     this.prefetchNext();
     this.notify();
-    this.sayTitled(at !== -1 ? "Moved to the end of the queue" : "Added to queue", trackId);
+    if (!quiet) this.sayTitled(at !== -1 ? "Moved to the end of the queue" : "Added to queue", trackId);
   }
 
   /** Remove an upcoming (or already played) entry; the current track cannot be removed. */
@@ -616,6 +634,9 @@ export class Player {
       this.seek(0);
     }
     this.state.endOfQueue = false;
+    // A tap is the one place a restored queue's rebuilt gains may build the stage (a context made outside a gesture stays suspended on iOS).
+    if (this.gains) this.ensureStage();
+    this.wakeStage();
     if (el.error || this.appliedTrack !== this.state.trackId || (el.readyState === 0 && !this.cached(this.state.trackId))) {
       // Errored element (failed FLAC and MP3), or nothing was ever fetched (preload=none) and the
       // links expired meanwhile: apply/mint a source again instead of play()ing a dead element.
@@ -730,10 +751,11 @@ export class Player {
   private goto(index: number, startAt?: number) {
     const id = this.state.queue[index];
     if (id === undefined) return;
-    this.start(id, this.state.queue, { autoplay: true, ...(startAt !== undefined ? { startAt } : {}) });
+    this.start(id, this.state.queue, { autoplay: true, ...(startAt !== undefined ? { startAt } : {}) }, true);
   }
 
-  private start(trackId: string, queue: string[] | undefined, opts: PlayOptions) {
+  /** `reposition`: the same queue, another entry (next/prev): the gain map stays. */
+  private start(trackId: string, queue: string[] | undefined, opts: PlayOptions, reposition = false) {
     const s = this.state;
     this.focus.interrupt();
     this.epoch++;
@@ -742,7 +764,14 @@ export class Player {
       this.queuedNext = 0;
       this.setQueueSource(opts.more ?? null);
       s.source = opts.source ?? null;
-    } else if (opts.source) s.source = opts.source;
+      if (!reposition || opts.gains) this.gains = opts.gains ?? null;
+    } else {
+      if (opts.source) s.source = opts.source;
+      if (opts.gains) this.gains = opts.gains;
+    }
+    // Inside the user gesture: building the stage and resuming its context must not wait for the async link fetch.
+    if (this.gains && Object.keys(this.gains).length > 0) this.ensureStage();
+    this.wakeStage();
     s.held = false;
     s.restored = null;
     s.queue = q;
@@ -762,10 +791,78 @@ export class Player {
     this.probePending.delete(trackId);
     this.reminted.delete(trackId);
     // Cache only a complete pair; a title alone is shown at once while the album still resolves.
-    if (opts.title && opts.album !== undefined) this.meta.set(trackId, { title: opts.title, album: opts.album });
+    const second = opts.subtitle ?? opts.album;
+    if (opts.title && second !== undefined) this.meta.set(trackId, { title: opts.title, album: second });
     this.syncMeta(trackId, opts.title);
     this.begin(trackId);
     this.notify();
+  }
+
+  /** Replace the gain map of the current queue (null: none). Applies to the next track start. */
+  setGains(gains: Record<string, number> | null) {
+    this.gains = gains && Object.keys(gains).length > 0 ? gains : null;
+    if (this.gains) {
+      this.ensureStage();
+      this.wakeStage();
+    }
+  }
+
+  /** Add gains for tracks appended to the current queue ("Add to queue" of a Record). */
+  mergeGains(gains: Record<string, number>) {
+    this.setGains({ ...(this.gains ?? {}), ...gains });
+  }
+
+  /** A restored queue whose source is a Record: its plan gains are not stored, so read them again. */
+  private rebuildGains(source: SavedSource | null) {
+    const href = source?.href;
+    if (!href || !this.deps.rebuildGains || !recordIdOfHref(href)) return;
+    const epoch = this.epoch;
+    void this.deps
+      .rebuildGains(href)
+      .then((g) => {
+        if (!g || epoch !== this.epoch || this.state.source?.href !== href || this.gains) return;
+        // Stored only: the stage is built by the resume tap (resume()), never at boot.
+        this.gains = Object.keys(g).length > 0 ? g : null;
+      })
+      .catch(() => {});
+  }
+
+  /**
+   * The single gain stage (C131.5): created lazily on the first gained play, never one per track, and left in the
+   * graph at unity for the page's life. iOS ignores audio.volume, so Web Audio gain is the only matching path.
+   */
+  private ensureStage(): { ctx: AudioContext; gain: GainNode } | null {
+    if (this.stage) return this.stage;
+    const el = this.el;
+    if (!el || this.stageFailed) return null;
+    try {
+      const ctx = (this.deps.audioContext ?? getAudioContext)();
+      const gain = ctx.createGain();
+      ctx.createMediaElementSource(el).connect(gain);
+      gain.connect(ctx.destination);
+      this.stage = { ctx, gain };
+    } catch {
+      // No Web Audio (or the element is already routed): play unmatched rather than not at all.
+      this.stageFailed = true;
+      return null;
+    }
+    return this.stage;
+  }
+
+  /** A routed element is silent while its context is suspended (A/B suspends the shared one, iOS interrupts it). */
+  private wakeStage() {
+    const ctx = this.stage?.ctx;
+    if (ctx && ctx.state !== "running") void Promise.resolve(ctx.resume()).catch(() => {});
+  }
+
+  /** Apply the track's gain at its start: the map value, else unity. No stage (no gained play yet): nothing. */
+  private setGain(trackId: string) {
+    // Never builds the stage: apply() may run outside a gesture, and a context created there stays suspended (silent) on iOS.
+    const st = this.stage;
+    if (!st) return;
+    const db = this.gains?.[trackId];
+    const v = db !== undefined && Number.isFinite(db) ? dbToGain(db) : 1;
+    st.gain.gain.setValueAtTime(v, st.ctx.currentTime);
   }
 
   /** A downloaded file may be played locally only when the worker controls the page (else the unsigned URL gets a 403). */
@@ -838,6 +935,7 @@ export class Player {
     this.appliedTrack = trackId;
     this.playingLocal = trackId;
     el.src = l.src;
+    this.setGain(trackId);
     this.state.playing = !el.paused;
     if (this.autoplay) {
       this.wantPlay = true;
@@ -858,6 +956,7 @@ export class Player {
     this.src = url;
     this.appliedTrack = links.track_id;
     el.src = url;
+    this.setGain(links.track_id);
     this.state.playing = !el.paused;
     if (this.autoplay) {
       this.wantPlay = true;
@@ -871,6 +970,7 @@ export class Player {
   }
 
   private formatFor(trackId: string): Format {
+    if (isTapeItem(trackId)) return "flac";
     if (this.forceMp3.has(trackId)) return "mp3";
     return formatFor(this.deps.device.quality(), this.deps.device.connection());
   }
@@ -989,6 +1089,7 @@ export class Player {
 
   private onPlay() {
     const el = this.el;
+    this.wakeStage();
     this.state.playing = true;
     this.state.endOfQueue = false;
     const d = el?.duration;
@@ -1171,7 +1272,8 @@ export class Player {
       });
     } else if (
       (code === MEDIA_ERR_SRC_NOT_SUPPORTED || code === MEDIA_ERR_DECODE) &&
-      this.state.format === "flac"
+      this.state.format === "flac" &&
+      !isTapeItem(id)
     ) {
       // Code 3/4 is also what browsers report for HTTP/network failures on first load, so the failed
       // probe is recorded only once the MP3 reaches loadedmetadata (see onLoadedMetadata).
@@ -1228,12 +1330,21 @@ function warm(url: string) {
 
 export const player = new Player({
   fetchLinks: async (id) => {
+    if (isTapeItem(id)) return tapeMediaLinks(id);
     const r = await api.GET("/api/tracks/{id}/media", { params: { path: { id } } });
     return r.data ?? null;
   },
   device: localDevice,
   now: () => Date.now(),
-  fetchMeta: (id) => resolveMeta(id, getTrackRef),
+  fetchMeta: async (id) => {
+    if (!isTapeItem(id)) return resolveMeta(id, getTrackRef);
+    const m = await tapeMeta(id);
+    return m ? { title: m.title, album: m.subtitle } : null;
+  },
+  rebuildGains: (href) => {
+    const id = recordIdOfHref(href);
+    return id ? fetchRecordGains(id) : Promise.resolve(null);
+  },
   warm,
   notice: (message, action) => void pushToast(message, { kind: "info", ...(action ? { action, ms: 8000 } : {}) }),
   inGesture: () => typeof navigator !== "undefined" && !!(navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive,
