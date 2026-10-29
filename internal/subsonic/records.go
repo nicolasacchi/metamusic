@@ -21,9 +21,11 @@ import (
 // Record album and getSong are unchanged. Membership comes from albums.Service; the aggregates (plays, stars, durations, the
 // folder rule) are computed here from the same song rows M4a uses (D-L2-34).
 
-// albumKinds is the album-kind dispatch of the catalog: the kinds the server serves besides the lineage. Lane S2 adds the
-// muse and unfiled kinds here (and in the loaders below) without touching the endpoint code.
-func albumKinds() []albums.Kind { return []albums.Kind{albums.KindRecord} }
+// albumKinds is the album-kind dispatch of the catalog: the kinds the server serves besides the lineage. The muse and unfiled
+// auto-albums (S2) ride the same loaders: their ids are the catalog's, their songs have Disc 1 and contiguous positions.
+func albumKinds() []albums.Kind {
+	return []albums.Kind{albums.KindRecord, albums.KindMuse, albums.KindUnfiled}
+}
 
 // recSong is one song of a Record album as served: the track row with the album's position, disc and plan gain.
 type recSong struct {
@@ -70,26 +72,20 @@ func (c *call) recordAlbums(cat *catalog) ([]*recAlbum, error) {
 	if err != nil {
 		return nil, err
 	}
-	list, err := c.s.alb.List(c.ctx, albumKinds()...)
+	list, err := c.s.alb.ListWithSongs(c.ctx, albumKinds()...) // one pass: no read per album
 	if err != nil {
 		return nil, err
 	}
-	items := make([]recItem, 0, len(list))
-	for _, al := range list {
-		a, songs, err := c.s.alb.Get(c.ctx, al.ID)
-		if errors.Is(err, albums.ErrNotFound) {
-			continue // unpublished between the two reads
-		}
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, recItem{a, songs})
+	items := make([]recItem, len(list))
+	for i, e := range list {
+		items[i] = recItem{e.Album, e.Songs}
 	}
 	return c.buildRecs(cat, items, set)
 }
 
-// recordAlbum loads one Record album; an unknown, unpublished, hidden or (under the folder rule) empty one is error 70.
-func (c *call) recordAlbum(cat *catalog, raw string) (*recAlbum, error) {
+// catalogAlbum loads one catalog album (rec-, mus- or unf) by its full id; an unknown, unpublished, hidden or (under the folder
+// rule) empty one is error 70.
+func (c *call) catalogAlbum(cat *catalog, id string) (*recAlbum, error) {
 	if c.s.alb == nil {
 		return nil, fail(errNotFound, "album not found")
 	}
@@ -97,7 +93,7 @@ func (c *call) recordAlbum(cat *catalog, raw string) (*recAlbum, error) {
 	if err != nil {
 		return nil, err
 	}
-	a, songs, err := c.s.alb.Get(c.ctx, prefixRecord+raw)
+	a, songs, err := c.s.alb.Get(c.ctx, id)
 	if errors.Is(err, albums.ErrNotFound) {
 		return nil, fail(errNotFound, "album not found")
 	}
@@ -135,13 +131,22 @@ func (c *call) buildRecs(cat *catalog, items []recItem, set map[string]bool) ([]
 	for _, r := range rows {
 		by[r.ID] = r
 	}
-	created, err := cat.recordCreated(c.ctx)
-	if err != nil {
-		return nil, err
+	var created map[string]string
+	for _, it := range items {
+		if it.album.RecordID != nil {
+			if created, err = cat.recordCreated(c.ctx); err != nil {
+				return nil, err
+			}
+			break
+		}
 	}
 	var out []*recAlbum
 	for _, it := range items {
-		if ra := assembleRec(it, by, created[*it.album.RecordID], set); len(ra.songs) > 0 {
+		at := ""
+		if it.album.RecordID != nil {
+			at = created[*it.album.RecordID]
+		}
+		if ra := assembleRec(it, by, at, set); len(ra.songs) > 0 {
 			out = append(out, ra)
 		}
 	}
@@ -160,7 +165,14 @@ func assembleRec(it recItem, by map[string]songRow, created string, set map[stri
 	}
 	target, plans := tape.PlanGains(ms, nil)
 	ra := &recAlbum{albumCDB: -1800 - int(math.Round(target*100)), cover: it.album.CoverInput, terms: map[string]bool{}}
-	a := albumRow{ExtID: it.album.ID, ID: *it.album.RecordID, Name: it.album.Name, Created: created, RootRecorded: created, Year: yearOf(created)}
+	a := albumRow{ExtID: it.album.ID, Name: it.album.Name, Created: created, RootRecorded: created, Year: yearOf(created)}
+	if it.album.RecordID != nil {
+		a.ID = *it.album.RecordID
+	} else if it.album.MuseID != nil {
+		a.ID = *it.album.MuseID
+	} else {
+		a.ID = it.album.ID
+	}
 	for i, s := range it.songs {
 		r := listed[i]
 		if r.ID == "" || !set[r.Status] {
@@ -192,6 +204,13 @@ func assembleRec(it recItem, by map[string]songRow, created string, set map[stri
 				ra.terms[t] = true
 			}
 		}
+	}
+	if it.album.RecordID == nil && len(ra.songs) > 0 {
+		// an auto-album has no publication date: it is as new as its newest song
+		for _, s := range ra.songs {
+			a.Created = max(a.Created, s.row.CreatedAt)
+		}
+		a.RootRecorded, a.Year = a.Created, yearOf(a.Created)
 	}
 	ra.row = a
 	return ra
@@ -421,7 +440,8 @@ func (c *call) searchAlbums(cat *catalog, frag string, p searchPlan, n, off int)
 
 // recStamp turns the album token into a modification stamp: getIndexes' lastModified must move when the token does, and a
 // token is a hash. The stamp is the moment this process saw the token change, never earlier than the newest Record update
-// (which covers an unpublish and a restart); a library that never had a Record contributes nothing.
+// (which covers an unpublish and a restart). Without Records the stamp is only the moment a change was seen (auto-albums
+// move it too), so a library whose token never changes contributes nothing.
 type recStamp struct {
 	mu   sync.Mutex
 	seen string
@@ -434,7 +454,7 @@ func (c *call) recordStamp(cat *catalog) (int64, error) {
 		return 0, nil
 	}
 	upd, err := cat.recordsUpdated(c.ctx)
-	if err != nil || upd == "" {
+	if err != nil {
 		return 0, err
 	}
 	tok, err := c.s.alb.Token(c.ctx)
@@ -451,19 +471,19 @@ func (c *call) recordStamp(cat *catalog) (int64, error) {
 		st.seen = tok
 	}
 	best := st.at
-	if t, ok := parseStamp(upd); ok {
+	if t, ok := parseStamp(upd); ok && upd != "" {
 		best = max(best, t.UnixMilli())
 	}
 	return best, nil
 }
 
-// recordCover answers getCoverArt id=rec-<id>: the album's mosaic through the cover service (an unknown, unpublished or hidden
-// Record is error 70).
-func (c *call) recordCover(raw string, size int) (serve.Object, error) {
+// albumCover answers getCoverArt for a catalog album id (rec-, mus-, unf): the album's mosaic through the cover service (an
+// unknown, unpublished or hidden one is error 70).
+func (c *call) albumCover(id string, size int) (serve.Object, error) {
 	if c.s.alb == nil {
 		return serve.Object{}, fail(errNotFound, "cover art not found")
 	}
-	a, _, err := c.s.alb.Get(c.ctx, prefixRecord+raw)
+	a, _, err := c.s.alb.Get(c.ctx, id)
 	if errors.Is(err, albums.ErrNotFound) {
 		return serve.Object{}, fail(errNotFound, "cover art not found")
 	}

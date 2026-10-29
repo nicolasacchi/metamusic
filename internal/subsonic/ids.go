@@ -9,8 +9,11 @@ const (
 	prefixTrack = "tr-"
 	// prefixRecord names a Record album (L2, D-L2-35): `rec-<record id>`. It is the catalog's own id form (albums.PrefixRecord).
 	prefixRecord = "rec-"
-	artistID     = "ar-metamusic"
-	artistName   = "metamusic"
+	// prefixMuse and idUnfiled name the auto-albums (L2 A2/S2): `mus-<muse id>` and the one `unf`; the catalog's own forms.
+	prefixMuse = "mus-"
+	idUnfiled  = "unf"
+	artistID   = "ar-metamusic"
+	artistName = "metamusic"
 )
 
 type idKind int
@@ -22,6 +25,7 @@ const (
 	kindArtist               // ar-metamusic
 	kindBad                  // empty or malformed
 	kindRecord               // rec-<record id> (a published Record album)
+	kindAuto                 // mus-<muse id> or unf (an auto-album); the raw part is the whole id
 )
 
 func albumID(root string) string    { return prefixAlbum + root }
@@ -47,6 +51,13 @@ func parseID(s string) (idKind, string) {
 	case strings.HasPrefix(s, prefixRecord):
 		if raw := strings.TrimPrefix(s, prefixRecord); raw != "" {
 			return kindRecord, raw
+		}
+		return kindBad, ""
+	case s == idUnfiled:
+		return kindAuto, s
+	case strings.HasPrefix(s, prefixMuse):
+		if strings.TrimPrefix(s, prefixMuse) != "" {
+			return kindAuto, s
 		}
 		return kindBad, ""
 	case strings.HasPrefix(s, "ar-"):

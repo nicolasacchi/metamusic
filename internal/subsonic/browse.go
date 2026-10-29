@@ -310,12 +310,12 @@ func (s *server) registerBrowse() {
 			}
 			c.resp.Directory = &Directory{ID: artistID, Name: artistName, Child: albumDirs(albums)}
 			return nil
-		case kindRecord:
+		case kindRecord, kindAuto:
 			mp3, err := c.mp3Default()
 			if err != nil {
 				return err
 			}
-			ra, err := c.recordAlbum(cat, raw)
+			ra, err := c.catalogAlbum(cat, c.str("id"))
 			if err != nil {
 				return err
 			}
@@ -384,7 +384,7 @@ func (s *server) registerBrowse() {
 		switch kind {
 		case kindBad:
 			return c.badID()
-		case kindAlbum, kindRecord:
+		case kindAlbum, kindRecord, kindAuto:
 		default:
 			return fail(errNotFound, "album not found")
 		}
@@ -396,8 +396,8 @@ func (s *server) registerBrowse() {
 		if err != nil {
 			return err
 		}
-		if kind == kindRecord {
-			ra, err := c.recordAlbum(cat, raw)
+		if kind == kindRecord || kind == kindAuto {
+			ra, err := c.catalogAlbum(cat, c.str("id"))
 			if err != nil {
 				return err
 			}

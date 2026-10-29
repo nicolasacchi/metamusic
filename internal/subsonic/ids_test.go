@@ -21,6 +21,9 @@ func TestParseID(t *testing.T) {
 		{"al-", kindBad, ""},
 		{"tr-", kindBad, ""},
 		{"rec-01900000", kindRecord, "01900000"},
+		{"mus-01900000", kindAuto, "mus-01900000"},
+		{"unf", kindAuto, "unf"},
+		{"mus-", kindBad, ""},
 		{"rec-", kindBad, ""},
 		{"ar-other", kindBad, ""},
 	} {
