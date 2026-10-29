@@ -8,6 +8,8 @@
   import { createDuel } from "../lib/duelApi";
   import { draftsIntent, mayGenerate, startGeneration, type Viewer } from "../lib/genIntent";
   import { judge } from "../lib/judge.svelte";
+  import AddToCrate from "../lib/components/AddToCrate.svelte";
+  import AddToRecord from "../lib/components/AddToRecord.svelte";
   import MusePicker from "../lib/components/MusePicker.svelte";
   import PickHistory from "../lib/components/PickHistory.svelte";
   import ProposalList from "../lib/components/ProposalList.svelte";
@@ -317,6 +319,14 @@
       </section>
     {/if}
 
+    {#if !s.retired}
+      <section class="curation" aria-labelledby="cur-h" data-testid="song-curation">
+        <h2 id="cur-h">Records and Crates</h2>
+        <AddToRecord songIds={[s.id]} member={view.records ?? []} {human} heading="Records" />
+        <AddToCrate subject="song" ids={[s.id]} member={view.crates ?? []} heading="Crates" />
+      </section>
+    {/if}
+
     <PickHistory songId={s.id} events={view.events ?? []} />
 
     {#if view.lineage}
@@ -360,5 +370,9 @@
   }
   section {
     margin: 1rem 0;
+  }
+  .curation {
+    display: grid;
+    gap: var(--sp-4);
   }
 </style>
