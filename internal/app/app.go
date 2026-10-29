@@ -256,9 +256,6 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		return nil, err
 	}
 
-	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
-		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, ctxb: ctxb}, o.M4a)
-
 	l1 := buildL1(st, now, newID, ds, media.Ears, o.L1)
 	ctxb.UseLibrary(libraryReader{l1.SongView})
 	lib.UseMuseCounter(func(ctx context.Context) (int, error) {
@@ -270,6 +267,11 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
+
+	// M4a is built after L2 so the Subsonic handler can serve the Record albums (C126.7).
+	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
+		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, ctxb: ctxb,
+		albums: l2.Albums}, o.M4a)
 
 	s := &Services{
 		Records: l2.Records, Syncer: l2.Syncer, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,

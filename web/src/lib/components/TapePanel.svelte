@@ -4,7 +4,10 @@
   import type { components } from "../../api/schema";
   import { exportTape, getTape, type Tape } from "../curationApi";
   import type { Viewer } from "../recordView";
-  import { chapterRows, lossyBanner, nextPollMs, planRows, progressText, tapeErrorText } from "../tapeView";
+  import { lossyBanner, nextPollMs, planRows, progressText, tapeErrorText } from "../tapeView";
+  import { player } from "../player.svelte";
+  import { playTape, seekToChapter, tapeItem } from "../recordPlayer";
+  import ChapterList from "./ChapterList.svelte";
 
   type Brief = components["schemas"]["TapeBrief"];
   interface Props {
@@ -20,10 +23,12 @@
     /** The Record changed under us (409 STALE_REVISION). */
     onstale?: () => void;
     api?: typeof defaultApi;
+    /** The Record's title: the queue label and mini-player title of a played tape. */
+    recordTitle?: string;
     /** Test seam: a Tape to show without any request. */
     initialTape?: Tape | null;
   }
-  let { recordId, revision, status, briefs, titles, warningCount, viewer, onstale, api = defaultApi, initialTape = null }: Props = $props();
+  let { recordId, revision, status, briefs, titles, warningCount, viewer, onstale, recordTitle = "", api = defaultApi, initialTape = null }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let tape = $state<Tape | null>(initialTape);
@@ -85,6 +90,19 @@
     } else message = "Could not reach the server.";
   }
   const banner = $derived(tape ? lossyBanner(tape) : null);
+
+  // Play as tape / chapter seeking (W3): a ready tape cut from this revision plays at once, inside the click.
+  const playing = $derived(!!tape && player.state.trackId === tapeItem(tape.id));
+  const names = $derived(Object.fromEntries(titles));
+  function playNow(startAtMs = 0) {
+    if (!tape) return;
+    playTape(tape, { recordId, title: recordTitle, names, startAtMs });
+  }
+  function pick(index: number) {
+    if (!tape) return;
+    if (playing) seekToChapter(tape, index);
+    else playNow(tape.chapters?.find((c) => c.index === index)?.start_ms ?? 0);
+  }
 </script>
 
 <section aria-label="Tapes" data-testid="tape-panel">
@@ -116,6 +134,9 @@
         <p>
           <a class="tap" href={tape.download.url} download={tape.download.filename} data-testid="tape-download">Download {tape.download.filename}</a>
           {#if tape.download.cue_url}<a class="tap" href={tape.download.cue_url}>Cue sheet</a>{/if}
+          {#if tape.record_revision === revision}
+            <button type="button" class="primary" onclick={() => playNow()} data-testid="tape-play">{playing ? "Restart tape" : "Play as tape"}</button>
+          {/if}
         </p>
       {/if}
       {#if tape.items.length > 0}
@@ -135,11 +156,9 @@
       {/if}
       {#if tape.chapters && tape.chapters.length > 0}
         <h3>Chapters</h3>
-        <ol data-testid="tape-chapters">
-          {#each chapterRows(tape, titles) as c (c.index)}
-            <li><span class="num">{c.offset}</span> {c.title}</li>
-          {/each}
-        </ol>
+        <div data-testid="tape-chapters">
+          <ChapterList chapters={tape.chapters} {names} positionMs={playing ? Math.round(player.state.current * 1000) : null} onselect={pick} />
+        </div>
       {/if}
     {:else if briefs.length === 0 && canExport}
       <p class="muted">No tape yet.</p>
@@ -190,12 +209,5 @@
   h3 {
     margin: var(--sp-3) 0 0;
     font-size: var(--fs-md);
-  }
-  ol {
-    margin: 0;
-    padding-left: var(--sp-5);
-  }
-  li {
-    min-height: 1.5em;
   }
 </style>

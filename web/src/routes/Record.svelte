@@ -5,6 +5,7 @@
   import { editSlots, getChanges, getRecord, proposeRecord, songTakes, updateRecord, freezeAll, type Result } from "../lib/curationApi";
   import { pushToast } from "../lib/judge.svelte";
   import { player } from "../lib/player.svelte";
+  import { chapterNames, enqueueRecord, playAsTape, playRecord, takeQueue } from "../lib/recordPlayer";
   import { canEdit, canPublish, createReadyOnce, moveOp, recordWarningRows, reorderOp, slotModels, type SlotOp, type Viewer } from "../lib/recordView";
   import { routeReady } from "../lib/scrollRestore";
   import { pendingDelay } from "../lib/songView";
@@ -222,15 +223,20 @@
     }
   }
 
-  const playable = $derived((view?.slots ?? []).filter((s) => s.take).map((s) => s.take!));
-  // W3 HOOK: lane W3 owns Record playback (recordPlayer.playRecord(view): queue + plan gains, Play as tape). Until it
-  // lands this plays the resolved Takes in order through the shared player, without gain matching.
-  function playRecord() {
-    if (!rec || playable.length === 0) return;
-    player.play(playable[0]!.id, playable.map((t) => t.id), { title: playable[0]!.title, source: { label: rec.title, href: `/records/${rec.id}` }, undo: true });
-  }
-  function queueRecord() {
-    for (const t of playable) player.enqueue(t.id);
+  const playable = $derived(view ? takeQueue(view) : []);
+  const play = () => void (view && playRecord(view));
+  const queueRecord = () => void (view && enqueueRecord(view));
+  let tapeBusy = $state(false);
+  async function playTapeNow() {
+    if (!view || !rec || tapeBusy) return;
+    tapeBusy = true;
+    try {
+      const r = await playAsTape(rec.id, rec.revision, { title: rec.title, tapes: view.tapes ?? [], names: chapterNames(view), wait: false });
+      if (r.kind === "failed") pushToast(r.code === "NOT_IMPLEMENTED" ? "Tape export is not available yet." : r.message);
+      else if (r.kind === "pending") pushToast("The tape is being made. Open the Tapes tab to follow it.");
+    } finally {
+      tapeBusy = false;
+    }
   }
 </script>
 
@@ -276,8 +282,11 @@
     </header>
 
     <div class="actions bar">
-      <button type="button" class="primary" disabled={playable.length === 0} onclick={playRecord} data-testid="record-play">Play</button>
+      <button type="button" class="primary" disabled={playable.length === 0} onclick={play} data-testid="record-play">Play</button>
       <button type="button" disabled={playable.length === 0} onclick={queueRecord}>Add to queue</button>
+      {#if rec.status === "published"}
+        <button type="button" disabled={tapeBusy} onclick={() => void playTapeNow()} data-testid="record-play-tape">Play as tape</button>
+      {/if}
       {#if editable}
         <button type="button" disabled={busy || view.slots.length === 0} onclick={toggleFreeze} data-testid="record-freeze">{allPinned ? "Unfreeze" : "Freeze"}</button>
         {#if rec.status === "draft"}<button type="button" onclick={() => (proposing = !proposing)} aria-expanded={proposing}>Propose</button>{/if}
@@ -345,7 +354,7 @@
     {:else if tab === "energy"}
       <EnergyCurve energy={view.energy} />
     {:else}
-      <TapePanel recordId={rec.id} revision={rec.revision} status={rec.status} briefs={view.tapes ?? []} {titles} warningCount={view.totals.warnings} viewer={me} onstale={() => (stale = true)} />
+      <TapePanel recordId={rec.id} recordTitle={rec.title} revision={rec.revision} status={rec.status} briefs={view.tapes ?? []} {titles} warningCount={view.totals.warnings} viewer={me} onstale={() => (stale = true)} />
     {/if}
   </article>
 {/if}
