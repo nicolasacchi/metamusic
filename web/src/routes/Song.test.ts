@@ -75,3 +75,26 @@ describe("Muse page", () => {
     expect(h).toContain('href="/board?muse=muse-a"');
   });
 });
+
+describe("Song page curation entry points (L2)", () => {
+  const withRefs = { ...songView, records: [{ id: "r1", title: "Synthetic record", status: "draft", mode: "floating" }], crates: [{ id: "c1", name: "Synthetic crate" }] };
+  test("In Records and In Crates chips link to the pages", () => {
+    const h = page(withRefs as never);
+    expect(h).toContain('data-testid="song-curation"');
+    expect(h).toContain('data-testid="in-records"');
+    expect(h).toContain('href="/records/r1"');
+    expect(h).toContain("Synthetic record");
+    expect(h).toContain('data-testid="in-crates"');
+    expect(h).toContain('href="/crates/c1"');
+  });
+  test("the menus are offered, nothing is listed for a Song in no Record", () => {
+    const h = page({ ...songView, records: [], crates: [] } as never);
+    expect(h).toContain('data-testid="add-to-record"');
+    expect(h).toContain('data-testid="add-to-crate"');
+    expect(h).not.toContain('data-testid="in-records"');
+  });
+  test("a retired Song offers neither", () => {
+    const h = page({ ...withRefs, song: { ...songView.song, retired: true, retired_into: "s-new" }, takes: [], takes_total: 0, pick: null, proposals: [], events: [] } as never);
+    expect(h).not.toContain('data-testid="add-to-record"');
+  });
+});
