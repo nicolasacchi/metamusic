@@ -5,11 +5,15 @@
   import BoardGrid from "../lib/components/BoardGrid.svelte";
   import BoardCards from "../lib/components/BoardCards.svelte";
   import { viewport } from "../lib/viewport.svelte";
+  import AddToCrate from "../lib/components/AddToCrate.svelte";
+  import AddToRecord from "../lib/components/AddToRecord.svelte";
   import BoardToolbar from "../lib/components/BoardToolbar.svelte";
   import MusePicker from "../lib/components/MusePicker.svelte";
   import SessionPanel from "../lib/components/SessionPanel.svelte";
   import {
     buildGrid,
+    crateFromSelection,
+    recordFromSelection,
     draftsForEstimate,
     emptySelection,
     filtersFromSearch,
@@ -165,6 +169,10 @@
     assigning = false;
   }
   const showActions = $derived(!viewport.phone || selectMode);
+  let curation = $state<"" | "crate" | "record">("");
+  const toCrate = $derived(crateFromSelection(grid, selection));
+  const toRecord = $derived(recordFromSelection(grid, selection));
+  const humanViewer = $derived(me !== null && me.kind === "human");
   const openId = $derived(selection.ids.size === 1 ? [...selection.ids][0]! : "");
 </script>
 
@@ -183,6 +191,8 @@
   <button type="button" onclick={selectDrafts} data-testid="select-drafts">Select all drafts in view</button>
   <button type="button" disabled={!canEstimate} onclick={startEstimate} data-testid="estimate">Estimate &amp; render{#if estimate.draftIds.length > 0} ({estimate.draftIds.length}){/if}</button>
   <button type="button" disabled={selection.ids.size === 0} onclick={() => (assigning = !assigning)} data-testid="assign-open">Assign to Muse…</button>
+  <button type="button" disabled={selection.ids.size === 0} aria-expanded={curation === "crate"} onclick={() => (curation = curation === "crate" ? "" : "crate")} data-testid="crate-open">Add to Crate…</button>
+  <button type="button" disabled={selection.ids.size === 0} aria-expanded={curation === "record"} onclick={() => (curation = curation === "record" ? "" : "record")} data-testid="record-open">Add to Record…</button>
   {#if openId}<a href="/songs/{openId}" data-testid="open-song">Open</a>{/if}
   <button type="button" disabled={selection.ids.size === 0} onclick={() => (selection = emptySelection())}>Clear</button>
   {#if !viewport.phone}<span class="muted">limit {MAX_TAKES} drafts per batch</span>{/if}
@@ -191,6 +201,15 @@
 {/if}
 {#if estimate.note}<p class="muted" data-testid="estimate-note">{estimate.note}</p>{/if}
 {#if note}<p role="status" data-testid="board-note">{note}</p>{/if}
+{#if curation === "crate" && toCrate.ids.length > 0}
+  <div class="panel" data-testid="board-crate-panel"><AddToCrate subject="song" ids={toCrate.ids} heading="Add {toCrate.ids.length} selected to a Crate" /></div>
+{/if}
+{#if curation === "record" && toRecord.songIds.length > 0}
+  <div class="panel" data-testid="board-record-panel">
+    <AddToRecord songIds={toRecord.songIds} human={humanViewer} heading="Add {toRecord.songIds.length} selected to a Record" />
+    {#if toRecord.note}<p class="muted">{toRecord.note}</p>{/if}
+  </div>
+{/if}
 {#if assigning}<MusePicker onpick={assign} oncancel={() => (assigning = false)} />{/if}
 
 {#if loading && !board}
@@ -242,6 +261,13 @@
   .actions.sticky > * {
     flex: none;
     white-space: nowrap;
+  }
+  .panel {
+    margin: var(--sp-2) 0;
+    padding: var(--sp-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
   }
   .spacer {
     height: 4rem;

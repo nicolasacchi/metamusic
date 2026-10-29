@@ -77,6 +77,7 @@ type ArtistRef struct {
 // ReplayGain is the replay gain data of a song; absent values are omitted.
 type ReplayGain struct {
 	TrackGain *float64 `json:"trackGain,omitempty" xml:"trackGain,attr,omitempty"`
+	AlbumGain *float64 `json:"albumGain,omitempty" xml:"albumGain,attr,omitempty"` // Record albums only (C126.7)
 	TrackPeak *float64 `json:"trackPeak,omitempty" xml:"trackPeak,attr,omitempty"`
 }
 
@@ -101,6 +102,7 @@ type Child struct {
 	Album                 string        `json:"album,omitempty" xml:"album,attr,omitempty"`
 	Artist                string        `json:"artist,omitempty" xml:"artist,attr,omitempty"`
 	Track                 int           `json:"track,omitempty" xml:"track,attr,omitempty"`
+	DiscNumber            int           `json:"discNumber,omitempty" xml:"discNumber,attr,omitempty"` // Record albums only (C126.7)
 	Year                  int           `json:"year,omitempty" xml:"year,attr,omitempty"`
 	Genre                 string        `json:"genre,omitempty" xml:"genre,attr,omitempty"`
 	CoverArt              string        `json:"coverArt,omitempty" xml:"coverArt,attr,omitempty"`

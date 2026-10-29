@@ -1,6 +1,10 @@
 package subsonic
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/nicolasacchi/metamusic/internal/albums"
+)
 
 func TestParseID(t *testing.T) {
 	t.Parallel()
@@ -16,6 +20,8 @@ func TestParseID(t *testing.T) {
 		{"", kindBad, ""},
 		{"al-", kindBad, ""},
 		{"tr-", kindBad, ""},
+		{"rec-01900000", kindRecord, "01900000"},
+		{"rec-", kindBad, ""},
 		{"ar-other", kindBad, ""},
 	} {
 		if kind, raw := parseID(tc.in); kind != tc.kind || raw != tc.raw {
@@ -24,6 +30,9 @@ func TestParseID(t *testing.T) {
 	}
 	if albumID("x") != "al-x" || coverTrackID("y") != "tr-y" || artistName != "metamusic" || artistID != "ar-"+artistName {
 		t.Error("id helpers")
+	}
+	if prefixRecord != albums.PrefixRecord {
+		t.Error("the Record album prefix must be albums.PrefixRecord")
 	}
 	if k, raw := parseID(albumID("r1")); k != kindAlbum || raw != "r1" {
 		t.Error("albumID does not round-trip")

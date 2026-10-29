@@ -14,6 +14,8 @@
   import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
+  import AddToCrate from "../lib/components/AddToCrate.svelte";
+  import AddToRecord from "../lib/components/AddToRecord.svelte";
   import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
   import ContextButton from "../lib/components/ContextButton.svelte";
   import MetricsCard from "../lib/components/MetricsCard.svelte";
@@ -70,6 +72,8 @@
   }
   // The Pick take of this take's Song, fetched only when this take is not the Pick.
   let pickTake = $state<{ id: string; title: string } | null>(null);
+  // The Song's Records and Crates (get_song), for the "In Records" chips.
+  let songRecords = $state<components["schemas"]["SongRecordRef"][]>([]);
   let overview = $state<Level | null>(null);
   let detail = $state<Level | null>(null);
   let width = $state(0);
@@ -111,12 +115,15 @@
         track = tr.data;
         pickTake = null;
         const sg = (tr.data as Track).song;
-        if (sg && (tr.data as Track).is_pick !== true) {
+        songRecords = [];
+        if (sg) {
           void api
             .GET("/api/songs/{id}", { params: { path: { id: sg.id }, query: { take_limit: 50, include_events: 0 } } })
             .then((r) => {
-              const p = r.data?.takes.find((x) => x.is_pick);
-              if (mine === id && p) pickTake = { id: p.id, title: p.title };
+              if (mine !== id || !r.data) return;
+              songRecords = r.data.records ?? [];
+              const p = (tr.data as Track).is_pick === true ? undefined : r.data.takes.find((x) => x.is_pick);
+              if (p) pickTake = { id: p.id, title: p.title };
             })
             .catch(() => {});
         }
@@ -267,6 +274,12 @@
         <section class="card">
           <h2>Comments</h2>
           <CommentsPanel trackId={id} bind:comments />
+        </section>
+        <section class="card" data-testid="track-curation">
+          <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} human={me?.kind === "human"} heading="Records" />
+        </section>
+        <section class="card">
+          <AddToCrate subject="take" ids={[id]} heading="Take Crates" />
         </section>
         <section class="card">
           <AddToPlaylist trackId={id} member={track.playlists} />

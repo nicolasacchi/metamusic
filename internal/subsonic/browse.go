@@ -15,18 +15,27 @@ import (
 // folderFrag resolves musicFolderId (D-M4a-10): absent = folders 1 + 2; 1, 2 or 3 = that folder; anything else is
 // error 70.
 func (c *call) folderFrag() (string, error) {
-	n := 0
-	if v := c.str("musicFolderId"); v != "" {
-		var err error
-		if n, err = strconv.Atoi(v); err != nil {
-			return "", fail(errNotFound, "music folder not found")
-		}
+	n, err := c.folderNum()
+	if err != nil {
+		return "", err
 	}
 	frag, err := folderWhere(n)
 	if err != nil {
 		return "", fail(errNotFound, "music folder not found")
 	}
 	return frag, nil
+}
+
+// folderNum parses musicFolderId (0 when absent); a value that is not a number is error 70.
+func (c *call) folderNum() (int, error) {
+	n := 0
+	if v := c.str("musicFolderId"); v != "" {
+		var err error
+		if n, err = strconv.Atoi(v); err != nil {
+			return 0, fail(errNotFound, "music folder not found")
+		}
+	}
+	return n, nil
 }
 
 // intParam reads a non-negative integer parameter, falling back to def when absent or malformed, capped at ceiling.
@@ -147,7 +156,7 @@ func toChildren(rows []songRow, mp3 bool) []Child {
 // toAlbum maps a lineage aggregate to AlbumID3.
 func toAlbum(a albumRow) AlbumID3 {
 	al := AlbumID3{
-		ID: albumID(a.ID), Name: a.Name, Artist: artistName, ArtistID: artistID, CoverArt: albumID(a.ID),
+		ID: a.id(), Name: a.Name, Artist: artistName, ArtistID: artistID, CoverArt: a.id(),
 		SongCount: a.SongCount, Duration: int(math.Round(a.DurationS)), PlayCount: a.Plays, Created: iso(a.Created),
 		Year: yearOf(a.RootRecorded), Genre: a.genre(), SortName: sortName(a.Name), DisplayArtist: artistName,
 		Artists: albumRef(), ReleaseTypes: []string{}, Moods: []string{}, DiscTitles: []DiscTitle{},
@@ -249,6 +258,11 @@ func (s *server) registerBrowse() {
 		if err != nil {
 			return err
 		}
+		stamp, err := c.recordStamp(cat)
+		if err != nil {
+			return err
+		}
+		last = max(last, stamp)
 		ix := &Indexes{LastModified: last, IgnoredArticles: ""}
 		c.resp.Indexes = ix
 		if v := c.str("ifModifiedSince"); v != "" {
@@ -256,7 +270,7 @@ func (s *server) registerBrowse() {
 				return nil
 			}
 		}
-		albums, err := cat.albums(c.ctx, albumQuery{folderWhere: frag})
+		albums, err := c.allAlbums(cat, frag)
 		if err != nil {
 			return err
 		}
@@ -267,7 +281,7 @@ func (s *server) registerBrowse() {
 			if _, seen := groups[l]; !seen {
 				names = append(names, l)
 			}
-			groups[l] = append(groups[l], Artist{ID: albumID(a.ID), Name: a.Name})
+			groups[l] = append(groups[l], Artist{ID: a.id(), Name: a.Name})
 		}
 		slices.Sort(names)
 		for _, n := range names {
@@ -290,11 +304,22 @@ func (s *server) registerBrowse() {
 		case kindBad:
 			return c.badID()
 		case kindArtist:
-			albums, err := cat.albums(c.ctx, albumQuery{folderWhere: frag})
+			albums, err := c.allAlbums(cat, frag)
 			if err != nil {
 				return err
 			}
 			c.resp.Directory = &Directory{ID: artistID, Name: artistName, Child: albumDirs(albums)}
+			return nil
+		case kindRecord:
+			mp3, err := c.mp3Default()
+			if err != nil {
+				return err
+			}
+			ra, err := c.recordAlbum(cat, raw)
+			if err != nil {
+				return err
+			}
+			c.resp.Directory = &Directory{ID: ra.row.id(), Name: ra.row.Name, Parent: artistID, Child: ra.children(mp3)}
 			return nil
 		case kindAlbum:
 			mp3, err := c.mp3Default()
@@ -359,7 +384,7 @@ func (s *server) registerBrowse() {
 		switch kind {
 		case kindBad:
 			return c.badID()
-		case kindAlbum:
+		case kindAlbum, kindRecord:
 		default:
 			return fail(errNotFound, "album not found")
 		}
@@ -370,6 +395,14 @@ func (s *server) registerBrowse() {
 		mp3, err := c.mp3Default()
 		if err != nil {
 			return err
+		}
+		if kind == kindRecord {
+			ra, err := c.recordAlbum(cat, raw)
+			if err != nil {
+				return err
+			}
+			c.resp.Album = &AlbumWithSong{AlbumID3: toAlbum(ra.row), Song: ra.children(mp3)}
+			return nil
 		}
 		a, songs, err := c.albumFor(c.ctx, cat, raw, frag, c.str("musicFolderId") != "")
 		if err != nil {
@@ -429,7 +462,7 @@ func (s *server) registerBrowse() {
 
 // artistFor builds the one artist with its albums in the folder rule.
 func (c *call) artistFor(cat *catalog, frag string) (*ArtistWithAlb, error) {
-	albums, err := cat.albums(c.ctx, albumQuery{folderWhere: frag})
+	albums, err := c.allAlbums(cat, frag)
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +474,7 @@ func (c *call) artistFor(cat *catalog, frag string) (*ArtistWithAlb, error) {
 				newest = a
 			}
 		}
-		ar.CoverArt = albumID(newest.ID)
+		ar.CoverArt = newest.id()
 	}
 	return ar, nil
 }
