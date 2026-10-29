@@ -42,7 +42,7 @@ func mcpGeneric(t *testing.T, s *mcp.ClientSession, op string, args map[string]a
 		}
 	}
 	if res.StructuredContent != nil {
-		b.WriteString(fmt.Sprint(res.StructuredContent))
+		fmt.Fprint(&b, res.StructuredContent)
 	}
 	return b.String()
 }
