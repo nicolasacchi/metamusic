@@ -107,7 +107,7 @@ func (s *Service) sweepOrphans(ctx context.Context, now time.Time) error {
 		}
 		info, err := d.Info()
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // a file that vanished mid-walk is not an error
 		}
 		if now.Sub(info.ModTime()) > orphanAge {
 			stray = append(stray, p)

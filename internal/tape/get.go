@@ -90,12 +90,12 @@ func (s *Service) scan(r rowScanner) (Tape, string, string, error) {
 	}
 	t.Warnings = make([]SlotWarning, len(doc.Warnings))
 	for i, w := range doc.Warnings {
-		t.Warnings[i] = SlotWarning{SlotID: w.SlotID, Code: w.Code}
+		t.Warnings[i] = SlotWarning(w)
 	}
 	if len(doc.Chapters) > 0 {
 		t.Chapters = make([]Chapter, len(doc.Chapters))
 		for i, c := range doc.Chapters {
-			t.Chapters[i] = Chapter{Index: c.Index, SlotID: c.SlotID, TakeID: c.TakeID, StartSample: c.StartSample, Samples: c.Samples, StartMS: c.StartMS}
+			t.Chapters[i] = Chapter(c)
 		}
 	}
 	if progress.Valid && t.State == StateRunning {

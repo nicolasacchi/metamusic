@@ -968,10 +968,9 @@ func TestTape_Run_WakesOnExport(t *testing.T) {
 
 // linkPipeline renders its file inside the data root, so the runner links it instead of copying.
 type linkPipeline struct {
-	data    *os.Root
-	dir     string
-	inner   *tapetest.FakePipeline
-	rewrote string
+	data  *os.Root
+	dir   string
+	inner *tapetest.FakePipeline
 }
 
 func (p *linkPipeline) Render(ctx context.Context, j tape.Job, pr func(tape.Progress)) (tape.Result, error) {

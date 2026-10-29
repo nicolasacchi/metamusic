@@ -190,7 +190,7 @@ func (s *Service) render(ctx context.Context, id string, pr prepared, params par
 			return
 		}
 		last = now
-		b, _ := json.Marshal(progressDoc{Phase: p.Phase, Item: p.Item, Items: p.Items})
+		b, _ := json.Marshal(progressDoc(p))
 		_, _ = s.o.Store.W.ExecContext(rctx, `UPDATE tapes SET progress_json = ? WHERE id = ? AND state = 'running' AND owner = ?`, string(b), id, s.owner())
 	}
 	job := Job{Snapshot: pr.snap, Items: pr.items, TargetLUFS: pr.target, Chapters: pr.chapters, Tags: pr.tags, CoverKey: pr.coverKey}
@@ -303,7 +303,7 @@ func (s *Service) markReady(ctx context.Context, id string, pr prepared, res Res
 	doc := pr.doc
 	doc.Chapters = make([]chapterDoc, len(res.Chapters))
 	for i, c := range res.Chapters {
-		doc.Chapters[i] = chapterDoc{Index: c.Index, SlotID: c.SlotID, TakeID: c.TakeID, StartSample: c.StartSample, Samples: c.Samples, StartMS: c.StartMS}
+		doc.Chapters[i] = chapterDoc(c)
 	}
 	planJSON, _ := json.Marshal(doc)
 	now := s.now()

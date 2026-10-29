@@ -289,7 +289,7 @@ func (s *Service) prepare(ctx context.Context, snap Snapshot, params paramsDoc, 
 		doc.SpreadLU = &spreadDoc{Before: spreadOf(before), After: spreadOf(after)}
 	}
 	for _, w := range snap.Warnings {
-		doc.Warnings = append(doc.Warnings, warningDoc{SlotID: w.SlotID, Code: w.Code})
+		doc.Warnings = append(doc.Warnings, warningDoc(w))
 	}
 	pr.doc = doc
 	pr.tags = BuildTags(TagsInput{Snapshot: snap, Items: pr.items, TargetLUFS: target, IncludeLiner: params.IncludeLiner})
