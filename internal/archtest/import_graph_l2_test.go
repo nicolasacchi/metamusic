@@ -40,7 +40,7 @@ var l2Imports = map[string][]string{
 	"internal/crates":     {"store", "auth", "songs", "sounds", "library", "problem"},
 	"internal/tape":       {"store", "auth", "mediatool", "media/flacmeta", "media/serve", "media/cover", "liner", "textfold", "problem"},
 	"internal/albums":     {"store", "records", "textfold", "media/cover", "problem"},
-	"internal/recordview": {"store", "auth", "records", "muses", "songs", "sessions", "sounds", "picks", "ears", "curation", "liner", "tape", "media/cover", "library", "problem"},
+	"internal/recordview": {"store", "auth", "records", "muses", "songs", "sessions", "sounds", "picks", "ears", "curation", "liner", "tape", "media/cover", "media/flacmeta", "library", "problem"}, // flacmeta: tape.Snapshot.Tags is []flacmeta.Comment (L2-V2)
 }
 
 func TestImportGraph_L2(t *testing.T) {
