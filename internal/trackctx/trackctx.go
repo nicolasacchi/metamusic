@@ -133,6 +133,7 @@ var order = map[string][]string{
 	"song":        {"id", "title", "angle", "state", "takes", "pick", "open_proposals", "pending", "siblings"},
 	"muse":        {"id", "kind", "title", "artist", "brief"},
 	"sounds":      {"taxonomy_version", "facets", "tempo"},
+	"curation":    {"records", "crates"},
 	"track":       {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
 	"recipe":      {"engine", "known", "hash", "request", "note"},
 	"provenance":  {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
@@ -180,9 +181,12 @@ func (b Bundle) MarshalJSON() ([]byte, error) {
 		name string
 		m    map[string]any
 	}{
-		{"track", b.Track}, {"song", b.Song}, {"muse", b.Muse}, {"sounds", b.Sounds}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage},
+		{"track", b.Track}, {"song", b.Song}, {"muse", b.Muse}, {"sounds", b.Sounds}, {"curation", b.Curation}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage},
 		{"judgments", b.Judgments}, {"perception", b.Perception}, {"listening", b.Listening}, {"_links", b.Links},
 	} {
+		if s.name == "curation" && s.m == nil {
+			continue // absent, not null, so bundles without L2 data are byte-identical to before
+		}
 		raw, err := sectionJSON(s.name, s.m)
 		if err != nil {
 			return nil, err
@@ -294,7 +298,7 @@ func request(b *Bundle) (set func(string, any) bool, get func(string) any) {
 }
 
 // Fit trims b to limit characters and returns its measured size and the trimmed
-// parts. Order: song siblings (12, 5, 0), muse brief (200), comments (20, 5, 0), children (10, 0), lyrics, style (500
+// parts. Order: curation crates and records (3, 0), song siblings (12, 5, 0), muse brief (200), comments (20, 5, 0), children (10, 0), lyrics, style (500
 // characters); the parts named by include are protected, except that an ABC text
 // longer than the limit is cut as a last resort. _budget is set to its fixed point.
 func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string) {
@@ -310,6 +314,14 @@ func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string)
 		if chars > limit && apply() {
 			note(name)
 			chars = settle(b)
+		}
+	}
+	if b.Curation != nil { // C130.4: crates, then records (6 -> 3 -> 0), before the siblings of the song
+		for _, n := range []int{3, 0} {
+			try("curation.crates", func() bool { return shrink(b.Curation, "crates", n) })
+		}
+		for _, n := range []int{3, 0} {
+			try("curation.records", func() bool { return shrink(b.Curation, "records", n) })
 		}
 	}
 	if b.Song != nil {
@@ -658,6 +670,10 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			return Bundle{}, err
 		}
 		out.Song, out.Muse, out.Sounds = ls.Song, ls.Muse, ls.Sounds
+	}
+	// curation (C130.4): the Records and Crates the take is in; absent without a reader or when there are none
+	if out.Curation, err = b.curationSection(ctx, d.ID); err != nil {
+		return Bundle{}, err
 	}
 
 	// recipe and provenance

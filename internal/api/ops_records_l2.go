@@ -2,20 +2,172 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/records"
+	"github.com/nicolasacchi/metamusic/internal/recordview"
 )
 
-// registerRecordsL2 registers the eight Records operations of C129. STUB(L2-V2): lane V2 replaces the handler bodies and
-// nothing else (never the Meta, the path, the types or the operation id).
+// defaultRecordIncludes is get_record's default when no include is sent; every other Records operation includes none, so the
+// liner (Muse text) is reachable through get_record alone (D-L2-27).
+var defaultRecordIncludes = []string{recordview.IncludeLiner, recordview.IncludeTapes, recordview.IncludeChanges}
+
+// recordKeyRef renders a stored Principal key for viewer. The Record tables keep the key only, so the key stands in for the name.
+func recordKeyRef(v auth.Principal, key string) PrincipalRef {
+	return RefFor(v, key, kindOfKey(key), key)
+}
+
+func recordWire(v auth.Principal, r records.Record) Record {
+	out := Record{ID: r.ID, Title: r.Title, Subtitle: r.Subtitle, LinerNote: r.LinerNote, Status: string(r.Status), Revision: r.Revision,
+		CoverRerolls: r.CoverRerolls, Hidden: r.HiddenAt != nil, CreatedBy: recordKeyRef(v, r.CreatedBy), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+	if r.ProposedBy != nil && r.ProposedAt != nil {
+		note := ""
+		if r.ProposalNote != nil {
+			note = *r.ProposalNote
+		}
+		out.Proposal = &RecordProposal{Note: note, By: recordKeyRef(v, *r.ProposedBy), At: *r.ProposedAt}
+	}
+	if r.PublishedBy != nil && r.PublishedAt != nil {
+		first := *r.PublishedAt
+		if r.FirstPublishedAt != nil {
+			first = *r.FirstPublishedAt
+		}
+		out.Published = &RecordPublication{By: recordKeyRef(v, *r.PublishedBy), At: *r.PublishedAt, FirstAt: first}
+	}
+	return out
+}
+
+func coverWire(c recordview.CoverRef) CoverLinks {
+	return CoverLinks{URL512: c.URL512, URL1024: c.URL1024, ExpiresAt: c.ExpiresAt}
+}
+
+func changeWire(v auth.Principal, c recordview.ChangeView) ChangeView {
+	out := ChangeView{Seq: c.Change.Seq, At: c.Change.At, Kind: c.Change.Kind, Text: c.Text, SlotID: c.Change.SlotID, Position: c.Change.Position,
+		Reason: c.Change.Reason, Actor: RefFor(v, c.Change.Actor, c.Change.ActorKind, c.Change.ActorName)}
+	if c.From != nil {
+		out.From = &TakeLink{ID: c.From.ID, Title: c.From.Title}
+	}
+	if c.To != nil {
+		out.To = &TakeLink{ID: c.To.ID, Title: c.To.Title}
+	}
+	if len(c.Change.Evidence) > 0 {
+		var m map[string]any
+		if json.Unmarshal(c.Change.Evidence, &m) == nil {
+			out.Evidence = m
+		}
+	}
+	return out
+}
+
+func slotWire(s recordview.SlotView) SlotView {
+	out := SlotView{ID: s.ID, Position: s.Position, Side: s.Side, Mode: string(s.Mode), State: string(s.State), PinDiffers: s.PinDiffers, GainDB: s.GainDB, Why: s.Why,
+		Song:     SlotSong{ID: s.Song.ID, Title: s.Song.Title, Angle: s.Song.Angle, State: s.Song.State, Retired: s.Song.Retired, RetiredInto: s.Song.RetiredInto},
+		Warnings: s.Warnings}
+	if out.Warnings == nil {
+		out.Warnings = []string{}
+	}
+	if t := s.Take; t != nil {
+		out.Take = &TakeBrief{ID: t.ID, Title: t.Title, Status: t.Status, DurationS: t.DurationS, Lossy: t.Lossy, Stars: t.Stars, RecipeKnown: t.RecipeKnown}
+	}
+	if p := s.Pick; p != nil {
+		out.Pick = &SlotPick{TakeID: p.TakeID, Source: p.Source}
+	}
+	return out
+}
+
+// recordViewWire maps a recordview.View to the wire shape, rendering principals for viewer.
+func recordViewWire(v auth.Principal, w recordview.View) RecordView {
+	out := RecordView{Record: recordWire(v, w.Record), Slots: make([]SlotView, len(w.Slots)), Cover: coverWire(w.Cover), Pending: w.Pending,
+		Totals:   RecordTotals{Slots: w.Totals.Slots, Playable: w.Totals.Playable, DurationS: w.Totals.DurationS, Lossy: w.Totals.Lossy, Warnings: w.Totals.Warnings, Undecided: w.Totals.Undecided},
+		Warnings: make([]RecordWarning, len(w.Warnings))}
+	for i, s := range w.Slots {
+		out.Slots[i] = slotWire(s)
+	}
+	for i, x := range w.Warnings {
+		out.Warnings[i] = RecordWarning{SlotID: x.SlotID, Code: x.Code}
+	}
+	if l := w.Liner; l != nil {
+		sum := map[string]any{}
+		_ = json.Unmarshal(l.Summary, &sum)
+		out.Liner = &RecordLiner{Markdown: l.Markdown, Summary: sum}
+	}
+	if e := w.Energy; e != nil {
+		oe := &Energy{TargetLUFS: e.TargetLUFS, TotalDurationS: e.TotalDurationS, Slots: make([]EnergySlot, len(e.Slots))}
+		for i, s := range e.Slots {
+			oe.Slots[i] = EnergySlot{SlotID: s.SlotID, DurationS: s.DurationS, GainDB: s.GainDB, MeanLUFS: s.MeanLUFS, BPM: s.BPM, LUFS: s.LUFS}
+			if oe.Slots[i].LUFS == nil {
+				oe.Slots[i].LUFS = []float64{}
+			}
+		}
+		out.Energy = oe
+	}
+	if w.Changes != nil {
+		out.Changes = make([]ChangeView, len(w.Changes))
+		for i, c := range w.Changes {
+			out.Changes[i] = changeWire(v, c)
+		}
+	}
+	if w.Tapes != nil {
+		out.Tapes = make([]TapeBrief, len(w.Tapes))
+		for i, t := range w.Tapes {
+			out.Tapes[i] = TapeBrief{ID: t.ID, State: string(t.State), CreatedAt: t.CreatedAt, FinishedAt: t.FinishedAt, ContainsLossy: t.ContainsLossy, Bytes: t.Bytes, ExpiresAt: t.ExpiresAt}
+		}
+	}
+	if p := w.Preview; p != nil {
+		op := &RecordPreview{Chapters: make([]PreviewChapter, len(p.Chapters)), Tags: make([]PreviewTag, len(p.Tags)), Description: p.Description,
+			Warnings: make([]TapeWarning, len(p.Warnings))}
+		for i, c := range p.Chapters {
+			op.Chapters[i] = PreviewChapter{Position: c.Position, Name: c.Name}
+		}
+		for i, t := range p.Tags {
+			op.Tags[i] = PreviewTag{Key: t.Key, Value: t.Value}
+		}
+		for i, x := range p.Warnings {
+			op.Warnings[i] = TapeWarning{SlotID: x.SlotID, Code: x.Code}
+		}
+		out.Preview = op
+	}
+	return out
+}
+
+// slotOps maps the wire operations to the service's. An absent position means the end for add (records.PositionEnd) and
+// reaches the service as 0 for move, which refuses it (INVALID_POSITION); a stray 0 on the wire reaches it too (F2).
+func slotOps(in []SlotOp) []records.SlotOp {
+	out := make([]records.SlotOp, len(in))
+	for i, o := range in {
+		op := records.SlotOp{Op: o.Op, SongID: o.SongID, SlotID: o.SlotID, TakeID: o.TakeID, SlotIDs: o.SlotIDs,
+			Side: records.OptString{Set: o.Side.Set, Null: o.Side.Null, Value: o.Side.Value}}
+		switch {
+		case o.Position != nil:
+			op.Position = *o.Position
+		case o.Op == "add":
+			op.Position = records.PositionEnd
+		}
+		out[i] = op
+	}
+	return out
+}
+
+// registerRecordsL2 registers the eight Records operations of C129 (lane V2). The mutating operations answer the Record with an
+// empty Include: no liner, so no Muse text reaches their responses, audit rows or idempotency rows (D-L2-27).
 func registerRecordsL2(a huma.API, d Deps) {
 	records := func() error {
 		if d.Records == nil || d.RecordView == nil {
 			return unavailable("records")
 		}
 		return nil
+	}
+	// view re-reads the Record after a write and answers it without any optional part.
+	view := func(ctx context.Context, p auth.Principal, id string) (*recordViewOut, error) {
+		v, err := d.RecordView.Get(ctx, p, id, recordview.GetOptions{})
+		if err != nil {
+			return nil, m2bErr(err, taskV2)
+		}
+		return &recordViewOut{Body: recordViewWire(p, v)}, nil
 	}
 
 	Register(a, huma.Operation{
@@ -27,7 +179,28 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			f := recordsListFilter(in)
+			page, err := d.Records.List(ctx, f)
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			p := auth.FromContext(ctx)
+			ids := make([]string, len(page.Items))
+			for i, it := range page.Items {
+				ids[i] = it.ID
+			}
+			covers, err := d.RecordView.CoverRefs(ctx, p, ids)
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			out := &recordsOut{}
+			out.Body.Items = make([]RecordSummary, len(page.Items))
+			for i, it := range page.Items {
+				out.Body.Items[i] = RecordSummary{ID: it.ID, Title: it.Title, Subtitle: it.Subtitle, Status: string(it.Status), Slots: it.Slots, Playable: it.Playable,
+					DurationS: it.DurationS, Revision: it.Revision, UpdatedAt: it.UpdatedAt, Hidden: it.Hidden, Warnings: it.Warnings, Cover: coverWire(covers[it.ID])}
+			}
+			out.Body.NextCursor, out.Body.Total = page.NextCursor, page.Total
+			return out, nil
 		})
 
 	Register(a, huma.Operation{
@@ -39,7 +212,16 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			inc := in.Include
+			if len(inc) == 0 {
+				inc = slices.Clone(defaultRecordIncludes)
+			}
+			p := auth.FromContext(ctx)
+			v, err := d.RecordView.Get(ctx, p, in.ID, recordview.GetOptions{Include: inc, ChangesLimit: in.ChangesLimit})
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return &recordViewOut{Body: recordViewWire(p, v)}, nil
 		})
 
 	Register(a, withBody(created(huma.Operation{
@@ -51,7 +233,12 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			p := auth.FromContext(ctx)
+			rec, err := d.Records.Create(ctx, p, recordsNew(in))
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return view(ctx, p, rec.ID)
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -63,7 +250,11 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			p := auth.FromContext(ctx)
+			if _, err := d.Records.Update(ctx, p, in.ID, recordsPatch(in)); err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return view(ctx, p, in.ID)
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -75,7 +266,11 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			p := auth.FromContext(ctx)
+			if _, err := d.Records.EditSlots(ctx, p, in.ID, in.Body.Revision, slotOps(in.Body.Ops)); err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return view(ctx, p, in.ID)
 		})
 
 	Register(a, huma.Operation{
@@ -87,7 +282,23 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			page, err := d.Records.Changes(ctx, recordsChangeFilter(in))
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			items, err := d.RecordView.ChangeViews(ctx, page.Items)
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			next := page.NextCursor
+			p := auth.FromContext(ctx)
+			out := &recordChangesOut{}
+			out.Body.Items = make([]ChangeView, len(items))
+			for i, c := range items {
+				out.Body.Items[i] = changeWire(p, c)
+			}
+			out.Body.NextCursor = next
+			return out, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -99,7 +310,11 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			p := auth.FromContext(ctx)
+			if _, err := d.Records.Propose(ctx, p, in.ID, in.Body.Revision, in.Body.Rationale); err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return view(ctx, p, in.ID)
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -111,6 +326,31 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err := records(); err != nil {
 				return nil, err
 			}
-			return nil, notImplemented(taskV2) // STUB(L2-V2)
+			p := auth.FromContext(ctx)
+			if _, err := d.Records.Publish(ctx, p, in.ID, in.Body.Revision, in.Body.Published); err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return view(ctx, p, in.ID)
 		})
+}
+
+func recordsListFilter(in *listRecordsIn) records.ListFilter {
+	f := records.ListFilter{Q: in.Q, SongID: in.SongID, IncludeHidden: in.IncludeHidden, Limit: in.Limit, Cursor: in.Cursor}
+	for _, s := range in.Status {
+		f.Statuses = append(f.Statuses, records.Status(s))
+	}
+	return f
+}
+
+func recordsNew(in *createRecordIn) records.NewRecord {
+	return records.NewRecord{Title: in.Body.Title, Subtitle: in.Body.Subtitle, LinerNote: in.Body.LinerNote, SongIDs: in.Body.SongIDs}
+}
+
+func recordsPatch(in *updateRecordIn) records.Patch {
+	b := in.Body
+	return records.Patch{Revision: b.Revision, Title: b.Title, Subtitle: b.Subtitle, LinerNote: b.LinerNote, CoverReroll: b.CoverReroll != nil && *b.CoverReroll, Hidden: b.Hidden}
+}
+
+func recordsChangeFilter(in *getRecordChangesIn) records.ChangeFilter {
+	return records.ChangeFilter{RecordID: in.ID, Order: in.Order, Cursor: in.Cursor, Kinds: in.Kind, Limit: in.Limit}
 }

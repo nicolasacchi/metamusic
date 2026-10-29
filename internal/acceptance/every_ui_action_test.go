@@ -333,7 +333,7 @@ func (s *uiState) afterStep(op string, res any) {
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
 		}
-	case "create_record":
+	case "create_record", "update_record", "edit_record_slots", "propose_record": // each answers the Record view with its new revision
 		if rec, _ := m["record"].(map[string]any); rec != nil {
 			s.record, _ = rec["id"].(string)
 			if rv, ok := rec["revision"].(float64); ok {
