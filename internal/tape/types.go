@@ -18,9 +18,11 @@ import (
 
 // Item is one slot of the snapshot, in order: the resolved Take, its master and its loudness measure.
 type Item struct {
-	SlotID                     string
-	Position                   int
-	TakeID, Title              string
+	SlotID        string
+	Position      int
+	TakeID, Title string
+	// Side is the slot's side label ("A"-"D") or ""; the chapter name carries it as a prefix (C128).
+	Side                       string
 	MasterRel, MasterSHA256    string
 	MasterBytes                int64
 	SampleRate, Bits, Channels int

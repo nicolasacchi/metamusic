@@ -269,7 +269,7 @@ func (s *Service) prepare(ctx context.Context, snap Snapshot, params paramsDoc, 
 		g := plans[i]
 		pi := PlannedItem{Item: it, Gain: g, Resampled: it.SampleRate != Rate, Upmixed: it.Channels == 1, Downmixed: it.Channels > 2}
 		pr.items[i] = pi
-		pr.chapters[i] = ChapterName(it.Title, "", it.Lossy) // Item carries no side yet: sided prefixes are not applied
+		pr.chapters[i] = ChapterName(it.Title, it.Side, it.Lossy)
 		if it.Lossy {
 			pr.lossy++
 		}
