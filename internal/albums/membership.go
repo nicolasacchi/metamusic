@@ -11,26 +11,59 @@ import (
 )
 
 // List returns the albums of the given kinds, all of them when none are given, ordered record (first_published_at, id),
-// muse (ordinal), unfiled. Only the record kind exists until lane A2: asking for muse or unfiled yields nothing.
+// muse (ordinal), unfiled. Without a Muse directory only the record kind exists (the auto-kinds need the Muses' neutral
+// facts), so asking for muse or unfiled then yields nothing.
 func (s *Service) List(ctx context.Context, kinds ...Kind) ([]Album, error) {
-	if len(kinds) > 0 && !slices.Contains(kinds, KindRecord) {
-		return nil, nil
+	want := func(k Kind) bool { return len(kinds) == 0 || slices.Contains(kinds, k) }
+	var out []Album
+	if want(KindRecord) {
+		pubs, err := s.rec.ResolvedPublished(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out = make([]Album, 0, len(pubs))
+		for _, p := range pubs {
+			if a, songs := recordAlbum(p); len(songs) > 0 {
+				out = append(out, a)
+			}
+		}
 	}
-	pubs, err := s.rec.ResolvedPublished(ctx)
+	auto, err := s.auto(ctx, want(KindMuse), want(KindUnfiled), "")
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Album, 0, len(pubs))
-	for _, p := range pubs {
-		if a, songs := recordAlbum(p); len(songs) > 0 {
-			out = append(out, a)
-		}
+	for _, a := range auto {
+		out = append(out, a.Album)
 	}
 	return out, nil
 }
 
+// auto builds the named auto-albums wanted; nothing without a directory.
+func (s *Service) auto(ctx context.Context, wantMuse, wantUnfiled bool, only string) ([]autoAlbum, error) {
+	if s.muses == nil || !wantMuse && !wantUnfiled {
+		return nil, nil
+	}
+	auto, err := s.autoAlbums(ctx, wantMuse, wantUnfiled)
+	if err != nil {
+		return nil, err
+	}
+	if only != "" { // Get names (and so may label) just the one album it returns
+		auto = slices.DeleteFunc(auto, func(a autoAlbum) bool { return a.ID != only })
+	}
+	if len(auto) == 0 {
+		return nil, nil
+	}
+	if err := s.applyNames(ctx, auto); err != nil {
+		return nil, err
+	}
+	return auto, nil
+}
+
 // Get returns one album and its songs in order; ErrNotFound for an unknown, unpublished, hidden or empty album.
 func (s *Service) Get(ctx context.Context, id string) (Album, []Song, error) {
+	if id == IDUnfiled || strings.HasPrefix(id, PrefixMuse) {
+		return s.getAuto(ctx, id)
+	}
 	recID, ok := strings.CutPrefix(id, PrefixRecord)
 	if !ok || recID == "" {
 		return Album{}, nil, ErrNotFound
@@ -45,6 +78,23 @@ func (s *Service) Get(ctx context.Context, id string) (Album, []Song, error) {
 		}
 		if a, songs := recordAlbum(p); len(songs) > 0 {
 			return a, songs, nil
+		}
+	}
+	return Album{}, nil, ErrNotFound
+}
+
+// getAuto finds one auto-album by id; its Labels call (opt-in only) covers that one Muse.
+func (s *Service) getAuto(ctx context.Context, id string) (Album, []Song, error) {
+	if s.muses == nil || id == PrefixMuse {
+		return Album{}, nil, ErrNotFound
+	}
+	auto, err := s.auto(ctx, id != IDUnfiled, id == IDUnfiled, id)
+	if err != nil {
+		return Album{}, nil, err
+	}
+	for _, a := range auto {
+		if a.ID == id {
+			return a.Album, a.songs, nil
 		}
 	}
 	return Album{}, nil, ErrNotFound

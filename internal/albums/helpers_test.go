@@ -50,6 +50,7 @@ func (c *countingConn) BeginTx(ctx context.Context, o driver.TxOptions) (driver.
 // world is a catalog over a FixtureL2 database; reads go through a counting pool, writes through the store's writer.
 type world struct {
 	St   *store.Store
+	R    *store.Store // the counting reader pool paired with the writer
 	Info librarytest.L2Info
 	Svc  *albums.Service
 	Set  *curation.Service
@@ -91,6 +92,7 @@ func newWorld(t *testing.T, dir albums.MuseDirectory) *world {
 	counted.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = counted.Close() })
 	rst := &store.Store{W: st.W, R: counted}
+	w.R = rst
 	w.Set = curation.New(rst, nil)
 	w.Svc = albums.New(rst, records.New(rst, nil, nil), dir, w.Set, nil)
 	return w
