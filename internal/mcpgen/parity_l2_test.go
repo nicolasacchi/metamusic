@@ -15,11 +15,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// l2StubStatus is the status of an L2 stub's answer: 501 NOT_IMPLEMENTED naming its lane. While a stub stands, its parity case
-// expects that failure, the same on REST, MCP and stdio; the lane that fills the handler removes the Status of its cases and
-// tunes Args and Masks against the L2 fixture (C132.2b, the final cases are lane INT-B's).
-const l2StubStatus = 501
-
 // l2ParityIDs are the 15 operations of C129 with an MCP face (5 tools and 10 generic). publish_record and
 // set_curation_settings are human-only: they have REST-only tests (TestPublish_*, TestSettings_HumanOnly,
 // TestOps_HumanOnly_NoMCP_L2).
@@ -95,8 +90,8 @@ var l2Cases = []ParityCase{
 		return map[string]any{"id": l2RecordOf(prev)["id"], "order": "asc"}
 	}},
 	{Op: "list_records", Masks: l2RecordMasks},
-	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: l2StubStatus},
-	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: l2StubStatus},
+	{Op: "export_record_tape", Args: fixedArgs(map[string]any{"id": "rec-stub"}), SkipGeneric: true, Status: 404},
+	{Op: "get_tape", Args: fixedArgs(map[string]any{"id": "tape-stub"}), Status: 404},
 	{Op: "list_crates"},
 	{Op: "get_crate", Args: fixedArgs(map[string]any{"id": "crate-stub"}), Status: 404},
 	{Op: "create_crate", Args: fixedArgs(map[string]any{"name": "Synthetic Crate 001", "kind": "manual"}), SkipGeneric: true, Masks: []string{"id", "created_by", "created_at", "updated_at"}},

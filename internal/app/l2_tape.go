@@ -9,12 +9,34 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
-// earsLoudness adapts Ears to tape.Loudness (lanes T1 and T2 own this file). Until T2 fills it every item is unmeasured,
-// which the plan renders as gain 0 with a warning, never an error.
+// earsLoudness adapts Ears to tape.Loudness: it analyses the Takes whose loudness is missing (Ears runs only the missing
+// analyzers) and reads the integrated loudness and true peak back. A Take that cannot be analysed, or whose loudness stays
+// empty, is left out of the map, which the plan renders as unmeasured (gain 0, never an error).
 type earsLoudness struct{ ears *ears.Service }
 
-func (earsLoudness) Ensure(context.Context, []string) (map[string]tape.Measure, error) {
-	return map[string]tape.Measure{}, nil
+func (l earsLoudness) Ensure(ctx context.Context, takeIDs []string) (map[string]tape.Measure, error) {
+	out := make(map[string]tape.Measure, len(takeIDs))
+	if l.ears == nil {
+		return out, nil
+	}
+	for _, id := range takeIDs {
+		if err := ctx.Err(); err != nil {
+			return out, err
+		}
+		p, err := l.ears.Perception(ctx, id)
+		if err != nil || p.LUFSI == nil || p.TruePeakDB == nil {
+			if _, aerr := l.ears.AnalyzeTrack(ctx, id, ears.AnalyzeOptions{}); aerr != nil {
+				continue
+			}
+			if p, err = l.ears.Perception(ctx, id); err != nil {
+				continue
+			}
+		}
+		if p.LUFSI != nil && p.TruePeakDB != nil {
+			out[id] = tape.Measure{LUFS: *p.LUFSI, TruePeakDBTP: *p.TruePeakDB, OK: true}
+		}
+	}
+	return out, nil
 }
 
 // tapeBriefsOf is the late-bound view of the tape service recordview lists tapes through.
