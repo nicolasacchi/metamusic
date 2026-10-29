@@ -108,6 +108,12 @@ func songViewWire(v auth.Principal, w songview.View) SongView {
 		m := *w.Muse
 		out.Muse = &m
 	}
+	for _, r := range w.Records {
+		out.Records = append(out.Records, SongRecordRef{ID: r.ID, Title: r.Title, Status: r.Status, Mode: r.Mode})
+	}
+	for _, c := range w.Crates {
+		out.Crates = append(out.Crates, SongCrateRef{ID: c.ID, Name: c.Name})
+	}
 	if d := w.Draft; d != nil {
 		out.Draft = &SongDraft{ID: d.ID, Status: d.Status, Revision: d.Revision, Label: d.Label, RequestID: d.RequestID, GroupKey: d.GroupKey}
 	}

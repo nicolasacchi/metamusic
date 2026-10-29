@@ -52,6 +52,8 @@ var l2Ops = []l2Op{
 var implementedL2 = map[string]bool{
 	"list_crates": true, "get_crate": true, "create_crate": true, "update_crate": true, "edit_crate_items": true, // L2-K
 	"get_curation_settings": true, "set_curation_settings": true, // L2-A
+	"list_records": true, "get_record": true, "create_record": true, "update_record": true, "edit_record_slots": true,
+	"get_record_changes": true, "propose_record": true, "publish_record": true, // L2-V2
 }
 
 func l2Deps() api.Deps {
@@ -278,11 +280,11 @@ func TestOps_AuthorizationL2(t *testing.T) {
 				t.Errorf("%s as %s: %d %v, want 403 HUMAN_ONLY", w.id, name, code, body)
 			}
 		}
-		if implementedL2[w.id] { // the operator's path through a real handler is covered by the lane's own tests
-			continue
-		}
-		if code, _ := l2Call(r, human, w); code != 501 {
-			t.Errorf("%s as the operator: %d, want 501 from the stub", w.id, code)
+		// the operator reaches the handler; an implemented op needs a real store, so ops_records_l2_test.go covers it end to end
+		if !implementedL2[w.id] {
+			if code, _ := l2Call(r, human, w); code != 501 {
+				t.Errorf("%s as the operator: %d, want 501 from the stub", w.id, code)
+			}
 		}
 		if code, _ := l2Call(r, auth.Principal{}, w); code != 401 {
 			t.Errorf("%s anonymous: %d, want 401", w.id, code)
@@ -349,14 +351,14 @@ func TestOptSide_Decode(t *testing.T) {
 			t.Errorf("%s: %+v", tc.in, op.Side)
 		}
 	}
-	r := l2Rig(t, l2Deps())
+	r := l2Rig(t, api.Deps{}) // no services: a body the schema accepts reaches the handler and answers 503
 	call := func(side string) int {
 		body := `{"revision":1,"ops":[{"op":"set_side","slot_id":"s","side":` + side + `}]}`
 		return r.callWith(l2Agent(auth.ScopeRead, auth.ScopeWrite), "POST", "/api/records/x/slots", body).Code
 	}
 	for _, s := range []string{`"A"`, `"D"`, `null`} {
-		if c := call(s); c != 501 {
-			t.Errorf("side %s: %d, want 501 from the stub (the schema accepts it)", s, c)
+		if c := call(s); c != 503 {
+			t.Errorf("side %s: %d, want 503 from the handler (the schema accepts it)", s, c)
 		}
 	}
 	for _, s := range []string{`"E"`, `"a"`, `1`, `""`} {
