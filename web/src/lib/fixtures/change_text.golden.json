@@ -1,0 +1,643 @@
+[
+  {
+    "name": "created",
+    "change": {
+      "id": "ch-created",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "created",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Record created"
+  },
+  {
+    "name": "renamed",
+    "change": {
+      "id": "ch-renamed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "renamed",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Title changed"
+  },
+  {
+    "name": "retexted",
+    "change": {
+      "id": "ch-retexted",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "retexted",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Notes changed"
+  },
+  {
+    "name": "cover_rerolled",
+    "change": {
+      "id": "ch-cover_rerolled",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "cover_rerolled",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Cover re-rolled"
+  },
+  {
+    "name": "hidden",
+    "change": {
+      "id": "ch-hidden",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "hidden",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Hidden"
+  },
+  {
+    "name": "unhidden",
+    "change": {
+      "id": "ch-unhidden",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "unhidden",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Unhidden"
+  },
+  {
+    "name": "proposed",
+    "change": {
+      "id": "ch-proposed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "proposed",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Proposed for publishing"
+  },
+  {
+    "name": "proposal_dismissed",
+    "change": {
+      "id": "ch-proposal_dismissed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "proposal_dismissed",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "reason": "edited"
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Sent back to draft"
+  },
+  {
+    "name": "published",
+    "change": {
+      "id": "ch-published",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "published",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Published"
+  },
+  {
+    "name": "unpublished",
+    "change": {
+      "id": "ch-unpublished",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "unpublished",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Unpublished"
+  },
+  {
+    "name": "slot_added",
+    "change": {
+      "id": "ch-slot_added",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_added",
+      "slot_id": "sl-1",
+      "position": 3,
+      "from_take_id": null,
+      "to_take_id": "tk-a",
+      "reason": "initial",
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 3 added: Synthetic Take A"
+  },
+  {
+    "name": "slot_removed",
+    "change": {
+      "id": "ch-slot_removed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_removed",
+      "slot_id": "sl-1",
+      "position": 2,
+      "from_take_id": "tk-a",
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 2 removed (Synthetic Take A)"
+  },
+  {
+    "name": "slot_moved",
+    "change": {
+      "id": "ch-slot_moved",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_moved",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "from": 4
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot moved 4 → 1"
+  },
+  {
+    "name": "slot_side",
+    "change": {
+      "id": "ch-slot_side",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_side",
+      "slot_id": "sl-1",
+      "position": 2,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "side": "B"
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 2 side B"
+  },
+  {
+    "name": "slot_pinned",
+    "change": {
+      "id": "ch-slot_pinned",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_pinned",
+      "slot_id": "sl-1",
+      "position": 3,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "pin",
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 3 pinned to Synthetic Take B"
+  },
+  {
+    "name": "slot_unpinned",
+    "change": {
+      "id": "ch-slot_unpinned",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_unpinned",
+      "slot_id": "sl-1",
+      "position": 3,
+      "from_take_id": "tk-b",
+      "to_take_id": "tk-a",
+      "reason": "unpin",
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 3 unpinned: follows the Pick (Synthetic Take A)"
+  },
+  {
+    "name": "slot_filled",
+    "change": {
+      "id": "ch-slot_filled",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_filled",
+      "slot_id": "sl-1",
+      "position": 5,
+      "from_take_id": null,
+      "to_take_id": "tk-a",
+      "reason": "ladder",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "ladder",
+        "eligible": 3,
+        "duels_n": 4
+      },
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 5 filled: Synthetic Take A (won 4 blind duels)"
+  },
+  {
+    "name": "slot_emptied",
+    "change": {
+      "id": "ch-slot_emptied",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_emptied",
+      "slot_id": "sl-1",
+      "position": 5,
+      "from_take_id": "tk-a",
+      "to_take_id": null,
+      "reason": "emptied",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "newest",
+        "eligible": 2
+      },
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 5 emptied: no playable take (was Synthetic Take A)"
+  },
+  {
+    "name": "slot_song_followed",
+    "change": {
+      "id": "ch-slot_song_followed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_song_followed",
+      "slot_id": "sl-1",
+      "position": 2,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "retired",
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 2 follows the merged song"
+  },
+  {
+    "name": "slot_upgraded, ladder 4 duels",
+    "change": {
+      "id": "ch-slot_upgraded",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_upgraded",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "ladder",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "ladder",
+        "eligible": 3,
+        "duels_n": 4
+      },
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 1 upgraded: Synthetic Take A → Synthetic Take B (won 4 blind duels)"
+  },
+  {
+    "name": "slot_upgraded, ladder 1 duel",
+    "change": {
+      "id": "ch-slot_upgraded",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_upgraded",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "ladder",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "ladder",
+        "eligible": 2,
+        "duels_n": 1
+      },
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 1 upgraded: Synthetic Take A → Synthetic Take B (won 1 blind duel)"
+  },
+  {
+    "name": "slot_upgraded, stars tied 3",
+    "change": {
+      "id": "ch-slot_upgraded",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_upgraded",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "stars",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "stars",
+        "eligible": 4,
+        "stars": 5,
+        "tied": 3
+      },
+      "detail": {
+        "undecided": true
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 1 upgraded: Synthetic Take A → Synthetic Take B (5★ (newest of 3 tied) · undecided)"
+  },
+  {
+    "name": "slot_upgraded, stars untied",
+    "change": {
+      "id": "ch-slot_upgraded",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_upgraded",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "stars",
+      "pick_event_id": null,
+      "evidence": {
+        "def": "mm.pick/1",
+        "rule": "stars",
+        "eligible": 2,
+        "stars": 4,
+        "tied": 1
+      },
+      "detail": {
+        "undecided": true
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 1 upgraded: Synthetic Take A → Synthetic Take B (4★ · undecided)"
+  },
+  {
+    "name": "slot_upgraded, evidence missing",
+    "change": {
+      "id": "ch-slot_upgraded",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_upgraded",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": "tk-a",
+      "to_take_id": "tk-b",
+      "reason": "ladder",
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": null,
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot 1 upgraded: Synthetic Take A → Synthetic Take B (won blind duels)"
+  }
+]
