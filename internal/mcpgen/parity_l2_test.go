@@ -15,11 +15,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// l2StubStatus is the status of an L2 stub's answer: 501 NOT_IMPLEMENTED naming its lane. While a stub stands, its parity case
-// expects that failure, the same on REST, MCP and stdio; the lane that fills the handler removes the Status of its cases and
-// tunes Args and Masks against the L2 fixture (C132.2b, the final cases are lane INT-B's).
-const l2StubStatus = 501
-
 // l2ParityIDs are the 15 operations of C129 with an MCP face (5 tools and 10 generic). publish_record and
 // set_curation_settings are human-only: they have REST-only tests (TestPublish_*, TestSettings_HumanOnly,
 // TestOps_HumanOnly_NoMCP_L2).
