@@ -163,7 +163,7 @@ func TestAlbums_TokenNoDirectoryScan(t *testing.T) {
 	if err != nil || spy.versions.Load() != 1 {
 		t.Fatalf("Token = %q, %v after %d Version calls", a, err, spy.versions.Load())
 	}
-	list(t, w)
+	list(t, w, albums.KindRecord)
 	if _, _, err := w.Svc.Get(ctx, "rec-"+w.Info.Records["R1"]); err != nil {
 		t.Fatal(err)
 	}

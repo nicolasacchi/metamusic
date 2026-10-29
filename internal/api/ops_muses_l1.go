@@ -75,6 +75,13 @@ func registerMusesL1(a huma.API, d Deps) {
 				return nil, m2bErr(err, "L1-B5")
 			}
 			out := &museDetailOut{Body: MuseDetail{Muse: museWire(auth.FromContext(ctx), m), Coverage: coverageWire(cov), Angles: []MuseAngleCount{}, Songs: []SongSummary{}}}
+			ref, ok, err := d.Albums.MuseAlbum(ctx, m.ID) // nil while the Muse has no album or no catalog is wired
+			if err != nil {
+				return nil, m2bErr(err, "L2-A2")
+			}
+			if ok {
+				out.Body.Catalog = &MuseCatalog{ID: ref.ID, NeutralName: ref.NeutralName}
+			}
 			for _, a := range angles {
 				out.Body.Angles = append(out.Body.Angles, MuseAngleCount{Angle: a.Angle, Songs: a.Songs})
 			}
