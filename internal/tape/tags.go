@@ -12,7 +12,7 @@ import (
 const TapeVersion = "mm-tape/1"
 
 const (
-	// ReplayGainReferenceLUFS is the ReplayGain 2.0 reference loudness: album gain = reference - target.
+	// ReplayGainReferenceLUFS is the ReplayGain 2.0 reference loudness: the whole-tape gain tag = reference - target.
 	ReplayGainReferenceLUFS = -18.0
 	maxTagValue             = 1024
 )
@@ -35,8 +35,8 @@ type TagsInput struct {
 }
 
 // BuildTags returns the tag set of a tape (C128.4 step 6) that is known before rendering, in a fixed order, so it can go
-// into the input key and Job.Tags: the snapshot's own tags (TITLE, ALBUM, ARTIST, DATE, GENRE and the export extras; TITLE and
-// ALBUM default to the Record title and ARTIST to "metamusic"), then DESCRIPTION (the liner text when IncludeLiner, plus the
+// into the input key and Job.Tags: the snapshot's own tags ("TITLE", "ALBUM", "ARTIST", "DATE", "GENRE" and the export extras; TITLE and
+// "ALBUM" default to the Record title and ARTIST to "metamusic"), then DESCRIPTION (the liner text when IncludeLiner, plus the
 // lossy line), REPLAYGAIN_ALBUM_GAIN, and the MM_* provenance. REPLAYGAIN_ALBUM_PEAK is added by the pipeline after the
 // render. The result is the same for the same inputs.
 func BuildTags(in TagsInput) []flacmeta.Comment {
