@@ -15,6 +15,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -52,6 +53,7 @@ type Options struct {
 	Playlists *playlists.Service
 	Listening *listening.Service
 	Covers    CoverSource
+	Albums    *albums.Service // Record albums (L2 C126.7); nil => lineage albums only
 	Downloads DownloadSource
 	Creds     *auth.SubsonicStore
 	Audit     *audit.Store
@@ -104,6 +106,8 @@ type server struct {
 	covers  CoverSource
 	dls     DownloadSource
 	play    *playState
+	alb     albumSource // nil => no Record albums
+	stamp   recStamp
 }
 
 // NewHandler returns the handler mounted by httpserver at /rest/.
@@ -154,6 +158,9 @@ func newServer(o Options) *server {
 	}
 	if o.Downloads != nil {
 		s.dls = o.Downloads
+	}
+	if o.Albums != nil {
+		s.alb = o.Albums
 	}
 	s.registerSystem()
 	s.registerBrowse()

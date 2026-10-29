@@ -36,6 +36,21 @@ func folderWhere(folder int) (string, error) {
 	return "", errUnknownFolder
 }
 
+// folderStatuses is folderWhere as a set of track statuses, for the Record albums whose members are filtered in Go.
+func folderStatuses(folder int) (map[string]bool, error) {
+	switch folder {
+	case 0:
+		return map[string]bool{"final": true, "to_relisten": true, "draft": true}, nil
+	case 1:
+		return map[string]bool{"final": true, "to_relisten": true}, nil
+	case 2:
+		return map[string]bool{"draft": true}, nil
+	case 3:
+		return map[string]bool{"discarded": true}, nil
+	}
+	return nil, errUnknownFolder
+}
+
 // catalog reads the library through the read pool.
 type catalog struct{ db *sql.DB }
 
@@ -225,6 +240,15 @@ type albumRow struct {
 	Stars                   sql.NullInt64
 	Starred                 sql.NullString
 	Modified                string
+	ExtID                   string // the full album id of a Record album (rec-<id>); empty for a lineage (al-<root>)
+}
+
+// id is the Subsonic id of the album: al-<root> for a lineage, the full id for a Record album.
+func (a albumRow) id() string {
+	if a.ExtID != "" {
+		return a.ExtID
+	}
+	return albumID(a.ID)
 }
 
 func (a albumRow) genre() string {
@@ -511,4 +535,32 @@ func (c *catalog) playlist(ctx context.Context, id string) (playlistRow, bool, e
 		return playlistRow{}, false, nil
 	}
 	return p, err == nil, err
+}
+
+// recordCreated maps every published, non-hidden Record to its first_published_at (the Record album's `created`, C126.7).
+func (c *catalog) recordCreated(ctx context.Context) (map[string]string, error) {
+	rows, err := c.db.QueryContext(ctx, `SELECT id, COALESCE(first_published_at, published_at, created_at) FROM records WHERE status = 'published' AND hidden_at IS NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("subsonic: record dates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]string{}
+	for rows.Next() {
+		var id, at string
+		if err := rows.Scan(&id, &at); err != nil {
+			return nil, err
+		}
+		out[id] = at
+	}
+	return out, rows.Err()
+}
+
+// recordsUpdated is the newest updated_at over every Record in any state ("" when there is none): the floor of the
+// Record part of getIndexes' lastModified, so an unpublish (which leaves the catalog) still moves the stamp.
+func (c *catalog) recordsUpdated(ctx context.Context) (string, error) {
+	var at sql.NullString
+	if err := c.db.QueryRowContext(ctx, `SELECT MAX(updated_at) FROM records`).Scan(&at); err != nil {
+		return "", fmt.Errorf("subsonic: records stamp: %w", err)
+	}
+	return at.String, nil
 }

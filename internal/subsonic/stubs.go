@@ -1,5 +1,11 @@
 package subsonic
 
+import (
+	"errors"
+
+	"github.com/nicolasacchi/metamusic/internal/albums"
+)
+
 // registerStubs adds the endpoints that answer a fixed shape: the library has no top songs, no now-playing list, no
 // scan and no artist or album biographies (C109). An info stub still requires an existing id.
 func (s *server) registerStubs() {
@@ -54,6 +60,14 @@ func (s *server) registerStubs() {
 				return err
 			} else if ok {
 				return nil
+			}
+		case kindRecord:
+			if c.s.alb != nil {
+				if _, _, err := c.s.alb.Get(c.ctx, prefixRecord+raw); err == nil {
+					return nil
+				} else if !errors.Is(err, albums.ErrNotFound) {
+					return err
+				}
 			}
 		case kindSong:
 			if _, ok, err := cat.song(c.ctx, raw); err != nil {

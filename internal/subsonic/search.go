@@ -65,7 +65,7 @@ func (c *call) search() (searchHits, error) {
 		h.artist = []ArtistID3{ar.ArtistID3}
 	}
 	if n := c.intParam("albumCount", 20, maxCount); n > 0 {
-		if h.albums, err = cat.searchAlbums(c.ctx, frag, p.fts, n, c.intParam("albumOffset", 0, 1<<30)); err != nil {
+		if h.albums, err = c.searchAlbums(cat, frag, p, n, c.intParam("albumOffset", 0, 1<<30)); err != nil {
 			return h, err
 		}
 	}
