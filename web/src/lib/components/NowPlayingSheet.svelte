@@ -4,6 +4,7 @@
   import { tick } from "svelte";
   import { api } from "../../api/client";
   import { fmt } from "../time";
+  import { isTapeItem } from "../recordMedia";
   import { judge } from "../judge.svelte";
   import { player } from "../player.svelte";
   import { dragCloses, sheet } from "../nowPlaying.svelte";
@@ -23,7 +24,9 @@
 
   const s = $derived(player.state);
   const trackId = $derived(s.trackId);
-  const j = $derived(trackId ? judge.get(trackId) : undefined);
+  /** A `tape:<id>` current item is not a take: no rating, comments, cover fetch, peaks or take link. */
+  const tape = $derived(isTapeItem(trackId));
+  const j = $derived(trackId && !tape ? judge.get(trackId) : undefined);
   const phone = $derived(viewport.phone);
   let root = $state<HTMLElement>();
   let closeBtn = $state<HTMLButtonElement>();
@@ -35,7 +38,7 @@
   $effect(() => {
     const id = trackId;
     commenting = false;
-    if (!sheet.open || !id || judge.get(id) || navigator.onLine === false) return;
+    if (!sheet.open || !id || tape || judge.get(id) || navigator.onLine === false) return;
     void (async () => {
       try {
         const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
@@ -58,6 +61,10 @@
   $effect(() => {
     const id = trackId;
     if (!sheet.open || !id || id === peaksFor) return;
+    if (isTapeItem(id)) {
+      peaks = null;
+      return;
+    }
     peaksFor = id;
     peaks = null;
     if (navigator.onLine === false) return;
@@ -179,7 +186,7 @@
         <QueueList />
       {:else}
         <div class="meta">
-          <CoverArt {trackId} title="" size={112} />
+          {#if !tape}<CoverArt {trackId} title="" size={112} />{/if}
           <div class="text">
             <h2 data-testid="np-title">{player.title}</h2>
             <p class="muted album">{player.album}</p>
@@ -209,10 +216,10 @@
         {/if}
 
         <div class="acts">
-          <button type="button" aria-expanded={commenting} data-testid="np-comment" onclick={() => (commenting = !commenting)}>Comment at {fmt(s.current)}</button>
-          <a class="btn" href="/tracks/{trackId}" data-testid="np-open-take" onclick={(e) => inSheetNav(e, `/tracks/${encodeURIComponent(trackId)}`)}>Open take</a>
+          {#if !tape}<button type="button" aria-expanded={commenting} data-testid="np-comment" onclick={() => (commenting = !commenting)}>Comment at {fmt(s.current)}</button>{/if}
+          {#if !tape}<a class="btn" href="/tracks/{trackId}" data-testid="np-open-take" onclick={(e) => inSheetNav(e, `/tracks/${encodeURIComponent(trackId)}`)}>Open take</a>{/if}
         </div>
-        {#if commenting}
+        {#if commenting && !tape}
           <div class="composer" data-testid="np-composer">
             <CommentComposer {trackId} current={s.current} playing={true} oncreated={() => (commenting = false)} oncancel={() => (commenting = false)} />
           </div>

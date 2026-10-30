@@ -134,3 +134,19 @@ describe("listen recorder", () => {
     expect(kinds()).toEqual([]);
   });
 });
+
+describe("listen recorder: tape items", () => {
+  test("a tape current item emits no listen events; the track before it still closes", () => {
+    const { el, player, out, at, kinds } = setup();
+    el.fire("play");
+    at(5);
+    player.state.trackId = "tape:abc";
+    el.currentTime = 0;
+    el.fire("play");
+    at(20);
+    el.fire("pause");
+    el.fire("ended");
+    expect(out.every((e) => e.track_id === "A")).toBe(true);
+    expect(kinds()).toEqual(["start", "segment", "skip"]);
+  });
+});

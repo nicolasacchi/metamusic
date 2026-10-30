@@ -5,6 +5,7 @@ import { newEventId, outbox, startOutbox, type ListenEvent } from "../api/outbox
 import { getDevice } from "./device.svelte";
 import { uuidv7 } from "./id";
 import type { Player } from "./player.svelte";
+import { isTapeItem } from "./recordMedia";
 
 export type { ListenEvent };
 
@@ -46,6 +47,7 @@ export function createRecorder(deps: RecorderDeps) {
   let duration = 0;
 
   function emit(kind: ListenEvent["kind"], extra: Partial<ListenEvent>, trackId = track) {
+    if (isTapeItem(trackId)) return; // a tape is not a take: no listen events (the server would reject the id)
     const dev = deps.deviceId();
     const fmt = deps.player.state.format;
     deps.emit({

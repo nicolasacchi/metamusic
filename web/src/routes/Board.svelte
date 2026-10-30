@@ -172,7 +172,6 @@
   let curation = $state<"" | "crate" | "record">("");
   const toCrate = $derived(crateFromSelection(grid, selection));
   const toRecord = $derived(recordFromSelection(grid, selection));
-  const humanViewer = $derived(me !== null && me.kind === "human");
   const openId = $derived(selection.ids.size === 1 ? [...selection.ids][0]! : "");
 </script>
 
@@ -206,7 +205,7 @@
 {/if}
 {#if curation === "record" && toRecord.songIds.length > 0}
   <div class="panel" data-testid="board-record-panel">
-    <AddToRecord songIds={toRecord.songIds} human={humanViewer} heading="Add {toRecord.songIds.length} selected to a Record" />
+    <AddToRecord songIds={toRecord.songIds} viewer={me} heading="Add {toRecord.songIds.length} selected to a Record" />
     {#if toRecord.note}<p class="muted">{toRecord.note}</p>{/if}
   </div>
 {/if}

@@ -61,7 +61,7 @@ describe("HumanPublish", () => {
   const v = recordView(2, { preview });
   const h = render(HumanPublish, { props: { id: "rec-1", initial: v, navigate: () => {} } } as never).body;
   test("preview lists chapter names, tags, liner and warnings", () => {
-    expect(h).toContain("Synthetic take 2 (lossy source)");
+    expect(h).toContain("Synthetic take 2 [lossy source]");
     expect(h).toContain("TITLE");
     expect(h).toContain("1. Synthetic song 1");
     expect(h).toContain("Slot 2");

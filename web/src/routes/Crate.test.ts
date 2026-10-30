@@ -110,12 +110,12 @@ describe("AddToCrate / AddToRecord", () => {
     expect(h).toContain('href="/crates/c1"');
   });
   const rec = (id: string, status: string, hidden = false) => ({ id, title: `Rec ${id}`, subtitle: "", status, hidden, revision: 1, slots: 0, playable: 0, duration_s: 0, updated_at: "", warnings: 0, cover: {} });
-  test("a published Record is offered to humans only", () => {
+  test("a published Record is offered per recordView.canEdit (human and device, not agent)", () => {
     const records = [rec("r1", "draft"), rec("r2", "published")];
-    const agent = html(AddToRecord, { songIds: ["s1"], initialRecords: records, human: false });
+    const agent = html(AddToRecord, { songIds: ["s1"], initialRecords: records, viewer: { kind: "agent", scopes: ["read", "write"] } });
     expect(agent).toContain("Rec r1");
     expect(agent).not.toContain("Rec r2");
-    expect(html(AddToRecord, { songIds: ["s1"], initialRecords: records, human: true })).toContain("Rec r2");
+    expect(html(AddToRecord, { songIds: ["s1"], initialRecords: records, viewer: { kind: "human", scopes: ["read", "write"] } })).toContain("Rec r2");
   });
   test("more than 60 Songs: the cap note", () => {
     const h = html(AddToRecord, { songIds: Array.from({ length: 75 }, (_, i) => `s${i}`), initialRecords: [] });
