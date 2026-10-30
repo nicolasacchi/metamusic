@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/nicolasacchi/metamusic/internal/notify"
+	"github.com/nicolasacchi/metamusic/internal/startup"
 	"net/http"
 	"reflect"
 	"slices"
@@ -67,6 +68,8 @@ type Deps struct {
 	Cfg             config.Config
 	Version, Commit string
 	Started         time.Time
+	// Startup reports the startup derivation steps that are failing (serve is degraded); nil => none.
+	Startup *startup.Health
 
 	// M1 (nil-safe: registration never dereferences them; handlers answer 503).
 	Library *library.Service

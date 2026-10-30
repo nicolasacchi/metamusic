@@ -3,6 +3,8 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/startup"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -498,6 +500,21 @@ func TestSystemInfoUsesDepsNow(t *testing.T) {
 	m := (&rig{mux: mux}).get(t, agent, "/api/system")
 	if m["uptime_s"] != float64(90) || m["started_at"] != "2026-10-06T11:58:30Z" {
 		t.Errorf("system: %v", m)
+	}
+}
+
+func TestSystemInfoReportsStartupIssues(t *testing.T) {
+	t.Parallel()
+	h := startup.New(nil)
+	mux := http.NewServeMux()
+	api.New(mux, api.Deps{Startup: h, Now: func() time.Time { return lt.FixedNow }})
+	r := &rig{mux: mux}
+	if m := r.get(t, agent, "/api/system"); fmt.Sprint(m["startup_issues"]) != "[]" {
+		t.Errorf("healthy: %v", m["startup_issues"])
+	}
+	h.Fail("library_settle", "SETTLE_FAILED")
+	if m := r.get(t, agent, "/api/system"); fmt.Sprint(m["startup_issues"]) != "[library_settle=SETTLE_FAILED]" {
+		t.Errorf("degraded: %v", m["startup_issues"])
 	}
 }
 

@@ -222,9 +222,32 @@ The library model (Muses, Songs, Picks, Sessions, Sounds) is derived and reconci
   flag it settles. `--wait` polls until the queue is empty.
 - `metamusic library verify` checks the invariants and exits 1 on any anomaly. Run it after a migration
   and after every restore.
-- The server settles once before it opens the listener. Only one process holds the settle lease; a CLI
-  run while a server is up only enqueues, and the server drains.
+- The server runs its startup derivation steps (taxonomy seed, first Settle) before it opens the listener. Only one
+  process holds the settle lease; a CLI run while a server is up only enqueues, and the server drains. If a step
+  fails, the server does not exit: it serves degraded (next section).
 - Rollback of an L1 deploy is restoring the pre-migration backup.
+
+## Degraded mode (startup derivation failed)
+
+A startup derivation step (`sound_taxonomy_seed`, `library_settle`, and any later L3 step) that fails does not end
+`serve`. A restart loop would give you no HTTP, no UI and no health signal. The server opens the listener anyway,
+logs the redacted error, and retries the failed step in the background with backoff (5 s, doubling, capped at 5 min).
+A corrupt or unmigratable database, bad config and missing secrets stay fatal: `serve` exits before it listens.
+
+- `GET /healthz` always answers 200 (liveness). Healthy: `{"status":"ok","ready":true}`. Degraded:
+  `{"status":"degraded","ready":false,"startup_issues":[{"step":"library_settle","code":"SETTLE_FAILED","attempts":3,"since":"..."}]}`.
+  `ready` is the readiness field: false while any step fails. The body carries stable codes only, never error text.
+  `get_system_info` (Settings) lists the same failures in `startup_issues` as `step=CODE` strings (empty when ready).
+- The Docker `HEALTHCHECK` (`metamusic healthcheck`) checks only for HTTP 200, so a degraded container stays
+  **healthy**. This is deliberate: unhealthy would let Docker restart it and Traefik drop the route, which is the
+  outage degraded mode avoids, and a restart does not repair a persistent derivation error. If you want an
+  orchestrator to act on it, probe `/healthz` for `"ready":true` yourself.
+- What to check: the container log line `startup step failed; serving degraded and retrying` (step, code, redacted
+  error); then `metamusic library verify` and `metamusic library reconcile --dry-run` on the same data directory.
+  Until the step succeeds the derived model (Songs, Muses, Sessions, Sounds) may be stale; generation and the
+  masters are unaffected.
+- Recovery: fix the cause (restore a backup, or deploy the fix) and the next retry clears the issue by itself;
+  `healthz` returns to `ok`/`ready:true` without a restart. Restarting is only needed to apply a new binary.
 
 ## Taxonomy edits (L1)
 
