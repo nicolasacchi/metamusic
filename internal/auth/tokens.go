@@ -23,7 +23,19 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 	ErrNotFound     = errors.New("not found")
 	ErrInvalidScope = errors.New("invalid token name or scopes")
+	// ErrTokenExpired is returned by Verify for a token past its expires_at. It also matches
+	// ErrInvalidToken, so callers that only know "rejected" keep refusing it.
+	ErrTokenExpired = &expiredError{}
 )
+
+type expiredError struct{}
+
+func (*expiredError) Error() string { return "token expired" }
+
+func (*expiredError) Is(target error) bool { return target == ErrInvalidToken }
+
+// DefaultTokenTTL is the lifetime of a token minted without an explicit TTL.
+const DefaultTokenTTL = 90 * 24 * time.Hour
 
 var tokenRE = regexp.MustCompile(`^mmp_[a-z2-7]{52}$`)
 
@@ -36,6 +48,7 @@ type TokenInfo struct {
 	Scopes     []Scope
 	CreatedAt  string
 	LastUsedAt string // empty if never used
+	ExpiresAt  string // empty = no expiry (tokens minted before migration 0011, or created with TTL 0)
 	RevokedAt  string // empty if active
 }
 
@@ -64,8 +77,14 @@ const touchInterval = time.Minute // minimum gap between last_used_at writes per
 
 func (t *TokenStore) ts() string { return t.now().UTC().Format(time.RFC3339) }
 
+// Create mints a token that expires after DefaultTokenTTL.
 func (t *TokenStore) Create(ctx context.Context, name string, scopes []Scope) (string, string, error) {
-	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
+	return t.CreateTTL(ctx, name, scopes, DefaultTokenTTL)
+}
+
+// CreateTTL mints a token that expires ttl from now; ttl 0 means it never expires, a negative ttl is invalid.
+func (t *TokenStore) CreateTTL(ctx context.Context, name string, scopes []Scope, ttl time.Duration) (string, string, error) {
+	if strings.TrimSpace(name) == "" || len(scopes) == 0 || ttl < 0 {
 		return "", "", ErrInvalidScope
 	}
 	seen := map[Scope]bool{}
@@ -85,9 +104,13 @@ func (t *TokenStore) Create(ctx context.Context, name string, scopes []Scope) (s
 	for i, s := range scopes {
 		ss[i] = string(s)
 	}
+	var expires any
+	if ttl > 0 {
+		expires = t.now().UTC().Add(ttl).Format(time.RFC3339)
+	}
 	_, err := t.st.W.ExecContext(ctx,
-		`INSERT INTO api_tokens(id,name,prefix,hmac_hash,scopes,created_at) VALUES(?,?,?,?,?,?)`,
-		id, name, plain[4:12], mac(t.key, plain), strings.Join(ss, ","), t.ts())
+		`INSERT INTO api_tokens(id,name,prefix,hmac_hash,scopes,created_at,expires_at) VALUES(?,?,?,?,?,?,?)`,
+		id, name, plain[4:12], mac(t.key, plain), strings.Join(ss, ","), t.ts(), expires)
 	if err != nil {
 		return "", "", fmt.Errorf("create token: %w", err)
 	}
@@ -109,20 +132,26 @@ func (t *TokenStore) Verify(ctx context.Context, plaintext string) (Principal, e
 		return Principal{}, ErrInvalidToken
 	}
 	var id, name, scopes string
-	var revoked, lastUsed sql.NullString
+	var revoked, lastUsed, expires sql.NullString
 	err := t.st.R.QueryRowContext(ctx,
-		`SELECT id,name,scopes,revoked_at,last_used_at FROM api_tokens WHERE hmac_hash=?`, mac(t.key, plaintext)).
-		Scan(&id, &name, &scopes, &revoked, &lastUsed)
+		`SELECT id,name,scopes,revoked_at,last_used_at,expires_at FROM api_tokens WHERE hmac_hash=?`, mac(t.key, plaintext)).
+		Scan(&id, &name, &scopes, &revoked, &lastUsed, &expires)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && revoked.Valid) {
 		return Principal{}, ErrInvalidToken
 	}
 	if err != nil {
 		return Principal{}, fmt.Errorf("verify token: %w", err)
 	}
+	n := t.now().UTC()
+	if expires.Valid {
+		// An unparseable expiry fails closed.
+		if exp, perr := time.Parse(time.RFC3339, expires.String); perr != nil || !n.Before(exp) {
+			return Principal{}, ErrTokenExpired
+		}
+	}
 	// Best effort bookkeeping: decided in Go from the reader-pool value so the
 	// single writer connection is only touched when a write is actually due,
 	// and then only under a short bounded context.
-	n := t.now().UTC()
 	if lu, perr := time.Parse(time.RFC3339, lastUsed.String); !lastUsed.Valid || perr != nil || n.Sub(lu) >= touchInterval {
 		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 250*time.Millisecond)
 		_, _ = t.st.W.ExecContext(wctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, n.Format(time.RFC3339), id)
@@ -133,7 +162,7 @@ func (t *TokenStore) Verify(ctx context.Context, plaintext string) (Principal, e
 
 func (t *TokenStore) List(ctx context.Context) ([]TokenInfo, error) {
 	rows, err := t.st.R.QueryContext(ctx,
-		`SELECT id,name,prefix,scopes,created_at,last_used_at,revoked_at FROM api_tokens ORDER BY created_at, id`)
+		`SELECT id,name,prefix,scopes,created_at,last_used_at,revoked_at,expires_at FROM api_tokens ORDER BY created_at, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -142,11 +171,11 @@ func (t *TokenStore) List(ctx context.Context) ([]TokenInfo, error) {
 	for rows.Next() {
 		var ti TokenInfo
 		var scopes string
-		var lu, rv sql.NullString
-		if err := rows.Scan(&ti.ID, &ti.Name, &ti.Prefix, &scopes, &ti.CreatedAt, &lu, &rv); err != nil {
+		var lu, rv, ex sql.NullString
+		if err := rows.Scan(&ti.ID, &ti.Name, &ti.Prefix, &scopes, &ti.CreatedAt, &lu, &rv, &ex); err != nil {
 			return nil, err
 		}
-		ti.Scopes, ti.LastUsedAt, ti.RevokedAt = splitScopes(scopes), lu.String, rv.String
+		ti.Scopes, ti.LastUsedAt, ti.RevokedAt, ti.ExpiresAt = splitScopes(scopes), lu.String, rv.String, ex.String
 		out = append(out, ti)
 	}
 	return out, rows.Err()
@@ -156,17 +185,17 @@ func (t *TokenStore) List(ctx context.Context) ([]TokenInfo, error) {
 func (t *TokenStore) Get(ctx context.Context, id string) (TokenInfo, error) {
 	var ti TokenInfo
 	var scopes string
-	var lu, rv sql.NullString
+	var lu, rv, ex sql.NullString
 	err := t.st.R.QueryRowContext(ctx,
-		`SELECT id,name,prefix,scopes,created_at,last_used_at,revoked_at FROM api_tokens WHERE id=?`, id).
-		Scan(&ti.ID, &ti.Name, &ti.Prefix, &scopes, &ti.CreatedAt, &lu, &rv)
+		`SELECT id,name,prefix,scopes,created_at,last_used_at,revoked_at,expires_at FROM api_tokens WHERE id=?`, id).
+		Scan(&ti.ID, &ti.Name, &ti.Prefix, &scopes, &ti.CreatedAt, &lu, &rv, &ex)
 	if errors.Is(err, sql.ErrNoRows) {
 		return TokenInfo{}, ErrNotFound
 	}
 	if err != nil {
 		return TokenInfo{}, err
 	}
-	ti.Scopes, ti.LastUsedAt, ti.RevokedAt = splitScopes(scopes), lu.String, rv.String
+	ti.Scopes, ti.LastUsedAt, ti.RevokedAt, ti.ExpiresAt = splitScopes(scopes), lu.String, rv.String, ex.String
 	return ti, nil
 }
 

@@ -3727,6 +3727,13 @@
               "null"
             ],
             "uniqueItems": true
+          },
+          "ttl_days": {
+            "description": "Days until the token expires; omitted = 90, 0 = never expires",
+            "format": "int64",
+            "maximum": 3650,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -3777,6 +3784,13 @@
           "created_at": {
             "type": "string"
           },
+          "expires_at": {
+            "description": "When the token stops working; null = no expiry (rotate those)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -3820,7 +3834,8 @@
           "scopes",
           "created_at",
           "last_used_at",
-          "revoked_at"
+          "revoked_at",
+          "expires_at"
         ],
         "type": "object"
       },
@@ -15833,6 +15848,13 @@
           "created_at": {
             "type": "string"
           },
+          "expires_at": {
+            "description": "When the token stops working; null = no expiry (rotate those)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -15868,7 +15890,8 @@
           "scopes",
           "created_at",
           "last_used_at",
-          "revoked_at"
+          "revoked_at",
+          "expires_at"
         ],
         "type": "object"
       },
@@ -24815,7 +24838,7 @@
     },
     "/api/tokens": {
       "get": {
-        "description": "Token names, prefixes, scopes and last use. Never the tokens themselves.",
+        "description": "Token names, prefixes, scopes, expiry and last use. Never the tokens themselves.",
         "operationId": "list_tokens",
         "responses": {
           "200": {
@@ -26802,7 +26825,7 @@
     },
     "/human/api/tokens": {
       "post": {
-        "description": "Mints a token with the given scopes. The token is shown once. Operator only.",
+        "description": "Mints a token with the given scopes. It expires after ttl_days (default 90; 0 = never). The token is shown once. Operator only.",
         "operationId": "create_token",
         "parameters": [
           {
