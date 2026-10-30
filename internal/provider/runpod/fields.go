@@ -38,9 +38,9 @@ var ManagementFields = concat(
 		"gpu.allowedCudaVersions", "flashboot", "timeout", "image", "env", "requestUrls"),
 	fields("GET /v2/serverless/{id}/workers", "Worker", "id", "status", "isStale", "image", "startedAt", "uptimeSeconds", "gpuTypeId"),
 	fields("GET /v2/catalog/gpus", "GpuType", "id", "name", "pool", "price.serverless"),
-	fields("GET /v2/billing/serverless", "BillingRecord", "startTime", "endTime", "serverlessId", "totalAmount", "gpuAmount", "cpuAmount", "diskAmount"),
+	fields("GET /v2/billing/serverless", "ServerlessBillingRecord", "startTime", "endTime", "serverlessId", "totalAmount", "gpuAmount", "cpuAmount", "diskAmount"),
 	fields("GET /v2/billing/serverless", "", "serverlessId", "bucketSize", "startTime", "endTime"),
-	fields("*", "Problem", "title", "status", "detail", "errors"),
+	fields("*", "ErrorResponse", "title", "status", "detail", "errors"),
 )
 
 func concat(parts ...[]Field) []Field {

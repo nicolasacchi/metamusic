@@ -82,58 +82,43 @@ func (d doc) resolve(schema, path string) bool {
 	return cur != nil
 }
 
+// TestClient_ManagementFieldsInSnapshot resolves every operation, query parameter and field of the client's
+// table (C77.2) against the committed snapshot with the same resolver the live probe uses, so a renamed
+// field in a future spec fails a test instead of silently being ignored.
 func TestClient_ManagementFieldsInSnapshot(t *testing.T) {
 	t.Parallel()
-	d := loadSnapshot(t)
-	for _, op := range runpod.ManagementOperations {
-		m, p, _ := strings.Cut(op, " ")
-		if d.at("paths", p, strings.ToLower(m)) == nil {
-			t.Errorf("operation %s missing from the snapshot", op)
-		}
-	}
 	if len(runpod.ManagementFields) < 40 {
 		t.Fatalf("field table has only %d entries", len(runpod.ManagementFields))
 	}
-	for _, f := range runpod.ManagementFields {
-		if f.Schema == "" {
-			m, p, _ := strings.Cut(f.Operation, " ")
-			found := false
-			params, _ := d.at("paths", p, strings.ToLower(m), "parameters").([]any)
-			for _, x := range params {
-				if pm, _ := x.(map[string]any); pm != nil && pm["name"] == f.Path {
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("%s: query parameter %s not in the snapshot", f.Operation, f.Path)
-			}
-			continue
-		}
-		if !d.resolve(f.Schema, f.Path) {
-			t.Errorf("%s: %s.%s not in the snapshot", f.Operation, f.Schema, f.Path)
-		}
+	r, err := runpod.CompareSchema(runpod.Snapshot(), runpod.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range r.Failures {
+		t.Error(f)
 	}
 }
 
-// TestSnapshot_PinnedFacts checks the facts of C77.2 the plan relies on.
+// TestSnapshot_PinnedFacts checks the facts of C77.2 the plan relies on: the snapshot is the real public
+// document (not a reconstruction) and carries them.
 func TestSnapshot_PinnedFacts(t *testing.T) {
 	t.Parallel()
-	d := loadSnapshot(t)
-	create := d.deref(d.at("components", "schemas", "CreateEndpointRequest"))
-	req, _ := create["required"].([]any)
-	if len(req) != 3 {
-		t.Fatalf("required = %v", req)
+	var d map[string]any
+	if err := json.Unmarshal(runpod.Snapshot(), &d); err != nil {
+		t.Fatal(err)
 	}
-	if qd := d.property(d.property(create, "scaling"), "queueDelay"); qd == nil || qd["minimum"] != 0.5 {
-		t.Fatalf("queueDelay = %v", qd)
+	info, _ := d["info"].(map[string]any)
+	if desc, _ := info["description"].(string); strings.Contains(desc, "RECONSTRUCTED") {
+		t.Fatal("the snapshot is a reconstructed subset, not the real document")
 	}
-	if tm := d.property(create, "timeout"); !strings.Contains(strings.ToLower(tm["description"].(string)), "milliseconds") {
-		t.Fatalf("timeout = %v", tm)
+	if len(d["paths"].(map[string]any)) < 20 {
+		t.Fatalf("the snapshot has only %d paths: not the full document", len(d["paths"].(map[string]any)))
 	}
-	if fb := d.property(create, "flashboot"); len(fb["enum"].([]any)) != 3 {
-		t.Fatalf("flashboot = %v", fb)
+	r, err := runpod.CompareSchema(runpod.Snapshot(), runpod.Snapshot())
+	if err != nil || !r.OK {
+		t.Fatalf("pinned facts: %+v %v", r, err)
 	}
-	if mx := d.property(d.property(create, "workers"), "max"); mx["default"] != float64(3) {
-		t.Fatalf("workers.max = %v", mx)
+	if strings.Join(r.FlashbootValues, ",") != "OFF,FLASHBOOT,PRIORITY_FLASHBOOT" {
+		t.Fatalf("flashboot = %v", r.FlashbootValues)
 	}
 }
