@@ -83,10 +83,15 @@ for a in "$@"; do
   prev="$a"
 done
 if [ -f %q ]; then exec sleep 30; fi
-if [ -f %q ]; then echo "encoder died" >&2; exit 1; fi
+if [ -f %q ]; then
+  # a non-empty flag names a file to wait for (bounded) before dying, so the death follows that tool's start
+  w=$(cat %q); i=0
+  while [ -n "$w" ] && [ ! -s "$w" ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done
+  echo "encoder died" >&2; exit 1
+fi
 cat > /dev/null
 cp %q "$out"
-`, e.flacLog, filepath.Join(dir, "test.fail"), e.pidFile, filepath.Join(dir, "encoder.hang"), filepath.Join(dir, "encoder.die"), e.fixPth))
+`, e.flacLog, filepath.Join(dir, "test.fail"), e.pidFile, filepath.Join(dir, "encoder.hang"), filepath.Join(dir, "encoder.die"), filepath.Join(dir, "encoder.die"), e.fixPth))
 	e.tools = mediatool.Tools{FFmpeg: ff, FLAC: fl}
 	return e
 }
@@ -441,9 +446,13 @@ func TestPipeline_EncoderDeathStopsFFmpeg(t *testing.T) {
 	// a big pcm so ffmpeg is still writing when the encoder is gone; the fake ffmpeg is replaced by a slow one
 	e.master(t, "masters/aa/one.flac", 1000, constGen(5))
 	e.fixtureFLAC(t, 1000)
-	e.flag(t, "encoder.die")
 	slow := filepath.Join(e.dir, "ffmpeg-slow")
 	pid := filepath.Join(e.dir, "ffmpeg.pid")
+	// the encoder dies only once ffmpeg has written its pid: otherwise a fast kill can stop ffmpeg before it records
+	// one, and assertDead cannot tell "stopped" from "never started" (CI flake, PR #74 run)
+	if err := os.WriteFile(filepath.Join(e.dir, "encoder.die"), []byte(pid), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	body := fmt.Sprintf("#!/bin/sh\necho $$ > %q\nwhile :; do head -c 65536 /dev/zero; sleep 0.05; done\n", pid)
 	if err := os.WriteFile(slow, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
