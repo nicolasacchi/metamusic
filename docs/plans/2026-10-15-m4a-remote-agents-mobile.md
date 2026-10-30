@@ -2420,3 +2420,10 @@ names M4a freezes:
   tools ceiling; the later merge re-measures them (M4a-X1 step 0). L1's vocabulary (Muse, Song, Pick) never reaches Subsonic clients
   (L1 C99); album naming stays the root's title.
 
+## L2 addenda (2026-10-30)
+
+Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), as shipped:
+
+- **C108 / C109 (Subsonic layer and mapping).** Record albums (`rec-<id>`) and auto-albums (`mus-<id>`, `unf`) are added to the existing lists, `getAlbum`, `getAlbumInfo`, `search3` and `getIndexes`; lineage albums and song `albumId`s are unchanged. Songs gain `discNumber` and `replayGain.albumGain`; `lastModified` derives from the catalog change token. Details in `docs/subsonic.md`.
+- **C110.1 (cover).** The cover package gains a mosaic renderer and `EnsureMosaic`; `Version`, `Key`, `Render`, `Service` methods and the existing golden are byte-identical.
+- **C110.2 (tagged downloads).** The block builders moved into `internal/media/flacmeta`; `tagged` calls them and its pinned hashes are unchanged.

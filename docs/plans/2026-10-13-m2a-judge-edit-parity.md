@@ -3110,3 +3110,10 @@ mother (`RECIPE_UNKNOWN`); C33 `songs.jsonl` export always excludes stub recipes
 change; C35 `/context` gains `track.recipe_known`/`lossy` and `recipe.known`/`note`; C40 the library
 gains the recipe and audio filters and badges; C41 the `tools/list` ceiling is re-baselined to 56 200
 bytes (measured 56 122); C42 `librarytest.FixtureM2c` adds a reference FLAC and a lossy reference.
+
+## L2 addenda (2026-10-30)
+
+Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), as shipped:
+
+- **C35 / C38 (parity, every UI action).** The registry holds 126 operations; the 15 new MCP-faced operations are all `generic` (reached through `call_operation`, no dedicated tool), and the two human-only operations have REST-only tests. `TestAcceptance_M2a_AgentPerformsEveryUIAction` covers the new UI and MCP operations.
+- **C41 / C42 (tooling and CI).** The routing contract and served-operation coverage gain the L2 paths; the no-delete SQL allowlist is unchanged; coverage floors are the measured values (`recordview` 67, `records` 86, `tape` 88) rather than the plan's targets; the `TestPerf_*` tests run in their own job, not under `-race`.

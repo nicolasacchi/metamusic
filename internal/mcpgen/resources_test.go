@@ -68,14 +68,14 @@ func resourceSessions(t *testing.T, r *servertest.Rig, scopes ...auth.Scope) map
 
 func readResource(t *testing.T, s *mcp.ClientSession, uri string) (*mcp.ReadResourceResult, error) {
 	t.Helper()
-	return s.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	return s.ReadResource(callCtx(), &mcp.ReadResourceParams{URI: uri})
 }
 
 func TestResources_RealRegistry(t *testing.T) {
 	t.Parallel()
 	r := a2Rig(t)
 	for face, s := range resourceSessions(t, r, readScopes...) {
-		res, err := s.ListResourceTemplates(context.Background(), nil)
+		res, err := s.ListResourceTemplates(callCtx(), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", face, err)
 		}
@@ -144,7 +144,7 @@ func TestResources_ListEmpty(t *testing.T) {
 	r := a2Rig(t)
 	for name, s := range resourceSessions(t, r, readScopes...) {
 		before := auditCount(t, r)
-		res, err := s.ListResources(context.Background(), nil)
+		res, err := s.ListResources(callCtx(), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

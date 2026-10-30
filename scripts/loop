@@ -43,7 +43,14 @@ if [ -z "$metrics" ]; then
   fi
 fi
 
-lane=$(printf '%s' "${MM_LANE:-main}" | tr '[:upper:]' '[:lower:]')
+# Lane: MM_LANE when set, else the worktree's branch name (agent worktrees are one branch per lane; a detached HEAD or
+# no git means main). Only the sanitised branch name is recorded: no paths, no command line.
+lane_src=${MM_LANE:-}
+if [ -z "$lane_src" ]; then
+  lane_src=$(git symbolic-ref --short -q HEAD 2>/dev/null || true)
+  [ -n "$lane_src" ] || lane_src=main
+fi
+lane=$(printf '%s' "$lane_src" | tr '[:upper:]' '[:lower:]')
 case "$lane" in
   [a-z0-9]*) ;; *) lane=main ;;
 esac

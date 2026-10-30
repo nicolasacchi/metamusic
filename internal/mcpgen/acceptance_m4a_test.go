@@ -1,7 +1,6 @@
 package mcpgen_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -43,7 +42,7 @@ func TestAcceptance_M4a_ResourcesAndPrompts(t *testing.T) {
 	}
 
 	for name, s := range faces {
-		tmpl, err := s.ListResourceTemplates(context.Background(), nil)
+		tmpl, err := s.ListResourceTemplates(callCtx(), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -62,7 +61,7 @@ func TestAcceptance_M4a_ResourcesAndPrompts(t *testing.T) {
 		if diff := cmp.Diff(string(wantCtx), res.Contents[0].Text); diff != "" {
 			t.Errorf("%s: context resource differs from get_track_context (-rest +resource):\n%s", name, diff)
 		}
-		list, err := s.ListPrompts(context.Background(), nil)
+		list, err := s.ListPrompts(callCtx(), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

@@ -42,6 +42,26 @@ func TestPublicCopy_StopsAtMarker(t *testing.T) {
 	}
 }
 
+// TestPublicCopy_StopsAtMarker_L2 is the L2 shape: a draft with an Appendix P holding P.4 gate patterns (synthetic
+// Record and Crate titles) must reach the copy without the appendix, the marker or any P.4 pattern.
+func TestPublicCopy_StopsAtMarker_L2(t *testing.T) {
+	t.Parallel()
+	appendix := "\n## Appendix P (PRIVATE — never copied to `docs/plans/`)\n### P.4 Gate patterns\nSynthetic Record 900\nSynthetic Crate 900\nSynthetic Muse 900\n"
+	draft := "# L2 plan\n\n## Revision log\npublic text\n" + privateMarker + "\n" + appendix
+	got, out, err := publicCopy(t, draft)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, out)
+	}
+	for _, bad := range []string{privateMarker, "## Appendix P", "P.4", "Synthetic Record 900", "Synthetic Crate 900", "Synthetic Muse 900"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("copy contains %q", bad)
+		}
+	}
+	if !strings.Contains(got, "public text") {
+		t.Errorf("copy lost the public text: %q", got)
+	}
+}
+
 func TestPublicCopy_RefusesBadMarkers(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
@@ -88,11 +108,21 @@ func loadPrivatePatterns(t *testing.T) []string {
 // (the build host), and `make gate` (pre-commit, pre-push, CI) enforces the same patterns on every commit.
 func TestPublicCopy_CommittedCopyIsClean(t *testing.T) {
 	t.Parallel()
-	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "plans", "2026-10-15-l1-library-provenance.md"))
+	for _, name := range []string{"2026-10-15-l1-library-provenance.md", "2026-10-28-l2-library-curation.md"} {
+		t.Run(name, func(t *testing.T) { checkCommittedCopy(t, name) })
+	}
+}
+
+func checkCommittedCopy(t *testing.T, name string) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "plans", name))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(b)
+	if strings.Contains(text, "### P.") {
+		t.Fatal("the committed copy holds an Appendix P subsection")
+	}
 	for _, l := range strings.Split(text, "\n") {
 		if l == privateMarker {
 			t.Fatal("the committed copy holds the private-appendix marker line")

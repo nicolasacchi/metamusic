@@ -178,7 +178,7 @@ func (r *gatedRig) auditRows(t *testing.T) []map[string]any {
 
 func tool(t *testing.T, s *mcp.ClientSession, name string) *mcp.Tool {
 	t.Helper()
-	res, err := s.ListTools(context.Background(), nil)
+	res, err := s.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestStdio_HumanOnlyOpsAreNotCallable(t *testing.T) {
 	r := newGatedRig(t)
 	p, _ := r.agent(t)
 	s := r.stdioSession(t, func(context.Context) (auth.Principal, error) { return p, nil }, &mcp.Implementation{Name: "c", Version: "1"})
-	tools, err := s.ListTools(context.Background(), nil)
+	tools, err := s.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
