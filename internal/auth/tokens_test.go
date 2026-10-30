@@ -265,3 +265,70 @@ func TestTokenStore_Get(t *testing.T) {
 		t.Fatalf("unknown err = %v", err)
 	}
 }
+
+func TestTokenExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+	ts := NewTokenStore(newStore(t), key, func() time.Time { return now })
+
+	// Create defaults to 90 days.
+	def, defID, err := ts.Create(ctx, "default", []Scope{ScopeRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, _ := ts.Get(ctx, defID)
+	if want := "2026-06-02T05:06:07Z"; info.ExpiresAt != want {
+		t.Fatalf("default expires_at = %q, want %q", info.ExpiresAt, want)
+	}
+	short, _, err := ts.CreateTTL(ctx, "short", []Scope{ScopeRead}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	never, neverID, err := ts.CreateTTL(ctx, "never", []Scope{ScopeRead}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, _ = ts.Get(ctx, neverID); info.ExpiresAt != "" {
+		t.Fatalf("ttl 0 expires_at = %q, want none", info.ExpiresAt)
+	}
+	if _, _, err := ts.CreateTTL(ctx, "neg", []Scope{ScopeRead}, -time.Second); !errors.Is(err, ErrInvalidScope) {
+		t.Fatalf("negative ttl err = %v", err)
+	}
+
+	now = now.Add(30 * time.Minute)
+	if _, err := ts.Verify(ctx, short); err != nil {
+		t.Fatalf("before expiry: %v", err)
+	}
+	now = now.Add(31 * time.Minute)
+	_, err = ts.Verify(ctx, short)
+	if !errors.Is(err, ErrTokenExpired) || !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("after expiry err = %v, want ErrTokenExpired (also ErrInvalidToken)", err)
+	}
+	now = now.Add(100 * 24 * time.Hour)
+	if _, err := ts.Verify(ctx, def); !errors.Is(err, ErrTokenExpired) {
+		t.Fatalf("default token after 100d err = %v", err)
+	}
+	if _, err := ts.Verify(ctx, never); err != nil {
+		t.Fatalf("never-expiring token: %v", err)
+	}
+}
+
+// A token created before 0011 has a NULL expires_at and keeps working.
+func TestTokenLegacyRowNoExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := newStore(t)
+	ts := NewTokenStore(st, key, nil)
+	plain := "mmp_" + strings.Repeat("a", 52)
+	if _, err := st.W.ExecContext(ctx, `INSERT INTO api_tokens(id,name,prefix,hmac_hash,scopes,created_at) VALUES('old','old','aaaaaaaa',?,'read','2020-01-01T00:00:00Z')`, mac(key, plain)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ts.Verify(ctx, plain); err != nil {
+		t.Fatalf("legacy token: %v", err)
+	}
+	info, err := ts.Get(ctx, "old")
+	if err != nil || info.ExpiresAt != "" {
+		t.Fatalf("legacy info = %+v %v", info, err)
+	}
+}

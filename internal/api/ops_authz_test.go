@@ -37,6 +37,50 @@ func respObj(t *testing.T, r *servertest.Response) map[string]any {
 	return m
 }
 
+func TestCreateToken_TTL(t *testing.T) {
+	t.Parallel()
+	rig := servertest.New(t, servertest.Options{Canary: true})
+	human := rig.Human(t)
+	mk := func(key string, body map[string]any) *servertest.Response {
+		body["name"], body["scopes"] = key, []string{"read"}
+		return human.Do(t, "POST", "/human/api/tokens", body, "Idempotency-Key", key)
+	}
+	// the rig runs on a fixed clock, so lifetimes are measured against the response's own created_at
+	lifetime := func(r *servertest.Response) time.Duration {
+		if r.Status != 201 {
+			t.Fatalf("create: %d %s", r.Status, r.Body)
+		}
+		o := respObj(t, r)
+		created, err := time.Parse(time.RFC3339, o["created_at"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		exp, ok := o["expires_at"].(string)
+		if !ok {
+			return 0 // null: never expires
+		}
+		at, err := time.Parse(time.RFC3339, exp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return at.Sub(created)
+	}
+	if d := lifetime(mk("default", map[string]any{})); d != 90*24*time.Hour {
+		t.Fatalf("default lifetime = %v, want 90 days", d)
+	}
+	if d := lifetime(mk("never", map[string]any{"ttl_days": 0})); d != 0 {
+		t.Fatalf("ttl_days 0 lifetime = %v, want none", d)
+	}
+	if d := lifetime(mk("week", map[string]any{"ttl_days": 7})); d != 7*24*time.Hour {
+		t.Fatalf("ttl_days 7 lifetime = %v", d)
+	}
+	for _, bad := range []int{-1, 3651} {
+		if r := mk("bad", map[string]any{"ttl_days": bad}); r.Status != 422 {
+			t.Errorf("ttl_days %d: %d", bad, r.Status)
+		}
+	}
+}
+
 func TestTokenOps(t *testing.T) {
 	t.Parallel()
 	rig := servertest.New(t, servertest.Options{Canary: true})
@@ -91,7 +135,7 @@ func TestTokenOps(t *testing.T) {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
-	if want := []string{"created_at", "id", "last_used_at", "name", "prefix", "revoked_at", "scopes"}; !slices.Equal(keys, want) {
+	if want := []string{"created_at", "expires_at", "id", "last_used_at", "name", "prefix", "revoked_at", "scopes"}; !slices.Equal(keys, want) {
 		t.Fatalf("keys = %v", keys)
 	}
 	if item["last_used_at"] == nil {

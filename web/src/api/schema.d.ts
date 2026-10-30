@@ -1669,7 +1669,7 @@ export interface paths {
         };
         /**
          * List API tokens
-         * @description Token names, prefixes, scopes and last use. Never the tokens themselves.
+         * @description Token names, prefixes, scopes, expiry and last use. Never the tokens themselves.
          */
         get: operations["list_tokens"];
         put?: never;
@@ -2239,7 +2239,7 @@ export interface paths {
         put?: never;
         /**
          * Create an API token
-         * @description Mints a token with the given scopes. The token is shown once. Operator only.
+         * @description Mints a token with the given scopes. It expires after ttl_days (default 90; 0 = never). The token is shown once. Operator only.
          */
         post: operations["create_token"];
         delete?: never;
@@ -3218,6 +3218,11 @@ export interface components {
         CreateTokenInBody: {
             name: string;
             scopes: ("read" | "write" | "generate" | "admin")[] | null;
+            /**
+             * Format: int64
+             * @description Days until the token expires; omitted = 90, 0 = never expires
+             */
+            ttl_days?: number;
         };
         CreatedSubsonicClient: {
             /** @description mms_..., shown once; null on an idempotent replay */
@@ -3230,6 +3235,8 @@ export interface components {
         };
         CreatedToken: {
             created_at: string;
+            /** @description When the token stops working; null = no expiry (rotate those) */
+            expires_at: string | null;
             id: string;
             last_used_at: string | null;
             name: string;
@@ -6147,6 +6154,8 @@ export interface components {
         };
         TokenInfo: {
             created_at: string;
+            /** @description When the token stops working; null = no expiry (rotate those) */
+            expires_at: string | null;
             id: string;
             last_used_at: string | null;
             name: string;

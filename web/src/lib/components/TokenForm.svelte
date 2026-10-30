@@ -15,6 +15,14 @@
 
   let name = $state("");
   let scopes = $state<Scope[]>(["read", "write"]);
+  // Lifetime in days; 0 = never expires. Defaults to the server default (90).
+  const TTLS: { days: number; label: string }[] = [
+    { days: 30, label: "30 days" },
+    { days: 90, label: "90 days (default)" },
+    { days: 365, label: "1 year" },
+    { days: 0, label: "Never expires" },
+  ];
+  let ttlDays = $state(90);
   let busy = $state(false);
   let error = $state("");
   let shown = $state("");
@@ -53,7 +61,7 @@
     error = "";
     try {
       const send = idempotentAction((key) =>
-        api.POST("/human/api/tokens", { params: { header: { "Idempotency-Key": key } }, body: { name: name.trim(), scopes } }),
+        api.POST("/human/api/tokens", { params: { header: { "Idempotency-Key": key } }, body: { name: name.trim(), scopes, ttl_days: ttlDays } }),
       );
       const r = await send();
       if (r.data?.token) {
@@ -88,6 +96,11 @@
       <label><input type="checkbox" checked={scopes.includes(s)} onchange={() => toggle(s)} data-testid={`scope-${s}`} /> {s}</label>
     {/each}
   </fieldset>
+  <label>Expires
+    <select bind:value={ttlDays} data-testid="token-ttl">
+      {#each TTLS as o (o.days)}<option value={o.days}>{o.label}</option>{/each}
+    </select>
+  </label>
   <button type="submit" disabled={busy} data-testid="token-create">Create token</button>
   {#if error}<p role="alert">{error}</p>{/if}
 </form>
