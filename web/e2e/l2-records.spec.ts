@@ -1,7 +1,8 @@
 // matrix: @mobile because the Record studio (slot list, keyboard/touch reorder, 44 px targets) and the publish page are phone surfaces
 import { expect as baseExpect, test, type APIRequestContext } from "./fixtures";
 import { smallTargets, uniq } from "./helpers";
-import { agentContext, changes, getRecord, otherTake, rate, retireRecord, titledSong, waitChange, type RecordOut, type TitledSong } from "./l2Api";
+import { archiveDrafts, makeDraftSongs } from "./l1Api";
+import { agentContext, changes, createRecord, editSlots, retireRecord as retire, getRecord, otherTake, rate, retireRecord, titledSong, waitChange, type RecordOut, type TitledSong } from "./l2Api";
 
 // One pair of Songs of two takes each (fake backend, spends against the shared cap) per worker server; the tests of the
 // file run in order on one Record they make, and the Record is hidden at the end.
@@ -52,6 +53,7 @@ test("create a Record from two Songs, reorder by keyboard, pin a slot and see th
   await page.keyboard.press("Enter");
   await expect.poll(() => order(request)).toEqual([a.title, b.title]);
 
+  await expect(page.getByTestId("slot-row").first()).toContainText(a.title);
   // pin the second slot (Song B): the badge says pinned, the first stays floating
   const row = page.getByTestId("slot-row").nth(1);
   await expect(row.getByTestId("slot-mode")).toContainText(/floating|follows/i);
@@ -143,6 +145,32 @@ test("touch targets on /records, the studio and the publish page are at least 44
     await expect(page.getByTestId(ready)).toBeVisible();
     await expect(page.getByTestId("record-row").or(page.getByTestId("slot-row")).or(page.getByTestId("publish-go")).first()).toBeVisible();
     expect.soft(await smallTargets(page), `${where}: targets under 44x44`).toEqual([]);
+  }
+});
+
+test("a long changelog pages: Older changes loads the next page (get_record_changes)", async ({ page, request }) => {
+  const [d] = await makeDraftSongs(request, 1, uniq("l2rc"), false);
+  let v = await createRecord(request, uniq("l2 long log"), [d!.songId]);
+  try {
+    const slot = v.slots[0]!.id;
+    const ops = (n: number) => Array.from({ length: n }, (_, i) => ({ op: "set_side", slot_id: slot, side: i % 2 === 0 ? "A" : "B" }));
+    v = await editSlots(request, v.record.id, v.record.revision, ops(40));
+    v = await editSlots(request, v.record.id, v.record.revision, ops(40).map((o, i) => ({ ...o, side: i % 2 === 0 ? "C" : "D" })));
+    expect((await changes(request, v.record.id)).length, "enough changes for a second page").toBeGreaterThan(50);
+    await page.goto(`/records/${v.record.id}`);
+    await page.getByTestId("record-tab-changelog").click();
+    const rows = page.getByTestId("record-changelog-row");
+    await expect(rows).toHaveCount(50);
+    const calls: string[] = [];
+    page.on("request", (r) => {
+      if (/\/api\/records\/[^/]+\/changes/.test(r.url())) calls.push(r.url());
+    });
+    await page.getByTestId("record-changelog-more").click();
+    await expect.poll(() => rows.count()).toBeGreaterThan(50);
+    expect(calls).toHaveLength(1);
+  } finally {
+    await retire(request, v.record.id);
+    await archiveDrafts(request, [d!.draftId]);
   }
 });
 

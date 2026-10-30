@@ -71,7 +71,7 @@ export const getRecord = (request: APIRequestContext, id: string) => apiJSON<Rec
 export const editSlots = (request: APIRequestContext, id: string, revision: number, ops: unknown[]) => apiJSON<RecordOut>(request, "POST", `/api/records/${id}/slots`, { revision, ops });
 
 export async function changes(request: APIRequestContext, id: string): Promise<ChangeOut[]> {
-  return (await apiJSON<{ items: ChangeOut[] }>(request, "GET", `/api/records/${id}/changes?order=desc&limit=50`)).items;
+  return (await apiJSON<{ items: ChangeOut[] }>(request, "GET", `/api/records/${id}/changes?order=desc&limit=100`)).items;
 }
 
 /** Polls the Record's changelog until a change of `kind` exists, within `timeoutMs`. */
