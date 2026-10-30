@@ -204,7 +204,7 @@
 
         <div class="transport">
           <button type="button" class="sm" aria-label="Previous" onclick={() => player.prev()}><PrevIcon size={28} /></button>
-          <button type="button" class="big" aria-label={s.playing ? "Pause" : "Play"} data-testid="np-play" onclick={() => player.toggle()}>{#if s.playing}<PauseIcon size={36} />{:else}<PlayIcon size={36} />{/if}</button>
+          <button type="button" class="big" aria-label={s.playing ? "Pause" : "Play"} data-testid="np-play" data-transport-toggle onclick={() => player.toggle()}>{#if s.playing}<PauseIcon size={36} />{:else}<PlayIcon size={36} />{/if}</button>
           <button type="button" class="sm" aria-label="Next" onclick={() => player.next()} disabled={!player.hasNext}><NextIcon size={28} /></button>
         </div>
 

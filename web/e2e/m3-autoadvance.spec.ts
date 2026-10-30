@@ -109,6 +109,20 @@ const toEnd = (page: Page, before = 0.3) =>
     if (a) a.currentTime = a.duration - b;
   }, before);
 
+test("U1: the Play toggle itself resumes while \"Tap to continue\" is shown (one tap, never a pause)", async ({ page, request }) => {
+  const list = await tracks(request);
+  await startFirst(page, list, 3);
+  await page.evaluate(() => ((window as unknown as { __blockPlay: boolean }).__blockPlay = true));
+  await toEnd(page);
+  await expect(page.getByTestId("player-continue")).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => ((window as unknown as { __blockPlay: boolean }).__blockPlay = false));
+  await page.getByTestId("play-toggle").click();
+  await expect(page.getByTestId("play-toggle")).toHaveAttribute("aria-label", "Pause");
+  await expect(page.getByTestId("player-continue")).toHaveCount(0);
+  await page.waitForTimeout(400); // a wrongly queued pause would land here
+  expect((await audioState(page)).paused).toBe(false);
+});
+
 test("a refused play() after ended keeps the queue and resumes with the tap-to-continue button", async ({ page, request }) => {
   const list = await tracks(request);
   const kinds = watchKinds(page);

@@ -59,7 +59,7 @@
       type="button"
       class="ico"
       aria-label={s.playing ? "Pause" : "Play"}
-      data-testid="play-toggle"
+      data-testid="play-toggle" data-transport-toggle
       onclick={() => player.toggle()}
       disabled={!s.trackId}>{#if s.playing}<PauseIcon size={24} />{:else}<PlayIcon size={24} />{/if}</button
     >

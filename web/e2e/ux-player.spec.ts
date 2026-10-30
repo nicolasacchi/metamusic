@@ -62,7 +62,8 @@ test("opening and closing the sheet never pauses", async ({ page, request }) => 
 
   // the judging controls: 52 px stars, status chips instead of the select
   // (stars are 52 px on touch devices; a fine pointer gets the compact size)
-  if (isPhone(page)) expect((await dlg.getByRole("button", { name: "3 stars" }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(52);
+  // (sub-pixel layout: a 52 px token can measure 51.999969, so compare with a half-pixel tolerance)
+  if (isPhone(page)) expect((await dlg.getByRole("button", { name: "3 stars" }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(52 - 0.5);
   await expect(dlg.getByRole("button", { name: "To relisten" })).toBeVisible();
   await expect(dlg.getByRole("button", { name: "Final" })).toBeVisible();
   await expect(dlg.getByRole("button", { name: "Discard" })).toBeVisible();
@@ -385,4 +386,54 @@ test("a restored Library queue keeps paging", async ({ page, request }) => {
   await tab.getByTestId("player-resume").click();
   await expect.poll(() => tab.getByTestId("queue-item").count(), { timeout: 15_000 }).toBeGreaterThan(2);
   await expect(tab.getByTestId("queue-item").first()).toContainText(b.title);
+});
+
+test("U1: tapping Play while \"Tap to continue\" shows resumes once, in the mini-player and the sheet", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __blockPlay: boolean };
+    w.__blockPlay = false;
+    const orig = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (w.__blockPlay) return Promise.reject(new DOMException("blocked by autoplay policy", "NotAllowedError"));
+      return orig.call(this);
+    };
+  });
+  // a take no other test in this file plays: listen history and resume positions are shared server state
+  const a = (await allTracks(request)).find((x) => x.title === "Syn song 02");
+  if (!a) throw new Error("the e2e profile needs Syn song 02");
+  await page.goto("/library");
+  await page.getByRole("button", { name: `Play ${a.title}`, exact: true }).click();
+  await expect.poll(async () => (await audio(page)).t, { timeout: 10_000 }).toBeGreaterThan(0.2);
+  await page.evaluate(() => {
+    const el = document.querySelector("audio");
+    if (el) el.loop = true;
+  });
+  const block = (on: boolean) => page.evaluate((v) => ((window as unknown as { __blockPlay: boolean }).__blockPlay = v), on);
+  const settled = async () => {
+    await expect(page.getByTestId("player-continue")).toHaveCount(0);
+    await expect.poll(async () => (await audio(page)).paused, { timeout: 5000 }).toBe(false);
+    await page.waitForTimeout(400); // a second, wrongly queued pause would land here
+    expect((await audio(page)).paused).toBe(false);
+  };
+  // round 1: the footer toggle
+  await page.getByTestId("play-toggle").click(); // a real user pause
+  await expect.poll(async () => (await audio(page)).paused).toBe(true);
+  await block(true);
+  await page.getByTestId("play-toggle").click(); // refused: "Tap to continue"
+  await expect(page.getByTestId("player-continue")).toBeVisible();
+  await block(false);
+  await page.getByTestId("play-toggle").click();
+  await settled();
+  // round 2: the Now Playing sheet's toggle (the sheet is already open when the refusal happens)
+  await openSheet(page);
+  await page.getByTestId("np-play").click();
+  await expect.poll(async () => (await audio(page)).paused).toBe(true);
+  await block(true);
+  await page.getByTestId("np-play").click();
+  await expect(page.getByTestId("player-continue")).toBeVisible();
+  await block(false);
+  await page.getByTestId("np-play").click();
+  await settled();
+  await page.getByTestId("np-play").click(); // leave nothing playing
+  await expect.poll(async () => (await audio(page)).paused).toBe(true);
 });

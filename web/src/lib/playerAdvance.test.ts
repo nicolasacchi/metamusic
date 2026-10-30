@@ -302,6 +302,31 @@ describe("autoplay blocked (b)", () => {
     expect(el.plays).toBe(n + 1);
   });
 
+  test("U1: tapping the play toggle while pending resumes once", async () => {
+    const { p, el, flush } = await playing();
+    const doc = new FakeDoc();
+    p.watchActivation(doc as unknown as Document);
+    el.playImpl = () => Promise.reject(new DOMException("blocked", "NotAllowedError"));
+    el.emit("ended");
+    await flush();
+    // Real elements flip `paused` synchronously inside play().
+    el.playImpl = () => {
+      el.paused = false;
+      return Promise.resolve();
+    };
+    const onToggle = { closest: (sel: string) => (sel === "[data-transport-toggle]" ? {} : null) };
+    for (const type of ["touchend", "click"]) {
+      const ev = new Event(type);
+      Object.defineProperty(ev, "target", { value: onToggle });
+      doc.dispatchEvent(ev);
+    }
+    p.toggle(); // the button's own handler
+    await flush();
+    expect(p.state.pendingPlay).toBe(false);
+    expect(el.paused).toBe(false);
+    expect(p.playIntent).toBe(true);
+  });
+
   test("Media Session play (resume) clears the pending play", async () => {
     const { p, el, flush } = await playing();
     el.playImpl = () => Promise.reject(new DOMException("blocked", "NotAllowedError"));
