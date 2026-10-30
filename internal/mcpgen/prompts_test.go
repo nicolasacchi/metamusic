@@ -89,7 +89,7 @@ func restGetPrompt(t *testing.T, f gatedFace, name string, args map[string]strin
 
 func getMCPPrompt(t *testing.T, s *mcp.ClientSession, name string, args map[string]string) (*mcp.GetPromptResult, error) {
 	t.Helper()
-	return s.GetPrompt(context.Background(), &mcp.GetPromptParams{Name: name, Arguments: args})
+	return s.GetPrompt(callCtx(), &mcp.GetPromptParams{Name: name, Arguments: args})
 }
 
 // sameMessages compares an MCP prompt message by message with the get_prompt REST body.
@@ -276,7 +276,7 @@ func TestPrompts_ListGolden(t *testing.T) {
 	t.Parallel()
 	r := a2Rig(t)
 	for name, s := range resourceSessions(t, r, auth.ScopeRead) {
-		res, err := s.ListPrompts(context.Background(), nil)
+		res, err := s.ListPrompts(callCtx(), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -297,7 +297,7 @@ func TestPrompts_ListGolden(t *testing.T) {
 func TestResources_TemplatesGolden(t *testing.T) {
 	t.Parallel()
 	r := a2Rig(t)
-	res, err := r.MCP(t, auth.ScopeRead).ListResourceTemplates(context.Background(), nil)
+	res, err := r.MCP(t, auth.ScopeRead).ListResourceTemplates(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,11 +333,11 @@ func TestMCPLists_Budget(t *testing.T) {
 	t.Parallel()
 	r := a2Rig(t)
 	s := r.MCP(t, auth.ScopeRead)
-	ps, err := s.ListPrompts(context.Background(), nil)
+	ps, err := s.ListPrompts(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts, err := s.ListResourceTemplates(context.Background(), nil)
+	ts, err := s.ListResourceTemplates(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

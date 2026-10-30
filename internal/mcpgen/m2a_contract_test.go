@@ -1,7 +1,6 @@
 package mcpgen_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -66,7 +65,7 @@ func TestToolsList_Ceiling(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "ceiling", auth.ScopeRead))
-	res, err := sess.ListTools(context.Background(), nil)
+	res, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +85,7 @@ func TestToolsList_SlimOutputSchemas(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "slim", auth.ScopeRead))
-	res, err := sess.ListTools(context.Background(), nil)
+	res, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +115,7 @@ func TestToolsList_SlimOutputSchemas(t *testing.T) {
 		walk("", doc)
 	}
 	// the full documentation is one call away
-	desc, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "describe_operation", Arguments: map[string]any{"operation_id": "get_track"}})
+	desc, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: "describe_operation", Arguments: map[string]any{"operation_id": "get_track"}})
 	if err != nil || desc.IsError {
 		t.Fatalf("describe_operation: %v %+v", err, desc)
 	}
@@ -137,7 +136,7 @@ func TestOutputSchemas_M2aShapes(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "shapes", auth.ScopeRead))
-	lres, err := sess.ListTools(context.Background(), nil)
+	lres, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

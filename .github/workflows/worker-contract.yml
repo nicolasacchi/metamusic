@@ -24,7 +24,7 @@ permissions: {}
 
 concurrency:
   group: worker-contract-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   contract:

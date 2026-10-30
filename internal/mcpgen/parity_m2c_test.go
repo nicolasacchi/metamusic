@@ -1,7 +1,6 @@
 package mcpgen_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,7 +31,7 @@ func TestParity_M2c_Shapes(t *testing.T) {
 	sr := servertest.New(t, servertest.Options{Fixture: true, Files: true, M2c: true})
 	r := &rig{url: sr.URL, tokens: sr.Services.Tokens, api: sr.API}
 	sess := r.client(t, r.token(t, "m2c", auth.ScopeRead))
-	res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_media_links", Arguments: map[string]any{"id": lt.TrackLossy}})
+	res, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: "get_media_links", Arguments: map[string]any{"id": lt.TrackLossy}})
 	if err != nil {
 		t.Fatal(err)
 	}

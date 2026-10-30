@@ -39,7 +39,7 @@ func session(t *testing.T) *mcp.ClientSession {
 
 func call(t *testing.T, s *mcp.ClientSession, name string, args any) *mcp.CallToolResult {
 	t.Helper()
-	res, err := s.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	res, err := s.CallTool(callCtx(), &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
@@ -56,7 +56,7 @@ func text(res *mcp.CallToolResult) string {
 func TestToolListHonoursMCPMetadata(t *testing.T) {
 	t.Parallel()
 	s := session(t)
-	res, err := s.ListTools(context.Background(), nil)
+	res, err := s.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestHostHeaderNotRestricted(t *testing.T) {
 	req.Host = "mm.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testHTTP.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

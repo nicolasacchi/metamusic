@@ -88,7 +88,7 @@ func (r *rig) rest(t *testing.T, tok, method, path string, body any) any {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testHTTP.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func mcpRaw(t *testing.T, sess *mcp.ClientSession, op api.OpInfo, args map[strin
 	if viaGeneric || op.Meta.MCP != "tool" {
 		name, params = "call_operation", map[string]any{"operation_id": op.ID, "arguments": args}
 	}
-	res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: params})
+	res, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: name, Arguments: params})
 	if err != nil {
 		t.Fatalf("%s via %s: %v", op.ID, name, err)
 	}
@@ -531,7 +531,7 @@ func TestWhoamiPropagatesAgentPrincipal(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "agent-7", auth.ScopeRead)
-	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "whoami"})
+	res, err := r.client(t, tok).CallTool(callCtx(), &mcp.CallToolParams{Name: "whoami"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,7 +548,7 @@ func TestScopeEnforcedThroughMCP(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	tok := r.token(t, "w", auth.ScopeWrite) // no read
-	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "ping"})
+	res, err := r.client(t, tok).CallTool(callCtx(), &mcp.CallToolParams{Name: "ping"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -566,7 +566,7 @@ func TestAnonymousMCPIs401(t *testing.T) {
 		if auth != "" {
 			req.Header.Set("Authorization", auth)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testHTTP.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -585,7 +585,7 @@ func TestToolsListGolden(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "g", auth.ScopeRead))
-	res, err := sess.ListTools(context.Background(), nil)
+	res, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -671,7 +671,7 @@ func TestWhoamiAcrossProtocolVersions(t *testing.T) {
 		if ver != "" {
 			req.Header.Set("MCP-Protocol-Version", ver)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testHTTP.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -716,7 +716,7 @@ func TestMCPTransportErrorsAreProblemJSON(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+tok)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testHTTP.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -753,7 +753,7 @@ func TestParity_MultiValueQuery(t *testing.T) {
 		{"both", map[string]any{"status": []string{"draft"}, "style": []string{"rock", "guitar"}}, "/api/tracks?status=draft&style=rock&style=guitar", 2},
 	} {
 		viaREST := r.rest(t, tok, "GET", tc.path, nil)
-		res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "search_tracks", Arguments: tc.args})
+		res, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: "search_tracks", Arguments: tc.args})
 		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}
@@ -774,7 +774,7 @@ func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	r := newRig(t)
 	tok := r.token(t, "agent-ref", auth.ScopeRead)
 	viaREST := r.rest(t, tok, "GET", "/api/drafts/"+lt.Draft1, nil).(map[string]any)
-	res, err := r.client(t, tok).CallTool(context.Background(), &mcp.CallToolParams{Name: "get_draft", Arguments: map[string]any{"id": lt.Draft1}})
+	res, err := r.client(t, tok).CallTool(callCtx(), &mcp.CallToolParams{Name: "get_draft", Arguments: map[string]any{"id": lt.Draft1}})
 	if err != nil {
 		t.Fatal(err)
 	}

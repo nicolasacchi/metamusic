@@ -211,7 +211,7 @@ func TestDescribeOperation_ImageResult(t *testing.T) {
 
 func callTool(t *testing.T, s *mcp.ClientSession, name string, args any) *mcp.CallToolResult {
 	t.Helper()
-	res, err := s.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	res, err := s.CallTool(callCtx(), &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}

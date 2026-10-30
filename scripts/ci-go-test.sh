@@ -73,7 +73,7 @@ case "$cmd" in
     # TestPerf_* budget tests run in the perf job (no race, no cover), not under -race -cover here (scripts/go-suite.sh).
     # modernc.org/* (the transpiled SQLite stack, no project logic) is compiled without race instrumentation, as in
     # `make check`; everything else, ours included, stays under -race. The nightly sets MM_FULL_RACE=1 for full instrumentation.
-    flags=(-timeout 18m -race -shuffle=on -cover -skip '^TestPerf_')
+    flags=(-timeout 12m -race -shuffle=on -cover -skip '^TestPerf_')
     [ "${MM_FULL_RACE:-0}" = 1 ] || flags+=(-gcflags=modernc.org/...=-race=false)
     # With MM_GO_TIMINGS=<dir> every go test run also writes its `-json` event stream to <dir>/<name>.jsonl (the weights
     # source: scripts/ci-weights-refresh.sh); the log shows the usual text.

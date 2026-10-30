@@ -149,7 +149,7 @@ func TestToolsList_L1Budget(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "l1-budget", auth.ScopeRead))
-	res, err := sess.ListTools(context.Background(), nil)
+	res, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestOps_HumanJudgment_NoMCP(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "l1-judgment", auth.ScopeRead, auth.ScopeWrite))
-	tools, err := sess.ListTools(context.Background(), nil)
+	tools, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestOps_HumanJudgment_NoMCP(t *testing.T) {
 		}
 	}
 	for _, op := range []string{"pin_pick", "dismiss_pick_proposal"} {
-		res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": op, "arguments": map[string]any{"id": "x"}}})
+		res, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": op, "arguments": map[string]any{"id": "x"}}})
 		if err != nil {
 			t.Fatal(err)
 		}
