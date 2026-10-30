@@ -32,7 +32,6 @@
     if (viewer) return;
     void fetchViewer().then((v) => (me = v));
   });
-  const human = $derived(me !== null && me.kind === "human");
 
   async function load() {
     const mine = ++seq;
@@ -186,7 +185,7 @@
           <button type="button" aria-expanded={menu === "record"} onclick={() => (menu = menu === "record" ? "" : "record")} data-testid="crate-to-record">Add to Record…</button>
           {#if !smart}<button type="button" aria-expanded={menu === "crate"} onclick={() => (menu = menu === "crate" ? "" : "crate")} data-testid="crate-to-crate">Add to Crate…</button>{/if}
         </div>
-        {#if menu === "record"}<AddToRecord songIds={loadedIds.songIds} {human} heading="Add to Record" />{/if}
+        {#if menu === "record"}<AddToRecord songIds={loadedIds.songIds} viewer={me} heading="Add to Record" />{/if}
         {#if menu === "crate"}<AddToCrate subject={crate.subject} ids={loadedIds.ids} heading="Add to another Crate" />{/if}
       </section>
     {/if}

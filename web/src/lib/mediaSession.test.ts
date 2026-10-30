@@ -268,6 +268,18 @@ describe("mediaSession artwork (M4a C115)", () => {
     expect(art()!.map((a) => a.src)).toEqual([cover.url512, cover.url1024]);
   });
 
+  test("a tape current item never asks for a cover", async () => {
+    let asked = 0;
+    const { el, player } = withCover(async () => {
+      asked++;
+      return cover;
+    });
+    player.state.trackId = "tape:abc";
+    el.dispatchEvent(new Event("playing"));
+    await flush();
+    expect(asked).toBe(0);
+  });
+
   test("a provider that fails or returns null keeps the icon", async () => {
     const a = withCover(async () => null);
     a.el.dispatchEvent(new Event("playing"));

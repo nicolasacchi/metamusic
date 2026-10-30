@@ -53,7 +53,7 @@ export function recordView(n = 3, over: Partial<S["RecordView"]> = {}): S["Recor
 export const preview: S["RecordPreview"] = {
   chapters: [
     { position: 1, name: "Synthetic take 1" },
-    { position: 2, name: "Synthetic take 2 (lossy source)" },
+    { position: 2, name: "Synthetic take 2 [lossy source]" },
   ],
   tags: [
     { key: "TITLE", value: "Synthetic record" },

@@ -276,7 +276,7 @@
           <CommentsPanel trackId={id} bind:comments />
         </section>
         <section class="card" data-testid="track-curation">
-          <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} human={me?.kind === "human"} heading="Records" />
+          <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
         </section>
         <section class="card">
           <AddToCrate subject="take" ids={[id]} heading="Take Crates" />
