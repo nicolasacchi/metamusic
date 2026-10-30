@@ -399,6 +399,8 @@ export class Player {
       on("seeked", () => {
         this.state.current = el.currentTime || 0;
         this.finished = false;
+        // A seek that is not ours (native controls, a test) moves the clock: prematureEnd's estimate no longer holds.
+        this.unrecovered = null;
       }),
       on("play", () => this.onPlay()),
       on("waiting", () => {

@@ -442,6 +442,15 @@ describe("player store", () => {
       expect(p.state.trackId).toBe("b");
     });
 
+    test("a native seek (not through seek()) forgets the error too", async () => {
+      const { p, el, advance } = await sunk(20);
+      el.currentTime = 99.7;
+      el.emit("seeked");
+      advance(500);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
     test("another track's error does not make this track's end premature", async () => {
       const { p, el, advance } = await sunk(20);
       p.play("b", ["a", "b", "c"]);
