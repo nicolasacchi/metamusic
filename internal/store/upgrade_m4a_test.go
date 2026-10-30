@@ -31,7 +31,7 @@ func TestMigration0009_UpgradeFromM3(t *testing.T) {
 	}
 	prev := &store.Store{W: raw, R: raw}
 	key := []byte("0123456789abcdef0123456789abcdef")
-	plain, _, err := auth.NewTokenStore(prev, key, time.Now).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
+	plain, err := legacyToken(ctx, prev, key)
 	if err != nil {
 		t.Fatal(err)
 	}

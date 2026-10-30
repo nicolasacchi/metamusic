@@ -187,6 +187,11 @@ func Middleware(cfg config.Config, sec config.Secrets, v Verifiers) func(http.Ha
 						next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 						return
 					}
+					if errors.Is(err, ErrTokenExpired) {
+						w.Header().Set("WWW-Authenticate", "Bearer")
+						writeProblem(w, http.StatusUnauthorized, "TOKEN_EXPIRED", "this API token has expired; create a new one")
+						return
+					}
 					if !errors.Is(err, ErrInvalidToken) {
 						internalError(w, "token verification failed", err)
 						return

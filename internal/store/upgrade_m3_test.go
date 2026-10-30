@@ -26,7 +26,7 @@ func TestMigration0007_UpgradeFromM2d(t *testing.T) {
 	}
 	v6 := &store.Store{W: raw, R: raw}
 	key := []byte("0123456789abcdef0123456789abcdef")
-	plain, _, err := auth.NewTokenStore(v6, key, time.Now).Create(ctx, "t", []auth.Scope{auth.ScopeRead})
+	plain, err := legacyToken(ctx, v6, key)
 	if err != nil {
 		t.Fatal(err)
 	}

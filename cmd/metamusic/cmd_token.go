@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -28,11 +29,16 @@ func cmdToken(ctx context.Context, args []string, getenv func(string) string, s 
 		fs := newFlags("token create", s)
 		name := fs.String("name", "", "token name")
 		scopes := fs.String("scopes", "read", "comma-separated scopes (read,write,generate,admin)")
+		ttlFlag := fs.String("ttl", "90d", `lifetime: 90d, 720h, ...; "0" or "never" for a token that does not expire`)
 		if err := fs.Parse(args[1:]); err != nil {
 			return usageError(err.Error())
 		}
 		if strings.TrimSpace(*name) == "" {
 			return usageError("token create: --name is required")
+		}
+		ttl, err := parseTTL(*ttlFlag)
+		if err != nil {
+			return usageError("token create: " + err.Error())
 		}
 		sc, _ := parseScopes(*scopes)
 		b, err := boot(ctx, getenv, false)
@@ -40,7 +46,7 @@ func cmdToken(ctx context.Context, args []string, getenv func(string) string, s 
 			return err
 		}
 		defer b.close()
-		plain, id, err := b.tokens.Create(ctx, *name, sc)
+		plain, id, err := b.tokens.CreateTTL(ctx, *name, sc, ttl)
 		if err != nil {
 			if errors.Is(err, auth.ErrInvalidScope) {
 				return fmt.Errorf("invalid name or scopes %q", *scopes)
@@ -60,14 +66,18 @@ func cmdToken(ctx context.Context, args []string, getenv func(string) string, s 
 			return err
 		}
 		tw := tabwriter.NewWriter(s.out, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(tw, "ID\tNAME\tPREFIX\tSCOPES\tCREATED\tLAST USED\tREVOKED")
+		fmt.Fprintln(tw, "ID\tNAME\tPREFIX\tSCOPES\tCREATED\tLAST USED\tEXPIRES\tREVOKED")
 		for _, t := range list {
 			var sc []string
 			for _, x := range t.Scopes {
 				sc = append(sc, string(x))
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", t.ID, t.Name, t.Prefix, strings.Join(sc, ","),
-				fmtTime(t.CreatedAt), fmtTime(t.LastUsedAt), fmtTime(t.RevokedAt))
+			expires := "no expiry"
+			if t.ExpiresAt != "" {
+				expires = t.ExpiresAt
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", t.ID, t.Name, t.Prefix, strings.Join(sc, ","),
+				fmtTime(t.CreatedAt), fmtTime(t.LastUsedAt), expires, fmtTime(t.RevokedAt))
 		}
 		return tw.Flush()
 	case "revoke":
@@ -90,6 +100,28 @@ func cmdToken(ctx context.Context, args []string, getenv func(string) string, s 
 		return usageError(fmt.Sprintf("token: unknown subcommand %q", args[0]))
 	}
 	return nil
+}
+
+// parseTTL reads a token lifetime: "0" or "never" (no expiry), "<n>d" days, or a Go duration such as "720h".
+func parseTTL(s string) (time.Duration, error) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "0" || s == "never" {
+		return 0, nil
+	}
+	var d time.Duration
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, err := strconv.Atoi(days)
+		if err != nil || n <= 0 || n > 3650 {
+			return 0, fmt.Errorf("invalid --ttl %q (use 90d, 720h, 0 or never; at most 3650d)", s)
+		}
+		d = time.Duration(n) * 24 * time.Hour
+	} else {
+		var err error
+		if d, err = time.ParseDuration(s); err != nil || d <= 0 || d > 3650*24*time.Hour {
+			return 0, fmt.Errorf("invalid --ttl %q (use 90d, 720h, 0 or never; at most 3650d)", s)
+		}
+	}
+	return d, nil
 }
 
 const maxPasswordBytes = 4096

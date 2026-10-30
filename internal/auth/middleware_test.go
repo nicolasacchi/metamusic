@@ -442,3 +442,26 @@ func TestTokenStore_ClosedStoreErrors(t *testing.T) {
 		t.Error("Create on closed store")
 	}
 }
+
+type expiredTokens struct{}
+
+func (expiredTokens) Verify(context.Context, string) (Principal, error) {
+	return Principal{}, ErrTokenExpired
+}
+
+func TestExpiredTokenIs401TokenExpired(t *testing.T) {
+	t.Parallel()
+	c, s := cfg("proxy")
+	called := false
+	h := Middleware(c, s, Verifiers{Tokens: expiredTokens{}, Sessions: fakeSessions{}})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	r := httptest.NewRequest("GET", "/api/tokens", nil)
+	r.Header.Set("Authorization", "Bearer mmp_whatever")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if called || rec.Code != 401 || !strings.Contains(rec.Body.String(), `"TOKEN_EXPIRED"`) || rec.Header().Get("WWW-Authenticate") != "Bearer" {
+		t.Fatalf("code=%d hdr=%q body=%s called=%v", rec.Code, rec.Header().Get("WWW-Authenticate"), rec.Body, called)
+	}
+	if strings.Contains(rec.Body.String(), "mmp_whatever") {
+		t.Fatal("body echoes the token")
+	}
+}

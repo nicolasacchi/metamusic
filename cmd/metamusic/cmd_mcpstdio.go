@@ -73,6 +73,9 @@ func mcpStdio(ctx context.Context, getenv func(string) string, s streams, tr mcp
 
 	// Verify once up front; the message never echoes the value.
 	if _, err := svc.Tokens.Verify(ctx, token); err != nil {
+		if errors.Is(err, auth.ErrTokenExpired) {
+			return fatal(errors.New("MM_TOKEN has expired; create a new token"))
+		}
 		if errors.Is(err, auth.ErrInvalidToken) {
 			return fatal(errors.New("MM_TOKEN rejected"))
 		}
