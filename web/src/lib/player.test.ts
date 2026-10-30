@@ -374,6 +374,197 @@ describe("player store", () => {
     expect(p.state.error).toBe("");
   });
 
+  describe("an ended that follows a Firefox audio-sink error", () => {
+    /** Plays "a" (queue a, b) for `at` seconds of a 100 s track, then raises the sink error. */
+    async function sunk(at = 20) {
+      const s = setup();
+      s.p.play("a", ["a", "b"]);
+      await s.flush();
+      s.el.duration = 100;
+      s.el.currentTime = at;
+      s.el.emit("playing");
+      s.el.fail(3, "OnMediaSinkAudioError");
+      return s;
+    }
+    const end = (el: FakeAudio) => {
+      (el as unknown as { ended: boolean }).ended = true;
+      const e = new Event("ended", { cancelable: true });
+      let seen = false;
+      el.addEventListener("ended", () => (seen = true)); // a later listener, like the listen recorder
+      el.dispatchEvent(e);
+      return seen;
+    };
+
+    test("before the clock could reach the end it reloads the same source at the error position and does not advance", async () => {
+      const { p, el, flush, advance } = await sunk(20);
+      advance(5_000); // 25 s of clock: far from the end of a 100 s track
+      el.currentTime = 100;
+      el.log.length = 0;
+      expect(end(el)).toBe(false); // the recorder never sees a finish
+      await flush();
+      expect(p.state.trackId).toBe("a");
+      expect(el.src).toBe("/media/a.flac?exp=1");
+      expect(el.log).toContain("play");
+      el.duration = 100;
+      el.emit("loadedmetadata");
+      expect(el.currentTime).toBe(20);
+    });
+
+    test("a clock that really reached the end is a normal finish (headless Firefox without a device)", async () => {
+      const { p, el, advance } = await sunk(20);
+      advance(80_000);
+      el.currentTime = 100;
+      expect(end(el)).toBe(true);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("it gives up after two reloads so a dead device still moves the queue on", async () => {
+      const { p, el, flush, advance } = await sunk(20);
+      for (let i = 0; i < 2; i++) {
+        advance(1_000);
+        end(el);
+        await flush();
+        expect(p.state.trackId).toBe("a");
+        el.duration = 100;
+        el.emit("loadedmetadata");
+        el.fail(3, "OnMediaSinkAudioError");
+      }
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("a deliberate seek forgets the error: an end near the new position is a finish", async () => {
+      const { p, el, advance } = await sunk(20);
+      p.seek(98);
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("a native seek (not through seek()) forgets the error too", async () => {
+      const { p, el, advance } = await sunk(20);
+      el.currentTime = 99.7;
+      el.emit("seeked");
+      advance(500);
+      end(el);
+      expect(p.state.trackId).toBe("b");
+    });
+
+    test("another track's error does not make this track's end premature", async () => {
+      const { p, el, advance } = await sunk(20);
+      p.play("b", ["a", "b", "c"]);
+      el.duration = 100;
+      advance(1_000);
+      end(el);
+      expect(p.state.trackId).toBe("c");
+    });
+  });
+
+  describe("MEDIA_ERR_ABORTED (Android Firefox aborts the media fetch when backgrounded)", () => {
+    async function playing(at = 20) {
+      const s = setup();
+      s.p.play("a", ["a", "b"]);
+      await s.flush();
+      s.el.duration = 100;
+      s.el.currentTime = at;
+      s.el.emit("playing");
+      return s;
+    }
+
+    test("code 1 reloads the same source at the current position instead of leaving a half-dead element", async () => {
+      const { p, el, flush } = await playing(20);
+      el.log.length = 0;
+      el.fail(1);
+      await flush();
+      expect(p.state.trackId).toBe("a");
+      expect(p.state.format).toBe("flac");
+      expect(el.src).toBe("/media/a.flac?exp=1");
+      expect(el.log).toContain("play");
+      el.currentTime = 0; // a reloaded element starts at 0 ...
+      el.emit("loadedmetadata");
+      expect(el.currentTime).toBe(20); // ... and is put back
+    });
+
+    test("an expired link is minted again", async () => {
+      const { el, fetched, flush, advance } = await playing(20);
+      advance(13 * 3600_000);
+      const before = fetched.length;
+      el.fail(1);
+      await flush();
+      expect(fetched.length).toBe(before + 1);
+    });
+
+    test("an abort we caused (a track change before the new source is applied) is ignored", async () => {
+      const { p, el, fetched, flush } = await playing(20);
+      p.play("b", ["a", "b"]);
+      const n = fetched.length;
+      el.fail(1); // the old source's late abort
+      await flush();
+      expect(p.state.trackId).toBe("b");
+      expect(el.src).toBe("/media/b.flac?exp=1");
+      expect(fetched.filter((x) => x === "a")).toHaveLength(fetched.slice(0, n).filter((x) => x === "a").length);
+    });
+
+    test("after three reloads the error stays; an early ended is then refused and reloaded, not a finish", async () => {
+      const { p, el, flush, advance } = await playing(20);
+      for (let i = 0; i < 3; i++) {
+        el.fail(1);
+        await flush();
+        el.duration = 100;
+        el.currentTime = 20;
+        el.emit("loadedmetadata");
+      }
+      el.fail(1);
+      await flush();
+      expect(p.state.error).toBe("Playback error");
+      advance(2_000);
+      el.currentTime = 22; // the buffer ran out
+      (el as unknown as { ended: boolean }).ended = true;
+      let seen = false;
+      el.addEventListener("ended", () => (seen = true));
+      el.dispatchEvent(new Event("ended", { cancelable: true }));
+      await flush();
+      expect(seen).toBe(false);
+      expect(p.state.trackId).toBe("a");
+      el.emit("loadedmetadata");
+      expect(el.currentTime).toBe(22); // resumes where the stream stopped
+    });
+
+    test("a code 2 that cannot be re-minted twice also guards the end", async () => {
+      const { p, el, flush, advance } = await playing(20);
+      el.fail(2);
+      await flush();
+      el.duration = 100;
+      el.currentTime = 20;
+      el.emit("loadedmetadata");
+      el.fail(2); // second network error before `playing`: gives up
+      await flush();
+      advance(1_000);
+      (el as unknown as { ended: boolean }).ended = true;
+      el.dispatchEvent(new Event("ended", { cancelable: true }));
+      expect(p.state.trackId).toBe("a");
+    });
+  });
+
+  test("the MP3 fallback after a failed re-mint resumes where the song was, not at 0", async () => {
+    const { p, el, flush } = setup();
+    p.play("a");
+    await flush();
+    el.duration = 100;
+    el.currentTime = 30;
+    el.emit("timeupdate");
+    el.fail(2);
+    await flush();
+    el.currentTime = 0; // the reset element
+    el.emit("timeupdate");
+    el.fail(4); // the re-minted FLAC fails to load: MP3 fallback
+    await flush();
+    expect(p.state.format).toBe("mp3");
+    el.emit("loadedmetadata");
+    expect(el.currentTime).toBe(30);
+  });
+
   test("Chromium event order: re-mint after code 2 still resumes playback", async () => {
     const { p, el, flush } = setup();
     p.play("a");
