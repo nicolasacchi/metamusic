@@ -149,6 +149,62 @@ func (d specDoc) resolve(schema, path string) map[string]any {
 	return cur
 }
 
+// attr returns the value of key on a schema node, looking through $ref and allOf wrappers (the live spec
+// writes `{"allOf":[{"$ref":".../FlashBoot"}],"default":"OFF"}` for a property that carries its own default).
+func (d specDoc) attr(node map[string]any, key string) any {
+	node = d.deref(node)
+	if node == nil {
+		return nil
+	}
+	if v, ok := node[key]; ok {
+		return v
+	}
+	if alts, ok := node["allOf"].([]any); ok {
+		for _, a := range alts {
+			if v := d.attr(d.deref(a), key); v != nil {
+				return v
+			}
+		}
+	}
+	return nil
+}
+
+// required collects the `required` names of a schema and of everything it composes with allOf (the
+// conditional if/then branches are not followed: they only add a requirement when templateId is absent).
+func (d specDoc) required(node map[string]any, out map[string]bool) {
+	node = d.deref(node)
+	if node == nil {
+		return
+	}
+	if req, ok := node["required"].([]any); ok {
+		for _, r := range req {
+			if n, ok := r.(string); ok {
+				out[n] = true
+			}
+		}
+	}
+	if alts, ok := node["allOf"].([]any); ok {
+		for _, a := range alts {
+			if m, _ := a.(map[string]any); m != nil {
+				d.required(m, out)
+			}
+		}
+	}
+}
+
+// hasQueryParam reports whether operation (METHOD /path) declares the query parameter name, whether inline or
+// as a $ref into components/parameters.
+func (d specDoc) hasQueryParam(operation, name string) bool {
+	m, p, _ := strings.Cut(operation, " ")
+	params, _ := d.at("paths", p, strings.ToLower(m), "parameters").([]any)
+	for _, x := range params {
+		if pm := d.deref(x); pm != nil && pm["name"] == name && pm["in"] == "query" {
+			return true
+		}
+	}
+	return false
+}
+
 // flatten renders every leaf of a document as path -> canonical literal.
 func flatten(prefix string, v any, out map[string]string) {
 	switch x := v.(type) {
@@ -226,6 +282,13 @@ func (d specDoc) hasCachedModelField() bool {
 	var walk func(m map[string]any, depth int) bool
 	walk = func(m map[string]any, depth int) bool {
 		m = d.deref(m)
+		if alts, ok := m["allOf"].([]any); ok {
+			for _, a := range alts {
+				if am, _ := a.(map[string]any); am != nil && walk(am, depth) {
+					return true
+				}
+			}
+		}
 		props, _ := m["properties"].(map[string]any)
 		for name, p := range props {
 			n := strings.ToLower(name)
@@ -250,7 +313,7 @@ func (d specDoc) enumValues(schema, path string) []string {
 	if p == nil {
 		return out
 	}
-	vals, _ := p["enum"].([]any)
+	vals, _ := d.attr(p, "enum").([]any)
 	for _, v := range vals {
 		if s, ok := v.(string); ok {
 			out = append(out, s)
@@ -270,15 +333,7 @@ func (d specDoc) checkFacts() []string {
 	}
 	for _, fld := range ManagementFields {
 		if fld.Schema == "" {
-			m, p, _ := strings.Cut(fld.Operation, " ")
-			found := false
-			params, _ := d.at("paths", p, strings.ToLower(m), "parameters").([]any)
-			for _, x := range params {
-				if pm, _ := x.(map[string]any); pm != nil && pm["name"] == fld.Path {
-					found = true
-				}
-			}
-			if !found {
+			if !d.hasQueryParam(fld.Operation, fld.Path) {
 				f = append(f, "query parameter missing: "+fld.Operation+" "+fld.Path)
 			}
 			continue
@@ -289,7 +344,7 @@ func (d specDoc) checkFacts() []string {
 	}
 	if g := d.resolve("CreateEndpointRequest", "gpu.minCudaVersion"); g == nil {
 		f = append(f, "fact: gpu.minCudaVersion")
-	} else if desc, _ := g["description"].(string); !strings.Contains(desc, "allowedCudaVersions") {
+	} else if desc, _ := d.attr(g, "description").(string); !strings.Contains(desc, "allowedCudaVersions") {
 		f = append(f, "fact: gpu.minCudaVersion is no longer documented as exclusive with allowedCudaVersions")
 	}
 	qd := d.resolve("CreateEndpointRequest", "scaling.queueDelay")
@@ -301,9 +356,13 @@ func (d specDoc) checkFacts() []string {
 	if d.resolve("CreateEndpointRequest", "scaling.requestCount") == nil {
 		f = append(f, "fact: scaling union has no requestCount")
 	}
-	if tm := d.resolve("CreateEndpointRequest", "timeout"); tm == nil {
+	// The create request only declares `timeout` as an integer; the unit is documented on the Endpoint
+	// response, which is the shape the client reads back and compares.
+	if d.resolve("CreateEndpointRequest", "timeout") == nil {
 		f = append(f, "fact: timeout")
-	} else if desc, _ := tm["description"].(string); !strings.Contains(strings.ToLower(desc), "milliseconds") {
+	} else if tm := d.resolve("Endpoint", "timeout"); tm == nil {
+		f = append(f, "fact: Endpoint.timeout")
+	} else if desc, _ := d.attr(tm, "description").(string); !strings.Contains(strings.ToLower(desc), "milliseconds") {
 		f = append(f, "fact: timeout is no longer documented in milliseconds")
 	}
 	fb := d.enumValues("CreateEndpointRequest", "flashboot")
@@ -312,7 +371,9 @@ func (d specDoc) checkFacts() []string {
 			f = append(f, "fact: flashboot value "+want)
 		}
 	}
-	if req, _ := d.deref(d.at("components", "schemas", "CreateEndpointRequest"))["required"].([]any); len(req) != 3 {
+	req := map[string]bool{}
+	d.required(d.deref(d.at("components", "schemas", "CreateEndpointRequest")), req)
+	if len(req) != 3 || !req["name"] || !req["type"] || !req["scaling"] {
 		f = append(f, "fact: CreateEndpointRequest required fields changed")
 	}
 	return f

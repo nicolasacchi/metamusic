@@ -11,25 +11,13 @@ permissions: {}
 
 jobs:
   runpod-openapi-drift:
+    # The public management OpenAPI document (api.runpod.io/v2) against the committed snapshot, through the same
+    # code the client is pinned with (`metamusic runpod probe --schema`). Red only when a fact the client
+    # depends on is gone from the LIVE document (an operation, query parameter or field of the field table,
+    # the C77.2 facts); any other upstream edit is a warning plus a job summary, to be taken into a new snapshot
+    # (curl -fsS https://api.runpod.io/v2/openapi.json | jq -S . > internal/provider/runpod/testdata/openapi.snapshot.json).
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: management OpenAPI vs the canonicalised snapshot
-        run: |
-          snap=internal/provider/runpod/testdata/openapi.snapshot.json
-          [ -f "$snap" ] || { echo "no snapshot at $snap yet (recorded by the Provider lane / M3-X1)"; exit 1; }
-          curl -fsS --max-time 60 https://api.runpod.io/v2/openapi.json | jq -S . > "$RUNNER_TEMP/live.json"
-          jq -S . "$snap" | diff -u - "$RUNNER_TEMP/live.json"
-
-  spend-property:
-    # The long run of the spend property suite (C86.3): the CI default is a few timelines, this is 300.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -40,10 +28,54 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: spend property suite, 300 timelines
+      - name: live management OpenAPI vs the snapshot
+        run: |
+          out="$RUNNER_TEMP/probe.json"
+          # the exit status is 1 for drift and for failed facts alike; the report tells them apart
+          CGO_ENABLED=0 go run ./cmd/metamusic runpod probe --schema --out "$out" >/dev/null || true
+          [ -s "$out" ] || { echo "::error::the schema probe produced no report (is the public spec reachable?)"; exit 1; }
+          jq -e '.schema' "$out" >/dev/null || { echo "::error::the report has no schema section"; exit 1; }
+          if [ "$(jq -r '.schema.ok' "$out")" != "true" ]; then
+            echo "::error::the live RunPod spec no longer carries facts the client depends on"
+            jq -r '.schema.failures[]' "$out" | sed 's/^/  - /'
+            exit 1
+          fi
+          if [ "$(jq -r '.schema.drift' "$out")" = "true" ]; then
+            n="$(jq '.schema.changed | length' "$out")"
+            echo "::warning::the live RunPod spec differs from the snapshot in $n paths; none breaks the client. Refresh the snapshot."
+            {
+              echo "### RunPod OpenAPI drift: $n changed paths (client facts intact)"
+              jq -r '.schema.changed[:40][] | "- `" + . + "`"' "$out"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  spend-property:
+    # The long run of the spend property suite (C86.3): the CI default is a few timelines, this is 300 "within"
+    # + 100 adversarial + 150 RunPod-profile = 550 seeds. One runner needs well over the 55 minutes it was given
+    # (a timeline costs ~10 s of 4-vCPU time under -race), so the same seeds are split over a matrix: shard i of
+    # N keeps the seeds with seed % N == i (MM_PROPERTY_SHARD). Nothing is cut; a failing seed replays with
+    # MM_PROPERTY_TIMELINES=300 MM_PROPERTY_SHARD=i/N or by its subtest name.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: spend property suite, 300 timelines, shard ${{ matrix.shard }}/12
         env:
           MM_PROPERTY_TIMELINES: "300"
-        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/jobs
+          MM_PROPERTY_SHARD: "${{ matrix.shard }}/12"
+        run: go test -race -shuffle=on -timeout 40m -run 'TestProperty_' ./internal/jobs
 
   provenance-property:
     # The long run of the provenance property suite (C101.3): the CI default is 60 sequences, this is 300.
