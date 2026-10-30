@@ -240,3 +240,44 @@ A restored database keeps the derived rows of its snapshot. After restoring, sta
 `Settle` completes what the snapshot lacked), then run `metamusic library verify`; it must report
 nothing. If derived rows were dropped or damaged, `metamusic library reconcile` rebuilds them from the
 source tables.
+
+## Records, Crates and tapes (L2)
+
+### Publishing and unpublishing
+
+Agents edit drafts and may propose; publishing is a human action on the web (a paired device cannot publish).
+The publish page lists the text that will leave the app. Unpublishing returns the Record to draft and clears its
+publication fields; its first publication time is kept. A published Record still follows Pick changes and logs them;
+`pin_all` freezes it.
+
+### Tapes: disk, retention and a failed export
+
+- Tapes live under `derived/tapes/`, are **never backed up**, and are kept 14 days after they become ready. A sweep
+  expires old rows, removes their files and removes orphan files older than a day.
+- Quotas: 3 live tapes per Record, 8 GiB of ready tapes (409 `TAPE_QUOTA`). A render needs about 1.3 times its PCM size
+  plus 64 MiB of free disk; otherwise it fails with `TAPE_DISK_FULL`.
+- A failed export keeps its row with a code (`TAPE_ENCODE_FAILED`, `TAPE_DISK_FULL`, `TAPE_INTERRUPTED`) and a path-masked
+  message; fix the cause and export again. A render interrupted by a restart is
+  re-queued while its lease is recent and fails with `TAPE_INTERRUPTED` after three tries.
+- Without `flac` on the host, export answers 503 `UNAVAILABLE {component: flac}`; set `MM_FLAC` to its path if it is not
+  on `PATH`.
+- `metamusic library verify --files` also checks that every ready tape's file exists with its recorded size and prints
+  ids and relative paths only. Without `--files` the file system is not looked at.
+
+### Curation opt-ins
+
+`export_muse_names` (Muse names in tape tags and liner export) and `subsonic_muse_names` (Muse names in Subsonic
+auto-album names) are off by default and can be changed only by a human on the Opt-ins page. Changing either moves the
+Subsonic token and, for the first, the tape key, so new exports differ. Leave both off unless you accept that Muse text
+leaves the app in those two places.
+
+### After a restore (Record sync, tapes are gone)
+
+A restore brings back Records, slots and the changelog of the snapshot but no tapes. Start the server (the Syncer then
+logs the Pick changes the snapshot lacked), run `metamusic library reconcile --wait` and `metamusic library verify`
+(L1 and L2 invariants); it must report nothing. Tape rows whose file is gone are shown as expired; export again.
+
+### Rollback
+
+Rollback of the L2 deploy (migration `0010`, schema 10) is restoring the pre-migration backup. Do not run an older
+binary against a migrated database.

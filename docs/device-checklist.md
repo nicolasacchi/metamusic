@@ -80,4 +80,9 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-L1-1 pin a Pick from a paired phone: the Pick badge moves to the pinned take and the history shows the pin; unpinning restores the derived Pick
 - [ ] DC-L1-2 the Board is usable on a phone: horizontal scroll works, targets are at least 44 px, and selection and the Estimate hand-off reach the generate page
 
+## L2
+
+- [ ] DC-L2-1 open one real tape in three of your own players: record which show chapters, which encoding they read (binary CUESHEET, `CHAPTERnnn`, text `CUESHEET`), and the loudness feel at the seams; if none shows chapters, a `.cue` sidecar is the fallback
+- [ ] DC-L2-2 play a gain-matched Record in the SPA with the screen locked on iOS (and the app backgrounded): it keeps playing through at least three track changes on the Web Audio path; if not, "Play as tape" is the supported iOS path. Also record the seam length on phone and desktop (logged, not asserted)
+
 ## Notes

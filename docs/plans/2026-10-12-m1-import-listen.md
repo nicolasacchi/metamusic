@@ -2626,3 +2626,11 @@ column (`tracks.lossy`) and nine triggers (migration `0005_reference.sql`); C12 
 standalone-MP3 candidates, the `reference` mapping target and per-song grouping; C17/C18 serve a lossy
 master as `.mp3` and `get_media_links` returns `flac: null` for it (C19); C22 never probes for a track
 without a lossless file.
+
+## L2 addenda (2026-10-30)
+
+Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), as shipped:
+
+- **C16.7 (media layout).** `derived/tapes/` joins the importer's cache directories (never backed up, swept after 14 days; orphan files older than a day are removed).
+- **C18 (media serving).** The tape resolver is appended to the existing variadic `serve.Chain`; `png` and the chain were already in place. A `.cue` sidecar was not needed.
+- **C19 (ops).** `search_tracks` gains `unheard`, `in_record`, `sound` (`facet:value`, repeatable) and `crate_id`; the joins are gated by `hasTable`, so older fixtures still read, and on a library without the L2 tables `in_record=true`, `sound` and `crate_id` match nothing.
