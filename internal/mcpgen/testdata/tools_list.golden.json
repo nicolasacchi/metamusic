@@ -5370,6 +5370,12 @@
         "started_at": {
           "type": "string"
         },
+        "startup_issues": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "uptime_s": {
           "format": "int64",
           "type": "integer"
