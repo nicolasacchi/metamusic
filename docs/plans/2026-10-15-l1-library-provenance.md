@@ -2121,3 +2121,13 @@ rating/duelling, and the `Unassigned` row. Record outcomes and any taxonomy addi
 - **Draft `reference` becomes agent-visible (D-L1-36).** This reverses the M1/M2a humans-only rule and needs the P.5 box; the alternative (hiding backfilled Muse text from agents) contradicts D-L1-6. `TestDraftReference_AgentView` pins whichever is chosen.
 - **Two processes, one writer.** The lease (D-L1-35) makes a CLI run next to a live server safe by making it enqueue-only; a crashed settler blocks others for at most `SettleLeaseTTL` (30 s).
 
+## L2 addenda (2026-10-30)
+
+Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), as shipped:
+
+- **C87 (import graph).** The banned-source list gains `recordview`, `tape`, `albums`, `liner`, `cover`, `crates`, `records`, `curation`.
+- **C89 (muses).** `muses` gains a frozen `ordinal` (migration 0010, assigned by trigger, never reshuffled) and a directory adapter: `Ordinals`, `Version`, `Labels`. `muses` cannot import the catalog package, so it has its own `MuseMeta` and `app` adapts it.
+- **C90 / C96 (songs and ops).** `songs.ListFilter` gains the L2 predicates (`unheard`, duration and star bounds, `unrated`, `tag`, `lossy`, `recipe_known`, `in_record`, `crate_id`, `pick_decided`) plus a `None` flag for an empty intersection; `has_pick` is unchanged and `pick_decided` is new. `list_songs` and `search_sounds` gain the same parameters. `get_song` gains `records` and `crates`; `get_muse` gains `catalog` (`{id, neutral_name}`, never an opted-in name).
+- **C98 (context and stats).** `/context` gains `curation` (omitted when empty); `get_stats` gains `curation` (record, crate and tape counts, the two opt-ins, `pending`, `review`).
+- **C99 (Muse visibility).** The Muse-text allowlist gains exactly one operation, `get_record`.
+- **C101 (tooling).** `library verify` includes the L2 anomaly codes; `TestSQL_WriteOwners_L2` gives every L2 table one writer.

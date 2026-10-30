@@ -145,6 +145,37 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
 - **Reconcile queue**: eventually consistent and crash safe; one settler holds a lease, a stale epoch
   writes nothing, and a transient anomaly is re-marked a bounded number of times.
 
+## Curation (L2)
+
+- **Nouns.** A **Record** is a curated, ordered selection of Songs (its slots), with a title, optional notes and a
+  generated cover. A **Crate** is a saved set of Songs or Takes: manual (explicit members) or smart (a stored filter).
+  A **tape** is a rendered, gapless FLAC of a published Record. The word "album" belongs to the Subsonic catalog only.
+- **Lifecycle.** `draft` (agents and humans edit) to `proposed` (an agent asks for publication, with a rationale) to
+  `published` (a human decision). `published` can return to `draft` by unpublishing; `hidden` is a separate flag.
+  Agents propose, a human publishes: `publish_record` is human-only (`/human/api/`), absent from `tools/list` and
+  refused with 403 `HUMAN_ONLY` for every other principal. A paired device may edit a published Record but never publish it.
+- **Slots follow Picks.** A floating slot shows its Song's current Pick; a pinned slot keeps one Take until unpinned.
+  The Record view is derived and never stores a resolved Take. A background Syncer turns Pick events into an
+  append-only changelog (`slot_upgraded`, `slot_filled`, ...); `pin_all` freezes a Record. Undecided Picks
+  (`newest`/`stars`) are flagged and counted, not held back.
+- **Publish gate.** Publishing shows exactly what leaves the app (Record-owned text and membership). Take and Song titles
+  are read live and displayed for review; the gate is review-by-display, not a hard lock on later catalog edits.
+- **Neutral naming and opt-ins.** Muse text never reaches an export, log, audit row, notification or Subsonic response by
+  default. Two human-only settings, both off by default, allow Muse names in tape/liner exports (`export_muse_names`) and
+  in Subsonic auto-album names (`subsonic_muse_names`). Agents can read the booleans, not change them. Without the opt-in an
+  auto-album is named by a frozen neutral ordinal.
+- **Catalog.** `internal/albums` derives the Subsonic album list (published, non-hidden Records; Muse and unfiled
+  auto-albums) and a change token from the same tables. It owns no rows. See `docs/subsonic.md`.
+- **Tape pipeline.** `ffmpeg` decodes each resolved Take to 48 kHz / 24-bit / stereo PCM, a Go stage applies the planned
+  gain (loudness matched, true-peak guarded; clipping aborts), `flac` encodes the stream, and Go writes the metadata
+  (tags, cover, binary CUESHEET, `CHAPTERnnn` and a text `CUESHEET`) in one rewrite. Lossy sources are labelled and never
+  relabelled lossless. A tape needs a published Record and a matching revision; undecided or ineligible slots need a human
+  to accept them. One render at a time; at most 3 live tapes per Record and 8 GiB of ready tapes (409 `TAPE_QUOTA`). The
+  key covers every input, so an unchanged Record reuses its tape. Masters are never touched.
+- **Crates.** A smart Crate stores a filter whose vocabulary is derived from the list operations' parameters; it expands
+  to the same SQL as the list operations, so `list_songs` with `crate_id` equals the Crate's own count.
+- **No L2 operation spends money or calls a provider.**
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.
