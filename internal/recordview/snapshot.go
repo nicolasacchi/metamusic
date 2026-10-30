@@ -10,16 +10,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
-// lossySuffix is appended to the chapter name of a lossy source, so a lossy item is never presented as lossless (V6).
-const lossySuffix = " (lossy source)"
-
-// chapterName is the name a tape chapter carries for an item.
-func chapterName(it tape.Item) string {
-	if it.Lossy {
-		return it.Title + lossySuffix
-	}
-	return it.Title
-}
+// chapterName is the name a tape chapter carries for an item: the preview and the file use the one function, so the publish
+// preview equals what the tape will say (side prefix and lossy suffix included).
+func chapterName(it tape.Item) string { return tape.ChapterName(it.Title, it.Side, it.Lossy) }
 
 // snapshotFrom builds the tape input from loaded data. It reads Muse text only when curation.export_muse_names is on.
 func (s *Service) snapshotFrom(ctx context.Context, d *data, includeLiner bool) (tape.Snapshot, error) {
@@ -42,7 +35,11 @@ func (s *Service) snapshotFrom(ctx context.Context, d *data, includeLiner bool) 
 			continue
 		}
 		ref, f := d.refs[r.Take.ID], d.facts[r.Take.ID]
-		snap.Items = append(snap.Items, tape.Item{SlotID: r.Slot.ID, Position: r.Slot.Position, TakeID: r.Take.ID, Title: ref.Title,
+		side := ""
+		if r.Slot.Side != nil {
+			side = *r.Slot.Side
+		}
+		snap.Items = append(snap.Items, tape.Item{SlotID: r.Slot.ID, Side: side, Position: r.Slot.Position, TakeID: r.Take.ID, Title: ref.Title,
 			MasterRel: ref.MasterPath, MasterSHA256: ref.MasterSHA256, MasterBytes: f.Bytes, SampleRate: ref.SampleRate, Bits: f.Bits,
 			Channels: ref.Channels, Lossy: r.Take.Lossy, DurationS: r.Take.DurationS, Measure: d.loud[r.Take.ID].Measure})
 	}

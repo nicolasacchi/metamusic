@@ -59,7 +59,7 @@ func canaryRig(t *testing.T) (*servertest.Rig, museCanary) {
 }
 
 // museTextOps may carry the canary Muse in their responses (D-L1-6, D-L1-36).
-var museTextOps = []string{"list_muses", "get_muse", "create_muse", "update_muse", "get_song", "get_muse_board", "get_track_context", "get_draft"}
+var museTextOps = []string{"list_muses", "get_muse", "create_muse", "update_muse", "get_song", "get_muse_board", "get_track_context", "get_draft", "get_record"}
 
 // sessionNameOps may carry a collection-derived Session name.
 var sessionNameOps = []string{"list_sessions", "update_session", "get_song"}

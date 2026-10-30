@@ -49,18 +49,9 @@ type uiState struct {
 	song, muse, session string
 	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
 	songRev, sessionRev int
-	// L2: the Record, Crate and tape the script creates; while an L2 stub stands they stay empty and l2ID falls back to a
-	// placeholder the stub answers before it looks at
+	// L2: the Record, Crate and tape the script creates
 	record, crate, tape string
 	recordRev, crateRev int
-}
-
-// l2ID is the id an L2 script step uses: the created object's, or a placeholder while the operation that creates it is a stub.
-func l2ID(have, placeholder string) string {
-	if have != "" {
-		return have
-	}
-	return placeholder
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -233,27 +224,27 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"create_record": func(s *uiState) map[string]any {
 		return map[string]any{"title": "Synthetic Record 001", "song_ids": []string{s.song}}
 	},
-	"get_record": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub")} },
+	"get_record": func(s *uiState) map[string]any { return map[string]any{"id": s.record} },
 	"update_record": func(s *uiState) map[string]any {
-		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "subtitle": "scripted"}
+		return map[string]any{"id": s.record, "revision": max(s.recordRev, 1), "subtitle": "scripted"}
 	},
 	"edit_record_slots": func(s *uiState) map[string]any {
-		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "ops": []map[string]any{{"op": "pin_all"}}}
+		return map[string]any{"id": s.record, "revision": max(s.recordRev, 1), "ops": []map[string]any{{"op": "pin_all"}}}
 	},
-	"get_record_changes": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub"), "limit": 10} },
+	"get_record_changes": func(s *uiState) map[string]any { return map[string]any{"id": s.record, "limit": 10} },
 	"propose_record": func(s *uiState) map[string]any {
-		return map[string]any{"id": l2ID(s.record, "rec-stub"), "revision": max(s.recordRev, 1), "rationale": "scripted"}
+		return map[string]any{"id": s.record, "revision": max(s.recordRev, 1), "rationale": "scripted"}
 	},
-	"export_record_tape": func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.record, "rec-stub")} },
-	"get_tape":           func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.tape, "tape-stub")} },
+	"export_record_tape": func(s *uiState) map[string]any { return map[string]any{"id": s.record} },
+	"get_tape":           func(s *uiState) map[string]any { return map[string]any{"id": s.tape} },
 	"list_crates":        func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"create_crate":       func(*uiState) map[string]any { return map[string]any{"name": "Synthetic Crate 001", "kind": "manual"} },
-	"get_crate":          func(s *uiState) map[string]any { return map[string]any{"id": l2ID(s.crate, "crate-stub")} },
+	"get_crate":          func(s *uiState) map[string]any { return map[string]any{"id": s.crate} },
 	"update_crate": func(s *uiState) map[string]any {
-		return map[string]any{"id": l2ID(s.crate, "crate-stub"), "revision": max(s.crateRev, 1), "description": "scripted"}
+		return map[string]any{"id": s.crate, "revision": max(s.crateRev, 1), "description": "scripted"}
 	},
 	"edit_crate_items": func(s *uiState) map[string]any {
-		return map[string]any{"id": l2ID(s.crate, "crate-stub"), "add": []map[string]any{{"song_id": s.song}}}
+		return map[string]any{"id": s.crate, "add": []map[string]any{{"song_id": s.song}}}
 	},
 	"get_curation_settings": func(*uiState) map[string]any { return nil },
 }
@@ -421,7 +412,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 	}
 	var called []string
-	l2Stubbed := map[string]string{}
 	for _, id := range uiOrder {
 		op, ok := have[id]
 		script := uiScript[id]
@@ -443,9 +433,8 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		if task := m4aStubOf(raw); raw.IsError && task != "" {
 			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): M4a-B3 left no pending stub", id, task)
 		}
-		if task := l2StubOf(raw); task != "" { // an L2 lane has not replaced this stub yet: skip by name (INT-B turns the skip into a failure)
-			l2Stubbed[id] = task
-			continue
+		if task := l2StubOf(raw); task != "" {
+			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): L2 left no pending stub", id, task)
 		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
@@ -475,9 +464,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	slices.Reverse(rows) // newest first => call order
 	var gotOps []string
 	for _, row := range rows {
-		if op, _ := row["op"].(string); l2Stubbed[op] != "" && row["status"] == float64(501) {
-			continue // the audited answer of a skipped L2 stub
-		}
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}

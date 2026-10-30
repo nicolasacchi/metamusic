@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,14 +12,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/app"
+	"github.com/nicolasacchi/metamusic/internal/crates"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
-// The L2 glue of serve and `library` (C118, C130.9). Frozen by L2-F2: lane R-b fills the Syncer and Verify bodies, lane T2
-// the tape bodies and the file check; this file does not change.
+// The L2 glue of serve and `library` (C118, C130.9). Final since L2-INT-B.
 
 // startL2 starts the Syncer and the tape runner on runCtx and the daily tape sweep on pruneCtx. serve calls it once, after
 // the first Settle; mcp-stdio, the rigs and the CLI never do.
@@ -58,6 +59,12 @@ func sweepTapes(ctx context.Context, s sweeper, every time.Duration) {
 
 // newRecords builds the Records service and Syncer a CLI process uses (own clock and ids; no server needed).
 func newRecords(st *store.Store) (*records.Service, *records.Syncer) {
+	// Verify R7 reads the Crate filter vocabulary through this hook (records imports no other L2 package); serve installs the
+	// same one, so `library verify` raises crate_filter_invalid too.
+	records.SetCrateFilterCheck(func(subject string, filter json.RawMessage) error {
+		_, err := crates.ParseFilter(crates.Subject(subject), filter)
+		return err
+	})
 	svc := records.New(st, time.Now, func() string { return uuid.NewString() })
 	return svc, records.NewSyncer(svc, nil)
 }

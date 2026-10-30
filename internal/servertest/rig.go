@@ -104,6 +104,11 @@ type Options struct {
 	L2       bool
 	Sync     bool
 	RealTape bool
+	// L2Mirror replaces L1's rows by librarytest.FixtureL2Mirror's (the acceptance mirror: 120 index Muses, 4 originals, 5 lossy
+	// groups); it requires L1 and excludes L2 (the mirror holds no Record, Crate or tape).
+	L2Mirror bool
+	// RealTapeFLAC replaces the flac binary of a RealTape rig (a wrapper that logs its calls, say); "" => testtools' flac.
+	RealTapeFLAC string
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -327,9 +332,16 @@ func New(tb testing.TB, o Options) *Rig {
 		if !o.Fixture || !o.M2c || !o.M3 {
 			tb.Fatal("servertest: L1 requires Fixture, M2c and M3")
 		}
-		librarytest.ApplyL1(tb, st, clock.Now())
+		if o.L2Mirror {
+			librarytest.ApplyL2Mirror(tb, st, clock.Now())
+		} else {
+			librarytest.ApplyL1(tb, st, clock.Now())
+		}
 	}
 	if o.L2 {
+		if o.L2Mirror {
+			tb.Fatal("servertest: L2Mirror excludes L2")
+		}
 		if !o.L1 {
 			tb.Fatal("servertest: L2 requires L1")
 		}
@@ -376,6 +388,9 @@ func New(tb testing.TB, o Options) *Rig {
 	if o.RealTape {
 		testtools.Require(tb, "ffmpeg", "flac")
 		cfg.FFmpeg, cfg.FLAC = testtools.Tools().FFmpeg, testtools.Tools().FLAC
+		if o.RealTapeFLAC != "" {
+			cfg.FLAC = o.RealTapeFLAC
+		}
 	} else {
 		// No rig spawns a process for the encoder version, and the tape pipeline renders no audio.
 		fv := "flac 1.5.0 (tapetest)"

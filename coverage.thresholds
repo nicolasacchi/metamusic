@@ -31,10 +31,10 @@ internal/board          90
 # L2 (C132.3). Each floor is the unit-test coverage measured on main at I1 time, rounded down (not aspirational); the
 # merged unit+e2e figure in CI is at least this. Raise them as lanes land; INT lanes may tighten toward the plan targets.
 internal/records        86
-internal/recordview     67
+internal/recordview     90
 internal/albums         94
 internal/crates         90
 internal/curation     94
 internal/tape         88
 internal/liner          98
-internal/media/flacmeta 85
+internal/media/flacmeta 89
