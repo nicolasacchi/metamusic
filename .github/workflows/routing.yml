@@ -16,7 +16,7 @@ permissions: {}
 
 concurrency:
   group: routing-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   routing:

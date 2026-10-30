@@ -82,6 +82,18 @@ chk "svelte-check machine errors counted" 'jq -e ".compile_errors==2" "$MM_METRI
 chk "svelte-check human errors counted, warnings not" 'jq -e ".compile_errors==1" "$MM_METRICS_FILE" >/dev/null'
 MM_LANE=Upper "$root/scripts/loop" check -- true >/dev/null
 chk "lane lower-cased" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"upper\"" >/dev/null'
+# lane from the branch when MM_LANE is unset: lower-cased and sanitised; detached HEAD and non-git dirs fall back to main
+lr="$tmp/lanerepo"; mkdir -p "$lr"
+git -C "$lr" init -q -b "Feat/X-Y" && git -C "$lr" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+: >"$MM_METRICS_FILE"
+(cd "$lr" && env -u MM_LANE "$root/scripts/loop" check -- true >/dev/null)
+chk "lane derived from the branch name" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"feat_x-y\"" >/dev/null'
+(cd "$lr" && env MM_LANE=explicit "$root/scripts/loop" check -- true >/dev/null)
+chk "MM_LANE wins over the branch" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"explicit\"" >/dev/null'
+git -C "$lr" checkout -q --detach
+(cd "$lr" && env -u MM_LANE "$root/scripts/loop" check -- true >/dev/null)
+chk "detached HEAD means lane main" 'tail -n1 "$MM_METRICS_FILE" | jq -e ".lane==\"main\"" >/dev/null'
+chk "branch lane rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 chk "rows pass the gate validator" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
 
 # heavy targets: machine-wide lock, wait_ms, nesting, scope fallback

@@ -9,7 +9,9 @@ permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # PR refs only: a push to main must run to completion, or merge commits never get a verdict (8 did not) and a red
+  # main cannot be attributed.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   CGO_ENABLED: "1"
@@ -20,7 +22,10 @@ jobs:
     # test name. gofmt, vet and the openapi drift check live in the lint job. Coverage data goes to the coverage job.
     name: go (${{ matrix.shard }}/6)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Must stay well above `go test -timeout` (12m, scripts/ci-go-test.sh) plus setup (~5 min) plus the head start of the
+    # last package's timer (~8 min into the test step): otherwise GitHub kills the job before Go's timer fires and a
+    # hang leaves no goroutine dump (two undiagnosed hangs on #69). Worst case 5 + 8 + 12 = 25 < 30.
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:

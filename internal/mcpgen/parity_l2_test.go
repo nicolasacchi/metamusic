@@ -1,7 +1,6 @@
 package mcpgen_test
 
 import (
-	"context"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -173,7 +172,7 @@ func TestToolsList_L2Ceiling(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "l2-budget", auth.ScopeRead))
-	res, err := sess.ListTools(context.Background(), nil)
+	res, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +197,7 @@ func TestOps_HumanOnly_NoMCP_L2(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	sess := r.client(t, r.token(t, "l2-human-only", auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin))
-	tools, err := sess.ListTools(context.Background(), nil)
+	tools, err := sess.ListTools(callCtx(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +207,7 @@ func TestOps_HumanOnly_NoMCP_L2(t *testing.T) {
 		}
 	}
 	for _, op := range []string{"publish_record", "set_curation_settings"} {
-		res, err := sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": op, "arguments": map[string]any{"id": "x"}}})
+		res, err := sess.CallTool(callCtx(), &mcp.CallToolParams{Name: "call_operation", Arguments: map[string]any{"operation_id": op, "arguments": map[string]any{"id": "x"}}})
 		if err != nil {
 			t.Fatal(err)
 		}

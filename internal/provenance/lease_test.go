@@ -3,7 +3,9 @@ package provenance_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
@@ -15,17 +17,27 @@ import (
 // went stale writes nothing (ErrLeaseLost).
 func TestSettle_TwoSettlers(t *testing.T) {
 	t.Parallel()
+	// Every wait is bounded and every path reports: the seam closes entered (it can never block or drop the signal) and
+	// parks on release only until the deadline; the test selects over entered, done and a timeout, so a first settler
+	// that errors before BeforeSettle (SQLITE_BUSY under load) fails with its error instead of hanging the shard.
+	const bound = 30 * time.Second
 	entered, release := make(chan struct{}), make(chan struct{})
+	var enterOnce sync.Once
 	w := newWorld(t, func(o *provenance.Options) {
 		o.Owner = "settler-a"
 		o.BeforeSettle = func(context.Context) {
-			select {
-			case entered <- struct{}{}:
-				<-release
-			default:
-			}
+			enterOnce.Do(func() {
+				close(entered)
+				select {
+				case <-release:
+				case <-time.After(bound):
+				}
+			})
 		}
 	})
+	var releaseOnce sync.Once
+	releaseSettler := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseSettler)
 	w.sc.Draft("a_v1", librarytest.DraftOpts{})
 	st2, err := store.Open(context.Background(), w.path) // a second handle on the same file, as a second process has
 	if err != nil {
@@ -35,14 +47,27 @@ func TestSettle_TwoSettlers(t *testing.T) {
 	b := w.service(st2, func(o *provenance.Options) { o.Owner = "settler-b" })
 
 	done := make(chan error, 1)
-	go func() { _, err := w.prov.Settle(context.Background()); done <- err }()
-	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 2*bound)
+	defer cancel()
+	go func() { _, err := w.prov.Settle(ctx); done <- err }()
+	select {
+	case <-entered:
+	case err := <-done:
+		t.Fatalf("the first settler returned before BeforeSettle (err=%v); it never held the lease", err)
+	case <-time.After(bound):
+		t.Fatalf("the first settler did not reach BeforeSettle within %v", bound)
+	}
 	if _, err := b.Settle(context.Background()); !errors.Is(err, provenance.ErrSettleBusy) {
 		t.Errorf("the second settler got %v, want ErrSettleBusy", err)
 	}
-	close(release)
-	if err := <-done; err != nil {
-		t.Fatalf("the first settler: %v", err)
+	releaseSettler()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("the first settler: %v", err)
+		}
+	case <-time.After(bound):
+		t.Fatalf("the first settler did not finish within %v of its release", bound)
 	}
 	if p, _ := w.prov.Pending(context.Background()); p != 0 {
 		t.Errorf("the first settler left %d keys", p)
