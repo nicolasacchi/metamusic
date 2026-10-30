@@ -134,6 +134,7 @@ interface CacheEntry {
   validUntil: number;
 }
 
+const MEDIA_ERR_ABORTED = 1;
 const MEDIA_ERR_NETWORK = 2;
 const MEDIA_ERR_DECODE = 3;
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
@@ -146,6 +147,12 @@ const END_STALL_MS = 1500;
 const WATCHDOG_MS = 500;
 const STALL_REPORT_MS = 500;
 const PREFETCH_AT = 0.8;
+/** After an unrecovered error the media clock may only reach the end this many seconds early (clock jitter) before an `ended` is believed. */
+const END_SLACK_S = 3;
+/** How often one track may be reloaded after an `ended` that followed an unrecovered error (a really dead stream must still let the queue move on). */
+const END_RECOVERIES = 2;
+/** How often one track's source is reloaded after MEDIA_ERR_ABORTED (Android Firefox aborts the media fetch when backgrounded). */
+const ABORT_RELOADS = 3;
 const LOADING_TITLE = "Loading…";
 const FALLBACK_TITLE = "Untitled track";
 
@@ -200,6 +207,10 @@ export class Player {
   private meta = new Map<string, { title: string; album: string }>();
   private metaInflight = new Map<string, Promise<{ title: string; album: string } | null>>();
   private probePending = new Set<string>();
+  /** Reloads done per track after an `ended` that followed an unrecovered error (see prematureEnd). */
+  private endRecoveries = new Map<string, number>();
+  /** Reloads done per track after MEDIA_ERR_ABORTED (see reloadAfterAbort). */
+  private abortReloads = new Map<string, number>();
   /* eslint-enable svelte/prefer-svelte-reactivity */
   private cleanup: (() => void) | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
@@ -208,6 +219,14 @@ export class Player {
   private playingLocal = "";
   /** Track whose links were last applied to the element: only its metadata may consume a pending seek. */
   private appliedTrack = "";
+  /**
+   * The current track hit an error that was NOT recovered by a source swap (sink error, aborted fetch past its reload
+   * budget, a failed re-mint ...): where, when (deps.now) and what. A later `ended` is only believed if the media
+   * clock could have reached it (prematureEnd). Cleared by a seek, a track change and new metadata.
+   */
+  private unrecovered: { id: string; at: number; t: number; why: string } | null = null;
+  /** Last position that really played, per track: `el.currentTime` reads 0 once an errored element was reset. */
+  private goodPos = { id: "", t: 0 };
   /** Bumped on every track change so a slow async link fetch never clobbers a newer play. */
   private epoch = 0;
   /** The current play already advanced/ended: `ended`, the watchdog and a late event act once. */
@@ -369,7 +388,7 @@ export class Player {
     this.cleanup = null;
     this.el = el;
     if (!el) return;
-    const on = (type: string, fn: () => void) => {
+    const on = (type: string, fn: (e: Event) => void) => {
       el.addEventListener(type, fn);
       return () => el.removeEventListener(type, fn);
     };
@@ -380,6 +399,8 @@ export class Player {
       on("seeked", () => {
         this.state.current = el.currentTime || 0;
         this.finished = false;
+        // A seek that is not ours (native controls, a test) moves the clock: prematureEnd's estimate no longer holds.
+        this.unrecovered = null;
       }),
       on("play", () => this.onPlay()),
       on("waiting", () => {
@@ -401,7 +422,7 @@ export class Player {
       // The media load algorithm (src change, load()) pauses the element without a `pause` event.
       on("emptied", () => (this.state.playing = !el.paused)),
       on("abort", () => (this.state.playing = !el.paused)),
-      on("ended", () => this.onEnded()),
+      on("ended", (e) => this.onEnded(e)),
       on("error", () => this.onError()),
     ];
     try {
@@ -653,6 +674,8 @@ export class Player {
     if (!el || !Number.isFinite(s)) return;
     const max = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : Infinity;
     const t = Math.min(Math.max(0, s), max);
+    this.unrecovered = null; // a deliberate move: the clock estimate of prematureEnd no longer holds
+    this.goodPos = { id: this.state.trackId, t };
     el.currentTime = t;
     this.state.current = t;
   }
@@ -782,6 +805,10 @@ export class Player {
     s.pendingPlay = false;
     s.endOfQueue = false;
     this.finished = false;
+    this.unrecovered = null;
+    this.endRecoveries.delete(trackId);
+    this.abortReloads.delete(trackId);
+    this.goodPos = { id: trackId, t: opts.startAt ?? 0 };
     this.playCause = "user";
     s.current = opts.startAt ?? 0;
     s.duration = 0;
@@ -1071,6 +1098,7 @@ export class Player {
     if (!el) return;
     const t = el.currentTime || 0;
     this.state.current = t;
+    if (t > 0 && this.appliedTrack === this.state.trackId) this.goodPos = { id: this.state.trackId, t };
     this.observe(t);
     const d = el.duration;
     // Refresh/warm the next link well before the end so `ended` never has to await.
@@ -1147,6 +1175,8 @@ export class Player {
     // The MP3 loaded after a FLAC failure: server and network work, so the FLAC failure was a codec failure.
     if (this.probePending.delete(id) && this.state.format === "mp3") this.deps.device.recordFailedProbe();
     const el = this.el;
+    // A source that reached metadata replaced whatever failed before it.
+    if (this.appliedTrack === id) this.unrecovered = null;
     // The unlock load() in begin() re-reads the previous track's source; its metadata is not ours.
     if (el && this.pendingSeek != null && this.appliedTrack === id) {
       const t = this.pendingSeek;
@@ -1155,13 +1185,64 @@ export class Player {
     }
   }
 
-  private onEnded() {
+  private onEnded(e?: Event) {
     // An `ended` that arrives while the next track's source is not applied yet is the old stream's.
     if (this.appliedTrack !== this.state.trackId) return;
     // A late `ended` of the stream the watchdog already advanced past: the element now holds the next
     // source, whose `ended` is false (a real end of the current source always reads true).
     if (this.el?.ended === false) return;
+    if (this.prematureEnd()) {
+      // Not a finish: keep the listen recorder (a later listener on the same element) and the Media Session from
+      // treating it as one.
+      e?.stopImmediatePropagation();
+      return;
+    }
     this.advance("ended");
+  }
+
+  /**
+   * An `ended` after an error that was not recovered by a source swap, which the media clock cannot have reached yet,
+   * is the broken stream giving up (Android Firefox plays out its buffer after an aborted fetch, a dead audio output
+   * ends early), not the end of the song. Reload the same source instead of advancing. Bounded: a stream that stays
+   * broken still moves the queue on. Headless Firefox without an audio device raises a sink error but its clock runs
+   * to the real end, which this lets through (the clock needs `duration - at` seconds to get there).
+   */
+  private prematureEnd(): boolean {
+    const el = this.el;
+    const s = this.unrecovered;
+    const id = this.state.trackId;
+    if (!el || !s || s.id !== id) return false;
+    const d = el.duration;
+    if (!Number.isFinite(d) || !(d > 0)) return false;
+    const clockS = (this.deps.now() - s.t) / 1000;
+    if (clockS >= d - s.at - END_SLACK_S) return false;
+    const n = this.endRecoveries.get(id) ?? 0;
+    if (n >= END_RECOVERIES) return false;
+    this.endRecoveries.set(id, n + 1);
+    this.unrecovered = null;
+    // Where to resume: a dead output played nothing since the error; otherwise it played up to where the stream ended.
+    const played = el.currentTime || 0;
+    const from = s.why === "sink" ? s.at : played > 0 && played < d - 1 ? Math.max(played, s.at) : s.at + clockS;
+    this.diag("error", `premature_end=1,at=${Math.round(s.at * 1000)},after=${s.why}`);
+    this.reload(id, Math.min(from, d - 1), true);
+    return true;
+  }
+
+  /** Re-apply the current track's source (local file, cached or freshly minted link) and resume at `at`. */
+  private reload(id: string, at: number, resume: boolean) {
+    // A link that is expired or about to be must not be applied again.
+    if (this.appliedExp > 0 && this.deps.now() >= this.appliedExp - 60_000) this.cache.delete(id);
+    this.pendingSeek = at > 0 ? at : null;
+    this.autoplay = resume;
+    this.wantPlay = resume;
+    this.finished = false;
+    this.epoch++;
+    this.begin(id);
+  }
+
+  /** Remember an error nothing recovered, for prematureEnd. The first one per track wins (earliest position). */
+  private markUnrecovered(id: string, at: number, why: string) {
+    if (this.unrecovered?.id !== id) this.unrecovered = { id, at, t: this.deps.now(), why };
   }
 
   /** The current track is over (native `ended`, or the watchdog): act exactly once per play. */
@@ -1213,6 +1294,12 @@ export class Player {
     this.notify();
   }
 
+  /** Where to resume after an error: the element's position, else the last one that really played (a reset element reads 0). */
+  private resumeAt(id: string): number {
+    const el = this.el;
+    return el?.currentTime || this.pendingSeek || (this.goodPos.id === id ? this.goodPos.t : 0) || this.state.current || 0;
+  }
+
   private onError() {
     const el = this.el;
     const code = el?.error?.code;
@@ -1222,9 +1309,29 @@ export class Player {
     // Firefox reports a failing audio output (no device, e.g. headless CI) as MEDIA_ERR_DECODE with this message
     // after decoding already worked, and keeps the media clock running. It says nothing about the codec: do not
     // fall back to MP3, record a failed probe, or touch playback state.
-    if (/MediaSink/i.test(el.error?.message ?? "")) return;
-    const at = el.currentTime || this.state.current || 0;
+    if (/MediaSink/i.test(el.error?.message ?? "")) {
+      // Remember it: the output may be dead although the clock runs on (see prematureEnd).
+      this.markUnrecovered(id, this.resumeAt(id), "sink");
+      return;
+    }
+    const at = this.resumeAt(id);
     const resume = this.wantPlay;
+    if (code === MEDIA_ERR_ABORTED) {
+      // The fetch was aborted although nobody asked: Android Firefox does it when the page is backgrounded or the
+      // screen locked. The element plays out what it buffered and then fires `ended`, which used to skip the song.
+      // Reload at the current position instead. An abort we caused ourselves (a src swap, load(), a track change)
+      // never reaches here with an error set: the load algorithm clears `error`, and appliedTrack guards the rest.
+      if (this.appliedTrack !== id) return;
+      const n = this.abortReloads.get(id) ?? 0;
+      if (n < ABORT_RELOADS) {
+        this.abortReloads.set(id, n + 1);
+        this.reload(id, at, resume);
+        return;
+      }
+      this.markUnrecovered(id, at, "code1");
+      this.state.error = "Playback error";
+      return;
+    }
     if (this.playingLocal === id && this.appliedTrack === id) {
       // Any error on a local source (the network answers an unsigned URL with 403, which browsers may report as
       // MEDIA_ERR_SRC_NOT_SUPPORTED): the file is suspect. Mint a signed link once and resume at the same position.
@@ -1255,6 +1362,7 @@ export class Player {
     if (remint) {
       if (this.reminted.has(id)) {
         this.state.error = "Network error while loading audio";
+        this.markUnrecovered(id, at, "code2");
         return;
       }
       this.reminted.add(id);
@@ -1294,6 +1402,7 @@ export class Player {
       this.probePending.delete(id);
       this.forceMp3.delete(id);
       this.state.error = "Playback error";
+      this.markUnrecovered(id, at, `code${code ?? 0}`);
     }
   }
 }
