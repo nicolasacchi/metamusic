@@ -15,6 +15,11 @@ import (
 var update = flag.Bool("update", false, "rewrite golden files")
 
 // golden compares got (indented JSON) with testdata/<name>, rewriting it under -update.
+// webMirrors lists the goldens the SPA's bun tests read as a byte copy; -update writes both files.
+var webMirrors = map[string]string{
+	"change_text.golden.json": filepath.Join("..", "..", "web", "src", "lib", "fixtures", "change_text.golden.json"),
+}
+
 func golden(t *testing.T, name string, got any) {
 	t.Helper()
 	b, err := json.MarshalIndent(got, "", "  ")
@@ -29,6 +34,12 @@ func golden(t *testing.T, name string, got any) {
 		}
 		if err := os.WriteFile(p, b, 0o644); err != nil {
 			t.Fatal(err)
+		}
+		// The web test reads a byte copy of this golden (web/src/lib/recordView.test.ts asserts equality).
+		if mirror, ok := webMirrors[name]; ok {
+			if err := os.WriteFile(mirror, b, 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	want, err := os.ReadFile(p)
