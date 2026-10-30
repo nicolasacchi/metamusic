@@ -56,7 +56,7 @@ func TestProbe_SchemaDiff(t *testing.T) {
 	})
 	t.Run("harmless change is drift but not a failure", func(t *testing.T) {
 		t.Parallel()
-		live := bytes.Replace(snap, []byte(`"Half-open hourly buckets;`), []byte(`"Half-open hourly buckets, now documented;`), 1)
+		live := bytes.Replace(snap, []byte(`"title": "Runpod REST API"`), []byte(`"title": "Runpod REST API, renamed"`), 1)
 		if bytes.Equal(live, snap) {
 			t.Fatal("test edit did not apply")
 		}
@@ -64,7 +64,7 @@ func TestProbe_SchemaDiff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !r.Drift || !r.OK || len(r.Changed) != 1 || !strings.Contains(r.Changed[0], "BillingRecord") {
+		if !r.Drift || !r.OK || len(r.Changed) != 1 || r.Changed[0] != "info.title" {
 			t.Fatalf("report %+v", r)
 		}
 	})

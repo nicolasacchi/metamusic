@@ -40,8 +40,55 @@ func desired(t *testing.T, c runpod.DesiredConfig, workers int) runpod.EndpointS
 
 // ---- a small OpenAPI validator for the create body ----------------------------------------------------
 
-func (d doc) validate(schema map[string]any, v any, path string) []string {
+// merged flattens $ref and allOf into one schema: properties are unioned, required lists concatenated, and
+// every other keyword is taken from the first schema that has it (the live spec writes most object schemas as
+// an allOf of a shared base and the operation's own properties). if/then/else are ignored.
+func (d doc) merged(schema map[string]any) map[string]any {
 	schema = d.deref(schema)
+	if schema == nil {
+		return nil
+	}
+	out := map[string]any{}
+	props := map[string]any{}
+	var req []any
+	add := func(s map[string]any) {
+		for k, v := range s {
+			switch k {
+			case "allOf":
+			case "properties":
+				for pk, pv := range v.(map[string]any) {
+					if _, ok := props[pk]; !ok {
+						props[pk] = pv
+					}
+				}
+			case "required":
+				req = append(req, v.([]any)...)
+			default:
+				if _, ok := out[k]; !ok {
+					out[k] = v
+				}
+			}
+		}
+	}
+	add(schema)
+	if alts, ok := schema["allOf"].([]any); ok {
+		for _, a := range alts {
+			if m := d.merged(d.deref(a)); m != nil {
+				add(m)
+			}
+		}
+	}
+	if len(props) > 0 {
+		out["properties"] = props
+	}
+	if len(req) > 0 {
+		out["required"] = req
+	}
+	return out
+}
+
+func (d doc) validate(schema map[string]any, v any, path string) []string {
+	schema = d.merged(schema)
 	if schema == nil {
 		return []string{path + ": no schema"}
 	}
@@ -434,12 +481,8 @@ func TestProvision_DryRunRedacted(t *testing.T) {
 
 func TestProvision_ConsoleStepPrinted(t *testing.T) {
 	t.Parallel()
-	d := loadSnapshot(t)
-	create := d.deref(d.at("components", "schemas", "CreateEndpointRequest"))
-	for name := range create["properties"].(map[string]any) {
-		if n := strings.ToLower(name); strings.Contains(n, "model") || strings.Contains(n, "cache") {
-			t.Fatalf("the snapshot gained a cached-model field %q: provision can set it itself now", name)
-		}
+	if r, err := runpod.CompareSchema(runpod.Snapshot(), runpod.Snapshot()); err != nil || r.CachedModelField {
+		t.Fatalf("the snapshot gained a cached-model field (err %v): provision can set it itself now", err)
 	}
 	e := newEnv(t)
 	c := provClient(t, e)

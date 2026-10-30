@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -42,9 +43,28 @@ const (
 	// it, at least 5; the RunPod profile half, at least 4). The plan asked for 60; the measured wall time on the
 	// 8-core build host under -race was 10:39 for 80 timelines and 5:06 for 26 (with the chaos suite, which is
 	// about 40 s of it), so the default is lowered to 10 (C86.3: "lowers the default if 60 exceed 4 min").
-	// MM_PROPERTY_TIMELINES raises it (weekly.yml runs 300).
+	// MM_PROPERTY_TIMELINES raises it (weekly.yml runs 300 "within" timelines, i.e. 300 + 100 adversarial + 150
+	// RunPod = 550 in all, split over MM_PROPERTY_SHARD matrix jobs).
 	propDefaultTimelines = 10
 )
+
+// propInShard reports whether the timeline with this seed belongs to this run's shard. MM_PROPERTY_SHARD="i/n"
+// (0 <= i < n) keeps the seeds with seed%n == i, so n jobs together run exactly the seeds one unsharded run
+// would, with no overlap. Unset means all seeds.
+func propInShard(t *testing.T, seed uint64) bool {
+	t.Helper()
+	v := os.Getenv("MM_PROPERTY_SHARD")
+	if v == "" {
+		return true
+	}
+	a, b, ok := strings.Cut(v, "/")
+	i, err1 := strconv.Atoi(a)
+	n, err2 := strconv.Atoi(b)
+	if !ok || err1 != nil || err2 != nil || n < 1 || i < 0 || i >= n {
+		t.Fatalf("MM_PROPERTY_SHARD=%q, want i/n with 0 <= i < n", v)
+	}
+	return seed%uint64(n) == uint64(i)
+}
 
 func propTimelines(t *testing.T, def int) int {
 	t.Helper()
@@ -891,6 +911,9 @@ func TestProperty_SpendNeverExceedsCap(t *testing.T) {
 		}
 		for i := range count {
 			seed := uint64(1000*len(profile) + i + 1)
+			if !propInShard(t, seed) {
+				continue
+			}
 			t.Run(fmt.Sprintf("%s/%d", profile, seed), func(t *testing.T) {
 				t.Parallel()
 				e := newPropEnv(t, seed, profile)
@@ -1058,6 +1081,9 @@ func TestProperty_SpendNeverExceedsCap_RunPod(t *testing.T) {
 	n := max(4, propTimelines(t, propDefaultTimelines)/2) // half the main suite
 	for i := range n {
 		seed := uint64(30000 + i + 1)
+		if !propInShard(t, seed) {
+			continue
+		}
 		t.Run(fmt.Sprintf("%d", seed), func(t *testing.T) {
 			t.Parallel()
 			e := newRunPodEnv(t, seed)
