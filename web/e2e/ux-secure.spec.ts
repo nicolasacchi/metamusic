@@ -201,3 +201,26 @@ test("popup blocked: the full-page hop runs, then Resume at m:ss continues the m
     await own.dispose();
   }
 });
+
+test("U3: an installed Android PWA (display-mode: standalone) still confirms in a second tab; the music never stops", async ({ page, context, request, playwright, baseURL, agentToken }) => {
+  const own = await pendingBatch(request, playwright, baseURL, agentToken);
+  try {
+    await page.addInitScript(() => {
+      const mm = window.matchMedia.bind(window);
+      window.matchMedia = (q: string) => (q.includes("display-mode: standalone") ? ({ ...mm("all"), matches: true, media: q } as MediaQueryList) : mm(q));
+    });
+    await startMusic(page, request);
+    const seen = await staleStepUp(context, { standIn: "second-tab" });
+    await spaGoto(page, `/human/confirm/${own.batch.id}`);
+    await expect(page.getByTestId("batch-state")).toHaveText("awaiting confirmation");
+    const before = (await state(page)).t;
+    const popup = context.waitForEvent("page");
+    await page.getByTestId("approve").click();
+    await popup; // a second tab, not a full-page hop
+    await expect(page.getByTestId("decided")).toBeVisible({ timeout: 20_000 });
+    expect(seen.stepUpDocs).toEqual(["/auth/step-up?next=/auth/step-up/done"]);
+    await expectStillPlaying(page, before);
+  } finally {
+    await own.dispose();
+  }
+});

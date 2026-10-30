@@ -104,6 +104,37 @@ describe("step-up flow", () => {
     expect(r.assigned).toHaveLength(1);
   });
 
+  test("U3: an Android PWA (not the iOS app) still opens the second tab; the player never unloads", async () => {
+    // browserDeps().standalone() is iOS-only; display-mode: standalone alone must not force the hop
+    const g = globalThis as unknown as { navigator?: unknown; matchMedia?: unknown };
+    const saved = { n: g.navigator, m: g.matchMedia };
+    try {
+      Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true });
+      g.matchMedia = () => ({ matches: true });
+      const { browserDeps } = await import("./stepup");
+      expect(browserDeps().standalone()).toBe(false);
+      Object.defineProperty(globalThis, "navigator", { value: { standalone: true }, configurable: true });
+      expect(browserDeps().standalone()).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "navigator", { value: saved.n, configurable: true });
+      g.matchMedia = saved.m;
+    }
+  });
+
+  test("U3: without a live gesture nothing is opened or hopped; the banner click opens the tab", async () => {
+    const r = rig({ activated: () => false });
+    const s = createStepUp(r.deps);
+    const p = s.require("edge");
+    expect(r.opened).toEqual([]);
+    expect(r.assigned).toEqual([]);
+    expect(get(s)).toEqual({ waiting: "edge", needsTap: true });
+    s.reopen();
+    expect(r.opened).toEqual([EDGE_URL]);
+    expect(get(s).needsTap).toBe(false);
+    r.signal(false);
+    expect(await p).toBe(true);
+  });
+
   test("cancel resolves false and stops listening; reopen after a closed tab opens again from the click", async () => {
     const r = rig();
     const s = createStepUp(r.deps);

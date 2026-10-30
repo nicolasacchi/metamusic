@@ -107,7 +107,7 @@
     {#if take.cost_display_usd} · {take.cost_display_usd}{/if}
   </p>
   <div class="wave">
-    <button type="button" class="play" onclick={() => play()} aria-label={isCurrent && player.state.playing ? "Pause" : "Play"} data-testid="take-play">{#if isCurrent && player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button>
+    <button type="button" class="play" onclick={() => play()} aria-label={isCurrent && player.state.playing ? "Pause" : "Play"} data-testid="take-play" data-transport-toggle>{#if isCurrent && player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button>
     {#if !isCurrent}<QueueButtons id={take.id} title={take.title} />{/if}
     <div class="w"><Waveform {peaks} {duration} current={position} onseek={(s) => play(s)} {bits} height={48} label="Waveform of {take.title}" /></div>
   </div>

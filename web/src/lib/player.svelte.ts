@@ -448,7 +448,11 @@ export class Player {
    */
   watchActivation(doc: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState">): () => void {
     this.stopActivation?.();
-    const act = () => {
+    // A tap on a transport toggle is that control's own resume (toggle() resumes while pendingPlay): resuming here
+    // first would make the button's handler see a playing element and pause it again.
+    const act = (e?: Event) => {
+      const t = e?.target as { closest?: (sel: string) => unknown } | null | undefined;
+      if (t && typeof t.closest === "function" && t.closest("[data-transport-toggle]")) return;
       if (this.state.pendingPlay) this.resume();
     };
     const vis = () => {

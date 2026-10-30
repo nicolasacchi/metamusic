@@ -89,7 +89,7 @@
     <button
       type="button"
       aria-label={player.state.playing ? "Pause" : "Play"}
-      data-testid="play-toggle"
+      data-testid="play-toggle" data-transport-toggle
       onclick={() => player.toggle()}
       disabled={!player.state.trackId}>{#if player.state.playing}<PauseIcon size={20} />{:else}<PlayIcon size={20} />{/if}</button
     >
