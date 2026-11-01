@@ -226,15 +226,15 @@ func TestPerf_NextActions(t *testing.T) {
 	ctx := context.Background()
 	best := func(f func()) time.Duration {
 		f() // warm the page cache and the plans
-		var min time.Duration
+		var fastest time.Duration
 		for i := 0; i < 5; i++ {
 			sw := perftest.Start()
 			f()
-			if el := sw.Elapsed(); i == 0 || el < min {
-				min = el
+			if el := sw.Elapsed(); i == 0 || el < fastest {
+				fastest = el
 			}
 		}
-		return min
+		return fastest
 	}
 	var total int
 	if el := best(func() {

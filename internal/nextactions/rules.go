@@ -45,8 +45,6 @@ func queryCandidates(ctx context.Context, q Reader, query string, args []any, sc
 	return out, rows.Err()
 }
 
-func idPtr(s string) *string { return &s }
-
 // evidenceString reads a string evidence value ("" when absent).
 func evidenceString(c Candidate, key string) string {
 	s, _ := c.Evidence[key].(string)
