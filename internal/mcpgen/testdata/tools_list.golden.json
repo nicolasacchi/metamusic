@@ -4356,6 +4356,117 @@
           },
           "type": "array"
         },
+        "features": {
+          "properties": {
+            "duration_ratio": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "energy": {
+              "properties": {
+                "basis": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "key": {
+              "properties": {
+                "basis": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "camelot": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "pending": {
+              "type": "boolean"
+            },
+            "subject": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "tempo": {
+              "properties": {
+                "basis": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "measured_bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "octave": {
+                  "type": "boolean"
+                },
+                "requested_bpm": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "lineage": {
           "properties": {
             "children_total": {
@@ -6187,6 +6298,29 @@
         "complete": {
           "type": "boolean"
         },
+        "energy": {
+          "properties": {
+            "centroid_hz": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "onset_rate": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "value": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
         "flags": {
           "items": {
             "properties": {
@@ -6207,6 +6341,24 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "key": {
+          "properties": {
+            "ambiguous_relative": {
+              "type": "boolean"
+            },
+            "camelot": {
+              "type": "string"
+            },
+            "confidence": {
+              "format": "double",
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "loudness": {
           "properties": {
