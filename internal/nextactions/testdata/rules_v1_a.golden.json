@@ -1,0 +1,34 @@
+[
+  {
+    "code": "record_proposed_waiting",
+    "priority": 90,
+    "audience": "human",
+    "min_scope": "read",
+    "hint": false,
+    "text": "Record \"Synthetic Record\" was proposed by Synthetic Agent: review it and publish"
+  },
+  {
+    "code": "muse_unrendered",
+    "priority": 70,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Muse 019a1b2c has 3 Song(s), none rendered — estimate the first (the estimate is free)"
+  },
+  {
+    "code": "taxonomy_proposals_open",
+    "priority": 70,
+    "audience": "human",
+    "min_scope": "read",
+    "hint": false,
+    "text": "2 taxonomy proposal(s) wait for your decision"
+  },
+  {
+    "code": "muse_unjudged",
+    "priority": 65,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Muse 019a1b2c has 4 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)"
+  }
+]

@@ -1,6 +1,6 @@
 // Package nextactions is the rule engine behind list_next_actions and the /context next_actions strings (L3 C139). It is
 // the one new reader of Muse text (C133, C144.2). Types and the method set are frozen by L3-F2; the engine is lane NA1
-// (stub_na.go) and the rules are NA1, NA2 and NA3.
+// (engine.go) and the rules are NA1 (rules_a.go), NA2 (rules_b.go) and NA3 (rules_c.go).
 package nextactions
 
 import (
@@ -75,7 +75,10 @@ type Names interface {
 	Record(id string) string
 }
 
-// Rule is one entry of the registry (extension move 3).
+// Rule is one entry of the registry (extension move 3). Find answers with at most lim candidates ordered by subject id (nil
+// last) in one batch statement; the rows after the cut are only counted, by an evidence key "_total" that holds the number of
+// candidates before the cut (see the evidence conventions in engine.go). Hint is optional and sees the viewer, so it can pick an
+// operation the viewer's scope allows.
 type Rule struct {
 	Code     string
 	Priority int
@@ -83,6 +86,7 @@ type Rule struct {
 	MinScope auth.Scope
 	Find     func(ctx context.Context, q Reader, lim int) ([]Candidate, error)
 	Text     func(c Candidate, n Names) string
+	Hint     func(c Candidate, viewer auth.Principal) *Hint
 }
 
 // Filter selects and pages the actions of List.
@@ -108,10 +112,11 @@ type Page struct {
 	GeneratedAt string
 }
 
-// MuseRefs is the Muse-text read of nextactions: titles only, through muses.Service.Refs. Lane NA1 adds LiveIDs
-// (muses/live_ids.go) and extends this interface.
+// MuseRefs is the Muse read of nextactions, only through muses.Service: Refs for titles (not called until D-L3-16 is approved:
+// item texts name a Muse by an id prefix) and LiveIDs, the non-hidden Muse ids that live-Muse rules receive as a parameter.
 type MuseRefs interface {
 	Refs(ctx context.Context, ids []string) (map[string]muses.MuseRef, error)
+	LiveIDs(ctx context.Context) ([]string, error)
 }
 
 // SongSummaries is the Muse coverage read of songview.
@@ -132,6 +137,7 @@ type Service struct {
 	songview SongSummaries
 	sounds   Unmapped
 	now      func() time.Time
+	hook     func(query string) // tests: sees every statement of a call
 }
 
 // New builds the service. A nil now means time.Now.
