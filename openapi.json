@@ -17677,7 +17677,7 @@
             "type": "array"
           },
           "step_up_until": {
-            "description": "RFC 3339 UTC: until when a recent password confirmation lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode, agents, devices)",
+            "description": "RFC 3339 UTC: until when a recent second-factor confirmation (password in local mode, OIDC in proxy mode) lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode without MM_STEPUP_OIDC_CLIENT, agents, devices)",
             "type": [
               "string",
               "null"

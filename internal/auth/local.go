@@ -335,10 +335,10 @@ func (l *LocalAuth) StepUpFresh(p Principal) bool {
 }
 
 // StepUpUntil is the instant until which a local human session's password confirmation lets /human/ calls through
-// (the epoch when it never confirmed); nil when step-up does not apply to p (proxy mode leaves it to the edge's
+// (the epoch when it never confirmed); nil when step-up does not apply to p (proxy mode without MM_STEPUP_OIDC_CLIENT leaves it to the edge's
 // two-factor rule, and agents, devices and other sessions never reach /human/).
 func StepUpUntil(p Principal) *time.Time {
-	if p.Kind != KindHuman || p.Via != "local" {
+	if p.Kind != KindHuman || (p.Via != "local" && !(p.Via == "proxy" && p.StepUpGate)) {
 		return nil
 	}
 	t := time.Unix(0, 0).UTC()

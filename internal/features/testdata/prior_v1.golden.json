@@ -1,0 +1,44 @@
+{
+ "def": "mm-energy-prior/1",
+ "mood": {
+  "aggressive": 9500,
+  "chill": 2500,
+  "dark": 5500,
+  "dreamy": 2500,
+  "energetic": 9000,
+  "melancholic": 3000,
+  "nostalgic": 4000,
+  "romantic": 3500,
+  "upbeat": 7500,
+  "warm": 3500
+ },
+ "genre_family": {
+  "ambient": 1500,
+  "blues": 4000,
+  "cinematic": 5000,
+  "classical": 3000,
+  "country": 4500,
+  "dance": 8500,
+  "electronic": 7000,
+  "folk": 3500,
+  "funk-soul": 6500,
+  "hip-hop": 7000,
+  "jazz": 4000,
+  "latin": 6500,
+  "metal": 9500,
+  "pop": 6000,
+  "punk": 9000,
+  "r-and-b": 5000,
+  "reggae": 5000,
+  "rock": 7500,
+  "singer-songwriter": 3000,
+  "world": 5000
+ },
+ "tempo_band": {
+  "fast": 8000,
+  "mid": 4500,
+  "rapid": 9000,
+  "slow": 2500,
+  "upbeat": 6500
+ }
+}

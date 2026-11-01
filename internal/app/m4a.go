@@ -50,6 +50,7 @@ type m4aServices struct {
 	PRM             http.Handler
 	SubsonicHandler http.Handler
 	Prompts         prompts.Sources
+	StepUp          *auth.ProxyStepUp // nil unless MM_STEPUP_OIDC_CLIENT is set (proxy mode)
 }
 
 type m4aInputs struct {
@@ -109,6 +110,18 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 			m.OIDC = v
 			m.ConnVerifier = connectors.NewVerifier(connectors.VerifierOptions{OIDC: v, Store: cs, TrustedUsers: in.cfg.TrustedUsers,
 				Labels: labels, Audit: in.audit, Notify: in.notifier, Now: in.now})
+		}
+	}
+	if in.cfg.StepUpClientID != "" && in.cfg.OIDCIssuer != "" && in.cfg.AuthMode == "proxy" {
+		httpc := o.OIDCClient
+		if httpc == nil {
+			httpc = oidcHTTPClient()
+		}
+		// its own verifier: ID tokens and access tokens share the issuer's keys but not their claim rules
+		if v, err := oidc.NewVerifier(oidc.Config{Issuer: in.cfg.OIDCIssuer, JWKSURL: in.cfg.OIDCJWKSURL}, httpc, in.now); err == nil {
+			client := oidc.NewStepUpClient(v, oidc.StepUpConfig{ClientID: in.cfg.StepUpClientID, ClientSecret: in.sec.StepUpClientSecret,
+				RedirectURL: strings.TrimRight(in.cfg.PublicURL, "/") + "/auth/step-up/callback"})
+			m.StepUp = auth.NewProxyStepUp(client, in.sec.Key, in.cfg.PublicURL, in.now)
 		}
 	}
 	m.SubsonicHandler = subsonic.NewHandler(subsonic.Options{

@@ -38,6 +38,9 @@ type Verifiers struct {
 	Sessions   SessionVerifier
 	Devices    DeviceVerifier
 	Connectors ConnectorVerifier
+	// StepUp gates /human/ for proxy principals on a recent second factor proven through OIDC; a nil interface (never
+	// a typed-nil pointer) leaves proxy mode to the edge's two-factor rule alone.
+	StepUp ProxyStepUpGate
 }
 
 // Connector refusals (C104 row 1b).
@@ -294,7 +297,13 @@ func Middleware(cfg config.Config, sec config.Secrets, v Verifiers) func(http.Ha
 				http.Redirect(w, r, to, http.StatusPermanentRedirect) //nolint:gosec // G710: to is the constant "/human/" plus the request's own query string, never a host
 				return
 			}
-			if p.Via == "local" && (path == "/human" || strings.HasPrefix(path, "/human/")) && !stepUpFresh(sessions, p) {
+			needStep := p.Via == "local" && !stepUpFresh(sessions, p)
+			if p.Via == "proxy" && v.StepUp != nil {
+				var fresh bool
+				p.StepUpAt, fresh = v.StepUp.Check(r, p.Name)
+				p.StepUpGate, needStep = true, !fresh
+			}
+			if needStep && (path == "/human" || strings.HasPrefix(path, "/human/")) {
 				if strings.HasPrefix(path, "/human/api/") {
 					writeProblem(w, http.StatusForbidden, "STEP_UP_REQUIRED", "confirm your password to continue")
 				} else {
