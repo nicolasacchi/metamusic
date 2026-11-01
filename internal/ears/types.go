@@ -153,6 +153,9 @@ type Dossier struct {
 	BlindSpots  []string               `json:"blind_spots" nullable:"false" doc:"What the machine cannot judge; read before trusting the numbers"`
 	Spectrogram SpectrogramInfo        `json:"spectrogram"`
 	Provenance  Provenance             `json:"provenance"`
+	// L3 (C136.3): the measured key and energy; absent until the E1 analyzers ran.
+	Key    *PerceptionKey    `json:"key,omitempty"`
+	Energy *PerceptionEnergy `json:"energy,omitempty"`
 }
 
 // ImageData is an image inside a JSON body; operations marked mcp_image
@@ -297,4 +300,23 @@ type Perception struct {
 	// They follow the M2a keys; trackctx's perception key order is edited once, in L1-B7.
 	TempoBPM        *float64 `json:"tempo_bpm"`
 	TempoConfidence *float64 `json:"tempo_confidence"`
+	// Key and Energy are the mm-key/1 and mm-energy/1 estimates (L3 C136.3); nil until E1 fills them, and then omitted
+	// from the /context perception block (the F2 freeze keeps the existing goldens byte-identical).
+	Key    *PerceptionKey    `json:"key,omitempty"`
+	Energy *PerceptionEnergy `json:"energy,omitempty"`
+}
+
+// PerceptionKey is the measured key of a take; Name is for example "A minor" and Camelot "8A".
+type PerceptionKey struct {
+	Name              string  `json:"name"`
+	Camelot           string  `json:"camelot"`
+	Confidence        float64 `json:"confidence"`
+	AmbiguousRelative bool    `json:"ambiguous_relative"`
+}
+
+// PerceptionEnergy is the measured energy of a take in 0..1 with its two audible components.
+type PerceptionEnergy struct {
+	Value      float64  `json:"value"`
+	OnsetRate  *float64 `json:"onset_rate"`
+	CentroidHz *float64 `json:"centroid_hz"`
 }

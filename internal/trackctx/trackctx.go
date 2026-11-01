@@ -140,7 +140,7 @@ var order = map[string][]string{
 	"score":       {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
 	"judgments":   {"comments", "comments_total", "open_fix", "ladder"},
-	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence"},
+	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence", "key", "energy"},
 	"listening":   {"plays", "completion_rate", "last_played_at"},
 	"_links":      {"stream", "spectrogram", "comments", "track"},
 	"songwriting": {"min_duration_s", "target_min_duration_s", "target_max_duration_s", "guidance"},
@@ -450,6 +450,7 @@ type Builder struct {
 	lib1      LibraryReader  // L1 (C98): nil => the song, muse and sounds sections are null
 	curation  CurationReader // L2 (C130.4): nil => no curation section
 	sw        TargetSource
+	nextact   NextActionReader // L3 (C139.4): nil => no Muse-aware next actions
 }
 
 // TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).
@@ -803,6 +804,13 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		out.Perception = map[string]any{"tier": p.Tier, "lufs_i": p.LUFSI, "true_peak_db": p.TruePeakDB, "lra_lu": p.LRALU,
 			"bandwidth_hz": p.BandwidthHz, "sections": secs, "timed": p.Timed, "flags": nonNil(p.Flags), "blind_spots": nonNil(p.BlindSpots),
 			"tempo_bpm": p.TempoBPM, "tempo_confidence": p.TempoConfidence}
+		// key and energy are present only when E1's analyzers produced them (L3 C136.3), so earlier goldens do not move
+		if p.Key != nil {
+			out.Perception["key"] = p.Key
+		}
+		if p.Energy != nil {
+			out.Perception["energy"] = p.Energy
+		}
 	}
 
 	// listening
@@ -864,6 +872,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	if d.Truncated != nil && (d.Truncated.ABC != nil && *d.Truncated.ABC || d.Truncated.Semantic != nil && *d.Truncated.Semantic) {
 		na = append(na, "the take is truncated (abc/semantic): prefer a shorter arrangement")
 	}
+	na = b.museAwareActions(ctx, p, d.ID, na) // L3 C139.4: up to two Muse-aware strings, none without a reader
 	// The generation hint has the lowest priority: at most maxNextActions entries, the critique last, so
 	// the hint is the entry that is dropped when every conditional entry applies (C81.1).
 	if d.RecipeKnown && p.Has(auth.ScopeGenerate) && b.generationEnabled(ctx) && len(na)+2 <= maxNextActions {
