@@ -85,3 +85,27 @@ func TestPerf_SearchSounds(t *testing.T) {
 		t.Errorf("songs_matching %d", fc.SongsMatching)
 	}
 }
+
+func TestPerf_Impact(t *testing.T) {
+	budget := perftest.BudgetRace(t, 8*time.Second, 25) // 4 s CPU measured plain over 20 000 Songs (SQLite-bound, like the recompute)
+	// serial on purpose: the budget is process CPU time, which concurrent tests of the package would inflate
+	w := newWorld(t, true)
+	bulkLibrary(t, w, sounds.ImpactMaxSongs+500) // more Songs than one preview scans: the bound is what is measured
+	ms := []sounds.Mapping{{Term: "wobble 3", Facet: "mood", Value: "dark", Op: "add"}, {Term: "synthpop", Facet: "genre_family", Value: "pop", Op: "remove"}}
+	sw := perftest.Start()
+	imp, err := w.sv.Impact(context.Background(), ms)
+	if err != nil {
+		t.Fatal(err)
+	}
+	el := sw.Elapsed()
+	t.Logf("impact over %d Songs: %v", imp.SongsScanned, el)
+	if !imp.Truncated || imp.SongsScanned != sounds.ImpactMaxSongs {
+		t.Errorf("header %+v", imp)
+	}
+	if el > budget {
+		t.Errorf("impact over %d Songs took %v, budget %v", imp.SongsScanned, el, budget)
+	}
+	if len(imp.Gain) == 0 {
+		t.Errorf("no gain predicted: %+v", imp)
+	}
+}
