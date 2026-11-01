@@ -20,8 +20,9 @@ type Options struct {
 	Muses    *muses.Service
 	Songs    *songs.Service
 	Sessions *sessions.Service
-	Picks    PickStep  // nil: the step is skipped (structural-core tests)
-	Sounds   SoundStep // nil: the step is skipped
+	Picks    PickStep    // nil: the step is skipped (structural-core tests)
+	Sounds   SoundStep   // nil: the step is skipped
+	Features FeatureStep // nil: nopFeatures (the real step is wired by app, L3)
 	Ladder   picks.Ladder
 	Now      func() time.Time
 	NewID    func() string
@@ -34,6 +35,15 @@ type Options struct {
 	FaultAfterPhaseA func() error
 	// BeforeSettle is a test seam called after the lease is taken, before the first pass.
 	BeforeSettle func(context.Context)
+}
+
+// UseFeatures installs the real feature step after construction (L3): app builds the features service after the L1
+// services, and the Reconciler must not be running yet. A nil step restores the no-op.
+func (s *Service) UseFeatures(f FeatureStep) {
+	if f == nil {
+		f = nopFeatures{}
+	}
+	s.o.Features = f
 }
 
 // Service is the Reconciler.
@@ -52,6 +62,9 @@ func New(o Options) *Service {
 	}
 	if o.NewID == nil {
 		o.NewID = func() string { return uuid.NewV7().String() }
+	}
+	if o.Features == nil {
+		o.Features = nopFeatures{}
 	}
 	if o.Poll <= 0 {
 		o.Poll = picks.PollInterval

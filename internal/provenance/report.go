@@ -27,6 +27,7 @@ type Report struct {
 	MusesCreated                                     int
 	SessionsCreated, MembersAdded                    int
 	PickEvents, PickRefreshed, SoundsComputed        int
+	FeaturesComputed                                 int
 	Anomalies                                        []Anomaly
 }
 
@@ -45,5 +46,6 @@ func (r *Report) Add(o Report) {
 	r.PickEvents += o.PickEvents
 	r.PickRefreshed += o.PickRefreshed
 	r.SoundsComputed += o.SoundsComputed
+	r.FeaturesComputed += o.FeaturesComputed
 	r.Anomalies = append(r.Anomalies, o.Anomalies...)
 }

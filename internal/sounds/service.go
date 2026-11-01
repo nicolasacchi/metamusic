@@ -80,7 +80,15 @@ type MapResult struct {
 }
 
 // Changes is what a compute step did, for the Reconciler report.
-type Changes struct{ Takes, Songs int }
+type Changes struct {
+	Takes, Songs int
+	// SongIDs are the Songs a recompute batch rewrote (additive, L3 C140.6); the recompute hook receives them.
+	SongIDs []string
+}
+
+// RecomputeHook runs inside every recompute batch transaction with the Song ids the batch rewrote (L3 C140.6, D-L3-41);
+// app wires it to the features refresh so a taxonomy change updates song_features in the same transaction as song_sounds.
+type RecomputeHook func(ctx context.Context, tx *sql.Tx, env Env, songIDs []string) error
 
 // Service is the Sound service (C93): the versioned taxonomy, the derived facets and the faceted counts.
 type Service struct {
@@ -90,6 +98,16 @@ type Service struct {
 
 	mu sync.Mutex
 	ix *Index // the effective index at its Version, rebuilt when a newer version exists
+
+	hook RecomputeHook // set once by the composition root; stored and not yet called (TP1 calls it)
+}
+
+// SetRecomputeHook stores the hook the recompute loop will call (L3 C140.6). A nil hook is valid and means none. It is
+// stored here and never called until lane TP1 (the Map split).
+func (s *Service) SetRecomputeHook(h RecomputeHook) {
+	s.mu.Lock()
+	s.hook = h
+	s.mu.Unlock()
 }
 
 // New builds the Service.

@@ -317,6 +317,12 @@ func (s *Service) phaseB(ctx context.Context, epoch int64, keys []Key, a *phaseA
 		}
 	}
 	a.rep.SoundsComputed = sc.Takes + sc.Songs
+	// Features follow sounds: the same dirty takes and affected Songs (L3 C135.5).
+	fc, err := s.o.Features.ComputeTx(ctx, tx, env, a.tracks, soundSongs)
+	if err != nil {
+		return false, err
+	}
+	a.rep.FeaturesComputed = fc.Takes + fc.Songs
 
 	var clean, requeue []Key
 	for _, k := range keys {
@@ -360,7 +366,7 @@ func (s *Service) Sweep(ctx context.Context) error {
 				return err
 			}
 		}
-		return nil
+		return s.sweepFeatures(ctx, epoch)
 	}
 	if sw, ok := s.o.Picks.(pickSweeper); ok {
 		if _, err := sw.Sweep(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
@@ -389,6 +395,38 @@ func (s *Service) Sweep(ctx context.Context) error {
 		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("provenance: sweep commit: %w", err)
+		}
+		if n == 0 {
+			break
+		}
+	}
+	return s.sweepFeatures(ctx, epoch)
+}
+
+// sweepFeatures rewrites the stale feature rows in batches (startup and hourly sweeps, L3 C135.5).
+func (s *Service) sweepFeatures(ctx context.Context, epoch int64) error {
+	for {
+		if err := s.renew(ctx, epoch); err != nil {
+			return err
+		}
+		tx, err := s.o.Store.W.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("provenance: feature sweep: %w", err)
+		}
+		if err := s.checkEpochTx(ctx, tx, epoch); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		n, err := s.o.Features.SweepStaleTx(ctx, tx, s.env(), picks.BatchKeys)
+		if err != nil {
+			_ = tx.Rollback()
+			if errors.Is(err, errors.ErrUnsupported) {
+				return nil
+			}
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("provenance: feature sweep commit: %w", err)
 		}
 		if n == 0 {
 			return nil
