@@ -57,7 +57,7 @@ type wireMapping struct {
 func toWire(ms []Mapping) []wireMapping {
 	out := make([]wireMapping, len(ms))
 	for i, m := range ms {
-		out[i] = wireMapping{m.Term, m.Facet, m.Value, m.Op}
+		out[i] = wireMapping(m)
 	}
 	return out
 }
@@ -204,7 +204,7 @@ func scanProposal(rows *sql.Rows) (Proposal, error) {
 	}
 	p.Mappings = make([]Mapping, len(w))
 	for i, m := range w {
-		p.Mappings[i] = Mapping{Term: m.Term, Facet: m.Facet, Value: m.Value, Op: m.Op}
+		p.Mappings[i] = Mapping(m)
 	}
 	if err := json.Unmarshal([]byte(impact), &p.Impact); err != nil {
 		return p, fmt.Errorf("sounds: proposal impact: %w", err)

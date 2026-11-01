@@ -71,6 +71,7 @@ func (s *Service) ListProposals(ctx context.Context, f ProposalFilter) (Proposal
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM taxonomy_proposals WHERE `+where, args...).Scan(&page.Total); err != nil {
 		return page, fmt.Errorf("sounds: count proposals: %w", err)
 	}
+	//nolint:gosec // G202: pageWhere is built from constant fragments and "?" placeholders only
 	rows, err := tx.QueryContext(ctx, `SELECT `+proposalCols+` FROM taxonomy_proposals WHERE `+pageWhere+` ORDER BY created_at DESC, id DESC LIMIT ?`, append(pageArgs, limit+1)...)
 	if err != nil {
 		return page, fmt.Errorf("sounds: list proposals: %w", err)
