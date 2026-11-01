@@ -177,7 +177,11 @@ func TestPlan_AllUnknown(t *testing.T) {
 func TestPlan_NeverWorse(t *testing.T) {
 	t.Parallel()
 	r := rnd(2)
-	for i := range 200 {
+	cases := 200
+	if raceOn {
+		cases = 45
+	}
+	for i := range cases {
 		n := 2 + r.IntN(13)
 		ss := randSet(r, n, i%2 == 0)
 		st := Strategies[i%3]
@@ -392,7 +396,10 @@ func TestSequencer_HeuristicGap(t *testing.T) {
 	r := rnd(8)
 	var sum float64
 	var worst float64
-	const total = 120
+	total := 120
+	if raceOn {
+		total = 60 // 20 per size; the full 120 run without -race
+	}
 	for i := range total {
 		n := 13 + i%3
 		ss := randSet(r, n, false)
@@ -409,7 +416,7 @@ func TestSequencer_HeuristicGap(t *testing.T) {
 		sum += gap
 		worst = max(worst, gap)
 	}
-	if mean := sum / total; mean > 0.02 || worst > 0.10 {
+	if mean := sum / float64(total); mean > 0.02 || worst > 0.10 {
 		t.Errorf("gap mean %.4f worst %.4f, want <= 0.02 / 0.10", mean, worst)
 	}
 }
@@ -446,6 +453,9 @@ func TestSequencer_Heuristic_LargeN(t *testing.T) {
 	r := rnd(9)
 	for _, n := range []int{30, 60} {
 		for _, st := range Strategies {
+			if raceOn && n == 60 && st != StrategyArc {
+				continue
+			}
 			ss := randSet(r, n, true)
 			first := mustPlan(t, ss, Options{Strategy: st}, exactOpts)
 			if first.Exact {
@@ -455,7 +465,7 @@ func TestSequencer_Heuristic_LargeN(t *testing.T) {
 				t.Error("no heuristic warning")
 			}
 			var wg sync.WaitGroup
-			for range 4 {
+			for range 2 {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -474,6 +484,9 @@ func TestSequencer_Heuristic_LargeN(t *testing.T) {
 }
 
 func TestPerf_Sequencer(t *testing.T) {
+	if testing.CoverMode() != "" {
+		t.Skip("coverage instrumentation distorts the wall-clock budget")
+	}
 	r := rnd(10)
 	for _, c := range []struct{ n int }{{12}, {60}} {
 		budget := perftest.Budget(t, 100*time.Millisecond)

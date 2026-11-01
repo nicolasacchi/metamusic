@@ -11,7 +11,7 @@ func (pr *problem) exact() []int {
 	n := pr.n
 	full := 1<<n - 1
 	g := make([]int64, (full+1)*n)
-	next := make([]int8, (full+1)*n)
+	next := make([]int, (full+1)*n)
 	for s := 0; s <= full; s++ {
 		p := n - bits.OnesCount(uint(s)) - 1
 		if p < 0 {
@@ -33,17 +33,15 @@ func (pr *problem) exact() []int {
 				g[at], next[at] = infCost, -1
 				continue
 			}
-			bestC, bestJ := infCost, int8(-1)
-			for j := 0; j < n; j++ {
-				if s>>j&1 == 0 {
-					continue
-				}
+			bestC, bestJ := infCost, -1
+			for rem := uint(s); rem != 0; rem &= rem - 1 {
+				j := bits.TrailingZeros(rem)
 				rest := g[(s&^(1<<j))*n+j]
 				if rest >= infCost {
 					continue
 				}
 				if c := pr.trans[i][j] + rest; c < bestC {
-					bestC, bestJ = c, int8(j)
+					bestC, bestJ = c, j
 				}
 			}
 			if bestJ < 0 {
@@ -70,8 +68,8 @@ func (pr *problem) exact() []int {
 		if j < 0 {
 			break
 		}
-		s &^= 1 << int(j)
-		i = int(j)
+		s &^= 1 << j
+		i = j
 	}
 	return out
 }
