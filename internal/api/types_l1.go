@@ -336,6 +336,8 @@ type SongView struct {
 	// L2 (C130.3): the Records and manual Crates that hold the Song, at most ten each; empty until the lane that fills them.
 	Records []SongRecordRef `json:"records" nullable:"false"`
 	Crates  []SongCrateRef  `json:"crates" nullable:"false"`
+	// L3 (C142): the Song's tempo, energy and key with their bases; null until the features lane fills it (or the Song has no subject).
+	Features *FeaturesBlock `json:"features"`
 }
 
 // PinResult is the outcome of pin_pick.

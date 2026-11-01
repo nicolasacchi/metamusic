@@ -15,6 +15,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/atlas"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
@@ -27,6 +28,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/gate"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/httpserver"
@@ -43,6 +45,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -53,6 +56,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
+	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
@@ -93,6 +97,8 @@ type Options struct {
 	L1 L1Options
 	// L2 (C118): the curation services and the tape pipeline's test seams.
 	L2 L2Options
+	// L3 (C133): the features wiring switch.
+	L3 L3Options
 }
 
 // Services is everything Build wires.
@@ -157,6 +163,11 @@ type Services struct {
 	Tapes      *tape.Service
 	Curation   *curation.Service
 	Albums     *albums.Service
+	// L3 services (C133). Nothing is started: features are drained by the L1 Run loop.
+	Features    *features.Service
+	Sequence    *sequence.Service
+	NextActions *nextactions.Service
+	Atlas       *atlas.Service
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -267,6 +278,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
+	l3 := buildL3(l3Inputs{st: st, now: now, muses: l1.Muses, songview: l1.SongView, sounds: l1.Sounds, prov: l1.Provenance, ctxb: ctxb, o: o.L3})
 
 	// M4a is built after L2 so the Subsonic handler can serve the Record albums (C126.7).
 	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
@@ -275,6 +287,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 
 	s := &Services{
 		Records: l2.Records, Syncer: l2.Syncer, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
+		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas,
 		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
 		Board: l1.Board, Provenance: l1.Provenance,
@@ -305,6 +318,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Songwriting: sw,
 		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 		Records: l2.Records, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
+		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
@@ -317,6 +331,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Uploads: m3.Uploads, Songwriting: sw,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, LibSessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		Records: l2.Records, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
+		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas,
 		BaseContext: o.M3.Shutdown,
 		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,

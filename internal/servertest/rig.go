@@ -109,6 +109,11 @@ type Options struct {
 	L2Mirror bool
 	// RealTapeFLAC replaces the flac binary of a RealTape rig (a wrapper that logs its calls, say); "" => testtools' flac.
 	RealTapeFLAC string
+	// L3 (C146.1). L3 adds librarytest.FixtureL3's rows on top of L2 (it requires L2). RealFeatures wires the features service into
+	// the Reconciler's phase B and the sounds recompute hook as serve does, so Rig.Settle computes feature rows once lane FC2 lands;
+	// without it the step is the no-op and Settle changes no feature row.
+	L3           bool
+	RealFeatures bool
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -347,6 +352,12 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyL2(tb, st, clock.Now())
 	}
+	if o.L3 {
+		if !o.L2 {
+			tb.Fatal("servertest: L3 requires L2")
+		}
+		librarytest.ApplyL3(tb, st, clock.Now())
+	}
 	if o.Caps != nil {
 		c := o.Caps
 		if _, err := st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd=?, batch_micro_usd=?, human_daily_micro_usd=?, agent_daily_micro_usd=?, auto_approve_takes=?, auto_approve_micro_usd=?, updated_by='system:test', updated_at=? WHERE id = 1`,
@@ -379,6 +390,7 @@ func New(tb testing.TB, o Options) *Rig {
 		SlotCoin: o.M2b.SlotCoin,
 		Rand:     o.Rand,
 		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
+		L3:       app.L3Options{RealFeatures: o.RealFeatures},
 		// M4a: no real waiting after a failed Subsonic authentication; the OIDC verifier uses a plain client (loopback).
 		M4a: app.M4aOptions{SubsonicSleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() }},
 	}

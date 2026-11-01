@@ -15,6 +15,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/atlas"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
@@ -27,6 +28,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/gate"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/idem"
@@ -40,6 +42,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -50,6 +53,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
+	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
@@ -138,6 +142,11 @@ type Options struct {
 	Tapes      *tape.Service
 	Curation   *curation.Service
 	Albums     *albums.Service
+	// L3 services (C133); nil makes the matching operations answer 503 UNAVAILABLE {component}. They reach api.Deps only.
+	Features    *features.Service
+	Sequence    *sequence.Service
+	NextActions *nextactions.Service
+	Atlas       *atlas.Service
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
@@ -186,7 +195,8 @@ func New(o Options) (http.Handler, error) {
 		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage, Songwriting: o.Songwriting,
 		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board,
 		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts,
-		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums})
+		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
+		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()

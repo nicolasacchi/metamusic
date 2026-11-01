@@ -142,7 +142,13 @@ func TestParity_L1Cases(t *testing.T) {
 	}
 }
 
-// TestToolsList_L1Budget: the six first-class L1 tools cost at most 16 000 compact bytes of tools/list (D-L1-20, the
+// l1ToolsBudgetBytes is the D-L1-20 budget of the six first-class L1 tools: 16 000 until L3-F2, which re-baselined it to 16 700
+// (measured 16 609, +820 over the 15 789 of L2): get_song gained the features block (L3 C142). The alternative was demoting
+// search_sounds, which would have removed a tool agents use; the operator decided on 2026-11-01 that L3 adds no tools, and the
+// block is the one schema L3 adds to an L1 tool.
+const l1ToolsBudgetBytes = 16700
+
+// TestToolsList_L1Budget: the six first-class L1 tools cost at most l1ToolsBudgetBytes compact bytes of tools/list (D-L1-20, the
 // M2b/M3 rule); list_songs is already demoted (generic); the order search_sounds, create_muse, get_muse applies otherwise. It prints the
 // measurement.
 func TestToolsList_L1Budget(t *testing.T) {
@@ -168,12 +174,12 @@ func TestToolsList_L1Budget(t *testing.T) {
 			found++
 		}
 	}
-	t.Logf("the %d L1 tools take %d compact bytes of tools/list (rule: 16 000)", found, total)
+	t.Logf("the %d L1 tools take %d compact bytes of tools/list (budget %d)", found, total, l1ToolsBudgetBytes)
 	if found != len(l1Tools) {
 		t.Fatalf("found %d of the %d L1 tools in tools/list", found, len(l1Tools))
 	}
-	if total > 16000 {
-		t.Errorf("the L1 tools take %d bytes, over 16 000: list_songs is already generic: demote search_sounds, create_muse, get_muse in that order", total)
+	if total > l1ToolsBudgetBytes {
+		t.Errorf("the L1 tools take %d bytes, over the budget: list_songs is already generic: demote search_sounds, create_muse, get_muse in that order", total)
 	}
 }
 

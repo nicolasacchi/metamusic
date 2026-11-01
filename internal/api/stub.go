@@ -21,3 +21,12 @@ const (
 	taskK  = "L2-K"  // Crates operations and the list-op predicates
 	taskA  = "L2-A"  // curation settings
 )
+
+// The L3 lanes that replace a stub (details.task of a 501).
+const (
+	taskSR  = "L3-SR"  // suggest_sequence, the slot op sequence and propose_record.sequence
+	taskNA1 = "L3-NA1" // list_next_actions
+	taskTP2 = "L3-TP2" // propose_taxonomy, list_taxonomy_proposals, decide_taxonomy_proposal
+	taskAT2 = "L3-AT2" // get_song_atlas
+	taskAD  = "L3-AD"  // get_adherence
+)

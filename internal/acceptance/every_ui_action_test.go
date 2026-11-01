@@ -247,6 +247,20 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"id": s.crate, "add": []map[string]any{{"song_id": s.song}}}
 	},
 	"get_curation_settings": func(*uiState) map[string]any { return nil },
+
+	// L3 (C142): the 5 operations with a UI route and an MCP face (propose_taxonomy is an agent-face op, D-L3-38;
+	// decide_taxonomy_proposal is human judgment). map_sound_term keeps its entry: D-L3-22 is not approved.
+	"suggest_sequence":        func(s *uiState) map[string]any { return map[string]any{"record_id": s.record} },
+	"list_next_actions":       func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"list_taxonomy_proposals": func(*uiState) map[string]any { return map[string]any{"state": []string{"open"}, "limit": 10} },
+	"get_song_atlas":          func(*uiState) map[string]any { return map[string]any{"x": "tempo", "y": "energy", "limit": 50} },
+	"get_adherence":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+}
+
+// l3PendingStub lists the L3 operations whose handler still answers 501 (their lane has not landed): the script keeps their
+// entry, so the registry-derived set stays complete, but does not call them. A lane deletes its own id when it implements the op.
+var l3PendingStub = map[string]bool{
+	"suggest_sequence": true, "list_next_actions": true, "list_taxonomy_proposals": true, "get_song_atlas": true, "get_adherence": true,
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -291,6 +305,8 @@ var uiOrder = []string{
 	// L2: create first (a Record from the Song, a Crate), then read and edit what they made; the tape comes last
 	"create_record", "list_records", "get_record", "update_record", "edit_record_slots", "get_record_changes", "propose_record",
 	"create_crate", "list_crates", "get_crate", "update_crate", "edit_crate_items", "get_curation_settings", "export_record_tape", "get_tape",
+	// L3: after the Record exists (the sequence preview reads it)
+	"suggest_sequence", "list_next_actions", "list_taxonomy_proposals", "get_song_atlas", "get_adherence",
 }
 
 // afterStep records the ids later steps need.
@@ -422,6 +438,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 				}
 			}
 			script = spendScript[id]
+		}
+		if l3PendingStub[id] {
+			continue
 		}
 		if id == "export_record_tape" && st.record != "" {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)

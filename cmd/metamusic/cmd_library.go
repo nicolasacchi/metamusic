@@ -186,6 +186,11 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 	if err != nil {
 		return fatal(err)
 	}
+	n3, err := l3Verify(ctx, st, s.out) // the L3 feature invariants F1 to F6 (C135.6)
+	if err != nil {
+		return fatal(err)
+	}
+	bad += n3
 	if *files {
 		n, err := l2VerifyTapeFiles(ctx, st, getenv, s.out)
 		if err != nil {

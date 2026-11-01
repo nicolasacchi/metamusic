@@ -57,7 +57,12 @@ import (
 // 10 940, and the operator decided on 2026-10-28 to make them generic too (15 generic, 2 human-only). The +2 265 bytes are
 // the curation filters of search_sounds and search_tracks and the L2 fields of get_song, get_muse, get_stats and the
 // context bundle.
-const toolsCeilingBytes = 107100
+//
+// L3-F2 (operator decision of 2026-11-01: L3 adds no dedicated tool, the plan's list_next_actions and propose_taxonomy are generic)
+// re-baselined 107100 -> 108300 (measured 108168, +1 204, 39 tools). The seven L3 operations add nothing to tools/list; the bytes
+// are the schemas the freeze adds to two existing first-class tools: get_song.features (+820, tempo, energy and key with their
+// bases, the subject and the pending flag; enums left out) and the key and energy blocks of get_track_analysis (+384).
+const toolsCeilingBytes = 108300
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.
