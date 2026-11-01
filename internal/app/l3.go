@@ -18,7 +18,8 @@ import (
 // L3Options tunes the L3 services of Build (C133); every field is optional.
 type L3Options struct {
 	// RealFeatures wires the features service into the Reconciler's phase B and the sounds recompute hook. serve sets it;
-	// rigs and the CLI leave it off (the no-op step) unless a test asks for it (servertest.Options.RealFeatures).
+	// rigs leave it off (the no-op step) unless a test asks for it (servertest.Options.RealFeatures); the CLI builds its own
+	// Reconciler and installs the same step with FeatureStep.
 	RealFeatures bool
 }
 

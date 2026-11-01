@@ -3,16 +3,14 @@ package app
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// buildL3Features constructs the features service, adapts it to the Reconciler's third phase-B step and to the sounds
-// recompute hook (lane FC2 owns this file). Until FC2 lands the service answers errors.ErrUnsupported, which the adapter
-// reads as "nothing to do", so wiring it now changes no row and no report field.
+// buildL3Features constructs the features service and, when the composition root asks for it (serve, and the rigs that set
+// servertest.Options.RealFeatures), installs it as the Reconciler's third phase-B step and as the sounds recompute hook.
 func buildL3Features(in l3Inputs, s *l3Services) {
 	s.Features = features.New(in.st, in.now)
 	if !in.o.RealFeatures {
@@ -26,21 +24,18 @@ func buildL3Features(in l3Inputs, s *l3Services) {
 	})
 }
 
-// featureStep adapts *features.Service to provenance.FeatureStep (provenance must not import features, D-L3-41).
+// FeatureStep adapts the features service to the Reconciler's step interface; the CLI installs it with
+// provenance.UseFeatures so a CLI settle derives the same rows as the server (provenance must not import features, D-L3-41).
+func FeatureStep(f *features.Service) provenance.FeatureStep { return featureStep{f} }
+
+// featureStep adapts *features.Service to provenance.FeatureStep.
 type featureStep struct{ f *features.Service }
 
 func (a featureStep) ComputeTx(ctx context.Context, tx *sql.Tx, env store.Env, trackIDs, songIDs []string) (provenance.FeatureChanges, error) {
 	c, err := a.f.ComputeTx(ctx, tx, env, trackIDs, songIDs)
-	if errors.Is(err, errors.ErrUnsupported) {
-		return provenance.FeatureChanges{}, nil
-	}
 	return provenance.FeatureChanges{Takes: c.Takes, Songs: c.Songs}, err
 }
 
 func (a featureStep) SweepStaleTx(ctx context.Context, tx *sql.Tx, env store.Env, limit int) (int, error) {
-	n, err := a.f.SweepStaleTx(ctx, tx, env, limit)
-	if errors.Is(err, errors.ErrUnsupported) {
-		return 0, nil
-	}
-	return n, err
+	return a.f.SweepStaleTx(ctx, tx, env, limit)
 }
