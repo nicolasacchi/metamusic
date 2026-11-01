@@ -210,7 +210,9 @@ func TestTokenVerifyDoesNotWaitForWriter(t *testing.T) {
 	if _, err := ts.Verify(ctx, plain); err != nil {
 		t.Fatal(err)
 	}
-	if d := time.Since(start); d > 100*time.Millisecond {
+	// Waiting for the held writer would last the whole busy_timeout (5 s); a loaded CI runner can take over 100 ms
+	// for an unblocked Verify (seen: 122 ms), so the bound sits well between the two.
+	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("Verify blocked %v on the writer inside the throttle window", d)
 	}
 }
