@@ -30,6 +30,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/muses/:id", name: "muse" },
   { pattern: "/songs/:id", name: "song" },
   { pattern: "/sounds", name: "sounds" },
+  { pattern: "/atlas", name: "atlas" },
   { pattern: "/backlog", name: "backlog" },
   { pattern: "/backlog/new", name: "draft-new" },
   { pattern: "/backlog/upload", name: "draft-upload" },

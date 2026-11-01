@@ -42,6 +42,7 @@
   import DraftUpload from "./routes/DraftUpload.svelte";
   import Records from "./routes/Records.svelte";
   import RecordPage from "./routes/Record.svelte"; // not "Record": that would shadow the TS utility type
+  import Atlas from "./routes/Atlas.svelte";
   import Crates from "./routes/Crates.svelte";
   import Crate from "./routes/Crate.svelte";
   import SettingsCuration from "./routes/SettingsCuration.svelte";
@@ -265,6 +266,8 @@
       {/key}
     {:else if $router.route?.name === "sounds"}
       <Sounds search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "atlas"}
+      <Atlas />
     {:else if $router.route?.name === "draft-new"}
       <DraftNew navigate={router.navigate} />
     {:else if $router.route?.name === "draft-upload"}
