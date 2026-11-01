@@ -5,9 +5,13 @@
 
 {#if $stepUp.waiting}
   <div class="stepup" role="status" data-testid="stepup-banner">
-    <span>Confirm in the other tab, then come back here: the action continues by itself.</span>
+    {#if $stepUp.needsTap}
+      <span>Confirmation needed. Open it in a second tab; the music keeps playing here.</span>
+    {:else}
+      <span>Confirm in the other tab, then come back here: the action continues by itself.</span>
+    {/if}
     <button type="button" onclick={() => void stepUp.check()} data-testid="stepup-continue">I confirmed</button>
-    <button type="button" onclick={() => stepUp.reopen()} data-testid="stepup-reopen">Open it again</button>
+    <button type="button" onclick={() => stepUp.reopen()} data-testid="stepup-reopen">{$stepUp.needsTap ? "Open confirmation" : "Open it again"}</button>
     <button type="button" onclick={() => stepUp.cancel()} data-testid="stepup-cancel">Cancel</button>
   </div>
 {/if}
