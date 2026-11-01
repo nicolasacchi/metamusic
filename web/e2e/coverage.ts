@@ -4,10 +4,18 @@ import { resolve } from "node:path";
 type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"?: { ui?: string } }>> };
 
 /**
- * UI operations whose pages are not built yet. Empty since L2: the Records, tapes, Crates and curation pages are built and
- * served by the l2-* specs (src/lib/e2e-coverage.test.ts fails on an id that is no longer a UI operation).
+ * UI operations whose pages are not built yet: the six L3 operations with a UI route (the web lanes WM2, WS, WA1 and WA2 build
+ * their pages and INT-W removes each id with its spec; src/lib/e2e-coverage.test.ts fails on an id that is no longer a UI
+ * operation).
  */
-export const PENDING_UI: ReadonlySet<string> = new Set<string>();
+export const PENDING_UI: ReadonlySet<string> = new Set([
+  "decide_taxonomy_proposal",
+  "get_adherence",
+  "get_song_atlas",
+  "list_next_actions",
+  "list_taxonomy_proposals",
+  "suggest_sequence",
+]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */
 export function uiOperations(openapiPath = resolve(import.meta.dirname, "../../openapi.json")): string[] {
