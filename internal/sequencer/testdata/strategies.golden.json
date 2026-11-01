@@ -1,0 +1,32 @@
+[
+  {
+    "strategy": "arc",
+    "curve": "arc_peak_70",
+    "weights": {
+      "tempo": 100,
+      "key": 80,
+      "energy": 50,
+      "shape": 150
+    }
+  },
+  {
+    "strategy": "ramp_up",
+    "curve": "linear_up",
+    "weights": {
+      "tempo": 100,
+      "key": 80,
+      "energy": 30,
+      "shape": 150
+    }
+  },
+  {
+    "strategy": "steady",
+    "curve": "none",
+    "weights": {
+      "tempo": 100,
+      "key": 80,
+      "energy": 80,
+      "shape": 0
+    }
+  }
+]

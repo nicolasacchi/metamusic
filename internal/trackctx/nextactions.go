@@ -8,7 +8,7 @@ import (
 
 // NextActionReader supplies the Muse-aware next-action strings of one take (L3 C139.4). The strings are already
 // scope-filtered, rendered and ordered by priority, and each has priority at least nextactions.ContextMuseMinPriority.
-// trackctx imports no L3 package; app adapts *nextactions.Service. Lane NA1 refines the assembly below.
+// trackctx imports no L3 package; app adapts *nextactions.Service. The reader applies the priority floor and returns at most limit strings; the assembly below owns the room arithmetic (lane NA1).
 type NextActionReader interface {
 	ForTake(ctx context.Context, p auth.Principal, trackID string, limit int) ([]string, error)
 }

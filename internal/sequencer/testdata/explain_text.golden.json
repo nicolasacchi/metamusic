@@ -1,0 +1,419 @@
+[
+  {
+    "name": "opener_arc",
+    "strategy": "arc",
+    "step": {
+      "Position": 1,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "opener",
+          "Params": {
+            "bpm": 9600,
+            "energy": 0,
+            "key_b": 0,
+            "key_n": 8
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "1. opens low: 96 BPM, key 8A, energy 0.00 (relative)"
+  },
+  {
+    "name": "opener_steady_unknown",
+    "strategy": "steady",
+    "step": {
+      "Position": 1,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "opener",
+          "Params": {
+            "bpm": 0,
+            "energy": -1,
+            "key_b": 0,
+            "key_n": 0
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "1. opens: tempo unknown, key unknown, no energy measurement"
+  },
+  {
+    "name": "transition_up",
+    "strategy": "arc",
+    "step": {
+      "Position": 2,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 9600,
+            "pct": 208,
+            "to": 9800
+          }
+        },
+        {
+          "Code": "key_same",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 8
+          }
+        },
+        {
+          "Code": "energy_rise",
+          "Params": {
+            "delta": 2500,
+            "from": 0,
+            "to": 2500
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "2. tempo 96 → 98 BPM (+2.1 %), key 8A → 8A (same), energy +0.25 — on the way up"
+  },
+  {
+    "name": "peak",
+    "strategy": "arc",
+    "step": {
+      "Position": 5,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "arc_peak",
+          "Params": {
+            "bpm": 10800,
+            "energy": 10000,
+            "key_b": 1,
+            "key_n": 9
+          }
+        },
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 10400,
+            "pct": 385,
+            "to": 10800
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "5. peak: 108 BPM, key 9B, energy 1.00"
+  },
+  {
+    "name": "peak_closes",
+    "strategy": "arc",
+    "step": {
+      "Position": 4,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "arc_peak",
+          "Params": {
+            "bpm": 10800,
+            "energy": 10000,
+            "key_b": 1,
+            "key_n": 9
+          }
+        },
+        {
+          "Code": "closer",
+          "Params": {
+            "from": 5000,
+            "to": 10000
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "4. peak: 108 BPM, key 9B, energy 1.00 (closes the set)"
+  },
+  {
+    "name": "lands_softly",
+    "strategy": "arc",
+    "step": {
+      "Position": 6,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "closer",
+          "Params": {
+            "from": 5000,
+            "to": 1667
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "6. lands softly: energy 0.50 → 0.17"
+  },
+  {
+    "name": "unknowns",
+    "strategy": "arc",
+    "step": {
+      "Position": 3,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "key_unknown",
+          "Params": null
+        },
+        {
+          "Code": "energy_unknown",
+          "Params": null
+        }
+      ],
+      "Missing": null
+    },
+    "text": "3. key unknown (neutral); no energy measurement (neutral)"
+  },
+  {
+    "name": "key_adjacent",
+    "strategy": "arc",
+    "step": {
+      "Position": 4,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "key_adjacent",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 9
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "4. key 8A → 9A (neighbour on the wheel)"
+  },
+  {
+    "name": "key_boost",
+    "strategy": "arc",
+    "step": {
+      "Position": 4,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "key_boost",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 10
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "4. key 8A → 10A (two steps apart: a deliberate lift, costlier than a neighbour)"
+  },
+  {
+    "name": "tempo_octave_fall",
+    "strategy": "steady",
+    "step": {
+      "Position": 2,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "tempo_octave",
+          "Params": {
+            "from": 7600,
+            "pct": 10000,
+            "to": 15200
+          }
+        },
+        {
+          "Code": "energy_fall",
+          "Params": {
+            "delta": -2000,
+            "from": 6000,
+            "to": 4000
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "2. tempo 76 → 152 BPM (octave), energy -0.20 — on the way down"
+  },
+  {
+    "name": "tempo_jump_clash",
+    "strategy": "ramp_up",
+    "step": {
+      "Position": 3,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "tempo_jump",
+          "Params": {
+            "from": 9600,
+            "pct": 2500,
+            "to": 12000
+          }
+        },
+        {
+          "Code": "key_clash",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 1,
+            "to_n": 11
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "3. tempo 96 → 120 BPM (+25.0 %, a big jump), key 8A → 11B (far apart on the wheel)"
+  },
+  {
+    "name": "shift_diagonal_hold",
+    "strategy": "arc",
+    "step": {
+      "Position": 3,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "tempo_shift",
+          "Params": {
+            "from": 9600,
+            "pct": 1250,
+            "to": 10800
+          }
+        },
+        {
+          "Code": "key_diagonal",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 1,
+            "to_n": 9
+          }
+        },
+        {
+          "Code": "energy_hold",
+          "Params": {
+            "delta": 400,
+            "from": 5000,
+            "to": 5400
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "3. tempo 96 → 108 BPM (+12.5 %), key 8A → 9B (across modes, a step apart), energy +0.04 — holding steady"
+  },
+  {
+    "name": "no_features",
+    "strategy": "arc",
+    "step": {
+      "Position": 2,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "no_features",
+          "Params": null
+        },
+        {
+          "Code": "tempo_unknown",
+          "Params": null
+        },
+        {
+          "Code": "key_unknown",
+          "Params": null
+        },
+        {
+          "Code": "energy_unknown",
+          "Params": null
+        }
+      ],
+      "Missing": null
+    },
+    "text": "2. no tempo, key or energy known (neutral)"
+  },
+  {
+    "name": "closer_steady_relative",
+    "strategy": "steady",
+    "step": {
+      "Position": 6,
+      "SongID": "s",
+      "EnergyRel": 0,
+      "Target": 0,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "closer",
+          "Params": {
+            "from": 5000,
+            "to": 5000
+          }
+        },
+        {
+          "Code": "key_relative",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 1,
+            "to_n": 8
+          }
+        },
+        {
+          "Code": "energy_hold",
+          "Params": {
+            "delta": 0,
+            "from": 5000,
+            "to": 5000
+          }
+        }
+      ],
+      "Missing": null
+    },
+    "text": "6. closes: key 8A → 8B (relative major/minor), energy +0.00 — holding steady"
+  }
+]

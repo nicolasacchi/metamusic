@@ -23,8 +23,8 @@ type whoamiOut struct {
 		Name   string   `json:"name" doc:"Username or token name"`
 		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
 		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)"`
-		// StepUpUntil is null when the second factor is the edge's (proxy mode) or the caller is not a local human session.
-		StepUpUntil *string `json:"step_up_until" nullable:"true" doc:"RFC 3339 UTC: until when a recent password confirmation lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode, agents, devices)"`
+		// StepUpUntil is null when the second factor is the edge's alone (proxy mode without MM_STEPUP_OIDC_CLIENT) or the caller is not a human.
+		StepUpUntil *string `json:"step_up_until" nullable:"true" doc:"RFC 3339 UTC: until when a recent second-factor confirmation (password in local mode, OIDC in proxy mode) lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode without MM_STEPUP_OIDC_CLIENT, agents, devices)"`
 	}
 }
 
