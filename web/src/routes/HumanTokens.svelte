@@ -45,7 +45,7 @@
     <p class="muted">No tokens yet.</p>
   {:else}
     <table data-testid="token-list">
-      <thead><tr><th scope="col">Name</th><th scope="col">Prefix</th><th scope="col">Scopes</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"></th></tr></thead>
+      <thead><tr><th scope="col">Name</th><th scope="col">Prefix</th><th scope="col">Scopes</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col"></th></tr></thead>
       <tbody>
         {#each items as t (t.id)}
           <tr data-revoked={t.revoked_at !== null}>
@@ -53,6 +53,7 @@
             <td><code>{t.prefix}</code></td>
             <td>{t.scopes.join(", ")}</td>
             <td>{t.last_used_at ?? "never"}</td>
+            <td data-testid="token-expires">{t.expires_at ?? "no expiry"}</td>
             <td>{t.revoked_at ? `revoked ${t.revoked_at}` : "active"}</td>
             <td>{#if !t.revoked_at}<button type="button" onclick={() => revoke(t)} data-testid="token-revoke">Revoke</button>{/if}</td>
           </tr>
