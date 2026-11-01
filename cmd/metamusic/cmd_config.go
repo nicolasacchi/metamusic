@@ -50,6 +50,11 @@ func configCheck(getenv func(string) string, s streams) error {
 	} else {
 		fmt.Fprintln(s.out, "oidc: disabled")
 	}
+	if cfg.StepUpClientID != "" {
+		fmt.Fprintf(s.out, "step-up: oidc client %s (secret %s)\n", cfg.StepUpClientID, map[bool]string{true: "set", false: "not set, public client"}[sec.StepUpClientSecret != ""])
+	} else {
+		fmt.Fprintln(s.out, "step-up: edge only")
+	}
 	if cfg.NtfyURL != "" {
 		fmt.Fprintf(s.out, "ntfy: enabled (token %s)\n", map[bool]string{true: "set", false: "not set"}[sec.NtfyToken != ""])
 	} else {

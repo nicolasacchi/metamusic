@@ -153,7 +153,10 @@ type Options struct {
 	// M4a (C114). Connectors verifies OAuth access tokens on /mcp: it must be a nil interface (never a typed nil)
 	// while hosted connectors are off. PRM serves /.well-known/oauth-protected-resource/mcp (nil => 404 problem).
 	// Subsonic serves /rest/ (nil => 404 problem NOT_FOUND). The remaining fields reach api.Deps.
-	Connectors     auth.ConnectorVerifier
+	Connectors auth.ConnectorVerifier
+	// StepUp, when non-nil (proxy mode with MM_STEPUP_OIDC_CLIENT), makes the app itself require a recent second factor
+	// for /human/ and serves /auth/step-up. nil => the edge's two-factor rule is the only gate.
+	StepUp         *auth.ProxyStepUp
 	PRM            http.Handler
 	Subsonic       http.Handler
 	ConnectorStore *connectors.Store
@@ -296,6 +299,8 @@ func New(o Options) (http.Handler, error) {
 	}
 	if o.Cfg.AuthMode == "local" {
 		mux.Handle("/auth/", o.Sessions.Handler())
+	} else if o.StepUp != nil {
+		mux.Handle("/auth/", o.StepUp.Handler())
 	} else {
 		mux.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
 			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
@@ -373,7 +378,11 @@ func New(o Options) (http.Handler, error) {
 	if devices == nil && o.DeviceStore != nil {
 		devices = o.DeviceStore
 	}
-	outer := auth.Middleware(o.Cfg, o.Sec, auth.Verifiers{Tokens: o.Tokens, Sessions: o.Sessions, Devices: devices, Connectors: o.Connectors})(mux)
+	vf := auth.Verifiers{Tokens: o.Tokens, Sessions: o.Sessions, Devices: devices, Connectors: o.Connectors}
+	if o.StepUp != nil {
+		vf.StepUp = o.StepUp
+	}
+	outer := auth.Middleware(o.Cfg, o.Sec, vf)(mux)
 	if o.BaseContext != nil {
 		inner := outer
 		done := o.BaseContext.Done()
