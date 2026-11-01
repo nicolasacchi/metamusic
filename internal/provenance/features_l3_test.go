@@ -3,6 +3,7 @@ package provenance_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -70,4 +71,70 @@ func TestProvenance_FeatureStepRuns(t *testing.T) {
 	if report.FeaturesComputed != 5 {
 		t.Errorf("Report.Add dropped FeaturesComputed: %d", report.FeaturesComputed)
 	}
+}
+
+// scriptedFeatures is a FeatureStep whose answers a test chooses.
+type scriptedFeatures struct {
+	computeErr error
+	sweeps     []sweepAnswer
+	called     int
+}
+
+type sweepAnswer struct {
+	n   int
+	err error
+}
+
+func (s *scriptedFeatures) ComputeTx(context.Context, *sql.Tx, store.Env, []string, []string) (provenance.FeatureChanges, error) {
+	return provenance.FeatureChanges{}, s.computeErr
+}
+
+func (s *scriptedFeatures) SweepStaleTx(context.Context, *sql.Tx, store.Env, int) (int, error) {
+	a := sweepAnswer{}
+	if s.called < len(s.sweeps) {
+		a = s.sweeps[s.called]
+	}
+	s.called++
+	return a.n, a.err
+}
+
+// TestProvenance_FeatureSweepLoop: the feature sweep repeats while the step reports work, stops on zero, reads ErrUnsupported
+// as "nothing to do" (a step whose lane has not landed) and returns every other error; a ComputeTx error aborts the pass.
+func TestProvenance_FeatureSweepLoop(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("boom")
+	for name, tc := range map[string]struct {
+		sweeps     []sweepAnswer
+		wantCalls  int
+		wantErr    error
+		wantAnyErr bool
+	}{
+		"repeats until zero": {sweeps: []sweepAnswer{{n: 3}, {n: 1}, {n: 0}}, wantCalls: 3},
+		"unsupported":        {sweeps: []sweepAnswer{{err: errors.ErrUnsupported}}, wantCalls: 1},
+		"error":              {sweeps: []sweepAnswer{{err: boom}}, wantCalls: 1, wantErr: boom},
+	} {
+		step := &scriptedFeatures{sweeps: tc.sweeps}
+		w := newWorld(t, func(o *provenance.Options) { o.Features = step })
+		err := w.prov.Sweep(context.Background())
+		if tc.wantErr != nil && !errors.Is(err, tc.wantErr) || tc.wantErr == nil && err != nil {
+			t.Errorf("%s: Sweep = %v, want %v", name, err, tc.wantErr)
+		}
+		if step.called != tc.wantCalls {
+			t.Errorf("%s: SweepStaleTx called %d times, want %d", name, step.called, tc.wantCalls)
+		}
+	}
+	boomStep := &scriptedFeatures{computeErr: boom}
+	w := l1World(t, func(o *provenance.Options) { o.Features = boomStep })
+	if _, err := w.prov.Settle(context.Background()); !errors.Is(err, boom) {
+		t.Errorf("Settle with a failing step = %v, want boom", err)
+	}
+	// UseFeatures replaces the step after construction; nil restores the no-op.
+	rec := &recordingFeatures{}
+	w2 := l1World(t)
+	w2.prov.UseFeatures(rec)
+	w2.settle()
+	if len(rec.songs) == 0 {
+		t.Error("UseFeatures did not install the step")
+	}
+	w2.prov.UseFeatures(nil)
 }
