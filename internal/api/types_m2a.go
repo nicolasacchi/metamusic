@@ -382,6 +382,7 @@ type TokenInfo struct {
 	CreatedAt  string   `json:"created_at"`
 	LastUsedAt *string  `json:"last_used_at"`
 	RevokedAt  *string  `json:"revoked_at"`
+	ExpiresAt  *string  `json:"expires_at" doc:"When the token stops working; null = no expiry (rotate those)"`
 }
 
 // CreatedToken is TokenInfo plus the token, shown once.
@@ -429,8 +430,9 @@ type tokenOut struct{ Body TokenInfo }
 type createTokenIn struct {
 	IdemHeader
 	Body struct {
-		Name   string   `json:"name" minLength:"1" maxLength:"80"`
-		Scopes []string `json:"scopes" minItems:"1" maxItems:"4" uniqueItems:"true" enum:"read,write,generate,admin"`
+		Name    string   `json:"name" minLength:"1" maxLength:"80"`
+		Scopes  []string `json:"scopes" minItems:"1" maxItems:"4" uniqueItems:"true" enum:"read,write,generate,admin"`
+		TTLDays *int     `json:"ttl_days,omitempty" minimum:"0" maximum:"3650" doc:"Days until the token expires; omitted = 90, 0 = never expires"`
 	}
 }
 type createdTokenOut struct{ Body CreatedToken }

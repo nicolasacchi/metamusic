@@ -58,6 +58,7 @@ test("the Tokens link opens inside the app (no document load); a token authentic
     await expect(page.getByTestId("token-reveal")).toHaveCount(0);
     const row = page.getByTestId("token-list").locator("tbody tr", { hasText: name });
     await expect(row).toContainText("active");
+    await expect(row.getByTestId("token-expires")).not.toHaveText("no expiry"); // the form default is a 90-day lifetime
     page.once("dialog", (d) => void d.accept()); // confirm("Revoke token ...")
     await row.getByTestId("token-revoke").evaluate((b) => (b as HTMLElement).click()); // the row re-renders at once; a retrying click would chase it
     await expect(row).toContainText("revoked");
