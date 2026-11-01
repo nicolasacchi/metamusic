@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -195,7 +196,7 @@ func loadTake(ctx context.Context, q db, id string) (tl takeLoad, ok bool, err e
 	err = q.QueryRowContext(ctx, `SELECT r.engine, r.style, r.request_json, t.bpm_declared, t.duration_s, sc.bpm, sc.bars, sc.seconds_per_bar
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id LEFT JOIN scores sc ON sc.track_id = t.id WHERE t.id = ?`, id).
 		Scan(&engine, &style, &reqJSON, &declared, &dur, &plan, &bars, &spb)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return tl, false, nil
 	}
 	if err != nil {
@@ -298,7 +299,7 @@ func loadTake(ctx context.Context, q db, id string) (tl takeLoad, ok bool, err e
 func loadDraft(ctx context.Context, q db, songID, draftID string) (in TakeInput, textDigest string, ok bool, err error) {
 	var reqJSON string
 	err = q.QueryRowContext(ctx, `SELECT request_json FROM recipe_drafts WHERE id = ?`, draftID).Scan(&reqJSON)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return in, "", false, nil
 	}
 	if err != nil {

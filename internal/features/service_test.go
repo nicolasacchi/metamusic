@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestFeatures_SubjectEqualsSounds(t *testing.T) {
 		}
 		var kind, id sql.NullString
 		err = w.st.R.QueryRow(`SELECT subject_kind, subject_id FROM song_features WHERE song_id = ?`, x.id).Scan(&kind, &id)
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			t.Fatal(err)
 		}
 		switch {

@@ -123,7 +123,7 @@ func runFeatureSequence(t *testing.T, seed uint64) {
 	rng := rand.New(rand.NewPCG(seed, seed*104729+3))
 	w := newWorld(t, realFeatureSteps(t))
 	sc := w.sc
-	var tracks, roots []string
+	var tracks []string
 	n := 0
 	next := func() int { n++; return n }
 	styles := []string{"reggae, chill, 90bpm", "pop, upbeat, in A minor, 120bpm", "rock, dark, 140bpm", "jazz, nostalgic", "dance, energetic, 128bpm", "ambient, in F# major"}
@@ -132,7 +132,7 @@ func runFeatureSequence(t *testing.T, seed uint64) {
 		switch rng.IntN(10) {
 		case 0, 1: // a root take
 			r := sc.Track(sc.Recipe(fmt.Sprintf("pr%d_v1", next()), styles[rng.IntN(len(styles))]), fmt.Sprintf("Root %d", n), "", sc.At(next()))
-			roots, tracks = append(roots, r), append(tracks, r)
+			tracks = append(tracks, r)
 		case 2: // a child take
 			if len(tracks) > 0 {
 				c := sc.Track(sc.Recipe(fmt.Sprintf("pc%d_v1", next()), styles[rng.IntN(len(styles))]), fmt.Sprintf("Child %d", n), tracks[rng.IntN(len(tracks))], sc.At(next()))

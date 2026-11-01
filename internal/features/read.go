@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -64,7 +65,7 @@ func scanTake(sc scanner) (string, Row, error) {
 // Take reads one take's row; ok is false when the take has none.
 func (s *Service) Take(ctx context.Context, trackID string) (Row, bool, error) {
 	_, r, err := scanTake(s.st.R.QueryRowContext(ctx, takeSelect+` WHERE track_id = ?`, trackID))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Row{}, false, nil
 	}
 	if err != nil {
