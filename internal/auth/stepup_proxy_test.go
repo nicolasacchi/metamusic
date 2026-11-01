@@ -21,9 +21,9 @@ import (
 
 const stepClient = "metamusic-stepup"
 
-// fakeIdP is a minimal OIDC provider: discovery, JWKS, an authorization endpoint that redirects straight back and a
+// fakeIDP is a minimal OIDC provider: discovery, JWKS, an authorization endpoint that redirects straight back and a
 // token endpoint that checks the code, the PKCE verifier and the client secret and returns a configurable ID token.
-type fakeIdP struct {
+type fakeIDP struct {
 	t      *testing.T
 	srv    *httptest.Server
 	key    *rsa.PrivateKey
@@ -44,13 +44,13 @@ type fakeIdP struct {
 	badSig    bool
 }
 
-func newFakeIdP(t *testing.T, clk *fakeClock) *fakeIdP {
+func newFakeIDP(t *testing.T, clk *fakeClock) *fakeIDP {
 	t.Helper()
 	k, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeIdP{t: t, key: k, clock: clk, secret: "s3cret-value", amr: []string{"pwd", "otp", "mfa"}, user: "alice", aud: stepClient}
+	f := &fakeIDP{t: t, key: k, clock: clk, secret: "s3cret-value", amr: []string{"pwd", "otp", "mfa"}, user: "alice", aud: stepClient}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": f.srv.URL, "authorization_endpoint": f.srv.URL + "/authorize",
@@ -110,7 +110,7 @@ func newFakeIdP(t *testing.T, clk *fakeClock) *fakeIdP {
 }
 
 type proxyStepRig struct {
-	idp *fakeIdP
+	idp *fakeIDP
 	clk *fakeClock
 	su  *ProxyStepUp
 	h   http.Handler
@@ -119,7 +119,7 @@ type proxyStepRig struct {
 func newProxyStepRig(t *testing.T, enabled bool) *proxyStepRig {
 	t.Helper()
 	clk := newFakeClock()
-	idp := newFakeIdP(t, clk)
+	idp := newFakeIDP(t, clk)
 	v, err := oidc.NewVerifier(oidc.Config{Issuer: idp.srv.URL}, nil, clk.Now)
 	if err != nil {
 		t.Fatal(err)
@@ -250,14 +250,14 @@ func withEdge(r *http.Request) *http.Request {
 
 func TestProxyStepUp_IDTokenRefusals(t *testing.T) {
 	t.Parallel()
-	for name, mod := range map[string]func(*fakeIdP){
-		"stale auth_time":      func(f *fakeIdP) { f.authAge = 20 * time.Minute },
-		"no second factor amr": func(f *fakeIdP) { f.amr = []string{"pwd"} },
-		"missing amr":          func(f *fakeIdP) { f.amr = nil },
-		"wrong nonce":          func(f *fakeIdP) { f.nonceOver = "someone-elses-nonce" },
-		"wrong user":           func(f *fakeIdP) { f.user = "mallory" },
-		"wrong audience":       func(f *fakeIdP) { f.aud = "another-client" },
-		"bad signature":        func(f *fakeIdP) { f.badSig = true },
+	for name, mod := range map[string]func(*fakeIDP){
+		"stale auth_time":      func(f *fakeIDP) { f.authAge = 20 * time.Minute },
+		"no second factor amr": func(f *fakeIDP) { f.amr = []string{"pwd"} },
+		"missing amr":          func(f *fakeIDP) { f.amr = nil },
+		"wrong nonce":          func(f *fakeIDP) { f.nonceOver = "someone-elses-nonce" },
+		"wrong user":           func(f *fakeIDP) { f.user = "mallory" },
+		"wrong audience":       func(f *fakeIDP) { f.aud = "another-client" },
+		"bad signature":        func(f *fakeIDP) { f.badSig = true },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -347,5 +347,98 @@ func TestProxyStepUp_DisabledUnchanged(t *testing.T) {
 	Middleware(c, s, Verifiers{Tokens: fakeTokens{}, Sessions: fakeSessions{}})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = FromContext(r.Context()) })).ServeHTTP(httptest.NewRecorder(), r)
 	if StepUpUntil(seen) != nil {
 		t.Fatal("step_up_until must stay null without the feature")
+	}
+}
+
+func TestProxyStepUp_Pages(t *testing.T) {
+	t.Parallel()
+	p := newProxyStepRig(t, true)
+	if rec := p.do("/auth/step-up/done"); rec.Code != 403 || !strings.Contains(rec.Body.String(), "not confirmed") {
+		t.Fatalf("done without step-up: %d %s", rec.Code, rec.Body)
+	}
+	cb := p.login(t, "/auth/step-up/done")
+	if cb.Code != 303 || cb.Header().Get("Location") != "/auth/step-up/done" {
+		t.Fatalf("callback to done: %d %q", cb.Code, cb.Header().Get("Location"))
+	}
+	step := cookieOf(cb, p.su.cookieName())
+	if rec := p.do("/auth/step-up/done", step); rec.Code != 200 || !strings.Contains(rec.Body.String(), "done.js") {
+		t.Fatalf("done with step-up: %d %s", rec.Code, rec.Body)
+	}
+	if rec := p.do("/auth/step-up/done.js"); rec.Code != 200 || !strings.Contains(rec.Body.String(), "mm-stepup") {
+		t.Fatalf("done.js: %d", rec.Code)
+	}
+	if rec := p.do("/auth/nope"); rec.Code != 404 {
+		t.Fatalf("unknown /auth/ path: %d", rec.Code)
+	}
+	// only the operator behind the edge may use the pages
+	for _, path := range []string{"/auth/step-up", "/auth/step-up/callback?code=x&state=y", "/auth/step-up/done"} {
+		r := httptest.NewRequest("GET", path, nil)
+		r.Header.Set("Authorization", "Bearer mmp_good")
+		rec := httptest.NewRecorder()
+		p.h.ServeHTTP(rec, r)
+		if rec.Code != 403 {
+			t.Errorf("agent on %s: %d", path, rec.Code)
+		}
+	}
+}
+
+func TestProxyStepUp_ProviderDown(t *testing.T) {
+	t.Parallel()
+	p := newProxyStepRig(t, true)
+	p.idp.srv.Close()
+	rec := p.do("/auth/step-up?next=/human/tokens")
+	if rec.Code != http.StatusBadGateway || cookieOf(rec, flowCookieName) != nil {
+		t.Fatalf("provider down: %d", rec.Code)
+	}
+}
+
+func TestProxyStepUp_CookieParsing(t *testing.T) {
+	t.Parallel()
+	p := newProxyStepRig(t, true)
+	now := p.clk.Now().Unix()
+	for name, v := range map[string]string{
+		"two parts":   "a.b",
+		"bad number":  "YWxpY2U.x." + strings.Repeat("0", 64),
+		"negative":    "YWxpY2U.-5." + strings.Repeat("0", 64),
+		"forged mac":  p.su.sign("alice", now)[:len(p.su.sign("alice", now))-4] + "0000",
+		"future":      p.su.sign("alice", now+3600),
+		"stale":       p.su.sign("alice", now-int64(stepUpWindow.Seconds())-60),
+		"empty value": "x",
+	} {
+		if _, fresh := p.su.Check(withCookie(p.su.cookieName(), v), "alice"); fresh {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	if _, fresh := p.su.Check(withCookie(p.su.cookieName(), p.su.sign("alice", now)), "alice"); !fresh {
+		t.Error("good cookie refused")
+	}
+	// https deployments use the __Host- prefix
+	if got := NewProxyStepUp(nil, key, "https://mm.example.com", nil).cookieName(); got != "__Host-mm_stepup" {
+		t.Errorf("secure cookie name = %q", got)
+	}
+}
+
+func withCookie(name, value string) *http.Request {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.AddCookie(&http.Cookie{Name: name, Value: value})
+	return r
+}
+
+func TestProxyStepUp_FlowStoreBounded(t *testing.T) {
+	t.Parallel()
+	p := newProxyStepRig(t, true)
+	for i := 0; i < maxFlows+10; i++ {
+		p.su.putFlow(strings.Repeat("s", i+1), stepFlow{expires: p.clk.Now().Add(time.Duration(i+1) * time.Minute)})
+	}
+	if n := len(p.su.flows); n > maxFlows {
+		t.Fatalf("%d flows kept", n)
+	}
+	if _, ok := p.su.takeFlow("s"); ok {
+		t.Error("the oldest flow should have been dropped")
+	}
+	p.clk.Advance(time.Hour)
+	p.su.putFlow("fresh", stepFlow{expires: p.clk.Now().Add(time.Minute)})
+	if len(p.su.flows) != 1 {
+		t.Fatalf("expired flows not purged: %d", len(p.su.flows))
 	}
 }
