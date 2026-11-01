@@ -1,0 +1,190 @@
+[
+  {
+    "Code": "record_undecided_slots",
+    "Audience": "both",
+    "Subject": "record 01900000-0000-7000-8000-000000d24001",
+    "Text": "Record \"Synthetic Record One\": 2 slot(s) play an undecided Pick — duel them, pin them, or freeze the Record (pin_all)",
+    "Priority": 80,
+    "Hint": {
+      "Op": "get_record",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d24001",
+        "include": [
+          "changes"
+        ]
+      }
+    },
+    "Evidence": {
+      "slots": 2
+    }
+  },
+  {
+    "Code": "record_undecided_slots",
+    "Audience": "both",
+    "Subject": "record 01900000-0000-7000-8000-000000d24002",
+    "Text": "Record \"Synthetic Record Two\": 2 slot(s) play an undecided Pick — duel them, pin them, or freeze the Record (pin_all)",
+    "Priority": 80,
+    "Hint": {
+      "Op": "get_record",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d24002",
+        "include": [
+          "changes"
+        ]
+      }
+    },
+    "Evidence": {
+      "slots": 2
+    }
+  },
+  {
+    "Code": "muse_record_candidate",
+    "Audience": "both",
+    "Subject": "muse 01900000-0000-7000-8000-000000d33003",
+    "Text": "Muse 00d33003 has 6 Songs rated 4★+ that are in no Record — build one: create_record, then propose_record with a sequence (arc)",
+    "Priority": 75,
+    "Hint": {
+      "Op": "list_songs",
+      "Args": {
+        "in_record": false,
+        "min_stars": 4,
+        "muse_id": "01900000-0000-7000-8000-000000d33003"
+      }
+    },
+    "Evidence": {
+      "songs": 6
+    }
+  },
+  {
+    "Code": "muse_unrendered",
+    "Audience": "agent",
+    "Subject": "muse 01900000-0000-7000-8000-000000d33001",
+    "Text": "Muse 00d33001 has 3 Song(s), none rendered — estimate the first (the estimate is free)",
+    "Priority": 70,
+    "Hint": {
+      "Op": "estimate_generation",
+      "Args": {
+        "items": [
+          {
+            "draft_ids": [
+              "01900000-0000-7000-8000-000000d36001"
+            ],
+            "mode": "from_draft"
+          }
+        ]
+      }
+    },
+    "Evidence": {
+      "draft_id": "01900000-0000-7000-8000-000000d36001",
+      "songs": 3
+    }
+  },
+  {
+    "Code": "song_duel",
+    "Audience": "both",
+    "Subject": "song 01900000-0000-7000-8000-000000d22003",
+    "Text": "Song \"Synthetic Song S3\" has 2 takes and 0 blind duel(s) — 3 decide the Pick; start one between the two newest",
+    "Priority": 68,
+    "Hint": {
+      "Op": "get_song",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d22003"
+      }
+    },
+    "Evidence": {
+      "duels": 0,
+      "takes": 2
+    }
+  },
+  {
+    "Code": "song_duel",
+    "Audience": "both",
+    "Subject": "song 01900000-0000-7000-8000-000000d22004",
+    "Text": "Song \"Synthetic Song S4\" has 2 takes and 0 blind duel(s) — 3 decide the Pick; start one between the two newest",
+    "Priority": 68,
+    "Hint": {
+      "Op": "get_song",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d22004"
+      }
+    },
+    "Evidence": {
+      "duels": 0,
+      "takes": 2
+    }
+  },
+  {
+    "Code": "muse_unjudged",
+    "Audience": "both",
+    "Subject": "muse 01900000-0000-7000-8000-000000d23001",
+    "Text": "Muse 00d23001 has 3 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)",
+    "Priority": 65,
+    "Hint": {
+      "Op": "get_muse",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d23001"
+      }
+    },
+    "Evidence": {
+      "rendered": 3
+    }
+  },
+  {
+    "Code": "muse_unjudged",
+    "Audience": "both",
+    "Subject": "muse 01900000-0000-7000-8000-000000d33002",
+    "Text": "Muse 00d33002 has 1 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)",
+    "Priority": 65,
+    "Hint": {
+      "Op": "get_muse",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d33002"
+      }
+    },
+    "Evidence": {
+      "rendered": 1
+    }
+  },
+  {
+    "Code": "muse_partial_angles",
+    "Audience": "agent",
+    "Subject": "muse 01900000-0000-7000-8000-000000d33002",
+    "Text": "Muse 00d33002: untagged rendered, untagged still draft — estimate 1 more",
+    "Priority": 60,
+    "Hint": {
+      "Op": "estimate_generation",
+      "Args": {
+        "items": [
+          {
+            "draft_ids": [
+              "01900000-0000-7000-8000-000000d36004"
+            ],
+            "mode": "from_draft"
+          }
+        ]
+      }
+    },
+    "Evidence": {
+      "draft_id": "01900000-0000-7000-8000-000000d36004",
+      "drafts": 1,
+      "rendered": 1
+    }
+  },
+  {
+    "Code": "record_empty_slot",
+    "Audience": "both",
+    "Subject": "record 01900000-0000-7000-8000-000000d24001",
+    "Text": "Record \"Synthetic Record One\" slot 4 has no take yet — render the Song or remove the slot",
+    "Priority": 60,
+    "Hint": {
+      "Op": "get_record",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d24001"
+      }
+    },
+    "Evidence": {
+      "empty": 1,
+      "slot": 4
+    }
+  }
+]

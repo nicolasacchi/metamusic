@@ -10,7 +10,7 @@ import (
 )
 
 // registerNextActionsL3 registers list_next_actions (C139). It is generic: L3 adds no dedicated MCP tool (operator
-// decision of 2026-11-01). The item texts name a Muse by an id prefix until D-L3-16 is approved. Lane NA1 owns the handler body.
+// decision of 2026-11-01). The item texts name a Muse by an id tail until D-L3-16 is approved. Lane NA1 owns the handler body.
 func registerNextActionsL3(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_next_actions", Method: "GET", Path: "/api/next-actions",

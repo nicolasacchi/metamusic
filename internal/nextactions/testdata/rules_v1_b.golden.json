@@ -1,0 +1,50 @@
+[
+  {
+    "code": "record_undecided_slots",
+    "priority": 80,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Record \"Synthetic Record\": 2 slot(s) play an undecided Pick — duel them, pin them, or freeze the Record (pin_all)"
+  },
+  {
+    "code": "muse_record_candidate",
+    "priority": 75,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Muse 000000a2 has 6 Songs rated 4★+ that are in no Record — build one: create_record, then propose_record with a sequence (arc)"
+  },
+  {
+    "code": "song_duel",
+    "priority": 68,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Song \"Synthetic Song\" has 3 takes and 1 blind duel(s) — 3 decide the Pick; start one between the two newest"
+  },
+  {
+    "code": "muse_partial_angles",
+    "priority": 60,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Muse 000000a2: remake-long rendered, alt-take-long, long, short, … still draft — estimate 4 more"
+  },
+  {
+    "code": "record_empty_slot",
+    "priority": 60,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Record \"Synthetic Record\" slot 3 has no take yet — render the Song or remove the slot"
+  },
+  {
+    "code": "song_proposals_waiting",
+    "priority": 55,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Song \"Synthetic Song\": your proposal is waiting for the human"
+  }
+]
