@@ -48,7 +48,7 @@ type TokenInfo struct {
 	Scopes     []Scope
 	CreatedAt  string
 	LastUsedAt string // empty if never used
-	ExpiresAt  string // empty = no expiry (tokens minted before migration 0011, or created with TTL 0)
+	ExpiresAt  string // empty = no expiry (tokens minted before migration 0012, or created with TTL 0)
 	RevokedAt  string // empty if active
 }
 

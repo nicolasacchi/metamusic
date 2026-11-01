@@ -10,7 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// legacyToken puts a working token into dst, a database below schema 11, the way an older binary would have
+// legacyToken puts a working token into dst, a database below schema 12, the way an older binary would have
 // (no expires_at column): it mints one in a scratch current-schema store and copies the row without the expiry.
 func legacyToken(ctx context.Context, dst *store.Store, key []byte) (string, error) {
 	dir, err := os.MkdirTemp("", "mm-legacy-token")
