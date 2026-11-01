@@ -59,7 +59,7 @@ import (
 // context bundle.
 //
 // L3-F2 (operator decision of 2026-11-01: L3 adds no dedicated tool, the plan's list_next_actions and propose_taxonomy are generic)
-// re-baselined 107100 -> 108300 (measured 108168, +1 204, 39 tools). The seven L3 operations add nothing to tools/list; the bytes
+// re-baselined 107100 -> 108300 (measured 108228 on top of the degraded-startup change, +1 264, 39 tools: +60 are that change's). The seven L3 operations add nothing to tools/list; the bytes
 // are the schemas the freeze adds to two existing first-class tools: get_song.features (+820, tempo, energy and key with their
 // bases, the subject and the pending flag; enums left out) and the key and energy blocks of get_track_analysis (+384).
 const toolsCeilingBytes = 108300
