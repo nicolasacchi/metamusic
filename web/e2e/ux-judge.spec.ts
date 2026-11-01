@@ -132,3 +132,23 @@ test("blind triage hides identity from the DOM and the Media Session", async ({ 
   await expect(card(page).getByTestId("judge-title")).toHaveText(first.title);
   await expect.poll(() => page.evaluate(() => navigator.mediaSession.metadata?.title ?? "")).toBe(first.title);
 });
+
+test("U2: the Judge card takes a timestamped comment without leaving the card", async ({ page, request }) => {
+  const t = (await unrated(request))[0]!;
+  await page.goto("/judge");
+  await expect(card(page)).toHaveAttribute("data-track-id", t.id);
+  await card(page).getByTestId("judge-play").click();
+  await expect(card(page).getByTestId("judge-play")).toHaveAttribute("aria-label", "Pause");
+  await expect(card(page).getByTestId("judge-comment")).toContainText(/Comment at \d+:\d\d/);
+  await card(page).getByTestId("judge-comment").click();
+  const body = `judge note ${Date.now()}`;
+  const c = card(page).getByTestId("comment-composer");
+  await c.getByPlaceholder("Comment").fill(body);
+  await c.getByRole("button", { name: "Comment", exact: true }).click();
+  await expect(card(page).getByTestId("judge-composer")).toHaveCount(0);
+  await expect(card(page)).toHaveAttribute("data-track-id", t.id); // still on the same card
+  const items = (await apiJSON<{ items: { body: string; at_second: number | null }[] }>(request, "GET", `/api/tracks/${t.id}/comments?limit=100`)).items;
+  const mine = items.find((x) => x.body === body);
+  expect(mine, "the comment was stored").toBeTruthy();
+  expect(mine!.at_second).not.toBeNull();
+});

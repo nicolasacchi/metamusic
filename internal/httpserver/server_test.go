@@ -113,7 +113,7 @@ func TestHealthz(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil, spaFS, nil)
 	w := e.do(httptest.NewRequest("GET", "/healthz", nil))
-	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"status":"ok"}` {
+	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"status":"ok","ready":true}` {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }

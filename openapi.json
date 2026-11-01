@@ -13118,6 +13118,13 @@
             "description": "RFC 3339 UTC",
             "type": "string"
           },
+          "startup_issues": {
+            "description": "Failing startup steps as step=CODE; non-empty means the server is degraded and retrying; empty when ready",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "uptime_s": {
             "format": "int64",
             "type": "integer"
@@ -13133,7 +13140,8 @@
           "schema_version",
           "started_at",
           "uptime_s",
-          "audit_failures"
+          "audit_failures",
+          "startup_issues"
         ],
         "type": "object"
       },

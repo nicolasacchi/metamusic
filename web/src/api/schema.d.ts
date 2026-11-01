@@ -5880,6 +5880,8 @@ export interface components {
             schema_version: number;
             /** @description RFC 3339 UTC */
             started_at: string;
+            /** @description Failing startup steps as step=CODE; non-empty means the server is degraded and retrying; empty when ready */
+            startup_issues: string[];
             /** Format: int64 */
             uptime_s: number;
             version: string;
