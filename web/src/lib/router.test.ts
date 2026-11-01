@@ -371,3 +371,21 @@ describe("L2 routes (C131.1)", () => {
     expect(idx("crates")).toBeLessThan(idx("crate"));
   });
 });
+
+describe("L3 routes (C145.1)", () => {
+  const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;
+  test("/atlas matches and is an SPA route, not a server path", () => {
+    expect(name("/atlas")).toBe("atlas");
+    expect(isServerPath("/atlas")).toBe(false);
+  });
+  test("it sits after /sounds and the specific-before-parametric order holds", () => {
+    const idx = (n: string) => APP_ROUTES.findIndex((r) => r.name === n);
+    expect(idx("atlas")).toBeGreaterThan(idx("sounds"));
+    for (const r of APP_ROUTES) {
+      if (!r.pattern.includes(":")) continue;
+      const base = r.pattern.split("/:")[0];
+      const sibling = APP_ROUTES.findIndex((x) => x.pattern === base);
+      if (sibling >= 0) expect(sibling, r.pattern).toBeLessThan(idx(r.name));
+    }
+  });
+});
