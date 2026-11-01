@@ -2,15 +2,14 @@ package api
 
 import (
 	"context"
-	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/nicolasacchi/metamusic/internal/atlas"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 )
 
-// registerAdherenceL3 registers get_adherence (C141.4): requested versus got, the absorbed M6 layer. Lane AD replaces the
-// handler body only.
+// registerAdherenceL3 registers get_adherence (C141.4): requested versus got, the absorbed M6 layer.
 func registerAdherenceL3(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_adherence", Method: "GET", Path: "/api/atlas/adherence",
@@ -21,6 +20,11 @@ func registerAdherenceL3(a huma.API, d Deps) {
 			if d.Atlas == nil {
 				return nil, unavailable("atlas")
 			}
-			return nil, m2bErr(errors.ErrUnsupported, taskAD)
+			a, err := d.Atlas.Adherence(ctx, atlas.AdherenceQuery{Facet: in.Facet, Value: in.Value, MinN: in.MinN,
+				MinErrorPct: in.MinErrorPct.ptr(), Octave: in.Octave.ptr(), Limit: in.Limit, Cursor: in.Cursor})
+			if err != nil {
+				return nil, m2bErr(err, taskAD)
+			}
+			return &adherenceOut{Body: a}, nil
 		})
 }
