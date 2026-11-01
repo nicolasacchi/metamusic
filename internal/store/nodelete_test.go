@@ -11,10 +11,12 @@ import (
 
 // deleteAllowlist names the only tables that may be physically deleted from:
 // the idempotency cache, M0's session cache, M4a's Subsonic salt cache and (L1, C88.3, D-L1-24) the four derived Sound caches and the reconcile
-// queue, which the Reconciler rebuilds by delete-and-insert. Nothing else, ever.
+// queue, which the Reconciler rebuilds by delete-and-insert, and (L3, D-L3-3) the two feature caches take_features and
+// song_features, rebuilt the same way. Nothing else, ever.
 var deleteAllowlist = map[string]bool{
 	"idempotency": true, "human_sessions": true,
 	"subsonic_salts": true, "provenance_dirty": true, "take_sounds": true, "song_sounds": true, "sound_state": true, "song_unmapped_terms": true,
+	"take_features": true, "song_features": true,
 }
 
 var deleteRE = regexp.MustCompile(`(?i)\bdelete\s+from\s+([A-Za-z_][A-Za-z0-9_]*)`)
@@ -70,5 +72,25 @@ func TestNoDeleteSQL(t *testing.T) {
 	off, _ = scanDeletes(t, dir)
 	if len(off) != 1 || !strings.Contains(off[0], "comments") {
 		t.Fatalf("planted delete not detected exactly once: %v", off)
+	}
+}
+
+// TestNoDeleteSQL_AllowlistL3: L3 adds exactly the two derived feature caches to the allowlist and nothing else.
+func TestNoDeleteSQL_AllowlistL3(t *testing.T) {
+	t.Parallel()
+	want := []string{"idempotency", "human_sessions", "subsonic_salts", "provenance_dirty", "take_sounds", "song_sounds", "sound_state",
+		"song_unmapped_terms", "take_features", "song_features"}
+	if len(deleteAllowlist) != len(want) {
+		t.Errorf("allowlist has %d tables, want %d", len(deleteAllowlist), len(want))
+	}
+	for _, tb := range want {
+		if !deleteAllowlist[tb] {
+			t.Errorf("%s missing from the allowlist", tb)
+		}
+	}
+	for _, tb := range []string{"record_sequences", "taxonomy_proposals", "records", "record_changes"} {
+		if deleteAllowlist[tb] {
+			t.Errorf("%s must never be deletable", tb)
+		}
 	}
 }
