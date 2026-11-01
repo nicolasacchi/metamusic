@@ -31,8 +31,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
-	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/redact"
+	"github.com/nicolasacchi/metamusic/internal/startup"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/synth"
 	"github.com/nicolasacchi/metamusic/web"
@@ -45,6 +45,8 @@ type booted struct {
 	tokens *auth.TokenStore
 	local  *auth.LocalAuth
 	l1     app.L1Options // test seams of the Reconciler (BeforeSettle, FaultAfterPhaseA); zero in production
+	// retryBase is the first backoff of a failed startup derivation step (test seam); zero means startupRetryBase.
+	retryBase time.Duration
 }
 
 func (b *booted) close() { _ = b.st.Close() }
@@ -254,6 +256,8 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		}
 	}()
 	opts := svc.Server
+	health := startup.New(nil)
+	opts.Startup = health
 	opts.SPA = web.Dist()
 	opts.MCPFactory = func(a huma.API, inner http.Handler) (http.Handler, error) {
 		srv, err := mcpgen.NewServer(a, inner, version)
@@ -306,9 +310,13 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		slog.Info("runner not started", "reason", runnerOffReason(b.cfg, svc))
 	}
 	// Startup order (C95.3): store opened and migrated (boot) -> app.Build -> taxonomy seed -> the first Settle (waiting while
-	// another process holds the lease) -> net.Listen -> Run. There is no readiness flag: the listener simply is not open
-	// until the derived model is consistent, inside the image HEALTHCHECK window.
-	if err := startupSettle(ctx, svc); err != nil {
+	// another process holds the lease) -> net.Listen -> Run. Only a DERIVATION step may fail without ending the process: store,
+	// config and secrets errors above are still fatal. A derivation step that fails does not end serve (a restart would
+	// crash-loop with no HTTP and no health signal): the listener opens anyway, /healthz reports status "degraded" and
+	// ready=false with the step's code, and retryDerive repeats the failed step with backoff until it succeeds.
+	steps := startupSteps(svc)
+	derived := runDerive(ctx, steps, health)
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	ln, err := net.Listen("tcp", b.cfg.Addr)
@@ -317,6 +325,10 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	}
 	running.Add(1)
 	go func() { defer running.Done(); svc.Provenance.Run(runCtx) }()
+	if !derived {
+		running.Add(1)
+		go func() { defer running.Done(); retryDerive(runCtx, steps, health, b.retryBase) }()
+	}
 	startL2(runCtx, pruneCtx, svc, &running, &pruned) // the Syncer, the tape runner and the tape sweep (C118)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	errc := make(chan error, 1)
@@ -504,31 +516,4 @@ func parseScopes(csv string) ([]auth.Scope, error) {
 		}
 	}
 	return out, nil
-}
-
-// startupSettle seeds the Sound taxonomy (the taxonomy exists before any Sound is computed) and runs the first Settle,
-// waiting while another process holds the lease (a restarting server whose predecessor is still draining).
-func startupSettle(ctx context.Context, svc *app.Services) error {
-	if err := svc.Sounds.EnsureSeed(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
-		return fmt.Errorf("sound taxonomy seed: %w", err)
-	}
-	for {
-		rep, err := svc.Provenance.Settle(ctx)
-		switch {
-		case err == nil:
-			if rep.KeysProcessed > 0 {
-				slog.Info("library model settled", "keys", rep.KeysProcessed, "songs_created", rep.SongsCreated, "muses_created", rep.MusesCreated, "sessions_created", rep.SessionsCreated)
-			}
-			return nil
-		case errors.Is(err, provenance.ErrSettleBusy):
-			slog.Info("waiting for the settle lease")
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(500 * time.Millisecond):
-			}
-		default:
-			return fmt.Errorf("startup settle: %w", err)
-		}
-	}
 }

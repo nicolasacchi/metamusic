@@ -3,8 +3,9 @@ package httpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/startup"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -155,6 +156,8 @@ type Options struct {
 	// BaseContext is the server's base context: when it ends (shutdown starts) every request context's
 	// reqinfo.ShutdownDone fires, so long-polls return and the 30 s drain does not wait on them (C75.8).
 	BaseContext context.Context
+	// Startup tracks the startup derivation steps serve retries in the background; nil => always ready.
+	Startup *startup.Health
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -175,7 +178,7 @@ func New(o Options) (http.Handler, error) {
 		now = time.Now
 	}
 	inner := http.NewServeMux()
-	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started,
+	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started, Startup: o.Startup,
 		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
@@ -232,10 +235,19 @@ func New(o Options) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		body := `{"status":"ok"}`
-		if n := audit.Failures(); n > 0 { // still 200: a restart would not repair the gap
-			body = fmt.Sprintf(`{"status":"degraded","audit_failures":%d}`, n)
+		// Liveness vs readiness: always 200 (a restart would not repair a degraded app, and the operator needs the UI to see
+		// why). "status" is "ok" or "degraded"; "ready" is false while a startup derivation step is failing.
+		hb := struct {
+			Status        string              `json:"status"`
+			Ready         bool                `json:"ready"`
+			AuditFailures int64               `json:"audit_failures,omitempty"`
+			Startup       []startup.StepIssue `json:"startup_issues,omitempty"`
+		}{Status: "ok", Ready: o.Startup.Ready(), AuditFailures: audit.Failures(), Startup: o.Startup.Issues()}
+		if !hb.Ready || hb.AuditFailures > 0 {
+			hb.Status = "degraded"
 		}
+		raw, _ := json.Marshal(hb)
+		body := string(raw)
 		_, _ = w.Write([]byte(body + "\n"))
 	})
 	if o.DeviceStore != nil {

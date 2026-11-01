@@ -30,13 +30,14 @@ type whoamiOut struct {
 
 type systemOut struct {
 	Body struct {
-		Version       string `json:"version"`
-		Commit        string `json:"commit"`
-		AuthMode      string `json:"auth_mode"`
-		SchemaVersion int    `json:"schema_version" doc:"SQLite migration level"`
-		StartedAt     string `json:"started_at" doc:"RFC 3339 UTC"`
-		UptimeS       int64  `json:"uptime_s"`
-		AuditFailures int64  `json:"audit_failures" doc:"Audit rows lost since start after retries; non-zero means a gap in the audit trail"`
+		Version       string   `json:"version"`
+		Commit        string   `json:"commit"`
+		AuthMode      string   `json:"auth_mode"`
+		SchemaVersion int      `json:"schema_version" doc:"SQLite migration level"`
+		StartedAt     string   `json:"started_at" doc:"RFC 3339 UTC"`
+		UptimeS       int64    `json:"uptime_s"`
+		AuditFailures int64    `json:"audit_failures" doc:"Audit rows lost since start after retries; non-zero means a gap in the audit trail"`
+		StartupIssues []string `json:"startup_issues" nullable:"false" doc:"Failing startup steps as step=CODE; non-empty means the server is degraded and retrying; empty when ready"`
 	}
 }
 
@@ -95,6 +96,10 @@ func registerSystem(a huma.API, d Deps) {
 			b.StartedAt = started.UTC().Format(time.RFC3339)
 			b.UptimeS = int64(now.Sub(started).Seconds())
 			b.AuditFailures = audit.Failures()
+			b.StartupIssues = []string{}
+			for _, i := range d.Startup.Issues() {
+				b.StartupIssues = append(b.StartupIssues, i.Step+"="+i.Code)
+			}
 			return out, nil
 		})
 }
