@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -21,6 +22,9 @@ func tokenInfo(ti auth.TokenInfo) TokenInfo {
 	if ti.RevokedAt != "" {
 		out.RevokedAt = &ti.RevokedAt
 	}
+	if ti.ExpiresAt != "" {
+		out.ExpiresAt = &ti.ExpiresAt
+	}
 	return out
 }
 
@@ -38,7 +42,7 @@ func registerTokens(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_tokens", Method: "GET", Path: "/api/tokens",
 		Summary:     "List API tokens",
-		Description: "Token names, prefixes, scopes and last use. Never the tokens themselves.",
+		Description: "Token names, prefixes, scopes, expiry and last use. Never the tokens themselves.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/human/tokens"},
 		func(ctx context.Context, _ *empty) (*tokenListOut, error) {
 			if d.Tokens == nil {
@@ -82,7 +86,7 @@ func registerTokens(a huma.API, d Deps) {
 	Register(a, withBody(created(huma.Operation{
 		OperationID: "create_token", Method: "POST", Path: "/human/api/tokens",
 		Summary:     "Create an API token",
-		Description: "Mints a token with the given scopes. The token is shown once. Operator only.",
+		Description: "Mints a token with the given scopes. It expires after ttl_days (default 90; 0 = never). The token is shown once. Operator only.",
 	}), bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/tokens", HumanOnly: true,
 		Idempotency: "create", SecretFields: []string{"token"}},
 		func(ctx context.Context, in *createTokenIn) (*createdTokenOut, error) {
@@ -93,7 +97,11 @@ func registerTokens(a huma.API, d Deps) {
 			for i, s := range in.Body.Scopes {
 				scopes[i] = auth.Scope(s)
 			}
-			plain, id, err := d.Tokens.Create(ctx, in.Body.Name, scopes)
+			ttl := auth.DefaultTokenTTL
+			if in.Body.TTLDays != nil {
+				ttl = time.Duration(*in.Body.TTLDays) * 24 * time.Hour
+			}
+			plain, id, err := d.Tokens.CreateTTL(ctx, in.Body.Name, scopes, ttl)
 			if err != nil {
 				return nil, tokenErr(err)
 			}

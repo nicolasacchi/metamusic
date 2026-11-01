@@ -115,7 +115,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_OIDC_SCOPES` | Scopes advertised and required for connectors (default `openid metamusic`; must contain `metamusic`). |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
-(`metamusic token create --name N --scopes read,write`).
+(`metamusic token create --name N --scopes read,write`; tokens expire after 90 days unless `--ttl 7d`, `--ttl 720h` or `--ttl never` says otherwise).
 
 ## Privacy
 
