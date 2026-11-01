@@ -1,7 +1,7 @@
 // Step-up without losing the music (wave 4a, D1). A gated /human/api call that needs a second factor does not unload
 // the page: the confirmation opens in a SECOND tab, the player is snapshotted first, and when that tab reports
 // completion (BroadcastChannel) or this tab becomes visible and the gate is open, the failed request is retried
-// here, in the tab whose player never unloaded. Without a second tab (popup blocked, installed iOS app) it falls
+// here, in the tab whose player never unloaded. Without a second tab (popup blocked, installed iOS app; never an Android PWA) it falls
 // back to the full-page hop of old; the snapshot makes "Resume at m:ss" work after it.
 //
 // Nothing here opens a gate: the server still decides every request on its own (the edge's two-factor rule for
@@ -27,8 +27,13 @@ export interface StepUpDeps {
   here(): string;
   /** Save the player (playerStore) before anything that could unload the page. */
   snapshot(): void;
-  /** Installed iOS app / standalone display mode: a second tab is not available there. */
+  /** The installed iOS app (navigator.standalone): a second tab is not available there. Android PWAs (display-mode: standalone) can window.open. */
   standalone(): boolean;
+  /**
+   * Is a user gesture (transient activation) live? window.open without one is popup-blocked, and the blocked-popup
+   * fallback is the full-page hop that unloads the player. Absent = assume yes.
+   */
+  activated?(): boolean;
   /** Subscribes to "the other tab is done" (verify=false) and "this tab is visible again" (verify=true, check the gate). */
   listen(signal: (verify: boolean) => void): () => void;
   gateOpen(): Promise<boolean>;
@@ -38,6 +43,8 @@ export interface StepUpDeps {
 
 export interface StepUpState {
   waiting: Trigger | null;
+  /** Waiting, but no second tab was opened (no gesture): the banner's "Open it" button, a click, opens it. */
+  needsTap: boolean;
 }
 
 export function isDoneMessage(d: unknown): boolean {
@@ -45,7 +52,7 @@ export function isDoneMessage(d: unknown): boolean {
 }
 
 export function createStepUp(deps: StepUpDeps) {
-  const state = writable<StepUpState>({ waiting: null });
+  const state = writable<StepUpState>({ waiting: null, needsTap: false });
   let pending: Promise<boolean> | null = null;
   let finish: ((ok: boolean) => void) | null = null;
   let current: Trigger = "local";
@@ -65,12 +72,15 @@ export function createStepUp(deps: StepUpDeps) {
   function require(kind: Trigger): Promise<boolean> {
     if (pending) return pending;
     deps.snapshot();
-    if (deps.standalone() || !deps.open(urlFor(kind))) {
+    // No live gesture (the SecureGate probe fires on mount): a window.open would be blocked and the fallback hop would
+    // unload the player. Wait instead; the banner's button is a click that can open the tab.
+    const tap = !deps.standalone() && deps.activated?.() === false;
+    if (!tap && (deps.standalone() || !deps.open(urlFor(kind)))) {
       hop(kind);
       return Promise.resolve(false);
     }
     current = kind;
-    state.set({ waiting: kind });
+    state.set({ waiting: kind, needsTap: tap });
     pending = new Promise<boolean>((resolve) => {
       let off = () => {};
       let checking = false;
@@ -78,7 +88,7 @@ export function createStepUp(deps: StepUpDeps) {
         off();
         pending = null;
         finish = null;
-        state.set({ waiting: null });
+        state.set({ waiting: null, needsTap: false });
         if (ok) deps.completed?.();
         resolve(ok);
       };
@@ -112,7 +122,10 @@ export function createStepUp(deps: StepUpDeps) {
     /** The second tab was closed: open it again (from a click) or take the full-page hop. */
     reopen() {
       if (!pending) return;
-      if (!deps.standalone() && deps.open(urlFor(current))) return;
+      if (!deps.standalone() && deps.open(urlFor(current))) {
+        state.update((v) => ({ ...v, needsTap: false }));
+        return;
+      }
       const f = finish;
       deps.snapshot();
       hop(current);
@@ -136,9 +149,14 @@ export function browserDeps(snapshot: () => void = () => {}): StepUpDeps {
     assign: (u) => location.assign(u),
     here: () => location.pathname + location.search,
     snapshot: () => snapshot(),
+    // Only the iOS home-screen app lacks a second tab. An Android PWA (display-mode: standalone) opens window.open in
+    // a new window/custom tab while this one, and its player, stays alive.
     standalone() {
-      const nav = navigator as Navigator & { standalone?: boolean };
-      return nav.standalone === true || (typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches);
+      return (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    },
+    activated() {
+      const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+      return ua ? ua.isActive : true;
     },
     listen(signal) {
       let ch: BroadcastChannel | null = null;

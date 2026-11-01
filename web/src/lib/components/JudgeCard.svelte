@@ -6,6 +6,7 @@
   import { fmt } from "../time";
   import { cardView, chorusStart, type JudgeTake, type TimedSection } from "../judgeQueue";
   import type { TrackStatus } from "../judge.svelte";
+  import CommentComposer from "./CommentComposer.svelte";
   import CoverArt from "./CoverArt.svelte";
   import StarRating from "./StarRating.svelte";
   import StatusChips from "./StatusChips.svelte";
@@ -40,6 +41,13 @@
   const duration = $derived(isCur && s.duration > 0 ? s.duration : take.duration_s);
   const current = $derived(isCur ? s.current : 0);
   const chorus = $derived(chorusStart(sections));
+
+  // The same composer and op as the Now Playing sheet (add_comment); the timestamp is where this card is playing.
+  let commenting = $state(false);
+  $effect(() => {
+    void take.id;
+    commenting = false;
+  });
 
   function toggle() {
     if (isCur) player.toggle();
@@ -88,7 +96,7 @@
       <button type="button" class="chorus" data-testid="judge-chorus" onclick={toChorus}>Jump to chorus {fmt(chorus)}</button>
     {/if}
     <button type="button" class="jump" aria-label="Back 10 seconds" data-testid="judge-back10" onclick={() => jump(-10)}>−10 s</button>
-    <button type="button" class="big" aria-label={playing ? "Pause" : "Play"} data-testid="judge-play" onclick={toggle}>
+    <button type="button" class="big" aria-label={playing ? "Pause" : "Play"} data-testid="judge-play" data-transport-toggle onclick={toggle}>
       {#if playing}<PauseIcon size={36} />{:else}<PlayIcon size={36} />{/if}
     </button>
     <button type="button" class="jump" aria-label="Forward 10 seconds" data-testid="judge-fwd10" onclick={() => jump(10)}>+10 s</button>
@@ -102,8 +110,14 @@
   <div class="acts">
     {#if canDuel}<button type="button" data-testid="judge-duel" onclick={onduel}>Duel vs Pick</button>{/if}
     {#if view.openTake}<a class="btn" href="/tracks/{take.id}" data-testid="judge-open">Open take</a>{/if}
+    <button type="button" aria-expanded={commenting} data-testid="judge-comment" onclick={() => (commenting = !commenting)}>{isCur ? `Comment at ${fmt(current)}` : "Comment"}</button>
     <button type="button" data-testid="judge-skip" onclick={onskip}>Skip ›</button>
   </div>
+  {#if commenting}
+    <div class="composer" data-testid="judge-composer">
+      <CommentComposer trackId={take.id} current={isCur ? current : null} playing={isCur} oncreated={() => (commenting = false)} oncancel={() => (commenting = false)} />
+    </div>
+  {/if}
 </article>
 
 <style>
@@ -202,5 +216,10 @@
     text-decoration: none;
     background: transparent;
     cursor: pointer;
+  }
+  .composer {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: var(--sp-3);
   }
 </style>

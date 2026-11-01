@@ -229,7 +229,7 @@
     </div>
 
     <div class="controls">
-      <button type="button" data-testid="track-play" onclick={() => play()}>
+      <button type="button" data-testid="track-play" data-transport-toggle onclick={() => play()}>
         {isCurrent && player.state.playing ? "Pause" : "Play"}
       </button>
       {#if !isCurrent}<QueueButtons id={id} title={track.title} />{/if}

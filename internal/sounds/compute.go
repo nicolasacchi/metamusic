@@ -282,58 +282,9 @@ func stringsOf(ctx context.Context, q querier, query string, args ...any) ([]str
 	return out, rows.Err()
 }
 
-// subject is the representative of a Song: its Pick take, else its newest eligible take, else its draft.
-type subject struct {
-	Kind   string // take | draft | none
-	ID     string
-	In     input
-	Digest string
-}
-
-func loadSubject(ctx context.Context, q querier, version int, songID string) (subject, error) {
-	var takeID sql.NullString
-	err := q.QueryRowContext(ctx, `SELECT take_id FROM song_picks WHERE song_id = ? AND take_id IS NOT NULL`, songID).Scan(&takeID)
-	if err != nil && err != sql.ErrNoRows {
-		return subject{}, fmt.Errorf("sounds: song pick: %w", err)
-	}
-	if !takeID.Valid {
-		err = q.QueryRowContext(ctx, `SELECT t.id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
-			WHERE ts.song_id = ? AND t.status <> 'discarded' ORDER BY t.recorded_at DESC, t.id DESC LIMIT 1`, songID).Scan(&takeID)
-		if err != nil && err != sql.ErrNoRows {
-			return subject{}, fmt.Errorf("sounds: newest take: %w", err)
-		}
-	}
-	if takeID.Valid {
-		in, ok, err := loadTake(ctx, q, takeID.String)
-		if err != nil {
-			return subject{}, err
-		}
-		if ok {
-			return subject{Kind: "take", ID: takeID.String, In: in, Digest: takeDigest(version, in)}, nil
-		}
-	}
-	var draft, req sql.NullString
-	var rev int
-	err = q.QueryRowContext(ctx, `SELECT d.id, d.request_json, d.revision FROM songs s JOIN recipe_drafts d ON d.id = s.draft_id WHERE s.id = ?`, songID).Scan(&draft, &req, &rev)
-	if err != nil && err != sql.ErrNoRows {
-		return subject{}, fmt.Errorf("sounds: song draft: %w", err)
-	}
-	if draft.Valid {
-		var r struct {
-			Style  string `json:"style"`
-			Lyrics string `json:"lyrics"`
-		}
-		_ = json.Unmarshal([]byte(req.String), &r)
-		in := input{Engine: "yue2", Style: r.Style, Lyrics: r.Lyrics}
-		return subject{Kind: "draft", ID: draft.String, In: in,
-			Digest: sum256(jsonString(struct {
-				Revision int    `json:"revision"`
-				Style    string `json:"style"`
-				Lyrics   string `json:"lyrics_sha256"`
-			}{rev, in.Style, sum256(in.Lyrics)}))}, nil
-	}
-	return subject{Kind: "none", Digest: sum256("none")}, nil
-}
+// soundComputeDef names the rules that turn a subject into song_sounds rows. It enters the Song digest (never the take
+// digest) so that a change of the rules makes every Song stale once: /2 added the ord column (D-L3-9).
+const soundComputeDef = "mm-sound-compute/2"
 
 func songDigest(version int, sub subject) string {
 	return sum256(jsonString(struct {
@@ -341,7 +292,8 @@ func songDigest(version int, sub subject) string {
 		ID      string `json:"id"`
 		Digest  string `json:"digest"`
 		Version int    `json:"taxonomy_version"`
-	}{sub.Kind, sub.ID, sub.Digest, version}))
+		Compute string `json:"compute_def"`
+	}{sub.Kind, sub.ID, sub.Digest, version, soundComputeDef}))
 }
 
 // stateOf returns the stored freshness of a subject; found is false without a row.
@@ -368,16 +320,29 @@ func writeState(ctx context.Context, tx *stmts, env Env, kind, id string, versio
 
 // insertSounds writes all rows of a subject with one multi-row INSERT (the statement text is cached per row count).
 // table and keyCol are constants of this package.
-func insertSounds(ctx context.Context, tx *stmts, table, keyCol, id string, rows []soundRow) error {
+//
+// With withOrd the rows are song_sounds rows and each carries its 0-based position in rows (D-L3-9): the position of the
+// row in the emitted, deduplicated list, unique within a Song, so the primary value of a facet is its smallest ord.
+func insertSounds(ctx context.Context, tx *stmts, table, keyCol, id string, rows []soundRow, withOrd bool) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	args := make([]any, 0, len(rows)*5)
-	for _, r := range rows {
-		args = append(args, id, r.Facet, r.Value, r.Origin, detailJSON(r.Detail))
+	cols, ph := "(?, ?, ?, ?, ?),", 5
+	if withOrd {
+		cols, ph = "(?, ?, ?, ?, ?, ?),", 6
 	}
-	q := `INSERT INTO ` + table + `(` + keyCol + `, facet, value, origin, detail_json) VALUES ` +
-		strings.TrimSuffix(strings.Repeat("(?, ?, ?, ?, ?),", len(rows)), ",")
+	args := make([]any, 0, len(rows)*ph)
+	for i, r := range rows {
+		args = append(args, id, r.Facet, r.Value, r.Origin, detailJSON(r.Detail))
+		if withOrd {
+			args = append(args, i)
+		}
+	}
+	names := keyCol + ", facet, value, origin, detail_json"
+	if withOrd {
+		names += ", ord"
+	}
+	q := `INSERT INTO ` + table + `(` + names + `) VALUES ` + strings.TrimSuffix(strings.Repeat(cols, len(rows)), ",")
 	_, err := tx.ExecContext(ctx, q, args...)
 	return err
 }
@@ -400,7 +365,7 @@ func (s *Service) computeTake(ctx context.Context, tx *stmts, env Env, ix *Index
 	if _, err := tx.ExecContext(ctx, `DELETE FROM take_sounds WHERE track_id = ?`, id); err != nil {
 		return false, fmt.Errorf("sounds: clear take sounds: %w", err)
 	}
-	if err := insertSounds(ctx, tx, "take_sounds", "track_id", id, rows); err != nil {
+	if err := insertSounds(ctx, tx, "take_sounds", "track_id", id, rows, false); err != nil {
 		return false, fmt.Errorf("sounds: write take sounds: %w", err)
 	}
 	return true, writeState(ctx, tx, env, "take", id, ix.Version, digest)
@@ -438,7 +403,7 @@ func (s *Service) computeSong(ctx context.Context, tx *stmts, env Env, ix *Index
 	if _, err := tx.ExecContext(ctx, `DELETE FROM song_sounds WHERE song_id = ?`, id); err != nil {
 		return false, fmt.Errorf("sounds: clear song sounds: %w", err)
 	}
-	if err := insertSounds(ctx, tx, "song_sounds", "song_id", id, rows); err != nil {
+	if err := insertSounds(ctx, tx, "song_sounds", "song_id", id, rows, true); err != nil {
 		return false, fmt.Errorf("sounds: write song sounds: %w", err)
 	}
 	if err := replaceUnmapped(ctx, tx, id, parsed.Unmapped); err != nil {
