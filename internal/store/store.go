@@ -21,6 +21,9 @@ func dsn(path string, writer bool) string {
 	q.Add("_pragma", "synchronous(NORMAL)")
 	if writer {
 		q.Set("_txlock", "immediate")
+	} else {
+		// Enforced per connection: GET never mutates (CLAUDE.md rule 5).
+		q.Add("_pragma", "query_only(1)")
 	}
 	return "file:" + (&url.URL{Path: path}).EscapedPath() + "?" + q.Encode()
 }
