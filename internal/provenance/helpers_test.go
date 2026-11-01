@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -125,11 +126,21 @@ var l1Tables = []struct{ name, order string }{
 	{"song_sounds", "song_id, facet, value"}, {"song_unmapped_terms", "song_id, term"},
 }
 
+// l3Tables are the L3 tables the Reconciler writes (the feature rows); contentHashL3 adds them to the L1 tables.
+var l3Tables = []struct{ name, order string }{{"take_features", "track_id"}, {"song_features", "song_id"}}
+
 // contentHash hashes every L1 table except the timestamp columns that legitimately move (computed_at, at).
-func (w *world) contentHash() string {
+func (w *world) contentHash() string { return w.hashTables(l1Tables) }
+
+// contentHashL3 hashes the L1 tables and the feature tables.
+func (w *world) contentHashL3() string {
+	return w.hashTables(append(slices.Clone(l1Tables), l3Tables...))
+}
+
+func (w *world) hashTables(tables []struct{ name, order string }) string {
 	w.t.Helper()
 	h := sha256.New()
-	for _, tb := range l1Tables {
+	for _, tb := range tables {
 		rows, err := w.st.R.Query(`SELECT * FROM ` + tb.name + ` ORDER BY ` + tb.order)
 		if err != nil {
 			w.t.Fatal(err)

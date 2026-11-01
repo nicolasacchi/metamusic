@@ -28,11 +28,13 @@ func newProvenance(st *store.Store) *provenance.Service {
 	now := time.Now
 	newID := func() string { return uuid.NewV7().String() }
 	ds := duels.New(duels.Options{Store: st, Library: library.New(st, nil, now), Now: now, NewID: newID})
-	return provenance.New(provenance.Options{
+	prov := provenance.New(provenance.Options{
 		Store: st, Muses: muses.New(st, now, newID), Songs: songs.New(st, now, newID), Sessions: sessions.New(st, now),
 		Picks: picks.New(st, ds, now, newID), Sounds: sounds.New(st, now, newID), Ladder: ds,
 		Now: now, NewID: newID, Owner: fmt.Sprintf("cli-%d", os.Getpid()),
 	})
+	useFeatures(st, prov) // L3: features are part of the model a settle derives (C135.5)
+	return prov
 }
 
 // ensureTaxonomy applies the code seed of the Sound taxonomy (idempotent), as serve does at startup, so a CLI settle
@@ -149,8 +151,8 @@ func cmdLibraryReconcile(ctx context.Context, args []string, getenv func(string)
 	case err != nil:
 		return fatal(fmt.Errorf("library reconcile: %w", err))
 	}
-	fmt.Fprintf(s.out, "reconciled: %d passes, %d keys, Songs +%d (attached %d, retired %d), Muses +%d, sessions +%d, members +%d\n",
-		rep.Passes, rep.KeysProcessed, rep.SongsCreated, rep.SongsAttached, rep.SongsRetired, rep.MusesCreated, rep.SessionsCreated, rep.MembersAdded)
+	fmt.Fprintf(s.out, "reconciled: %d passes, %d keys, Songs +%d (attached %d, retired %d), Muses +%d, sessions +%d, members +%d, features %d\n",
+		rep.Passes, rep.KeysProcessed, rep.SongsCreated, rep.SongsAttached, rep.SongsRetired, rep.MusesCreated, rep.SessionsCreated, rep.MembersAdded, rep.FeaturesComputed)
 	for _, a := range rep.Anomalies {
 		fmt.Fprintf(s.out, "anomaly: %s %s\n", a.Code, a.Subject)
 	}

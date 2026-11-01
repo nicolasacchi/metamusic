@@ -110,7 +110,7 @@ type Options struct {
 	// RealTapeFLAC replaces the flac binary of a RealTape rig (a wrapper that logs its calls, say); "" => testtools' flac.
 	RealTapeFLAC string
 	// L3 (C146.1). L3 adds librarytest.FixtureL3's rows on top of L2 (it requires L2). RealFeatures wires the features service into
-	// the Reconciler's phase B and the sounds recompute hook as serve does, so Rig.Settle computes feature rows once lane FC2 lands;
+	// the Reconciler's phase B and the sounds recompute hook as serve does, so Rig.Settle computes the feature rows;
 	// without it the step is the no-op and Settle changes no feature row.
 	L3           bool
 	RealFeatures bool

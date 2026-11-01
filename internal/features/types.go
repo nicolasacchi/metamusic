@@ -1,6 +1,6 @@
 // Package features derives the per-Take and per-Song feature rows (tempo, energy, key, each with a basis) that sequencing,
-// next actions and the Atlas read (L3 C135). Types and the method set are frozen by L3-F2; the pure functions are lane FC1
-// (stub_fc1.go) and the service is lane FC2 (stub_fc2.go).
+// next actions and the Atlas read (L3 C135). The pure functions are derive.go, camelot.go, keyparse.go and prior.go; the service
+// (compute, sweep, verify, read, load) is the only writer of take_features and song_features.
 package features
 
 import (
