@@ -140,7 +140,8 @@ func slotOps(in []SlotOp) []records.SlotOp {
 	out := make([]records.SlotOp, len(in))
 	for i, o := range in {
 		op := records.SlotOp{Op: o.Op, SongID: o.SongID, SlotID: o.SlotID, TakeID: o.TakeID, SlotIDs: o.SlotIDs,
-			Side: records.OptString{Set: o.Side.Set, Null: o.Side.Null, Value: o.Side.Value}}
+			Side:     records.OptString{Set: o.Side.Set, Null: o.Side.Null, Value: o.Side.Value},
+			Strategy: o.Strategy, FirstSongID: o.FirstSongID, LastSongID: o.LastSongID}
 		switch {
 		case o.Position != nil:
 			op.Position = *o.Position
@@ -206,7 +207,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_record", Method: "GET", Path: "/api/records/{id}",
 		Summary:     "Get a Record",
-		Description: "One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes or the publish preview.",
+		Description: "One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes, the publish preview or the latest sequence run.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
@@ -260,7 +261,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 	Register(a, withBody(huma.Operation{
 		OperationID: "edit_record_slots", Method: "POST", Path: "/api/records/{id}/slots",
 		Summary:     "Edit a Record's slots",
-		Description: "Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all. Send the revision you read; any error rolls everything back.",
+		Description: "Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all, sequence (orders by tempo, key and energy). Send the revision you read; any error rolls everything back.",
 	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *editRecordSlotsIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
@@ -268,7 +269,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 			}
 			p := auth.FromContext(ctx)
 			if _, err := d.Records.EditSlots(ctx, p, in.ID, in.Body.Revision, slotOps(in.Body.Ops)); err != nil {
-				return nil, m2bErr(err, taskV2)
+				return nil, m2bErr(err, taskSR) // only the sequence op can answer 501 now (L3 lane SR)
 			}
 			return view(ctx, p, in.ID)
 		})
@@ -311,8 +312,8 @@ func registerRecordsL2(a huma.API, d Deps) {
 				return nil, err
 			}
 			p := auth.FromContext(ctx)
-			if _, err := d.Records.Propose(ctx, p, in.ID, in.Body.Revision, in.Body.Rationale); err != nil {
-				return nil, m2bErr(err, taskV2)
+			if _, err := d.Records.ProposeWith(ctx, p, in.ID, in.Body.Revision, in.Body.Rationale, recordsSeqSpec(in.Body.Sequence)); err != nil {
+				return nil, m2bErr(err, taskSR) // only propose_record.sequence can answer 501 now (L3 lane SR)
 			}
 			return view(ctx, p, in.ID)
 		})
@@ -353,4 +354,11 @@ func recordsPatch(in *updateRecordIn) records.Patch {
 
 func recordsChangeFilter(in *getRecordChangesIn) records.ChangeFilter {
 	return records.ChangeFilter{RecordID: in.ID, Order: in.Order, Cursor: in.Cursor, Kinds: in.Kind, Limit: in.Limit}
+}
+
+func recordsSeqSpec(s *SequenceSpec) *records.SeqSpec {
+	if s == nil {
+		return nil
+	}
+	return &records.SeqSpec{Strategy: s.Strategy, FirstSongID: s.FirstSongID, LastSongID: s.LastSongID}
 }

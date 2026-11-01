@@ -340,6 +340,8 @@ func (e *edit) apply(op SlotOp) error {
 		return e.pinAll()
 	case "unpin_all":
 		return e.unpinAll()
+	case "sequence":
+		return errSequenceUnsupported() // lane SR (L3 C138.2)
 	}
 	return errInvalid("op", "op must be add, remove, move, reorder, pin, unpin, set_side, pin_all or unpin_all")
 }
@@ -347,6 +349,11 @@ func (e *edit) apply(op SlotOp) error {
 // EditSlots applies ops in one write transaction (C121.3). A call that changes nothing (every operation was a no-op)
 // writes no row and does not bump the revision; the catch-up rows R-b's seam may have written still commit.
 func (s *Service) EditSlots(ctx context.Context, p auth.Principal, id string, revision int, ops []SlotOp) (EditResult, error) {
+	for _, op := range ops {
+		if op.Op == "sequence" {
+			return EditResult{}, errSequenceUnsupported() // lane SR (L3 C138.2): answered before any read or write
+		}
+	}
 	if len(ops) == 0 {
 		return EditResult{}, errInvalid("ops", "at least one operation is required")
 	}

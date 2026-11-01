@@ -16,6 +16,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
+	"github.com/nicolasacchi/metamusic/internal/atlas"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
@@ -28,6 +29,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
+	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
@@ -39,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/muses"
+	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
@@ -46,6 +49,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/prompts"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
+	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
@@ -133,6 +137,14 @@ type Deps struct {
 	Tapes      *tape.Service
 	Curation   *curation.Service
 	Albums     *albums.Service
+
+	// L3 (C133). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component} (features,
+	// sequence, nextactions, atlas). Taxonomy proposals live on Sounds. Features has no operation of its own: it feeds the
+	// Reconciler and the readers.
+	Features    *features.Service
+	Sequence    *sequence.Service
+	NextActions *nextactions.Service
+	Atlas       *atlas.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -267,6 +279,11 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerCratesL2(a, d)
 	registerTapeL2(a, d)
 	registerSettingsL2(a, d)
+	registerSequenceL3(a, d)
+	registerNextActionsL3(a, d)
+	registerTaxonomyL3(a, d)
+	registerAtlasL3(a, d)
+	registerAdherenceL3(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

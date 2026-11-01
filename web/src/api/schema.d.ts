@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/atlas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Song Atlas
+         * @description A 2-D map of the library: any two axes (tempo, energy, family, vocal, era, mood, language, key, duration, bpm_requested, bpm_measured), coloured by Muse or Sound, with totals and the basis of every value. Accepts the list_songs filters.
+         */
+        get: operations["get_song_atlas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/atlas/adherence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get requested versus got
+         * @description How closely rendered Songs matched the tempo (and duration) that was asked for: overall summary, aggregates per Sound facet value, and the Songs ordered by error. Uses each Song's Pick take.
+         */
+        get: operations["get_adherence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -976,6 +1016,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/next-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List next actions
+         * @description What the library needs next, ranked by priority: Muse-aware hints that name a free operation to take. Resolving the condition removes the item. Never spends.
+         */
+        get: operations["list_next_actions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/offline-set": {
         parameters: {
             query?: never;
@@ -1217,7 +1277,7 @@ export interface paths {
         };
         /**
          * Get a Record
-         * @description One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes or the publish preview.
+         * @description One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes, the publish preview or the latest sequence run.
          */
         get: operations["get_record"];
         put?: never;
@@ -1283,7 +1343,7 @@ export interface paths {
         put?: never;
         /**
          * Edit a Record's slots
-         * @description Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all. Send the revision you read; any error rolls everything back.
+         * @description Applies up to 50 slot operations in one transaction: add, remove, move, reorder, pin, unpin, set_side, pin_all, unpin_all, sequence (orders by tempo, key and energy). Send the revision you read; any error rolls everything back.
          */
         post: operations["edit_record_slots"];
         delete?: never;
@@ -1306,6 +1366,26 @@ export interface paths {
          * @description Queues one lossless 24-bit FLAC with chapters, loudness-matched and gapless, for a published Record; an identical live export is returned instead (reused). Poll get_tape. Needs an Idempotency-Key.
          */
         post: operations["export_record_tape"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sequence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest a sequence
+         * @description Previews the best order of a Record's slots, of 2 to 60 Songs, or of a Crate by tempo, key and energy (strategy arc, ramp_up or steady) with a per-step explanation. Read-only; nothing is stored.
+         */
+        get: operations["suggest_sequence"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1654,6 +1734,50 @@ export interface paths {
         get: operations["get_tape"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List taxonomy proposals
+         * @description Taxonomy proposals by state with their impact snapshot, newest first; include_impact recomputes up to 10 of them now. Agents read the outcome of their proposals here.
+         */
+        get: operations["list_taxonomy_proposals"];
+        put?: never;
+        /**
+         * Propose Sound-term mappings
+         * @description An agent proposes up to 50 term-to-facet mappings with a rationale; the server snapshots the impact and a human accepts or rejects. An identical open proposal is returned instead (reused).
+         */
+        post: operations["propose_taxonomy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy-proposals/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a taxonomy proposal
+         * @description The operator accepts (all mappings or a subset by index) or rejects an open proposal. Refused with 403 HUMAN_ONLY for agents.
+         */
+        post: operations["decide_taxonomy_proposal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2285,6 +2409,74 @@ export interface components {
              */
             kind?: "note" | "fix" | "keep" | "marker";
         };
+        Adherence: {
+            by_facet: components["schemas"]["AdherenceFacet"][];
+            coverage: components["schemas"]["AdherenceCoverage"];
+            dims_available: string[];
+            items: components["schemas"]["AdherenceItem"][];
+            next_cursor: string | null;
+            summary: components["schemas"]["AdherenceSummary"];
+        };
+        AdherenceBPM: {
+            /** Format: double */
+            mean_got: number;
+            /** Format: double */
+            mean_requested: number;
+            /** Format: double */
+            median_error_pct: number;
+            /** Format: int64 */
+            n: number;
+            /** Format: double */
+            octave_share: number;
+            /** Format: double */
+            within_5pct_share: number;
+        };
+        AdherenceCoverage: {
+            /** Format: int64 */
+            songs: number;
+            /** Format: int64 */
+            with_duration: number;
+            /** Format: int64 */
+            with_pair: number;
+        };
+        AdherenceDuration: {
+            /** Format: double */
+            median_ratio: number;
+            /** Format: int64 */
+            n: number;
+        };
+        AdherenceFacet: {
+            bpm?: components["schemas"]["AdherenceBPM"];
+            duration?: components["schemas"]["AdherenceDuration"];
+            facet: string;
+            /** Format: int64 */
+            n: number;
+            value: string;
+        };
+        AdherenceItem: {
+            /** Format: double */
+            duration_ratio: number | null;
+            /** Format: double */
+            error_pct: number;
+            /** Format: double */
+            measured_bpm: number;
+            octave: boolean;
+            /** Format: double */
+            requested_bpm: number;
+            song_id: string;
+            take_id: string;
+            title: string;
+        };
+        AdherenceSummary: {
+            /** Format: double */
+            median_error_pct: number;
+            /** Format: int64 */
+            n: number;
+            /** Format: double */
+            octave_share: number;
+            /** Format: double */
+            within_5pct_share: number;
+        };
         AnalysisFlag: {
             code: string;
             evidence: {
@@ -2365,6 +2557,24 @@ export interface components {
             /** Format: int64 */
             unchanged: number;
         };
+        Atlas: {
+            axes: components["schemas"]["AxisPair"];
+            color_by: string;
+            def: string;
+            generated_at: string;
+            guides: components["schemas"]["Guide"][];
+            layout_token: string;
+            legend: components["schemas"]["LegendEntry"][];
+            /** @description Muse ids only, for color_by=muse */
+            muses: string[];
+            neighbors?: components["schemas"]["Neighbour"][] | null;
+            next_cursor: string | null;
+            pending: boolean;
+            points: components["schemas"]["Point"][];
+            /** Format: int64 */
+            taxonomy_version: number;
+            totals: components["schemas"]["Totals"];
+        };
         AudioInfo: {
             audio_md5: string;
             /**
@@ -2417,6 +2627,22 @@ export interface components {
             /** Format: int64 */
             takes: number;
             usd: string;
+        };
+        AxisInfo: {
+            categories?: components["schemas"]["Category"][] | null;
+            /** @enum {string} */
+            kind: "numeric" | "categorical";
+            /** Format: int64 */
+            max?: number;
+            /** Format: int64 */
+            min?: number;
+            name: string;
+            scale?: string;
+            unit?: string;
+        };
+        AxisPair: {
+            x: components["schemas"]["AxisInfo"];
+            y: components["schemas"]["AxisInfo"];
         };
         BacklogStats: {
             collections: components["schemas"]["CollectionCount"][];
@@ -2500,6 +2726,20 @@ export interface components {
             min_hz: number | null;
             /** Format: int64 */
             n: number;
+        };
+        BasisCounts: {
+            /** Format: int64 */
+            d: number;
+            /** Format: int64 */
+            l: number;
+            /** Format: int64 */
+            m: number;
+            /** Format: int64 */
+            p: number;
+        };
+        BasisPair: {
+            x: components["schemas"]["BasisCounts"];
+            y: components["schemas"]["BasisCounts"];
         };
         Batch: {
             approval: components["schemas"]["ApprovalStatus"];
@@ -2760,6 +3000,19 @@ export interface components {
             updated_at: string;
             updated_by: components["schemas"]["PrincipalRef"];
         };
+        Category: {
+            /** Format: int64 */
+            count: number;
+            /** Format: double */
+            hi: number;
+            /** Format: double */
+            lo: number;
+            value: string;
+        };
+        ChangeSequence: {
+            id: string;
+            strategy: string;
+        };
         ChangeView: {
             actor: components["schemas"]["PrincipalRef"];
             at: string;
@@ -2776,6 +3029,8 @@ export interface components {
             reason: string | null;
             /** Format: int64 */
             seq: number;
+            /** @description The sequencing run that caused this row (L3) */
+            sequence?: components["schemas"]["ChangeSequence"];
             slot_id: string | null;
             text: string;
             to: {
@@ -3247,6 +3502,18 @@ export interface components {
             updated_at: string | null;
             updated_by: components["schemas"]["PrincipalRef"];
         };
+        DecideResult: {
+            applied?: components["schemas"]["MapResult"];
+            proposal: components["schemas"]["TaxonomyProposal"];
+            skipped: components["schemas"]["TaxonomySkipped"][];
+        };
+        DecideTaxonomyInBody: {
+            /** @description Indices to accept; absent accepts all */
+            accept_mappings?: number[] | null;
+            /** @enum {string} */
+            decision: "accept" | "reject";
+            note?: string;
+        };
         Device: {
             created_at: string;
             expires_at: string;
@@ -3330,7 +3597,9 @@ export interface components {
                 version: string;
             } | null;
             complete: boolean;
+            energy?: components["schemas"]["PerceptionEnergy"];
             flags: components["schemas"]["AnalysisFlag"][];
+            key?: components["schemas"]["PerceptionKey"];
             loudness: {
                 /** Format: double */
                 integrated_lufs: number;
@@ -3914,6 +4183,32 @@ export interface components {
              */
             unrated: number;
         };
+        FeaturesEnergy: {
+            basis: string | null;
+            /** Format: double */
+            value: number | null;
+        };
+        FeaturesKey: {
+            basis: string | null;
+            camelot: string | null;
+            name: string | null;
+        };
+        FeaturesSubject: {
+            id: string;
+            kind: string;
+            /** @description all_takes_discarded */
+            note: string | null;
+        };
+        FeaturesTempo: {
+            basis: string | null;
+            /** Format: double */
+            bpm: number | null;
+            /** Format: double */
+            measured_bpm: number | null;
+            octave: boolean;
+            /** Format: double */
+            requested_bpm: number | null;
+        };
         FlagDiff: {
             both: string[];
             only_a: string[];
@@ -3965,6 +4260,9 @@ export interface components {
             label: string | null;
             request_id: string;
             status: string;
+        };
+        Guide: {
+            kind: string;
         };
         ImageData: {
             /** @description Base64 image bytes; omitted when the caller asked for a link only */
@@ -4316,6 +4614,13 @@ export interface components {
             items: components["schemas"]["LedgerEntry"][];
             next_cursor: string | null;
         };
+        LegendEntry: {
+            /** Format: int64 */
+            c: number;
+            /** Format: int64 */
+            count: number;
+            value: string;
+        };
         LibraryModel: {
             /** Format: int64 */
             muses: number;
@@ -4559,6 +4864,12 @@ export interface components {
              */
             ttl_s: number;
         };
+        Missing: {
+            /** Format: int64 */
+            x: number;
+            /** Format: int64 */
+            y: number;
+        };
         Muse: {
             artist: string | null;
             brief: string | null;
@@ -4641,6 +4952,58 @@ export interface components {
         };
         MusesOutBody: {
             items: components["schemas"]["MuseSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        Neighbour: {
+            /** Format: int64 */
+            distance: number;
+            id: string;
+            parts: components["schemas"]["NeighbourParts"];
+            title: string;
+        };
+        NeighbourParts: {
+            /** Format: int64 */
+            energy: number;
+            /** Format: int64 */
+            key: number;
+            /** Format: int64 */
+            tempo: number;
+        };
+        NextAction: {
+            /** @enum {string} */
+            audience: "agent" | "human" | "both";
+            code: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            hint?: components["schemas"]["NextActionHint"];
+            /** Format: int64 */
+            priority: number;
+            subject: components["schemas"]["NextActionSubject"];
+            text: string;
+        };
+        NextActionGroup: {
+            code: string;
+            /** Format: int64 */
+            more: number;
+        };
+        NextActionHint: {
+            args: {
+                [key: string]: unknown;
+            };
+            op: string;
+        };
+        NextActionSubject: {
+            id: string | null;
+            /** @enum {string} */
+            kind: "muse" | "song" | "record" | "taxonomy" | "library";
+        };
+        NextActionsPage: {
+            generated_at: string;
+            groups: components["schemas"]["NextActionGroup"][];
+            items: components["schemas"]["NextAction"][];
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
@@ -4826,6 +5189,21 @@ export interface components {
             peaks: components["schemas"]["Waveform"];
             track_id: string;
         };
+        PerceptionEnergy: {
+            /** Format: double */
+            centroid_hz: number | null;
+            /** Format: double */
+            onset_rate: number | null;
+            /** Format: double */
+            value: number;
+        };
+        PerceptionKey: {
+            ambiguous_relative: boolean;
+            camelot: string;
+            /** Format: double */
+            confidence: number;
+            name: string;
+        };
         PickEvent: {
             actor: components["schemas"]["PrincipalRef"];
             at: string;
@@ -4940,6 +5318,34 @@ export interface components {
         PlaylistsOutBody: {
             items: components["schemas"]["PlaylistSummary"][];
         };
+        Point: {
+            /** Format: int64 */
+            c: number;
+            /** Format: int64 */
+            h?: number;
+            id: string;
+            /** Format: int64 */
+            mi?: number;
+            /**
+             * Format: int64
+             * @description 0 none, 1 newest, 2 stars, 3 ladder, 4 pinned
+             */
+            pk: number;
+            /**
+             * Format: int64
+             * @description 0 draft, 1 rendered, 2 judged, 3 picked
+             */
+            st: number;
+            t: string;
+            /** Format: double */
+            x: number;
+            /** @enum {string} */
+            xb?: "m" | "d" | "l" | "p";
+            /** Format: double */
+            y: number;
+            /** @enum {string} */
+            yb?: "m" | "d" | "l" | "p";
+        };
         Pot: {
             /** Format: int64 */
             cap_micro_usd: number;
@@ -5010,6 +5416,17 @@ export interface components {
             title: string;
             version: string;
         };
+        ProposalFacetCount: {
+            facet: string;
+            /** Format: int64 */
+            songs: number;
+            value: string;
+        };
+        ProposalTermCount: {
+            /** Format: int64 */
+            songs: number;
+            term: string;
+        };
         ProposePickInBody: {
             rationale: string;
             take_id: string;
@@ -5018,6 +5435,12 @@ export interface components {
             rationale: string;
             /** Format: int64 */
             revision: number;
+            /** @description Sequence the slots in the same transaction before proposing (L3 C138.3) */
+            sequence?: components["schemas"]["SequenceSpec"];
+        };
+        ProposeTaxonomyInBody: {
+            mappings: components["schemas"]["MapEntry"][] | null;
+            rationale: string;
         };
         ProviderBrief: {
             armed: boolean;
@@ -5287,6 +5710,8 @@ export interface components {
             pending: boolean;
             preview?: components["schemas"]["RecordPreview"];
             record: components["schemas"]["Record"];
+            /** @description include=sequence: the latest sequencing run (L3) */
+            sequence?: components["schemas"]["SequenceExplanation"];
             slots: components["schemas"]["SlotView"][];
             tapes?: components["schemas"]["TapeBrief"][] | null;
             totals: components["schemas"]["RecordTotals"];
@@ -5332,6 +5757,93 @@ export interface components {
             a: number;
             /** Format: int64 */
             b: number;
+        };
+        SequenceCost: {
+            improvement_pct: string | null;
+            input: string;
+            output: string;
+        };
+        SequenceCoverage: {
+            /** Format: int64 */
+            energy: number;
+            /** Format: int64 */
+            key: number;
+            /** Format: int64 */
+            tempo: number;
+        };
+        SequenceExplanation: {
+            actor: components["schemas"]["PrincipalRef"];
+            at: string;
+            cost: components["schemas"]["SequenceCost"];
+            coverage: components["schemas"]["SequenceCoverage"];
+            digest: string;
+            exact: boolean;
+            id: string;
+            /** @description The live order differs from the run's order; the only staleness signal */
+            stale: boolean;
+            steps: components["schemas"]["SequenceStep"][];
+            strategy: string;
+            warnings: components["schemas"]["SequenceWarning"][];
+        };
+        SequenceParts: {
+            /** Format: int64 */
+            energy: number;
+            /** Format: int64 */
+            key: number;
+            /** Format: int64 */
+            tempo: number;
+        };
+        SequenceReason: {
+            code: string;
+            params: {
+                [key: string]: number;
+            };
+        };
+        SequenceSpec: {
+            first_song_id?: string;
+            last_song_id?: string;
+            /** @description arc (default), ramp_up or steady */
+            strategy?: string;
+        };
+        SequenceStep: {
+            /** Format: int64 */
+            energy_rel: number;
+            from?: components["schemas"]["SequenceTransition"];
+            /** @description bpm, key or energy */
+            missing: string[];
+            /** Format: int64 */
+            position: number;
+            reasons: components["schemas"]["SequenceReason"][];
+            song_id: string;
+            take_title?: string;
+            /**
+             * Format: int64
+             * @description -1 when the strategy has no shape
+             */
+            target: number;
+            text: string;
+            title: string;
+        };
+        SequenceTransition: {
+            /** Format: int64 */
+            cost: number;
+            /** Format: int64 */
+            energy_delta: number | null;
+            key_relation: string;
+            parts: components["schemas"]["SequenceParts"];
+            /** Format: int64 */
+            tempo_delta_pct_x100: number | null;
+        };
+        SequenceWarning: {
+            code: string;
+            feature?: string;
+            /** Format: int64 */
+            known?: number;
+            /** Format: int64 */
+            n?: number;
+            song?: string;
+            /** Format: int64 */
+            total?: number;
         };
         SessionSummary: {
             /** Format: int64 */
@@ -5414,8 +5926,12 @@ export interface components {
             window_lufs: number | null;
         };
         SlotOp: {
+            /** @description sequence: pin this Song first */
+            first_song_id?: string;
+            /** @description sequence: pin this Song last */
+            last_song_id?: string;
             /** @enum {string} */
-            op: "add" | "remove" | "move" | "reorder" | "pin" | "unpin" | "set_side" | "pin_all" | "unpin_all";
+            op: "add" | "remove" | "move" | "reorder" | "pin" | "unpin" | "set_side" | "pin_all" | "unpin_all" | "sequence";
             /**
              * Format: int64
              * @description add (optional, default end) and move; 1-based
@@ -5432,6 +5948,8 @@ export interface components {
             slot_ids?: string[] | null;
             /** @description add */
             song_id?: string;
+            /** @description sequence: arc (default), ramp_up or steady */
+            strategy?: string;
             /** @description pin; add with a Take pins the new slot */
             take_id?: string;
         };
@@ -5617,6 +6135,15 @@ export interface components {
             crates: components["schemas"]["SongCrateRef"][];
             draft: components["schemas"]["SongDraft"];
             events: components["schemas"]["PickEvent"][];
+            features: {
+                /** Format: double */
+                duration_ratio: number | null;
+                energy: components["schemas"]["FeaturesEnergy"];
+                key: components["schemas"]["FeaturesKey"];
+                pending: boolean;
+                subject: components["schemas"]["FeaturesSubject"];
+                tempo: components["schemas"]["FeaturesTempo"];
+            } | null;
             lineage: components["schemas"]["SongLineage"];
             muse: components["schemas"]["MuseRef"];
             pending: boolean;
@@ -5865,6 +6392,19 @@ export interface components {
             /** @description What to enter in the app (the public URL) */
             server_url: string;
         };
+        Suggestion: {
+            cost: components["schemas"]["SequenceCost"];
+            coverage: components["schemas"]["SequenceCoverage"];
+            def: string;
+            digest: string;
+            exact: boolean;
+            input_order: string[];
+            order: string[];
+            pending: boolean;
+            steps: components["schemas"]["SequenceStep"][];
+            strategy: string;
+            warnings: components["schemas"]["SequenceWarning"][];
+        };
         SystemOutBody: {
             /**
              * Format: int64
@@ -6086,6 +6626,16 @@ export interface components {
             /** Format: int64 */
             target_min_duration_s: number;
         };
+        TaxonomyImpact: {
+            gain: components["schemas"]["ProposalFacetCount"][];
+            loss: components["schemas"]["ProposalFacetCount"][];
+            /** Format: int64 */
+            songs_scanned: number;
+            /** Format: int64 */
+            taxonomy_version: number;
+            truncated: boolean;
+            unmapped_cleared: components["schemas"]["ProposalTermCount"][];
+        };
         TaxonomyItem: {
             facet: string;
             /** Format: int64 */
@@ -6100,6 +6650,38 @@ export interface components {
             next_cursor: string | null;
             unmapped: components["schemas"]["UnmappedTerm"][];
             versions: components["schemas"]["TaxonomyVersion"][];
+        };
+        TaxonomyProposal: {
+            accepted: number[] | null;
+            /** Format: int64 */
+            applied_version: number | null;
+            /** Format: int64 */
+            base_version: number;
+            created_at: string;
+            decided_at: string | null;
+            decided_by?: components["schemas"]["PrincipalRef"];
+            decided_note: string | null;
+            id: string;
+            impact: components["schemas"]["TaxonomyImpact"];
+            mappings: components["schemas"]["MapEntry"][];
+            proposed_by: components["schemas"]["PrincipalRef"];
+            rationale: string;
+            /** @description An identical open proposal of the same principal was returned */
+            reused: boolean;
+            skipped: components["schemas"]["TaxonomySkipped"][] | null;
+            /** @enum {string} */
+            state: "open" | "accepted" | "rejected" | "expired";
+        };
+        TaxonomyProposalsOutBody: {
+            items: components["schemas"]["TaxonomyProposal"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        TaxonomySkipped: {
+            /** Format: int64 */
+            index: number;
+            reason: string;
         };
         TaxonomyVersion: {
             created_at: string;
@@ -6202,6 +6784,22 @@ export interface components {
             periodic_run: components["schemas"]["TokenPeriodic"];
             /** Format: double */
             tokens_per_s: number;
+        };
+        Totals: {
+            basis: components["schemas"]["BasisPair"];
+            /** Format: int64 */
+            hit: number;
+            missing: components["schemas"]["Missing"];
+            /** Format: int64 */
+            plotted: number;
+            /**
+             * Format: int64
+             * @description Songs matching the filter
+             */
+            scope: number;
+            /** Format: int64 */
+            scope_total: number;
+            truncated: boolean;
         };
         TrackDetail: {
             analysis: components["schemas"]["AnalysisInfo"];
@@ -6676,6 +7274,115 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_song_atlas: {
+        parameters: {
+            query?: {
+                muse_id?: string;
+                no_muse?: boolean;
+                angle?: string;
+                state?: ("draft" | "rendered" | "judged" | "picked")[];
+                queued?: boolean;
+                session_id?: string;
+                /** @description facet:value, repeatable; OR inside a facet, AND across facets */
+                sound?: string[];
+                tempo_mismatch?: boolean;
+                has_pick?: boolean;
+                /** @description The single Song of this draft */
+                draft_id?: string;
+                /** @description The single Song of this take */
+                track_id?: string;
+                has_open_proposals?: boolean;
+                /** @description Case-insensitive substring of the Song title */
+                q?: string;
+                include_hidden?: boolean;
+                include_archived?: boolean;
+                /** @description Pick source is pinned or ladder; has_pick is unchanged */
+                pick_decided?: boolean;
+                unheard?: boolean;
+                min_duration_s?: number;
+                max_duration_s?: number;
+                min_stars?: number;
+                unrated?: boolean;
+                tag?: string[];
+                lossy?: boolean;
+                recipe_known?: boolean;
+                in_record?: boolean;
+                crate_id?: string;
+                /** @description Axis name; see axes in the answer */
+                x?: string;
+                y?: string;
+                color_by?: string;
+                /** @description Keep the whole scope and mark non-matching points h=0 */
+                dim?: boolean;
+                near_song_id?: string;
+                k?: number;
+                /** @description Default 400 for people, 100 for agents */
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Atlas"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_adherence: {
+        parameters: {
+            query?: {
+                facet?: string;
+                value?: string;
+                min_n?: number;
+                min_error_pct?: number;
+                octave?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Adherence"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_audit: {
         parameters: {
             query?: {
@@ -8559,6 +9266,43 @@ export interface operations {
             };
         };
     };
+    list_next_actions: {
+        parameters: {
+            query?: {
+                subject_kind?: "muse" | "song" | "record" | "taxonomy" | "library";
+                subject_id?: string;
+                min_priority?: number;
+                /** @description Default by principal */
+                audience?: "agent" | "human" | "both";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextActionsPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_offline_set: {
         parameters: {
             query?: never;
@@ -9031,7 +9775,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Optional parts; default liner,tapes,changes */
-                include?: ("liner" | "energy" | "tapes" | "changes" | "preview")[];
+                include?: ("liner" | "energy" | "tapes" | "changes" | "preview" | "sequence")[];
                 changes_limit?: number;
             };
             header?: never;
@@ -9229,6 +9973,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Tape"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    suggest_sequence: {
+        parameters: {
+            query?: {
+                /** @description Exactly one of record_id, song_id (2 to 60) or crate_id */
+                record_id?: string;
+                song_id?: string[];
+                crate_id?: string;
+                /** @description arc (default), ramp_up or steady */
+                strategy?: string;
+                first_song_id?: string;
+                last_song_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
                 };
             };
             /** @description Error */
@@ -9919,6 +10701,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Tape"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_taxonomy_proposals: {
+        parameters: {
+            query?: {
+                state?: ("open" | "accepted" | "rejected" | "expired")[];
+                /** @description Recompute the impact now (at most 10 proposals per call) instead of the snapshot */
+                include_impact?: boolean;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyProposalsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    propose_taxonomy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeTaxonomyInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyProposal"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    decide_taxonomy_proposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideTaxonomyInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecideResult"];
                 };
             };
             /** @description Error */

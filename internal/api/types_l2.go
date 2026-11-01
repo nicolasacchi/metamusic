@@ -228,17 +228,18 @@ func (TakeLink) Schema(r huma.Registry) *huma.Schema { return nullableSchema[tak
 
 // ChangeView is one changelog row.
 type ChangeView struct {
-	Seq      int            `json:"seq"`
-	At       string         `json:"at"`
-	Kind     string         `json:"kind"`
-	Text     string         `json:"text"`
-	SlotID   *string        `json:"slot_id" nullable:"true"`
-	Position *int           `json:"position" nullable:"true"`
-	From     *TakeLink      `json:"from"`
-	To       *TakeLink      `json:"to"`
-	Reason   *string        `json:"reason" nullable:"true"`
-	Evidence map[string]any `json:"evidence" nullable:"true"`
-	Actor    PrincipalRef   `json:"actor"`
+	Seq      int             `json:"seq"`
+	At       string          `json:"at"`
+	Kind     string          `json:"kind"`
+	Text     string          `json:"text"`
+	SlotID   *string         `json:"slot_id" nullable:"true"`
+	Position *int            `json:"position" nullable:"true"`
+	From     *TakeLink       `json:"from"`
+	To       *TakeLink       `json:"to"`
+	Reason   *string         `json:"reason" nullable:"true"`
+	Evidence map[string]any  `json:"evidence" nullable:"true"`
+	Actor    PrincipalRef    `json:"actor"`
+	Sequence *ChangeSequence `json:"sequence,omitempty" doc:"The sequencing run that caused this row (L3)"`
 }
 
 // TapeBrief is a tape's line in a Record view.
@@ -280,17 +281,18 @@ type RecordPreview struct {
 
 // RecordView is a Record with its slots; the optional parts are present only when asked for. Only get_record returns liner.
 type RecordView struct {
-	Record   Record          `json:"record"`
-	Slots    []SlotView      `json:"slots" nullable:"false"`
-	Totals   RecordTotals    `json:"totals"`
-	Warnings []RecordWarning `json:"warnings" nullable:"false"`
-	Cover    CoverLinks      `json:"cover"`
-	Liner    *RecordLiner    `json:"liner,omitempty" doc:"get_record only (Muse text)"`
-	Energy   *Energy         `json:"energy,omitempty"`
-	Changes  []ChangeView    `json:"changes,omitempty"`
-	Tapes    []TapeBrief     `json:"tapes,omitempty"`
-	Preview  *RecordPreview  `json:"preview,omitempty"`
-	Pending  bool            `json:"pending" doc:"The changelog may lag by one sync pass; the resolved Takes are never stale"`
+	Record   Record               `json:"record"`
+	Slots    []SlotView           `json:"slots" nullable:"false"`
+	Totals   RecordTotals         `json:"totals"`
+	Warnings []RecordWarning      `json:"warnings" nullable:"false"`
+	Cover    CoverLinks           `json:"cover"`
+	Liner    *RecordLiner         `json:"liner,omitempty" doc:"get_record only (Muse text)"`
+	Energy   *Energy              `json:"energy,omitempty"`
+	Changes  []ChangeView         `json:"changes,omitempty"`
+	Tapes    []TapeBrief          `json:"tapes,omitempty"`
+	Preview  *RecordPreview       `json:"preview,omitempty"`
+	Sequence *SequenceExplanation `json:"sequence,omitempty" doc:"include=sequence: the latest sequencing run (L3)"`
+	Pending  bool                 `json:"pending" doc:"The changelog may lag by one sync pass; the resolved Takes are never stale"`
 }
 
 // ---- Records: inputs and envelopes ----
@@ -313,7 +315,7 @@ type recordsOut struct {
 
 type getRecordIn struct {
 	ID           string   `path:"id"`
-	Include      []string `query:"include,explode" nullable:"false" enum:"liner,energy,tapes,changes,preview" doc:"Optional parts; default liner,tapes,changes"`
+	Include      []string `query:"include,explode" nullable:"false" enum:"liner,energy,tapes,changes,preview,sequence" doc:"Optional parts; default liner,tapes,changes"`
 	ChangesLimit int      `query:"changes_limit" minimum:"0" maximum:"50" default:"10"`
 }
 type recordViewOut struct{ Body RecordView }
@@ -342,13 +344,17 @@ type updateRecordIn struct {
 
 // SlotOp is one operation of edit_record_slots (C121.3).
 type SlotOp struct {
-	Op       string   `json:"op" enum:"add,remove,move,reorder,pin,unpin,set_side,pin_all,unpin_all"`
+	Op       string   `json:"op" enum:"add,remove,move,reorder,pin,unpin,set_side,pin_all,unpin_all,sequence"`
 	SongID   string   `json:"song_id,omitempty" doc:"add"`
 	SlotID   string   `json:"slot_id,omitempty" doc:"remove, move, pin, unpin, set_side"`
 	TakeID   string   `json:"take_id,omitempty" doc:"pin; add with a Take pins the new slot"`
 	Position *int     `json:"position,omitempty" doc:"add (optional, default end) and move; 1-based"`
 	Side     OptSide  `json:"side,omitempty" doc:"set_side (required: a letter or null) and add (optional)"`
 	SlotIDs  []string `json:"slot_ids,omitempty" maxItems:"60" doc:"reorder: the complete new order"`
+	// sequence (L3 C138.2): order the live slots by tempo, key and energy; the fields below are forbidden for every other op.
+	Strategy    string `json:"strategy,omitempty" doc:"sequence: arc (default), ramp_up or steady"`
+	FirstSongID string `json:"first_song_id,omitempty" doc:"sequence: pin this Song first"`
+	LastSongID  string `json:"last_song_id,omitempty" doc:"sequence: pin this Song last"`
 }
 type editRecordSlotsIn struct {
 	ID   string `path:"id"`
@@ -375,8 +381,9 @@ type recordChangesOut struct {
 type proposeRecordIn struct {
 	ID   string `path:"id"`
 	Body struct {
-		Revision  int    `json:"revision" minimum:"1"`
-		Rationale string `json:"rationale" minLength:"1" maxLength:"500"`
+		Revision  int           `json:"revision" minimum:"1"`
+		Rationale string        `json:"rationale" minLength:"1" maxLength:"500"`
+		Sequence  *SequenceSpec `json:"sequence,omitempty" doc:"Sequence the slots in the same transaction before proposing (L3 C138.3)"`
 	}
 }
 

@@ -127,7 +127,7 @@ func TestRegistry_OpCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := strings.Count(string(b), `"operationId"`); n != 126 {
-		t.Fatalf("operation count = %d, want 126 (81 + 18 of L1 + 2 songwriting settings + 8 of M4a + 17 of L2)", n)
+	if n := strings.Count(string(b), `"operationId"`); n != 133 {
+		t.Fatalf("operation count = %d, want 133 (81 + 18 of L1 + 2 songwriting settings + 8 of M4a + 17 of L2 + 7 of L3)", n)
 	}
 }

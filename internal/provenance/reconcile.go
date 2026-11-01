@@ -317,6 +317,12 @@ func (s *Service) phaseB(ctx context.Context, epoch int64, keys []Key, a *phaseA
 		}
 	}
 	a.rep.SoundsComputed = sc.Takes + sc.Songs
+	// Features follow sounds: the same dirty takes and affected Songs (L3 C135.5).
+	fc, err := s.o.Features.ComputeTx(ctx, tx, env, a.tracks, soundSongs)
+	if err != nil {
+		return false, err
+	}
+	a.rep.FeaturesComputed = fc.Takes + fc.Songs
 
 	var clean, requeue []Key
 	for _, k := range keys {
@@ -354,32 +360,36 @@ func (s *Service) Sweep(ctx context.Context) error {
 		return err
 	}
 	defer s.release(epoch)
-	if s.o.Sounds == nil {
-		if sw, ok := s.o.Picks.(pickSweeper); ok {
-			if _, err := sw.Sweep(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
-				return err
-			}
-		}
-		return nil
-	}
 	if sw, ok := s.o.Picks.(pickSweeper); ok {
 		if _, err := sw.Sweep(ctx); err != nil && !errors.Is(err, errors.ErrUnsupported) {
 			return err
 		}
 	}
+	if s.o.Sounds != nil {
+		if err := s.sweepLoop(ctx, epoch, "sweep", s.o.Sounds.SweepStaleTx); err != nil {
+			return err
+		}
+	}
+	// the feature rows follow the Sound rows they copy (L3 C135.5)
+	return s.sweepLoop(ctx, epoch, "feature sweep", s.o.Features.SweepStaleTx)
+}
+
+// sweepLoop runs one stale-row sweep step in batches, each in its own transaction under the settle epoch, until it reports
+// nothing left. A step that answers errors.ErrUnsupported (a lane that has not landed) ends the loop without error.
+func (s *Service) sweepLoop(ctx context.Context, epoch int64, what string, step func(context.Context, *sql.Tx, store.Env, int) (int, error)) error {
 	for {
 		if err := s.renew(ctx, epoch); err != nil {
 			return err
 		}
 		tx, err := s.o.Store.W.BeginTx(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("provenance: sweep: %w", err)
+			return fmt.Errorf("provenance: %s: %w", what, err)
 		}
 		if err := s.checkEpochTx(ctx, tx, epoch); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
-		n, err := s.o.Sounds.SweepStaleTx(ctx, tx, s.env(), picks.BatchKeys)
+		n, err := step(ctx, tx, s.env(), picks.BatchKeys)
 		if err != nil {
 			_ = tx.Rollback()
 			if errors.Is(err, errors.ErrUnsupported) {
@@ -388,7 +398,7 @@ func (s *Service) Sweep(ctx context.Context) error {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("provenance: sweep commit: %w", err)
+			return fmt.Errorf("provenance: %s commit: %w", what, err)
 		}
 		if n == 0 {
 			return nil

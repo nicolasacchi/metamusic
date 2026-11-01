@@ -15,15 +15,16 @@ import (
 
 // Include names the optional parts of a View (GetOptions.Include).
 const (
-	IncludeLiner   = "liner"
-	IncludeEnergy  = "energy"
-	IncludeTapes   = "tapes"
-	IncludeChanges = "changes"
-	IncludePreview = "preview"
+	IncludeLiner    = "liner"
+	IncludeEnergy   = "energy"
+	IncludeTapes    = "tapes"
+	IncludeChanges  = "changes"
+	IncludePreview  = "preview"
+	IncludeSequence = "sequence" // L3 C138.5
 )
 
 // Includes lists the valid Include values.
-var Includes = []string{IncludeLiner, IncludeEnergy, IncludeTapes, IncludeChanges, IncludePreview}
+var Includes = []string{IncludeLiner, IncludeEnergy, IncludeTapes, IncludeChanges, IncludePreview, IncludeSequence}
 
 // GetOptions tunes Get. An empty Include returns none of the optional parts: the five mutating operations call Get that
 // way, so they carry no liner and no Muse text (D-L2-27); only get_record ever passes IncludeLiner.
@@ -39,12 +40,13 @@ type View struct {
 	Totals   Totals
 	Warnings []Warning
 	Cover    CoverRef
-	Liner    *LinerView   // IncludeLiner only (Muse text)
-	Energy   *Energy      // IncludeEnergy only
-	Changes  []ChangeView // IncludeChanges only
-	Tapes    []tape.Brief // IncludeTapes only
-	Preview  *Preview     // IncludePreview only
-	Pending  bool         // the changelog may lag (C122.6); the resolved Takes are never stale
+	Liner    *LinerView    // IncludeLiner only (Muse text)
+	Energy   *Energy       // IncludeEnergy only
+	Changes  []ChangeView  // IncludeChanges only
+	Tapes    []tape.Brief  // IncludeTapes only
+	Preview  *Preview      // IncludePreview only
+	Sequence *SequenceView // IncludeSequence only; nil until lane SR (L3 C138.5)
+	Pending  bool          // the changelog may lag (C122.6); the resolved Takes are never stale
 }
 
 // Totals are the counts at the top of a View.
@@ -156,4 +158,16 @@ type Preview struct {
 	Tags        []PreviewTag
 	Description string
 	Warnings    []tape.SlotWarning
+}
+
+// SequenceView is the latest sequencing run of a Record rendered for get_record include=sequence (L3 C138.5): the stored
+// run (ids, integers and codes) with Song and Take titles injected at read by lane SR. Stale is true when the live order
+// differs from the run's order_after. recordview imports no L3 package, so the explanation travels as stored JSON.
+type SequenceView struct {
+	ID, Strategy          string
+	At                    string
+	Actor                 string // the stored principal key
+	Exact, Stale          bool
+	CostInput, CostOutput string
+	Explanation           json.RawMessage
 }

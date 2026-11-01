@@ -129,6 +129,9 @@ type SlotOp struct {
 	Position               int
 	Side                   OptString
 	SlotIDs                []string
+	// Strategy, FirstSongID and LastSongID belong to the slot op "sequence" (L3 C138.2) and are forbidden for every other op.
+	Strategy                string
+	FirstSongID, LastSongID string
 }
 
 // EditResult is what EditSlots returns: the Record row after the edit, the changelog rows it wrote and the warnings

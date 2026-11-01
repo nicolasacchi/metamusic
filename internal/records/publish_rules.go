@@ -27,6 +27,15 @@ func playable(rs []ResolvedSlot) int {
 // Propose moves a draft Record to proposed with a rationale (C120.1). Any principal may propose; only a draft with at least
 // one live slot qualifies. The rationale is stored in proposal_note and never in the changelog.
 func (s *Service) Propose(ctx context.Context, p auth.Principal, id string, revision int, rationale string) (Record, error) {
+	return s.ProposeWith(ctx, p, id, revision, rationale, nil)
+}
+
+// ProposeWith is Propose with an optional sequencing step in the same transaction (L3 C138.3). A non-nil seq is lane SR's
+// until it lands: it answers errors.ErrUnsupported before anything is read or written.
+func (s *Service) ProposeWith(ctx context.Context, p auth.Principal, id string, revision int, rationale string, seq *SeqSpec) (Record, error) {
+	if seq != nil {
+		return Record{}, errSequenceUnsupported()
+	}
 	note, err := cleanLine("rationale", rationale, 1, MaxProposalNote)
 	if err != nil {
 		return Record{}, err

@@ -228,6 +228,7 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		// ctx ends when shutdown starts: it is the server's base context, so in-flight long-polls return.
 		M3: app.M3Options{Shutdown: ctx, Live: true},
 		L1: b.l1,
+		L3: app.L3Options{RealFeatures: true},
 	})
 	if err != nil {
 		return err
