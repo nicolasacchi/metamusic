@@ -1,0 +1,34 @@
+# Example only: the Authelia OIDC client behind the proxy-mode step-up (MM_STEPUP_OIDC_CLIENT), Authelia 4.39 key
+# names. Merge into identity_providers.oidc next to the connector clients. Nothing here is secret: client_secret is
+# a digest placeholder (`authelia crypto hash generate pbkdf2 --variant sha512` over the value you store in the
+# app's secrets file `stepup_client_secret`). See docs/connectors.md, "Proxy-mode step-up".
+identity_providers:
+  oidc:
+    claims_policies:
+      # Authelia keeps profile claims out of the ID token unless a policy copies them in. The app binds the step-up
+      # to the signed-in user by comparing preferred_username with the edge's Remote-User.
+      metamusic_stepup:
+        id_token: ['preferred_username']
+    clients:
+      - client_id: 'metamusic-stepup'
+        client_name: 'metamusic step-up'
+        client_secret: '$pbkdf2-sha512$DIGEST-OF-THE-stepup_client_secret-FILE'
+        public: false
+        authorization_policy: 'two_factor'
+        consent_mode: 'implicit'
+        claims_policy: 'metamusic_stepup'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        redirect_uris:
+          - 'https://mm.example.com/auth/step-up/callback'
+        scopes:
+          - 'openid'
+          - 'profile'
+        response_types:
+          - 'code'
+        response_modes:
+          - 'query'
+        grant_types:
+          - 'authorization_code'
+        token_endpoint_auth_method: 'client_secret_basic'
+        id_token_signed_response_alg: 'RS256'

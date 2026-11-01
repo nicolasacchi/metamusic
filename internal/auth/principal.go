@@ -35,7 +35,9 @@ type Principal struct {
 	Name     string    // human: username; agent: token name; device: device name
 	Scopes   []Scope   // human: all four; device: read, write; agent: token scopes
 	Via      string    // "proxy" | "local" | "token" | "device" | "oauth" | "subsonic" | "cli"
-	StepUpAt time.Time // local sessions only (zero otherwise)
+	StepUpAt time.Time // local sessions, and proxy requests when the app-side step-up is on (zero otherwise)
+	// StepUpGate marks a proxy principal whose /human/ access the app gates itself (MM_STEPUP_OIDC_CLIENT set).
+	StepUpGate bool
 	// Client: Via "oauth" ⇒ the OAuth client_id; Via "subsonic" ⇒ the sanitised `c` parameter; else "".
 	Client string
 }

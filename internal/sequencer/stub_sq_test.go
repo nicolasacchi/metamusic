@@ -8,7 +8,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sequencer"
 )
 
-// The signatures of C137 that lanes SQ1 and SQ2 must keep; this file goes with stub_sq.go.
+// The signatures of C137 that lanes SQ1 and SQ2 must keep; SQ2 deletes this file with stub_sq.go.
 var (
 	_ func([]sequencer.Song, sequencer.Options) (sequencer.Result, error) = sequencer.Plan
 	_ func(sequencer.Song, sequencer.Song) sequencer.Parts                = sequencer.TransitionMicro

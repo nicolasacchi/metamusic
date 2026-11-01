@@ -41,7 +41,7 @@ test("every route has a title", () => {
 test("L2: Records and Crates are Library sub-views; curation lives under More", () => {
   for (const n of ["records", "record", "crates", "crate"]) expect(tabFor(n), n).toBe("library");
   for (const n of ["settings-curation", "human-record-publish", "human-curation"]) expect(tabFor(n), n).toBe("more");
-  expect(subLinks("library").map((l) => l.label)).toEqual(["Takes", "Sounds", "Records", "Crates", "Playlists"]);
+  expect(subLinks("library").map((l) => l.label)).toEqual(["Takes", "Sounds", "Atlas", "Records", "Crates", "Playlists"]);
   const secure = NAV_LINKS.find((l) => l.path === "/human/curation");
   expect(secure).toMatchObject({ label: "Opt-ins", tab: "more", group: "Secure", secure: true });
   expect(NAV_LINKS.find((l) => l.path === "/settings/curation")).toMatchObject({ tab: "more", group: "Settings" });
@@ -60,4 +60,18 @@ test("L2: sub-view highlighting, tab roots, contextual routes and titles", () =>
   for (const [n, t] of [["records", "Records"], ["record", "Record"], ["crates", "Crates"], ["crate", "Crate"], ["settings-curation", "Curation"], ["human-curation", "Curation"], ["human-record-publish", "Publish"]] as const) {
     expect(titleFor(n)).toBe(t);
   }
+});
+
+test("L3: the Atlas is a Library sub-view directly after Sounds (D-L3-37)", () => {
+  const link = (p: string) => NAV_LINKS.find((l) => l.path === p)!;
+  expect(tabFor("atlas")).toBe("library");
+  const labels = NAV_LINKS.filter((l) => l.tab === "library").map((l) => l.label);
+  expect(labels.indexOf("Atlas")).toBe(labels.indexOf("Sounds") + 1);
+  expect(link("/atlas")).toMatchObject({ label: "Atlas", tab: "library" });
+  expect(subActive(link("/atlas"), "atlas")).toBe(true);
+  expect(subActive(link("/atlas"), "sounds")).toBe(false);
+  expect(subActive(link("/sounds"), "atlas")).toBe(false);
+  expect(isTabRoot("atlas")).toBe(true);
+  expect(CONTEXTUAL_ROUTES.has("atlas")).toBe(false);
+  expect(titleFor("atlas")).toBe("Atlas");
 });

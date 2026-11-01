@@ -28,6 +28,7 @@ const TAB_OF: Record<string, Tab> = {
   lineage: "library",
   song: "library",
   sounds: "library",
+  atlas: "library",
   records: "library",
   record: "library",
   crates: "library",
@@ -101,6 +102,7 @@ export interface NavLink {
 export const NAV_LINKS: NavLink[] = [
   { label: "Takes", path: "/library", tab: "library" },
   { label: "Sounds", path: "/sounds", tab: "library" },
+  { label: "Atlas", path: "/atlas", tab: "library" },
   { label: "Records", path: "/records", tab: "library" },
   { label: "Crates", path: "/crates", tab: "library" },
   { label: "Playlists", path: "/playlists", tab: "library" },
@@ -139,6 +141,8 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "home" || routeName === "track" || routeName === "lineage" || routeName === "song";
     case "/sounds":
       return routeName === "sounds";
+    case "/atlas":
+      return routeName === "atlas";
     case "/records":
       return routeName === "records" || routeName === "record";
     case "/crates":
@@ -168,6 +172,7 @@ const TITLES: Record<string, string> = {
   track: "Take",
   song: "Song",
   sounds: "Sounds",
+  atlas: "Atlas",
   records: "Records",
   record: "Record",
   crates: "Crates",
@@ -217,5 +222,5 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "records", "crates", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
 }

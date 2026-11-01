@@ -79,3 +79,67 @@ audience and expiry without creating a grant.
 
 Every refusal logs one line with the status and problem code (never the token); refusals at the middleware write
 no audit row.
+
+## Proxy-mode step-up (`MM_STEPUP_OIDC_CLIENT`)
+
+In `MM_AUTH=proxy` the second factor for `/human/` (caps, arming, publish, confirm) is normally the edge's
+`two_factor` access rule alone. With `MM_STEPUP_OIDC_CLIENT` set, the app also requires it itself: every `/human/`
+call needs a recent step-up, otherwise `/human/api/*` answers 403 `STEP_UP_REQUIRED` and pages redirect to
+`/auth/step-up`. Unset, nothing changes, so the code can be deployed before the client exists. Agents, devices and
+local mode are unaffected.
+
+How it works: `/auth/step-up` starts an authorization-code flow with PKCE (S256), `state` and `nonce` at the issuer
+(`MM_OIDC_ISSUER`) with `prompt=login` and `max_age=300`. The callback `/auth/step-up/callback` exchanges the code and
+accepts the ID token only if the RS256 signature (issuer keys), `iss`, `aud`, `nonce`, `exp`/`iat`, `auth_time` (at most
+5 minutes old), a second-factor `amr` (`mfa`, `otp`, `hwk` or `swk`) and `preferred_username` (equal to the edge's
+`Remote-User`) all check out. It then sets an HttpOnly cookie bound to that user, valid for 10 minutes. The SPA's
+second-tab flow (`whoami.step_up_until`, `/auth/step-up/done`, the `mm-stepup` channel) works as in local mode.
+
+App configuration:
+
+```yaml
+MM_AUTH: proxy
+MM_OIDC_ISSUER: https://auth.example.com       # already required for connectors
+MM_OIDC_CLIENTS: metamusic-claude=Claude       # unchanged
+MM_STEPUP_OIDC_CLIENT: metamusic-stepup
+# secrets dir: stepup_client_secret (optional, 0600; absent = public PKCE client)
+```
+
+`metamusic config check` prints `step-up: oidc client ... (secret set|not set, public client)` or `step-up: edge only`.
+Roll out in this order: register the client below, restart Authelia, create the secret file, set the variable, run
+`config check`, restart the app, open `/human/` and complete the prompt.
+
+Authelia client to register (also `deploy/authelia-stepup.example.yml`):
+
+```yaml
+identity_providers:
+  oidc:
+    claims_policies:
+      metamusic_stepup:
+        id_token: ['preferred_username']
+    clients:
+      - client_id: 'metamusic-stepup'
+        client_name: 'metamusic step-up'
+        client_secret: '$pbkdf2-sha512$...'   # digest of the value in the stepup_client_secret file
+        public: false
+        authorization_policy: 'two_factor'
+        consent_mode: 'implicit'
+        claims_policy: 'metamusic_stepup'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        redirect_uris:
+          - 'https://mm.example.com/auth/step-up/callback'
+        scopes: ['openid', 'profile']
+        response_types: ['code']
+        response_modes: ['query']
+        grant_types: ['authorization_code']
+        token_endpoint_auth_method: 'client_secret_basic'
+        id_token_signed_response_alg: 'RS256'
+```
+
+Notes: `authorization_policy: 'two_factor'` makes Authelia demand both factors for this client (use the example's
+`metamusic_owner` policy instead to also restrict it to the owner). The claims policy is needed because Authelia
+keeps `preferred_username` out of the ID token by default; `amr` and `auth_time` are standard ID token claims
+there. Without a secret file the client must be `public: true` with `token_endpoint_auth_method: 'none'` and no
+`client_secret`. The app refuses the step-up (403, a warning with a short code in the log, never a token) when any
+check fails; the provider must be reachable from the app container, like the connector keys.

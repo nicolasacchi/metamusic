@@ -57,6 +57,9 @@ type Config struct {
 	OIDCJWKSURL string       // MM_OIDC_JWKS_URL: "" ⇒ discovered from the issuer
 	OIDCClients []OIDCClient // MM_OIDC_CLIENTS
 	OIDCScopes  []string     // MM_OIDC_SCOPES, default "openid metamusic"
+	// StepUpClientID is MM_STEPUP_OIDC_CLIENT: the OIDC client the proxy-mode step-up signs in with. "" ⇒ the app does
+	// not gate /human/ in proxy mode (the edge's two-factor rule is the only gate).
+	StepUpClientID string
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -116,7 +119,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}
@@ -237,6 +240,8 @@ type Secrets struct {
 	Key        []byte // HMAC pepper for tokens/URLs
 	EdgeSecret string // shared secret with the reverse proxy (proxy mode)
 	NtfyToken  string // optional ntfy publisher token (file ntfy_token)
+	// StepUpClientSecret is the optional secret of the step-up OIDC client (file stepup_client_secret); "" ⇒ public client.
+	StepUpClientSecret string
 }
 
 // LoadSecrets reads secret_key (always) and edge_secret (proxy mode). Errors
@@ -281,6 +286,14 @@ func LoadSecrets(dir string, mode string) (Secrets, error) {
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return s, fmt.Errorf("config: reading ntfy_token: %w", errors.Unwrap(err))
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "stepup_client_secret")); err == nil {
+		s.StepUpClientSecret = strings.TrimSpace(string(b))
+		if s.StepUpClientSecret == "" {
+			return s, errors.New("config: stepup_client_secret: file is empty")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return s, fmt.Errorf("config: reading stepup_client_secret: %w", errors.Unwrap(err))
 	}
 	return s, nil
 }

@@ -335,6 +335,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		BaseContext: o.M3.Shutdown,
 		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
+		StepUp: m4a.StepUp,
 	}
 	return s, nil
 }
