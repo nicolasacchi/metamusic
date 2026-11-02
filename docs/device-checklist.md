@@ -85,4 +85,10 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-L2-1 open one real tape in three of your own players: record which show chapters, which encoding they read (binary CUESHEET, `CHAPTERnnn`, text `CUESHEET`), and the loudness feel at the seams; if none shows chapters, a `.cue` sidecar is the fallback
 - [ ] DC-L2-2 play a gain-matched Record in the SPA with the screen locked on iOS (and the app backgrounded): it keeps playing through at least three track changes on the Web Audio path; if not, "Play as tape" is the supported iOS path. Also record the seam length on phone and desktop (logged, not asserted)
 
+## L3
+
+- [ ] DC-L3-1 the Atlas on an Android phone: one-finger pan, two-finger pinch zoom, and rectangle selection with the Select toggle all work on the canvas; the page scrolls outside it; targets are at least 44 px; the table fallback opens
+- [ ] DC-L3-2 play an agent-sequenced Record front to back and judge the order by ear: does the arc (a rise to a peak, a soft landing) sound right, and are the explained steps believable; note any step you would move
+- [ ] DC-L3-3 key spot check by ear: for three or more recordings you know, play along with the measured key shown on the Song page and note agree, relative key or wrong; the result decides whether the measured key stays on (otherwise `analysis.KeyEnabled` is set to false, see the runbook)
+
 ## Notes

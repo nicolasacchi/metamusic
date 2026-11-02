@@ -10,7 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sounds"
 )
 
-// proposalMaxOpen is the cap on open taxonomy proposals (C140.1); the sounds package takes the constant over with lane TP1.
+// proposalMaxOpen is the cap on open taxonomy proposals (C140.1); it mirrors sounds.ProposalMaxOpen.
 const proposalMaxOpen = 50
 
 // Verify checks the L3 invariants F1 to F6 of C135.6, read-only, and returns the findings (empty when the library is

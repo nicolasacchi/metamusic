@@ -1643,3 +1643,12 @@ Contracts above are the design of record; where the code differs, this log says 
 
 Follow-ups left open: align the publish-preview chapter names with the file (" [lossy source]", no side); guard `tape:<id>` current items in consumers that assume a track id; re-point three Crate parity cases and the album-catalog acceptance at the real operations.
 
+
+## L3 addenda (2026-11-02)
+
+Contracts amended by L3 (plan `docs/plans/2026-11-02-l3-library-agents-atlas.md`), as shipped:
+
+- **C120 / C121 (Records and slot edits).** `propose_record` and `edit_record_slots` gain a `sequence` argument and operation (the L3 sequencer). Sequencing logs ordinary `slot_moved` rows with `by: sequencer` and one stored run with its explanation; a pinned slot (a Take pin) takes part in the plan and keeps its pin and side. A call whose only effect is an unchanged sequence writes no change row and does not bump the revision.
+- **C122 (`ChangeText`).** The golden gains the sequencing rows (27 rows in `TestChangeText_Golden_L3`), including `(sequenced: <strategy>)` on the `proposed` row; the web mirror follows the same golden.
+- **C124 (recordview).** `recordview` gains `include=sequence` (the latest explanation, `stale` after a manual reorder or a changed Take) and may import `sequence` and `sequencer`; the Record read statement budget rose from 17 to 18.
+- **C130 / C99 (Muse visibility).** The Muse-text allowlist, which L2 extended with `get_record`, gains exactly one more operation in L3: `list_next_actions`.

@@ -2131,3 +2131,14 @@ Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), a
 - **C98 (context and stats).** `/context` gains `curation` (omitted when empty); `get_stats` gains `curation` (record, crate and tape counts, the two opt-ins, `pending`, `review`).
 - **C99 (Muse visibility).** The Muse-text allowlist gains exactly one operation, `get_record`.
 - **C101 (tooling).** `library verify` includes the L2 anomaly codes; `TestSQL_WriteOwners_L2` gives every L2 table one writer.
+
+
+## L3 addenda (2026-11-02)
+
+Contracts amended by L3 (plan `docs/plans/2026-11-02-l3-library-agents-atlas.md`), as shipped:
+
+- **C93 (Sounds).** `sounds.SubjectOf` exports the Song subject rule (behaviour-preserving). `Map` is split into `applyTx` and `recompute`, and the recompute loop calls an injected hook inside each batch transaction (the L3 features refresh). `song_sounds.ord` and the compute definition enter the Song digest only. L3 adds `propose_taxonomy`, `list_taxonomy_proposals` and `decide_taxonomy_proposal`; `map_sound_term` is unchanged and stays open to agents.
+- **C94 (tempo analyzer).** The decode is shared: `ffmpeg.Mono` serves tempo, key and energy, and `(*FFmpeg).Tempo` stays as a thin wrapper so the L1 argv and tempo tests keep their expectations.
+- **C95 (Reconciler).** A feature step (`provenance.UseFeatures`) is installed by the server and by the CLI Reconciler alike, so both derive identical `take_features` and `song_features` rows.
+- **C99 (Muse visibility).** The Muse-text allowlist gains exactly one operation, `list_next_actions`, whose text names Muses by a short id only.
+- **C101 (tooling).** `library verify` includes the L3 anomaly families (features, sequences, proposals).
