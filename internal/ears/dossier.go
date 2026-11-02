@@ -16,6 +16,12 @@ func (s *Service) Dossier(ctx context.Context, trackID string) (Dossier, error) 
 		Structure: st.structure(), Flags: st.flags, BlindSpots: st.blindSpots(false),
 		Spectrogram: st.spectrogramInfo(), Provenance: st.provenance(),
 	}
+	if k := st.key; k != nil && k.Key != nil && k.Camelot != nil {
+		d.Key = &PerceptionKey{Name: *k.Key, Camelot: *k.Camelot, Confidence: k.R, AmbiguousRelative: k.AmbiguousRelative}
+	}
+	if e := st.energy; e != nil && e.Energy != nil {
+		d.Energy = &PerceptionEnergy{Value: *e.Energy, OnsetRate: e.OnsetRate, CentroidHz: e.CentroidHz}
+	}
 	if st.silence != nil {
 		v := SilenceBlockOrNull(*st.silence)
 		d.Silence = &v

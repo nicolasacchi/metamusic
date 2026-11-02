@@ -84,7 +84,7 @@ type sample struct {
 
 type fixedNames struct{}
 
-func (fixedNames) Muse(id string) string { return "Muse " + id[:8] }
+func (fixedNames) Muse(id string) string { return "Muse " + id[len(id)-8:] }
 func (fixedNames) Song(string) string    { return "Synthetic Song" }
 func (fixedNames) Record(string) string  { return "Synthetic Record" }
 
@@ -95,6 +95,20 @@ var samples = map[string]sample{
 	"muse_unrendered":         {nextactions.Subject{Kind: "muse", ID: ptr("019a1b2c-0000-7000-8000-0000000000a2")}, map[string]any{"songs": 3, "draft_id": "d"}},
 	"taxonomy_proposals_open": {nextactions.Subject{Kind: "taxonomy"}, map[string]any{"open": 2}},
 	"muse_unjudged":           {nextactions.Subject{Kind: "muse", ID: ptr("019a1b2c-0000-7000-8000-0000000000a2")}, map[string]any{"rendered": 4}},
+
+	"record_undecided_slots": {nextactions.Subject{Kind: "record", ID: ptr("01900000-0000-7000-8000-0000000000a1")}, map[string]any{"slots": 2}},
+	"muse_record_candidate":  {nextactions.Subject{Kind: "muse", ID: ptr("019a1b2c-0000-7000-8000-0000000000a2")}, map[string]any{"songs": 6}},
+	"song_duel":              {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{"takes": 3, "duels": 1}},
+	"muse_partial_angles": {nextactions.Subject{Kind: "muse", ID: ptr("019a1b2c-0000-7000-8000-0000000000a2")}, map[string]any{
+		"rendered": 1, "drafts": 4, "_rendered_angles": "remake-long", "_rendered_n": 1, "_draft_angles": "alt-take-long, long, short", "_draft_n": 4}},
+	"record_empty_slot":      {nextactions.Subject{Kind: "record", ID: ptr("01900000-0000-7000-8000-0000000000a1")}, map[string]any{"slot": 3, "empty": 1}},
+	"song_proposals_waiting": {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{"proposals": 2}},
+
+	"song_tempo_mismatch": {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{"requested_bpm": 120, "measured_bpm": 96}},
+	"record_unsequenced":  {nextactions.Subject{Kind: "record", ID: ptr("01900000-0000-7000-8000-0000000000a1")}, map[string]any{"slots": 5}},
+	"taxonomy_unmapped":   {nextactions.Subject{Kind: "taxonomy", ID: ptr("skank")}, map[string]any{"term": "skank", "songs": 6}},
+	"song_no_muse":        {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{}},
+	"features_missing":    {nextactions.Subject{Kind: "library"}, map[string]any{"songs": 12}},
 }
 
 type goldenRow struct {
@@ -148,7 +162,7 @@ func TestNextActions_RulesGolden(t *testing.T) {
 			}
 			continue
 		}
-		if *update && i == 0 {
+		if *update {
 			raw, _ := json.MarshalIndent(project(set, true), "", "  ")
 			if err := os.WriteFile(filepath.Join("testdata", name), append(raw, '\n'), 0o600); err != nil {
 				t.Fatal(err)
@@ -183,11 +197,16 @@ func TestNextActions_RulesGolden(t *testing.T) {
 }
 
 // TestNextActions_Rules_Table: for each of the four rules of NA1 the golden text of a sample candidate (the Muse named by an id
-// prefix, never a title), then fires and does not fire against the L3 fixture world.
+// tail, never a title), then fires and does not fire against the L3 fixture world.
 func TestNextActions_Rules_Table(t *testing.T) {
 	golden := map[string]goldenRow{}
-	for _, row := range readGolden(t, "rules_v1_a.golden.json") {
-		golden[row.Code] = row
+	for i, set := range nextactions.RuleSets() {
+		if len(set) == 0 {
+			continue
+		}
+		for _, row := range readGolden(t, fmt.Sprintf("rules_v1_%c.golden.json", 'a'+i)) {
+			golden[row.Code] = row
+		}
 	}
 	for code, s := range samples {
 		var rule *nextactions.Rule
@@ -222,7 +241,7 @@ func TestNextActions_Rules_Table(t *testing.T) {
 		if a.Evidence["songs"] != 3 || a.Evidence["draft_id"] != d1 || a.Priority != 70 || a.Audience != nextactions.AudienceAgent {
 			t.Errorf("evidence %v priority %d audience %s", a.Evidence, a.Priority, a.Audience)
 		}
-		want := fmt.Sprintf("Muse %s has 3 Song(s), none rendered — estimate the first (the estimate is free)", m3[:8])
+		want := fmt.Sprintf("Muse %s has 3 Song(s), none rendered — estimate the first (the estimate is free)", m3[28:])
 		if a.Text != want {
 			t.Errorf("text %q, want %q", a.Text, want)
 		}
@@ -237,7 +256,7 @@ func TestNextActions_Rules_Table(t *testing.T) {
 				t.Fatalf("%s: muse_unjudged on %v (want M4, not M5 which has human stars, not M3 which has no take)", p.Kind, subjects(as))
 			}
 			for _, a := range as {
-				if *a.Subject.ID == m4 && (a.Evidence["rendered"] != 1 || a.Text != fmt.Sprintf("Muse %s has 1 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)", m4[:8])) {
+				if *a.Subject.ID == m4 && (a.Evidence["rendered"] != 1 || a.Text != fmt.Sprintf("Muse %s has 1 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)", m4[28:])) {
 					t.Errorf("M4: %q %v", a.Text, a.Evidence)
 				}
 			}
@@ -271,6 +290,8 @@ func TestNextActions_Rules_Table(t *testing.T) {
 			t.Error("a hidden Record is still waiting")
 		}
 	})
+	rulesTableB(t)
+	rulesTableC(t)
 	t.Run("taxonomy_proposals_open counts open proposals only", func(t *testing.T) {
 		if got := byCode(list(t, r, human, nextactions.Filter{}), "taxonomy_proposals_open"); len(got) != 0 {
 			t.Fatalf("no proposal yet: %+v", got)
@@ -342,7 +363,7 @@ func TestNextActions_HiddenMuseSilent(t *testing.T) {
 	m3, m4 := museByTitle(t, r, lt.L3Muse3Title), museByTitle(t, r, lt.L3Muse4Title)
 	exec(t, r, `UPDATE muses SET hidden_at='2026-10-06T11:00:00Z', hidden_by='human:fixture' WHERE id IN (?, ?)`, m3, m4)
 	raw, _ := json.Marshal(list(t, r, agent, nextactions.Filter{Limit: 50}))
-	for _, id := range []string{m3, m4, m3[:8] + "-0000-7000-8000-" + m3[24:]} {
+	for _, id := range []string{m3, m4, m3[28:]} {
 		if strings.Contains(string(raw), id) {
 			t.Errorf("a hidden Muse id %s appears in %s", id, raw)
 		}
@@ -354,7 +375,7 @@ func TestNextActions_HiddenMuseSilent(t *testing.T) {
 	}
 }
 
-// TestNextActions_IDVariant: until D-L3-16 is ticked an item text names a Muse as "Muse <first 8 characters of its id>" and
+// TestNextActions_IDVariant: until D-L3-16 is ticked an item text names a Muse as "Muse <last 8 characters of its id>" and
 // carries no Muse title or artist, for List and for ForTake, in the text, the hint and the evidence.
 func TestNextActions_IDVariant(t *testing.T) {
 	t.Parallel()
@@ -382,7 +403,7 @@ func TestNextActions_IDVariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fa) != 1 || fa[0].Code != "muse_unjudged" || !strings.HasPrefix(fa[0].Text, "Muse "+museByTitle(t, r, lt.L3Muse4Title)[:8]+" has") {
+	if len(fa) != 2 || fa[0].Code != "muse_unjudged" || fa[1].Code != "muse_partial_angles" || !strings.HasPrefix(fa[0].Text, "Muse "+museByTitle(t, r, lt.L3Muse4Title)[28:]+" has") {
 		t.Errorf("ForTake(u1) = %+v, want the muse_unjudged text of M4", fa)
 	}
 	var museTexts int
@@ -395,8 +416,8 @@ func TestNextActions_IDVariant(t *testing.T) {
 		}
 		if a.Subject.Kind == "muse" {
 			museTexts++
-			if !strings.HasPrefix(a.Text, "Muse "+(*a.Subject.ID)[:8]+" ") {
-				t.Errorf("text %q does not start with the id prefix of %s", a.Text, *a.Subject.ID)
+			if !strings.HasPrefix(a.Text, "Muse "+(*a.Subject.ID)[28:]) {
+				t.Errorf("text %q does not start with the id tail of %s", a.Text, *a.Subject.ID)
 			}
 		}
 	}

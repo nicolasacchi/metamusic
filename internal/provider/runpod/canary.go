@@ -636,6 +636,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		if !cancelled && !job.pastStarting() && c.o.Clock.Now().Sub(started) > abortAfter {
 			_ = c.cancelJob(id)
 			c.logf("the job was not generating within %s: cancelled; confirming that the workers stop", abortAfter)
+			endSampler() // the sampler's status calls would otherwise race the confirm window (and a fake clock) in abortStart
 			return c.abortStart(abortAfter, job.State, meas)
 		}
 		if c.o.Clock.Now().Sub(started) > overall {
@@ -746,11 +747,16 @@ func (c *canary) awaitWorker(ctx context.Context) int {
 	deadline := c.o.Clock.Now().Add(window)
 	live := 0
 	for {
-		if live = c.liveWorkers(ctx); live > 0 || !c.o.Clock.Now().Before(deadline) {
+		if live = c.liveWorkers(ctx); live > 0 {
 			return live
 		}
+		// wait one step, then judge the window: the clock is shared with the status sampler (which advances a
+		// fake clock on its own), so the window must not be able to end before the first wait has happened
 		if c.sleep(ctx, step) != nil {
 			return live
+		}
+		if !c.o.Clock.Now().Before(deadline) {
+			return c.liveWorkers(ctx)
 		}
 	}
 }

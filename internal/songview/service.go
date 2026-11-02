@@ -111,6 +111,8 @@ type View struct {
 	// L2 (C130.3): the Records and manual Crates that hold the Song, at most MaxCurationRefs each; empty without UseCuration.
 	Records []RecordRef
 	Crates  []CrateRef
+	// L3 (C142): tempo, energy and key with their bases; nil while the Song has no song_features row.
+	Features *FeaturesBlock
 }
 
 // MaxCurationRefs bounds get_song.records and get_song.crates.

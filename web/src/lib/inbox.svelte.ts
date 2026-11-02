@@ -10,6 +10,8 @@ import {
   createHeardTracker,
   heardKey,
   countNew,
+  needsYouTotal,
+  totalOr,
   readHeard,
   readSeenAt,
   writeHeard,
@@ -57,6 +59,10 @@ export const inbox = $state({
   newCount: 0,
   duels: 0,
   proposals: 0,
+  /** Records in status proposed (list_records total). */
+  records: 0,
+  /** Open taxonomy proposals (list_taxonomy_proposals total). */
+  taxonomy: 0,
   heard: readHeard(kv, deviceKey()) as Set<string>,
   loaded: false,
 });
@@ -73,27 +79,32 @@ export function markAllSeen(now: Date = clock()): void {
   inbox.newCount = 0;
 }
 
-export const needsYouCount = (): number => approvals.items.length + inbox.duels + inbox.proposals;
+export const needsYouCount = (): number =>
+  needsYouTotal({ approvals: approvals.items.length, duels: inbox.duels, proposals: inbox.proposals, records: inbox.records, taxonomy: inbox.taxonomy });
 export const badge = (): string | null => badgeFor(inbox.newCount, needsYouCount());
 
 let flight = 0;
-/** Cheap counts for the tab badge: one tracks page, two limit-1 lists. Failures keep the previous numbers. */
+/** Cheap counts for the tab badge: one tracks page, four limit-1 lists. Failures keep the previous numbers. */
 export async function refreshInboxBadge(): Promise<void> {
   const mine = ++flight;
   reloadSeen();
   const seen = inbox.seenAt;
-  const [t, d, s] = await Promise.allSettled([
+  const [t, d, s, r, x] = await Promise.allSettled([
     api.GET("/api/tracks", { params: { query: { recorded_from: seen, sort: "recorded_asc", limit: 50 } } }),
     api.GET("/api/duels", { params: { query: { state: ["open"], limit: 1 } } }),
     api.GET("/api/songs", { params: { query: { has_open_proposals: true, limit: 1 } } }),
+    api.GET("/api/records", { params: { query: { status: ["proposed"], limit: 1 } } }),
+    api.GET("/api/taxonomy-proposals", { params: { query: { state: ["open"], limit: 1 } } }),
   ]);
   if (mine !== flight) return;
   if (t.status === "fulfilled" && t.value.data) {
     const page = t.value.data;
     inbox.newCount = countNew(page.items, page.total, seen);
   }
-  if (d.status === "fulfilled" && d.value.data) inbox.duels = d.value.data.total;
-  if (s.status === "fulfilled" && s.value.data) inbox.proposals = s.value.data.total;
+  inbox.duels = totalOr(inbox.duels, d);
+  inbox.proposals = totalOr(inbox.proposals, s);
+  inbox.records = totalOr(inbox.records, r);
+  inbox.taxonomy = totalOr(inbox.taxonomy, x);
   inbox.loaded = true;
 }
 
