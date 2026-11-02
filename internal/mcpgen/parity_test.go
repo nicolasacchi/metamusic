@@ -1,6 +1,7 @@
 package mcpgen_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -420,7 +421,7 @@ func normalizeResult(t *testing.T, res *mcp.CallToolResult, op api.OpInfo, name 
 func runParity(t *testing.T, stdio bool) {
 	t.Helper()
 	scopes := []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	opts := servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, L1: true, L2: true, Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
+	opts := parityRigOptions()
 	ra, rb := servertest.New(t, opts), servertest.New(t, opts)
 	// The Reconciler builds the Songs before any case runs: every face then draws its Song and Session ids from the same
 	// point of the id sequence, whatever replays (tool plus call_operation) the cases make on one face and not another.
@@ -456,6 +457,9 @@ func runParity(t *testing.T, stdio bool) {
 		resp := restClient.Do(t, op.Method, path, body, headers...)
 		if task := m4aStubTask(resp.Status, resp.Body); task != "" {
 			t.Fatalf("parity %s answers 501 NOT_IMPLEMENTED (stub of %s): no M4a stub may remain", op.ID, task)
+		}
+		if resp.Status == 501 && bytes.Contains(resp.Body, []byte("NOT_IMPLEMENTED")) { // no stub of any lane may remain (L3 INT-B)
+			t.Fatalf("parity %s answers 501 NOT_IMPLEMENTED: %s", op.ID, resp.Body)
 		}
 		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {
 			t.Fatalf("%s: REST status %d: %s", op.ID, resp.Status, resp.Body)
@@ -789,4 +793,11 @@ func TestGetDraft_ReferenceVariantHumanOnly(t *testing.T) {
 	if strings.Contains(string(b), "slower") {
 		t.Errorf("variant type leaked over MCP: %s", b)
 	}
+}
+
+// parityRigOptions is the rig of the REST = MCP = stdio parity run: the whole library (L1, L2, L3) with the real feature step, so
+// get_adherence, get_song_atlas and list_next_actions compare populated answers (L3 INT-B).
+func parityRigOptions() servertest.Options {
+	return servertest.Options{Fixture: true, Files: true, M2c: true, M3: true, M4a: true, L1: true, L2: true, L3: true, RealFeatures: true,
+		Backend: "fake", M2b: servertest.M2bOptions{Fixture: true}}
 }

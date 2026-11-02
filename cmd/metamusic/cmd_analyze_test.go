@@ -71,7 +71,8 @@ func TestCLI_Analyze(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &rep); err != nil {
 		t.Fatalf("dry-run --json is not JSON: %v\n%s", err, out)
 	}
-	if !rep.DryRun || rep.Tracks != tracks || rep.Ran["silence"] != tracks || rep.Ran["spectrogram"] != tracks || rep.Failed != 0 {
+	if !rep.DryRun || rep.Tracks != tracks || rep.Ran["silence"] != tracks || rep.Ran["spectrogram"] != tracks || rep.Failed != 0 ||
+		rep.Ran["tempo"] != tracks || rep.Ran["key"] != tracks || rep.Ran["energy"] != tracks { // L3: the CLI runs the same Ears analyzers as serve
 		t.Errorf("dry run report = %+v", rep)
 	}
 	if tierA() != 0 || renditions() != 0 || auditRows(t, env) != 0 {
@@ -96,6 +97,12 @@ func TestCLI_Analyze(t *testing.T) {
 	}
 	if renditions() != 1 || auditRows(t, env) != 1 {
 		t.Errorf("renditions %d, audit rows %d, want 1 and 1", renditions(), auditRows(t, env))
+	}
+
+	for _, name := range []string{"tempo", "key", "energy"} { // L3: all three feature analyzers wrote a row for the track
+		if got := dbRow(t, env, `SELECT count(*) FROM analyses WHERE track_id = ? AND analyzer = ?`, id, name); got != 1 {
+			t.Errorf("analyzer %s wrote %d rows for the track", name, got)
+		}
 	}
 
 	// the rest, in parallel; the track already done is skipped
