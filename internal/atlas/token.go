@@ -65,7 +65,7 @@ func token(q Query, taxVersion int, rows []row, colour func(row) string) (string
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func invalidCursor() error {
+func badAtlasCursor() error {
 	return problem.E(http.StatusUnprocessableEntity, "INVALID_CURSOR", "the cursor is not one this operation issued", nil)
 }
 
@@ -80,11 +80,11 @@ func encodeCursor(token, lastID string) string {
 func decodeCursor(c string) (token, lastID string, err error) {
 	b, err := base64.RawURLEncoding.DecodeString(c)
 	if err != nil {
-		return "", "", invalidCursor()
+		return "", "", badAtlasCursor()
 	}
 	token, lastID, ok := strings.Cut(string(b), ":")
 	if _, herr := hex.DecodeString(token); !ok || len(token) != 64 || herr != nil || lastID == "" {
-		return "", "", invalidCursor()
+		return "", "", badAtlasCursor()
 	}
 	return token, lastID, nil
 }
