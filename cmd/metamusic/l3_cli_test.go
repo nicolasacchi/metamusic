@@ -128,3 +128,34 @@ func TestCLI_LibraryVerify_L3_Invariants(t *testing.T) {
 		t.Errorf("the legitimate run %s was reported:\n%s", okID, out)
 	}
 }
+
+// TestCLI_LibraryReconcile_BackfillsDraftSubjects: a library settled before the feature step existed has a drained queue and
+// no song_features row for its draft-subject Songs (no take yet). `library reconcile` must backfill them (the sweep the server
+// runs at start, C135.5) so `library verify` reports nothing; the rows are subject_kind draft with declared/predicted bases only.
+func TestCLI_LibraryReconcile_BackfillsDraftSubjects(t *testing.T) {
+	t.Parallel()
+	env, _ := l3Env(t)
+	if code, out, errs := do(t, env, "", "library", "reconcile"); code != 0 {
+		t.Fatalf("reconcile: %d %q %q", code, out, errs)
+	}
+	drafts := dbRow(t, env, `SELECT COUNT(*) FROM song_features WHERE subject_kind = 'draft'`)
+	if drafts == 0 {
+		t.Fatal("the fixture has no draft-subject Songs")
+	}
+	l2Exec(t, env, `DELETE FROM song_features WHERE subject_kind = 'draft'`)
+	if code, out, _ := do(t, env, "", "library", "verify"); code != 1 || !strings.Contains(out, "song_features_missing") {
+		t.Fatalf("planted gap not reported: %d %q", code, out)
+	}
+	if code, out, errs := do(t, env, "", "library", "reconcile"); code != 0 {
+		t.Fatalf("second reconcile: %d %q %q", code, out, errs)
+	}
+	if n := dbRow(t, env, `SELECT COUNT(*) FROM song_features WHERE subject_kind = 'draft'`); n != drafts {
+		t.Errorf("draft rows after reconcile = %d, want %d", n, drafts)
+	}
+	if n := dbRow(t, env, `SELECT COUNT(*) FROM song_features WHERE subject_kind = 'draft' AND (bpm_basis = 'measured' OR energy_basis = 'measured' OR key_basis = 'measured')`); n != 0 {
+		t.Errorf("%d draft rows carry a measured basis", n)
+	}
+	if code, out, errs := do(t, env, "", "library", "verify"); code != 0 || !strings.Contains(out, "consistent") {
+		t.Errorf("verify after reconcile: %d %q %q", code, out, errs)
+	}
+}
