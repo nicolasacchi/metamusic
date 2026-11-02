@@ -176,6 +176,58 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
   to the same SQL as the list operations, so `list_songs` with `crate_id` equals the Crate's own count.
 - **No L2 operation spends money or calls a provider.**
 
+## Features, sequencing and the Atlas (L3)
+
+- **Features.** `take_features` and `song_features` are derived, rebuildable rows (migration `0011`): one per Take and one
+  per Song (the Song's *subject*: its Pick take, else its newest non-discarded take, else its draft; no subject, no row).
+  They hold tempo, key, energy and duration. Every value carries a **basis**: `measured` (an Ears analyzer ran on the
+  audio), `declared` (the style text or recipe says so), `plan` (the ABC score says so) or `predicted` (energy only, from a
+  fixed mood, genre and tempo prior). A measured value always replaces a predicted one. Values are fixed-point integers,
+  never floats: BPM in hundredths (centi-BPM), energy in ten-thousandths (0 to 10 000), key as a Camelot number and
+  letter, duration in seconds. Requested and measured BPM are kept side by side with an `octave` flag
+  (`sounds.CompareTempo`: measured within 6 % of double or half the request). A Take or Song row is rewritten only when its
+  digest or its `feature_def` changes. The Reconciler (server and CLI alike) owns the rows; the taxonomy recompute refreshes
+  them in the same batch transaction, so a decided proposal is visible at once.
+- **Key and energy (Ears).** Two Tier A analyzers, `mm-key/1` and `mm-energy/1`, share one 240-second mono decode with
+  the tempo analyzer. Key is null when the estimator is unsure (a correlation floor and a margin to the runner-up);
+  energy is a composite of onset density, brightness and mastered loudness, used *relatively*. Both appear on perception
+  and the dossier as `key` and `energy`; they are `omitempty` (absent, never null) so existing `/context` goldens and the
+  schema do not move. `analysis.KeyEnabled` is the scope-valve constant for key.
+- **The sequencer.** `internal/sequencer` is a pure, deterministic planner (stdlib only). It orders Songs to minimise a
+  weighted cost: tempo steps, key distance on the Camelot wheel (neighbours cheap, a clash dear), energy steps, and a
+  shape term toward a target curve. Strategies: `arc` (rise to a peak about 70 % in, soft landing; the default),
+  `ramp_up` and `steady`. Unknown tempo, key or energy costs a neutral amount and is named in the explanation. Up to 12
+  Songs are solved exactly; above that a beam search plus local search, never worse than the input order (without fixed
+  endpoints). `internal/sequence` loads Song features and wraps the planner: `suggest_sequence` is a read-only preview of a
+  Record, a list of Songs or a Crate; the `sequence` operation of `edit_record_slots` and the `sequence` argument of
+  `propose_record` apply it as ordinary logged slot moves (`slot_moved` with `by: sequencer`) plus one stored run with its
+  explanation. A run is `stale` once the live order or a slot's Take differs. Pinned slots take part and keep their pin.
+- **Next actions.** `list_next_actions` (also folded into `/context`) evaluates a table of rules, each one batch
+  statement, and returns ranked items with a text, evidence numbers and an optional hint naming a free operation. Seven
+  core rules (proposed Records waiting, a Muse that could make a Record, an unrendered Muse, open taxonomy proposals,
+  Songs lacking a duel, unjudged Muses, partial angles) and eight demotable ones. The audience is part of each rule
+  (human, agent or both). It is read-only and no hint names an operation that spends. The text names Muses by a short id only;
+  `list_next_actions` is the one new entry on the Muse-text allowlist.
+- **Taxonomy proposals.** An agent calls `propose_taxonomy` (mappings plus a rationale; at most 10 open per principal,
+  50 overall); the stored proposal carries an impact preview (which Songs would gain or lose which facet values, what
+  stops being unmapped). `decide_taxonomy_proposal` is a human act on `/api/` with a runtime check (a human or a paired
+  device; every other principal gets 403 `HUMAN_ONLY` before any read). Accepting applies the chosen mappings as one new
+  taxonomy version noted with the proposal id, skips mappings that became effective meanwhile, and recomputes affected Songs
+  and their features. `map_sound_term` remains available to agents.
+- **The Atlas.** `get_song_atlas` returns the library as points laid out on the server: the axes are tempo (log),
+  energy, duration, family, vocal, era, mood, language, key, and requested versus measured BPM. A deterministic integer
+  layout spreads stacked points; paging is by an opaque token over the whole layout. Colour overlays include Muse (ids
+  only), state, Pick, family, vocal and Record. The honesty layer is part of the answer: totals by basis, the count of
+  points not plotted (no value) and the count of points on a *predicted* axis, which the page draws hollow and can hide.
+  The Atlas never invents a position. The filter is the one `list_songs` uses. The page (`/atlas`, under Library) has a
+  canvas with pan, pinch, a Select toggle for rectangle selection, and a table fallback.
+- **Adherence.** `get_adherence` compares requested with measured tempo (and expected with actual duration) per Song and per
+  facet value, with the octave flag and a 5 % band; the error is the minimum over the equal, double and half comparisons.
+- **Invariants.** Features, sequencer runs and proposals have one writer each; `library verify` checks them
+  (missing or orphaned rows, octave validity, a run that is not a permutation, a cost that regressed, malformed
+  proposals). No L3 operation spends money or calls a provider, and none is a dedicated MCP tool: all are reached through
+  `call_operation`.
+
 ## GPU work
 
 Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.

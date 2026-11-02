@@ -154,7 +154,7 @@ type Dossier struct {
 	BlindSpots  []string               `json:"blind_spots" nullable:"false" doc:"What the machine cannot judge; read before trusting the numbers"`
 	Spectrogram SpectrogramInfo        `json:"spectrogram"`
 	Provenance  Provenance             `json:"provenance"`
-	// L3 (C136.3): the measured key and energy; absent until the E1 analyzers ran.
+	// L3 (C136.3): the measured key and energy; absent (omitempty, never null) until the analyzers ran.
 	Key    *PerceptionKey    `json:"key,omitempty"`
 	Energy *PerceptionEnergy `json:"energy,omitempty"`
 }
@@ -301,8 +301,9 @@ type Perception struct {
 	// They follow the M2a keys; trackctx's perception key order is edited once, in L1-B7.
 	TempoBPM        *float64 `json:"tempo_bpm"`
 	TempoConfidence *float64 `json:"tempo_confidence"`
-	// Key and Energy are the mm-key/1 and mm-energy/1 estimates (L3 C136.3); nil until E1 fills them, and then omitted
-	// from the /context perception block (the F2 freeze keeps the existing goldens byte-identical).
+	// Key and Energy are the mm-key/1 and mm-energy/1 estimates (L3 C136.3); absent (omitempty, never null) until
+	// the analyzers have run; the key is also absent when the estimator is unsure. omitempty is the contract: it keeps the
+	// /context perception goldens and the OpenAPI schema unchanged.
 	Key    *PerceptionKey    `json:"key,omitempty"`
 	Energy *PerceptionEnergy `json:"energy,omitempty"`
 }

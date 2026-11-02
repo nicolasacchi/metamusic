@@ -99,11 +99,11 @@ type Service struct {
 	mu sync.Mutex
 	ix *Index // the effective index at its Version, rebuilt when a newer version exists
 
-	hook RecomputeHook // set once by the composition root; stored and not yet called (TP1 calls it)
+	hook RecomputeHook // set once by the composition root; called inside every recompute batch transaction (features.ComputeTx under RealFeatures)
 }
 
-// SetRecomputeHook stores the hook the recompute loop will call (L3 C140.6). A nil hook is valid and means none. It is
-// stored here and never called until lane TP1 (the Map split).
+// SetRecomputeHook stores the hook the recompute loop calls in every batch transaction (L3 C140.6). A nil hook is valid
+// and means none.
 func (s *Service) SetRecomputeHook(h RecomputeHook) {
 	s.mu.Lock()
 	s.hook = h

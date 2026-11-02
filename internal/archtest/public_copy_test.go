@@ -62,6 +62,28 @@ func TestPublicCopy_StopsAtMarker_L2(t *testing.T) {
 	}
 }
 
+// TestPublicCopy_StopsAtMarker_L3 is the L3 shape: a revision log above the marker reaches the copy, while the appendix
+// with P.4 patterns (synthetic Muse, Song and taxonomy terms) does not.
+func TestPublicCopy_StopsAtMarker_L3(t *testing.T) {
+	t.Parallel()
+	appendix := "\n## Appendix P (PRIVATE — never copied to `docs/plans/`)\n### P.4 Gate patterns\nSynthetic Muse 900\nSynthetic Song 900\nsynthetic-term-900\n"
+	draft := "# L3 plan\n\n## Revision log\n\n### Revision 3\npublic text\n" + privateMarker + "\n" + appendix
+	got, out, err := publicCopy(t, draft)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, out)
+	}
+	for _, bad := range []string{privateMarker, "## Appendix P", "P.4", "Synthetic Muse 900", "Synthetic Song 900", "synthetic-term-900"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("copy contains %q", bad)
+		}
+	}
+	for _, want := range []string{"## Revision log", "### Revision 3", "public text"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("copy lost %q: %q", want, got)
+		}
+	}
+}
+
 func TestPublicCopy_RefusesBadMarkers(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
@@ -108,7 +130,7 @@ func loadPrivatePatterns(t *testing.T) []string {
 // (the build host), and `make gate` (pre-commit, pre-push, CI) enforces the same patterns on every commit.
 func TestPublicCopy_CommittedCopyIsClean(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"2026-10-15-l1-library-provenance.md", "2026-10-28-l2-library-curation.md"} {
+	for _, name := range []string{"2026-10-15-l1-library-provenance.md", "2026-10-28-l2-library-curation.md", "2026-11-02-l3-library-agents-atlas.md"} {
 		t.Run(name, func(t *testing.T) { checkCommittedCopy(t, name) })
 	}
 }
@@ -202,5 +224,33 @@ func TestPublicCopy_GateFailsOnLeak(t *testing.T) {
 	run("add", "plan.md")
 	if err := gate("leak"); err == nil {
 		t.Fatal("gate accepted a copy holding a private pattern")
+	}
+}
+
+// TestRoadmap_L3Listed checks the roadmap lists L3 between L2 and M4a, marks it done, records the absorbed Song Atlas
+// track (D-L3-27) and no longer lists "Song Atlas" among the M6 items.
+func TestRoadmap_L3Listed(t *testing.T) {
+	t.Parallel()
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "plans", "2026-10-12-roadmap.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	l2, l3, m4a := strings.Index(text, "### L2 "), strings.Index(text, "### L3 "), strings.Index(text, "### M4a ")
+	if l2 < 0 || l3 < 0 || m4a < 0 || !(l2 < l3 && l3 < m4a) {
+		t.Fatalf("L3 must be listed between L2 and M4a (L2 %d, L3 %d, M4a %d)", l2, l3, m4a)
+	}
+	section := text[l3:m4a]
+	for _, want := range []string{"done", "D-L3-27", "Song Atlas"} {
+		if !strings.Contains(section, want) {
+			t.Errorf("the L3 entry does not mention %q", want)
+		}
+	}
+	m6 := text[strings.Index(text, "### M6 "):]
+	if i := strings.Index(m6, "## Inputs"); i > 0 {
+		m6 = m6[:i]
+	}
+	if strings.Contains(m6, "Song Atlas,") || strings.Contains(m6, "Song Atlas.") {
+		t.Error("M6 still lists the Song Atlas, which L3 delivers")
 	}
 }

@@ -2339,3 +2339,10 @@ M2c amends this plan additively: C44 the hard-coded schema-version assertion bec
 master's extension and Ears adds the `lossy_source` blind spot; C53 `duels.TrackBrief` and `ears.Side`
 gain `recipe_known` and `lossy` (a duel's brief stays null until reveal, so the flags cannot leak slot
 identity); C54 the reveal and compare views show the badges.
+
+
+## L3 addenda (2026-11-02)
+
+Contracts amended by L3 (plan `docs/plans/2026-11-02-l3-library-agents-atlas.md`), as shipped:
+
+- **C49 / C51 (Tier A and dossier).** Tier A gains two analyzers, `mm-key/1` (Camelot key, null when unsure) and `mm-energy/1` (a composite of onset density, brightness and loudness), on one shared 240-second mono decode with the tempo analyzer; `ears.TierA.Tempo` is replaced by `ears.TierA.Mono`. Perception and the dossier gain `key` and `energy` (`omitempty`). `metamusic analyze` runs them; a track costs about two seconds of CPU.

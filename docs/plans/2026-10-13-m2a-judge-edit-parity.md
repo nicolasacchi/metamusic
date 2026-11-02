@@ -3117,3 +3117,10 @@ Contracts amended by L2 (plan `docs/plans/2026-10-28-l2-library-curation.md`), a
 
 - **C35 / C38 (parity, every UI action).** The registry holds 126 operations; the 15 new MCP-faced operations are all `generic` (reached through `call_operation`, no dedicated tool), and the two human-only operations have REST-only tests. `TestAcceptance_M2a_AgentPerformsEveryUIAction` covers the new UI and MCP operations.
 - **C41 / C42 (tooling and CI).** The routing contract and served-operation coverage gain the L2 paths; the no-delete SQL allowlist is unchanged; coverage floors are the measured values (`recordview` 67, `records` 86, `tape` 88) rather than the plan's targets; the `TestPerf_*` tests run in their own job, not under `-race`.
+
+
+## L3 addenda (2026-11-02)
+
+Contracts amended by L3 (plan `docs/plans/2026-11-02-l3-library-agents-atlas.md`), as shipped:
+
+- **C35 (`/context`).** The bundle gains the next-action items for its subject, assembled by the L3 next-action engine (C139.4). The existing goldens are byte-identical (`TestContext_Goldens_PreL3Unchanged`). Perception `key` and `energy` are `omitempty`: absent, never null.

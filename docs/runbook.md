@@ -264,6 +264,83 @@ A restored database keeps the derived rows of its snapshot. After restoring, sta
 nothing. If derived rows were dropped or damaged, `metamusic library reconcile` rebuilds them from the
 source tables.
 
+## Features, Atlas and next actions (L3)
+
+### Recompute and verify features
+
+`take_features` and `song_features` are derived. A normal `Settle` (server start, or `metamusic library reconcile`)
+writes whatever is missing or stale; the taxonomy recompute refreshes the affected Songs itself. `reconcile` prints a
+`features N` count.
+
+```bash
+metamusic library reconcile --dry-run   # what a pass would write, features included
+metamusic library reconcile             # rebuilds missing or stale feature rows
+metamusic library verify                # exit 1 on any anomaly (L1 + L2 + L3)
+```
+
+The L3 anomaly codes are `song_features_*`, `take_feature*`, `bpm_octave_invalid`, `sequence_*` and `proposal_*`. A
+`song_features_missing` after a restore means the settle has not run yet; run it, then verify again. A restored database keeps its
+snapshot's rows and `reconcile` completes them (see After a restore, L1).
+
+### Key and energy: `metamusic analyze`
+
+Key and energy are Tier A analyzers like tempo. `metamusic analyze` runs every analyzer that lacks a result for its
+current definition (`mm-key/1`, `mm-energy/1`); `--force` redoes all, `--track ID` limits it, `--jobs N` parallelises
+tracks, `--dry-run` writes nothing. One decode serves the three analyzers, so a track costs about two seconds of CPU.
+After it finishes run `metamusic library reconcile` (the new measurements replace predicted energy and declared keys) and
+`library verify`.
+
+Check the keys by ear on a few recordings you know before relying on them: the estimator is validated on synthetic
+signals, returns null when unsure, and can be wrong on modal, modulating or percussion-heavy music. Several parts of one
+song may legitimately get different keys.
+
+### The key fallback switch
+
+`analysis.KeyEnabled` (`internal/analysis/key.go`) is a compile-time constant. Setting it to `false` and redeploying makes
+the analyzer store its null result: key stays declared, plan or null, and sequencing and the Atlas treat key as unknown
+(neutral cost). Existing measured keys are replaced on the next `analyze --force` and `reconcile`. Energy and tempo are
+unaffected. There is no runtime flag by design.
+
+### Next-action rules and the scope-valve cut order
+
+Next actions come from a rule table (`internal/nextactions/rules*.go`); there is no per-rule runtime switch. If the list is
+noise, cut by editing the table and shipping a build. The core seven stay: `record_proposed_waiting`,
+`muse_record_candidate`, `muse_unrendered`, `taxonomy_proposals_open`, `song_duel`, `muse_unjudged`,
+`muse_partial_angles`. Demotable, lowest priority first (the order to cut them): `features_missing`, `song_no_muse`, `taxonomy_unmapped`,
+`record_unsequenced`, `song_tempo_mismatch`, `song_proposals_waiting`, `record_empty_slot`, `record_undecided_slots`.
+The scope-valve order for the rest of L3, if something must be cut: neighbours on the Atlas and the Song page; colouring
+by Record; the duration and key axes; sequencing a Crate; by-facet adherence and its tab; the key analyzer; the demotable
+rules above; the weekly property job. Record sequencing, next actions, taxonomy proposals and the Atlas itself are never
+cut. A cut that changes a surface needs the matching decision and golden.
+
+### Degraded mode and L3
+
+The startup `Settle` now includes the feature step, so a failure there is a `library_settle` startup issue like any
+other (see the previous section): the server serves degraded, `/healthz` says `ready:false` and the retry loop heals it.
+While degraded, the Atlas, adherence and sequencing read whatever feature rows exist (rows may be missing or stale, and
+the totals strip counts what is missing); `suggest_sequence` answers `SEQUENCE_NO_FEATURES` when no Song has features.
+The taxonomy recompute runs the feature step inside each batch, so a taxonomy decision still refreshes features while
+the settle retries. Nothing here spends money or touches masters.
+
+### Taxonomy proposals
+
+Agents propose with `propose_taxonomy`; you decide on the Sounds page (Proposals tab) or with
+`decide_taxonomy_proposal` (human or paired device only). Review the impact preview (Songs gaining and losing values,
+terms no longer unmapped), accept all or a subset, or reject. A mapping that became effective meanwhile is skipped; if every
+mapping is stale the proposal expires. Open proposals are capped (10 per principal, 50 overall).
+
+### Reading the Atlas totals
+
+The totals strip counts points by basis (measured, declared, plan, predicted), the points *not plotted* (the Song has
+no value on an axis) and, as a lower bound, the points that sit on a predicted value. Hollow markers are predicted and can
+be hidden. Until Songs are rendered and analysed most points are predicted: a handful of dense stacks is the expected
+picture, not a bug. The requested-versus-got view is empty until generated takes have been measured.
+
+### After a restore (features rebuild)
+
+Start the server (the first `Settle` rebuilds missing feature rows), then `metamusic library verify`. If rows were damaged,
+`metamusic library reconcile` rebuilds them; run `metamusic analyze` first only if the analyses table itself was lost.
+
 ## Records, Crates and tapes (L2)
 
 ### Publishing and unpublishing
