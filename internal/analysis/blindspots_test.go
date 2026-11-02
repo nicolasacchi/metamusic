@@ -47,6 +47,15 @@ func TestBlindSpots_Table(t *testing.T) {
 			"section times are score-plan estimates (confidence 0.7)",
 			"a spectrogram shows energy over time and frequency, not pitch accuracy or words",
 		}},
+		{"tempo, key and energy", analysis.BlindSpotFacts{TierA: true, HasSemantic: true, Timed: true, SectionSource: "measured", Tempo: true, Key: true, Energy: true}, []string{
+			"tempo is an estimate that assumes a steady beat: tempo changes, rubato, free-time intros and half/double-time ambiguity are not judged",
+			"key is an estimate from pitch-class statistics: modulations, modal or non-Western music, atonal or percussion-dominated passages and a drone that is not the tonic are not judged",
+			"energy mixes onset rate, brightness and loudness: a quiet but dense mix and a loud sparse one are conflated by mastering, genre bias (ambient music mastered loud reads high), and it is not perceptual arousal",
+		}},
+		{"key only, with a spectrogram", analysis.BlindSpotFacts{TierA: true, HasSemantic: true, Timed: true, SectionSource: "measured", Key: true, Spectrogram: true}, []string{
+			"key is an estimate from pitch-class statistics: modulations, modal or non-Western music, atonal or percussion-dominated passages and a drone that is not the tonic are not judged",
+			"a spectrogram shows energy over time and frequency, not pitch accuracy or words",
+		}},
 		{"no semantic and untimed and spectrogram", analysis.BlindSpotFacts{TierA: true, Spectrogram: true}, []string{
 			"token loops (no semantic.npy for this take)",
 			"section times unknown (no aligned score)",
