@@ -21,7 +21,8 @@ type TierA interface {
 	ToolVersion() string
 	Signal(ctx context.Context, workPath string, sampleRate int, durationS float64) (analysis.Silence, analysis.Clipping, error)
 	SpectrumPicture(ctx context.Context, workPath, outPNG string, w, h int) error
-	Tempo(ctx context.Context, workPath string, durationS float64) (analysis.Tempo, error)
+	// Mono is the one shared decode of tempo, key and energy (C136.0): the first maxS (at most 240) seconds as mono 11 025 Hz.
+	Mono(ctx context.Context, workPath string, maxS int) (analysis.PCM, error)
 }
 
 // Judgments is what ears reads from duels; *duels.Service implements it (earstest.Judgments in tests).

@@ -45,6 +45,8 @@ const (
 	anLoudness    = "loudness"
 	anSpectrum    = "spectrum"
 	anTempo       = "tempo"
+	anKey         = "key"
+	anEnergy      = "energy"
 )
 
 const (
@@ -63,6 +65,8 @@ var defs = map[string]string{
 	anClipping:   analysis.ClippingDef,
 	anTokenLoops: analysis.TokenLoopDef,
 	anTempo:      analysis.TempoDef,
+	anKey:        analysis.KeyDef,
+	anEnergy:     analysis.EnergyDef,
 }
 
 func r2(v float64) float64 { return math.Round(v*100) / 100 }
@@ -200,7 +204,9 @@ type state struct {
 	silence  *SilenceBlock
 	clipping *ClippingBlock
 	tokens   *TokenLoopsBlock
-	tempo    *analysis.Tempo // nil when the analyzer has not run; BPM nil when it found none
+	tempo    *analysis.Tempo  // nil when the analyzer has not run; BPM nil when it found none
+	key      *analysis.Key    // nil when the analyzer has not run; Key nil when none was set
+	energy   *analysis.Energy // nil when the analyzer has not run; Energy nil when there is none
 
 	tier    string
 	missing []string
@@ -288,6 +294,12 @@ func (s *Service) load(ctx context.Context, trackID string) (*state, error) {
 	if r, ok := rows[anTempo]; ok {
 		st.tempo = decode[analysis.Tempo](r, true)
 	}
+	if r, ok := rows[anKey]; ok {
+		st.key = decode[analysis.Key](r, true)
+	}
+	if r, ok := rows[anEnergy]; ok {
+		st.energy = decode[analysis.Energy](r, true)
+	}
 	st.tier, st.missing = tierOf(st)
 	st.flags = computeFlags(st.flagInput())
 	return st, nil
@@ -345,7 +357,8 @@ func (st *state) sectionSource() (source string, conf *float64) {
 func (st *state) blindFacts(spectrogram bool) analysis.BlindSpotFacts {
 	src, conf := st.sectionSource()
 	return analysis.BlindSpotFacts{TierA: st.tier == "A", HasSemantic: st.hasSemantic, Timed: st.d.Timed,
-		SectionSource: src, Confidence: conf, Spectrogram: spectrogram, Lossy: st.d.Lossy, Tempo: st.tempo != nil && !spectrogram}
+		SectionSource: src, Confidence: conf, Spectrogram: spectrogram, Lossy: st.d.Lossy, Tempo: st.tempo != nil && !spectrogram,
+		Key: st.key != nil && !spectrogram, Energy: st.energy != nil && !spectrogram}
 }
 
 func (st *state) blindSpots(spectrogram bool) []string {
