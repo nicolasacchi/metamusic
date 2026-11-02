@@ -1,7 +1,10 @@
 <script lang="ts">
   import { api } from "../api/client";
   import type { components } from "../api/schema";
+  import NextActionList from "../lib/components/NextActionList.svelte";
   import SongChip from "../lib/components/SongChip.svelte";
+  import { museAtlasHref, type NextActionItem } from "../lib/featuresView";
+  import { fetchSubjectActions } from "../lib/subjectActions";
   import { summaryToChip } from "../lib/songView";
   import type { Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
@@ -12,8 +15,10 @@
     navigate?: (to: string, replace?: boolean) => void;
     initial?: Detail;
     viewer?: Viewer | null;
+    /** Pre-loaded next actions (unit tests; the page otherwise fetches them). */
+    initialActions?: NextActionItem[];
   }
-  let { id, initial, viewer = null }: Props = $props();
+  let { id, initial, viewer = null, initialActions }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let me = $state<Viewer | null>(viewer);
@@ -31,6 +36,8 @@
   let titleDraft = $state("");
   let artistDraft = $state("");
   let briefDraft = $state("");
+  // svelte-ignore state_referenced_locally
+  let actions = $state<NextActionItem[] | null>(initialActions ?? null);
   let seq = 0;
 
   async function load() {
@@ -54,6 +61,11 @@
       error = "";
       void load();
     }
+  });
+
+  $effect(() => {
+    if (initialActions) return;
+    void fetchSubjectActions("muse", id).then((a) => (actions = a));
   });
 
   async function patch(body: Omit<components["schemas"]["UpdateMuseInBody"], "revision">): Promise<boolean> {
@@ -151,7 +163,11 @@
       </div>
       {#if detail.songs_total > detail.songs.length}<p class="muted">Showing {detail.songs.length} of {detail.songs_total}.</p>{/if}
     </section>
-    <p><a href="/board?muse={encodeURIComponent(m.id)}" data-testid="muse-board-link">Show on the Board</a></p>
+    <NextActionList items={actions} testid="muse-next" />
+    <p class="links">
+      <a href="/board?muse={encodeURIComponent(m.id)}" data-testid="muse-board-link">Show on the Board</a>
+      <a href={museAtlasHref(m.id)} data-testid="muse-atlas-link">Show on the Atlas</a>
+    </p>
   </article>
 {/if}
 
@@ -171,6 +187,16 @@
     font-size: 0.85rem;
     color: inherit;
     text-decoration: none;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+  }
+  .links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit);
   }
   .edit {
     display: flex;

@@ -98,3 +98,46 @@ describe("Song page curation entry points (L2)", () => {
     expect(h).not.toContain('data-testid="add-to-record"');
   });
 });
+
+describe("Song and Muse L3 entry points (WA2)", () => {
+  const features = {
+    duration_ratio: null,
+    pending: false,
+    subject: { id: "t-pick", kind: "take", note: null },
+    tempo: { bpm: 75, basis: "measured", measured_bpm: 75, octave: false, requested_bpm: 76 },
+    key: { camelot: "8A", name: "A minor", basis: "measured" },
+    energy: { value: 0.33, basis: "predicted" },
+  };
+  const withF = (f: unknown) => render(Song, { props: { id: "s1", initial: { ...songView, features: f }, viewer: human, navigate: () => {}, initialActions: [] } } as never).body;
+  test("the strip shows tempo, key and energy with their bases", () => {
+    const h = withF(features);
+    expect(h).toContain('data-testid="song-features"');
+    expect(h).toContain("75 BPM · measured");
+    expect(h).toContain("8A · A minor · measured");
+    expect(h).toContain("0.33 predicted");
+    expect(h).not.toContain("features-pending");
+  });
+  test("pending shows the updating marker; null features show no key or energy", () => {
+    expect(withF({ ...features, pending: true })).toContain('data-testid="features-pending"');
+    const n = withF(null);
+    expect(n).not.toContain('data-testid="key-badge"');
+    expect(n).not.toContain('data-testid="energy-badge"');
+  });
+  test("the subject note is explained", () => {
+    expect(withF({ ...features, subject: { id: "d", kind: "draft", note: "all_takes_discarded" } })).toContain("Every take is discarded");
+  });
+  test("Show on the Atlas and the next-action list with its empty state", () => {
+    const h = withF(features);
+    expect(h).toContain('href="/atlas?near=s1"');
+    expect(h).toContain('data-testid="song-next"');
+    expect(h).toContain("Nothing suggested right now.");
+    const a = render(Song, { props: { id: "s1", initial: songView, viewer: human, navigate: () => {}, initialActions: [{ code: "judge", priority: 3, text: "Judge the new take", audience: "both", evidence: {}, subject: { kind: "song", id: "s1" } }] } } as never).body;
+    expect(a).toContain("Judge the new take");
+  });
+  test("Muse page: Atlas link and next actions", () => {
+    const m = (acts: unknown) => render(Muse, { props: { id: "muse-a", initial: museDetail, viewer: human, navigate: () => {}, initialActions: acts } } as never).body;
+    expect(m([])).toContain('href="/atlas?muse=muse-a"');
+    expect(m([])).toContain("Nothing suggested right now.");
+    expect(m([{ code: "x", priority: 1, text: "Estimate three drafts", audience: "both", evidence: {}, subject: { kind: "muse", id: "muse-a" } }])).toContain("Estimate three drafts");
+  });
+});
