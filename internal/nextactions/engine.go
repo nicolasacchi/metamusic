@@ -39,7 +39,10 @@ var forTakeCodes = map[string]bool{
 type txReader struct {
 	tx   *sql.Tx
 	live string // JSON array of the live Muse ids the rules of this call may use
-	hook func(query string)
+	// songs is a JSON array of the only Song ids the call is about (a take's Song, a filter on one Song), or "" for every Song. A
+	// rule about Songs restricts its statement through SongScope; a rule about Muses or Records ignores it.
+	songs string
+	hook  func(query string)
 }
 
 func (r *txReader) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
@@ -57,6 +60,16 @@ func LiveMuses(q Reader) string {
 		return r.live
 	}
 	return "[]"
+}
+
+// SongScope returns the JSON array of Song ids a Song-level rule restricts its statement to, and "" when the call is about every
+// Song; a rule passes it twice, as `? = ” OR id IN (SELECT value FROM json_each(?))`. A call about one Song then costs the
+// statement's work for that Song, not for the library (the /context budget).
+func SongScope(q Reader) string {
+	if r, ok := q.(*txReader); ok {
+		return r.songs
+	}
+	return ""
 }
 
 type found struct {
@@ -204,7 +217,7 @@ func (s *Service) render(ctx context.Context, q *txReader, viewer auth.Principal
 			records = append(records, *it.c.Subject.ID)
 		}
 	}
-	n := &names{songs: map[string]string{}, records: map[string]string{}}
+	n := &names{songs: map[string]string{}, records: map[string]string{}, human: viewer.ActsAsHuman()}
 	if err := n.load(ctx, q, "songs", songs, n.songs); err != nil {
 		return nil, err
 	}
@@ -269,6 +282,9 @@ func (s *Service) List(ctx context.Context, viewer auth.Principal, f Filter) (Pa
 	}
 	defer done()
 
+	if f.SubjectKind == SubjectSong && f.SubjectID != "" {
+		q.songs = jsonIDs([]string{f.SubjectID})
+	}
 	filtered := f.SubjectKind != ""
 	lim := 4 * PerCode
 	if filtered {
@@ -369,6 +385,7 @@ func (s *Service) ForTake(ctx context.Context, viewer auth.Principal, trackID st
 		return nil, err
 	}
 	defer done()
+	q.songs = jsonIDs([]string{songID})
 	subjects := map[subjKey]bool{{SubjectSong, songID}: true}
 	if museID.Valid {
 		subjects[subjKey{SubjectMuse, museID.String}] = true
