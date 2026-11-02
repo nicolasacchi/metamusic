@@ -29,7 +29,7 @@ func labelled(t *testing.T, r *servertest.Rig, as []nextactions.Action, only fun
 		museByTitle(t, r, lt.L3Muse3Title): "M3", museByTitle(t, r, lt.L3Muse4Title): "M4", museByTitle(t, r, lt.L3Muse5Title): "M5",
 		recordByTitle(t, r, "Synthetic Record One"): "Record One", recordByTitle(t, r, "Synthetic Record Two"): "Record Two",
 	}
-	for _, s := range []string{"S3", "S4", "T1", "u1"} {
+	for _, s := range []string{"S3", "S4", "S6", "T1", "u1"} {
 		label[songByTitle(t, r, s)] = s
 	}
 	var out []string
@@ -83,8 +83,16 @@ func TestAcceptance_L3_MuseAwareNextActions(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("(code, subject) list for an agent with generate scope:\n got %q\nwant %q", got, want)
 	}
-	if len(pg.Groups) != 0 || pg.Total != len(want) {
-		t.Errorf("groups %v total %d", pg.Groups, pg.Total)
+	if len(pg.Groups) != 0 || pg.Total != len(pg.Items) {
+		t.Errorf("groups %v total %d, items %d", pg.Groups, pg.Total, len(pg.Items))
+	}
+	// the demotable rules of NA3 that fire on the settled-free fixture: the one Muse-less recipe-known Song with a take
+	na3 := map[string]bool{}
+	for _, rule := range nextactions.RuleSets()[2] {
+		na3[rule.Code] = true
+	}
+	if got := labelled(t, r, pg.Items, func(code string) bool { return na3[code] }); !slices.Equal(got, []string{"song_no_muse S6"}) {
+		t.Errorf("NA3 items for an agent with generate scope: %q", got)
 	}
 
 	// the whole page of the fixture is pinned (ids of the fixture are fixed, texts synthetic)
@@ -190,8 +198,8 @@ func TestNextActions_SongScope(t *testing.T) {
 		}
 	})
 	_ = list(t, r, gen, nextactions.Filter{SubjectKind: "song", SubjectID: songByTitle(t, r, "S3")})
-	if len(scoped) != 1 {
-		t.Errorf("song_duel statements %d, want 1", len(scoped))
+	if len(scoped) != 3 {
+		t.Errorf("song-scoped statements %d, want 3 (song_duel, song_tempo_mismatch, song_no_muse)", len(scoped))
 	}
 }
 
