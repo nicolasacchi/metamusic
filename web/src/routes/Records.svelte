@@ -18,6 +18,10 @@
   let { initial, navigate }: Props = $props();
 
   const STATUSES: RecordStatus[] = ["draft", "proposed", "published"];
+  function statusFromSearch(search: string): RecordStatus[] {
+    const vals = new URLSearchParams(search).getAll("status").flatMap((v) => v.split(","));
+    return STATUSES.filter((s) => vals.includes(s));
+  }
   // svelte-ignore state_referenced_locally
   let items = $state<Summary[]>(initial?.items ?? []);
   // svelte-ignore state_referenced_locally
@@ -28,7 +32,9 @@
   let loading = $state(!initial);
   let error = $state("");
   let q = $state("");
-  let status = $state<RecordStatus[]>([]);
+  // ?status=proposed (the needs-you link) opens the list filtered; repeated or comma-separated values are accepted.
+  // svelte-ignore state_referenced_locally
+  let status = $state<RecordStatus[]>(initial || typeof window === "undefined" ? [] : statusFromSearch(window.location.search));
   let showHidden = $state(false);
   let title = $state("");
   let creating = $state(false);

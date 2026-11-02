@@ -283,7 +283,7 @@
     {#if model.needsYou.records > 0}
       <p class="need" data-testid="need-records">
         <span>{model.needsYou.records} proposed Record{model.needsYou.records === 1 ? "" : "s"} to review</span>
-        <a class="btn" href="/records">Open</a>
+        <a class="btn" href="/records?status=proposed">Open</a>
       </p>
     {/if}
     {#if model.needsYou.taxonomy > 0}
