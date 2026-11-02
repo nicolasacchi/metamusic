@@ -98,13 +98,14 @@ var l2Cases = []ParityCase{
 		rec := l2RecordOf(prev)
 		return map[string]any{"id": rec["id"], "revision": rec["revision"], "title": "Synthetic Record 002"}
 	}},
-	{Op: "edit_record_slots", SkipGeneric: true, Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+	{Op: "edit_record_slots", SkipGeneric: true, Masks: l2RecordMasks, Args: func(r *servertest.Rig, prev map[string]any) map[string]any {
+		seedL3Features(r) // L3 C138.2: the sequence op plans on the features rows
 		rec := l2RecordOf(prev)
-		return map[string]any{"id": rec["id"], "revision": rec["revision"], "ops": []map[string]any{{"op": "pin_all"}, {"op": "set_side", "slot_id": l2FirstSlot(prev), "side": "A"}}}
+		return map[string]any{"id": rec["id"], "revision": rec["revision"], "ops": []map[string]any{{"op": "pin_all"}, {"op": "set_side", "slot_id": l2FirstSlot(prev), "side": "A"}, {"op": "sequence", "strategy": "arc"}}}
 	}},
 	{Op: "propose_record", SkipGeneric: true, Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		rec := l2RecordOf(prev)
-		return map[string]any{"id": rec["id"], "revision": rec["revision"], "rationale": "ready to hear"}
+		return map[string]any{"id": rec["id"], "revision": rec["revision"], "rationale": "ready to hear", "sequence": map[string]any{"strategy": "steady"}}
 	}},
 	{Op: "get_record_changes", Masks: l2RecordMasks, Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
 		return map[string]any{"id": l2RecordOf(prev)["id"], "order": "asc"}

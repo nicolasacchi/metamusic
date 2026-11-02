@@ -124,7 +124,7 @@ export interface GoldenChange {
   to_take_id?: string | null;
   reason?: string | null;
   evidence?: { duels_n?: number; stars?: number; tied?: number } | null;
-  detail?: { from?: number; side?: string | null } | null;
+  detail?: { from?: number; side?: string | null; by?: string; strategy?: string; sequence_id?: string } | null;
 }
 
 function whyText(source: string | null | undefined, ev: GoldenChange["evidence"]): string {
@@ -159,6 +159,10 @@ function whyText(source: string | null | undefined, ev: GoldenChange["evidence"]
   return "";
 }
 
+function strategySuffix(s: string | undefined): string {
+  return s ? `: ${s}` : "";
+}
+
 /** Mirror of the Go `records.ChangeText` (C122.3), tested against the shared golden. The server's `ChangeView.text` is what the page shows. */
 export function changeText(c: GoldenChange, names: ((takeId: string) => string) | null): string {
   const title = (id: string | null | undefined): string => (id && names ? names(id) || "a take" : "a take");
@@ -179,7 +183,7 @@ export function changeText(c: GoldenChange, names: ((takeId: string) => string) 
     case "unhidden":
       return "Unhidden";
     case "proposed":
-      return "Proposed for publishing";
+      return c.detail?.sequence_id ? `Proposed for publishing (sequenced${strategySuffix(c.detail.strategy)})` : "Proposed for publishing";
     case "proposal_dismissed":
       return "Sent back to draft";
     case "published":
@@ -192,8 +196,9 @@ export function changeText(c: GoldenChange, names: ((takeId: string) => string) 
       return c.from_take_id ? `${slot} removed (${title(c.from_take_id)})` : `${slot} removed`;
     case "slot_moved": {
       const from = c.detail?.from;
-      if (from != null && c.position != null) return `Slot moved ${from} → ${c.position}`;
-      return c.position != null ? `Slot moved to ${c.position}` : "Slot moved";
+      const by = c.detail?.by === "sequencer" ? ` (sequenced${strategySuffix(c.detail.strategy)})` : "";
+      if (from != null && c.position != null) return `Slot moved ${from} → ${c.position}${by}`;
+      return (c.position != null ? `Slot moved to ${c.position}` : "Slot moved") + by;
     }
     case "slot_side": {
       if (!c.detail || !("side" in c.detail)) return `${slot} side changed`;

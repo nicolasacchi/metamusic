@@ -48,6 +48,9 @@ func coverWire(c recordview.CoverRef) CoverLinks {
 func changeWire(v auth.Principal, c recordview.ChangeView) ChangeView {
 	out := ChangeView{Seq: c.Change.Seq, At: c.Change.At, Kind: c.Change.Kind, Text: c.Text, SlotID: c.Change.SlotID, Position: c.Change.Position,
 		Reason: c.Change.Reason, Actor: RefFor(v, c.Change.Actor, c.Change.ActorKind, c.Change.ActorName)}
+	if c.Sequence != nil {
+		out.Sequence = &ChangeSequence{ID: c.Sequence.ID, Strategy: c.Sequence.Strategy}
+	}
 	if c.From != nil {
 		out.From = &TakeLink{ID: c.From.ID, Title: c.From.Title}
 	}
@@ -80,7 +83,7 @@ func slotWire(s recordview.SlotView) SlotView {
 }
 
 // recordViewWire maps a recordview.View to the wire shape, rendering principals for viewer.
-func recordViewWire(v auth.Principal, w recordview.View) RecordView {
+func recordViewWire(v auth.Principal, w recordview.View) (RecordView, error) {
 	out := RecordView{Record: recordWire(v, w.Record), Slots: make([]SlotView, len(w.Slots)), Cover: coverWire(w.Cover), Pending: w.Pending,
 		Totals:   RecordTotals{Slots: w.Totals.Slots, Playable: w.Totals.Playable, DurationS: w.Totals.DurationS, Lossy: w.Totals.Lossy, Warnings: w.Totals.Warnings, Undecided: w.Totals.Undecided},
 		Warnings: make([]RecordWarning, len(w.Warnings))}
@@ -131,7 +134,14 @@ func recordViewWire(v auth.Principal, w recordview.View) RecordView {
 		}
 		out.Preview = op
 	}
-	return out
+	if w.Sequence != nil {
+		sq, err := sequenceWire(v, w.Sequence)
+		if err != nil {
+			return RecordView{}, err
+		}
+		out.Sequence = sq
+	}
+	return out, nil
 }
 
 // slotOps maps the wire operations to the service's. An absent position means the end for add (records.PositionEnd) and
@@ -168,7 +178,11 @@ func registerRecordsL2(a huma.API, d Deps) {
 		if err != nil {
 			return nil, m2bErr(err, taskV2)
 		}
-		return &recordViewOut{Body: recordViewWire(p, v)}, nil
+		w, err := recordViewWire(p, v)
+		if err != nil {
+			return nil, m2bErr(err, taskV2)
+		}
+		return &recordViewOut{Body: w}, nil
 	}
 
 	Register(a, huma.Operation{
@@ -222,7 +236,11 @@ func registerRecordsL2(a huma.API, d Deps) {
 			if err != nil {
 				return nil, m2bErr(err, taskV2)
 			}
-			return &recordViewOut{Body: recordViewWire(p, v)}, nil
+			w, err := recordViewWire(p, v)
+			if err != nil {
+				return nil, m2bErr(err, taskV2)
+			}
+			return &recordViewOut{Body: w}, nil
 		})
 
 	Register(a, withBody(created(huma.Operation{
@@ -269,7 +287,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 			}
 			p := auth.FromContext(ctx)
 			if _, err := d.Records.EditSlots(ctx, p, in.ID, in.Body.Revision, slotOps(in.Body.Ops)); err != nil {
-				return nil, m2bErr(err, taskSR) // only the sequence op can answer 501 now (L3 lane SR)
+				return nil, m2bErr(err, taskSR)
 			}
 			return view(ctx, p, in.ID)
 		})
@@ -313,7 +331,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 			}
 			p := auth.FromContext(ctx)
 			if _, err := d.Records.ProposeWith(ctx, p, in.ID, in.Body.Revision, in.Body.Rationale, recordsSeqSpec(in.Body.Sequence)); err != nil {
-				return nil, m2bErr(err, taskSR) // only propose_record.sequence can answer 501 now (L3 lane SR)
+				return nil, m2bErr(err, taskSR)
 			}
 			return view(ctx, p, in.ID)
 		})

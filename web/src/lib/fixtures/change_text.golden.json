@@ -329,6 +329,94 @@
     "text": "Slot moved 4 → 1"
   },
   {
+    "name": "slot_moved, sequenced arc",
+    "change": {
+      "id": "ch-slot_moved",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_moved",
+      "slot_id": "sl-1",
+      "position": 1,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "from": 4,
+        "by": "sequencer",
+        "strategy": "arc",
+        "sequence_id": "sq-1"
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot moved 4 → 1 (sequenced: arc)"
+  },
+  {
+    "name": "slot_moved, sequenced steady",
+    "change": {
+      "id": "ch-slot_moved",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "slot_moved",
+      "slot_id": "sl-1",
+      "position": 6,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "from": 2,
+        "by": "sequencer",
+        "strategy": "steady",
+        "sequence_id": "sq-2"
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Slot moved 2 → 6 (sequenced: steady)"
+  },
+  {
+    "name": "proposed, sequenced",
+    "change": {
+      "id": "ch-proposed",
+      "seq": 2,
+      "at": "2026-10-15T12:00:00.000Z",
+      "kind": "proposed",
+      "slot_id": null,
+      "position": null,
+      "from_take_id": null,
+      "to_take_id": null,
+      "reason": null,
+      "pick_event_id": null,
+      "evidence": null,
+      "detail": {
+        "sequence_id": "sq-1",
+        "strategy": "ramp_up"
+      },
+      "actor": "human:h",
+      "actor_kind": "human",
+      "actor_name": "h"
+    },
+    "names": {
+      "tk-a": "Synthetic Take A",
+      "tk-b": "Synthetic Take B"
+    },
+    "text": "Proposed for publishing (sequenced: ramp_up)"
+  },
+  {
     "name": "slot_side",
     "change": {
       "id": "ch-slot_side",

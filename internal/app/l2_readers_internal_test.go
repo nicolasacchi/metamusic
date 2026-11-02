@@ -162,9 +162,9 @@ func TestBatchReaders_OneStatement(t *testing.T) {
 func TestRecordView_NoN1(t *testing.T) {
 	t.Parallel()
 	// Record 1, Resolved 3, songs 1, picks 1, takes 1, stars 1, loudness 1, pending 1, plus the includes: changes 2 (records.Changes checks the Record exists), Muses,
-	// sessions, sounds and costs (liner) 4, the export settings (preview) 1, tapes (none wired here) = 17. The plan listed 12; it
+	// sessions, sounds and costs (liner) 4, the export settings (preview) 1, the latest sequencing run (include=sequence, one statement; the titles of a run are read only when a run exists, L3 C138.5), tapes (none wired here) = 18. The plan listed 12; it
 	// left out the Pick rows, the Take titles, the stars, the costs and the pending probe.
-	const maxStatements = 17
+	const maxStatements = 18
 	counts := map[int]int64{}
 	for _, slots := range []int{6, 60} {
 		cst, n, id, _, _ := scale(t, slots)
