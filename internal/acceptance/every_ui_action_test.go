@@ -46,7 +46,7 @@ type uiState struct {
 	// M4a: a connector grant (inserted through connectors.Store.Ensure) and the Subsonic client create_subsonic_client made
 	grant, subClient string
 	// L1: ids of a Song, a Muse and a session, read from list_songs, create_muse and list_sessions
-	song, muse, session string
+	song, song2, muse, session string
 	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
 	songRev, sessionRev int
 	// L2: the Record, Crate and tape the script creates
@@ -250,17 +250,11 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 
 	// L3 (C142): the 5 operations with a UI route and an MCP face (propose_taxonomy is an agent-face op, D-L3-38;
 	// decide_taxonomy_proposal is human judgment). map_sound_term keeps its entry: D-L3-22 is not approved.
-	"suggest_sequence":        func(s *uiState) map[string]any { return map[string]any{"record_id": s.record} },
+	"suggest_sequence":        func(s *uiState) map[string]any { return map[string]any{"song_id": []string{s.song, s.song2}} },
 	"list_next_actions":       func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"list_taxonomy_proposals": func(*uiState) map[string]any { return map[string]any{"state": []string{"open"}, "limit": 10} },
 	"get_song_atlas":          func(*uiState) map[string]any { return map[string]any{"x": "tempo", "y": "energy", "limit": 50} },
 	"get_adherence":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
-}
-
-// l3PendingStub lists the L3 operations whose handler still answers 501 (their lane has not landed): the script keeps their
-// entry, so the registry-derived set stays complete, but does not call them. A lane deletes its own id when it implements the op.
-var l3PendingStub = map[string]bool{
-	"suggest_sequence": true, "list_next_actions": true, "list_taxonomy_proposals": true, "get_song_atlas": true, "get_adherence": true,
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -368,7 +362,7 @@ func (s *uiState) afterStep(op string, res any) {
 // TestAcceptance_M2a_AgentPerformsEveryUIAction: an agent with a read+write PAT
 // does, over streamable HTTP MCP, everything the web UI does.
 func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
-	r := archiveRig(t, servertest.Options{Backend: "fake", M2b: servertest.M2bOptions{Media: true, Backfill: true}})
+	r := archiveRig(t, servertest.Options{Backend: "fake", RealFeatures: true, M2b: servertest.M2bOptions{Media: true, Backfill: true}})
 	var required []api.OpInfo
 	for _, op := range api.Operations(r.API) {
 		m := op.Meta
@@ -417,6 +411,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if err := r.Store.R.QueryRow(`SELECT id, revision FROM songs WHERE retired_at IS NULL ORDER BY id LIMIT 1`).Scan(&st.song, &st.songRev); err != nil {
 		t.Fatal(err)
 	}
+	if err := r.Store.R.QueryRow(`SELECT id FROM songs WHERE retired_at IS NULL AND id <> ? ORDER BY id LIMIT 1`, st.song).Scan(&st.song2); err != nil {
+		t.Fatal(err)
+	}
 	if err := r.Store.R.QueryRow(`SELECT id, revision FROM sessions ORDER BY id LIMIT 1`).Scan(&st.session, &st.sessionRev); err != nil {
 		t.Fatal(err)
 	}
@@ -439,9 +436,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			}
 			script = spendScript[id]
 		}
-		if l3PendingStub[id] {
-			continue
-		}
 		if id == "export_record_tape" && st.record != "" {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)
 			h.OK(t, "POST", "/human/api/records/"+st.record+"/publish", map[string]any{"revision": st.recordRev, "published": true})
@@ -454,6 +448,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 		if task := l2StubOf(raw); task != "" {
 			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): L2 left no pending stub", id, task)
+		}
+		if task := l3StubOf(raw); task != "" {
+			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): L3 left no pending stub", id, task)
 		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
@@ -536,6 +533,27 @@ func l2StubOf(res *mcp.CallToolResult) string {
 		} `json:"details"`
 	}
 	if json.Unmarshal([]byte(tc.Text), &p) != nil || p.Code != "NOT_IMPLEMENTED" || !strings.HasPrefix(p.Details.Task, "L2-") {
+		return ""
+	}
+	return p.Details.Task
+}
+
+// l3StubOf returns the task of an L3 stub's tool error (the problem 501 NOT_IMPLEMENTED with details.task "L3-..."), else "".
+func l3StubOf(res *mcp.CallToolResult) string {
+	if res == nil || !res.IsError || len(res.Content) == 0 {
+		return ""
+	}
+	tc, ok := res.Content[0].(*mcp.TextContent)
+	if !ok {
+		return ""
+	}
+	var p struct {
+		Code    string `json:"code"`
+		Details struct {
+			Task string `json:"task"`
+		} `json:"details"`
+	}
+	if json.Unmarshal([]byte(tc.Text), &p) != nil || p.Code != "NOT_IMPLEMENTED" || !strings.HasPrefix(p.Details.Task, "L3-") {
 		return ""
 	}
 	return p.Details.Task

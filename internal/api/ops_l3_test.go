@@ -176,7 +176,7 @@ func TestOps_BodyLimitsL3(t *testing.T) {
 	}
 }
 
-// TestOps_StubsAnswer501L3: until its lane lands, every handler answers 501 NOT_IMPLEMENTED naming the lane (details.task).
+// TestOps_StubsAnswer501L3: a handler whose lane has not landed answers 501 NOT_IMPLEMENTED naming the lane (details.task); since INT-B none is left, so an operation missing from implementedL3 fails the test.
 // A lane that takes an operation over adds it to implementedL3.
 func TestOps_StubsAnswer501L3(t *testing.T) {
 	t.Parallel()
@@ -185,6 +185,7 @@ func TestOps_StubsAnswer501L3(t *testing.T) {
 		if implementedL3[w.id] {
 			continue
 		}
+		t.Errorf("%s is still a 501 stub: every L3 operation is implemented (INT-B); add it to implementedL3 only when it is", w.id)
 		code, body := l3Call(r, l3Agent(auth.ScopeRead, auth.ScopeWrite), w)
 		d, _ := body["details"].(map[string]any)
 		if code != 501 || body["code"] != "NOT_IMPLEMENTED" || d["task"] != w.task {
