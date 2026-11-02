@@ -19,7 +19,7 @@
     filtersFromSearch,
     filtersToQuery,
     filtersToSearch,
-    atlasHref,
+    boardAtlasHref,
     mergeBoards,
     rangeSelect,
     selectAllDrafts,
@@ -180,7 +180,7 @@
 {#if error}<p role="alert" data-testid="board-error">{error}</p>{/if}
 
 <BoardToolbar {filters} {sessions} {facets} onchange={commit} />
-<p class="atlaslink"><a href={atlasHref(filters)} data-testid="board-atlas-link">View on the Atlas</a></p>
+<p class="atlaslink"><a href={boardAtlasHref(filters)} data-testid="board-atlas-link">View on the Atlas</a></p>
 
 {#if viewport.phone}
   <button type="button" class="selecttoggle" aria-pressed={selectMode} onclick={toggleSelectMode} data-testid="select-toggle">{selectMode ? "Done selecting" : "Select"}</button>

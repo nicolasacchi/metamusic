@@ -236,7 +236,7 @@ export function filtersToSearch(f: BoardFilters): string {
 }
 
 /** "View on the Atlas": the Atlas page takes the same filter query string (the Board's angle has no Atlas control). */
-export function atlasHref(f: BoardFilters): string {
+export function boardAtlasHref(f: BoardFilters): string {
   const s = filtersToSearch({ ...f, angle: "" });
   return "/atlas" + (s ? "?" + s : "");
 }
