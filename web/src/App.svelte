@@ -267,7 +267,7 @@
     {:else if $router.route?.name === "sounds"}
       <Sounds search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "atlas"}
-      <Atlas />
+      <Atlas search={searchOf($router)} navigate={router.navigate} />
     {:else if $router.route?.name === "draft-new"}
       <DraftNew navigate={router.navigate} />
     {:else if $router.route?.name === "draft-upload"}

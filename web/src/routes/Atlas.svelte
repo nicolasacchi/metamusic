@@ -212,7 +212,7 @@
       {#if asTable}
         <AtlasTable {points} axes={atlas.axes} legend={atlas.legend} {selected} ontoggle={(id) => onselect([id], "toggle")} onopen={open} />
       {:else}
-        <AtlasCanvas {points} axes={atlas.axes} guides={atlas.guides} {hidePredicted} {focusColor} {selected} {selectMode} onopen={open} {onselect} />
+        <AtlasCanvas points={atlas.points} axes={atlas.axes} guides={atlas.guides} {hidePredicted} {focusColor} {selected} {selectMode} onopen={open} {onselect} />
       {/if}
       <AtlasLegend legend={atlas.legend} colorBy={atlas.color_by} focus={focusColor} onfocus={(c) => (focusColor = c)} />
     {:else if loading}

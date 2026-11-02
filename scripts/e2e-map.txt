@@ -96,14 +96,14 @@ web/src/routes/Settings.svelte	m2a-backup m2a-audit
 web/src/routes/Board.svelte	l1-board
 web/src/lib/components/Board*	l1-board
 web/src/lib/components/MusePicker.svelte	l1-board l1-muse
-web/src/routes/Muse.svelte	l1-muse
-web/src/routes/Song.svelte	l1-song
+web/src/routes/Muse.svelte	l1-muse l3-entry-points
+web/src/routes/Song.svelte	l1-song l3-entry-points
 web/src/lib/components/TakeCard.svelte	l1-song
 web/src/lib/components/Pick*	l1-song
 web/src/lib/components/SongChip.svelte	l1-board l1-song
-web/src/routes/Sounds.svelte	l1-sounds
+web/src/routes/Sounds.svelte	l1-sounds l3-proposals
 # L2 (C132.1): web/e2e/l2-{records,tape,crates,curation}.spec.ts
-web/src/routes/Record*.svelte	l2-records
+web/src/routes/Record*.svelte	l2-records l3-sequence l3-next
 web/src/lib/components/SlotRow*	l2-records
 web/src/lib/components/Tape*	l2-tape
 web/src/lib/recordView.ts	l2-records
@@ -208,25 +208,30 @@ internal/liner/*	l2-records l2-tape
 internal/albums/*	l2-records
 internal/crates/*	l2-crates
 internal/curation/*	l2-curation
-# L3 (C146.6). The l3-* specs (l3-atlas, l3-proposals, l3-next, l3-sequence) do not exist yet: verify-selftest fails on a
-# spec that is missing, so the lines point at the closest shipped specs. INT-W: swap each to its l3-* spec when it lands
-# (Atlas -> l3-atlas; TaxonomyProposals/proposalView -> l3-proposals; NextActions/nextActionsView -> l3-next;
-# Record sequence tab -> l2-records l3-sequence; Song/Muse entry points keep l1-* and add the l3 spec they hand off to).
-web/src/routes/Atlas*.svelte	l2-records
-web/src/lib/atlasView.ts	l2-records
-web/src/lib/palette.ts	l2-records
-web/src/lib/atlasApi.ts	l2-records
-web/src/lib/components/Atlas*	l2-records
-web/src/lib/components/TaxonomyProposals.svelte	l1-sounds
-web/src/lib/components/ProposalList.svelte	l1-sounds
-web/src/lib/proposalView.ts	l1-sounds
-web/src/lib/components/NextActions.svelte	l1-sounds l1-song
-web/src/lib/nextActionsView.ts	l1-sounds l1-song
-web/src/lib/components/SequencePanel.svelte	l2-records
-web/src/lib/sequenceView.ts	l2-records
-internal/features/*	l1-sounds l1-song
-internal/sequencer/*	l2-records
-internal/sequence/*	l2-records
-internal/nextactions/*	l1-song l1-board
-internal/atlas/*	l2-records
-web/src/lib/components/TaxonomyTable.svelte	l1-sounds
+# L3 (C146.6): the l3-* specs. Atlas -> l3-atlas; proposals -> l3-proposals; What next -> l3-next; the Record Sequence tab -> l2-records
+# l3-sequence; the Song/Muse entry points -> l3-entry-points beside their l1 specs.
+web/src/routes/Atlas*.svelte	l3-atlas
+web/src/lib/atlasView.ts	l3-atlas
+web/src/lib/palette.ts	l3-atlas
+web/src/lib/atlasApi.ts	l3-atlas
+web/src/lib/components/Atlas*	l3-atlas
+web/src/lib/components/AdherencePanel.svelte	l3-atlas
+web/src/lib/components/TaxonomyProposals.svelte	l3-proposals
+web/src/lib/components/ProposalList.svelte	l3-proposals
+web/src/lib/proposalView.ts	l3-proposals
+web/src/lib/components/NextActions.svelte	l3-next
+web/src/lib/nextActionsView.ts	l3-next l3-entry-points
+web/src/lib/components/NextActionList.svelte	l3-entry-points
+web/src/lib/featuresView.ts	l3-entry-points
+web/src/lib/subjectActions.ts	l3-entry-points
+web/src/lib/components/KeyBadge.svelte	l3-entry-points
+web/src/lib/components/EnergyBadge.svelte	l3-entry-points
+web/src/lib/components/SequencePanel.svelte	l2-records l3-sequence
+web/src/lib/sequenceView.ts	l2-records l3-sequence
+web/src/routes/New.svelte	ux-inbox ux-landing l3-next
+internal/features/*	l3-entry-points l1-song
+internal/sequencer/*	l2-records l3-sequence
+internal/sequence/*	l2-records l3-sequence
+internal/nextactions/*	l3-next l1-song
+internal/atlas/*	l3-atlas
+web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
