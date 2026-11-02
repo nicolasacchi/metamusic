@@ -38,9 +38,11 @@ internal/curation     94
 internal/tape         88
 internal/liner          98
 internal/media/flacmeta 89
-# L3 (I1). Same rule: unit-test coverage measured on main at I1 time (go test -short), rounded down. internal/sequence is
-# still a skeleton (stub only), so it gets a floor when SR lands real code.
-internal/features       85
-internal/sequencer      96
-internal/nextactions    88
+# L3 (I1, retuned by INT-B). Unit-test coverage measured on main after the INT-B tests (go test, no -short), minus one full point
+# of headroom so a map-order or scheduling difference in a test cannot flake the gate; the merged unit + e2e figure in CI is at
+# least the unit one. Measured: sequence 91.2, features 90.7, sequencer 98.3, nextactions 90.8, atlas 94.1.
+internal/sequence       90
+internal/features       89
+internal/sequencer      97
+internal/nextactions    89
 internal/atlas          93

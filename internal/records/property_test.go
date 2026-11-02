@@ -2,11 +2,16 @@ package records_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -63,7 +68,17 @@ func (w *propWorld) draftSong() string {
 	w.r.exec(`INSERT INTO songs(id,root_track_id,draft_id,title,origin,created_by,created_at,updated_by,updated_at)
 		VALUES(?,NULL,?,?,'draft','system:provenance','2026-10-06T00:00:00.000Z','system:provenance','2026-10-06T00:00:00.000Z')`, sid, did, "Synthetic Property Draft "+strconv.Itoa(n))
 	w.songs = append(w.songs, sid)
+	w.seedFeatures(sid, 0x100+n)
 	return sid
+}
+
+// seedFeatures gives a Song synthetic tempo, key and energy (a song_features row of a declared draft subject), so the sequence op
+// has something to order by; the values spread with i.
+func (w *propWorld) seedFeatures(songID string, i int) {
+	w.r.exec(`INSERT INTO song_features(song_id, subject_kind, subject_id, bpm_x100, bpm_basis, energy_x10000, energy_basis, key_num, key_letter, key_basis, digest, feature_def, computed_at)
+		VALUES(?, 'draft', ?, ?, 'declared', ?, 'predicted', ?, ?, 'declared', ?, 'mm-features/1', '2026-10-15T12:00:00.000Z')
+		ON CONFLICT(song_id) DO UPDATE SET bpm_x100 = excluded.bpm_x100, energy_x10000 = excluded.energy_x10000`,
+		songID, fmt.Sprintf("prop-draft-%d", i), 8000+(i*1373)%5000, (i*2713)%10001, 1+(i*5)%12, []string{"A", "B"}[i%2], strings.Repeat("0", 64))
 }
 
 // expected reports whether err is one of the refusals a random edit may meet (a 4xx problem); anything else fails the run.
@@ -109,7 +124,7 @@ func (w *propWorld) step(i int) {
 		w.expected(err)
 		var sop records.SlotOp
 		pick := func() records.Slot { return slots[w.rnd.Intn(len(slots))] }
-		switch k := w.rnd.Intn(6); {
+		switch k := w.rnd.Intn(8); {
 		case k == 0 || len(slots) == 0:
 			sop = records.SlotOp{Op: "add", SongID: w.live(), Position: records.PositionEnd}
 		case k == 1:
@@ -125,11 +140,16 @@ func (w *propWorld) step(i int) {
 			}
 		case k == 4:
 			sop = records.SlotOp{Op: "unpin", SlotID: pick().ID}
-		default:
+		case k == 5:
 			sop = []records.SlotOp{{Op: "pin_all"}, {Op: "unpin_all"}}[w.rnd.Intn(2)]
+		default: // L3: the sequence op, by a human or an agent's draft edit, whatever the features say
+			sop = records.SlotOp{Op: "sequence", Strategy: []string{"", "arc", "ramp_up", "steady"}[w.rnd.Intn(4)]}
 		}
 		_, err = r.svc.EditSlots(ctx, human, rec.ID, rec.Revision, []records.SlotOp{sop})
 		w.expected(err)
+		if err == nil && sop.Op == "sequence" {
+			w.checkSequenceRun(rec.ID)
+		}
 	case 6, 7, 8, 9: // a Pick moves (a rating, a duel verdict, a new Take, an emptied Song)
 		s := w.song()
 		ts := w.takes[s]
@@ -181,7 +201,9 @@ func (w *propWorld) step(i int) {
 			return
 		}
 		var err error
-		switch w.rnd.Intn(3) {
+		switch w.rnd.Intn(4) {
+		case 3: // L3: propose with a sequencing step in the same transaction
+			_, err = r.svc.ProposeWith(ctx, agent, rec.ID, rec.Revision, "synthetic rationale", &records.SeqSpec{Strategy: []string{"", "arc", "steady"}[w.rnd.Intn(3)]})
 		case 0:
 			_, err = r.svc.Propose(ctx, agent, rec.ID, rec.Revision, "synthetic rationale")
 		case 1:
@@ -254,6 +276,39 @@ func (w *propWorld) replay(recID string) {
 	}
 }
 
+// seqRuns counts the sequence ops that succeeded across the seeds, so the oracle is known not to be vacuous.
+var seqRuns atomic.Int64
+
+// checkSequenceRun checks the newest run of a Record after a successful sequence op: it only reordered (the slot ids before and
+// after are the same set, so membership, pins and sides cannot have changed) and the live slots are in the run's order.
+func (w *propWorld) checkSequenceRun(recID string) {
+	w.t.Helper()
+	seqRuns.Add(1)
+	var beforeJSON, afterJSON string
+	if err := w.r.st.R.QueryRow(`SELECT order_before_json, order_after_json FROM record_sequences WHERE record_id = ? ORDER BY at DESC, id DESC LIMIT 1`, recID).Scan(&beforeJSON, &afterJSON); err != nil {
+		w.t.Fatalf("no sequence run stored for %s: %v", recID, err)
+	}
+	var before, after []string
+	if json.Unmarshal([]byte(beforeJSON), &before) != nil || json.Unmarshal([]byte(afterJSON), &after) != nil {
+		w.t.Fatalf("unreadable run: %s %s", beforeJSON, afterJSON)
+	}
+	b, a := slices.Clone(before), slices.Clone(after)
+	sort.Strings(b)
+	sort.Strings(a)
+	if !slices.Equal(a, b) {
+		w.t.Fatalf("sequence changed membership: %v -> %v", before, after)
+	}
+	live, err := w.r.svc.Slots(context.Background(), recID)
+	w.expected(err)
+	var ids []string
+	for _, sl := range live {
+		ids = append(ids, sl.ID)
+	}
+	if !slices.Equal(ids, after) {
+		w.t.Fatalf("the live order %v is not the run's order %v", ids, after)
+	}
+}
+
 func sameTakePtr(a, b *string) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
@@ -280,6 +335,11 @@ func TestProperty_RecordInvariants(t *testing.T) {
 	if testing.Short() {
 		seqs = min(seqs, 12)
 	}
+	t.Cleanup(func() {
+		if seqRuns.Load() == 0 {
+			t.Error("no sequence op succeeded in any seed: the L3 part of the walk is vacuous")
+		}
+	})
 	for seed := 1; seed <= seqs; seed++ {
 		t.Run(fmt.Sprintf("seed%d", seed), func(t *testing.T) {
 			t.Parallel()
@@ -293,6 +353,9 @@ func TestProperty_RecordInvariants(t *testing.T) {
 				}
 			}
 			w.songs = append(w.songs, r.song("S7"))
+			for i, id := range w.songs {
+				w.seedFeatures(id, i+1)
+			}
 			w.draftSong()
 			for i := 0; i < 60; i++ {
 				w.step(i)
