@@ -124,3 +124,14 @@ describe("human labels and empty facets", () => {
     expect(names(visibleFacets(blocks, [], true))).toHaveLength(FACETS.length);
   });
 });
+
+describe("proposals tab URL state", () => {
+  test("tab=proposals round-trips; other tabs and garbage still work", () => {
+    const st = soundsFromSearch("?tab=proposals");
+    expect(st.tab).toBe("proposals");
+    expect(soundsToSearch(st)).toBe("tab=proposals");
+    expect(soundsFromSearch("?tab=terms").tab).toBe("terms");
+    expect(soundsFromSearch("?tab=nope").tab).toBe("songs");
+    expect(soundsToSearch({ ...st, sounds: ["era:90s"] })).toBe("sound=era%3A90s&tab=proposals");
+  });
+});
