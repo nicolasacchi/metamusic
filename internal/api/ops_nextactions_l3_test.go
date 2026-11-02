@@ -60,7 +60,7 @@ func getNA(t *testing.T, c *servertest.Client, query string) (int, naPage, map[s
 }
 
 // TestListNextActions_REST: an agent gets the Muse-aware items of its audience with hints, the human gets its own; the shape is
-// the frozen one (non-null lists, evidence maps, an ISO timestamp), the Muse is named by id prefix and a Muse title never appears.
+// the frozen one (non-null lists, evidence maps, an ISO timestamp), the Muse is named by id tail and a Muse title never appears.
 func TestListNextActions_REST(t *testing.T) {
 	t.Parallel()
 	r := naRig(t)
@@ -75,7 +75,7 @@ func TestListNextActions_REST(t *testing.T) {
 		if it.Evidence == nil || it.Audience == "human" {
 			t.Errorf("%s: evidence %v audience %s", it.Code, it.Evidence, it.Audience)
 		}
-		if strings.Contains(it.Text, "Synthetic") {
+		if strings.Contains(it.Text, "Synthetic Agent") { // the fixture's Muse titles and artists; Song and Record titles are the operator's own
 			t.Errorf("text %q carries Muse text", it.Text)
 		}
 		if it.Hint != nil && it.Hint.Op == "estimate_generation" {
@@ -167,7 +167,7 @@ func TestListNextActions_Validation(t *testing.T) {
 	if err := r.Store.R.QueryRow(`SELECT id FROM muses WHERE title = ?`, m4).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	if _, pg, _ := getNA(t, agent, "?subject_kind=muse&subject_id="+id); len(pg.Items) != 1 || *pg.Items[0].Subject.ID != id || pg.Items[0].Code != "muse_unjudged" {
+	if _, pg, _ := getNA(t, agent, "?subject_kind=muse&subject_id="+id); len(pg.Items) != 2 || *pg.Items[0].Subject.ID != id || pg.Items[0].Code != "muse_unjudged" || *pg.Items[1].Subject.ID != id || pg.Items[1].Code != "muse_partial_angles" {
 		t.Errorf("muse filter: %+v", pg.Items)
 	}
 	if _, pg, _ := getNA(t, agent, "?min_priority=70"); slices.ContainsFunc(pg.Items, func(i struct {

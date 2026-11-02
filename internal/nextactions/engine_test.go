@@ -33,7 +33,7 @@ var (
 )
 
 // fakeMuses is the Muse read of the engine tests: LiveIDs answers a fixed list, and Refs fails the test, because item texts name a
-// Muse by id prefix and must never read Muse text (D-L3-16 is not approved).
+// Muse by id tail and must never read Muse text (D-L3-16 is not approved).
 type fakeMuses struct {
 	t    *testing.T
 	live []string

@@ -173,7 +173,8 @@ func validateHint(t *testing.T, doc openAPI, ops map[string]opSpec, viewer auth.
 		}
 	}
 	for name, p := range params {
-		if _, given := h.Args[name]; !given && p["required"] == true {
+		// a required header (Idempotency-Key) is the caller's to send, not a hint argument
+		if _, given := h.Args[name]; !given && p["required"] == true && p["in"] != "header" {
 			t.Errorf("hint %s: required parameter %s is missing", h.Op, name)
 		}
 		if v, given := h.Args[name]; given {
@@ -205,7 +206,7 @@ func emittedHints(t *testing.T, scopes ...auth.Scope) (nextactions.Page, auth.Pr
 func TestNextActions_HintsAreFree(t *testing.T) {
 	t.Parallel()
 	doc, ops := loadSpec(t)
-	for _, scopes := range [][]auth.Scope{{auth.ScopeRead}, {auth.ScopeRead, auth.ScopeGenerate}} {
+	for _, scopes := range [][]auth.Scope{{auth.ScopeRead}, {auth.ScopeRead, auth.ScopeGenerate}, {auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate}} {
 		pg, p := emittedHints(t, scopes...)
 		n := 0
 		for _, a := range pg.Items {
@@ -214,8 +215,17 @@ func TestNextActions_HintsAreFree(t *testing.T) {
 				validateHint(t, doc, ops, p, *a.Hint)
 			}
 		}
-		if n < 2 {
+		if n < 8 {
 			t.Errorf("scopes %v: only %d hints emitted", scopes, n)
+		}
+		ops := map[string]bool{}
+		for _, a := range pg.Items {
+			if a.Hint != nil {
+				ops[a.Hint.Op] = true
+			}
+		}
+		if len(scopes) == 3 && !(ops["create_duel"] && ops["list_songs"] && ops["get_record"]) {
+			t.Errorf("the NA2 hints are not all exercised: %v", ops)
 		}
 	}
 }

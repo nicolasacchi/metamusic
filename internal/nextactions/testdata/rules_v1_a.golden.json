@@ -13,7 +13,7 @@
     "audience": "agent",
     "min_scope": "read",
     "hint": true,
-    "text": "Muse 019a1b2c has 3 Song(s), none rendered — estimate the first (the estimate is free)"
+    "text": "Muse 000000a2 has 3 Song(s), none rendered — estimate the first (the estimate is free)"
   },
   {
     "code": "taxonomy_proposals_open",
@@ -29,6 +29,6 @@
     "audience": "both",
     "min_scope": "read",
     "hint": true,
-    "text": "Muse 019a1b2c has 4 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)"
+    "text": "Muse 000000a2 has 4 rendered Song(s) nobody has judged — ask the human to listen, or add a critique (add_comment)"
   }
 ]
