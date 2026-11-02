@@ -1,0 +1,274 @@
+{
+  "Order": [
+    "t1",
+    "t6",
+    "t2",
+    "t3",
+    "t4",
+    "t5"
+  ],
+  "Exact": true,
+  "CostInput": 56839750000,
+  "CostOutput": 33709250000,
+  "ImprovementPctX10": 407,
+  "Steps": [
+    {
+      "Position": 1,
+      "SongID": "t1",
+      "EnergyRel": 0,
+      "Target": -1,
+      "From": null,
+      "Reasons": [
+        {
+          "Code": "opener",
+          "Params": {
+            "bpm": 9600,
+            "energy": 0,
+            "key_b": 0,
+            "key_n": 8
+          }
+        }
+      ],
+      "Missing": null
+    },
+    {
+      "Position": 2,
+      "SongID": "t6",
+      "EnergyRel": 1666,
+      "Target": -1,
+      "From": {
+        "Cost": 7257000000,
+        "Parts": {
+          "Tempo": 312500,
+          "Key": 100000,
+          "Energy": 416500
+        },
+        "TempoDeltaPctX100": 625,
+        "KeyRelation": "relative",
+        "EnergyDelta": 1666
+      },
+      "Reasons": [
+        {
+          "Code": "tempo_shift",
+          "Params": {
+            "from": 9600,
+            "pct": 625,
+            "to": 10200
+          }
+        },
+        {
+          "Code": "key_relative",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 1,
+            "to_n": 8
+          }
+        },
+        {
+          "Code": "energy_rise",
+          "Params": {
+            "delta": 1666,
+            "from": 0,
+            "to": 1666
+          }
+        }
+      ],
+      "Missing": null
+    },
+    {
+      "Position": 3,
+      "SongID": "t2",
+      "EnergyRel": 2500,
+      "Target": -1,
+      "From": {
+        "Cost": 4508800000,
+        "Parts": {
+          "Tempo": 204080,
+          "Key": 100000,
+          "Energy": 208500
+        },
+        "TempoDeltaPctX100": -392,
+        "KeyRelation": "relative",
+        "EnergyDelta": 834
+      },
+      "Reasons": [
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 10200,
+            "pct": -392,
+            "to": 9800
+          }
+        },
+        {
+          "Code": "key_relative",
+          "Params": {
+            "from_b": 1,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 8
+          }
+        },
+        {
+          "Code": "energy_hold",
+          "Params": {
+            "delta": 834,
+            "from": 1666,
+            "to": 2500
+          }
+        }
+      ],
+      "Missing": null
+    },
+    {
+      "Position": 4,
+      "SongID": "t3",
+      "EnergyRel": 4166,
+      "Target": -1,
+      "From": {
+        "Cost": 5552400000,
+        "Parts": {
+          "Tempo": 102040,
+          "Key": 150000,
+          "Energy": 416500
+        },
+        "TempoDeltaPctX100": 204,
+        "KeyRelation": "adjacent",
+        "EnergyDelta": 1666
+      },
+      "Reasons": [
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 9800,
+            "pct": 204,
+            "to": 10000
+          }
+        },
+        {
+          "Code": "key_adjacent",
+          "Params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 9
+          }
+        },
+        {
+          "Code": "energy_rise",
+          "Params": {
+            "delta": 1666,
+            "from": 2500,
+            "to": 4166
+          }
+        }
+      ],
+      "Missing": null
+    },
+    {
+      "Position": 5,
+      "SongID": "t4",
+      "EnergyRel": 6666,
+      "Target": -1,
+      "From": {
+        "Cost": 7000000000,
+        "Parts": {
+          "Tempo": 200000,
+          "Key": 0,
+          "Energy": 625000
+        },
+        "TempoDeltaPctX100": 400,
+        "KeyRelation": "same",
+        "EnergyDelta": 2500
+      },
+      "Reasons": [
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 10000,
+            "pct": 400,
+            "to": 10400
+          }
+        },
+        {
+          "Code": "key_same",
+          "Params": {
+            "from_b": 0,
+            "from_n": 9,
+            "to_b": 0,
+            "to_n": 9
+          }
+        },
+        {
+          "Code": "energy_rise",
+          "Params": {
+            "delta": 2500,
+            "from": 4166,
+            "to": 6666
+          }
+        }
+      ],
+      "Missing": null
+    },
+    {
+      "Position": 6,
+      "SongID": "t5",
+      "EnergyRel": 10000,
+      "Target": -1,
+      "From": {
+        "Cost": 9391050000,
+        "Parts": {
+          "Tempo": 192305,
+          "Key": 100000,
+          "Energy": 833500
+        },
+        "TempoDeltaPctX100": 385,
+        "KeyRelation": "relative",
+        "EnergyDelta": 3334
+      },
+      "Reasons": [
+        {
+          "Code": "closer",
+          "Params": {
+            "from": 6666,
+            "to": 10000
+          }
+        },
+        {
+          "Code": "tempo_close",
+          "Params": {
+            "from": 10400,
+            "pct": 385,
+            "to": 10800
+          }
+        },
+        {
+          "Code": "key_relative",
+          "Params": {
+            "from_b": 0,
+            "from_n": 9,
+            "to_b": 1,
+            "to_n": 9
+          }
+        },
+        {
+          "Code": "energy_rise",
+          "Params": {
+            "delta": 3334,
+            "from": 6666,
+            "to": 10000
+          }
+        }
+      ],
+      "Missing": null
+    }
+  ],
+  "Coverage": {
+    "Tempo": 100,
+    "Key": 100,
+    "Energy": 100
+  },
+  "Warnings": null,
+  "Digest": "0ba2413836738e964764b65cae8b202a116ac279dd59a87adc5036305f7073e4"
+}

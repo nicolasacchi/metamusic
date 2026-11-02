@@ -11,6 +11,7 @@
     newSince,
     soonestJob,
     sourceLabel,
+    totalOr,
     type InboxModel,
   } from "../lib/inbox";
   import { heardVersion, inbox, markAllSeen, refreshInboxBadge, reloadSeen } from "../lib/inbox.svelte";
@@ -18,6 +19,7 @@
   import { routeReady } from "../lib/scrollRestore";
   import FlightCard from "../lib/components/inbox/FlightCard.svelte";
   import InboxRow from "../lib/components/inbox/InboxRow.svelte";
+  import NextActions from "../lib/components/NextActions.svelte";
   import PendingApprovals from "../lib/components/PendingApprovals.svelte";
   import PlayIcon from "../lib/components/icons/PlayIcon.svelte";
   import { formatMicroUSD } from "../lib/money";
@@ -63,6 +65,8 @@
       approvals: approvals.items.length,
       openDuels: inbox.duels,
       proposals: inbox.proposals,
+      proposedRecords: inbox.records,
+      taxonomyProposals: inbox.taxonomy,
       failures,
     });
   });
@@ -98,6 +102,14 @@
       api.GET("/api/duels", { params: { query: { state: ["open"], limit: 1 } } }).then((r) => {
         if (r.data) inbox.duels = r.data.total;
       }),
+      api.GET("/api/records", { params: { query: { status: ["proposed"], limit: 1 } } }).then(
+        (r) => void (inbox.records = totalOr(inbox.records, { status: "fulfilled", value: r })),
+        () => undefined,
+      ),
+      api.GET("/api/taxonomy-proposals", { params: { query: { state: ["open"], limit: 1 } } }).then(
+        (r) => void (inbox.taxonomy = totalOr(inbox.taxonomy, { status: "fulfilled", value: r })),
+        () => undefined,
+      ),
     ]);
     if (mine !== seq) return;
     error = "";
@@ -268,6 +280,18 @@
     {#if model.needsYou.duels > 0}
       <p class="need" data-testid="need-duels"><span>{model.needsYou.duels} open duel{model.needsYou.duels === 1 ? "" : "s"}</span> <a class="btn" href="/duels">Start</a></p>
     {/if}
+    {#if model.needsYou.records > 0}
+      <p class="need" data-testid="need-records">
+        <span>{model.needsYou.records} proposed Record{model.needsYou.records === 1 ? "" : "s"} to review</span>
+        <a class="btn" href="/records">Open</a>
+      </p>
+    {/if}
+    {#if model.needsYou.taxonomy > 0}
+      <p class="need" data-testid="need-taxonomy">
+        <span>{model.needsYou.taxonomy} taxonomy proposal{model.needsYou.taxonomy === 1 ? "" : "s"} from agents</span>
+        <a class="btn" href="/sounds?tab=proposals">Open</a>
+      </p>
+    {/if}
     {#if model.needsYou.proposals > 0}
       <p class="need" data-testid="need-proposals">
         <span>{model.needsYou.proposals} Pick proposal{model.needsYou.proposals === 1 ? "" : "s"} from agents</span>
@@ -276,6 +300,8 @@
     {/if}
   </section>
 {/if}
+
+<NextActions />
 
 <section aria-labelledby="new-h" data-testid="inbox-new">
   <h2 id="new-h">New since {new Date(inbox.seenAt).toLocaleDateString(undefined, { weekday: "short" })}</h2>

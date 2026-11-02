@@ -186,5 +186,19 @@
       "empty": 1,
       "slot": 4
     }
+  },
+  {
+    "Code": "song_no_muse",
+    "Audience": "agent",
+    "Subject": "song 01900000-0000-7000-8000-000000d22006",
+    "Text": "Song \"Synthetic Song S6\" has no Muse — if you know its inspiration: create_muse, then assign_muse_songs",
+    "Priority": 25,
+    "Hint": {
+      "Op": "get_song",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000d22006"
+      }
+    },
+    "Evidence": {}
   }
 ]

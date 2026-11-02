@@ -27,14 +27,20 @@ const maxSemanticBytes = 8 << 20
 
 // plan says which analyzers a track needs.
 type plan struct {
-	silence, clipping, tokens, spectro, tempo bool
-	hasSemantic                               bool
-	art                                       library.ArtifactRef
-	secs                                      library.Sections
-	overlay                                   spectro.Overlay
+	silence, clipping, tokens, spectro, tempo, key, energy bool
+	lufs                                                   *float64 // the stored integrated loudness, for energy
+	hasSemantic                                            bool
+	art                                                    library.ArtifactRef
+	secs                                                   library.Sections
+	overlay                                                spectro.Overlay
 }
 
-func (p plan) any() bool { return p.silence || p.clipping || p.tokens || p.spectro || p.tempo }
+func (p plan) any() bool {
+	return p.silence || p.clipping || p.tokens || p.spectro || p.tempo || p.key || p.energy
+}
+
+// pcm reports whether the shared decode is needed.
+func (p plan) pcm() bool { return p.tempo || p.key || p.energy }
 
 // needed lists the analyzers to run, in result order.
 func (p plan) needed() []string {
@@ -42,7 +48,7 @@ func (p plan) needed() []string {
 	for _, n := range []struct {
 		name string
 		on   bool
-	}{{anSilence, p.silence}, {anClipping, p.clipping}, {anTokenLoops, p.tokens}, {anSpectrogram, p.spectro}, {anTempo, p.tempo}} {
+	}{{anSilence, p.silence}, {anClipping, p.clipping}, {anTokenLoops, p.tokens}, {anSpectrogram, p.spectro}, {anTempo, p.tempo}, {anKey, p.key}, {anEnergy, p.energy}} {
 		if n.on {
 			out = append(out, n.name)
 		}
@@ -56,7 +62,7 @@ func (p plan) applicable() []string {
 	if p.hasSemantic {
 		out = append(out, anTokenLoops)
 	}
-	return append(out, anSpectrogram, anTempo)
+	return append(out, anSpectrogram, anTempo, anKey, anEnergy)
 }
 
 // planFor reads what is present and decides what is missing (D-M2b-12), or everything under force.
@@ -80,7 +86,15 @@ func (s *Service) planFor(ctx context.Context, ref library.TrackRef, force bool)
 	_, haveTempo := rows[anTempo]
 	p.silence, p.clipping = force || !haveSil, force || !haveClip
 	p.tokens = has && (force || !haveTok)
-	p.tempo = force || !haveTempo
+	_, haveKey := rows[anKey]
+	_, haveEnergy := rows[anEnergy]
+	p.tempo, p.key, p.energy = force || !haveTempo, force || !haveKey, force || !haveEnergy
+	if r, ok := rows[anLoudness]; ok {
+		if l := decode[library.LoudnessOut](r, true); l != nil {
+			v := l.IntegratedLUFS
+			p.lufs = &v
+		}
+	}
 	p.spectro = force || !sp.current() || sp.Params.OverlaySHA != spectro.OverlaySHA(p.overlay)
 	return p, nil
 }
@@ -118,6 +132,8 @@ type results struct {
 	tokens   *tokenMetrics
 	picture  *picture
 	tempo    *analysis.Tempo
+	key      *analysis.Key
+	energy   *analysis.Energy
 	failed   map[string]string
 }
 
@@ -255,21 +271,85 @@ func (s *Service) compute(ctx context.Context, ref library.TrackRef, p plan) (re
 			res.picture = pic
 		}
 	}
+	if p.pcm() {
+		if err := s.features(ctx, master, ref.DurationS, p, &res); err != nil {
+			return res, err
+		}
+	}
+	return res, nil
+}
+
+// estimators is an optional seam of a fake TierA: it replaces the three estimator steps so a test can dictate (and count) the
+// tempo result and memoise the key and energy results of its fixed buffer. The real decoder, *ffmpeg.FFmpeg, does not
+// implement it: ears then runs analysis.ComputeTempo, ComputeKey and ComputeEnergy on the shared decode.
+type estimators interface {
+	EstimateTempo(pcm analysis.PCM, durationS float64) (analysis.Tempo, error)
+	EstimateKey(pcm analysis.PCM) analysis.Key
+	EstimateEnergy(pcm analysis.PCM, lufs *float64) analysis.Energy
+}
+
+// realEstimators are the production estimators: the pure functions of internal/analysis.
+type realEstimators struct{}
+
+func (realEstimators) EstimateTempo(pcm analysis.PCM, _ float64) (analysis.Tempo, error) {
+	return analysis.ComputeTempo(pcm.Samples, pcm.Rate), nil
+}
+func (realEstimators) EstimateKey(pcm analysis.PCM) analysis.Key { return analysis.ComputeKey(pcm) }
+func (realEstimators) EstimateEnergy(pcm analysis.PCM, lufs *float64) analysis.Energy {
+	return analysis.ComputeEnergy(pcm, lufs)
+}
+
+// features decodes the master once (C136.0) and runs the missing tempo, key and energy analyzers on that one buffer. A
+// decode failure fails the three of them; a failure of one never fails the take.
+func (s *Service) features(ctx context.Context, master string, durationS float64, p plan, res *results) error {
+	failed := func(code string) {
+		for _, n := range []struct {
+			name string
+			on   bool
+		}{{anTempo, p.tempo}, {anKey, p.key}, {anEnergy, p.energy}} {
+			if n.on {
+				res.failed[n.name] = code
+			}
+		}
+	}
+	pcm, err := s.o.Analyzer.Mono(ctx, master, 240)
+	switch {
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case err != nil:
+		failed(codeToolFailed) // a failed decode is a warning per analyzer, never an error of the take
+		return nil             //nolint:nilerr // reported through res.failed
+	}
+	var est estimators = realEstimators{}
+	if fake, ok := s.o.Analyzer.(estimators); ok {
+		est = fake
+	}
 	if p.tempo {
-		tm, err := s.o.Analyzer.Tempo(ctx, master, ref.DurationS)
-		switch {
-		case ctx.Err() != nil:
-			return res, ctx.Err()
-		case err != nil:
+		tm, err := est.EstimateTempo(pcm, durationS)
+		if err != nil {
 			res.failed[anTempo] = codeToolFailed
-		default:
+		} else {
 			if tm.Candidates == nil {
 				tm.Candidates = []analysis.TempoCandidate{}
 			}
 			res.tempo = &tm
 		}
 	}
-	return res, nil
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if p.key {
+		k := est.EstimateKey(pcm)
+		res.key = &k
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if p.energy {
+		e := est.EstimateEnergy(pcm, p.lufs)
+		res.energy = &e
+	}
+	return nil
 }
 
 // tokenLoops reads semantic.npy through the data root and measures it.
@@ -335,7 +415,7 @@ func (s *Service) render(ctx context.Context, ref library.TrackRef, p plan, work
 
 // store commits everything that succeeded in one write transaction (C44 write SQL).
 func (s *Service) store(ctx context.Context, trackID string, res results) error {
-	if res.silence == nil && res.clipping == nil && res.tokens == nil && res.picture == nil && res.tempo == nil {
+	if res.silence == nil && res.clipping == nil && res.tokens == nil && res.picture == nil && res.tempo == nil && res.key == nil && res.energy == nil {
 		return nil
 	}
 	tx, err := s.o.Store.W.BeginTx(ctx, nil)
@@ -372,6 +452,16 @@ func (s *Service) store(ctx context.Context, trackID string, res results) error 
 	if res.tempo != nil {
 		if err := put(anTempo, analysis.TempoDef+" "+tool, res.tempo); err != nil {
 			return fmt.Errorf("ears: store tempo: %w", err)
+		}
+	}
+	if res.key != nil {
+		if err := put(anKey, analysis.KeyDef+" "+tool, res.key); err != nil {
+			return fmt.Errorf("ears: store key: %w", err)
+		}
+	}
+	if res.energy != nil {
+		if err := put(anEnergy, analysis.EnergyDef+" "+tool, res.energy); err != nil {
+			return fmt.Errorf("ears: store energy: %w", err)
 		}
 	}
 	if pic := res.picture; pic != nil {

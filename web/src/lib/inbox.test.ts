@@ -11,6 +11,7 @@ import {
   headerLine,
   heardKey,
   isHeard,
+  needsYouTotal,
   newlyCompleted,
   newSince,
   readHeard,
@@ -18,6 +19,7 @@ import {
   SEEN_KEY,
   soonestJob,
   sourceLabel,
+  totalOr,
   writeHeard,
   writeSeenAt,
   type KV,
@@ -160,7 +162,7 @@ describe("sections", () => {
   });
   test("needs you totals, failures only those since the marker", () => {
     const m = buildInbox(input);
-    expect(m.needsYou).toEqual({ approvals: 2, duels: 3, proposals: 1, total: 6 });
+    expect(m.needsYou).toEqual({ approvals: 2, duels: 3, proposals: 1, records: 0, taxonomy: 0, total: 6 });
     expect(m.failures.map((j) => j.id)).toEqual(["f1"]);
   });
   test("partial when the server has more than was loaded", () => {
@@ -197,5 +199,27 @@ describe("badge and labels", () => {
     expect(headerLine({ count: 7, seconds: 31 * 60, partial: false }, seen, now)).toBe("Since Fri 14:02 · 7 new takes · 31 min");
     expect(headerLine({ count: 1, seconds: 60, partial: true }, seen, now)).toBe("Since Fri 14:02 · 1 new take · at least 1 min");
     expect(sourceLabel(seen, now)).toBe("New since Fri 14:02");
+  });
+});
+
+const baseInput = () => ({
+  tracks: [], trackTotal: 0, seenAt: SEEN, heard: new Set<string>(), unheardProxy: [], batches: [], approvals: 0, openDuels: 0, proposals: 0, failures: [],
+});
+
+describe("needs-you counts (D-L3-33)", () => {
+  test("proposed Records and open taxonomy proposals join the total and the badge", () => {
+    expect(needsYouTotal({ approvals: 1, duels: 2, proposals: 3 })).toBe(6);
+    expect(needsYouTotal({ approvals: 1, duels: 2, proposals: 3, records: 4, taxonomy: 5 })).toBe(15);
+    const m = buildInbox({ ...baseInput(), approvals: 1, openDuels: 1, proposals: 1, proposedRecords: 2, taxonomyProposals: 3 });
+    expect(m.needsYou).toEqual({ approvals: 1, duels: 1, proposals: 1, records: 2, taxonomy: 3, total: 8 });
+    expect(badgeFor(0, m.needsYou.total)).toBe("8");
+    expect(badgeFor(0, needsYouTotal({ approvals: 0, duels: 0, proposals: 0, records: 1, taxonomy: 0 }))).toBe("1");
+  });
+  test("totalOr: a failed or empty call keeps the previous number, a success replaces it (zero included)", () => {
+    const ok = (total: number): PromiseSettledResult<{ data?: { total: number } }> => ({ status: "fulfilled", value: { data: { total } } });
+    expect(totalOr(4, ok(2))).toBe(2);
+    expect(totalOr(4, ok(0))).toBe(0);
+    expect(totalOr(4, { status: "rejected", reason: new Error("net") })).toBe(4);
+    expect(totalOr(4, { status: "fulfilled", value: {} })).toBe(4);
   });
 });

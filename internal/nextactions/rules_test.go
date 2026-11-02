@@ -103,6 +103,12 @@ var samples = map[string]sample{
 		"rendered": 1, "drafts": 4, "_rendered_angles": "remake-long", "_rendered_n": 1, "_draft_angles": "alt-take-long, long, short", "_draft_n": 4}},
 	"record_empty_slot":      {nextactions.Subject{Kind: "record", ID: ptr("01900000-0000-7000-8000-0000000000a1")}, map[string]any{"slot": 3, "empty": 1}},
 	"song_proposals_waiting": {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{"proposals": 2}},
+
+	"song_tempo_mismatch": {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{"requested_bpm": 120, "measured_bpm": 96}},
+	"record_unsequenced":  {nextactions.Subject{Kind: "record", ID: ptr("01900000-0000-7000-8000-0000000000a1")}, map[string]any{"slots": 5}},
+	"taxonomy_unmapped":   {nextactions.Subject{Kind: "taxonomy", ID: ptr("skank")}, map[string]any{"term": "skank", "songs": 6}},
+	"song_no_muse":        {nextactions.Subject{Kind: "song", ID: ptr("01900000-0000-7000-8000-0000000000a3")}, map[string]any{}},
+	"features_missing":    {nextactions.Subject{Kind: "library"}, map[string]any{"songs": 12}},
 }
 
 type goldenRow struct {
@@ -285,6 +291,7 @@ func TestNextActions_Rules_Table(t *testing.T) {
 		}
 	})
 	rulesTableB(t)
+	rulesTableC(t)
 	t.Run("taxonomy_proposals_open counts open proposals only", func(t *testing.T) {
 		if got := byCode(list(t, r, human, nextactions.Filter{}), "taxonomy_proposals_open"); len(got) != 0 {
 			t.Fatalf("no proposal yet: %+v", got)

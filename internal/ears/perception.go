@@ -23,6 +23,12 @@ func (s *Service) Perception(ctx context.Context, trackID string) (Perception, e
 		bpm, conf := *t.BPM, t.Confidence
 		p.TempoBPM, p.TempoConfidence = &bpm, &conf
 	}
+	if k := st.key; k != nil && k.Key != nil && k.Camelot != nil {
+		p.Key = &PerceptionKey{Name: *k.Key, Camelot: *k.Camelot, Confidence: k.R, AmbiguousRelative: k.AmbiguousRelative}
+	}
+	if e := st.energy; e != nil && e.Energy != nil {
+		p.Energy = &PerceptionEnergy{Value: *e.Energy, OnsetRate: e.OnsetRate, CentroidHz: e.CentroidHz}
+	}
 	p.Sections = make([]PerceptionSection, len(st.d.Sections))
 	for i, sec := range st.d.Sections {
 		p.Sections[i] = PerceptionSection{Label: sec.Label, Start: sec.StartS, End: sec.EndS, Source: sec.Source, Confidence: sec.Confidence}
