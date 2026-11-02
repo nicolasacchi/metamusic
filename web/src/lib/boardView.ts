@@ -235,6 +235,12 @@ export function filtersToSearch(f: BoardFilters): string {
   return p.toString();
 }
 
+/** "View on the Atlas": the Atlas page takes the same filter query string (the Board's angle has no Atlas control). */
+export function boardAtlasHref(f: BoardFilters): string {
+  const s = filtersToSearch({ ...f, angle: "" });
+  return "/atlas" + (s ? "?" + s : "");
+}
+
 /** The get_muse_board query for these filters. */
 export function filtersToQuery(f: BoardFilters): BoardQuery {
   const q: BoardQuery = { detail: "chips" };
