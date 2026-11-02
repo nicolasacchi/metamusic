@@ -6,10 +6,15 @@
   import { newIdempotencyKey } from "../api/idem";
   import type { components } from "../api/schema";
   import { createDuel } from "../lib/duelApi";
+  import { songAtlasHref, subjectNoteText, tempoFeatureText, type NextActionItem } from "../lib/featuresView";
+  import { fetchSubjectActions } from "../lib/subjectActions";
   import { draftsIntent, mayGenerate, startGeneration, type Viewer } from "../lib/genIntent";
   import { judge } from "../lib/judge.svelte";
   import AddToCrate from "../lib/components/AddToCrate.svelte";
   import AddToRecord from "../lib/components/AddToRecord.svelte";
+  import EnergyBadge from "../lib/components/EnergyBadge.svelte";
+  import KeyBadge from "../lib/components/KeyBadge.svelte";
+  import NextActionList from "../lib/components/NextActionList.svelte";
   import MusePicker from "../lib/components/MusePicker.svelte";
   import PickHistory from "../lib/components/PickHistory.svelte";
   import ProposalList from "../lib/components/ProposalList.svelte";
@@ -33,8 +38,10 @@
     /** Pre-loaded view (unit tests; the page otherwise fetches it). */
     initial?: View;
     viewer?: Viewer | null;
+    /** Pre-loaded next actions (unit tests; the page otherwise fetches them). */
+    initialActions?: NextActionItem[];
   }
-  let { id, navigate, initial, viewer = null }: Props = $props();
+  let { id, navigate, initial, viewer = null, initialActions }: Props = $props();
 
   function go(to: string) {
     if (navigate) navigate(to);
@@ -62,6 +69,8 @@
   let angleDraft = $state("");
   let pickingMuse = $state(false);
   let angles = $state<string[]>([]);
+  // svelte-ignore state_referenced_locally
+  let actions = $state<NextActionItem[] | null>(initialActions ?? null);
   let attempts = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let seq = 0;
@@ -109,6 +118,13 @@
       void load(true);
     }, delay);
     return () => clearTimeout(timer);
+  });
+  // The Song's own next actions (re-read when the Song reloads, e.g. after a Pick change).
+  $effect(() => {
+    if (initialActions) return;
+    void id;
+    void view?.song.revision;
+    void fetchSubjectActions("song", id).then((a) => (actions = a));
   });
   // Board angles for the datalist (once, human or agent alike).
   $effect(() => {
@@ -240,7 +256,6 @@
         {#if s.angle}<span class="chip" data-testid="song-angle">{s.angle}</span>{/if}
         {#if s.queued_jobs > 0}<span class="chip">queued ×{s.queued_jobs}</span>{/if}
         {#if view.pending || view.pick?.pending}<span class="chip" data-testid="song-pending">updating…</span>{/if}
-        <TempoBadge tempo={view.sounds?.tempo} />
         {#each Object.entries(view.sounds?.facets ?? {}) as [facet, entries] (facet)}
           {#each entries ?? [] as e (e.value)}
             <a class="chip" href="/sounds?sound={encodeURIComponent(`${facet}:${e.value}`)}">{tokenLabel(`${facet}:${e.value}`)}</a>
@@ -250,6 +265,17 @@
           <a class="chip" href="/board?session={encodeURIComponent(ses.id)}" data-testid="song-session">{ses.name}</a>
         {/each}
       </p>
+      <p class="chips" data-testid="song-features">
+        <TempoBadge tempo={view.sounds?.tempo} />
+        {#if view.features}
+          {@const ft = tempoFeatureText(view.features.tempo)}
+          {#if ft}<span class="chip" data-testid="tempo-feature">{ft}</span>{/if}
+          <KeyBadge musicalKey={view.features.key} />
+          <EnergyBadge energy={view.features.energy} />
+          {#if view.features.pending}<span class="chip" data-testid="features-pending">features updating…</span>{/if}
+        {/if}
+      </p>
+      {#if view.features?.subject.note}<p class="muted" data-testid="features-note">{subjectNoteText(view.features.subject.note)}</p>{/if}
       <p class="meta">
         Muse:
         {#if view.muse}
@@ -327,6 +353,11 @@
       </section>
     {/if}
 
+    {#if !s.retired}
+      <p><a class="btn atlas-link" href={songAtlasHref(s.id)} data-testid="song-atlas-link">Show on the Atlas</a></p>
+      <NextActionList items={actions} testid="song-next" />
+    {/if}
+
     <PickHistory songId={s.id} events={view.events ?? []} />
 
     {#if view.lineage}
@@ -370,6 +401,11 @@
   }
   section {
     margin: 1rem 0;
+  }
+  .atlas-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit);
   }
   .curation {
     display: grid;
