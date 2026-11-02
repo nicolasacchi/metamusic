@@ -21,6 +21,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
+// The method set lane AT2 completed (C141); a signature change is a freeze change.
+var _ func(*atlas.Service, context.Context, atlas.Query) (atlas.Atlas, error) = (*atlas.Service).Get
+
 type world struct {
 	st   *store.Store
 	svc  *atlas.Service
