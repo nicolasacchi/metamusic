@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { MAX_TAKES } from "./genIntent";
 import {
+  boardAtlasHref,
   buildGrid,
   crateFromSelection,
   recordFromSelection,
@@ -150,5 +151,15 @@ describe("curation entry points (L2)", () => {
     const r = recordFromSelection(g, { ids: many, anchor: null });
     expect(r.songIds.length).toBe(60);
     expect(r.note).toContain("15 left out");
+  });
+});
+
+describe("boardAtlasHref", () => {
+  test("carries the Board's filter query string to the Atlas, without the angle", () => {
+    const f = filtersFromSearch("?session=s1&state=draft&sound=era%3A90s&angle=acoustic&q=rain&muse=m1");
+    expect(boardAtlasHref(f)).toBe("/atlas?session=s1&state=draft&sound=era%3A90s&q=rain&muse=m1");
+  });
+  test("an unfiltered Board links to the bare Atlas", () => {
+    expect(boardAtlasHref(filtersFromSearch(""))).toBe("/atlas");
   });
 });

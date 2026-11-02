@@ -38,3 +38,9 @@ internal/curation     94
 internal/tape         88
 internal/liner          98
 internal/media/flacmeta 89
+# L3 (I1). Same rule: unit-test coverage measured on main at I1 time (go test -short), rounded down. internal/sequence is
+# still a skeleton (stub only), so it gets a floor when SR lands real code.
+internal/features       85
+internal/sequencer      96
+internal/nextactions    88
+internal/atlas          93
