@@ -12,6 +12,8 @@ type BlindSpotFacts struct {
 	Spectrogram   bool     // the payload is or embeds a spectrogram view
 	Lossy         bool     // the analysed master is (or, for a comparison, includes) an MP3 decode
 	Tempo         bool     // a tempo estimate is part of the payload (C94)
+	Key           bool     // a key estimate is part of the payload (C136.1)
+	Energy        bool     // an energy estimate is part of the payload (C136.2)
 }
 
 // BlindSpots is the one list of things the machine cannot judge (D-M2b-21): it
@@ -47,6 +49,12 @@ func BlindSpots(f BlindSpotFacts) []string {
 	}
 	if f.Tempo {
 		out = append(out, "tempo is an estimate that assumes a steady beat: tempo changes, rubato, free-time intros and half/double-time ambiguity are not judged")
+	}
+	if f.Key {
+		out = append(out, "key is an estimate from pitch-class statistics: modulations, modal or non-Western music, atonal or percussion-dominated passages and a drone that is not the tonic are not judged")
+	}
+	if f.Energy {
+		out = append(out, "energy mixes onset rate, brightness and loudness: a quiet but dense mix and a loud sparse one are conflated by mastering, genre bias (ambient music mastered loud reads high), and it is not perceptual arousal")
 	}
 	if f.Spectrogram {
 		out = append(out, "a spectrogram shows energy over time and frequency, not pitch accuracy or words")

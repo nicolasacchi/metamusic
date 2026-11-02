@@ -47,3 +47,8 @@ for (const bg of ["bg", "surface"]) {
     expect(contrast(token("line-strong"), token(bg))).toBeGreaterThanOrEqual(3);
   });
 }
+
+test("Atlas palette tokens exist (12 + other) as #rrggbb literals", () => {
+  for (let i = 1; i <= 12; i++) token(`atlas-${i}`);
+  token("atlas-other");
+});

@@ -1,0 +1,25 @@
+{
+  "key": "A minor",
+  "tonic": 9,
+  "mode": "minor",
+  "camelot": "8A",
+  "r": 0.865,
+  "margin": 0.268,
+  "ambiguous_relative": false,
+  "tuning_cents": -21.2,
+  "alternatives": [
+    {
+      "key": "C major",
+      "r": 0.597
+    },
+    {
+      "key": "E minor",
+      "r": 0.571
+    },
+    {
+      "key": "E major",
+      "r": 0.552
+    }
+  ],
+  "analyzed_s": 40
+}

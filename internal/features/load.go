@@ -15,12 +15,11 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sounds"
 )
 
-// The analyzer definitions features reads (C135.2). TempoDef lives in analysis; key and energy are added by lane E1, so
-// the text is repeated here until both lanes have landed (a row of any other definition is ignored by SelectAnalysis).
+// The analyzer definitions features reads (C135.2); a row of any other definition is ignored by SelectAnalysis.
 const (
 	tempoDef  = analysis.TempoDef
-	keyDef    = "mm-key/1"
-	energyDef = "mm-energy/1"
+	keyDef    = analysis.KeyDef
+	energyDef = analysis.EnergyDef
 )
 
 // db is the statement surface of a transaction; cache prepares each statement once per transaction.

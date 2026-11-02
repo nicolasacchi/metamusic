@@ -14,6 +14,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -172,9 +173,11 @@ type TierA struct {
 	Clipping          analysis.Clipping
 	SignalErr, PicErr error
 	TempoErr          error
+	MonoErr           error
 	tempo             analysis.Tempo
 	signals, pictures int
 	tempos            int
+	monos             int
 }
 
 // NewTierA returns a TierA reporting no silence and no clipping.
@@ -226,15 +229,78 @@ func (a *TierA) SpectrumPicture(_ context.Context, _, outPNG string, w, h int) e
 	return os.WriteFile(outPNG, buf.Bytes(), 0o600)
 }
 
-// SetTempo replaces the result Tempo returns (the default is a steady 96 BPM).
+// SetTempo replaces the result EstimateTempo returns (the default is a steady 96 BPM).
 func (a *TierA) SetTempo(t analysis.Tempo) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.tempo = t
 }
 
-// Tempo implements ears.TierA: the configured result (or TempoErr), AnalyzedSeconds set to durationS.
-func (a *TierA) Tempo(_ context.Context, _ string, durationS float64) (analysis.Tempo, error) {
+// MonoRate and MonoSeconds are the shape of the fake decode: 30 s at 11 025 Hz.
+const (
+	MonoRate    = 11025
+	MonoSeconds = 30
+)
+
+// Mono implements ears.TierA: a deterministic buffer seeded by the path's base name (a I-IV-V-I triad progression in a key
+// the name picks, plus a faint noise floor), so ears runs the real key and energy estimators on it. Decodes are counted
+// (MonoCalls) and MonoErr fails them all.
+func (a *TierA) Mono(_ context.Context, workPath string, _ int) (analysis.PCM, error) {
+	a.mu.Lock()
+	a.monos++
+	err := a.MonoErr
+	a.mu.Unlock()
+	if err != nil {
+		return analysis.PCM{}, err
+	}
+	return analysis.NewPCM(monoBuffer(workPath), MonoRate), nil
+}
+
+// monoBuffers memoises the buffers: the key is the seed (12 tonics x 2 modes), the signal is read-only.
+var monoBuffers sync.Map
+
+// monoBuffer is C major (or another key the path's checksum picks) as 30 s of harmonic triads: key analysis reads it as
+// that key, energy as a quiet pad.
+func monoBuffer(path string) []float32 {
+	h := 0
+	for _, c := range filepath.Base(path) {
+		h = (h*31 + int(c)) % 24
+	}
+	if b, ok := monoBuffers.Load(h); ok {
+		return b.([]float32)
+	}
+	tonic, minor := h%12, h >= 12
+	third := 4
+	chords := [4][3]int{{0, third, 7}, {5, 5 + third, 12}, {7, 11, 14}, {0, third, 7}}
+	if minor {
+		third = 3
+		chords = [4][3]int{{0, third, 7}, {5, 8, 12}, {7, 11, 14}, {0, third, 7}}
+	}
+	root := 45 + ((tonic-9)%12+12)%12
+	chordN := 5 * MonoRate
+	cycle := make([]float32, 4*chordN)
+	for i := range cycle {
+		t := float64(i) / MonoRate
+		var v float64
+		for _, semi := range chords[i/chordN] {
+			f := 440 * math.Pow(2, float64(root+semi-69)/12)
+			for k := 1; k <= 6; k++ {
+				v += math.Sin(2*math.Pi*f*float64(k)*t) / float64(k)
+			}
+		}
+		cycle[i] = float32(0.05 * v)
+	}
+	x := make([]float32, MonoSeconds*MonoRate)
+	for i := range x {
+		x[i] = cycle[i%len(cycle)]
+	}
+	b, _ := monoBuffers.LoadOrStore(h, x)
+	return b.([]float32)
+}
+
+// EstimateTempo replaces ears' tempo step (see ears.tempoEstimator): the configured result (or TempoErr), with
+// AnalyzedSeconds set to durationS. Calls are counted (TempoCalls).
+func (a *TierA) EstimateTempo(_ analysis.PCM, durationS float64) (analysis.Tempo, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.tempos++
@@ -246,11 +312,57 @@ func (a *TierA) Tempo(_ context.Context, _ string, durationS float64) (analysis.
 	return t, nil
 }
 
-// TempoCalls reports how many Tempo runs happened.
+// estimates memoises the real key and energy results of the fixed fake buffer: the first call runs
+// analysis.ComputeKey / ComputeEnergy on it, the others (one per AnalyzeTrack in rigs with hundreds of takes) reuse them.
+var estimates sync.Map
+
+type energyKey struct {
+	p    *float32
+	lufs float64
+	has  bool
+}
+
+// EstimateKey implements ears' estimator seam: analysis.ComputeKey of the buffer, memoised.
+func (a *TierA) EstimateKey(pcm analysis.PCM) analysis.Key {
+	if len(pcm.Samples) == 0 {
+		return analysis.ComputeKey(pcm)
+	}
+	k := &pcm.Samples[0]
+	if v, ok := estimates.Load(k); ok {
+		return v.(analysis.Key)
+	}
+	v, _ := estimates.LoadOrStore(k, analysis.ComputeKey(pcm))
+	return v.(analysis.Key)
+}
+
+// EstimateEnergy implements ears' estimator seam: analysis.ComputeEnergy of the buffer, memoised per LUFS value.
+func (a *TierA) EstimateEnergy(pcm analysis.PCM, lufs *float64) analysis.Energy {
+	if len(pcm.Samples) == 0 {
+		return analysis.ComputeEnergy(pcm, lufs)
+	}
+	k := energyKey{p: &pcm.Samples[0]}
+	if lufs != nil {
+		k.lufs, k.has = *lufs, true
+	}
+	if v, ok := estimates.Load(k); ok {
+		return v.(analysis.Energy)
+	}
+	v, _ := estimates.LoadOrStore(k, analysis.ComputeEnergy(pcm, lufs))
+	return v.(analysis.Energy)
+}
+
+// TempoCalls reports how many tempo estimates ran.
 func (a *TierA) TempoCalls() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.tempos
+}
+
+// MonoCalls reports how many shared decodes happened.
+func (a *TierA) MonoCalls() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.monos
 }
 
 // Calls reports how many Signal and SpectrumPicture runs happened.

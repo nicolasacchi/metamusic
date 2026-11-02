@@ -1,0 +1,12 @@
+{
+  "energy": 0.7939,
+  "onset_rate": 3.967,
+  "centroid_hz": 2521,
+  "lufs": -13.4,
+  "components": {
+    "onset": 0.7704,
+    "centroid": 0.8732,
+    "loudness": 0.7412
+  },
+  "analyzed_s": 30
+}
