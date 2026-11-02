@@ -19,6 +19,7 @@
     filtersFromSearch,
     filtersToQuery,
     filtersToSearch,
+    atlasHref,
     mergeBoards,
     rangeSelect,
     selectAllDrafts,
@@ -179,6 +180,7 @@
 {#if error}<p role="alert" data-testid="board-error">{error}</p>{/if}
 
 <BoardToolbar {filters} {sessions} {facets} onchange={commit} />
+<p class="atlaslink"><a href={atlasHref(filters)} data-testid="board-atlas-link">View on the Atlas</a></p>
 
 {#if viewport.phone}
   <button type="button" class="selecttoggle" aria-pressed={selectMode} onclick={toggleSelectMode} data-testid="select-toggle">{selectMode ? "Done selecting" : "Select"}</button>
@@ -240,6 +242,14 @@
     gap: 0.5rem;
     align-items: center;
     margin: 0.5rem 0;
+  }
+  .atlaslink {
+    margin: 0 0 var(--sp-2);
+  }
+  .atlaslink a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit);
   }
   .selecttoggle {
     margin: 0.5rem 0;

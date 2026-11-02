@@ -43,6 +43,11 @@ describe("Board page", () => {
     expect(page({ ...board, next_cursor: "c" })).toContain('data-testid="board-more"');
     expect(h).not.toContain('data-testid="board-more"');
   });
+  test("View on the Atlas carries the filter query string", () => {
+    expect(h).toMatch(/href="\/atlas"[^>]*data-testid="board-atlas-link"/);
+    const f = page(board, "?state=draft&sound=era%3A90s&muse=muse-a");
+    expect(f).toMatch(/href="\/atlas\?state=draft&amp;sound=era%3A90s&amp;muse=muse-a"[^>]*data-testid="board-atlas-link"/);
+  });
   test("a 600-chip Board renders", () => {
     expect((page(bigBoard(600)).match(/data-testid="song-chip"/g) ?? []).length).toBe(600);
   });
