@@ -9,8 +9,3 @@ import (
 func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 	return Atlas{}, errors.ErrUnsupported
 }
-
-// Adherence answers get_adherence (lane AD).
-func (s *Service) Adherence(ctx context.Context, q AdherenceQuery) (Adherence, error) {
-	return Adherence{}, errors.ErrUnsupported
-}

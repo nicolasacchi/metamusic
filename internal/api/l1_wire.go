@@ -156,7 +156,23 @@ func songViewWire(v auth.Principal, w songview.View) SongView {
 	if l := w.Lineage; l != nil {
 		out.Lineage = &SongLineage{RootTrackID: l.RootTrackID, Generations: l.Generations, ChildrenTotal: l.ChildrenTotal}
 	}
+	out.Features = featuresWire(w.Features)
 	return out
+}
+
+// featuresWire maps the songview block to the wire block (C142); nil stays null.
+func featuresWire(f *songview.FeaturesBlock) *FeaturesBlock {
+	if f == nil {
+		return nil
+	}
+	return &FeaturesBlock{
+		Tempo:         FeaturesTempo{BPM: f.Tempo.BPM, Basis: f.Tempo.Basis, RequestedBPM: f.Tempo.RequestedBPM, MeasuredBPM: f.Tempo.MeasuredBPM, Octave: f.Tempo.Octave},
+		Energy:        FeaturesEnergy{Value: f.Energy.Value, Basis: f.Energy.Basis},
+		Key:           FeaturesKey{Camelot: f.Key.Camelot, Name: f.Key.Name, Basis: f.Key.Basis},
+		DurationRatio: f.DurationRatio,
+		Subject:       FeaturesSubject{Kind: f.Subject.Kind, ID: f.Subject.ID, Note: f.Subject.Note},
+		Pending:       f.Pending,
+	}
 }
 
 func boardWire(b board.Board) Board {
