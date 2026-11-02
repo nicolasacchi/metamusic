@@ -156,6 +156,12 @@ func cmdLibraryReconcile(ctx context.Context, args []string, getenv func(string)
 	for _, a := range rep.Anomalies {
 		fmt.Fprintf(s.out, "anomaly: %s %s\n", a.Code, a.Subject)
 	}
+	// A settle only derives rows for dirty keys. A library settled before a derived table existed (the feature rows of a Song
+	// whose subject is a draft, say) has a drained queue and nothing to dirty, so the stale-row sweep the server runs at start
+	// backfills it here too (C135.5); `library verify` then holds.
+	if err := prov.Sweep(ctx); err != nil && !errors.Is(err, provenance.ErrSettleBusy) {
+		return fatal(fmt.Errorf("library reconcile: sweep: %w", err))
+	}
 	if err := l2Reconcile(ctx, st, false, s.out); err != nil { // the Record syncer settles after the provenance Settle
 		return fatal(fmt.Errorf("library reconcile: records: %w", err))
 	}
