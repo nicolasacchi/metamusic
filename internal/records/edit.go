@@ -36,6 +36,8 @@ type edit struct {
 	list     []*Slot
 	changes  []Change
 	warnings []string
+	// sequences are the runs the sequence ops of this call stored, in order (L3 C138.2).
+	sequences []SequenceOutcome
 }
 
 func (e *edit) emit(c Change) error {
@@ -94,9 +96,15 @@ func (e *edit) positions() map[string]int {
 
 // emitMoves writes one slot_moved row per slot whose position differs from before, in the order of the new positions.
 func (e *edit) emitMoves(before map[string]int) error {
+	return e.emitMovesWith(before, func(from int) []byte { return []byte(fmt.Sprintf(`{"from":%d}`, from)) })
+}
+
+// emitMovesWith is emitMoves with the detail_json of each row built from the old position (the sequence op adds the
+// sequencer's evidence, L3 C138.2).
+func (e *edit) emitMovesWith(before map[string]int, detail func(from int) []byte) error {
 	for i, sl := range e.list {
 		if old, ok := before[sl.ID]; ok && old != i+1 {
-			if err := e.emit(Change{Kind: KindSlotMoved, SlotID: strp(sl.ID), Position: intp(i + 1), Detail: []byte(fmt.Sprintf(`{"from":%d}`, old))}); err != nil {
+			if err := e.emit(Change{Kind: KindSlotMoved, SlotID: strp(sl.ID), Position: intp(i + 1), Detail: detail(old)}); err != nil {
 				return err
 			}
 		}
@@ -317,6 +325,9 @@ func (e *edit) unpinAll() error {
 }
 
 func (e *edit) apply(op SlotOp) error {
+	if op.Op != "sequence" && (op.Strategy != "" || op.FirstSongID != "" || op.LastSongID != "") {
+		return errInvalid("op", "strategy, first_song_id and last_song_id belong to the sequence op")
+	}
 	switch op.Op {
 	case "add":
 		return e.add(op)
@@ -341,7 +352,7 @@ func (e *edit) apply(op SlotOp) error {
 	case "unpin_all":
 		return e.unpinAll()
 	case "sequence":
-		return errSequenceUnsupported() // lane SR (L3 C138.2)
+		return e.sequence(op)
 	}
 	return errInvalid("op", "op must be add, remove, move, reorder, pin, unpin, set_side, pin_all or unpin_all")
 }
@@ -349,11 +360,6 @@ func (e *edit) apply(op SlotOp) error {
 // EditSlots applies ops in one write transaction (C121.3). A call that changes nothing (every operation was a no-op)
 // writes no row and does not bump the revision; the catch-up rows R-b's seam may have written still commit.
 func (s *Service) EditSlots(ctx context.Context, p auth.Principal, id string, revision int, ops []SlotOp) (EditResult, error) {
-	for _, op := range ops {
-		if op.Op == "sequence" {
-			return EditResult{}, errSequenceUnsupported() // lane SR (L3 C138.2): answered before any read or write
-		}
-	}
 	if len(ops) == 0 {
 		return EditResult{}, errInvalid("ops", "at least one operation is required")
 	}
@@ -380,10 +386,7 @@ func (s *Service) EditSlots(ctx context.Context, p auth.Principal, id string, re
 		if err != nil {
 			return err
 		}
-		e := &edit{s: s, ctx: ctx, tx: tx, rec: rec, p: p, at: s.stamp()}
-		for i := range slots {
-			e.list = append(e.list, &slots[i])
-		}
+		e := s.newEdit(ctx, tx, rec, p, s.stamp(), slots)
 		for i, op := range ops {
 			if err := e.apply(op); err != nil {
 				return withOp(err, i)
@@ -393,7 +396,7 @@ func (s *Service) EditSlots(ctx context.Context, p auth.Principal, id string, re
 			return problem.E(422, "TOO_MANY_SLOTS", "a record holds at most 60 slots", map[string]any{"limit": MaxSlots, "slots": len(e.list)})
 		}
 		if len(e.changes) == 0 {
-			out = EditResult{Record: rec, Warnings: e.warnings}
+			out = EditResult{Record: rec, Warnings: e.warnings, Sequences: e.sequences}
 			return nil
 		}
 		order := make([]string, len(e.list))
@@ -415,7 +418,7 @@ func (s *Service) EditSlots(ctx context.Context, p auth.Principal, id string, re
 		if err != nil {
 			return err
 		}
-		out = EditResult{Record: updated, Changes: e.changes, Warnings: e.warnings}
+		out = EditResult{Record: updated, Changes: e.changes, Warnings: e.warnings, Sequences: e.sequences}
 		return nil
 	})
 	if err != nil {

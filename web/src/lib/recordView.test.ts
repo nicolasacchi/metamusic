@@ -92,7 +92,7 @@ describe("canEdit / canPublish", () => {
 
 describe("changeText mirrors the shared golden", () => {
   const rows = JSON.parse(readFileSync(new URL("./fixtures/change_text.golden.json", import.meta.url), "utf8")) as { name: string; change: GoldenChange; names: Record<string, string>; text: string }[];
-  test("24 rows", () => expect(rows).toHaveLength(24));
+  test("27 rows", () => expect(rows).toHaveLength(27));
   for (const r of rows) test(r.name, () => expect(changeText(r.change, (id) => r.names[id] ?? "")).toBe(r.text));
   test("the web golden is a byte copy of the Go one", () => {
     const go = readFileSync(new URL("../../../internal/records/testdata/change_text.golden.json", import.meta.url), "utf8");

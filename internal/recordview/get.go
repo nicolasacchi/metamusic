@@ -68,6 +68,11 @@ func (s *Service) Get(ctx context.Context, viewer auth.Principal, id string, o G
 			return View{}, fmt.Errorf("recordview: tapes: %w", err)
 		}
 	}
+	if has(IncludeSequence) {
+		if v.Sequence, err = s.sequenceView(ctx, d); err != nil {
+			return View{}, err
+		}
+	}
 	if has(IncludePreview) {
 		if v.Preview, err = s.preview(ctx, d); err != nil {
 			return View{}, err

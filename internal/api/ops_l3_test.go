@@ -45,7 +45,7 @@ var l3Ops = []l3Op{
 
 // implementedL3 lists the operations whose stub a lane has replaced (the lane adds its ids here and its own handler tests
 // cover the behaviour).
-var implementedL3 = map[string]bool{"list_next_actions": true, "propose_taxonomy": true, "list_taxonomy_proposals": true, "decide_taxonomy_proposal": true, "get_adherence": true, "get_song_atlas": true}
+var implementedL3 = map[string]bool{"suggest_sequence": true, "list_next_actions": true, "propose_taxonomy": true, "list_taxonomy_proposals": true, "decide_taxonomy_proposal": true, "get_adherence": true, "get_song_atlas": true}
 
 func l3Deps() api.Deps {
 	return api.Deps{
@@ -229,27 +229,13 @@ func TestOps_AuthorizationL3(t *testing.T) {
 	}
 }
 
-// TestEditSlots_SequenceOp501: the slot op sequence is accepted by the schema and answers 501 naming lane SR until it lands;
-// propose_record with a sequence body does the same, and propose_record without one is the L2 behaviour.
-func TestEditSlots_SequenceOp501(t *testing.T) {
+// TestEditSlots_UnknownOpEnum: the slot op enum of the schema rejects an unknown op before the handler runs; the sequence op
+// itself is covered by TestEditRecordSlots_Sequence_REST.
+func TestEditSlots_UnknownOpEnum(t *testing.T) {
 	t.Parallel()
 	r := l3Rig(t, l3Deps())
 	p := l3Agent(auth.ScopeRead, auth.ScopeWrite)
-	for name, tc := range map[string]struct{ path, body string }{
-		"slot op":         {"/api/records/x/slots", `{"revision":1,"ops":[{"op":"sequence","strategy":"arc","first_song_id":"a","last_song_id":"b"}]}`},
-		"propose payload": {"/api/records/x/proposal", `{"revision":1,"rationale":"r","sequence":{"strategy":"ramp_up"}}`},
-	} {
-		rec := r.callWith(p, "POST", tc.path, tc.body)
-		var m map[string]any
-		_ = json.Unmarshal(rec.Body.Bytes(), &m)
-		d, _ := m["details"].(map[string]any)
-		// records.New(nil, ...) has no store: the sequence paths must answer before touching it
-		if rec.Code != 501 || m["code"] != "NOT_IMPLEMENTED" || d["task"] != "L3-SR" {
-			t.Errorf("%s: %d %s, want 501 NOT_IMPLEMENTED task L3-SR", name, rec.Code, rec.Body.String())
-		}
-	}
-	bad := r.callWith(p, "POST", "/api/records/x/slots", `{"revision":1,"ops":[{"op":"bogus"}]}`)
-	if bad.Code != 422 {
+	if bad := r.callWith(p, "POST", "/api/records/x/slots", `{"revision":1,"ops":[{"op":"bogus"}]}`); bad.Code != 422 {
 		t.Errorf("an unknown op: %d, want 422 from the schema enum", bad.Code)
 	}
 }

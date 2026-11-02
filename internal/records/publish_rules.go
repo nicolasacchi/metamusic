@@ -30,12 +30,10 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, id string, revi
 	return s.ProposeWith(ctx, p, id, revision, rationale, nil)
 }
 
-// ProposeWith is Propose with an optional sequencing step in the same transaction (L3 C138.3). A non-nil seq is lane SR's
-// until it lands: it answers errors.ErrUnsupported before anything is read or written.
+// ProposeWith is Propose with an optional sequencing step in the same transaction (L3 C138.3): the slots are ordered by the
+// sequence op as the proposing principal, then the Record is proposed; one revision bump for the whole call, and a failing
+// sequence step fails the call without a write. Without seq it is exactly Propose.
 func (s *Service) ProposeWith(ctx context.Context, p auth.Principal, id string, revision int, rationale string, seq *SeqSpec) (Record, error) {
-	if seq != nil {
-		return Record{}, errSequenceUnsupported()
-	}
 	note, err := cleanLine("rationale", rationale, 1, MaxProposalNote)
 	if err != nil {
 		return Record{}, err
@@ -60,11 +58,19 @@ func (s *Service) ProposeWith(ctx context.Context, p auth.Principal, id string, 
 			return errEmpty("a record needs at least one slot to be proposed")
 		}
 		at := s.stamp()
+		change := Change{Kind: KindProposed}
+		if seq != nil {
+			run, err := s.sequenceForPropose(ctx, tx, rec, p, at, *seq)
+			if err != nil {
+				return err
+			}
+			change.Detail = proposedDetail(run)
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE records SET status = 'proposed', proposal_note = ?, proposed_by = ?, proposed_at = ?,
 			revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?`, note, p.Key(), at, p.Key(), at, id); err != nil {
 			return fmt.Errorf("records: propose: %w", err)
 		}
-		if _, err := s.insertChangeRow(ctx, tx, id, p, at, Change{Kind: KindProposed}); err != nil {
+		if _, err := s.insertChangeRow(ctx, tx, id, p, at, change); err != nil {
 			return err
 		}
 		out, err = loadRecord(ctx, tx, id)
