@@ -17,7 +17,7 @@ func changeViews(cs []records.Change, title func(takeID string) string) []Change
 		return &TakeRef{ID: *id, Title: title(*id)}
 	}
 	for _, c := range cs {
-		out = append(out, ChangeView{Change: c, From: ref(c.FromTakeID), To: ref(c.ToTakeID), Text: records.ChangeText(c, title)})
+		out = append(out, ChangeView{Change: c, From: ref(c.FromTakeID), To: ref(c.ToTakeID), Text: records.ChangeText(c, title), Sequence: changeSequence(c)})
 	}
 	return out
 }

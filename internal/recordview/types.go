@@ -45,7 +45,7 @@ type View struct {
 	Changes  []ChangeView  // IncludeChanges only
 	Tapes    []tape.Brief  // IncludeTapes only
 	Preview  *Preview      // IncludePreview only
-	Sequence *SequenceView // IncludeSequence only; nil until lane SR (L3 C138.5)
+	Sequence *SequenceView // IncludeSequence only; nil when the Record was never sequenced (L3 C138.5)
 	Pending  bool          // the changelog may lag (C122.6); the resolved Takes are never stale
 }
 
@@ -141,7 +141,12 @@ type ChangeView struct {
 	From   *TakeRef
 	To     *TakeRef
 	Text   string
+	// Sequence is the sequencing run that caused the row (slot_moved by the sequencer, proposed after a sequence), else nil.
+	Sequence *SequenceRef
 }
+
+// SequenceRef names a sequencing run from a changelog row (L3 C138.4).
+type SequenceRef struct{ ID, Strategy string }
 
 // PreviewChapter is one chapter name as the tape would carry it.
 type PreviewChapter struct {
@@ -167,6 +172,7 @@ type SequenceView struct {
 	ID, Strategy          string
 	At                    string
 	Actor                 string // the stored principal key
+	ActorKind, ActorName  string // as stored; the API renders the principal for the viewer with RefFor
 	Exact, Stale          bool
 	CostInput, CostOutput string
 	Explanation           json.RawMessage
