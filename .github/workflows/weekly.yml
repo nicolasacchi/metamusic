@@ -79,6 +79,7 @@ jobs:
 
   provenance-property:
     # The long run of the provenance property suite (C101.3): the CI default is 60 sequences, this is 300.
+    # TestProperty_FeatureInvariants (same package) has its own job below.
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -94,7 +95,7 @@ jobs:
       - name: provenance property suite, 300 sequences
         env:
           MM_PROPERTY_SEQS: "300"
-        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/provenance
+        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_ProvenanceInvariants' ./internal/provenance
 
   curation-property:
     # The long run of the Record invariant property suite (C132.3): the CI default is 60 sequences, this is 300.
@@ -114,3 +115,40 @@ jobs:
         env:
           MM_PROPERTY_SEQS: "300"
         run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_' ./internal/records
+
+  features-property:
+    # The long run of the derived-features invariant property suite (L3 FC2): the CI default is 60 sequences, this is 300.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: features property suite, 300 sequences
+        env:
+          MM_PROPERTY_SEQS: "300"
+        run: go test -race -shuffle=on -timeout 55m -run 'TestProperty_FeatureInvariants' ./internal/provenance
+
+  sequencer-property:
+    # The sequencer's randomised planner properties at their full instance counts (L3 SQ2): under -race the tests trim
+    # their counts (raceOn), so this run is deliberately WITHOUT -race to keep the full 200 / 120 instances.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: sequencer property tests, full instance counts
+        run: go test -shuffle=on -count=1 -timeout 25m -run 'TestPlan_NeverWorse|TestPlan_ExactPermutationInvariant|TestPlan_ExactMatchesBruteForce|TestSequencer_HeuristicGap|TestSequencer_Heuristic_LargeN' ./internal/sequencer
