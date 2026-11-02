@@ -50,7 +50,7 @@ async function call<T>(f: () => Promise<Raw<T>>): Promise<Result<T>> {
   }
 }
 
-export type Include = ("liner" | "energy" | "tapes" | "changes" | "preview")[];
+export type Include = ("liner" | "energy" | "tapes" | "changes" | "preview" | "sequence")[];
 
 export function listRecords(api: Api, query: { status?: ("draft" | "proposed" | "published")[]; q?: string; include_hidden?: boolean; limit?: number; cursor?: string }) {
   return call<S["RecordsOutBody"]>(() => api.GET("/api/records", { params: { query } }));
@@ -82,8 +82,13 @@ export function getChanges(api: Api, id: string, query: { order?: "asc" | "desc"
   return call<S["RecordChangesOutBody"]>(() => api.GET("/api/records/{id}/changes", { params: { path: { id }, query } }));
 }
 
-export function proposeRecord(api: Api, id: string, revision: number, rationale: string) {
-  return call<RecordView>(() => api.POST("/api/records/{id}/proposal", { params: { path: { id } }, body: { revision, rationale } }));
+export function proposeRecord(api: Api, id: string, revision: number, rationale: string, sequence?: S["SequenceSpec"]) {
+  return call<RecordView>(() => api.POST("/api/records/{id}/proposal", { params: { path: { id } }, body: { revision, rationale, ...(sequence ? { sequence } : {}) } }));
+}
+
+/** The dry run of the sequencer (L3): a read, nothing is written. */
+export function suggestSequence(api: Api, recordId: string, spec: S["SequenceSpec"] = {}) {
+  return call<S["Suggestion"]>(() => api.GET("/api/sequence", { params: { query: { record_id: recordId, ...spec } } }));
 }
 
 export function publishRecord(api: Api, id: string, revision: number, published: boolean) {
