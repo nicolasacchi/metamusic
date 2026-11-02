@@ -20,7 +20,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/synth"
 )
 
-var allNames = []string{"silence", "clipping", "token_loops", "spectrogram", "tempo"}
+var allNames = []string{"silence", "clipping", "token_loops", "spectrogram", "tempo", "key", "energy"}
 
 // addSemantic gives a track a real semantic.npy artifact (a clean random token stream).
 func (r *rig) addSemantic(id string, seconds float64) string {
@@ -61,8 +61,8 @@ func TestAnalyze_RunsMissingOnly(t *testing.T) {
 	if diff := cmp.Diff(allNames, out.Ran); diff != "" || len(out.Failed) != 0 || len(out.Skipped) != 0 {
 		t.Fatalf("first run: %+v\n%s", out, diff)
 	}
-	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 4 {
-		t.Errorf("tier A analyses = %d, want 4 (silence, clipping, token_loops, tempo)", got)
+	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 6 {
+		t.Errorf("tier A analyses = %d, want 6 (silence, clipping, token_loops, tempo, key, energy)", got)
 	}
 	if got := r.count(`SELECT count(*) FROM renditions WHERE track_id = ? AND kind = 'spectrogram'`, id); got != 1 {
 		t.Errorf("spectrogram renditions = %d, want 1", got)
@@ -97,7 +97,7 @@ func TestAnalyze_RunsMissingOnly(t *testing.T) {
 	if !slices.Equal(out.Ran, allNames) || len(out.Failed) != 0 {
 		t.Fatalf("forced run: %+v", out)
 	}
-	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 4 {
+	if got := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, id); got != 6 {
 		t.Errorf("forced run with the same tool version changed the analyses: %d rows", got)
 	}
 	if got := r.spectroSHA(id); got != sha {
@@ -112,7 +112,7 @@ func TestAnalyze_WithoutSemanticSkipsTokenLoops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"silence", "clipping", "spectrogram", "tempo"}; !slices.Equal(out.Ran, want) {
+	if want := []string{"silence", "clipping", "spectrogram", "tempo", "key", "energy"}; !slices.Equal(out.Ran, want) {
 		t.Errorf("ran %v, want %v", out.Ran, want)
 	}
 	if got := r.count(`SELECT count(*) FROM analyses WHERE analyzer = 'token_loops'`); got != 0 {
@@ -184,11 +184,11 @@ func TestAnalyze_PartialFailure(t *testing.T) {
 		if out.Failed["spectrogram"] != "TOOL_FAILED" || len(out.Failed) != 1 {
 			t.Errorf("failed = %v, want only spectrogram: TOOL_FAILED", out.Failed)
 		}
-		if want := []string{"silence", "clipping", "tempo"}; !slices.Equal(out.Ran, want) {
+		if want := []string{"silence", "clipping", "tempo", "key", "energy"}; !slices.Equal(out.Ran, want) {
 			t.Errorf("ran %v, want %v", out.Ran, want)
 		}
-		if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, lt.TrackCitta); n != 3 {
-			t.Errorf("committed analyses = %d, want silence, clipping and tempo", n)
+		if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND tier = 'A'`, lt.TrackCitta); n != 5 {
+			t.Errorf("committed analyses = %d, want silence, clipping, tempo, key and energy", n)
 		}
 		if n := r.count(`SELECT count(*) FROM renditions WHERE kind = 'spectrogram'`); n != 0 {
 			t.Errorf("a failed spectrogram left a rendition row")
@@ -369,7 +369,7 @@ func TestAnalyze_WritesTwice(t *testing.T) {
 			t.Fatalf("run %d: %+v %v", i, out, err)
 		}
 	}
-	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 3 {
+	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 5 {
 		t.Errorf("analyses = %d", n)
 	}
 	if n := r.count(`SELECT count(*) FROM renditions WHERE kind = 'spectrogram'`); n != 1 {
@@ -398,8 +398,8 @@ func TestBackfill_Report(t *testing.T) {
 	if rep.Tracks != 5 || rep.Analysed != 5 || rep.Failed != 0 || rep.Ran["clipping"] != 5 {
 		t.Errorf("report = %+v", rep)
 	}
-	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 15 {
-		t.Errorf("analyses = %d, want 15", n)
+	if n := r.count(`SELECT count(*) FROM analyses WHERE tier = 'A'`); n != 25 {
+		t.Errorf("analyses = %d, want 25", n)
 	}
 	again, err := r.svc.Backfill(ctx, ears.BackfillOptions{})
 	if err != nil {
