@@ -1,5 +1,5 @@
 // Package sequence loads feature rows for the sequencer and serves the suggest_sequence preview (L3 C138). The method set
-// and types are frozen by L3-F2; the bodies are lane SR (stub_sr.go).
+// and types are frozen by L3-F2; the bodies are lane SR (load.go, doc.go, suggest.go).
 package sequence
 
 import (
@@ -70,7 +70,8 @@ type Suggestion struct {
 
 // Service is the read-only sequencing service.
 type Service struct {
-	st *store.Store
+	st     *store.Store
+	crates CrateSongs
 }
 
 // New builds the service.

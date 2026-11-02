@@ -1,0 +1,306 @@
+{
+  "def": "mm.sequence/1",
+  "strategy": "arc",
+  "input_order": [
+    "01900000-0000-7000-8000-000000d22004",
+    "01900000-0000-7000-8000-000000d22006",
+    "01900000-0000-7000-8000-000000d22001",
+    "01900000-0000-7000-8000-000000d22005",
+    "01900000-0000-7000-8000-000000d22003",
+    "01900000-0000-7000-8000-000000d22002"
+  ],
+  "order": [
+    "01900000-0000-7000-8000-000000d22001",
+    "01900000-0000-7000-8000-000000d22002",
+    "01900000-0000-7000-8000-000000d22003",
+    "01900000-0000-7000-8000-000000d22004",
+    "01900000-0000-7000-8000-000000d22005",
+    "01900000-0000-7000-8000-000000d22006"
+  ],
+  "steps": [
+    {
+      "position": 1,
+      "song_id": "01900000-0000-7000-8000-000000d22001",
+      "take_id": "01900000-0000-7000-8000-000000d21001",
+      "energy_rel": 0,
+      "target": 3000,
+      "reasons": [
+        {
+          "code": "opener",
+          "params": {
+            "bpm": 9600,
+            "energy": 0,
+            "key_b": 0,
+            "key_n": 8
+          }
+        }
+      ],
+      "missing": [],
+      "text": "1. opens low: 96 BPM, key 8A, energy 0.00 (relative)"
+    },
+    {
+      "position": 2,
+      "song_id": "01900000-0000-7000-8000-000000d22002",
+      "take_id": "01900000-0000-7000-8000-000000d21002",
+      "energy_rel": 2500,
+      "target": 5000,
+      "from": {
+        "cost": 4166650000,
+        "parts": {
+          "tempo": 104165,
+          "key": 0,
+          "energy": 625000
+        },
+        "tempo_delta_pct_x100": 208,
+        "key_relation": "same",
+        "energy_delta": 2500
+      },
+      "reasons": [
+        {
+          "code": "tempo_close",
+          "params": {
+            "from": 9600,
+            "pct": 208,
+            "to": 9800
+          }
+        },
+        {
+          "code": "key_same",
+          "params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 8
+          }
+        },
+        {
+          "code": "energy_rise",
+          "params": {
+            "delta": 2500,
+            "from": 0,
+            "to": 2500
+          }
+        }
+      ],
+      "missing": [],
+      "text": "2. tempo 96 → 98 BPM (+2.1 %), key 8A → 8A (same), energy +0.25 — on the way up"
+    },
+    {
+      "position": 3,
+      "song_id": "01900000-0000-7000-8000-000000d22003",
+      "take_id": "01900000-0000-7000-8000-000000d21004",
+      "energy_rel": 4166,
+      "target": 7000,
+      "from": {
+        "cost": 4302900000,
+        "parts": {
+          "tempo": 102040,
+          "key": 150000,
+          "energy": 416500
+        },
+        "tempo_delta_pct_x100": 204,
+        "key_relation": "adjacent",
+        "energy_delta": 1666
+      },
+      "reasons": [
+        {
+          "code": "tempo_close",
+          "params": {
+            "from": 9800,
+            "pct": 204,
+            "to": 10000
+          }
+        },
+        {
+          "code": "key_adjacent",
+          "params": {
+            "from_b": 0,
+            "from_n": 8,
+            "to_b": 0,
+            "to_n": 9
+          }
+        },
+        {
+          "code": "energy_rise",
+          "params": {
+            "delta": 1666,
+            "from": 2500,
+            "to": 4166
+          }
+        }
+      ],
+      "missing": [],
+      "text": "3. tempo 98 → 100 BPM (+2.0 %), key 8A → 9A (neighbour on the wheel), energy +0.17 — on the way up"
+    },
+    {
+      "position": 4,
+      "song_id": "01900000-0000-7000-8000-000000d22004",
+      "take_id": "01900000-0000-7000-8000-000000d21005",
+      "energy_rel": 6666,
+      "target": 9000,
+      "from": {
+        "cost": 5125000000,
+        "parts": {
+          "tempo": 200000,
+          "key": 0,
+          "energy": 625000
+        },
+        "tempo_delta_pct_x100": 400,
+        "key_relation": "same",
+        "energy_delta": 2500
+      },
+      "reasons": [
+        {
+          "code": "tempo_close",
+          "params": {
+            "from": 10000,
+            "pct": 400,
+            "to": 10400
+          }
+        },
+        {
+          "code": "key_same",
+          "params": {
+            "from_b": 0,
+            "from_n": 9,
+            "to_b": 0,
+            "to_n": 9
+          }
+        },
+        {
+          "code": "energy_rise",
+          "params": {
+            "delta": 2500,
+            "from": 4166,
+            "to": 6666
+          }
+        }
+      ],
+      "missing": [],
+      "text": "4. tempo 100 → 104 BPM (+4.0 %), key 9A → 9A (same), energy +0.25 — on the way up"
+    },
+    {
+      "position": 5,
+      "song_id": "01900000-0000-7000-8000-000000d22005",
+      "take_id": "01900000-0000-7000-8000-000000d21007",
+      "energy_rel": 10000,
+      "target": 8334,
+      "from": {
+        "cost": 6890550000,
+        "parts": {
+          "tempo": 192305,
+          "key": 100000,
+          "energy": 833500
+        },
+        "tempo_delta_pct_x100": 385,
+        "key_relation": "relative",
+        "energy_delta": 3334
+      },
+      "reasons": [
+        {
+          "code": "arc_peak",
+          "params": {
+            "bpm": 10800,
+            "energy": 10000,
+            "key_b": 1,
+            "key_n": 9
+          }
+        },
+        {
+          "code": "tempo_close",
+          "params": {
+            "from": 10400,
+            "pct": 385,
+            "to": 10800
+          }
+        },
+        {
+          "code": "key_relative",
+          "params": {
+            "from_b": 0,
+            "from_n": 9,
+            "to_b": 1,
+            "to_n": 9
+          }
+        },
+        {
+          "code": "energy_rise",
+          "params": {
+            "delta": 3334,
+            "from": 6666,
+            "to": 10000
+          }
+        }
+      ],
+      "missing": [],
+      "text": "5. peak: 108 BPM, key 9B, energy 1.00"
+    },
+    {
+      "position": 6,
+      "song_id": "01900000-0000-7000-8000-000000d22006",
+      "take_id": "01900000-0000-7000-8000-000000d21008",
+      "energy_rel": 1666,
+      "target": 5000,
+      "from": {
+        "cost": 9141150000,
+        "parts": {
+          "tempo": 294115,
+          "key": 150000,
+          "energy": 1000000
+        },
+        "tempo_delta_pct_x100": -556,
+        "key_relation": "adjacent",
+        "energy_delta": -8334
+      },
+      "reasons": [
+        {
+          "code": "closer",
+          "params": {
+            "from": 10000,
+            "to": 1666
+          }
+        },
+        {
+          "code": "tempo_shift",
+          "params": {
+            "from": 10800,
+            "pct": -556,
+            "to": 10200
+          }
+        },
+        {
+          "code": "key_adjacent",
+          "params": {
+            "from_b": 1,
+            "from_n": 9,
+            "to_b": 1,
+            "to_n": 8
+          }
+        },
+        {
+          "code": "energy_fall",
+          "params": {
+            "delta": -8334,
+            "from": 10000,
+            "to": 1666
+          }
+        }
+      ],
+      "missing": [],
+      "text": "6. lands softly: energy 1.00 → 0.17"
+    }
+  ],
+  "cost": {
+    "input": "8.9847",
+    "output": "5.5198",
+    "improvement_pct": "38.6"
+  },
+  "coverage": {
+    "tempo": 100,
+    "key": 100,
+    "energy": 100
+  },
+  "exact": true,
+  "warnings": [],
+  "digest": "cf6ab43b02d672ee8b480a477eb064e7febec299a314d96bd4e04df86ed200a3"
+}
