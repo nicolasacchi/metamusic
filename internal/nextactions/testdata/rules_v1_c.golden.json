@@ -1,0 +1,42 @@
+[
+  {
+    "code": "song_tempo_mismatch",
+    "priority": 50,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Song \"Synthetic Song\": requested 120 BPM, measured about 96 — the tempo cue was probably ignored; write a stronger tempo cue into the style and estimate it (estimate_variant, mode style_edit, with your own patch.style)"
+  },
+  {
+    "code": "record_unsequenced",
+    "priority": 45,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Record \"Synthetic Record\" has not been sequenced — preview the order (suggest_sequence, arc)"
+  },
+  {
+    "code": "taxonomy_unmapped",
+    "priority": 35,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "The term \"skank\" is unmapped in 6 Songs — propose a mapping (propose_taxonomy)"
+  },
+  {
+    "code": "song_no_muse",
+    "priority": 25,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "Song \"Synthetic Song\" has no Muse — if you know its inspiration: create_muse, then assign_muse_songs"
+  },
+  {
+    "code": "features_missing",
+    "priority": 20,
+    "audience": "human",
+    "min_scope": "read",
+    "hint": false,
+    "text": "12 Song(s) have no audio measurements yet — run \"metamusic analyze\" on the server"
+  }
+]
