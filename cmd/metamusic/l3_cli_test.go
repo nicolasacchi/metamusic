@@ -72,3 +72,59 @@ func TestCLI_LibraryVerify_L3(t *testing.T) {
 		t.Errorf("verify on a planted fault: %d %q %q", code, out, errs)
 	}
 }
+
+// TestCLI_LibraryVerify_L3_Invariants: `library verify` covers the three L3 families end to end on a settled library: the feature
+// rows (F1 to F3), the sequence runs (F4) and the taxonomy proposals (F5). Legitimate rows verify clean; each planted fault prints
+// its code and subject in the L1 form and the command exits 1.
+func TestCLI_LibraryVerify_L3_Invariants(t *testing.T) {
+	t.Parallel()
+	env, fx := l3Env(t)
+	if code, out, errs := do(t, env, "", "library", "reconcile"); code != 0 {
+		t.Fatalf("reconcile: %d %q %q", code, out, errs)
+	}
+	rec := fx.Records["R1"]
+	const digest = "0000000000000000000000000000000000000000000000000000000000000000"
+	at := "2026-10-06T12:00:00.000Z"
+	seq := func(id, before, after string, in, out int) string {
+		return `INSERT INTO record_sequences(id, record_id, record_revision, strategy, order_before_json, order_after_json, exact, cost_input, cost_output,
+			coverage_json, digest, explanation_json, actor, actor_kind, actor_name, at)
+			VALUES('` + id + `', '` + rec + `', 1, 'arc', '` + before + `', '` + after + `', 1, ` + strconv.Itoa(in) + `, ` + strconv.Itoa(out) + `,
+			'{}', '` + digest + `', '{}', 'human:x', 'human', 'human', '` + at + `')`
+	}
+	const okID, badID, costID = "01900000-0000-7000-8000-00000000e301", "01900000-0000-7000-8000-00000000e302", "01900000-0000-7000-8000-00000000e303"
+	l2Exec(t, env, seq(okID, `["a","b","c"]`, `["c","a","b"]`, 100, 60))
+	if code, out, errs := do(t, env, "", "library", "verify"); code != 0 || !strings.Contains(out, "consistent") {
+		t.Fatalf("verify with a legitimate sequence run: %d %q %q", code, out, errs)
+	}
+	const openID, acceptedID = "01900000-0000-7000-8000-00000000e311", "01900000-0000-7000-8000-00000000e312"
+	prop := func(id, state, mappings string, decided bool) string {
+		decidedCols, decidedVals := "", ""
+		if decided {
+			decidedCols, decidedVals = ", decided_at, decided_by, applied_version, accepted_json", ", '"+at+"', 'human:x', 99, '[0]'"
+		}
+		return `INSERT INTO taxonomy_proposals(id, state, base_version, rationale, mappings_json, mappings_digest, impact_json, principal_id, principal_kind, principal_name, created_at` + decidedCols + `)
+			VALUES('` + id + `', '` + state + `', 1, 'synthetic rationale', '` + mappings + `', '` + digest + `', '{}', 'agent:x', 'agent', 'agent', '` + at + `'` + decidedVals + `)`
+	}
+	l2Exec(t, env,
+		`DELETE FROM song_features WHERE song_id = '`+fx.Songs["T2"]+`'`,
+		seq(badID, `["a","b"]`, `["a","z"]`, 10, 10),
+		seq(costID, `["a","b"]`, `["b","a"]`, 10, 20),
+		prop(openID, "open", `[{"term":7,"facet":"mood","value":"chill","op":"add"}]`, false),
+		prop(acceptedID, "accepted", `[{"term":"x","facet":"mood","value":"chill","op":"add"}]`, true),
+	)
+	code, out, errs := do(t, env, "", "library", "verify")
+	if code != 1 || !strings.Contains(errs, "anomalies") {
+		t.Fatalf("verify on planted faults: %d %q %q", code, out, errs)
+	}
+	for _, want := range []string{
+		"song_features_missing " + fx.Songs["T2"], "sequence_not_permutation " + badID, "sequence_cost_regressed " + costID,
+		"proposal_malformed " + openID, "proposal_version_missing " + acceptedID,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("verify output lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "sequence_not_permutation "+okID) || strings.Contains(out, "sequence_cost_regressed "+okID) {
+		t.Errorf("the legitimate run %s was reported:\n%s", okID, out)
+	}
+}
