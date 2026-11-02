@@ -45,7 +45,7 @@ var l3Ops = []l3Op{
 
 // implementedL3 lists the operations whose stub a lane has replaced (the lane adds its ids here and its own handler tests
 // cover the behaviour).
-var implementedL3 = map[string]bool{"list_next_actions": true}
+var implementedL3 = map[string]bool{"list_next_actions": true, "propose_taxonomy": true, "list_taxonomy_proposals": true, "decide_taxonomy_proposal": true}
 
 func l3Deps() api.Deps {
 	return api.Deps{
