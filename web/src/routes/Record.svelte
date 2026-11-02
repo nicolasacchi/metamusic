@@ -6,6 +6,7 @@
   import { pushToast } from "../lib/judge.svelte";
   import { player } from "../lib/player.svelte";
   import { chapterNames, enqueueRecord, playAsTape, playRecord, takeQueue } from "../lib/recordPlayer";
+  import { STRATEGIES, strategyFromSearch, strategyLabel, sequenceSpec, type Spec } from "../lib/sequenceView";
   import { canEdit, canPublish, createReadyOnce, moveOp, recordWarningRows, reorderOp, slotModels, type SlotOp, type Viewer } from "../lib/recordView";
   import { routeReady } from "../lib/scrollRestore";
   import { pendingDelay } from "../lib/songView";
@@ -16,6 +17,7 @@
   import LinerPreview from "../lib/components/LinerPreview.svelte";
   import RecordCover from "../lib/components/RecordCover.svelte";
   import RecordStatusChip from "../lib/components/RecordStatus.svelte";
+  import SequencePanel from "../lib/components/SequencePanel.svelte";
   import SlotRow from "../lib/components/SlotRow.svelte";
   import SongPicker from "../lib/components/SongPicker.svelte";
   import TapePanel from "../lib/components/TapePanel.svelte";
@@ -30,8 +32,8 @@
   }
   let { id, initial, viewer = null }: Props = $props();
 
-  const TABS = ["slots", "changelog", "liner", "energy", "tapes"] as const;
-  const TAB_LABEL = { slots: "Slots", changelog: "Changelog", liner: "Liner notes", energy: "Energy", tapes: "Tapes" } as const;
+  const TABS = ["slots", "changelog", "liner", "energy", "tapes", "sequence"] as const;
+  const TAB_LABEL = { slots: "Slots", changelog: "Changelog", liner: "Liner notes", energy: "Energy", tapes: "Tapes", sequence: "Sequence" } as const;
   const PAGE = 50;
 
   // svelte-ignore state_referenced_locally
@@ -45,7 +47,9 @@
   let error = $state("");
   let stale = $state(false);
   let busy = $state(false);
-  let tab = $state<(typeof TABS)[number]>("slots");
+  // `?sequence=<strategy>` (the Atlas selection, "What next") opens the Sequence tab with that strategy.
+  const seqFromUrl = typeof location === "undefined" ? null : strategyFromSearch(location.search);
+  let tab = $state<(typeof TABS)[number]>(seqFromUrl ? "sequence" : "slots");
   let selectedSlot = $state<string | null>(null);
   let olderChanges = $state<Change[]>([]);
   let moreChanges = $state(true);
@@ -53,6 +57,7 @@
   let draft = $state({ title: "", subtitle: "", note: "" });
   let proposing = $state(false);
   let rationale = $state("");
+  let proposeStrategy = $state("");
   let attempts = 0;
   const ready = createReadyOnce(() => void routeReady());
   // svelte-ignore state_referenced_locally
@@ -69,7 +74,7 @@
 
   async function load(silent = false) {
     const mine = id;
-    const r = await getRecord(api, mine, ["liner", "energy", "changes", "tapes"], PAGE);
+    const r = await getRecord(api, mine, ["liner", "energy", "changes", "tapes", "sequence"], PAGE);
     if (mine !== id) return;
     if (r.kind === "ok") {
       view = r.value;
@@ -109,7 +114,7 @@
     const r = await run();
     busy = false;
     if (r.kind === "ok") {
-      view = { ...r.value, liner: view?.liner, energy: view?.energy, changes: view?.changes, tapes: view?.tapes };
+      view = { ...r.value, liner: view?.liner, energy: view?.energy, changes: view?.changes, tapes: view?.tapes, sequence: view?.sequence };
       attempts = 0;
       void load(true);
       return true;
@@ -168,6 +173,9 @@
     window.addEventListener("pointercancel", cancel);
   }
 
+  const applySequence = (spec: Spec) => (view ? mutate(() => editSlots(api, id, view!.record.revision, [{ op: "sequence", ...spec }])) : Promise.resolve(false));
+  const proposeSequenced = (why: string, spec: Spec) => (rec ? mutate(() => proposeRecord(api, id, rec.revision, why, spec)) : Promise.resolve(false));
+
   const pin = (slotId: string, takeId: string) => slotEdit([{ op: "pin", slot_id: slotId, take_id: takeId }]);
   const unpin = (slotId: string) => slotEdit([{ op: "unpin", slot_id: slotId }]);
   const setSide = (slotId: string, side: "A" | "B" | "C" | "D" | null) => slotEdit([{ op: "set_side", slot_id: slotId, side }]);
@@ -207,8 +215,9 @@
 
   async function propose() {
     if (!rec || !rationale.trim()) return;
-    if (await mutate(() => proposeRecord(api, id, rec.revision, rationale.trim()))) {
+    if (await mutate(() => proposeRecord(api, id, rec.revision, rationale.trim(), proposeStrategy ? sequenceSpec(proposeStrategy) : undefined))) {
       proposing = false;
+      proposeStrategy = "";
       rationale = "";
     }
   }
@@ -301,6 +310,12 @@
     {#if proposing}
       <form class="propose" onsubmit={(e) => { e.preventDefault(); void propose(); }}>
         <label>Why is it ready? <textarea bind:value={rationale} rows="3" maxlength="500" required></textarea></label>
+        <label>Sequence before proposing
+          <select bind:value={proposeStrategy} data-testid="propose-sequence">
+            <option value="">Keep the current order</option>
+            {#each STRATEGIES as st (st)}<option value={st}>{strategyLabel(st)}</option>{/each}
+          </select>
+        </label>
         <button type="submit" class="primary" disabled={busy || !rationale.trim()}>Send proposal</button>
       </form>
     {/if}
@@ -353,6 +368,8 @@
       <LinerPreview liner={view.liner} />
     {:else if tab === "energy"}
       <EnergyCurve energy={view.energy} />
+    {:else if tab === "sequence"}
+      <SequencePanel {view} {editable} {busy} initialStrategy={seqFromUrl} onapply={applySequence} onpropose={proposeSequenced} onreload={() => load(true)} />
     {:else}
       <TapePanel recordId={rec.id} recordTitle={rec.title} revision={rec.revision} status={rec.status} briefs={view.tapes ?? []} {titles} warningCount={view.totals.warnings} viewer={me} onstale={() => (stale = true)} />
     {/if}

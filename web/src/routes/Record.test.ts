@@ -3,6 +3,7 @@ import { render } from "svelte/server";
 import Record from "./Record.svelte";
 import Records from "./Records.svelte";
 import HumanPublish from "./HumanPublish.svelte";
+import SequencePanel from "../lib/components/SequencePanel.svelte";
 import { preview, recordView, slot } from "../lib/fixtures/l2/record";
 
 const human = { kind: "human", scopes: ["read", "write"] };
@@ -16,7 +17,7 @@ describe("Record page", () => {
     expect((h.match(/data-testid="slot-row"/g) ?? []).length).toBe(3);
     expect((h.match(/data-testid="slot-up"/g) ?? []).length).toBe(3);
     expect((h.match(/data-testid="slot-down"/g) ?? []).length).toBe(3);
-    for (const t of ["slots", "changelog", "liner", "energy", "tapes"]) expect(h).toContain(`data-testid="record-tab-${t}"`);
+    for (const t of ["slots", "changelog", "liner", "energy", "tapes", "sequence"]) expect(h).toContain(`data-testid="record-tab-${t}"`);
     expect(h).toContain('href="/human/records/rec-1/publish"');
   });
   test("warnings, undecided and pin-differs show", () => {
@@ -43,6 +44,38 @@ describe("Record page", () => {
   });
   test("no second audio element", () => {
     expect(page()).not.toContain("<audio");
+  });
+});
+
+describe("Sequence tab", () => {
+  const noop = async () => true;
+  const panel = (v = recordView(3), editable = true) => render(SequencePanel, { props: { view: v, editable, onapply: noop, onpropose: noop, onreload: () => {} } } as never).body;
+  test("strategy picker, endpoint options from the Record's songs, preview button", () => {
+    const h = panel();
+    expect(h).toContain('data-testid="sequence-panel"');
+    expect(h).toContain('data-testid="sequence-strategy"');
+    for (const l of ["Arc", "Ramp up", "Steady"]) expect(h).toContain(l);
+    expect((h.match(/<option value="s-\d"/g) ?? []).length).toBe(6);
+    expect(h).toContain('data-testid="sequence-run"');
+  });
+  test("pinned slots are shown with their take and side", () => {
+    const v = recordView(3);
+    v.slots[0] = slot(1, { mode: "pinned", side: "A" });
+    const h = panel(v);
+    expect(h).toContain('data-testid="sequence-pinned"');
+    expect(h).toContain("side A");
+    expect(panel()).not.toContain('data-testid="sequence-pinned"');
+  });
+  test("a stale run shows the badge with a refresh", () => {
+    const v = recordView(3, { sequence: { actor: { id: "agent:a", kind: "agent", name: "scout" }, at: "2026-10-30T10:00:00Z", cost: { input: "1", output: "0.5", improvement_pct: "50.0" }, coverage: { tempo: 3, key: 3, energy: 3 }, digest: "d", exact: true, id: "run-1", stale: true, steps: [], strategy: "arc", warnings: [] } });
+    const h = panel(v);
+    expect(h).toContain('data-testid="sequence-stale"');
+    expect(h).toContain("Order changed since");
+    expect(h).toContain("scout");
+    expect(panel(recordView(3, { sequence: { ...v.sequence!, stale: false } }))).not.toContain('data-testid="sequence-stale"');
+  });
+  test("fewer than two songs: nothing to sequence", () => {
+    expect(panel(recordView(1))).toContain('data-testid="sequence-too-small"');
   });
 });
 
