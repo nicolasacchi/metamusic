@@ -30,7 +30,7 @@ const (
 // titles are synthetic take titles; the rows themselves carry take ids only.
 var titles = map[string]string{"tk-a": "Synthetic Take A", "tk-b": "Synthetic Take B"}
 
-// textCases is the C122.3 table: one row per kind (20) plus the four why-text variants of slot_upgraded.
+// textCases is the C122.3 table: one row per kind (20), the four why-text variants of slot_upgraded and the three sequenced rows of L3 C138.4.
 func textCases() []textRow {
 	ch := func(kind string, pos *int, from, to, reason *string, evidence, detail json.RawMessage) records.Change {
 		return records.Change{ID: "ch-" + kind, Seq: 2, At: "2026-10-15T12:00:00.000Z", Kind: kind, Position: pos,
@@ -53,6 +53,9 @@ func textCases() []textRow {
 		{Name: "slot_added", Change: slot(ch("slot_added", ip(3), nil, a, sp("initial"), nil, nil))},
 		{Name: "slot_removed", Change: slot(ch("slot_removed", ip(2), a, nil, nil, nil, nil))},
 		{Name: "slot_moved", Change: slot(ch("slot_moved", ip(1), nil, nil, nil, nil, j(`{"from":4}`)))},
+		{Name: "slot_moved, sequenced arc", Change: slot(ch("slot_moved", ip(1), nil, nil, nil, nil, j(`{"from":4,"by":"sequencer","strategy":"arc","sequence_id":"sq-1"}`)))},
+		{Name: "slot_moved, sequenced steady", Change: slot(ch("slot_moved", ip(6), nil, nil, nil, nil, j(`{"from":2,"by":"sequencer","strategy":"steady","sequence_id":"sq-2"}`)))},
+		{Name: "proposed, sequenced", Change: ch("proposed", nil, nil, nil, nil, nil, j(`{"sequence_id":"sq-1","strategy":"ramp_up"}`))},
 		{Name: "slot_side", Change: slot(ch("slot_side", ip(2), nil, nil, nil, nil, j(`{"side":"B"}`)))},
 		{Name: "slot_pinned", Change: slot(ch("slot_pinned", ip(3), a, b, sp("pin"), nil, nil))},
 		{Name: "slot_unpinned", Change: slot(ch("slot_unpinned", ip(3), b, a, sp("unpin"), nil, nil))},
@@ -67,12 +70,12 @@ func textCases() []textRow {
 	}
 }
 
-// TestChangeText_Golden pins the 24 row texts (the web mirror reads the same table).
-func TestChangeText_Golden(t *testing.T) {
+// TestChangeText_Golden_L3 pins the 27 row texts (the web mirror reads the same table).
+func TestChangeText_Golden_L3(t *testing.T) {
 	t.Parallel()
 	rows := textCases()
-	if len(rows) != 24 {
-		t.Fatalf("%d rows, want 24 (20 kinds and 4 more why variants of slot_upgraded)", len(rows))
+	if len(rows) != 27 {
+		t.Fatalf("%d rows, want 27 (20 kinds, 4 why variants of slot_upgraded, 3 sequenced rows)", len(rows))
 	}
 	for i := range rows {
 		rows[i].Names = titles
@@ -90,6 +93,9 @@ func TestChangeText_Texts(t *testing.T) {
 		"slot_added":                      "Slot 3 added: Synthetic Take A",
 		"slot_removed":                    "Slot 2 removed (Synthetic Take A)",
 		"slot_moved":                      "Slot moved 4 → 1",
+		"slot_moved, sequenced arc":       "Slot moved 4 → 1 (sequenced: arc)",
+		"slot_moved, sequenced steady":    "Slot moved 2 → 6 (sequenced: steady)",
+		"proposed, sequenced":             "Proposed for publishing (sequenced: ramp_up)",
 		"slot_side":                       "Slot 2 side B",
 		"slot_pinned":                     "Slot 3 pinned to Synthetic Take B",
 		"slot_unpinned":                   "Slot 3 unpinned: follows the Pick (Synthetic Take A)",

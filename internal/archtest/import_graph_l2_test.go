@@ -35,7 +35,7 @@ var l2Rules = []rule{
 // outside the list needs a freeze fix, not a quiet edit.
 var l2Imports = map[string][]string{
 	"internal/curation":   {"store", "auth", "problem"},
-	"internal/records":    {"store", "auth", "problem"},
+	"internal/records":    {"store", "auth", "problem", "sequence", "sequencer"},
 	"internal/liner":      {},
 	"internal/crates":     {"store", "auth", "songs", "sounds", "library", "problem"},
 	"internal/tape":       {"store", "auth", "mediatool", "media/flacmeta", "media/serve", "media/cover", "liner", "textfold", "problem"},

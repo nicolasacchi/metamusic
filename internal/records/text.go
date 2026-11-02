@@ -7,7 +7,7 @@ import (
 
 // ChangeText renders one changelog row as the sentence the studio and get_record_changes show (C122.3); pure and
 // deterministic. names looks up a Take's title at read time (titles are never stored); a nil or empty answer reads "a take".
-// A row that lacks a field renders the generic form without it. The detail shapes it reads: slot_moved {"from": n},
+// A row that lacks a field renders the generic form without it. The detail shapes it reads: slot_moved {"from": n, "by": "sequencer", "strategy": s}, proposed {"sequence_id": id, "strategy": s},
 // slot_side {"side": "A"|null}.
 func ChangeText(c Change, names func(takeID string) string) string {
 	title := func(id *string) string {
@@ -47,6 +47,14 @@ func ChangeText(c Change, names func(takeID string) string) string {
 	case KindUnhidden:
 		return "Unhidden"
 	case KindProposed:
+		var d struct {
+			SequenceID string `json:"sequence_id"`
+			Strategy   string `json:"strategy"`
+		}
+		_ = json.Unmarshal(c.Detail, &d)
+		if d.SequenceID != "" {
+			return "Proposed for publishing (sequenced" + strategySuffix(d.Strategy) + ")"
+		}
 		return "Proposed for publishing"
 	case KindProposalDismiss:
 		return "Sent back to draft"
@@ -66,20 +74,26 @@ func ChangeText(c Change, names func(takeID string) string) string {
 		return slot + " removed (" + title(c.FromTakeID) + ")"
 	case KindSlotMoved:
 		var d struct {
-			From *int `json:"from"`
+			From     *int   `json:"from"`
+			By       string `json:"by"`
+			Strategy string `json:"strategy"`
 		}
 		_ = json.Unmarshal(c.Detail, &d)
 		to := ""
 		if c.Position != nil {
 			to = strconv.Itoa(*c.Position)
 		}
+		by := ""
+		if d.By == "sequencer" {
+			by = " (sequenced" + strategySuffix(d.Strategy) + ")"
+		}
 		switch {
 		case d.From != nil && to != "":
-			return "Slot moved " + strconv.Itoa(*d.From) + " → " + to
+			return "Slot moved " + strconv.Itoa(*d.From) + " → " + to + by
 		case to != "":
-			return "Slot moved to " + to
+			return "Slot moved to " + to + by
 		}
-		return "Slot moved"
+		return "Slot moved" + by
 	case KindSlotSide:
 		var d struct {
 			Side json.RawMessage `json:"side"`
@@ -113,4 +127,12 @@ func ChangeText(c Change, names func(takeID string) string) string {
 		return withWhy(slot + " upgraded: " + title(c.FromTakeID) + " → " + title(c.ToTakeID))
 	}
 	return "Record changed"
+}
+
+// strategySuffix is ": arc" for a named strategy and nothing for a row without one.
+func strategySuffix(s string) string {
+	if s == "" {
+		return ""
+	}
+	return ": " + s
 }

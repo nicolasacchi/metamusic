@@ -140,6 +140,8 @@ type EditResult struct {
 	Record   Record
 	Changes  []Change
 	Warnings []string
+	// Sequences are the runs stored by the call's sequence ops, in order (L3 C138.2).
+	Sequences []SequenceOutcome
 }
 
 // OptString is an optional nullable side letter: a JSON key that is absent leaves Set false, null sets Set and Null, and
