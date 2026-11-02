@@ -85,6 +85,20 @@
   --spectro-hi: #ffd29a;
   --scrim: rgb(0 0 0 / 0.5);
   --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 0.55);
+  /* Atlas categorical palette: 12 colours plus "other", each >= 3:1 on --bg and --surface (palette.test.ts) */
+  --atlas-1: #f2a65a;
+  --atlas-2: #7bc47f;
+  --atlas-3: #8fb8de;
+  --atlas-4: #f27a6a;
+  --atlas-5: #c9a0f0;
+  --atlas-6: #e8d36a;
+  --atlas-7: #5fd0c4;
+  --atlas-8: #f08fc0;
+  --atlas-9: #b5d65a;
+  --atlas-10: #7a9df2;
+  --atlas-11: #d9b99a;
+  --atlas-12: #e06ad0;
+  --atlas-other: #9a9088;
 }
 
 @media (prefers-contrast: more) {
