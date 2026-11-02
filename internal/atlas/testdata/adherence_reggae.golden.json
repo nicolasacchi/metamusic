@@ -1,0 +1,59 @@
+{
+ "by_facet": [
+  {
+   "bpm": {
+    "mean_got": 116,
+    "mean_requested": 72,
+    "median_error_pct": 11.11,
+    "n": 2,
+    "octave_share": 0.5,
+    "within_5pct_share": 0.5
+   },
+   "duration": {
+    "median_ratio": 1.013,
+    "n": 2
+   },
+   "facet": "family",
+   "n": 2,
+   "value": "reggae"
+  }
+ ],
+ "coverage": {
+  "songs": 2,
+  "with_duration": 2,
+  "with_pair": 2
+ },
+ "dims_available": [
+  "bpm",
+  "duration"
+ ],
+ "items": [
+  {
+   "duration_ratio": 1.025,
+   "error_pct": 22.22,
+   "measured_bpm": 88,
+   "octave": false,
+   "requested_bpm": 72,
+   "song_id": "01900000-0000-7000-8000-000000d32002",
+   "take_id": "01900000-0000-7000-8000-000000d31002",
+   "title": "Synthetic Song T2"
+  },
+  {
+   "duration_ratio": 1,
+   "error_pct": 0,
+   "measured_bpm": 144,
+   "octave": true,
+   "requested_bpm": 72,
+   "song_id": "01900000-0000-7000-8000-000000d32001",
+   "take_id": "01900000-0000-7000-8000-000000d31001",
+   "title": "Synthetic Song T1"
+  }
+ ],
+ "next_cursor": null,
+ "summary": {
+  "median_error_pct": 11.11,
+  "n": 2,
+  "octave_share": 0.5,
+  "within_5pct_share": 0.5
+ }
+}
