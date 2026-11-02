@@ -242,6 +242,10 @@ export interface InboxInput {
   approvals: number;
   openDuels: number;
   proposals: number;
+  /** Records waiting for review (status proposed). */
+  proposedRecords?: number;
+  /** Open taxonomy proposals. */
+  taxonomyProposals?: number;
   failures: readonly Job[];
 }
 
@@ -254,7 +258,7 @@ export interface InboxModel {
   rows: Row[];
   stillUnheard: Row[];
   inFlight: FlightBatch[];
-  needsYou: { approvals: number; duels: number; proposals: number; total: number };
+  needsYou: { approvals: number; duels: number; proposals: number; records: number; taxonomy: number; total: number };
   failures: Job[];
   /** Play-all-new order (ids). */
   playOrder: string[];
@@ -269,7 +273,16 @@ export function buildInbox(i: InboxInput): InboxModel {
     .map((track) => ({ track, unheard: true }));
   const cut = Date.parse(i.seenAt);
   const failures = i.failures.filter((j) => j.state === "failed" && Date.parse(j.updated_at) > cut);
-  const needs = { approvals: i.approvals, duels: i.openDuels, proposals: i.proposals, total: i.approvals + i.openDuels + i.proposals };
+  const records = i.proposedRecords ?? 0;
+  const taxonomy = i.taxonomyProposals ?? 0;
+  const needs = {
+    approvals: i.approvals,
+    duels: i.openDuels,
+    proposals: i.proposals,
+    records,
+    taxonomy,
+    total: needsYouTotal({ approvals: i.approvals, duels: i.openDuels, proposals: i.proposals, records, taxonomy }),
+  };
   return {
     count: countNew(i.tracks, i.trackTotal, i.seenAt),
     seconds: fresh.reduce((s, t) => s + (t.duration_s > 0 ? t.duration_s : 0), 0),
@@ -284,6 +297,16 @@ export function buildInbox(i: InboxInput): InboxModel {
 }
 
 // ---- badge
+
+/** Everything that waits for the operator: approvals, open duels, Pick proposals, proposed Records, taxonomy proposals (D-L3-33). */
+export function needsYouTotal(p: { approvals: number; duels: number; proposals: number; records?: number; taxonomy?: number }): number {
+  return p.approvals + p.duels + p.proposals + (p.records ?? 0) + (p.taxonomy ?? 0);
+}
+
+/** A list's `total` when the call succeeded, else the previous number (a failure never zeroes a count). */
+export function totalOr(prev: number, r: PromiseSettledResult<{ data?: { total: number } | undefined }>): number {
+  return r.status === "fulfilled" && r.value.data ? r.value.data.total : prev;
+}
 
 /** Unseen new takes plus needs-you items; "9+" past nine, null (no badge) for zero. */
 export function badgeFor(newTakes: number, needsYou: number): string | null {

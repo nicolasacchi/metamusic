@@ -3,7 +3,9 @@
   import type { components } from "../api/schema";
   import FacetPanel from "../lib/components/FacetPanel.svelte";
   import SongChip from "../lib/components/SongChip.svelte";
+  import TaxonomyProposals from "../lib/components/TaxonomyProposals.svelte";
   import TaxonomyTable from "../lib/components/TaxonomyTable.svelte";
+  import { canDecide } from "../lib/proposalView";
   import { summaryToChip } from "../lib/songView";
   import {
     FACETS,
@@ -159,6 +161,7 @@
 <div class="tabs" role="tablist" aria-label="Sounds view">
   <button type="button" role="tab" aria-selected={sel.tab === "songs"} data-testid="tab-songs" onclick={() => commit({ ...sel, tab: "songs" })}>Songs</button>
   <button type="button" role="tab" aria-selected={sel.tab === "terms"} data-testid="tab-terms" onclick={() => commit({ ...sel, tab: "terms" })}>Terms</button>
+  <button type="button" role="tab" aria-selected={sel.tab === "proposals"} data-testid="tab-proposals" onclick={() => commit({ ...sel, tab: "proposals" })}>Proposals</button>
 </div>
 
 {#if error}<p role="alert" data-testid="sounds-error">{error}</p>{/if}
@@ -205,6 +208,8 @@
       <button type="button" data-testid="songs-more" disabled={loadingMore} onclick={more}>Load more</button>
     {/if}
   </section>
+{:else if sel.tab === "proposals"}
+  <TaxonomyProposals canDecide={canDecide(me)} />
 {:else}
   <div class="filters">
     <label>
@@ -232,6 +237,9 @@
     display: flex;
     gap: 0.4rem;
     margin: 0.5rem 0;
+  }
+  .tabs button {
+    min-height: var(--hit);
   }
   .tabs button[aria-selected="true"] {
     border-color: #f2a65a;

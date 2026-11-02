@@ -18,7 +18,7 @@ export const FACET_LABELS: Record<Facet, string> = {
   engine: "Engine",
 };
 
-export type Tab = "songs" | "terms";
+export type Tab = "songs" | "terms" | "proposals";
 export interface SoundsState {
   /** `facet:value` selections (OR inside a facet, AND across facets). */
   sounds: string[];
@@ -41,10 +41,12 @@ export function toggleSound(sounds: readonly string[], facet: string, value: str
   return sounds.includes(key) ? sounds.filter((s) => s !== key) : [...sounds, key];
 }
 
+const tabOf = (v: string | null): Tab => (v === "terms" || v === "proposals" ? v : "songs");
+
 export function soundsFromSearch(search: string): SoundsState {
   const p = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const sounds = [...new Set(p.getAll("sound"))].filter((s) => parseSound(s) !== null);
-  return { sounds, tempoMismatch: p.get("tempo_mismatch") === "true", tab: p.get("tab") === "terms" ? "terms" : "songs" };
+  return { sounds, tempoMismatch: p.get("tempo_mismatch") === "true", tab: tabOf(p.get("tab")) };
 }
 
 /** Query string (no leading `?`) for the page URL; defaults omitted. */
