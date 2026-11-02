@@ -226,11 +226,11 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 		}
 		return rs.Err()
 	}
-	roots := map[string][]string{} // root take -> Songs (take_songs is tracks joined to song_roots)
+	roots := map[string]string{} // root take -> its one Song (song_roots.root_track_id is the primary key; take_songs is tracks joined to it)
 	if err := each("roots", `SELECT root_track_id, song_id FROM song_roots`, func(rs *sql.Rows) error {
 		var root, song string
 		err := rs.Scan(&root, &song)
-		roots[root] = append(roots[root], song)
+		roots[root] = song
 		return err
 	}); err != nil {
 		return nil, err
@@ -241,7 +241,7 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 		if err := rs.Scan(&root, &n, &nd); err != nil {
 			return err
 		}
-		for _, song := range roots[root] {
+		if song, ok := roots[root]; ok {
 			st := at(song)
 			st.takes += n
 			st.nondraft = st.nondraft || nd == 1
@@ -298,7 +298,7 @@ func (r *row) fill(m map[string]*songState) {
 	}
 }
 
-// scope reads the Songs of the Atlas scope, newest first, at most limit of them, with the number of Songs the scope holds
+// scope reads the Songs of the Atlas scope in id order, the newest limit of them, with the number of Songs the scope holds
 // before the cap. With dim the scope is the unfiltered visible set and h marks the Songs the filter selects; without it the
 // scope is the filtered set and h is 1 throughout.
 func scope(ctx context.Context, q queryer, f songs.ListFilter, dim bool, limit int, cols []string) (rows []row, total int, err error) {
@@ -312,9 +312,9 @@ func scope(ctx context.Context, q queryer, f songs.ListFilter, dim bool, limit i
 		where, args = songs.FilterSQL(base, "")
 		hExpr = "CASE WHEN s.id IN (SELECT s.id FROM songs s WHERE " + hw + ") THEN 1 ELSE 0 END"
 	}
-	// Unordered: the newest limit Songs are picked in Go below, which beats a SQL sort of the whole scope, and the length of the
-	// result is the scope's size, so no second pass over the filter counts it.
-	stmt := "SELECT s.id, s.title, s.muse_id, " + hExpr + ", s.created_at FROM songs s WHERE " + where //nolint:gosec // G202: fragments are fixed strings built in this package
+	// In id order (the primary key, no sort): the token and the pages want that order. The length of the result is the scope's
+	// size, so no second pass over the filter counts it; only a scope past the cap is re-ordered by age below.
+	stmt := "SELECT s.id, s.title, s.muse_id, " + hExpr + ", s.created_at FROM songs s WHERE " + where + " ORDER BY s.id" //nolint:gosec // G202: fragments are fixed strings built in this package
 	rs, err := q.QueryContext(ctx, stmt, append(hArgs, args...)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("atlas: scope: %w", err)
@@ -339,6 +339,7 @@ func scope(ctx context.Context, q queryer, f songs.ListFilter, dim bool, limit i
 			return strings.Compare(b.id, a.id)
 		})
 		rows = rows[:limit]
+		slices.SortFunc(rows, func(a, b row) int { return strings.Compare(a.id, b.id) })
 	}
 	if err := attachFeatures(ctx, q, rows, cols); err != nil {
 		return nil, 0, err

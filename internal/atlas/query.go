@@ -21,7 +21,7 @@ const defaultNeighbours = 8
 
 // plot is one plotted Song: its scope row, the layout input and the bases of its axes.
 type plot struct {
-	r      row
+	ri     int // index into the scope rows
 	in     Input
 	xb, yb string
 }
@@ -79,7 +79,6 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 	if err != nil {
 		return Atlas{}, err
 	}
-	slices.SortFunc(rows, func(a, b row) int { return strings.Compare(a.id, b.id) })
 	colour := colourValue(q.ColorBy)
 	tok, err := token(q, tax, rows, colour)
 	if err != nil {
@@ -130,7 +129,7 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 
 	vals := make([]string, len(plots))
 	for i, p := range plots {
-		vals[i] = colour(p.r)
+		vals[i] = colour(rows[p.ri])
 	}
 	cidx, legend, rank := overlay(vals)
 	if q.ColorBy == "none" {
@@ -153,11 +152,19 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 		out.Muses = museIDs
 	}
 	out.Totals = Totals{Scope: len(rows), ScopeTotal: scopeTotal, Truncated: scopeTotal > len(rows), Plotted: len(plots), Missing: missing}
-	pts := make([]Point, len(plots))
-	for i, p := range plots {
-		pt := Point{ID: p.r.id, T: truncRunes(p.r.title, TitleRunes), X: xy[i].X, Y: xy[i].Y, C: cidx[i], ST: p.r.st, PK: p.r.pk, XB: p.xb, YB: p.yb}
+	for _, p := range plots {
+		if rows[p.ri].h == 1 {
+			out.Totals.Hit++
+		}
+		count(&out.Totals.Basis.X, p.xb)
+		count(&out.Totals.Basis.Y, p.yb)
+	}
+	out.Axes = AxisPair{X: axisInfo(xa, plots, true), Y: axisInfo(ya, plots, false)}
+	point := func(i int) Point {
+		p, r := plots[i], &rows[plots[i].ri]
+		pt := Point{ID: r.id, T: truncRunes(r.title, TitleRunes), X: xy[i].X, Y: xy[i].Y, C: cidx[i], ST: r.st, PK: r.pk, XB: p.xb, YB: p.yb}
 		if q.Dim {
-			h := p.r.h
+			h := r.h
 			pt.H = &h
 		}
 		if q.ColorBy == "muse" {
@@ -167,20 +174,14 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 				}
 			}
 		}
-		if p.r.h == 1 {
-			out.Totals.Hit++
-		}
-		count(&out.Totals.Basis.X, p.xb)
-		count(&out.Totals.Basis.Y, p.yb)
-		pts[i] = pt
+		return pt
 	}
-	out.Axes = AxisPair{X: axisInfo(xa, plots, true), Y: axisInfo(ya, plots, false)}
 
 	// Page: points after the cursor, at most limit, cut at a whole point before the byte cap.
 	start := 0
 	if curLast != "" {
-		start, _ = slices.BinarySearchFunc(plots, curLast, func(p plot, id string) int { return strings.Compare(p.r.id, id) })
-		if start < len(plots) && plots[start].r.id == curLast {
+		start, _ = slices.BinarySearchFunc(plots, curLast, func(p plot, id string) int { return strings.Compare(p.in.ID, id) })
+		if start < len(plots) && plots[start].in.ID == curLast {
 			start++
 		}
 	}
@@ -190,8 +191,9 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 	}
 	budget := pageCapBytes - len(skeleton) - 128 // room for the cursor
 	end, used := start, 0
-	for end < len(pts) && end-start < limit {
-		b, err := json.Marshal(pts[end])
+	for end < len(plots) && end-start < limit {
+		pt := point(end)
+		b, err := json.Marshal(pt)
 		if err != nil {
 			return Atlas{}, fmt.Errorf("atlas: encode: %w", err)
 		}
@@ -199,11 +201,11 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 			break
 		}
 		used += len(b) + 1
+		out.Points = append(out.Points, pt)
 		end++
 	}
-	out.Points = pts[start:end]
-	if end < len(pts) {
-		c := encodeCursor(tok, pts[end-1].ID)
+	if end < len(plots) {
+		c := encodeCursor(tok, plots[end-1].in.ID)
 		out.NextCursor = &c
 	}
 	return out, nil
@@ -235,8 +237,9 @@ func count(b *BasisCounts, basis string) {
 func (s *Service) plots(rows []row, xa, ya AxisDef) ([]plot, Missing) {
 	var out []plot
 	var miss Missing
-	for _, r := range rows {
-		p := plot{r: r, in: Input{ID: r.id}}
+	for i := range rows {
+		r := &rows[i]
+		p := plot{ri: i, in: Input{ID: r.id}}
 		okx, oky := true, true
 		if xa.Kind == KindNumeric {
 			p.in.XV, p.xb, okx = r.numeric(xa)

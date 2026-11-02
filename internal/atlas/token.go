@@ -3,11 +3,11 @@ package atlas
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,17 +18,6 @@ import (
 // layoutCacheTTL bounds how long a laid-out scope stays in memory; it is never a freshness rule, because a changed scope has
 // a different token and misses the cache (C141.3).
 const layoutCacheTTL = 60 * time.Second
-
-// hasher feeds length-prefixed fields to sha256 so no two field sequences collide.
-type hasher struct {
-	h interface{ Write([]byte) (int, error) }
-}
-
-func (k hasher) str(s string) {
-	k.h.Write([]byte(strconv.Itoa(len(s)) + ":" + s)) //nolint:errcheck // a hash.Hash never fails
-}
-
-func (k hasher) num(n int) { k.str(strconv.Itoa(n)) }
 
 // token is sha256(x, y, color_by, the filter, dim, taxonomy version, the ordered row tuples). rows must be in id order. The
 // tuple of a row holds everything that decides membership, order, coordinates, flags, title or colour: a change to any of
@@ -41,28 +30,37 @@ func token(q Query, taxVersion int, rows []row, colour func(row) string) (string
 		return "", err
 	}
 	h := sha256.New()
-	k := hasher{h}
-	k.str(Def)
-	k.str(q.X)
-	k.str(q.Y)
-	k.str(q.ColorBy)
-	k.str(string(fj))
-	if q.Dim {
-		k.str("dim")
-	} else {
-		k.str("flat")
+	// Every field is length-prefixed, so no two field sequences hash alike; a row is one write.
+	var buf []byte
+	str := func(s string) {
+		buf = binary.AppendUvarint(buf, uint64(len(s)))
+		buf = append(buf, s...)
 	}
-	k.num(taxVersion)
+	num := func(n int) { buf = binary.AppendVarint(buf, int64(n)) }
+	str(Def)
+	str(q.X)
+	str(q.Y)
+	str(q.ColorBy)
+	str(string(fj))
+	if q.Dim {
+		str("dim")
+	} else {
+		str("flat")
+	}
+	num(taxVersion)
+	h.Write(buf) //nolint:errcheck // a hash.Hash never fails
 	for _, r := range rows {
-		k.str(r.id)
-		k.str(r.f.digest.String)
-		k.num(r.h)
-		k.num(r.st)
-		k.num(r.pk)
-		k.num(r.rec)
-		k.str(r.muse)
-		k.str(colour(r))
-		k.str(r.title)
+		buf = buf[:0]
+		str(r.id)
+		str(r.f.digest.String)
+		num(r.h)
+		num(r.st)
+		num(r.pk)
+		num(r.rec)
+		str(r.muse)
+		str(colour(r))
+		str(r.title)
+		h.Write(buf) //nolint:errcheck // as above
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
