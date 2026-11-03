@@ -74,4 +74,11 @@ r="$tmp/repo"; mkdir -p "$r/scripts"; cp "$root/scripts/check-stamp.sh" "$r/scri
 ) || fail=1
 chk "make check consults the stamp and writes it after a green run" 'awk "/^check:/{f=1;next} /^[a-z_.]/{f=0} f" "$root/Makefile" | grep -q "check-stamp.sh match" && awk "/^check:/{f=1;next} /^[a-z_.]/{f=0} f" "$root/Makefile" | grep -q "check-stamp.sh write"'
 chk "CLAUDE.md documents make test-long" 'grep -q "make test-long" "$root/CLAUDE.md"'
+# BEGIN T1-I1 toolchain pin and dsp/score tiers (D-T1-3d, C215)
+chk "GOAMD64=v1 is pinned in the Makefile, the Dockerfile and every Go workflow env" 'grep -q "^export GOAMD64 := v1" "$root/Makefile" && grep -q "^ENV GOAMD64=v1" "$root/Dockerfile" && for w in ci weekly nightly e2e-extra; do grep -q "^  GOAMD64: v1" "$wf/$w.yml" || exit 1; done'
+chk "CI proves the release binary records GOAMD64=v1, and the image build asserts it too" 'grep -q "release binary is built with GOAMD64=v1" "$wf/ci.yml" && grep -q "go version -m /out/metamusic" "$root/Dockerfile"'
+chk "make dsp runs through the loop without -race, and make check keeps dsp/score out of the -race run" 'grep -qF "\$(LOOP) dsp -- " "$root/Makefile" && d=$(awk "/^dsp:/{f=1;next} /^[a-z_.]/{f=0} f" "$root/Makefile") && grep -qF "go test -short \$(NORACE_PKGS)" <<<"$d" && ! grep -v "^#" <<<"$d" | grep -q -- "-race" && c=$(awk "/^_check:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile") && grep -qF -- "-race \$(CHECK_GCFLAGS) -short \$(RACE_PKGS)" <<<"$c" && grep -qF "go test -short \$(NORACE_PKGS)" <<<"$c"'
+chk "the CI shards run internal/dsp and internal/score without -race (nightly full race keeps them)" 'grep -q "noracere=" "$root/scripts/ci-go-test.sh" && grep -q "flags_nr\[@\]" "$root/scripts/ci-go-test.sh" && grep -q "MM_FULL_RACE:-0.\" != 1 \] && \[\[ \"\$pkg\" =~ \$noracere" "$root/scripts/ci-go-test.sh"'
+chk "weekly.yml has the determinism, fast-budget and bench jobs" 'for j in t1-determinism t1-fast-budget t1-transform-bench; do grep -q "^  $j:" "$wf/weekly.yml" || exit 1; done'
+# END T1-I1
 exit $fail

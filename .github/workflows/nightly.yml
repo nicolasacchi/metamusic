@@ -12,6 +12,10 @@ permissions: {}
 
 env:
   CGO_ENABLED: "1"
+  # BEGIN T1-I1 toolchain pin (D-T1-3d): the DSP goldens are bit-exact; GOAMD64=v3 lets the compiler emit FMA and changes
+  # Log1p/Sin/Cos/Atan2. v1 is Go's default, pinned explicitly so a runner-image or setup-go change cannot move it.
+  GOAMD64: v1
+  # END T1-I1 toolchain pin
 
 jobs:
   go-full-race:
