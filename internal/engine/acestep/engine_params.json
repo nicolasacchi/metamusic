@@ -1,0 +1,12 @@
+{"schema":"mm.engine-params/1","current":"ace1","audited":false,
+ "versions":{"ace1":{
+  "acestep_commit":"",
+  "dit":{"shift":{"upstream_default":"unaudited"},"use_adg":{"upstream_default":"unaudited"},
+   "cfg_interval_start":{"upstream_default":"unaudited"},"cfg_interval_end":{"upstream_default":"unaudited"},
+   "timesteps":{"upstream_default":"unaudited"},"chunk_mask_mode":{"upstream_default":"unaudited"},"batch_size":1},
+  "lm":{"backend":{"upstream_default":"unaudited"},"temperature":{"upstream_default":"unaudited"},
+   "top_p":{"upstream_default":"unaudited"},"top_k":{"upstream_default":"unaudited"},
+   "cfg_scale":{"upstream_default":"unaudited"},"use_cot_metas":{"upstream_default":"unaudited"},
+   "use_cot_caption":{"upstream_default":"unaudited"},"use_cot_language":{"upstream_default":"unaudited"},
+   "constrained_decoding":{"upstream_default":"unaudited"},"gpu_memory_utilization":{"upstream_default":"unaudited"}},
+  "classes":{"turbo":{"steps":8},"base":{"steps":50,"guidance_milli":7000}}}}}
