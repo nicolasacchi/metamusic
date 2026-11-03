@@ -66,7 +66,7 @@ func dbSnapshot(t *testing.T, db interface {
 }
 
 // TestUpgrade_E2_FromEveryPriorSchema populates a library at each schema since the generation tables exist (7 = M3 ...
-// 13 = close-the-loop), migrates it to the schema before the engines migration, lets store.Open apply the engines
+// 13 = close-the-loop, 14 = transforms), migrates it to the schema before the engines migration, lets store.Open apply the engines
 // migration, and checks that every row of every table is unchanged, the foreign keys are clean, the jobs table was rebuilt (no jobs_new left) and keeps its triggers.
 // The fixtures hold draft-only Songs, reference and lossy imports, multi-part imports, Songs with and without Picks and
 // jobs in several states.
@@ -97,6 +97,10 @@ func TestUpgrade_E2_FromEveryPriorSchema(t *testing.T) {
 			return "l3"
 		}},
 		{13, func(tb testing.TB, s *store.Store) string {
+			librarytest.FixtureM5(tb, s, librarytest.FixedNow)
+			return "m5"
+		}},
+		{14, func(tb testing.TB, s *store.Store) string {
 			librarytest.FixtureM5(tb, s, librarytest.FixedNow)
 			return "m5"
 		}},
