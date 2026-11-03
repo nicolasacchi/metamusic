@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -239,7 +240,7 @@ func loadTake(ctx context.Context, q querier, id string) (in input, ok bool, err
 	err = q.QueryRowContext(ctx, `SELECT r.engine, r.style, r.lyrics, t.bpm_declared, sc.bpm
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id LEFT JOIN scores sc ON sc.track_id = t.id WHERE t.id = ?`, id).
 		Scan(&in.Engine, &in.Style, &in.Lyrics, &declared, &plan)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return in, false, nil
 	}
 	if err != nil {
