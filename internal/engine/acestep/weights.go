@@ -11,7 +11,7 @@ import (
 // WEIGHTS_MISMATCH, which fails closed.
 //
 // The values are the real Hugging Face commit shas (the `sha` field of https://huggingface.co/api/models/<repo>),
-// read on 2026-11-03 (both repositories declare licence mit; the verbatim model-card sentences are the E2-P0a
+// read on 2026-11-03 and re-confirmed as the current heads by E2-P0a (both repositories declare licence mit; the verbatim model-card sentences are the E2-P0a
 // licence reading, not repeated here).
 var Weights = map[string]string{
 	WeightsRepoMain: "19671f406d603126926c1b7e2adc169acbcade22",
