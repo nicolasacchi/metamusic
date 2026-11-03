@@ -5,6 +5,7 @@
   "status": "draft",
   "status_set_by": "import",
   "origin": "import",
+  "transform": null,
   "recorded_at": "2026-10-01T12:00:00Z",
   "created_at": "2026-10-06T12:00:00Z",
   "duration_s": 12,

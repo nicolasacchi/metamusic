@@ -727,6 +727,16 @@ type LineageNode struct {
 	JobID         *string                 `json:"job_id"`
 	CreatedAt     string                  `json:"created_at"`
 	ChildrenCount int                     `json:"children_count"`
+
+	// T1 (C211.3)
+	Transform *library.TransformRef `json:"transform" doc:"Set when the node is a transform output; null otherwise"`
+	AlsoFrom  []AlsoFrom            `json:"also_from" nullable:"false" doc:"Further inputs of a transform; annotations, never tree edges"`
+}
+
+// AlsoFrom is an extra input of a transform Take.
+type AlsoFrom struct {
+	TrackID string `json:"track_id"`
+	Role    string `json:"role"`
 }
 
 // LineageTree is the tree around a track, in pre-order.

@@ -90,7 +90,7 @@ var TakeKeys = []Key{
 
 // NonSaved are the query parameters of the two list operations that a saved filter never carries: paging and ordering,
 // visibility switches, single-subject selectors, and crate_id (a Crate never nests another).
-var NonSaved = []string{"limit", "cursor", "sort", "include_hidden", "include_archived", "draft_id", "track_id", "song_id", "root_track_id", "crate_id"}
+var NonSaved = []string{"limit", "cursor", "sort", "include_hidden", "include_archived", "draft_id", "track_id", "song_id", "root_track_id", "crate_id", "origin", "lyrics_of"}
 
 // IsNonSaved reports whether name is a parameter a saved filter must not carry.
 func IsNonSaved(name string) bool {
