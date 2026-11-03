@@ -223,9 +223,13 @@ func recipeIDTaken(ctx context.Context, q lineage.Querier, requestID string) (bo
 func (s *Service) motherErr(err error, id string) error {
 	var ru *library.RecipeUnknownError
 	var lm *library.LossyMasterError
+	var tm *library.TransformMotherError
 	switch {
 	case errors.Is(err, library.ErrNotFound):
 		return unknownTrack(id)
+	case errors.As(err, &tm):
+		return perr(http.StatusUnprocessableEntity, "TRANSFORM_TAKE_NOT_MOTHER", "this take is a transform; regenerate from its nearest renderable ancestor",
+			map[string]any{"track_id": tm.TrackID, "nearest_renderable_ancestor_id": tm.NearestAncestorID})
 	case errors.As(err, &ru):
 		return perr(http.StatusUnprocessableEntity, "RECIPE_UNKNOWN", "the recipe of this track is unknown (reference track)", map[string]any{"track_id": ru.TrackID})
 	case errors.As(err, &lm):
@@ -256,6 +260,10 @@ func (s *Service) checkMothers(ctx context.Context, items []Item) error {
 				return s.motherErr(err, id)
 			}
 			if err := s.o.Library.RequireLosslessMaster(ctx, id); err != nil {
+				return s.motherErr(err, id)
+			}
+			// a transform Take (engine dsp) is no YuE2 request: refuse it before loadTrack parses its recipe as one (D-T1-12)
+			if err := s.o.Library.RequireRenderableMother(ctx, id); err != nil {
 				return s.motherErr(err, id)
 			}
 		}
