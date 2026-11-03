@@ -140,6 +140,7 @@ var order = map[string][]string{
 	"recipe":      {"engine", "known", "hash", "request", "note"},
 	"provenance":  {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
 	"score":       {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
+	"transform":   {"kind", "transform_id", "spec_hash", "title", "params", "inputs", "alignment", "safety"},
 	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
 	"judgments":   {"comments", "comments_total", "open_fix", "ladder"},
 	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence", "key", "energy"},
@@ -183,10 +184,10 @@ func (b Bundle) MarshalJSON() ([]byte, error) {
 		name string
 		m    map[string]any
 	}{
-		{"track", b.Track}, {"song", b.Song}, {"muse", b.Muse}, {"sounds", b.Sounds}, {"curation", b.Curation}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage},
+		{"track", b.Track}, {"song", b.Song}, {"muse", b.Muse}, {"sounds", b.Sounds}, {"curation", b.Curation}, {"recipe", b.Recipe}, {"provenance", b.Provenance}, {"score", b.Score}, {"lineage", b.Lineage}, {"transform", b.Transform},
 		{"judgments", b.Judgments}, {"perception", b.Perception}, {"listening", b.Listening}, {"_links", b.Links},
 	} {
-		if s.name == "curation" && s.m == nil {
+		if (s.name == "curation" || s.name == "transform") && s.m == nil {
 			continue // absent, not null, so bundles without L2 data are byte-identical to before
 		}
 		raw, err := sectionJSON(s.name, s.m)
@@ -781,6 +782,11 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 			}
 		}
 	}
+	if ti, err := b.lib.TransformOf(ctx, d.ID); err != nil {
+		return Bundle{}, err
+	} else if ti != nil {
+		out.Transform = transformSection(ti)
+	}
 	out.Lineage = map[string]any{"path": pathItems, "operator": d.Lineage.Operator, "inferred": d.Lineage.Inferred, "rule": d.Lineage.Rule,
 		"rationale": nil, "children": children, "siblings": len(d.Lineage.Siblings)}
 
@@ -906,4 +912,31 @@ func mapKeys[V any](m map[string]V) func(yield func(string) bool) {
 			}
 		}
 	}
+}
+
+// transformSection is the /context block of a transform Take (C211.4). Params is the frozen parameter object; inputs and
+// alignment sources are listed in input order and ord 0 is the ledger parent. Absent for every other Take.
+func transformSection(ti *library.TransformInfo) map[string]any {
+	inputs := make([]any, 0, len(ti.Inputs))
+	for _, in := range ti.Inputs {
+		inputs = append(inputs, newOmap("ord", in.Ord, "role", in.Role, "track_id", in.TrackID))
+	}
+	align := make([]any, 0, len(ti.Alignment))
+	for _, a := range ti.Alignment {
+		var ks any
+		if a.KeySource != "" {
+			ks = a.KeySource
+		}
+		align = append(align, newOmap("ord", a.Ord, "bpm", a.BPM, "bpm_source", a.BPMSource, "key_source", ks))
+	}
+	var params any = map[string]any{}
+	if len(ti.Params) > 0 {
+		params = ti.Params
+	}
+	var target any
+	if ti.TargetLUFS != nil {
+		target = *ti.TargetLUFS
+	}
+	return map[string]any{"kind": ti.Kind, "transform_id": ti.TransformID, "spec_hash": ti.SpecHash, "title": ti.Title,
+		"params": params, "inputs": inputs, "alignment": align, "safety": map[string]any{"target_lufs": target}}
 }
