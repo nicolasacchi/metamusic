@@ -2132,6 +2132,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/transforms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List transforms
+         * @description Transforms newest first, filtered by state, kind or an input Take.
+         */
+        get: operations["list_transforms"];
+        put?: never;
+        /**
+         * Create a transform
+         * @description Queues a CPU transform of one or two Takes (morph, shepard, glacier, polytempo, ensemble, score_render, master, widen, binaural). The result is an ordinary Take. The same spec returns the existing transform (reused). Spends no money; limited by a daily CPU pool per principal kind.
+         */
+        post: operations["create_transform"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transforms/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get transform capabilities
+         * @description The kinds with their parameter tables, defaults, ranges and blind spots, the limits, your daily CPU quota, the queue and the tools of the host. Generated from the tables that validate requests.
+         */
+        get: operations["get_transform_capabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transforms/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a transform
+         * @description Free and pure: CPU time, output length and size, memory, the resolved tempo and key of each input, warnings, quota and queue position. Costs $0 and writes nothing; it needs write scope because it previews quota and queue state of your principal kind.
+         */
+        post: operations["estimate_transform"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transforms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a transform
+         * @description State, phase, progress, inputs, CPU use, warnings and error of one transform; its id is the id of its Take.
+         */
+        get: operations["get_transform"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transforms/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a transform
+         * @description Cancels a queued or running transform; an agent cancels only its own, a human any.
+         */
+        post: operations["cancel_transform"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transforms/{id}/wait": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wait for a transform
+         * @description Long-polls up to 55 s until the state differs from since_state or the transform is terminal.
+         */
+        get: operations["wait_for_transform"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/human/api/batches/{id}/approve": {
         parameters: {
             query?: never;
@@ -2820,6 +2944,25 @@ export interface components {
             takes: number;
             /** @enum {string} */
             via: "api" | "human_create";
+        };
+        BinauralParams: {
+            /** Format: int64 */
+            elevation_deg?: number | null;
+            /** Format: int64 */
+            left_az_deg?: number | null;
+            /** @enum {string|null} */
+            model?: "hrtf" | "parametric" | null;
+            /** @enum {string|null} */
+            preset?: "studio" | "wide" | "near" | null;
+            /** Format: int64 */
+            right_az_deg?: number | null;
+            /** @enum {string|null} */
+            room?: "none" | "studio" | "hall" | null;
+            /** Format: int64 */
+            room_mix_db?: number | null;
+            source_id: string;
+            /** Format: double */
+            tail_s?: number | null;
         };
         Board: {
             columns: components["schemas"]["BoardColumn"][];
@@ -3932,6 +4075,17 @@ export interface components {
             mean_lufs: number | null;
             slot_id: string;
         };
+        EnsembleParams: {
+            /** @description A number sets it, null means minus infinity, absent keeps the default */
+            dry_db?: number | null;
+            source_id: string;
+            /** @enum {string|null} */
+            space?: "cathedral" | "cistern" | "hangar" | "canyon" | null;
+            /** Format: double */
+            tail_s?: number | null;
+            /** Format: double */
+            wet_db?: number | null;
+        };
         EnvDetail: {
             cuda: string;
             gpu_name: string;
@@ -4233,6 +4387,21 @@ export interface components {
             spend_month_usd: string;
             /** Format: int64 */
             takes_month: number;
+        };
+        GlacierParams: {
+            /** Format: double */
+            factor?: number | null;
+            /** Format: double */
+            fade_in_s?: number | null;
+            /** Format: double */
+            fade_out_s?: number | null;
+            /** Format: double */
+            length_s?: number | null;
+            source_id: string;
+            /** Format: double */
+            start_s?: number | null;
+            /** Format: double */
+            window_s?: number | null;
         };
         GrantEffective: {
             /** Format: int64 */
@@ -4836,6 +5005,33 @@ export interface components {
             mappings: components["schemas"]["MapEntry"][] | null;
             note?: string;
         };
+        MasterParams: {
+            /**
+             * Format: double
+             * @description Step 0.1; never above -1.0
+             */
+            ceiling_dbtp?: number | null;
+            /**
+             * Format: double
+             * @description Step 0.05; 0 removes the compressor
+             */
+            comp_amount?: number | null;
+            /**
+             * Format: int64
+             * @description 0 (off) or 20..40
+             */
+            low_cut_hz?: number | null;
+            /** @enum {string|null} */
+            preset?: "neutral" | "warm" | "bright" | "punch" | null;
+            source_id: string;
+            /** Format: double */
+            target_lufs?: number | null;
+            /**
+             * Format: double
+             * @description Step 0.1; overrides the preset
+             */
+            tilt_db?: number | null;
+        };
         MediaLinksOutBody: {
             /** @description Signed links to the track's deterministic cover art (512 and 1024 px); null while no cover service is wired */
             cover: {
@@ -4876,6 +5072,39 @@ export interface components {
             x: number;
             /** Format: int64 */
             y: number;
+        };
+        MorphParams: {
+            a_at?: {
+                /** Format: int64 */
+                bar?: number | null;
+                /** @description kind#ordinal, e.g. chorus#1 */
+                section?: string | null;
+            };
+            b_at?: {
+                /** Format: int64 */
+                bar?: number | null;
+                /** @description kind#ordinal, e.g. chorus#1 */
+                section?: string | null;
+            };
+            /**
+             * Format: int64
+             * @description Transition length in bars of the output grid (default 8)
+             */
+            bars?: number | null;
+            /** Format: int64 */
+            beats_per_bar?: number | null;
+            /** Format: double */
+            bpm_a?: number | null;
+            /** Format: double */
+            bpm_b?: number | null;
+            downbeat_a_s?: (Record<string, never> | null) & (number | "auto");
+            downbeat_b_s?: (Record<string, never> | null) & (number | "auto");
+            /** @enum {string|null} */
+            key_policy?: "to_a" | "none" | null;
+            /** Format: double */
+            semitones_b?: number | null;
+            track_a_id: string;
+            track_b_id: string;
         };
         Muse: {
             artist: string | null;
@@ -5353,6 +5582,24 @@ export interface components {
             /** @enum {string} */
             yb?: "m" | "d" | "l" | "p";
         };
+        PolytempoParams: {
+            /** Format: int64 */
+            beats_per_bar?: number | null;
+            /** Format: double */
+            bpm_a?: number | null;
+            /** Format: double */
+            bpm_b?: number | null;
+            /** Format: int64 */
+            converge_bar?: number | null;
+            downbeat_a_s?: (Record<string, never> | null) & (number | "auto");
+            downbeat_b_s?: (Record<string, never> | null) & (number | "auto");
+            /** @enum {string|null} */
+            pan?: "split" | "centre" | null;
+            track_a_id: string;
+            track_b_id: string;
+            /** Format: int64 */
+            unison_bars?: number | null;
+        };
         Pot: {
             /** Format: int64 */
             cap_micro_usd: number;
@@ -5743,6 +5990,23 @@ export interface components {
             /** Format: int64 */
             undecided: number;
         };
+        ScoreRenderParams: {
+            /** Format: double */
+            bpm?: number | null;
+            /** @enum {string|null} */
+            dialect?: "standard" | "yue2" | null;
+            /** Format: double */
+            gain?: number | null;
+            score: components["schemas"]["ScoreSource"];
+            /** @description A configured name; never a path */
+            soundfont?: string | null;
+            /** Format: double */
+            tail_s?: number | null;
+        };
+        ScoreSource: {
+            abc?: string | null;
+            from_track_id?: string | null;
+        };
         SectionOut: {
             /** Format: double */
             confidence: number | null;
@@ -5905,6 +6169,25 @@ export interface components {
             /** @description Tags to add (normalised: lower case, single spaces) */
             add?: string[] | null;
             remove?: string[] | null;
+        };
+        ShepardParams: {
+            /** Format: double */
+            bell_sigma_octaves?: number | null;
+            /** @enum {string|null} */
+            direction?: "up" | "down" | null;
+            /** Format: double */
+            duration_s?: number | null;
+            /** Format: int64 */
+            layers?: number | null;
+            /** Format: int64 */
+            loop_bars?: number | null;
+            /** Format: double */
+            loop_s?: number | null;
+            /** Format: double */
+            period_s?: number | null;
+            source_id: string;
+            /** Format: double */
+            start_s?: number | null;
         };
         Sibling: {
             id: string;
@@ -7055,6 +7338,265 @@ export interface components {
             tags: components["schemas"]["TagRef"][];
             track_id: string;
         };
+        TransformCPU: {
+            /** Format: int64 */
+            budget_ms: number;
+            /** Format: int64 */
+            expected_ms: number;
+            /** Format: int64 */
+            max_ms: number;
+            /** @description cpu/1 */
+            model: string;
+        };
+        TransformCPUUse: {
+            /** Format: int64 */
+            expected_ms: number;
+            /** Format: int64 */
+            max_ms: number;
+            /** Format: int64 */
+            used_ms: number | null;
+        };
+        TransformCapabilities: {
+            dsp_version: string;
+            enabled: boolean;
+            kinds: components["schemas"]["TransformKindCaps"][];
+            limits: components["schemas"]["TransformLimits"];
+            queue: components["schemas"]["TransformQueueCaps"];
+            quota: components["schemas"]["TransformQuota"];
+            soundfonts: components["schemas"]["TransformSoundfont"][];
+            tools: components["schemas"]["TransformToolCaps"];
+        };
+        TransformCost: {
+            /** Format: int64 */
+            micro_usd: number;
+            /** @description Always 0.000000 */
+            usd: string;
+        };
+        TransformEstimate: {
+            cost: components["schemas"]["TransformCost"];
+            cpu: components["schemas"]["TransformCPU"];
+            existing: {
+                state: string;
+                take_id?: string | null;
+                transform_id: string;
+            } | null;
+            inputs: components["schemas"]["TransformEstimateInput"][];
+            kind: string;
+            /** Format: int64 */
+            memory_mb: number;
+            output: components["schemas"]["TransformOutputEstimate"];
+            queue: components["schemas"]["TransformQueueEstimate"];
+            quota: components["schemas"]["TransformQuota"];
+            /** @description The parameters with every default written out */
+            resolved: Record<string, never>;
+            spec_hash: string;
+            title: string;
+            tools: components["schemas"]["TransformTools"];
+            /** Format: double */
+            wall_expected_s: number;
+            warnings: components["schemas"]["TransformWarning"][];
+        };
+        TransformEstimateInput: {
+            /** Format: int64 */
+            beats_per_bar: number;
+            bpm: {
+                /** Format: double */
+                confidence?: number | null;
+                /** Format: int64 */
+                octave_fold: number;
+                /** @description explicit, plan, declared or measured */
+                source: string;
+                /** Format: double */
+                value: number;
+            } | null;
+            /** Format: double */
+            duration_s: number;
+            key: {
+                camelot?: string | null;
+                minor: boolean;
+                /**
+                 * Format: int64
+                 * @description Pitch class 0..11, C = 0
+                 */
+                pc: number;
+                source: string;
+            } | null;
+            role: string;
+            title: string;
+            track_id: string;
+        };
+        TransformFluidsynth: {
+            available: boolean;
+            version: string | null;
+        };
+        TransformInputRef: {
+            role: string;
+            title: string;
+            track_id: string;
+        };
+        TransformKindCaps: {
+            blind_spots: string[];
+            /** @description Credit string of the HRTF dataset, binaural only */
+            dataset?: string | null;
+            /** @description A request body that passes validation */
+            example: Record<string, never>;
+            /** Format: int64 */
+            inputs: number;
+            kind: string;
+            /** @description headphones, for binaural */
+            listening?: string | null;
+            params: components["schemas"]["TransformParamCap"][];
+            summary: string;
+        };
+        TransformLimits: {
+            /** Format: int64 */
+            concurrent_renders: number;
+            /** Format: int64 */
+            max_cpu_s: number;
+            /** Format: int64 */
+            max_input_s: number;
+            /** Format: int64 */
+            max_inputs: number;
+            /** Format: int64 */
+            max_mem_mb: number;
+            /** Format: int64 */
+            max_output_s: number;
+        };
+        TransformOutputEstimate: {
+            /** Format: int64 */
+            bits: number;
+            /** Format: int64 */
+            bytes_est: number;
+            /** Format: int64 */
+            channels: number;
+            /** Format: int64 */
+            sample_rate: number;
+            /** Format: double */
+            seconds: number;
+        };
+        TransformPage: {
+            items: components["schemas"]["TransformView"][];
+            next_cursor: string | null;
+        };
+        TransformParamCap: {
+            default?: Record<string, never> | null;
+            enum?: string[];
+            /** Format: double */
+            max?: number | null;
+            /** Format: double */
+            min?: number | null;
+            name: string;
+            required: boolean;
+            type: string;
+        };
+        TransformQueueCaps: {
+            /** Format: int64 */
+            max: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+        };
+        TransformQueueEstimate: {
+            /** Format: int64 */
+            position_if_created: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+        };
+        TransformQuota: {
+            /** Format: int64 */
+            cap_ms: number;
+            /** @description human or agent: the pool is shared by every principal of that kind */
+            principal_kind: string;
+            /** Format: int64 */
+            reserved_ms: number;
+            /** @description RFC 3339 */
+            resets_at: string;
+            /** Format: int64 */
+            used_ms: number;
+        };
+        TransformRequest: {
+            binaural?: components["schemas"]["BinauralParams"];
+            ensemble?: components["schemas"]["EnsembleParams"];
+            glacier?: components["schemas"]["GlacierParams"];
+            /** @enum {string} */
+            kind: "morph" | "shepard" | "glacier" | "polytempo" | "ensemble" | "score_render" | "master" | "widen" | "binaural";
+            master?: components["schemas"]["MasterParams"];
+            morph?: components["schemas"]["MorphParams"];
+            polytempo?: components["schemas"]["PolytempoParams"];
+            /** @description Stored on the Operator Ledger row */
+            rationale?: string | null;
+            score_render?: components["schemas"]["ScoreRenderParams"];
+            /** Format: int64 */
+            seed?: number | null;
+            shepard?: components["schemas"]["ShepardParams"];
+            /** Format: double */
+            target_lufs?: number | null;
+            title?: string | null;
+            widen?: components["schemas"]["WidenParams"];
+        };
+        TransformSoundfont: {
+            /** Format: int64 */
+            bytes: number;
+            name: string;
+            sha256_12: string;
+        };
+        TransformToolCaps: {
+            ffmpeg: boolean;
+            flac: boolean;
+            fluidsynth: components["schemas"]["TransformFluidsynth"];
+        };
+        TransformTools: {
+            ffmpeg: boolean;
+            flac: boolean;
+            fluidsynth: boolean;
+            soundfont: string | null;
+        };
+        TransformView: {
+            cancel_requested_at: string | null;
+            cost: components["schemas"]["TransformCost"];
+            cpu: components["schemas"]["TransformCPUUse"];
+            created_at: string;
+            error: {
+                code: string;
+                message: string;
+            } | null;
+            finished_at: string | null;
+            id: string;
+            inputs: components["schemas"]["TransformInputRef"][];
+            kind: string;
+            /** Format: double */
+            output_seconds_est: number;
+            phase: string | null;
+            principal: components["schemas"]["PrincipalRef"];
+            /** Format: int64 */
+            progress_permille: number;
+            rationale: string | null;
+            /** @description A discarded Take of this spec was restored to draft instead of rendering again */
+            restored: boolean;
+            reused: boolean;
+            spec_hash: string;
+            started_at: string | null;
+            /** @enum {string} */
+            state: "queued" | "running" | "done" | "failed" | "cancelled";
+            /** @description Equals id: the transform is its Take */
+            take_id: string;
+            title: string;
+            /** @description Render-time warnings; empty until done */
+            warnings: components["schemas"]["TransformWarning"][];
+        };
+        TransformWait: {
+            changed: boolean;
+            timed_out: boolean;
+            transform: components["schemas"]["TransformView"];
+        };
+        TransformWarning: {
+            code: string;
+            field?: string;
+            message: string;
+        };
         TripView: {
             /** @description What the reconciler did */
             actions: string[];
@@ -7273,6 +7815,24 @@ export interface components {
             step_up_until: string | null;
             /** @description How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app) */
             via: string;
+        };
+        WidenParams: {
+            /**
+             * Format: int64
+             * @description 0 (off) or 60..250
+             */
+            bass_mono_hz?: number | null;
+            /**
+             * Format: double
+             * @description Step 0.05
+             */
+            decorrelate?: number | null;
+            source_id: string;
+            /**
+             * Format: double
+             * @description Step 0.05; gain on the side signal
+             */
+            width?: number | null;
         };
     };
     responses: never;
@@ -11512,6 +12072,240 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_transforms: {
+        parameters: {
+            query?: {
+                state?: "queued" | "running" | "done" | "failed" | "cancelled";
+                kind?: "morph" | "shepard" | "glacier" | "polytempo" | "ensemble" | "score_render" | "master" | "widen" | "binaural";
+                /** @description Only transforms that have this Take as an input */
+                track_id?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_transform: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransformRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_transform_capabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformCapabilities"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    estimate_transform: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransformRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformEstimate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_transform: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Transform id (equals its Take id) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_transform: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Transform id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    wait_for_transform: {
+        parameters: {
+            query?: {
+                /** @description Return as soon as the state differs; default the state at call time */
+                since_state?: "queued" | "running" | "done" | "failed" | "cancelled";
+                timeout_s?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Transform id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransformWait"];
                 };
             };
             /** @description Error */

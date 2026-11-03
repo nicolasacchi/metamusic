@@ -63,6 +63,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/tape"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
+	"github.com/nicolasacchi/metamusic/internal/transform"
 	"github.com/nicolasacchi/metamusic/internal/upload"
 )
 
@@ -147,6 +148,8 @@ type Options struct {
 	Sequence    *sequence.Service
 	NextActions *nextactions.Service
 	Atlas       *atlas.Service
+	// Transform (T1, C212); nil makes the seven transform operations answer 503 UNAVAILABLE {component: transform}. It reaches api.Deps only.
+	Transform *transform.Service
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
@@ -199,7 +202,7 @@ func New(o Options) (http.Handler, error) {
 		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board,
 		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts,
 		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
-		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas})
+		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()

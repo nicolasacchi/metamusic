@@ -255,6 +255,27 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"list_taxonomy_proposals": func(*uiState) map[string]any { return map[string]any{"state": []string{"open"}, "limit": 10} },
 	"get_song_atlas":          func(*uiState) map[string]any { return map[string]any{"x": "tempo", "y": "energy", "limit": 50} },
 	"get_adherence":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+
+	// T1 (C212): the seven transform operations, all generic MCP operations with a UI route (D-T1-21).
+	"estimate_transform": func(s *uiState) map[string]any {
+		return map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": s.mother}}
+	},
+	"create_transform": func(s *uiState) map[string]any {
+		return map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": s.mother}}
+	},
+	"get_transform":              func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+	"list_transforms":            func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"wait_for_transform":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother, "timeout_s": 0} },
+	"cancel_transform":           func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+	"get_transform_capabilities": func(*uiState) map[string]any { return nil },
+}
+
+// t1PendingStub lists the transform operations whose handler still answers 501 (lane B4 has not landed): the script keeps
+// their entry, so the registry-derived set stays complete, but does not call them. B4 deletes this map when it implements
+// the operations.
+var t1PendingStub = map[string]bool{
+	"estimate_transform": true, "create_transform": true, "get_transform": true, "list_transforms": true,
+	"wait_for_transform": true, "cancel_transform": true, "get_transform_capabilities": true,
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -301,6 +322,8 @@ var uiOrder = []string{
 	"create_crate", "list_crates", "get_crate", "update_crate", "edit_crate_items", "get_curation_settings", "export_record_tape", "get_tape",
 	// L3: after the Record exists (the sequence preview reads it)
 	"suggest_sequence", "list_next_actions", "list_taxonomy_proposals", "get_song_atlas", "get_adherence",
+	// T1: transforms of a Take
+	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
 }
 
 // afterStep records the ids later steps need.
@@ -435,6 +458,9 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 				}
 			}
 			script = spendScript[id]
+		}
+		if t1PendingStub[id] {
+			continue
 		}
 		if id == "export_record_tape" && st.record != "" {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)
