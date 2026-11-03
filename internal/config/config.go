@@ -52,6 +52,9 @@ type Config struct {
 	ResidualHold    time.Duration // MM_RESIDUAL_HOLD, default 48h, 1h..720h
 	RunPodRecordDir string        // MM_RUNPOD_RECORD_DIR, default "" (fixture recording); existing dir outside DataDir
 
+	// M5 (C250).
+	CallbackBacklogMax int // MM_CALLBACK_BACKLOG_MAX, default 6, 0..50; 0 disables the agent backlog gate
+
 	// M4a (C102).
 	OIDCIssuer  string       // MM_OIDC_ISSUER: "" ⇒ hosted connectors disabled
 	OIDCJWKSURL string       // MM_OIDC_JWKS_URL: "" ⇒ discovered from the issuer
@@ -119,7 +122,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}

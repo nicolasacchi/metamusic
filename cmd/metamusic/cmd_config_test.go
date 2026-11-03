@@ -65,6 +65,8 @@ func TestConfigCheck(t *testing.T) {
 		errLines []string // exact stderr lines
 	}{
 		{name: "valid minimal proxy", code: 0, outHas: []string{"config ok\n", "auth: proxy", "oidc: disabled", "ntfy: disabled"}},
+		{name: "callback backlog default", code: 0, outHas: []string{"callback backlog: 6 per lineage root"}},
+		{name: "callback backlog off", extra: with("MM_CALLBACK_BACKLOG_MAX", "0", "MM_OIDC_CLIENTS", "metamusic-claude=Claude"), code: 0, outHas: []string{"callback backlog: gate off"}},
 		{name: "step-up off by default", code: 0, outHas: []string{"step-up: edge only"}},
 		{name: "step-up client", extra: with("MM_STEPUP_OIDC_CLIENT", "metamusic-stepup", "MM_OIDC_CLIENTS", "metamusic-claude=Claude"), code: 0, outHas: []string{"step-up: oidc client metamusic-stepup (secret not set, public client)"}},
 		{name: "valid oidc", extra: with("MM_OIDC_CLIENTS", "metamusic-claude=Claude"), code: 0, outHas: []string{"oidc: enabled (1 client)"}},

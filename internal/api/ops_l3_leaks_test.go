@@ -219,7 +219,9 @@ func TestSongTitle_NeverMuseText(t *testing.T) {
 func TestL3Ops_ErrorsCarryIDsOnly(t *testing.T) {
 	t.Parallel()
 	x := newL3LeakRig(t, servertest.Options{})
-	canary := "CanaryL3Text" + randHex(t)
+	// the "." is not a base64url character: the canary is also sent as a cursor and must never decode as one (a random
+	// all-alphanumeric canary decoded to a valid two-part cursor in about 6 % of runs)
+	canary := "CanaryL3.Text" + randHex(t)
 	// selector is a value the caller picks from a closed set (a strategy, an axis, a state): a refusal names the offending value
 	// the caller itself sent, as the L2 refusals echo a bad id or filter key. Free text (rationale, term, title, note) is never echoed.
 	selector := "no_such_choice"
