@@ -277,7 +277,7 @@ func TestCreate_CrossPrincipalReuse(t *testing.T) {
 	r := newRig(t)
 	a := r.create(agentA, glacier(r.tx("A")))
 	reserved := func() int64 {
-		q, err := r.svc.quotaOf(t.Context(), r.st.R, "agent")
+		q, err := r.svc.poolQuota(t.Context(), r.st.R, "agent")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -503,7 +503,7 @@ func TestQuota_DailyCPU(t *testing.T) {
 	b := r.create(agentA, one(11))
 	_, err = r.svc.Create(t.Context(), agentA, one(12), nil)
 	pe := wantProblem(t, err, 429, ErrQuotaExceeded)
-	if pe.Details["cap_ms"] != r.svc.capMS("agent") || pe.Details["reserved_ms"] == nil || pe.Details["resets_at"] == nil {
+	if pe.Details["cap_ms"] != r.svc.poolCapMS("agent") || pe.Details["reserved_ms"] == nil || pe.Details["resets_at"] == nil {
 		t.Errorf("details %v", pe.Details)
 	}
 	// finishing releases the reservation and counts the measured CPU instead
@@ -517,7 +517,7 @@ func TestQuota_DailyCPU(t *testing.T) {
 	// a day later the finished rows have left the window
 	r.advance(25 * time.Hour)
 	used, _ = DailyCPUUsedMS(t.Context(), r.st.R, "agent", r.clock().Add(-QuotaWindow))
-	q, _ := r.svc.quotaOf(t.Context(), r.st.R, "agent")
+	q, _ := r.svc.poolQuota(t.Context(), r.st.R, "agent")
 	if used != q.ReservedMS || q.UsedMS != 0 {
 		t.Errorf("rolled window: used %d reserved %d usedMS %d", used, q.ReservedMS, q.UsedMS)
 	}
@@ -563,7 +563,7 @@ func TestQuota_CancelledQueuedReleases(t *testing.T) {
 		if _, err := r.svc.Cancel(t.Context(), agentA, v.View.ID); err != nil {
 			t.Fatal(err)
 		}
-		q, _ := r.svc.quotaOf(t.Context(), r.st.R, "agent")
+		q, _ := r.svc.poolQuota(t.Context(), r.st.R, "agent")
 		if q.UsedMS != 0 || q.ReservedMS != 0 {
 			t.Fatalf("loop %d: used %d reserved %d", i, q.UsedMS, q.ReservedMS)
 		}

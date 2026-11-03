@@ -14,7 +14,7 @@ type Capabilities struct {
 	Enabled    bool
 	Kinds      []KindCapabilities
 	Limits     LimitsInfo
-	Quota      Quota
+	Quota      QuotaInfo
 	QuotaNote  string
 	Queue      QueueInfo
 	Tools      ToolsInfo
@@ -60,7 +60,7 @@ func (s *Service) Capabilities(ctx context.Context, p auth.Principal) (Capabilit
 			MaxCPUS: cfg.TransformMaxCPUS, Concurrent: ConcurrentRenders},
 		Tools: ToolsInfo(ts),
 	}
-	if c.Quota, err = s.quotaOf(ctx, s.o.Store.R, pool); err != nil {
+	if c.Quota, err = s.poolQuota(ctx, s.o.Store.R, pool); err != nil {
 		return Capabilities{}, err
 	}
 	running, queued, err := s.queueState(ctx, s.o.Store.R)

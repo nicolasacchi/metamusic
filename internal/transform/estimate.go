@@ -40,7 +40,7 @@ type Estimate struct {
 	Inputs      []EstimateInput
 	Resolved    json.RawMessage
 	Warnings    []Warning
-	Quota       Quota
+	Quota       QuotaInfo
 	Queue       QueueEstimate
 	Existing    *Existing
 	Tools       ToolsEstimate
@@ -81,8 +81,8 @@ type KeyInfo struct {
 	Source  string
 }
 
-// Quota is the daily CPU pool of the caller's principal kind (shared by every principal of that kind, D-T1-10).
-type Quota struct {
+// QuotaInfo is the daily CPU pool of the caller's principal kind (shared by every principal of that kind, D-T1-10).
+type QuotaInfo struct {
 	PrincipalKind             string
 	CapMS, UsedMS, ReservedMS int64
 	ResetsAt                  time.Time
@@ -167,7 +167,7 @@ func principalPool(p auth.Principal) (string, error) {
 	return "", forbidden("a transform needs an authenticated principal", nil)
 }
 
-func (s *Service) capMS(pool string) int64 {
+func (s *Service) poolCapMS(pool string) int64 {
 	if pool == "agent" {
 		return int64(s.o.Config.TransformAgentDailyCPUS) * 1000
 	}
@@ -463,11 +463,11 @@ func DailyCPUUsedMS(ctx context.Context, q queryer, principalKind string, since 
 	return n.Int64, nil
 }
 
-// quotaOf reads the pool of one principal kind: used (finished inside the window), reserved (live) and when it next frees up.
-func (s *Service) quotaOf(ctx context.Context, q queryer, pool string) (Quota, error) {
+// poolQuota reads the pool of one principal kind: used (finished inside the window), reserved (live) and when it next frees up.
+func (s *Service) poolQuota(ctx context.Context, q queryer, pool string) (QuotaInfo, error) {
 	now := s.o.Now()
 	since := now.Add(-QuotaWindow)
-	out := Quota{PrincipalKind: pool, CapMS: s.capMS(pool), ResetsAt: now.Add(QuotaWindow)}
+	out := QuotaInfo{PrincipalKind: pool, CapMS: s.poolCapMS(pool), ResetsAt: now.Add(QuotaWindow)}
 	var used, reserved sql.NullInt64
 	var oldest sql.NullString
 	err := q.QueryRowContext(ctx, `SELECT
@@ -518,7 +518,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, req Request) (
 	if err != nil {
 		return Estimate{}, err
 	}
-	quota, err := s.quotaOf(ctx, q, pl.PrincipalKd)
+	quota, err := s.poolQuota(ctx, q, pl.PrincipalKd)
 	if err != nil {
 		return Estimate{}, err
 	}

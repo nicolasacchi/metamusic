@@ -80,7 +80,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, req Request, enc
 	}
 
 	// 8. quota of the principal kind: live rows reserve their budget, finished rows count their measured CPU
-	quota, err := s.quotaOf(ctx, tx, pl.PrincipalKd)
+	quota, err := s.poolQuota(ctx, tx, pl.PrincipalKd)
 	if err != nil {
 		return CreateResult{}, err
 	}
