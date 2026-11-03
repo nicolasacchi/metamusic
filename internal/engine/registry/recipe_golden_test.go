@@ -78,10 +78,7 @@ func errCode(err error) string {
 	if err == nil {
 		return ""
 	}
-	if pe, ok := err.(interface{ Error() string }); ok {
-		return pe.Error()
-	}
-	return "error"
+	return err.Error()
 }
 
 // legacyRows computes the rows through the pre-seam entry points (lineage.ParseRequest, ApplyParsed, Keys).
