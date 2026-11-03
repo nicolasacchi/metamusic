@@ -262,6 +262,9 @@ func New(tb testing.TB, o Options) *Rig {
 		// M3 defaults (C68)
 		Backend: config.BackendNone, Runner: true, JobMaxRuntime: 15 * time.Minute, KillSlackS: 15, JobTTL: 2 * time.Hour,
 		ColdStartS: 180, PriceMarginPPM: 100_000, BillingLag: 6 * time.Hour, ResidualHold: 48 * time.Hour,
+		// T1 defaults (C200): the transform service is built, its operations answer 501 until their lanes land
+		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
+		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
 	}
 	switch o.Backend {
 	case "", "none":

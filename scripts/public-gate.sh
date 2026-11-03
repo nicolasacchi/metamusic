@@ -63,6 +63,7 @@ forbidden_path() {
     *.flac | *.mp3 | *.wav | *.ogg | *.opus | *.m4a | *.aac | *.aif | *.aiff | *.webm | *.mp4 | *.mka | *.wma | \
       *.zip | *.7z | *.tar | *.tar.* | *.tgz | *.gz | *.bz2 | *.xz | *.zst | *.rar | \
       *.jpg | *.jpeg | *.npy | \
+      *.sf2 | *.sf3 | *.mid | *.midi | *.f32 | *.pcm24 | *.sofa | *.hrir.zip | *.hrirs | \
       *.db* | *.sqlite* | *.s3db | *.pdf | *.docx | songs.json | songs.json* | CLAUDE.local.md | .env* | *.env | \
       *public-gate-patterns* | .gitleaksignore) rc=0 ;;
   esac

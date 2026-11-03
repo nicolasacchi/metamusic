@@ -51,7 +51,7 @@ type NewArtifact struct {
 // NewMutation links a take to its parent: inferred siblings at import (M1) and
 // the Operator Ledger edges of generated takes (M3, C71.5).
 type NewMutation struct {
-	Operator  string // inferred_sibling | reroll_seed | same_seed_edit | lyric_edit | style_edit | from_draft | compose_new
+	Operator  string // inferred_sibling | reroll_seed | same_seed_edit | lyric_edit | style_edit | from_draft | compose_new | a transform kind (T1)
 	Inferred  bool
 	Rule      string // same_request_id | seed_family | mapping | reference_group (inferred_sibling only)
 	Rationale string
@@ -113,8 +113,12 @@ type NewTake struct {
 	// M3 (D-M3-35). Origin is "" or "import" for imported takes and "job" for generated ones; the
 	// columns below are written only for job takes so older-schema fixtures keep building.
 	Origin       string
-	StatusSetBy  string // default "import" (job takes: "system:job")
+	StatusSetBy  string // default "import" (job takes: "system:job", transform takes: "system:transform")
 	JobID, EnvID string
+
+	// T1 (D-T1-4). A transform take has Origin "transform" (stored as origin 'job' with no job id and import_rule
+	// 'transform'): TransformID is its transform row and equals ID. It is the only write path of a dsp take.
+	TransformID string
 
 	// Out, when non-nil, receives the fulfilled drafts.
 	Out *Fulfilment
@@ -344,7 +348,14 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if err := validateReferenceTake(t); err != nil {
 		return err
 	}
-	if err := validateJobTake(t); err != nil {
+	if t.TransformID != "" && !t.isTransform() {
+		return invalid("transform_id", "only a transform take carries a transform id")
+	}
+	if t.isTransform() {
+		if err := validateTransformTake(t); err != nil {
+			return err
+		}
+	} else if err := validateJobTake(t); err != nil {
 		return err
 	}
 	var reqID, style, lyrics, coreHash string
@@ -353,7 +364,7 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 		return fmt.Errorf("library: take recipe: %w", err)
 	}
 	terms, bpm := yue2.StyleTerms(style)
-	if t.Reference {
+	if t.Reference || t.isTransform() { // a transform's label is not style text (C211.1)
 		terms, bpm = nil, 0
 	}
 	root := t.RootTrackID
@@ -383,12 +394,19 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	origin, setBy := "import", "import"
 	args := []any{t.ID, t.Slug, t.Title, t.RecipeID, nullStr(t.ParentTrackID), root, t.Generation}
 	jobCols, jobArgs := "", ""
-	if t.isJob() {
+	switch {
+	case t.isJob():
 		origin, setBy = "job", t.StatusSetBy
 		if setBy == "" {
 			setBy = "system:job"
 		}
 		jobCols, jobArgs = ", job_id, env_id", ",?,?"
+	case t.isTransform():
+		origin, setBy = "job", t.StatusSetBy
+		if setBy == "" {
+			setBy = "system:transform"
+		}
+		jobCols, jobArgs = ", transform_id", ",?"
 	}
 	args = append(args, setBy, origin,
 		t.DurationS, t.SampleRate, t.BitsPerSample, t.Channels, t.TotalSamples, t.MasterPath, t.MasterSHA256, t.MasterBytes, t.SourceSHA256, t.FramesSHA256, t.AudioMD5,
@@ -396,8 +414,11 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if statusCol != "" {
 		args = append(args, now)
 	}
-	if t.isJob() {
+	switch {
+	case t.isJob():
 		args = append(args, nullStr(t.JobID), nullStr(t.EnvID))
+	case t.isTransform():
+		args = append(args, t.TransformID)
 	}
 	if err := execTx(ctx, tx, `INSERT INTO tracks(id, slug, title, recipe_id, parent_track_id, root_track_id, generation, status, status_set_by, origin,
 		duration_s, sample_rate, bits_per_sample, channels, total_samples, master_path, master_sha256, master_bytes, source_sha256, frames_sha256, audio_md5,
@@ -449,7 +470,7 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 	if t.Reference {
 		return nil // a stub recipe never fulfils a draft (C59)
 	}
-	if t.isJob() {
+	if t.isJob() || t.isTransform() {
 		return nil // a generated take never fulfils an imported draft; the job path marks its own draft (D-M3-35)
 	}
 	return s.fulfil(ctx, tx, t, coreHash, now)
@@ -457,6 +478,11 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 
 func (t NewTake) isJob() bool { return t.Origin == "job" }
 
+// isTransform reports a transform take (T1): stored as origin 'job', but not a job: it has no job, environment, score or draft.
+func (t NewTake) isTransform() bool { return t.Origin == "transform" }
+
+// scoreSource feeds scores.source. A transform never writes a scores row (validateTransformTake refuses a score), so it
+// never reaches this function and can never yield a third value.
 func scoreSource(t NewTake) string {
 	if t.isJob() {
 		return "job"
@@ -464,11 +490,41 @@ func scoreSource(t NewTake) string {
 	return "import"
 }
 
-// enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import.
-var enumOperator = []string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new"}
+// TransformKinds lists the nine transform kinds; each is also the Operator Ledger operator of the take it makes (C225.2).
+var TransformKinds = []string{"morph", "shepard", "glacier", "polytempo", "ensemble", "score_render", "master", "widen", "binaural"}
 
-// rootlessOperators may record an edge without a parent (a draft with no mother, a composed song).
-var rootlessOperators = []string{"from_draft", "compose_new"}
+// enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import. The nine transform
+// kinds follow the seven original operators (7 + 9).
+var enumOperator = append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new"}, TransformKinds...)
+
+// rootlessOperators may record an edge without a parent (a draft with no mother, a composed song, a score render).
+var rootlessOperators = []string{"from_draft", "compose_new", "score_render"}
+
+// validateTransformTake enforces the Go side of the transform-take shape (C211.1; the triggers of the T1 migration
+// enforce the same shape for any other writer).
+func validateTransformTake(t NewTake) error {
+	switch {
+	case t.TransformID == "" || t.TransformID != t.ID:
+		return invalid("transform_id", "a transform take's transform id is its own id")
+	case t.JobID != "" || t.EnvID != "":
+		return invalid("job_id", "a transform take has no job or environment")
+	case t.Reference || t.Lossy:
+		return invalid("origin", "a transform take is never a reference or lossy take")
+	case t.ImportRule != "transform":
+		return invalid("import_rule", "a transform take has import_rule transform")
+	case t.BitsPerSample != 24 || t.Channels != 2:
+		return invalid("bits_per_sample", "a transform take is 24-bit stereo")
+	case t.ScoreABC != nil:
+		return invalid("score", "a transform take writes no scores row")
+	case t.Mutation == nil || !oneOf(t.Mutation.Operator, TransformKinds...):
+		return invalid("mutation", "a transform take needs a mutation whose operator is a transform kind")
+	case t.Mutation.Operator != "score_render" && t.ParentTrackID == "":
+		return invalid("mutation", "operator %q needs a parent", t.Mutation.Operator)
+	case t.Mutation.Operator == "score_render" && t.ParentTrackID != "":
+		return invalid("mutation", "a score render is rootless")
+	}
+	return nil
+}
 
 // validateJobTake enforces the Go side of the job-take shape.
 func validateJobTake(t NewTake) error {
@@ -510,6 +566,22 @@ func validateJobTake(t NewTake) error {
 // insertMutation writes the Operator Ledger row of a take (inferred at import, planned for a job).
 func (s *Service) insertMutation(ctx context.Context, tx *sql.Tx, t NewTake, now string) error {
 	m := t.Mutation
+	if t.isTransform() {
+		params := map[string]any{}
+		for k, v := range m.Params {
+			params[k] = v
+		}
+		params["transform_id"] = t.TransformID
+		pj, err := jsonString(params) // encoding/json sorts map keys: stable bytes
+		if err != nil {
+			return err
+		}
+		if err := execTx(ctx, tx, `INSERT INTO mutations(id, parent_track_id, child_track_id, operator, inferred, params_json, rationale, principal_id, created_at, transform_id)
+			VALUES (?,?,?,?,0,?,?,?,?,?)`, s.newID(), nullStr(t.ParentTrackID), t.ID, m.Operator, pj, nullStr(m.Rationale), t.PrincipalID, now, t.TransformID); err != nil {
+			return fmt.Errorf("library: insert mutation: %w", err)
+		}
+		return nil
+	}
 	if !t.isJob() {
 		pj, err := jsonString(map[string]string{"rule": m.Rule})
 		if err != nil {
@@ -819,7 +891,8 @@ func (s *Service) FinishRun(ctx context.Context, runID, state string, summary, r
 
 // RelinkVariantiMothers fills NULL mother links of varianti drafts once the
 // mother (a unique lineage root with the same group key) exists. Edited drafts
-// (revision > 1) are never touched (C27).
+// (revision > 1) are never touched (C27). Transform Takes (engine dsp) are neutral here: their request_id is the spec id
+// "dsp-<kind>-<hash>", which is never a varianti group key, so a dsp root can match no draft (pinned by TestEngineSweep_Dsp).
 func (s *Service) RelinkVariantiMothers(ctx context.Context, tx *sql.Tx) (int, error) {
 	roots := map[string]map[string]bool{} // group key -> root track ids
 	rows, err := tx.QueryContext(ctx, `SELECT t.root_track_id, r.request_id FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE r.engine <> 'unknown'`)

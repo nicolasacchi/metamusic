@@ -107,8 +107,8 @@ var (
 	enumQuality  = []string{"lossless", "high", "auto"}
 )
 
-// Rules a take can be matched by (tracks.import_rule), plus 'job' for M3.
-var enumRule = []string{"mapping", "result_dir", "tag", "filename_id", "sidecar_json", "slug", "slug_seed", "title_slug", "job", RuleReference}
+// Rules a take can be matched by (tracks.import_rule), plus 'job' for M3 and 'transform' for T1.
+var enumRule = []string{"mapping", "result_dir", "tag", "filename_id", "sidecar_json", "slug", "slug_seed", "title_slug", "job", "transform", RuleReference}
 
 // SHA256Hex is the hex sha256 of b (exported for fixtures and importers).
 func SHA256Hex(b []byte) string { return sha256Hex(b) }

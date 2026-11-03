@@ -182,6 +182,7 @@ func libErr(err error) error {
 	var ve *library.ValidationError
 	var ru *library.RecipeUnknownError
 	var lm *library.LossyMasterError
+	var tm *library.TransformMotherError
 	switch {
 	case err == nil:
 		return nil
@@ -189,6 +190,9 @@ func libErr(err error) error {
 		return Err(http.StatusUnprocessableEntity, "RECIPE_UNKNOWN", "the recipe of this track is unknown (reference track)", map[string]any{"track_id": ru.TrackID})
 	case errors.As(err, &lm):
 		return Err(http.StatusUnprocessableEntity, "LOSSY_MASTER", "the master of this track is a lossy MP3", map[string]any{"track_id": lm.TrackID})
+	case errors.As(err, &tm):
+		return Err(http.StatusUnprocessableEntity, "TRANSFORM_TAKE_NOT_MOTHER", "this take is a transform; regenerate from its nearest renderable ancestor",
+			map[string]any{"track_id": tm.TrackID, "nearest_renderable_ancestor_id": tm.NearestAncestorID})
 	case errors.Is(err, library.ErrRecipeUnknown):
 		return Err(http.StatusUnprocessableEntity, "RECIPE_UNKNOWN", "the recipe of this track is unknown (reference track)", map[string]any{"track_id": ""})
 	case errors.Is(err, library.ErrLossyMaster):
