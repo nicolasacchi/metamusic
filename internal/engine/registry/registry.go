@@ -4,14 +4,14 @@ package registry
 
 import (
 	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
 
 // Options selects the optional engines.
 type Options struct {
-	// ACEStep registers the ACE-Step engine. The engine itself lands in a later lane (E2 F1c); until it does
-	// the flag is accepted and registers nothing, so callers can already thread MM_ACESTEP through.
+	// ACEStep registers the ACE-Step engine (MM_ACESTEP=1, default off).
 	ACEStep bool
 }
 
@@ -19,6 +19,9 @@ type Options struct {
 // come from the committed provider/artifacts.observed.json (recorded from real renders in M3-X3; a
 // placeholder until then).
 func Default(o Options) engine.Registry {
-	_ = o // no optional engine exists yet
-	return engine.Registry{yue2.EngineName: yue2.Engine{Observed: provider.ObservedArtifacts()}}
+	reg := engine.Registry{yue2.EngineName: yue2.Engine{Observed: provider.ObservedArtifacts()}}
+	if o.ACEStep {
+		reg[acestep.Name] = acestep.Engine{Verified: acestep.EmbeddedFeatures()}
+	}
+	return reg
 }
