@@ -4,7 +4,7 @@
 
 -- ---- 1. jobs rebuilt (expected_audio_s BETWEEN 1 AND 600; nothing else changes) ---------------
 -- BEGIN GENERATED jobs rebuild (scripts/gen-jobs-ddl.go)
--- Generated from the schema after migration 13; do not edit by hand (go run scripts/gen-jobs-ddl.go -check).
+-- Generated from the schema after migration 14; do not edit by hand (go run scripts/gen-jobs-ddl.go -check).
 CREATE TABLE jobs_new (
   id                  TEXT PRIMARY KEY,                  -- UUIDv7 = take id
   batch_id            TEXT NOT NULL REFERENCES batches(id),
