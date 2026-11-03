@@ -5,10 +5,20 @@ package engine
 
 import "encoding/json"
 
-// Caps describes what an engine can do and its hard limits.
+// Caps describes what an engine can do and its hard limits (Caps v2, C148.1). It is additive over M3: the zero
+// value of every field added in v2 means "no" or "not applicable". Engine.Caps returns the effective caps.
 type Caps struct {
-	Text2Song, PlanScore, RenderFromScore, RepaintInterval, Stems, ReferenceAudio, LoRA bool
-	MaxSeconds, SampleRate                                                              int
+	Text2Song, PlanScore, RenderFromScore, RepaintInterval, Stems, ReferenceAudio, LoRA bool // M3, unchanged
+	Extend                                                                              bool // continue a take past its end
+	Complete                                                                            bool // add named instrument tracks to a take
+	LRC                                                                                 bool // returns timestamped lyrics
+	Tempo, Key                                                                          bool // accepts bpm / keyscale (+ time signature with Tempo)
+	// MinSeconds, MaxSeconds and SampleRate bound a render; MinSeconds 0 means no stated minimum.
+	MinSeconds, MaxSeconds, SampleRate int
+	// Interval limits in whole seconds; 0 = not applicable.
+	RepaintMinS, RepaintMaxS, ExtendMinS, ExtendMaxS, ReferenceMaxS int
+	StemNames                                                       []string // sorted; empty unless Stems
+	Tasks                                                           []string // the generation modes the engine offers, sorted
 }
 
 // Issue is an engine-neutral validation finding. It mirrors the field set of yue2.Issue one for one
@@ -27,7 +37,9 @@ type Engine interface {
 	Caps() Caps
 	// Validate returns the errors of exactly what the engine's own batch tooling rejects (ModeYuE2).
 	Validate(request json.RawMessage) []Issue
-	// ExpectedAudioSeconds is the whole-second length estimate, clamped to [30, Caps().MaxSeconds].
+	// ExpectedAudioSeconds is the whole-second length estimate: clamped to [MinSeconds, MaxSeconds] by engines
+	// that estimate (yue2); an engine with explicit durations validates instead and returns an error outside
+	// the range.
 	ExpectedAudioSeconds(request json.RawMessage) (int, error)
 	// Artifacts is the upload allowlist for one take (C73.4): required and optional-but-verified names.
 	Artifacts(request json.RawMessage) (required, optional []string)

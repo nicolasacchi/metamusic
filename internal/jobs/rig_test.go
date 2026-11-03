@@ -302,7 +302,7 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 		},
 	})
 	r.opts = RunnerOptions{
-		Store: st, Backend: r.be, Engines: registry.Default(), Spend: r.sp, Ingest: r.ing, Notify: r.notes, Hub: r.hub,
+		Store: st, Backend: r.be, Engines: registry.Default(registry.Options{}), Spend: r.sp, Ingest: r.ing, Notify: r.notes, Hub: r.hub,
 		Clock: r.clk, NewID: r.newID, Owner: "runner-1", PublicURL: testPublicURL, TTL: 2 * time.Hour, MaxRuntime: 15 * time.Minute,
 		ColdStartS: 180, KillSlackS: 15, Expect: provider.WorkerExpect{Weights: map[string]string{"m-a-p/YuE2-3B": "8f24312f187763b9854adeec87e437e2b03bbff1"}},
 	}

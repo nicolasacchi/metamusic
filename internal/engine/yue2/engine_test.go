@@ -27,8 +27,10 @@ func TestEngineYuE2(t *testing.T) {
 		t.Errorf("Name = %q", e.Name())
 	}
 	caps := e.Caps()
-	want := engine.Caps{Text2Song: true, PlanScore: true, RenderFromScore: true, MaxSeconds: 360, SampleRate: 48000}
-	if caps != want {
+	// M3's value plus the two Caps v2 fields yue2 sets (MinSeconds, Tasks); registry.TestCaps_Yue2Unchanged pins the JSON
+	want := engine.Caps{Text2Song: true, PlanScore: true, RenderFromScore: true, MinSeconds: 30, MaxSeconds: 360, SampleRate: 48000,
+		Tasks: []string{"compose_new", "from_draft", "from_template", "lyric_edit", "new_seed", "same_seed_edit", "style_edit"}}
+	if !reflect.DeepEqual(caps, want) {
 		t.Errorf("Caps = %+v, want %+v", caps, want)
 	}
 

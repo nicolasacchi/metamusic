@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 )
 
@@ -129,5 +131,84 @@ func TestRecipeGolden_LegacyPath(t *testing.T) {
 	}
 	if string(want) != string(got) {
 		t.Fatalf("legacy recipe path drifted from %s (run -update only on the pre-seam commit)", goldenPath)
+	}
+}
+
+// seamRows computes the same rows through engine.RecipeCodec as the registry hands it out.
+func seamRows(t *testing.T) []goldenRow {
+	t.Helper()
+	eng := registry.Default(registry.Options{})["yue2"]
+	codec, ok := engine.CodecOf(eng)
+	if !ok {
+		t.Fatal("yue2 has no RecipeCodec")
+	}
+	fill := func(row *goldenRow, r engine.Recipe) {
+		row.Canonical, row.Hash, row.CoreHash = string(r.Canonical), r.Hash, r.CoreHash
+		row.Content, row.Render = lineage.Keys(r.Canonical)
+	}
+	var rows []goldenRow
+	for _, c := range goldenCases() {
+		row := goldenRow{Case: c.name}
+		if c.op == "" {
+			r, issues := codec.ParseRecipe(json.RawMessage(c.raw))
+			if len(issues) > 0 {
+				row.Err = "yue2: " + issues[0].Code + ": " + issues[0].Message
+			} else {
+				fill(&row, r)
+			}
+		} else {
+			base, issues := codec.ParseRecipe(json.RawMessage(c.raw))
+			if len(issues) > 0 {
+				t.Fatalf("%s: base: %v", c.name, issues)
+			}
+			err := lineage.CheckOperator(c.op)
+			var r engine.Recipe
+			if err == nil {
+				var patch any
+				if c.patch != nil {
+					patch = c.patch
+				}
+				r, err = codec.ApplyMode(base, engine.ModeParams{Operator: c.op, Seed: c.seed, ID: c.id}, patch)
+			}
+			if err != nil {
+				row.Err = err.Error()
+			} else {
+				fill(&row, r)
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func TestRecipeCodec_Yue2ByteIdentical(t *testing.T) {
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := json.MarshalIndent(seamRows(t), "", " ")
+	got = append(got, '\n')
+	if string(want) != string(got) {
+		t.Fatalf("seam output differs from the pre-seam golden %s:\n%s", goldenPath, got)
+	}
+}
+
+func TestRecipeCodec_WithSeedAndID(t *testing.T) {
+	t.Parallel()
+	codec, _ := engine.CodecOf(registry.Default(registry.Options{})["yue2"])
+	base, issues := codec.ParseRecipe(json.RawMessage(base))
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	got, err := codec.WithSeedAndID(base, 4242, "syn-a-s4242")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := codec.ApplyMode(base, engine.ModeParams{Seed: 4242, ID: "syn-a-s4242"}, nil)
+	if err != nil || got.Hash != want.Hash || got.Seed != 4242 || got.ID != "syn-a-s4242" {
+		t.Fatalf("WithSeedAndID = %+v, want %+v (%v)", got, want, err)
+	}
+	if _, err := codec.ApplyMode(base, engine.ModeParams{}, "not a patch"); err == nil {
+		t.Error("a patch of a foreign type must be refused")
 	}
 }

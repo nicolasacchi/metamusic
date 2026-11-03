@@ -263,7 +263,7 @@ func (badEngine) Artifacts(json.RawMessage) (required, optional []string) {
 
 func TestEngineWithAnUnlistedArtifactIsAnError(t *testing.T) {
 	t.Parallel()
-	reg := registry.Default()
+	reg := registry.Default(registry.Options{})
 	reg["yue2"] = badEngine{Engine: reg["yue2"]}
 	r := newRig(t, withOpts(func(o *RunnerOptions) { o.Engines = reg }))
 	b := r.seedBatch(batchSpec{})

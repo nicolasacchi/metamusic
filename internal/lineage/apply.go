@@ -24,28 +24,13 @@ type ParseError = yue2.ParseError
 const MaxSeed = yue2.MaxSeed
 
 // OptString is a tri-state patch string: absent, JSON null (remove) or a value (set).
-type OptString struct {
-	Set, Null bool
-	Value     string
-}
+type OptString = yue2.OptString
 
 // OptNumber is the numeric twin of OptString.
-type OptNumber struct {
-	Set, Null bool
-	Value     float64
-}
+type OptNumber = yue2.OptNumber
 
 // Patch edits a base recipe (C71.1); nil pointers and unset values keep the base value.
-type Patch struct {
-	Style, Lyrics, Cot *string
-	ABC                OptString
-	CFGScale           OptNumber
-}
-
-// IsEmpty reports a patch that changes nothing.
-func (p *Patch) IsEmpty() bool {
-	return p == nil || (p.Style == nil && p.Lyrics == nil && p.Cot == nil && !p.ABC.Set && !p.CFGScale.Set)
-}
+type Patch = yue2.Patch
 
 // Params are the recorded parameters of a mutation (jobs.mutation_json.params, mutations.params_json).
 // Seed and ID are the child's own values, not stored in params_json: a replay supplies them from the
@@ -69,6 +54,15 @@ func ParseRequest(raw []byte, allowTitle bool) (Parsed, error) {
 // ErrBadOperator is returned by Apply for an operator that does not edit a recipe.
 var ErrBadOperator = errors.New("lineage: unknown operator")
 
+// CheckOperator returns ErrBadOperator for an operator that does not edit a recipe. It is the engine-neutral
+// half of Apply: engines dispatch through engine.RecipeCodec after this check.
+func CheckOperator(op string) error {
+	if !ValidOperator(op) || op == OpInferredSibling {
+		return fmt.Errorf("%w: %q", ErrBadOperator, op)
+	}
+	return nil
+}
+
 // Apply derives a child request: it starts from base, sets or removes the patched keys, sets the seed and
 // id of params, re-runs the protocol checks and returns the canonical request. It is pure and is what a
 // replay uses (TestMutation_ReplayReproducesRender).
@@ -82,49 +76,10 @@ func Apply(base yue2.Request, op string, params Params, patch *Patch) (yue2.Requ
 
 // ApplyParsed is Apply returning the full parse result (canonical bytes and hashes).
 func ApplyParsed(base yue2.Request, op string, params Params, patch *Patch) (yue2.Parsed, error) {
-	if !ValidOperator(op) || op == OpInferredSibling {
-		return yue2.Parsed{}, fmt.Errorf("%w: %q", ErrBadOperator, op)
+	if err := CheckOperator(op); err != nil {
+		return yue2.Parsed{}, err
 	}
-	r := base
-	// copy the pointers so the base is never aliased
-	if base.ABC != nil {
-		v := *base.ABC
-		r.ABC = &v
-	}
-	if base.CFGScale != nil {
-		v := *base.CFGScale
-		r.CFGScale = &v
-	}
-	if patch != nil {
-		if patch.Style != nil {
-			r.Style = *patch.Style
-		}
-		if patch.Lyrics != nil {
-			r.Lyrics = *patch.Lyrics
-		}
-		if patch.Cot != nil {
-			r.Cot = *patch.Cot
-		}
-		switch {
-		case patch.ABC.Set && patch.ABC.Null:
-			r.ABC = nil
-		case patch.ABC.Set:
-			v := patch.ABC.Value
-			r.ABC = &v
-		}
-		switch {
-		case patch.CFGScale.Set && patch.CFGScale.Null:
-			r.CFGScale = nil
-		case patch.CFGScale.Set:
-			v := patch.CFGScale.Value
-			r.CFGScale = &v
-		}
-	}
-	r.Seed = params.Seed
-	if params.ID != "" {
-		r.ID = params.ID
-	}
-	return yue2.ParseRequest(yue2.CanonicalJSON(r), yue2.ParseOptions{})
+	return yue2.ApplyPatch(base, params.Seed, params.ID, patch)
 }
 
 // Lint runs the protocol and songwriting checks over one canonical request and splits the findings.
