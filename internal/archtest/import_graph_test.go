@@ -60,6 +60,8 @@ var m3Rules = []rule{
 	{from: []string{"internal/engine!"}, deny: []string{"internal/engine/yue2", "internal/engine/registry"}, why: "engine imports no engine implementation (C70)"},
 	{from: []string{"internal/engine/yue2"}, deny: []string{"internal/lineage", "internal/spend", "internal/generation", "internal/provider", "internal/upload", "internal/jobs", "internal/engine/registry"},
 		why: "engine/yue2 imports engine and no other M3 package (C70)"},
+	{from: []string{"internal/engine/acestep"}, deny: []string{"internal/lineage", "internal/spend", "internal/generation", "internal/provider", "internal/upload", "internal/jobs", "internal/engine/registry"},
+		why: "engine/acestep imports engine, canonjson and yue2 (for FromYuE2) only (C148.3)"},
 	{from: []string{"internal/lineage"}, deny: []string{"internal/library", "internal/spend", "internal/jobs"}, why: "lineage never imports library, spend or jobs (C71.1)"},
 	{from: []string{"internal/generation", "internal/upload", "internal/spend", "internal/drafts"}, deny: []string{"internal/jobs", "internal/api"},
 		why: "generation, upload, spend and drafts import neither jobs nor api (C72.4); they wake the runner through an injected Wake func"},
@@ -121,7 +123,7 @@ func TestImportGraph_M3(t *testing.T) {
 		// forbade the legitimate engine.Registry fields of generation and jobs).
 		// internal/library hosts the engine-neutral InsertEngineRecipe (C163, takes engine.Recipe) beside the
 		// legacy InsertRecipe(yue2.Parsed) wrapper the importer and drafts still call, so it names both.
-		if eng && impl && pkg != "internal/library" {
+		if eng && impl && pkg != "internal/library" && pkg != "internal/engine/acestep" {
 			t.Errorf("%s imports both internal/engine and internal/engine/yue2; only engine/registry may", pkg)
 		}
 	}

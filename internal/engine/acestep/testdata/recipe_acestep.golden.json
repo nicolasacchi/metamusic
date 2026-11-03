@@ -1,0 +1,70 @@
+[
+  {
+    "case": "t2m",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"duration_ds\":1800,\"engine_params_version\":\"ace1\",\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"lyrics\":\"[Verse]\\nla la la\",\"seed\":7,\"task\":\"text2music\",\"thinking\":true,\"vocal_language\":\"en\"}",
+    "sha_canonical": "5a982ea17c8cfbf575325f2580a9c3b15b005c7022de928892b509e001cd26ec",
+    "sha_core": "b49137be982d4791cba371b3bd9e2e98264e534ea3db6bbcfbce990fd660a54b",
+    "sha_content": "8ddf3a5d3e1ee94d09fd610dfc923c0c127a00af67d32368a108a7b1546920c8",
+    "sha_render": "89d0f9a2c1d9d4189d014ae0e4e6a83c1d4adb6c41da9c3829d26a6b6c31a402"
+  },
+  {
+    "case": "t2m_tempo_key",
+    "canonical": "{\"bpm\":96,\"caption\":\"warm pop, female vocal\",\"duration_ds\":1800,\"engine_params_version\":\"ace1\",\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"keyscale\":\"A Minor\",\"lyrics\":\"[Verse]\\nla la la\",\"seed\":7,\"task\":\"text2music\",\"thinking\":true,\"timesignature\":\"4\",\"vocal_language\":\"en\"}",
+    "sha_canonical": "f142836f97ec02cf770db7329d61b3c20a3ecca393c31bc05771add47800465c",
+    "sha_core": "b49137be982d4791cba371b3bd9e2e98264e534ea3db6bbcfbce990fd660a54b",
+    "sha_content": "7ec553d27b35b5b119dadaf7f4ec98aa796fd5a53e8ce03ba2c32a396e20db5b",
+    "sha_render": "0c5175a097f8d420a56c71ada01aee3e293be5e68b870012063a039c33eb1f05"
+  },
+  {
+    "case": "t2m_ref",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"duration_ds\":1800,\"engine_params_version\":\"ace1\",\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"lyrics\":\"[Verse]\\nla la la\",\"ref\":{\"clip_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"from_ds\":0,\"to_ds\":300,\"track_id\":\"trk-2\"},\"seed\":7,\"task\":\"text2music\",\"thinking\":true,\"vocal_language\":\"en\"}",
+    "sha_canonical": "406c44a4ba85532f906b012293c6a6408fecb752f935382fecc837c0f77e95a5",
+    "sha_core": "b49137be982d4791cba371b3bd9e2e98264e534ea3db6bbcfbce990fd660a54b",
+    "sha_content": "fb84522f6bd1c7b7f7c6b4f26a14cdd9ba60f3161f65f3ec8fd532f21fa63537",
+    "sha_render": "f87a339879ffbd65a596ea81b91a4714b95f6ed96e6b61e0e3f4d8d4243777c9"
+  },
+  {
+    "case": "repaint",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"engine_params_version\":\"ace1\",\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"lyrics\":\"[Verse]\\nla la la\",\"repaint_from_ds\":100,\"repaint_to_ds\":400,\"seed\":7,\"src\":{\"duration_ds\":1000,\"master_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"track_id\":\"trk-1\"},\"task\":\"repaint\",\"thinking\":false,\"vocal_language\":\"en\"}",
+    "sha_canonical": "83ef94de3df465a652271f94cf826e0b5e10b9047e88755d541145158470be1f",
+    "sha_core": "094a423c4dd04c1f0e14b35e3c0508192c658c77c90185f4db8b4d22d522c35b",
+    "sha_content": "f70bcba8224e5ac6c365dc4e973d088545d00e63a128c440cdb068446a0f8089",
+    "sha_render": "999b2ee99c19e0b892da52e4aef7d2f0f8815ce2569508aa409659c5ab95ce99"
+  },
+  {
+    "case": "extend",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"engine_params_version\":\"ace1\",\"extend_ds\":305,\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"lyrics\":\"[Verse]\\nla la la\",\"seed\":7,\"src\":{\"duration_ds\":2431,\"master_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"track_id\":\"trk-1\"},\"task\":\"extend\",\"thinking\":false,\"vocal_language\":\"en\"}",
+    "sha_canonical": "e342850e2eec3874048e5b6a66d0bc544f7b2ad94a0fe580ed4e2c2bdd2502f2",
+    "sha_core": "fb04c5352c42fea6acdc99d06838d34c21b0d7c77a8fa277451b2496ebe5ee2d",
+    "sha_content": "cd1dd099171fc41420128f560897e0c4c0b6f6d1c184721c0af3f049605e1b1c",
+    "sha_render": "0a08ac8be399ad8c46517d6675a8a021e80fb642c543966fe23f67bda8140447"
+  },
+  {
+    "case": "complete",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"engine_params_version\":\"ace1\",\"guidance_milli\":7000,\"id\":\"syn-a\",\"inference_steps\":50,\"instrumental\":true,\"lyrics\":\"\",\"seed\":7,\"src\":{\"duration_ds\":1000,\"master_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"track_id\":\"trk-1\"},\"task\":\"complete\",\"thinking\":false,\"tracks\":[\"bass\",\"drums\"],\"vocal_language\":\"en\"}",
+    "sha_canonical": "90e5fa1d9e038fafe17656aceeb99fe639e41d51bf0b76b70490e5879f717fde",
+    "sha_core": "8da2e3f4751af909116df5684ab0a01ee938bc388245cb38e2c596d17afaff4a",
+    "sha_content": "50da36748169d03c0741b03e55e59f3cc81936255a0cfdfa77104b741c5fb292",
+    "sha_render": "90123d6baa6aa25cd1128f755d247e3de70ec66bfb9e5706f9a886ca4f13a7d5"
+  },
+  {
+    "case": "extract",
+    "canonical": "{\"caption\":\"warm pop, female vocal\",\"engine_params_version\":\"ace1\",\"guidance_milli\":7000,\"id\":\"syn-a\",\"inference_steps\":50,\"instrumental\":true,\"lyrics\":\"\",\"seed\":7,\"src\":{\"duration_ds\":1000,\"master_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"track_id\":\"trk-1\"},\"task\":\"extract\",\"thinking\":false,\"tracks\":[\"vocals\"],\"vocal_language\":\"en\"}",
+    "sha_canonical": "f031f9b7ff4f725f050f4d60623a8615fef479c308f1c3078cf2792c6a396623",
+    "sha_core": "711d49b2195c89fb1a99c71fe61eb2c0246fe940a87f4f90c18f5ec0632402b0",
+    "sha_content": "581097ff564eb52c68e6e34eab2ecdc5634af16b2b9bdad86ec3c7e5be3ff483",
+    "sha_render": "9c0676213fd94eedf2d706c94f3edaf9dfc859da4d159d390c4613c79eb2660c"
+  },
+  {
+    "case": "unicode",
+    "canonical": "{\"caption\":\"cantautore italiano\",\"duration_ds\":1800,\"engine_params_version\":\"ace1\",\"id\":\"syn-a\",\"inference_steps\":8,\"instrumental\":false,\"lyrics\":\"[Verse]\\nciao città è bello\",\"seed\":7,\"task\":\"text2music\",\"thinking\":true,\"vocal_language\":\"it\"}",
+    "sha_canonical": "0e57c0e56f92ad8811f8eb94d1a486e55b1d32033284512046d83d63d0ef3000",
+    "sha_core": "e15f6fddd1ae39e0947d2cfe272a77efa207972bc46d55d311d307000a2f491b",
+    "sha_content": "117ecaaa5f94d68e375798c75c4401e8f69334d05faecab004efb6101546dec8",
+    "sha_render": "30b8cce3d320d8c1bb8a458f531032a5b0baf085fd43221d7bbad5cca582524d"
+  },
+  {
+    "case": "invalid",
+    "err": "missing_id@id"
+  }
+]

@@ -1,0 +1,5 @@
+{"schema":"mm.engine-features/2","engine":"acestep15","verified_at":"1970-01-01","canary_commit":"",
+ "tasks":["text2music"],"reference":false,"reference_reproducible":false,"seed_reproducible":false,"lrc":false,"lrc_fixed_s":60,
+ "models_mode":"bundle_cached_base_baked","max_s_default":480,
+ "pools":{"AMPERE_24":{"max_s":480},"ADA_24":{"max_s":480}},
+ "repaint":{"min_s":3,"max_s":90},"extend":{"min_s":3,"max_s":90},"reference_max_s":30}

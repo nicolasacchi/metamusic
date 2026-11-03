@@ -1,0 +1,17 @@
+{
+  "request": {
+    "id": "syn-a",
+    "task": "text2music",
+    "caption": "synthwave, female vocal",
+    "lyrics": "[Verse]\nla la\n\n[Chorus]\nsing along",
+    "instrumental": false,
+    "vocal_language": "unknown",
+    "bpm": 96,
+    "duration_ds": 300,
+    "seed": 4242,
+    "thinking": true,
+    "engine_params_version": "ace1",
+    "inference_steps": 8
+  },
+  "warnings": "w:cot_ignored,w:duration_estimated"
+}
