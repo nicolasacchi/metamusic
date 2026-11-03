@@ -55,6 +55,11 @@ func configCheck(getenv func(string) string, s streams) error {
 	} else {
 		fmt.Fprintln(s.out, "step-up: edge only")
 	}
+	if cfg.CallbackBacklogMax > 0 {
+		fmt.Fprintf(s.out, "callback backlog: %d per lineage root\n", cfg.CallbackBacklogMax)
+	} else {
+		fmt.Fprintln(s.out, "callback backlog: gate off")
+	}
 	if cfg.NtfyURL != "" {
 		fmt.Fprintf(s.out, "ntfy: enabled (token %s)\n", map[bool]string{true: "set", false: "not set"}[sec.NtfyToken != ""])
 	} else {

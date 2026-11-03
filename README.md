@@ -113,6 +113,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_OIDC_CLIENTS` | Allow-listed connector clients as `<client_id>=<label>[,...]`; only these may connect. |
 | `MM_STEPUP_OIDC_CLIENT` | `MM_AUTH=proxy` only. Client id of the OIDC client the app signs in with to demand a fresh second factor (ID token `amr`, `auth_time`) before any `/human/` call; needs `MM_OIDC_ISSUER`. Optional secrets file `stepup_client_secret` (else a public PKCE client). Unset: the edge's two-factor rule is the only gate. See `docs/connectors.md`. |
 | `MM_OIDC_JWKS_URL` | Optional override of the provider's signing-key URL (default: discovered from the issuer). |
+| `MM_CALLBACK_BACKLOG_MAX` | Agent spend pacing: an agent's estimate or create is refused (409 `CALLBACKS_BACKLOG`) while this many callbacks of one lineage root await a human verdict (default 6, 0..50, 0 disables). Humans are exempt. |
 | `MM_OIDC_SCOPES` | Scopes advertised and required for connectors (default `openid metamusic`; must contain `metamusic`). |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
