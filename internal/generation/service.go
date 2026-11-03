@@ -44,6 +44,9 @@ type Options struct {
 	// Songwriting supplies the operator's duration targets for the minimum-render control (min_audio_s). nil
 	// turns the control off: takes are planned and sent exactly as before.
 	Songwriting SongwritingSource
+	// M5 seams (C253.4, C255.5); both nil-safe, see seams_m5.go.
+	PatchSource PatchSource
+	BacklogGate BacklogGate
 }
 
 // SongwritingSource reads the songwriting duration targets (songwriting.Service satisfies it).

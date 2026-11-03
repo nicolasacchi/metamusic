@@ -108,6 +108,12 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 	// sweeps them with the L2 fixture and the canary Muse (C127.4).
 	noObject := map[string]bool{"get_duel": true, "get_record": true, "get_record_changes": true, "get_crate": true, "get_tape": true,
 		"get_transform": true, "wait_for_transform": true} // T1: the rig holds no transforms; the 501 stubs have nothing to leak
+	// M5 {id} operations have no object in this rig either; each lane owns its entries (noObject<Lane>M5), INT-B sweeps them.
+	for _, m := range []map[string]bool{noObjectSongPRM5, noObjectCallbacksM5} {
+		for id := range m {
+			noObject[id] = true
+		}
+	}
 	called := map[string]bool{}
 	for _, op := range api.Operations(r.API) {
 		if op.Method != "GET" || op.Meta.HumanOnly || op.Path == "/api/openapi.json" {

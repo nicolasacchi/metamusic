@@ -220,6 +220,9 @@ func registerGenerationM3(a huma.API, d Deps) {
 			p := auth.FromContext(ctx)
 			items := make([]generation.Item, len(in.Body.Items))
 			for i, it := range in.Body.Items {
+				if err := songPRPending(it.Mode, it.PatchID); err != nil {
+					return nil, err
+				}
 				items[i] = itemIn(it)
 			}
 			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p)})
@@ -265,6 +268,9 @@ func registerGenerationM3(a huma.API, d Deps) {
 				return nil, unavailable("generation")
 			}
 			p := auth.FromContext(ctx)
+			if err := songPRPending(in.Body.Mode, in.Body.PatchID); err != nil {
+				return nil, err
+			}
 			it := ItemIn{Mode: in.Body.Mode, ParentTrackID: &in.ID, NSeeds: in.Body.NSeeds, Seeds: in.Body.Seeds, Patch: in.Body.Patch, Title: in.Body.Title}
 			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Items: []generation.Item{itemIn(it)}, Via: estimateVia(p)})
 			if err != nil {
