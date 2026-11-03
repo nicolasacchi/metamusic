@@ -2034,6 +2034,576 @@
         ],
         "type": "object"
       },
+      "Callback": {
+        "additionalProperties": false,
+        "properties": {
+          "child": {
+            "$ref": "#/components/schemas/CallbackChild"
+          },
+          "comment": {
+            "$ref": "#/components/schemas/CallbackComment"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "critic_verdicts": {
+            "description": "Visible only after the caller's own source has answered",
+            "items": {
+              "$ref": "#/components/schemas/CallbackVerdict"
+            },
+            "type": "array"
+          },
+          "human_verdict": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "heard_at_s": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "map_basis": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "principal_kind": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "regression_comment_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "enum": [
+                  "human",
+                  "critic"
+                ],
+                "type": "string"
+              },
+              "state_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state_before": {
+                "description": "Comment state before a human verdict moved it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "fixed",
+                  "not_yet",
+                  "worse",
+                  "kept",
+                  "lost"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "principal_kind",
+              "verdict",
+              "note",
+              "heard_at_s",
+              "map_basis",
+              "state_before",
+              "state_after",
+              "regression_comment_id",
+              "created_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "fix",
+              "keep"
+            ],
+            "type": "string"
+          },
+          "links": {
+            "$ref": "#/components/schemas/CallbackLinks"
+          },
+          "my_verdict": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "heard_at_s": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "map_basis": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "principal_kind": {
+                "enum": [
+                  "human",
+                  "device",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "regression_comment_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "enum": [
+                  "human",
+                  "critic"
+                ],
+                "type": "string"
+              },
+              "state_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state_before": {
+                "description": "Comment state before a human verdict moved it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "fixed",
+                  "not_yet",
+                  "worse",
+                  "kept",
+                  "lost"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "principal_kind",
+              "verdict",
+              "note",
+              "heard_at_s",
+              "map_basis",
+              "state_before",
+              "state_after",
+              "regression_comment_id",
+              "created_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "patch_id": {
+            "type": "string"
+          },
+          "relation": {
+            "description": "Whether the comment sits on the patch's base take or on an ancestor",
+            "enum": [
+              "self",
+              "ancestor"
+            ],
+            "type": "string"
+          },
+          "spot": {
+            "$ref": "#/components/schemas/CallbackSpot"
+          },
+          "state": {
+            "description": "pending until a human verdict exists",
+            "enum": [
+              "pending",
+              "answered"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "child",
+          "patch_id",
+          "job_id",
+          "comment",
+          "relation",
+          "spot",
+          "links",
+          "state",
+          "my_verdict",
+          "human_verdict",
+          "critic_verdicts",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "CallbackChild": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "seed"
+        ],
+        "type": "object"
+      },
+      "CallbackComment": {
+        "additionalProperties": false,
+        "properties": {
+          "at_second": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "fix",
+              "keep",
+              "marker"
+            ],
+            "type": "string"
+          },
+          "section": {
+            "additionalProperties": false,
+            "description": "Section label; null when no timed section covers at_second",
+            "properties": {
+              "confidence": {
+                "format": "double",
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "manual",
+                  "measured",
+                  "plan"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "source",
+              "confidence"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "open",
+              "addressed",
+              "resolved",
+              "regressed"
+            ],
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceNote",
+            "description": "Present for a voice note"
+          }
+        },
+        "required": [
+          "id",
+          "track_id",
+          "kind",
+          "state",
+          "body",
+          "at_second",
+          "section"
+        ],
+        "type": "object"
+      },
+      "CallbackLinks": {
+        "additionalProperties": false,
+        "properties": {
+          "child": {
+            "description": "/tracks/\u003cchild\u003e?t=\u003cchild_at_s\u003e",
+            "type": "string"
+          },
+          "source": {
+            "description": "/tracks/\u003csource\u003e?t=\u003csource_at_s\u003e; null without a source time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "child",
+          "source"
+        ],
+        "type": "object"
+      },
+      "CallbackPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Callback"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
+      "CallbackSpot": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "enum": [
+              "section",
+              "proportional"
+            ],
+            "type": "string"
+          },
+          "child_at_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "confidence": {
+            "format": "double",
+            "type": "number"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_at_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "child_at_s",
+          "source_at_s",
+          "basis",
+          "confidence",
+          "label"
+        ],
+        "type": "object"
+      },
+      "CallbackSubmitResult": {
+        "additionalProperties": false,
+        "properties": {
+          "comment_state": {
+            "description": "The comment's state after a human fix verdict",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regression_comment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/CallbackVerdict"
+          }
+        },
+        "required": [
+          "replayed",
+          "verdict",
+          "comment_state",
+          "regression_comment_id"
+        ],
+        "type": "object"
+      },
+      "CallbackVerdict": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "heard_at_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "map_basis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "principal_kind": {
+            "enum": [
+              "human",
+              "device",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "regression_comment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "human",
+              "critic"
+            ],
+            "type": "string"
+          },
+          "state_after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state_before": {
+            "description": "Comment state before a human verdict moved it",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "fixed",
+              "not_yet",
+              "worse",
+              "kept",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "principal_kind",
+          "verdict",
+          "note",
+          "heard_at_s",
+          "map_basis",
+          "state_before",
+          "state_after",
+          "regression_comment_id",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "CapConnector": {
         "additionalProperties": false,
         "properties": {
@@ -2541,11 +3111,17 @@
           },
           "from_s": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "to_s": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2616,6 +3192,9 @@
             "description": "Relative SPA link, /tracks/\u003cid\u003e?t=\u003cs\u003e; empty without at_second",
             "type": "string"
           },
+          "origin_callback_id": {
+            "type": "string"
+          },
           "section": {
             "additionalProperties": false,
             "description": "Section label; null when no timed section covers at_second",
@@ -2651,7 +3230,9 @@
               "web",
               "api",
               "mcp",
-              "stdio"
+              "stdio",
+              "subsonic",
+              "callback"
             ],
             "type": "string"
           },
@@ -2679,6 +3260,9 @@
           "url": {
             "description": "Absolute link",
             "type": "string"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceNote"
           }
         },
         "required": [
@@ -3628,6 +4212,10 @@
             "description": "Attenuate the louder window to the quieter one (default true)",
             "type": "boolean"
           },
+          "section": {
+            "$ref": "#/components/schemas/DuelSectionSelector",
+            "description": "Lock both slots to the same section of each take instead of from_s/to_s; exclusive with them"
+          },
           "to_s": {
             "format": "double",
             "maximum": 86400,
@@ -3828,6 +4416,44 @@
         "required": [
           "name",
           "scopes"
+        ],
+        "type": "object"
+      },
+      "CreateVoiceNoteInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "at_second": {
+            "description": "Position in the track, rounded to 0.1 s",
+            "format": "double",
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "audio_base64": {
+            "description": "At most 4 MiB decoded and 120 s; webm or ogg with opus, or MP4 with aac or opus",
+            "minLength": 1,
+            "type": "string"
+          },
+          "body": {
+            "description": "Default \"[voice note m:ss]\"",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "description": "Default note",
+            "enum": [
+              "note",
+              "fix",
+              "keep"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio_base64"
         ],
         "type": "object"
       },
@@ -5284,6 +5910,10 @@
             "description": "false while a blind duel hides which slot holds which track",
             "type": "boolean"
           },
+          "section": {
+            "$ref": "#/components/schemas/DuelSection",
+            "description": "Set for a section-locked duel (C258)"
+          },
           "slots": {
             "$ref": "#/components/schemas/DuelSlots"
           },
@@ -5340,6 +5970,62 @@
           "items",
           "total",
           "next_cursor"
+        ],
+        "type": "object"
+      },
+      "DuelSection": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "source"
+        ],
+        "type": "object"
+      },
+      "DuelSectionSelector": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "maxLength": 30,
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int64",
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DuelSlotWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from_s",
+          "to_s"
         ],
         "type": "object"
       },
@@ -5942,7 +6628,8 @@
               "new_seed",
               "same_seed_edit",
               "lyric_edit",
-              "style_edit"
+              "style_edit",
+              "song_pr"
             ],
             "type": "string"
           },
@@ -5954,6 +6641,9 @@
           },
           "patch": {
             "$ref": "#/components/schemas/Patch"
+          },
+          "patch_id": {
+            "type": "string"
           },
           "seeds": {
             "items": {
@@ -7190,7 +7880,8 @@
               "style_edit",
               "from_draft",
               "compose_new",
-              "from_template"
+              "from_template",
+              "song_pr"
             ],
             "type": "string"
           },
@@ -7217,6 +7908,9 @@
           "patch": {
             "$ref": "#/components/schemas/Patch",
             "description": "*_edit modes and from_template"
+          },
+          "patch_id": {
+            "type": "string"
           },
           "recipe": {
             "description": "compose_new: the song request, as sent",
@@ -8717,6 +9411,146 @@
         ],
         "type": "object"
       },
+      "ListenHeat": {
+        "additionalProperties": false,
+        "properties": {
+          "bin_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "bins": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cold": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "completion_rate": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "heard": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "hotspots": {
+            "items": {
+              "$ref": "#/components/schemas/ListenHotspot"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "plays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "replays": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "rewinds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sessions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "skips": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "duration_s",
+          "bins",
+          "bin_s",
+          "sessions",
+          "plays",
+          "completion_rate",
+          "heard",
+          "replays",
+          "rewinds",
+          "skips",
+          "hotspots",
+          "cold"
+        ],
+        "type": "object"
+      },
+      "ListenHotspot": {
+        "additionalProperties": false,
+        "properties": {
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from_s",
+          "to_s",
+          "score",
+          "label"
+        ],
+        "type": "object"
+      },
       "ListenRejected": {
         "additionalProperties": false,
         "properties": {
@@ -9807,7 +10641,8 @@
               "song",
               "record",
               "taxonomy",
-              "library"
+              "library",
+              "take"
             ],
             "type": "string"
           }
@@ -10062,6 +10897,10 @@
               "revealed": {
                 "description": "false while a blind duel hides which slot holds which track",
                 "type": "boolean"
+              },
+              "section": {
+                "$ref": "#/components/schemas/DuelSection",
+                "description": "Set for a section-locked duel (C258)"
               },
               "slots": {
                 "$ref": "#/components/schemas/DuelSlots"
@@ -10415,6 +11254,116 @@
         ],
         "type": "object"
       },
+      "PairSuggestion": {
+        "additionalProperties": false,
+        "properties": {
+          "a_title": {
+            "type": "string"
+          },
+          "a_track_id": {
+            "type": "string"
+          },
+          "b_title": {
+            "type": "string"
+          },
+          "b_track_id": {
+            "type": "string"
+          },
+          "human_verdicts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "p_a_beats_b": {
+            "format": "double",
+            "type": "number"
+          },
+          "score": {
+            "description": "p(1-p)(sd_a^2 + sd_b^2): the expected information of one more verdict",
+            "format": "double",
+            "type": "number"
+          },
+          "sd_a": {
+            "format": "double",
+            "type": "number"
+          },
+          "sd_b": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "a_track_id",
+          "b_track_id",
+          "a_title",
+          "b_title",
+          "score",
+          "p_a_beats_b",
+          "sd_a",
+          "sd_b",
+          "human_verdicts"
+        ],
+        "type": "object"
+      },
+      "PairSuggestionModel": {
+        "additionalProperties": false,
+        "properties": {
+          "nu": {
+            "format": "double",
+            "type": "number"
+          },
+          "verdicts_counted": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nu",
+          "verdicts_counted"
+        ],
+        "type": "object"
+      },
+      "PairSuggestions": {
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/PairSuggestionModel"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/PairSuggestion"
+            },
+            "type": "array"
+          },
+          "root_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "lineage",
+              "global"
+            ],
+            "type": "string"
+          },
+          "section": {
+            "description": "The section label both tracks are timed on, when one was asked for",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "root_track_id",
+          "section",
+          "model",
+          "pairs"
+        ],
+        "type": "object"
+      },
       "PairingCodeOut": {
         "additionalProperties": false,
         "properties": {
@@ -10487,6 +11436,408 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "PatchAddress": {
+        "additionalProperties": false,
+        "properties": {
+          "body_excerpt": {
+            "description": "At most 200 characters",
+            "type": "string"
+          },
+          "comment_id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "fix"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "addressed",
+              "resolved",
+              "regressed"
+            ],
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "comment_id",
+          "track_id",
+          "kind",
+          "state",
+          "body_excerpt"
+        ],
+        "type": "object"
+      },
+      "PatchBase": {
+        "additionalProperties": false,
+        "properties": {
+          "recipe_hash": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "title",
+          "recipe_hash"
+        ],
+        "type": "object"
+      },
+      "PatchBounds": {
+        "additionalProperties": false,
+        "properties": {
+          "bpm_delta": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lines_changed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_bpm_delta": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_lines": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_sections": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_style_terms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sections_scoped": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "style_terms_changed": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lines_changed",
+          "max_lines",
+          "sections_scoped",
+          "max_sections",
+          "style_terms_changed",
+          "max_style_terms",
+          "bpm_delta",
+          "max_bpm_delta"
+        ],
+        "type": "object"
+      },
+      "PatchCallbackTally": {
+        "additionalProperties": false,
+        "properties": {
+          "answered": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fixed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kept": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lost": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "not_yet": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "worse": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "answered",
+          "fixed",
+          "not_yet",
+          "worse",
+          "kept",
+          "lost"
+        ],
+        "type": "object"
+      },
+      "PatchCompiled": {
+        "additionalProperties": false,
+        "properties": {
+          "lyrics": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PatchDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "lyrics": {
+            "items": {
+              "$ref": "#/components/schemas/PatchLineChange"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "style": {
+            "$ref": "#/components/schemas/PatchStyleChange"
+          }
+        },
+        "required": [
+          "lyrics",
+          "style"
+        ],
+        "type": "object"
+      },
+      "PatchLineChange": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "line_idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "section_idx": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "section_idx",
+          "line_idx",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
+      "PatchOp": {
+        "additionalProperties": false,
+        "properties": {
+          "line_idx": {
+            "description": "replace_line",
+            "format": "int64",
+            "maximum": 999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "op": {
+            "enum": [
+              "replace_line",
+              "set_style"
+            ],
+            "type": "string"
+          },
+          "section_idx": {
+            "description": "replace_line",
+            "format": "int64",
+            "maximum": 99,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "style": {
+            "description": "set_style: the complete new style string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "text": {
+            "description": "replace_line: one lyric line, no tags, no newline",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      },
+      "PatchPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SongPRSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "type": "object"
+      },
+      "PatchRender": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "child_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "seed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "job_id",
+          "state",
+          "seed",
+          "child_track_id"
+        ],
+        "type": "object"
+      },
+      "PatchScope": {
+        "additionalProperties": false,
+        "properties": {
+          "bounds": {
+            "$ref": "#/components/schemas/PatchBounds"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/PatchScopedSection"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "sections",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "PatchScopedSection": {
+        "additionalProperties": false,
+        "properties": {
+          "comment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "extra": {
+            "type": "boolean"
+          },
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idx",
+          "kind",
+          "label"
+        ],
+        "type": "object"
+      },
+      "PatchStyleChange": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "added",
+          "removed"
+        ],
         "type": "object"
       },
       "PeaksLevel": {
@@ -11474,6 +12825,65 @@
         "required": [
           "term",
           "songs"
+        ],
+        "type": "object"
+      },
+      "ProposePatchInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses_comment_ids": {
+            "description": "Non-hidden fix or note comments, open or regressed, on the base take or an ancestor",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ],
+            "uniqueItems": true
+          },
+          "base_track_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "extra_sections": {
+            "description": "Neighbour lyrics sections to put in scope",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "type": "array"
+          },
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/PatchOp"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "rationale": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_track_id",
+          "addresses_comment_ids",
+          "rationale",
+          "ops"
         ],
         "type": "object"
       },
@@ -13449,6 +14859,9 @@
               "null"
             ]
           },
+          "window": {
+            "$ref": "#/components/schemas/DuelSlotWindow"
+          },
           "window_lufs": {
             "format": "double",
             "type": [
@@ -14026,6 +15439,150 @@
           "root_track_id",
           "generations",
           "children_total"
+        ],
+        "type": "object"
+      },
+      "SongPR": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/PatchAddress"
+            },
+            "type": "array"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "base": {
+            "$ref": "#/components/schemas/PatchBase"
+          },
+          "bounds": {
+            "$ref": "#/components/schemas/PatchScope",
+            "description": "The scoped sections and what the patch uses of each bound"
+          },
+          "callbacks": {
+            "$ref": "#/components/schemas/PatchCallbackTally"
+          },
+          "compiled": {
+            "$ref": "#/components/schemas/PatchCompiled"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "diff": {
+            "$ref": "#/components/schemas/PatchDiff"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "lyric_edit",
+              "style_edit",
+              "multi_edit"
+            ],
+            "type": "string"
+          },
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/PatchOp"
+            },
+            "type": "array"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "renders": {
+            "items": {
+              "$ref": "#/components/schemas/PatchRender"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ops",
+          "diff",
+          "bounds",
+          "compiled",
+          "id",
+          "base",
+          "operator",
+          "title",
+          "rationale",
+          "addresses",
+          "renders",
+          "callbacks",
+          "author",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "SongPRSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/PatchAddress"
+            },
+            "type": "array"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "base": {
+            "$ref": "#/components/schemas/PatchBase"
+          },
+          "callbacks": {
+            "$ref": "#/components/schemas/PatchCallbackTally"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "lyric_edit",
+              "style_edit",
+              "multi_edit"
+            ],
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "renders": {
+            "items": {
+              "$ref": "#/components/schemas/PatchRender"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "base",
+          "operator",
+          "title",
+          "rationale",
+          "addresses",
+          "renders",
+          "callbacks",
+          "author",
+          "created_at"
         ],
         "type": "object"
       },
@@ -15049,6 +16606,37 @@
         "required": [
           "added",
           "removed"
+        ],
+        "type": "object"
+      },
+      "SubmitCallbackVerdictInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "heard_at_s": {
+            "description": "Where in the child the human listened",
+            "format": "double",
+            "minimum": 0,
+            "type": "number"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "verdict": {
+            "description": "fixed, not_yet or worse for a fix callback; kept or lost for a keep callback",
+            "enum": [
+              "fixed",
+              "not_yet",
+              "worse",
+              "kept",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
         ],
         "type": "object"
       },
@@ -16902,7 +18490,7 @@
                 "type": "string"
               },
               "operator": {
-                "description": "reroll_seed, same_seed_edit, lyric_edit, style_edit, from_draft or compose_new",
+                "description": "reroll_seed, same_seed_edit, lyric_edit, style_edit, multi_edit, from_draft or compose_new",
                 "type": "string"
               },
               "rationale": {
@@ -19237,6 +20825,40 @@
         ],
         "type": "object"
       },
+      "VoiceNote": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "container": {
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "duration_s",
+          "url",
+          "container",
+          "codec",
+          "bytes"
+        ],
+        "type": "object"
+      },
       "WaitJobResult": {
         "additionalProperties": false,
         "properties": {
@@ -20590,6 +22212,226 @@
         }
       }
     },
+    "/api/callbacks": {
+      "get": {
+        "description": "Callbacks of Song PR children: pending ones first (oldest first), then answered ones. A callback asks the human whether a child fixed a comment, or kept what a keep comment praised, at the same musical spot.",
+        "operationId": "list_callbacks",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "pending",
+                  "answered"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "items": {
+                "enum": [
+                  "fix",
+                  "keep"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "child_track_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Callbacks whose comment sits on this take",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Callbacks whose comment sits on this take",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "comment_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List callbacks",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/judge/callbacks",
+          "human_only": false
+        }
+      }
+    },
+    "/api/callbacks/{id}": {
+      "get": {
+        "description": "One callback with the comment, the child, the spot on the child and on the source take, and the verdicts the caller may see.",
+        "operationId": "get_callback",
+        "parameters": [
+          {
+            "description": "Callback id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Callback id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Callback"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a callback",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/judge/callbacks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/callbacks/{id}/verdicts": {
+      "post": {
+        "description": "fixed, not_yet or worse for a fix callback; kept or lost for a keep callback. A human answer moves the comment; an agent answer is a critic verdict that never does. Repeating an identical answer returns it with replayed true.",
+        "operationId": "submit_callback_verdict",
+        "parameters": [
+          {
+            "description": "Callback id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Callback id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitCallbackVerdictInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackSubmitResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Answer a callback",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/judge/callbacks/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/comments/{id}": {
       "patch": {
         "description": "Edits the body or kind, hides it, or changes its state (open, resolved; reopen). Authors and the operator may edit; agents only their own.",
@@ -21912,6 +23754,110 @@
           "scope": "read",
           "cost": "free",
           "mcp": "tool",
+          "ui": "/duels",
+          "human_only": false
+        }
+      }
+    },
+    "/api/duels/suggestions": {
+      "get": {
+        "description": "The pairs of takes whose next human verdict would teach the ladder most, by expected information, for one lineage or the whole library, optionally for the same section of both takes.",
+        "operationId": "suggest_duel_pairs",
+        "parameters": [
+          {
+            "description": "lineage needs root_track_id (the 40 most recent tracks); global takes the 60 most recent rated or dueled tracks",
+            "explode": false,
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "default": "lineage",
+              "description": "lineage needs root_track_id (the 40 most recent tracks); global takes the 60 most recent rated or dueled tracks",
+              "enum": [
+                "lineage",
+                "global"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "root_track_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only pairs whose tracks are both timed on this section",
+            "explode": false,
+            "in": "query",
+            "name": "section_label",
+            "schema": {
+              "description": "Only pairs whose tracks are both timed on this section",
+              "type": "string"
+            }
+          },
+          {
+            "description": "With section_ordinal, instead of section_label",
+            "explode": false,
+            "in": "query",
+            "name": "section_kind",
+            "schema": {
+              "description": "With section_ordinal, instead of section_label",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "section_ordinal",
+            "schema": {
+              "format": "int64",
+              "maximum": 99,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "k",
+            "schema": {
+              "default": 6,
+              "format": "int64",
+              "maximum": 15,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairSuggestions"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Suggest duel pairs",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
           "ui": "/duels",
           "human_only": false
         }
@@ -23380,7 +25326,8 @@
                 "song",
                 "record",
                 "taxonomy",
-                "library"
+                "library",
+                "take"
               ],
               "type": "string"
             }
@@ -23504,6 +25451,202 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/offline",
+          "human_only": false
+        }
+      }
+    },
+    "/api/patches": {
+      "get": {
+        "description": "Song PRs newest first, filtered by take, addressed comment or lineage root, without ops and diff.",
+        "operationId": "list_patches",
+        "parameters": [
+          {
+            "description": "Patches whose base is this take or whose renders produced it",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Patches whose base is this take or whose renders produced it",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Patches that address this comment",
+            "explode": false,
+            "in": "query",
+            "name": "comment_id",
+            "schema": {
+              "description": "Patches that address this comment",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Patches on this lineage",
+            "explode": false,
+            "in": "query",
+            "name": "root_track_id",
+            "schema": {
+              "description": "Patches on this lineage",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatchPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Song PRs",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
+        "operationId": "propose_patch",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposePatchInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongPR"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Propose a Song PR",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "idempotency": "create"
+        }
+      }
+    },
+    "/api/patches/{id}": {
+      "get": {
+        "description": "A Song PR with its ops, diff, scope and bounds report, the comments it addresses, its renders and the tally of callback answers.",
+        "operationId": "get_patch",
+        "parameters": [
+          {
+            "description": "Patch id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Patch id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongPR"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Song PR",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/patches/:id",
           "human_only": false
         }
       }
@@ -27472,6 +29615,54 @@
         }
       }
     },
+    "/api/tracks/{id}/heat": {
+      "get": {
+        "description": "A 120-bin heat strip of how the operator and their devices listened to a take (heard, replays, rewinds, skips), up to three hotspots where people went back, and the bins they left most. Computed on read from listen events.",
+        "operationId": "get_listen_heat",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListenHeat"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the listening heat of a take",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
     "/api/tracks/{id}/lineage": {
       "get": {
         "description": "Every track of the tree around the given track in pre-order, with the operator, rationale, cost and ratings of each edge. Cut at limit or the page byte cap (truncated).",
@@ -27946,6 +30137,78 @@
           "ui": "/human/generate",
           "human_only": false,
           "rate": "heavy"
+        }
+      }
+    },
+    "/api/tracks/{id}/voice-notes": {
+      "post": {
+        "description": "Records a spoken comment (at most 120 s and 4 MiB, base64) at a second of the track as a note, fix or keep comment. Only the operator and their devices; the MP3 rendition is what gets played back.",
+        "operationId": "create_voice_note",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVoiceNoteInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Leave a voice note on a track",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:human-recording",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "idempotency": "create"
         }
       }
     },
