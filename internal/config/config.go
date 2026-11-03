@@ -63,6 +63,17 @@ type Config struct {
 	// StepUpClientID is MM_STEPUP_OIDC_CLIENT: the OIDC client the proxy-mode step-up signs in with. "" ⇒ the app does
 	// not gate /human/ in proxy mode (the edge's two-factor rule is the only gate).
 	StepUpClientID string
+
+	// T1 (C200): CPU transforms. All validated at startup by loadT1.
+	TransformEnabled        bool        // MM_TRANSFORM_ENABLED, default true; false => the operations answer 503 UNAVAILABLE
+	TransformQueueMax       int         // MM_TRANSFORM_QUEUE_MAX, default 6, 1..32 (live transforms overall)
+	TransformMaxCPUS        int         // MM_TRANSFORM_MAX_CPU_S, default 600, 30..3600 (per-job CPU ceiling)
+	TransformMaxOutS        int         // MM_TRANSFORM_MAX_OUT_S, default 900, 60..3600 (output length ceiling)
+	TransformMaxMemMB       int         // MM_TRANSFORM_MAX_MEM_MB, default 1024, 256..8192
+	TransformAgentDailyCPUS int         // MM_TRANSFORM_AGENT_DAILY_CPU_S, default 1800, 0..86400 (0 => agents cannot transform)
+	TransformHumanDailyCPUS int         // MM_TRANSFORM_HUMAN_DAILY_CPU_S, default 14400, 0..86400
+	Soundfonts              []Soundfont // MM_SOUNDFONTS (T1b): empty => score_render disabled
+	FluidsynthPath          string      // MM_FLUIDSYNTH (T1b): absolute path override, "" => PATH lookup
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -122,7 +133,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}

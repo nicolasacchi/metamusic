@@ -26,6 +26,8 @@ func TestLoadDefaults(t *testing.T) {
 		Backend: "none", Runner: true, JobMaxRuntime: 15 * time.Minute, KillSlackS: 15, JobTTL: 2 * time.Hour,
 		ColdStartS: 180, PriceMarginPPM: 100000, BillingLag: 6 * time.Hour, ResidualHold: 48 * time.Hour,
 		OIDCScopes: []string{"openid", "metamusic"}, CallbackBacklogMax: 6,
+		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
+		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Fatal(diff)

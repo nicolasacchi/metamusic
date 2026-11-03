@@ -108,6 +108,15 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_RUNNER` | Job runner on/off (default on; `serve --runner=false` overrides). |
 | `MM_FAKE_BACKEND` | With `MM_BACKEND=fake` only: `fast` or `slow:<duration>`. |
 | `MM_RUNPOD_RECORD_DIR` | Optional existing directory outside `MM_DATA_DIR` for recorded provider fixtures. |
+| `MM_TRANSFORM_ENABLED` | CPU sound transforms on/off (default on). Off makes the transform operations answer 503. |
+| `MM_TRANSFORM_QUEUE_MAX` | Most live (queued plus running) transforms at once (default 6, 1..32). |
+| `MM_TRANSFORM_MAX_CPU_S` | Per-transform CPU ceiling in seconds (default 600, 30..3600). |
+| `MM_TRANSFORM_MAX_OUT_S` | Longest transform output in seconds (default 900, 60..3600). |
+| `MM_TRANSFORM_MAX_MEM_MB` | Memory estimate ceiling of one transform in MiB (default 1024, 256..8192). |
+| `MM_TRANSFORM_AGENT_DAILY_CPU_S` | Rolling 24 h transform CPU pool shared by all agent tokens, in seconds (default 1800, 0..86400; 0 means agents cannot transform). |
+| `MM_TRANSFORM_HUMAN_DAILY_CPU_S` | Rolling 24 h transform CPU pool of the operator, in seconds (default 14400, 0..86400). |
+| `MM_SOUNDFONTS` | Score renders only: `name=/abs/file.sf2[;name=/abs/file.sf3]` (at most 8, names `^[a-z][a-z0-9_-]{0,31}$`); empty disables score renders. Files are read-only and never copied. |
+| `MM_FLUIDSYNTH` | Score renders only: absolute path of the fluidsynth binary (default: `PATH` lookup). |
 | `MM_E2E` | `1` enables the E2E-only test hooks; never set in production. |
 | `MM_OIDC_ISSUER` | Issuer URL of the OpenID Connect provider for hosted connectors (claude.ai, ChatGPT); unset disables them. Needs an `https://` `MM_PUBLIC_URL`, `MM_OIDC_CLIENTS` and `MM_TRUSTED_USERS`. See `docs/connectors.md`. |
 | `MM_OIDC_CLIENTS` | Allow-listed connector clients as `<client_id>=<label>[,...]`; only these may connect. |
