@@ -13,6 +13,8 @@
   import TagEditor from "../lib/components/TagEditor.svelte";
   import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
+  import HeatStrip from "../lib/components/HeatStrip.svelte";
+  import SongPrPanel from "../lib/components/SongPrPanel.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
   import AddToCrate from "../lib/components/AddToCrate.svelte";
   import AddToRecord from "../lib/components/AddToRecord.svelte";
@@ -246,6 +248,7 @@
     <div class="wave" bind:clientWidth={width}>
       <Waveform {peaks} {duration} current={position} onseek={seek} {bits} height={96} label="Track waveform" {pins} onpin={(cid) => { const c = comments.find((x) => x.id === cid); if (c?.at_second != null) jumpTo(id, c.at_second); }} />
     </div>
+    <HeatStrip trackId={id} {duration} />
 
     {#if j}
       <div class="judge" data-testid="track-judge">
@@ -276,6 +279,7 @@
           <h2>Comments</h2>
           <CommentsPanel trackId={id} bind:comments />
         </section>
+        <SongPrPanel trackId={id} />
         <section class="card" data-testid="track-curation">
           <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
         </section>

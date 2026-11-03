@@ -5,6 +5,7 @@
   import { duelPage, type DuelRow } from "../lib/duelView";
   import DuelCard from "../lib/components/DuelCard.svelte";
   import NewDuelForm from "../lib/components/NewDuelForm.svelte";
+  import SmartRound from "../lib/components/SmartRound.svelte";
 
   interface Props {
     navigate: (to: string) => void;
@@ -62,6 +63,7 @@
 
 <h1>Duels</h1>
 <NewDuelForm {navigate} />
+<SmartRound />
 
 <section aria-label="Next duel">
   {#if loading}
