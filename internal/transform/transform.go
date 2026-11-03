@@ -5,18 +5,21 @@
 package transform
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"time"
+	"uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// Options carries the service's dependencies. B2 and B3 add the fields their lanes need (Lineage, Ears, Pipeline, Tools, Data,
-// Fault, ...); F1 fixes only what the API layer needs to be wired.
+// Options carries the service's dependencies. B2 and B3 add the fields their lanes need; F1 fixes only what the API layer needs
+// to be wired.
 type Options struct {
 	Store   *store.Store
 	Library *library.Service
@@ -45,6 +48,29 @@ type Options struct {
 	// Changed is called with the transform id after every row change the runner makes, so the in-process hub of B2's Wait can
 	// broadcast; nil-safe.
 	Changed func(id string)
+
+	// --- spec side (T1-B2) ---
+
+	// Features reads take_features rows for the alignment ladder (D-T1-9). nil builds one on Store.
+	Features *features.Service
+	// ToolStatus reports which media tools exist; nil assumes ffmpeg and flac are present and fluidsynth is not.
+	ToolStatus func() ToolStatus
+	// ScoreABC returns the score.abc text of a Take that has one, the last rung of the key ladder (C204.2). nil skips the rung:
+	// an estimate reads the database only (D-T1-6), so the app supplies this hook only where a file read is acceptable.
+	ScoreABC func(ctx context.Context, trackID string) (abc string, ok bool)
+	// FreeBytes is the space available under dir (the disk limit of C209.4); nil skips the check.
+	FreeBytes func(dir string) (uint64, error)
+	// RenderWarnings returns the render-time warnings recorded in a finished transform's transform.json (B3 reads the artifact);
+	// nil means none.
+	RenderWarnings func(ctx context.Context, takeID string) ([]Warning, error)
+	// SoundfontSHA12 is the first 12 hex digits of a configured soundfont's sha256 for the capabilities answer (T1b); nil omits it.
+	SoundfontSHA12 func(config.Soundfont) string
+}
+
+// ToolStatus is the media tools the host has (C212.3 tools block).
+type ToolStatus struct {
+	FFmpeg, FLAC, Fluidsynth bool
+	FluidsynthVersion        string
 }
 
 // Service implements the seven transform operations (C212). F1 builds the skeleton so the registry can wire it and its
@@ -52,6 +78,7 @@ type Options struct {
 type Service struct {
 	o   Options
 	run runState // the runner's state (runner.go)
+	hub *hub
 }
 
 // New builds the service.
@@ -59,7 +86,21 @@ func New(o Options) *Service {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Service{o: o}
+	if o.NewID == nil {
+		o.NewID = func() string { return uuid.NewV7().String() }
+	}
+	if o.Features == nil && o.Store != nil {
+		o.Features = features.New(o.Store, o.Now)
+	}
+	svc := &Service{o: o, hub: newHub()}
+	prev := o.Changed
+	svc.o.Changed = func(id string) { // the runner's row changes wake B2's Wait
+		svc.hub.notify(id)
+		if prev != nil {
+			prev(id)
+		}
+	}
+	return svc
 }
 
 // Enabled reports whether MM_TRANSFORM_ENABLED is on.
