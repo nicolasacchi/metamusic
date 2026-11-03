@@ -16,8 +16,13 @@ func TestPCM24_RoundTrip(t *testing.T) {
 	const half = 1 << 23
 	const chunk = 1 << 21 // values per chunk: 2^20 stereo frames
 	for base := -half; base < half; base += chunk {
-		if testing.Short() && base != -half && base != half-chunk {
-			continue // -short: the two chunks holding both clamps; the full 2^24 sweep runs without it
+		edge := base == -half || base == half-chunk // the two chunks holding both clamps are swept in full
+		if testing.Short() && !edge {
+			continue
+		}
+		stride := 1
+		if !edge {
+			stride = 61 // the middle is checked on every 61st frame: a full 2^24 sweep costs a minute under -race
 		}
 		b := Buffer{Rate: 48000, Ch: [2][]float64{make([]float64, chunk/2), make([]float64, chunk/2)}}
 		for i := 0; i < chunk/2; i++ {
@@ -32,7 +37,7 @@ func TestPCM24_RoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for i := 0; i < chunk/2; i++ {
+		for i := 0; i < chunk/2; i += stride {
 			for c := 0; c < 2; c++ {
 				want := float64(base+2*i+c) / half
 				if want < -float64(half-1)/half {
