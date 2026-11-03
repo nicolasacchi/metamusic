@@ -107,6 +107,16 @@ func TestEngineSweep_Dsp(t *testing.T) {
 	}
 	_ = tx.Rollback()
 
+	// lyrics_of reads recipe lyrics: a dsp target answers nothing and the transform Take is nobody's partner
+	if items, _ := obj(h.OK(t, "GET", "/api/tracks?lyrics_of="+id, nil))["items"].([]any); len(items) != 0 {
+		t.Errorf("lyrics_of a transform Take = %v, want none", items)
+	}
+	for _, it := range obj(h.OK(t, "GET", "/api/tracks?lyrics_of="+parent, nil))["items"].([]any) {
+		if obj(it)["id"] == id {
+			t.Error("a transform Take is a lyrics_of candidate")
+		}
+	}
+
 	// every mother-taking mode refuses the transform Take
 	for _, item := range []map[string]any{
 		{"mode": "new_seed", "parent_track_id": id, "n_seeds": 2},
