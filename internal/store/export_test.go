@@ -1,6 +1,9 @@
 package store
 
-import "database/sql"
+import (
+	"context"
+	"database/sql"
+)
 
 // MigrateTo is the test hook for partial migration (upgrade tests).
 var MigrateTo = migrateTo
@@ -22,4 +25,19 @@ func MigrationCount() int {
 		panic(err)
 	}
 	return len(ms)
+}
+
+// TestMigration is a synthetic migration for directive tests.
+type TestMigration struct {
+	N         int
+	Name, SQL string
+}
+
+// ApplyMigrations runs synthetic migrations through the real applier.
+func ApplyMigrations(ctx context.Context, db *sql.DB, ms []TestMigration) error {
+	var in []migration
+	for _, m := range ms {
+		in = append(in, migration{m.N, m.Name, m.SQL})
+	}
+	return applyMigrations(ctx, db, in)
 }
