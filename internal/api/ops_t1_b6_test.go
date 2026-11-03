@@ -3,6 +3,7 @@ package api_test
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
@@ -70,10 +71,20 @@ func TestSurface_T1B6(t *testing.T) {
 	if slices.Contains(spec.Components.Schemas["ContextBundle"].Required, "transform") {
 		t.Error("ContextBundle.transform must be optional")
 	}
-	for _, p := range []string{"kind", "transform_id", "spec_hash"} {
-		has("TransformRef", p)
+	for _, s := range []string{"TrackSummary", "TrackDetail", "LineageNode"} {
+		raw := string(spec.Components.Schemas[s].Properties["transform"])
+		for _, p := range []string{`"kind"`, `"transform_id"`, `"spec_hash"`, `"null"`} {
+			if !strings.Contains(raw, p) {
+				t.Errorf("%s.transform lacks %s: %s", s, p, raw)
+			}
+		}
+	}
+	if !strings.Contains(string(spec.Components.Schemas["LineageNode"].Properties["also_from"]), "#/components/schemas/AlsoFrom") {
+		t.Error("LineageNode.also_from does not reference AlsoFrom")
 	}
 	for _, p := range []string{"track_id", "role"} {
-		has("AlsoFrom", p)
+		if _, ok := spec.Components.Schemas["AlsoFrom"].Properties[p]; !ok {
+			t.Errorf("AlsoFrom has no %s", p)
+		}
 	}
 }
