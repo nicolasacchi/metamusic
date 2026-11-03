@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -350,5 +352,19 @@ func TestTriggers_E2(t *testing.T) {
 		if n := count(t, s, `SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=? AND tbl_name='jobs'`, ix); n != 1 {
 			t.Errorf("index %s missing after the rebuild", ix)
 		}
+	}
+}
+
+// TestMigration_JobsRebuild_GeneratorCurrent: the committed jobs block is the generator's current output (skipped with
+// -short: it compiles the generator).
+func TestMigration_JobsRebuild_GeneratorCurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("compiles scripts/gen-jobs-ddl.go")
+	}
+	t.Parallel()
+	cmd := osexec.Command("go", "run", "scripts/gen-jobs-ddl.go", "-before", strconv.Itoa(enginesMigration), "-check", "internal/store/migrations/0015_engines.sql")
+	cmd.Dir = filepath.Join("..", "..")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("%v: %s", err, out)
 	}
 }
