@@ -12,8 +12,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// enginesMigration mirrors the constant of the internal schema_e2_test.go: the position of 0014_engines.sql.
-const enginesMigration = 14
+// enginesMigration mirrors the constant of the internal schema_e2_test.go: the position of 0015_engines.sql.
+const enginesMigration = 15
 
 // dbSnapshot is every row of every table (sqlite_* and the new E2 tables excluded), as sorted text per table.
 func dbSnapshot(t *testing.T, db interface {

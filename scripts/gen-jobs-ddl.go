@@ -5,9 +5,9 @@
 // one CHECK on expected_audio_s widened from 360 to 600 s, an INSERT that names every column in table order (never
 // SELECT *), DROP, RENAME, and every index and trigger on jobs re-created verbatim from sqlite_master.
 //
-//	go run scripts/gen-jobs-ddl.go -before 14                        print the block
-//	go run scripts/gen-jobs-ddl.go -before 14 -write internal/store/migrations/0014_engines.sql
-//	go run scripts/gen-jobs-ddl.go -before 14 -check internal/store/migrations/0014_engines.sql
+//	go run scripts/gen-jobs-ddl.go -before 15                        print the block
+//	go run scripts/gen-jobs-ddl.go -before 15 -write internal/store/migrations/0015_engines.sql
+//	go run scripts/gen-jobs-ddl.go -before 15 -check internal/store/migrations/0015_engines.sql
 //
 // The migration holds the block between the BEGIN/END markers below; -check fails when the file is stale.
 package main

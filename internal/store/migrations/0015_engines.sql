@@ -1,5 +1,5 @@
 -- mm:foreign_keys=off
--- 0014_engines.sql: second engine: jobs up to 600 s, RTF measurements with provenance, append-only engine
+-- 0015_engines.sql: second engine: jobs up to 600 s, RTF measurements with provenance, append-only engine
 -- adoption log. Seed rows: the yue2 adoption row only (RTF seeds are a committed JSON file, not a migration).
 
 -- ---- 1. jobs rebuilt (expected_audio_s BETWEEN 1 AND 600; nothing else changes) ---------------

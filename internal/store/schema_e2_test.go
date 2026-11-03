@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// enginesMigration is the position of 0014_engines.sql (the single schema-number constant of these tests; renumber here
+// enginesMigration is the position of 0015_engines.sql (the single schema-number constant of these tests; renumber here
 // and in upgrade_e2_test.go if another milestone's migration merged first).
-const enginesMigration = 14
+const enginesMigration = 15
 
 var ws = regexp.MustCompile(`\s+`)
 
@@ -132,7 +132,7 @@ func mapValues(m map[string]string) []string {
 // SELECTs *; and it is the generator's current output.
 func TestMigration_JobsRebuild_ExplicitColumns(t *testing.T) {
 	t.Parallel()
-	b, err := os.ReadFile("migrations/0014_engines.sql")
+	b, err := os.ReadFile("migrations/0015_engines.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestEngineRTF_NoSeedRowsInMigration(t *testing.T) {
 	if n := count(t, s, `SELECT COUNT(*) FROM engine_rtf`); n != 0 {
 		t.Errorf("engine_rtf has %d rows after migration; seeds live in a committed file", n)
 	}
-	b, err := os.ReadFile("migrations/0014_engines.sql")
+	b, err := os.ReadFile("migrations/0015_engines.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
