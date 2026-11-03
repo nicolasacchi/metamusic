@@ -2,16 +2,14 @@
 // and Finish. T1-F1 froze FinishIn (including the true-peak ceiling of the hi-fi kinds, C225.5); T1-D1 implements the stage.
 package safety
 
-import (
-	"errors"
-
-	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
-)
+import "errors"
 
 // The only two failures of a render (D-T1-14): everything else is derived, never failed on.
 var (
 	ErrNonFinite = errors.New("safety: non-finite sample")
 	ErrSilent    = errors.New("safety: silent output")
+	// ErrCeiling is the bug alarm of the last step: the true peak still exceeds the ceiling after one re-limit.
+	ErrCeiling = errors.New("safety: true peak above the ceiling after limiting")
 )
 
 // The ceiling bounds of FinishIn.CeilingDBTP: the default is -1.0 dBTP, master may ask for as low as -3.0, and no kind can
@@ -46,16 +44,19 @@ func (in FinishIn) Ceiling() float64 {
 	}
 }
 
-// FinishReport is what Finish records (C207.4; D1 completes the fields it measures).
+// FinishReport is what Finish records (C207.4).
 type FinishReport struct {
 	TargetLUFSRequested float64
 	TargetLUFSEffective float64
+	RefLUFS             float64 // echoed from FinishIn
 	CeilingDBTP         float64
-	GainDB              float64
-}
-
-// Finish runs the D-T1-14 pipeline on b.
-// STUB(T1-D1): the finite and silence checks, DC removal, fades, the second-pass gain, the limiter and the final assertion.
-func Finish(b *pcm.Buffer, in FinishIn) (FinishReport, error) {
-	return FinishReport{}, errors.ErrUnsupported
+	GainDB              float64 // the gain to the effective target, before the limiter
+	InputLUFS           float64 // loudness after DC removal and fades, before the gain
+	OutputLUFS          float64
+	OutputTruePeakDBTP  float64
+	ShortfallLU         float64 // effective target minus output loudness
+	Limited             bool    // the limiter engaged and the target was lowered to keep ShortfallLU within MaxLimitingLU
+	MaxReductionDB      float64
+	EngagedFraction     float64
+	DCRemoved           bool
 }
