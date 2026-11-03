@@ -31,6 +31,7 @@
   import PromptButtons from "../lib/components/PromptButtons.svelte";
   import GenerateButton from "../lib/components/GenerateButton.svelte";
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
+  import TransformPanel from "../lib/components/TransformPanel.svelte";
   import type { Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
 
@@ -289,6 +290,9 @@
           <ContextButton trackId={id} />
           <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
         </section>
+        {#if track.recipe_known && !track.lossy}
+          <TransformPanel trackId={id} />
+        {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <EarsPanel trackId={id} />
         <LineageDuels

@@ -113,7 +113,7 @@ func (d *dbSource) SelectRecipes(ctx context.Context, f export.TrackFilter) ([]e
 	arr := jsonArray(ids)
 	rows, err := d.st.R.QueryContext(ctx, `SELECT r.id, r.hash, r.request_id, r.request_json, MIN(t.recorded_at)
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id
-		WHERE t.id IN (SELECT value FROM json_each(?)) AND r.engine <> 'unknown' GROUP BY r.id ORDER BY r.id`, arr)
+		WHERE t.id IN (SELECT value FROM json_each(?)) AND r.engine = 'yue2' GROUP BY r.id ORDER BY r.id`, arr) // yue2 only: a dsp recipe is no YuE2 request (engine sweep, C211.1c)
 	if err != nil {
 		return nil, fmt.Errorf("exports: select recipes: %w", err)
 	}

@@ -57,6 +57,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/human/devices", name: "human-devices" },
   { pattern: "/jobs", name: "jobs" },
   { pattern: "/jobs/:id", name: "job" },
+  { pattern: "/transforms", name: "transforms" }, // T1: the transform queue and history (More, beside Jobs)
   { pattern: "/batches/:id", name: "batch" },
   { pattern: "/lineage/:id", name: "lineage" },
   { pattern: "/human/generate", name: "human-generate" },

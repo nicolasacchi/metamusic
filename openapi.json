@@ -1521,6 +1521,95 @@
         ],
         "type": "object"
       },
+      "BinauralParams": {
+        "additionalProperties": false,
+        "properties": {
+          "elevation_deg": {
+            "format": "int64",
+            "maximum": 30,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "left_az_deg": {
+            "format": "int64",
+            "maximum": -10,
+            "minimum": -90,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "model": {
+            "enum": [
+              "hrtf",
+              "parametric"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preset": {
+            "enum": [
+              "studio",
+              "wide",
+              "near"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "right_az_deg": {
+            "format": "int64",
+            "maximum": 90,
+            "minimum": 10,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "room": {
+            "enum": [
+              "none",
+              "studio",
+              "hall"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "room_mix_db": {
+            "format": "int64",
+            "maximum": -12,
+            "minimum": -40,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "tail_s": {
+            "format": "double",
+            "maximum": 10,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "type": "object"
+      },
       "Board": {
         "additionalProperties": false,
         "properties": {
@@ -5503,6 +5592,55 @@
         ],
         "type": "object"
       },
+      "EnsembleParams": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_db": {
+            "description": "A number sets it, null means minus infinity, absent keeps the default",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "space": {
+            "enum": [
+              "cathedral",
+              "cistern",
+              "hangar",
+              "canyon"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tail_s": {
+            "format": "double",
+            "maximum": 40,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "wet_db": {
+            "format": "double",
+            "maximum": 0,
+            "minimum": -40,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "type": "object"
+      },
       "EnvDetail": {
         "additionalProperties": false,
         "properties": {
@@ -6599,6 +6737,70 @@
           "spend_month_usd",
           "outstanding_micro_usd",
           "outstanding_usd"
+        ],
+        "type": "object"
+      },
+      "GlacierParams": {
+        "additionalProperties": false,
+        "properties": {
+          "factor": {
+            "format": "double",
+            "maximum": 50,
+            "minimum": 10,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "fade_in_s": {
+            "format": "double",
+            "maximum": 30,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "fade_out_s": {
+            "format": "double",
+            "maximum": 30,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "length_s": {
+            "exclusiveMinimum": 0,
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "start_s": {
+            "format": "double",
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "window_s": {
+            "format": "double",
+            "maximum": 2,
+            "minimum": 0.1,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
         ],
         "type": "object"
       },
@@ -8794,6 +8996,79 @@
         ],
         "type": "object"
       },
+      "MasterParams": {
+        "additionalProperties": false,
+        "properties": {
+          "ceiling_dbtp": {
+            "description": "Step 0.1; never above -1.0",
+            "format": "double",
+            "maximum": -1,
+            "minimum": -3,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "comp_amount": {
+            "description": "Step 0.05; 0 removes the compressor",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "low_cut_hz": {
+            "description": "0 (off) or 20..40",
+            "format": "int64",
+            "maximum": 40,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preset": {
+            "enum": [
+              "neutral",
+              "warm",
+              "bright",
+              "punch"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "target_lufs": {
+            "format": "double",
+            "maximum": -12,
+            "minimum": -30,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tilt_db": {
+            "description": "Step 0.1; overrides the preset",
+            "format": "double",
+            "maximum": 3,
+            "minimum": -3,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "type": "object"
+      },
       "MediaLinksOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -8912,6 +9187,158 @@
         "required": [
           "x",
           "y"
+        ],
+        "type": "object"
+      },
+      "MorphParams": {
+        "additionalProperties": false,
+        "properties": {
+          "a_at": {
+            "additionalProperties": false,
+            "properties": {
+              "bar": {
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "section": {
+                "description": "kind#ordinal, e.g. chorus#1",
+                "pattern": "^[a-z_]+#[0-9]+$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "b_at": {
+            "additionalProperties": false,
+            "properties": {
+              "bar": {
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "section": {
+                "description": "kind#ordinal, e.g. chorus#1",
+                "pattern": "^[a-z_]+#[0-9]+$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "bars": {
+            "description": "Transition length in bars of the output grid (default 8)",
+            "format": "int64",
+            "maximum": 32,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "beats_per_bar": {
+            "format": "int64",
+            "maximum": 7,
+            "minimum": 2,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bpm_a": {
+            "format": "double",
+            "maximum": 240,
+            "minimum": 40,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bpm_b": {
+            "format": "double",
+            "maximum": 240,
+            "minimum": 40,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "downbeat_a_s": {
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "auto"
+                ],
+                "type": "string"
+              }
+            ],
+            "type": [
+              "",
+              "null"
+            ]
+          },
+          "downbeat_b_s": {
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "auto"
+                ],
+                "type": "string"
+              }
+            ],
+            "type": [
+              "",
+              "null"
+            ]
+          },
+          "key_policy": {
+            "enum": [
+              "to_a",
+              "none"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "semitones_b": {
+            "format": "double",
+            "maximum": 12,
+            "minimum": -12,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "track_a_id": {
+            "type": "string"
+          },
+          "track_b_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_a_id",
+          "track_b_id"
         ],
         "type": "object"
       },
@@ -10669,6 +11096,112 @@
         ],
         "type": "object"
       },
+      "PolytempoParams": {
+        "additionalProperties": false,
+        "properties": {
+          "beats_per_bar": {
+            "format": "int64",
+            "maximum": 7,
+            "minimum": 2,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bpm_a": {
+            "format": "double",
+            "maximum": 240,
+            "minimum": 40,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bpm_b": {
+            "format": "double",
+            "maximum": 240,
+            "minimum": 40,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "converge_bar": {
+            "format": "int64",
+            "minimum": 4,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "downbeat_a_s": {
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "auto"
+                ],
+                "type": "string"
+              }
+            ],
+            "type": [
+              "",
+              "null"
+            ]
+          },
+          "downbeat_b_s": {
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "auto"
+                ],
+                "type": "string"
+              }
+            ],
+            "type": [
+              "",
+              "null"
+            ]
+          },
+          "pan": {
+            "enum": [
+              "split",
+              "centre"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "track_a_id": {
+            "type": "string"
+          },
+          "track_b_id": {
+            "type": "string"
+          },
+          "unison_bars": {
+            "format": "int64",
+            "maximum": 64,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "track_a_id",
+          "track_b_id"
+        ],
+        "type": "object"
+      },
       "Pot": {
         "additionalProperties": false,
         "properties": {
@@ -12100,6 +12633,82 @@
         ],
         "type": "object"
       },
+      "ScoreRenderParams": {
+        "additionalProperties": false,
+        "properties": {
+          "bpm": {
+            "format": "double",
+            "maximum": 300,
+            "minimum": 20,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dialect": {
+            "enum": [
+              "standard",
+              "yue2"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gain": {
+            "format": "double",
+            "maximum": 1.5,
+            "minimum": 0.1,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "score": {
+            "$ref": "#/components/schemas/ScoreSource"
+          },
+          "soundfont": {
+            "description": "A configured name; never a path",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tail_s": {
+            "format": "double",
+            "maximum": 10,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "score"
+        ],
+        "type": "object"
+      },
+      "ScoreSource": {
+        "additionalProperties": false,
+        "properties": {
+          "abc": {
+            "maxLength": 262144,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "SectionOut": {
         "additionalProperties": false,
         "properties": {
@@ -12671,6 +13280,90 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ShepardParams": {
+        "additionalProperties": false,
+        "properties": {
+          "bell_sigma_octaves": {
+            "format": "double",
+            "maximum": 2,
+            "minimum": 0.4,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "direction": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "maximum": 3600,
+            "minimum": 8,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "layers": {
+            "format": "int64",
+            "maximum": 7,
+            "minimum": 3,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "loop_bars": {
+            "format": "int64",
+            "maximum": 8,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "loop_s": {
+            "format": "double",
+            "maximum": 20,
+            "minimum": 1,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "period_s": {
+            "format": "double",
+            "maximum": 120,
+            "minimum": 8,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "start_s": {
+            "format": "double",
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
+        ],
         "type": "object"
       },
       "Sibling": {
@@ -16954,6 +17647,967 @@
         ],
         "type": "object"
       },
+      "TransformCPU": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "description": "cpu/1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_ms",
+          "max_ms",
+          "budget_ms",
+          "model"
+        ],
+        "type": "object"
+      },
+      "TransformCPUUse": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "used_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "expected_ms",
+          "max_ms",
+          "used_ms"
+        ],
+        "type": "object"
+      },
+      "TransformCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "dsp_version": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/TransformKindCaps"
+            },
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/TransformLimits"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/TransformQueueCaps"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/TransformQuota"
+          },
+          "soundfonts": {
+            "items": {
+              "$ref": "#/components/schemas/TransformSoundfont"
+            },
+            "type": "array"
+          },
+          "tools": {
+            "$ref": "#/components/schemas/TransformToolCaps"
+          }
+        },
+        "required": [
+          "enabled",
+          "kinds",
+          "limits",
+          "quota",
+          "queue",
+          "tools",
+          "soundfonts",
+          "dsp_version"
+        ],
+        "type": "object"
+      },
+      "TransformCost": {
+        "additionalProperties": false,
+        "properties": {
+          "micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "usd": {
+            "description": "Always 0.000000",
+            "type": "string"
+          }
+        },
+        "required": [
+          "micro_usd",
+          "usd"
+        ],
+        "type": "object"
+      },
+      "TransformEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/TransformCost"
+          },
+          "cpu": {
+            "$ref": "#/components/schemas/TransformCPU"
+          },
+          "existing": {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string"
+              },
+              "take_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "transform_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "transform_id",
+              "state"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/TransformEstimateInput"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "memory_mb": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "output": {
+            "$ref": "#/components/schemas/TransformOutputEstimate"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/TransformQueueEstimate"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/TransformQuota"
+          },
+          "resolved": {
+            "description": "The parameters with every default written out",
+            "type": "object"
+          },
+          "spec_hash": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tools": {
+            "$ref": "#/components/schemas/TransformTools"
+          },
+          "wall_expected_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TransformWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "spec_hash",
+          "title",
+          "cost",
+          "cpu",
+          "wall_expected_s",
+          "output",
+          "memory_mb",
+          "inputs",
+          "resolved",
+          "warnings",
+          "quota",
+          "queue",
+          "existing",
+          "tools"
+        ],
+        "type": "object"
+      },
+      "TransformEstimateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "beats_per_bar": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bpm": {
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "octave_fold": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "source": {
+                "description": "explicit, plan, declared or measured",
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "value",
+              "source",
+              "octave_fold"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "key": {
+            "additionalProperties": false,
+            "properties": {
+              "camelot": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "minor": {
+                "type": "boolean"
+              },
+              "pc": {
+                "description": "Pitch class 0..11, C = 0",
+                "format": "int64",
+                "type": "integer"
+              },
+              "source": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pc",
+              "minor",
+              "source"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "track_id",
+          "title",
+          "duration_s",
+          "bpm",
+          "key",
+          "beats_per_bar"
+        ],
+        "type": "object"
+      },
+      "TransformFluidsynth": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "version"
+        ],
+        "type": "object"
+      },
+      "TransformInputRef": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "track_id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "TransformKindCaps": {
+        "additionalProperties": false,
+        "properties": {
+          "blind_spots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dataset": {
+            "description": "Credit string of the HRTF dataset, binaural only",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "example": {
+            "description": "A request body that passes validation",
+            "type": "object"
+          },
+          "inputs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "listening": {
+            "description": "headphones, for binaural",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/TransformParamCap"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "summary",
+          "inputs",
+          "params",
+          "blind_spots",
+          "example"
+        ],
+        "type": "object"
+      },
+      "TransformLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "concurrent_renders": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_cpu_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_input_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_inputs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_mem_mb": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_output_s": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_inputs",
+          "max_input_s",
+          "max_output_s",
+          "max_mem_mb",
+          "max_cpu_s",
+          "concurrent_renders"
+        ],
+        "type": "object"
+      },
+      "TransformOutputEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "bits": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bytes_est": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channels": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "seconds": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "seconds",
+          "sample_rate",
+          "bits",
+          "channels",
+          "bytes_est"
+        ],
+        "type": "object"
+      },
+      "TransformPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TransformView"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "TransformParamCap": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": [
+              "",
+              "null"
+            ]
+          },
+          "enum": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "min": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "required"
+        ],
+        "type": "object"
+      },
+      "TransformQueueCaps": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "running",
+          "queued",
+          "max"
+        ],
+        "type": "object"
+      },
+      "TransformQueueEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "position_if_created": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "running",
+          "queued",
+          "position_if_created"
+        ],
+        "type": "object"
+      },
+      "TransformQuota": {
+        "additionalProperties": false,
+        "properties": {
+          "cap_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "principal_kind": {
+            "description": "human or agent: the pool is shared by every principal of that kind",
+            "type": "string"
+          },
+          "reserved_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resets_at": {
+            "description": "RFC 3339",
+            "type": "string"
+          },
+          "used_ms": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principal_kind",
+          "cap_ms",
+          "used_ms",
+          "reserved_ms",
+          "resets_at"
+        ],
+        "type": "object"
+      },
+      "TransformRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "binaural": {
+            "$ref": "#/components/schemas/BinauralParams"
+          },
+          "ensemble": {
+            "$ref": "#/components/schemas/EnsembleParams"
+          },
+          "glacier": {
+            "$ref": "#/components/schemas/GlacierParams"
+          },
+          "kind": {
+            "enum": [
+              "morph",
+              "shepard",
+              "glacier",
+              "polytempo",
+              "ensemble",
+              "score_render",
+              "master",
+              "widen",
+              "binaural"
+            ],
+            "type": "string"
+          },
+          "master": {
+            "$ref": "#/components/schemas/MasterParams"
+          },
+          "morph": {
+            "$ref": "#/components/schemas/MorphParams"
+          },
+          "polytempo": {
+            "$ref": "#/components/schemas/PolytempoParams"
+          },
+          "rationale": {
+            "description": "Stored on the Operator Ledger row",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score_render": {
+            "$ref": "#/components/schemas/ScoreRenderParams"
+          },
+          "seed": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "shepard": {
+            "$ref": "#/components/schemas/ShepardParams"
+          },
+          "target_lufs": {
+            "format": "double",
+            "maximum": -12,
+            "minimum": -30,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widen": {
+            "$ref": "#/components/schemas/WidenParams"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "TransformSoundfont": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256_12": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256_12",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "TransformToolCaps": {
+        "additionalProperties": false,
+        "properties": {
+          "ffmpeg": {
+            "type": "boolean"
+          },
+          "flac": {
+            "type": "boolean"
+          },
+          "fluidsynth": {
+            "$ref": "#/components/schemas/TransformFluidsynth"
+          }
+        },
+        "required": [
+          "ffmpeg",
+          "flac",
+          "fluidsynth"
+        ],
+        "type": "object"
+      },
+      "TransformTools": {
+        "additionalProperties": false,
+        "properties": {
+          "ffmpeg": {
+            "type": "boolean"
+          },
+          "flac": {
+            "type": "boolean"
+          },
+          "fluidsynth": {
+            "type": "boolean"
+          },
+          "soundfont": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ffmpeg",
+          "flac",
+          "fluidsynth",
+          "soundfont"
+        ],
+        "type": "object"
+      },
+      "TransformView": {
+        "additionalProperties": false,
+        "properties": {
+          "cancel_requested_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost": {
+            "$ref": "#/components/schemas/TransformCost"
+          },
+          "cpu": {
+            "$ref": "#/components/schemas/TransformCPUUse"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/TransformInputRef"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "output_seconds_est": {
+            "format": "double",
+            "type": "number"
+          },
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "principal": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "progress_permille": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restored": {
+            "description": "A discarded Take of this spec was restored to draft instead of rendering again",
+            "type": "boolean"
+          },
+          "reused": {
+            "type": "boolean"
+          },
+          "spec_hash": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "take_id": {
+            "description": "Equals id: the transform is its Take",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "warnings": {
+            "description": "Render-time warnings; empty until done",
+            "items": {
+              "$ref": "#/components/schemas/TransformWarning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "take_id",
+          "kind",
+          "state",
+          "phase",
+          "progress_permille",
+          "title",
+          "spec_hash",
+          "reused",
+          "restored",
+          "principal",
+          "rationale",
+          "inputs",
+          "cost",
+          "cpu",
+          "output_seconds_est",
+          "warnings",
+          "error",
+          "cancel_requested_at",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "type": "object"
+      },
+      "TransformWait": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "transform": {
+            "$ref": "#/components/schemas/TransformView"
+          }
+        },
+        "required": [
+          "transform",
+          "changed",
+          "timed_out"
+        ],
+        "type": "object"
+      },
+      "TransformWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
       "TripView": {
         "additionalProperties": false,
         "properties": {
@@ -17694,6 +19348,48 @@
           "scopes",
           "via",
           "step_up_until"
+        ],
+        "type": "object"
+      },
+      "WidenParams": {
+        "additionalProperties": false,
+        "properties": {
+          "bass_mono_hz": {
+            "description": "0 (off) or 60..250",
+            "format": "int64",
+            "maximum": 250,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "decorrelate": {
+            "description": "Step 0.05",
+            "format": "double",
+            "maximum": 0.5,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "width": {
+            "description": "Step 0.05; gain on the side signal",
+            "format": "double",
+            "maximum": 2,
+            "minimum": 1,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source_id"
         ],
         "type": "object"
       }
@@ -26250,6 +27946,424 @@
           "ui": "/human/generate",
           "human_only": false,
           "rate": "heavy"
+        }
+      }
+    },
+    "/api/transforms": {
+      "get": {
+        "description": "Transforms newest first, filtered by state, kind or an input Take.",
+        "operationId": "list_transforms",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "enum": [
+                "queued",
+                "running",
+                "done",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "morph",
+                "shepard",
+                "glacier",
+                "polytempo",
+                "ensemble",
+                "score_render",
+                "master",
+                "widen",
+                "binaural"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only transforms that have this Take as an input",
+            "explode": false,
+            "in": "query",
+            "name": "track_id",
+            "schema": {
+              "description": "Only transforms that have this Take as an input",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List transforms",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/transforms",
+          "human_only": false
+        }
+      },
+      "post": {
+        "description": "Queues a CPU transform of one or two Takes (morph, shepard, glacier, polytempo, ensemble, score_render, master, widen, binaural). The result is an ordinary Take. The same spec returns the existing transform (reused). Spends no money; limited by a daily CPU pool per principal kind.",
+        "operationId": "create_transform",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransformRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a transform",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/transforms/capabilities": {
+      "get": {
+        "description": "The kinds with their parameter tables, defaults, ranges and blind spots, the limits, your daily CPU quota, the queue and the tools of the host. Generated from the tables that validate requests.",
+        "operationId": "get_transform_capabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get transform capabilities",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/transforms/estimate": {
+      "post": {
+        "description": "Free and pure: CPU time, output length and size, memory, the resolved tempo and key of each input, warnings, quota and queue position. Costs $0 and writes nothing; it needs write scope because it previews quota and queue state of your principal kind.",
+        "operationId": "estimate_transform",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransformRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformEstimate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Estimate a transform",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/transforms/{id}": {
+      "get": {
+        "description": "State, phase, progress, inputs, CPU use, warnings and error of one transform; its id is the id of its Take.",
+        "operationId": "get_transform",
+        "parameters": [
+          {
+            "description": "Transform id (equals its Take id)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transform id (equals its Take id)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a transform",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/transforms",
+          "human_only": false
+        }
+      }
+    },
+    "/api/transforms/{id}/cancel": {
+      "post": {
+        "description": "Cancels a queued or running transform; an agent cancels only its own, a human any.",
+        "operationId": "cancel_transform",
+        "parameters": [
+          {
+            "description": "Transform id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transform id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Cancel a transform",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/transforms",
+          "human_only": false
+        }
+      }
+    },
+    "/api/transforms/{id}/wait": {
+      "get": {
+        "description": "Long-polls up to 55 s until the state differs from since_state or the transform is terminal.",
+        "operationId": "wait_for_transform",
+        "parameters": [
+          {
+            "description": "Transform id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transform id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return as soon as the state differs; default the state at call time",
+            "explode": false,
+            "in": "query",
+            "name": "since_state",
+            "schema": {
+              "description": "Return as soon as the state differs; default the state at call time",
+              "enum": [
+                "queued",
+                "running",
+                "done",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "timeout_s",
+            "schema": {
+              "default": 25,
+              "format": "int64",
+              "maximum": 55,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformWait"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Wait for a transform",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
         }
       }
     },

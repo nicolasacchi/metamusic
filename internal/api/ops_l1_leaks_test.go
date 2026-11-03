@@ -106,7 +106,8 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 	// {id} operations that the rig has no object for (the duel fixture is empty here); anything else must resolve
 	// L2 {id} operations have no object in this rig (it holds no Records, Crates or tapes); lane INT-B's ops_l2_leaks_test.go
 	// sweeps them with the L2 fixture and the canary Muse (C127.4).
-	noObject := map[string]bool{"get_duel": true, "get_record": true, "get_record_changes": true, "get_crate": true, "get_tape": true}
+	noObject := map[string]bool{"get_duel": true, "get_record": true, "get_record_changes": true, "get_crate": true, "get_tape": true,
+		"get_transform": true, "wait_for_transform": true} // T1: the rig holds no transforms; the 501 stubs have nothing to leak
 	called := map[string]bool{}
 	for _, op := range api.Operations(r.API) {
 		if op.Method != "GET" || op.Meta.HumanOnly || op.Path == "/api/openapi.json" {

@@ -267,7 +267,9 @@ func monthBoundsOf(now time.Time) (from, to time.Time) {
 }
 
 // generationStats fills the generation block and the Phase-3 breakdown (C81.1). Reference tracks (stub
-// recipes, engine unknown) are excluded from both lists: their seed 0 is a placeholder (D-M3-34).
+// recipes, engine unknown) and transform Takes (engine dsp) are excluded from both lists: their seed is a placeholder
+// (D-M3-34) or not a generation seed; TakesMonth counts generated takes, so it reads job_id, not origin (a transform is stored
+// as origin 'job' with no job, D-T1-4).
 func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 	r := s.st.R
 	var err error
@@ -276,7 +278,7 @@ func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 	}
 	from, to := monthBoundsOf(s.now())
 	m0, m1 := store.FormatTime(from), store.FormatTime(to)
-	if err := r.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks WHERE origin = 'job' AND created_at >= ? AND created_at < ?`,
+	if err := r.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks WHERE job_id IS NOT NULL AND created_at >= ? AND created_at < ?`,
 		ts(from), ts(to)).Scan(&st.Generation.TakesMonth); err != nil {
 		return fmt.Errorf("library: stats takes: %w", err)
 	}
@@ -293,7 +295,7 @@ func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 	st.Generation.OutstandingMicroUSD, st.Generation.OutstandingUSD = outstanding, money.MicroUSD(outstanding).USD()
 
 	terms, err := r.QueryContext(ctx, `SELECT x.term, COUNT(DISTINCT t.id), COUNT(h.stars), AVG(h.stars) FROM track_style_terms x
-		JOIN tracks t ON t.id = x.track_id JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine <> 'unknown'
+		JOIN tracks t ON t.id = x.track_id JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine NOT IN ('unknown', 'dsp')
 		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
 		GROUP BY x.term ORDER BY COUNT(DISTINCT t.id) DESC, x.term LIMIT 30`)
 	if err != nil {
@@ -312,7 +314,7 @@ func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 	if err := terms.Close(); err != nil {
 		return err
 	}
-	seeds, err := r.QueryContext(ctx, `SELECT rc.seed, COUNT(t.id), COUNT(h.stars), AVG(h.stars) FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine <> 'unknown'
+	seeds, err := r.QueryContext(ctx, `SELECT rc.seed, COUNT(t.id), COUNT(h.stars), AVG(h.stars) FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine NOT IN ('unknown', 'dsp')
 		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
 		GROUP BY rc.seed HAVING COUNT(t.id) >= 2 ORDER BY COUNT(t.id) DESC, rc.seed LIMIT 30`)
 	if err != nil {

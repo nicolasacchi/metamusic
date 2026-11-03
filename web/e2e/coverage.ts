@@ -4,11 +4,19 @@ import { resolve } from "node:path";
 type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"?: { ui?: string } }>> };
 
 /**
- * UI operations whose pages are not built yet. Empty: every operation with a UI route is exercised by a spec (the six L3 ones
- * by l3-atlas, l3-proposals, l3-next and l3-sequence); src/lib/e2e-coverage.test.ts fails on an id that is no longer a UI
- * operation, so an entry is only ever added for a page that is still to come.
+ * UI operations whose pages are not built yet: the seven transform operations (T1-F1 registers them as stubs; lane W1 builds the
+ * panel and /transforms, lanes W3 and INT-W add the specs and empty this list). src/lib/e2e-coverage.test.ts fails on an id that
+ * is no longer a UI operation, so an entry is only ever added for a page that is still to come.
  */
-export const PENDING_UI: ReadonlySet<string> = new Set<string>([]);
+export const PENDING_UI: ReadonlySet<string> = new Set<string>([
+  "estimate_transform",
+  "create_transform",
+  "get_transform",
+  "list_transforms",
+  "wait_for_transform",
+  "cancel_transform",
+  "get_transform_capabilities",
+]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */
 export function uiOperations(openapiPath = resolve(import.meta.dirname, "../../openapi.json")): string[] {

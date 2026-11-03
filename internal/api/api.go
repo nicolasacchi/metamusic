@@ -59,6 +59,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/tape"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
+	"github.com/nicolasacchi/metamusic/internal/transform"
 )
 
 // SpecVersion is the OpenAPI document version. It is fixed (not the build
@@ -145,6 +146,10 @@ type Deps struct {
 	Sequence    *sequence.Service
 	NextActions *nextactions.Service
 	Atlas       *atlas.Service
+
+	// T1 (C212). A nil Transform (MM_TRANSFORM_ENABLED=false, or a test rig without it) makes the seven transform operations
+	// answer 503 UNAVAILABLE {component: "transform"}.
+	Transform *transform.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -284,6 +289,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerTaxonomyL3(a, d)
 	registerAtlasL3(a, d)
 	registerAdherenceL3(a, d)
+	registerTransformT1(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

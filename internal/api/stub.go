@@ -22,6 +22,9 @@ const (
 	taskA  = "L2-A"  // curation settings
 )
 
+// The T1 lane that replaces the transform stubs (details.task of a 501): B4 owns the operation handlers (C212).
+const taskT1B4 = "T1-B4"
+
 // The L3 lanes that replace a stub (details.task of a 501).
 const (
 	taskSR  = "L3-SR"  // suggest_sequence, the slot op sequence and propose_record.sequence

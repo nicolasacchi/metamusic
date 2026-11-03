@@ -67,6 +67,7 @@
   import HumanSpend from "./routes/HumanSpend.svelte";
   import Human from "./routes/Human.svelte";
   import Jobs from "./routes/Jobs.svelte";
+  import Transforms from "./routes/Transforms.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
@@ -336,6 +337,8 @@
       <SecureGate><HumanSpend /></SecureGate>
     {:else if $router.route?.name === "jobs"}
       <Jobs />
+    {:else if $router.route?.name === "transforms"}
+      <Transforms />
     {:else if $router.route?.name === "job"}
       {#key $router.params.id}
         <Job id={$router.params.id ?? ""} />

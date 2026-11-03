@@ -124,7 +124,7 @@ func parseWhen(field, v string, upper bool) (string, error) {
 	return ts(t), nil
 }
 
-const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_at, t.created_at, r.request_id, r.seed, r.style, t.bpm_declared,
+const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_at, t.created_at, r.request_id, r.seed, CASE WHEN r.engine = 'dsp' THEN '' ELSE r.style END, t.bpm_declared,
   EXISTS(SELECT 1 FROM scores s WHERE s.track_id = t.id),
   EXISTS(SELECT 1 FROM sections c WHERE c.track_id = t.id AND c.source = 'plan'),
   CASE WHEN t.truncated_abc IS NULL AND t.truncated_semantic IS NULL THEN NULL
@@ -220,7 +220,7 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 		where += ` AND t.status <> 'discarded'` // D-M2a-18
 	}
 	for _, term := range p.Style {
-		where += ` AND EXISTS (SELECT 1 FROM track_style_terms x WHERE x.track_id = t.id AND x.term = ?)`
+		where += ` AND r.engine <> 'dsp' AND EXISTS (SELECT 1 FROM track_style_terms x WHERE x.track_id = t.id AND x.term = ?)`
 		*args = append(*args, normTerm(term))
 	}
 	if p.MinDurationS != nil {
@@ -947,7 +947,9 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 	if tabc.Valid || tsem.Valid {
 		d.Truncated = &Truncation{ABC: nb(tabc), Semantic: nb(tsem)}
 	}
-	d.StyleTerms, _ = yue2.StyleTerms(d.Recipe.Style)
+	if d.Recipe.Engine != EngineDSP { // a transform's recipe has no style text (C211.1b)
+		d.StyleTerms, _ = yue2.StyleTerms(d.Recipe.Style)
+	}
 	if d.StyleTerms == nil {
 		d.StyleTerms = []string{}
 	}

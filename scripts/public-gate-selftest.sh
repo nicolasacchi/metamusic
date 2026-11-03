@@ -167,6 +167,17 @@ echo x > icon.png; git add icon.png
 expect "staged icon.png allowed" 0 --staged
 reset
 
+# T1: soundfonts, MIDI, raw PCM and HRTF datasets are never committed; the committed Q15 table and its NOTICE are fine
+for f in a.sf2 a.SF3 a.mid a.midi a.f32 a.pcm24 a.sofa a.hrir.zip a.hrirs; do
+  echo x > "$f"; git add -f "$f"
+  expect "staged $f blocked" 1 --staged
+  contains "staged $f blocked reason" "forbidden path: $f"
+  reset
+done
+mkdir -p hrtf; echo x > hrtf/table.q15; echo x > hrtf/NOTICE; git add -f hrtf/table.q15 hrtf/NOTICE
+expect "staged table.q15 and NOTICE allowed" 0 --staged
+reset
+
 # invalid private regex must block (not silently disable the check)
 echo "hello" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'(unclosed' expect "invalid regex blocked" 1 --staged
