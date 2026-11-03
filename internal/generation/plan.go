@@ -357,7 +357,7 @@ type base struct {
 	it     Item
 	mode   string // effective mode: the template mode for from_template
 	spec   lineage.ModeSpec
-	req    lineage.Request
+	rec    engine.Recipe
 	parent *trackInfo // mother track, when there is one
 	draft  *draftInfo
 	patch  *lineage.Patch
@@ -365,7 +365,46 @@ type base struct {
 	label  string
 }
 
+// codec is the engine's recipe codec (C163); an engine without one cannot be planned.
+func (p *planner) codec() (engine.RecipeCodec, error) {
+	c, ok := engine.CodecOf(p.eng)
+	if !ok {
+		return nil, perr(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "engine has no recipe codec", map[string]any{"field": "engine", "engine": p.eng.Name()})
+	}
+	return c, nil
+}
+
+// parseStored parses a stored canonical request (recipes.request_json, a draft's pinned request) through the
+// engine's codec.
+func (p *planner) parseStored(raw string) (engine.Recipe, error) {
+	c, err := p.codec()
+	if err != nil {
+		return engine.Recipe{}, err
+	}
+	rec, issues := c.ParseRecipe(json.RawMessage(raw))
+	if len(issues) > 0 {
+		return engine.Recipe{}, errors.New(issues[0].Code)
+	}
+	return rec, nil
+}
+
+// derive is lineage.ApplyParsed through the engine's codec.
+func (p *planner) derive(b base, params lineage.Params) (engine.Recipe, error) {
+	if err := lineage.CheckOperator(b.spec.Operator); err != nil {
+		return engine.Recipe{}, err
+	}
+	c, err := p.codec()
+	if err != nil {
+		return engine.Recipe{}, err
+	}
+	return c.ApplyMode(b.rec, engine.ModeParams{Mode: params.Mode, Operator: b.spec.Operator, SeedPolicy: params.SeedPolicy,
+		NSeeds: params.NSeeds, Seed: params.Seed, ID: params.ID}, b.patch)
+}
+
 func (p *planner) expandAll(items []Item) error {
+	if _, err := p.codec(); err != nil {
+		return err
+	}
 	for i, it := range items {
 		first := len(p.takes)
 		var err error
@@ -409,21 +448,21 @@ func (p *planner) expandVariant(i int, it Item, mode, parentID string, via *stri
 	if err != nil {
 		return err
 	}
-	req, err := lineage.RequestOf([]byte(t.RequestJSON))
+	rec, err := p.parseStored(t.RequestJSON)
 	if err != nil {
 		return fmt.Errorf("generation: parent recipe of %s: %w", parentID, err)
 	}
 	spec, _ := lineage.Spec(mode)
-	return p.expandBase(base{item: i, it: it, mode: mode, spec: spec, req: req, parent: &t, patch: it.Patch, via: via})
+	return p.expandBase(base{item: i, it: it, mode: mode, spec: spec, rec: rec, parent: &t, patch: it.Patch, via: via})
 }
 
 func (p *planner) expandDraft(i int, it Item, d draftInfo) error {
-	req, err := lineage.RequestOf([]byte(d.RequestJSON))
+	rec, err := p.parseStored(d.RequestJSON)
 	if err != nil {
 		return fmt.Errorf("generation: draft %s: %w", d.ID, err)
 	}
 	spec, _ := lineage.Spec(lineage.ModeFromDraft)
-	b := base{item: i, it: it, mode: lineage.ModeFromDraft, spec: spec, req: req, draft: &d, label: d.Label}
+	b := base{item: i, it: it, mode: lineage.ModeFromDraft, spec: spec, rec: rec, draft: &d, label: d.Label}
 	mother := d.ParentTrackID
 	if it.ParentTrackID != nil && *it.ParentTrackID != "" {
 		mother = it.ParentTrackID
@@ -461,8 +500,13 @@ func (p *planner) expandCompose(i int, it Item) error {
 		p.failures = append(p.failures, lintFailure{Item: i, TakeIndex: -1, RequestID: recipeIDOf(raw), Errors: []Issue{parseIssue(err)}})
 		return nil
 	}
+	// the canonical request round-trips through the codec unchanged; the title is app metadata the codec drops
+	rec, err := p.parseStored(string(parsed.Canonical))
+	if err != nil {
+		return err
+	}
 	spec, _ := lineage.Spec(lineage.ModeComposeNew)
-	return p.expandBase(base{item: i, it: it, mode: lineage.ModeComposeNew, spec: spec, req: parsed.Request, label: parsed.Title})
+	return p.expandBase(base{item: i, it: it, mode: lineage.ModeComposeNew, spec: spec, rec: rec, label: parsed.Title})
 }
 
 func recipeIDOf(raw []byte) string {
@@ -501,7 +545,7 @@ type seedPlan struct {
 
 // chooseSeeds applies the seed rule of the mode (C71.3).
 func (p *planner) chooseSeeds(b base, content string) ([]seedPlan, error) {
-	own := b.req.Seed
+	own := b.rec.Seed
 	it := b.it
 	policyFixed := map[lineage.SeedRule]string{lineage.SeedsParentOnly: "parent", lineage.SeedsParentNew: "parent", lineage.SeedsDraftNew: "draft", lineage.SeedsRecipeNew: "recipe"}[b.spec.Seeds]
 	if len(it.Seeds) > 0 {

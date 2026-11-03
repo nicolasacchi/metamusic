@@ -12,6 +12,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
@@ -315,11 +316,16 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 			recipeIDs[i] = *t.ReuseRecipeID
 			continue
 		}
-		parsed, err := lineage.ParseRequest([]byte(t.RequestJSON), false)
-		if err != nil || parsed.Hash != t.RecipeHash {
+		eng, ok := s.o.Engines[e.Engine]
+		codec, hasCodec := engine.CodecOf(eng)
+		if !ok || !hasCodec {
+			return fmt.Errorf("generation: engine %q has no recipe codec", e.Engine)
+		}
+		rec, issues := codec.ParseRecipe(json.RawMessage(t.RequestJSON))
+		if len(issues) > 0 || rec.Hash != t.RecipeHash {
 			return fmt.Errorf("generation: estimate take %d does not re-parse to its recipe hash", i)
 		}
-		rid, _, err := s.o.Library.InsertRecipe(ctx, tx, parsed, p.Key())
+		rid, _, err := s.o.Library.InsertEngineRecipe(ctx, tx, e.Engine, rec, p.Key())
 		if errors.Is(err, library.ErrRecipeExists) {
 			return staleErr(map[string]any{"reason": "library_changed", "request_ids": []string{t.RequestID}})
 		}

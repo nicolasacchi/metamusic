@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
+	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 )
@@ -176,17 +177,26 @@ func (s *Service) hasColumn(ctx context.Context, tx *sql.Tx, table, col string) 
 // the recipe's content and render keys (C71.7). Any createdBy other than "import" gets
 // ErrRecipeExists (with the existing id) unless the row was created now.
 func (s *Service) InsertRecipe(ctx context.Context, tx *sql.Tx, p yue2.Parsed, createdBy string) (id string, created bool, err error) {
+	return s.InsertEngineRecipe(ctx, tx, yue2.EngineName, yue2.RecipeOf(p), createdBy)
+}
+
+// InsertEngineRecipe is InsertRecipe for any engine's recipe (C163): the recipes.engine column is engineName
+// and every other column comes from the engine-neutral Recipe. For yue2 it writes exactly the bytes the
+// yue2.Parsed entry point always wrote.
+func (s *Service) InsertEngineRecipe(ctx context.Context, tx *sql.Tx, engineName string, r engine.Recipe, createdBy string) (id string, created bool, err error) {
 	if createdBy == "" {
 		return "", false, invalid("created_by", "created_by is required")
 	}
-	r := p.Request
+	if engineName == "" {
+		return "", false, invalid("engine", "engine is required")
+	}
 	rid := s.newID()
 	err = tx.QueryRowContext(ctx, `INSERT INTO recipes(id, engine, request_id, request_json, style, lyrics, seed, cot,
 		sampling_json, hash, core_hash, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,NULL,?,?,?,?)
 		ON CONFLICT(hash) DO NOTHING RETURNING id`,
-		rid, "yue2", r.ID, string(p.Canonical), r.Style, r.Lyrics, r.Seed, r.Cot, p.Hash, p.CoreHash, createdBy, s.nowStr()).Scan(&id)
+		rid, engineName, r.ID, string(r.Canonical), r.Style, r.Lyrics, r.Seed, r.Cot, r.Hash, r.CoreHash, createdBy, s.nowStr()).Scan(&id)
 	if err == nil {
-		if err := s.insertRecipeKeys(ctx, tx, id, p.Canonical); err != nil {
+		if err := s.insertRecipeKeys(ctx, tx, id, r.Canonical); err != nil {
 			return "", false, err
 		}
 		return id, true, nil
@@ -194,7 +204,7 @@ func (s *Service) InsertRecipe(ctx context.Context, tx *sql.Tx, p yue2.Parsed, c
 	if !errors.Is(err, sql.ErrNoRows) {
 		return "", false, fmt.Errorf("library: insert recipe: %w", err)
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM recipes WHERE hash = ?`, p.Hash).Scan(&id); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM recipes WHERE hash = ?`, r.Hash).Scan(&id); err != nil {
 		return "", false, fmt.Errorf("library: find recipe: %w", err)
 	}
 	if createdBy != "import" {

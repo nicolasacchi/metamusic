@@ -1,0 +1,122 @@
+[
+ {
+  "case": "parse_off",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":7,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "acf9b26a7a8d156d5e00a119ccba3f1c6489d159ee72a580c0f98e955313f5c1",
+  "sha_core": "acf9b26a7a8d156d5e00a119ccba3f1c6489d159ee72a580c0f98e955313f5c1",
+  "sha_content": "b16ec3f839224529845bd51e4e8c4509e66b70115769e79a7365eedc7f582b79",
+  "sha_render": "65b98f8aaab1e1f3f28f8ea6b65a6c7945d973d59b07763d6bb4b79b4edb5a76"
+ },
+ {
+  "case": "parse_full",
+  "canonical": "{\"cfg_scale\":1.5,\"cot\":\"full\",\"id\":\"syn-b\",\"lyrics\":\"[verse]\\nx y z\\n\\n[chorus]\\na b c\",\"seed\":9,\"style\":\"rock\"}",
+  "sha_canonical": "b652876142f3e4ad16d505a9d0f3ad32ed0bea2507e3e3ea4d83e65264b08677",
+  "sha_core": "7f83da9de484948d2c8d38e4b6afcd3b15a805b26a5d1c68c2636a4a1a627c6d",
+  "sha_content": "89a456e7ff497a1f90e5a21d3935d4b408a73881775ee19f6867de80ec9f22ca",
+  "sha_render": "dd4029a230e829e4f2f8bae942e230d3393e6d110dd5c4d7c71011d9f809c698"
+ },
+ {
+  "case": "parse_unicode",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-c\",\"lyrics\":\"[verse]\\nciao città è bello\\n\\n[chorus]\\nsì sì sì\",\"seed\":1,\"style\":\"cantautore italiano\"}",
+  "sha_canonical": "079227712d9f30f75bac69c83d691f20f4584dabc6ba6bc02e7e942d9509bf53",
+  "sha_core": "079227712d9f30f75bac69c83d691f20f4584dabc6ba6bc02e7e942d9509bf53",
+  "sha_content": "745f902e7fc61973c45259388c71ccf48b99cbcec633ffeb5bda32959f2356b7",
+  "sha_render": "721a7cd8a9b8dd728ea62efff56fb8e582baaa63d73af3ffc08df1a26fd9612a"
+ },
+ {
+  "case": "parse_bad",
+  "err": "yue2: missing_style: style is required"
+ },
+ {
+  "case": "parse_abc",
+  "canonical": "{\"abc\":\"X:1\\nT:t\\nM:4/4\\nL:1/8\\nQ:1/4=100\\nK:C\\nCDEF|\",\"cot\":\"melody\",\"id\":\"syn-e\",\"lyrics\":\"[verse]\\nx y z\\n\\n[chorus]\\na b c\",\"seed\":3,\"style\":\"jazz\"}",
+  "sha_canonical": "b28450006190a3dc832892b78d2636b4f2e77c836b6c0409ea63e90021cbef7e",
+  "sha_core": "616ada60a002795cc8a1356db0c1c1637a8b26a8da9243600444f9d8a3bb915d",
+  "sha_content": "9dabaec758de6e4cc0bf92cfd088093baf9a8900fdd31094bf53a9c3be23ea50",
+  "sha_render": "bd0b00dede16d52d948b8beec7d7dfef464dabdb58e380df351d3a32182fd13c"
+ },
+ {
+  "case": "reroll",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a-s4242\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":4242,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "f72bb4707535f7236ce2374949c64a0ac4a584a157cd4a47fd35f0cce0077f9e",
+  "sha_core": "f72bb4707535f7236ce2374949c64a0ac4a584a157cd4a47fd35f0cce0077f9e",
+  "sha_content": "b16ec3f839224529845bd51e4e8c4509e66b70115769e79a7365eedc7f582b79",
+  "sha_render": "3f0095d4da894018ce687ecf6d330931dbe9bda870ffeaf2f2fee3e021b06e95"
+ },
+ {
+  "case": "same_seed_style",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a-s7\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":7,\"style\":\"dark synth\"}",
+  "sha_canonical": "6611d325df3294efc146e74a62c4e53e70ee9b6e5205fe1ff2e96409c9b9d9e5",
+  "sha_core": "6611d325df3294efc146e74a62c4e53e70ee9b6e5205fe1ff2e96409c9b9d9e5",
+  "sha_content": "787772ec764fe622ce5dbda8deb54ce297dce6b72a89a1c9d3cf48b3bf4c4ce7",
+  "sha_render": "005a17decfbd4961618ff87881e505ecb4335662e9d307bb9ba670cf31fa238c"
+ },
+ {
+  "case": "lyric_edit",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a-s7\",\"lyrics\":\"[verse]\\nnew words here\\n\\n[chorus]\\nnew chorus here\",\"seed\":7,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "b58cbe6bf1e6fddd589ed9bd10db7fc58f4d908a3a5f3408cc699ed6704ef1f7",
+  "sha_core": "b58cbe6bf1e6fddd589ed9bd10db7fc58f4d908a3a5f3408cc699ed6704ef1f7",
+  "sha_content": "831a104b1f1e6b530de00bb08f868dc2aa031eec40e2108b0a714b2435bd0fa6",
+  "sha_render": "88f1707bc3418dfdd71b81dc39bb04f965a0beb0a7d3ba71ba09fec503ae92ff"
+ },
+ {
+  "case": "style_edit_cot",
+  "canonical": "{\"cot\":\"full\",\"id\":\"syn-a-s8\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":8,\"style\":\"ambient\"}",
+  "sha_canonical": "5e26c462511047d860b9035ac9b9fe8cb316095e1a9a949cbf8f092efaa10ce0",
+  "sha_core": "5e26c462511047d860b9035ac9b9fe8cb316095e1a9a949cbf8f092efaa10ce0",
+  "sha_content": "cb08323fd2d449d459834bdae1cffd344b44a92832d7cfd979930e03da723dd3",
+  "sha_render": "b0124f4abcb0ddd3577a3230ffd01a4431f87aa17a6c45fc4b5e0a2b22d9b896"
+ },
+ {
+  "case": "cfg_set",
+  "canonical": "{\"cfg_scale\":2.25,\"cot\":\"off\",\"id\":\"syn-a-s7\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":7,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "6ef08ba17026daf00bd40c66ffc602d3d9aedc442b9c3b15f2a3284f48b38c90",
+  "sha_core": "eac7d6b8b952c01852e6a66f4233824db644b3ce7ac17c14bd3e174ad814b6ce",
+  "sha_content": "38248f37ff688b99739249f58f78a3ace87dcf530094678a158e6e21f7fb3f24",
+  "sha_render": "013e0d46a74f92ca6135f47087d49cda876af321627a89e500e37e542cab4b52"
+ },
+ {
+  "case": "abc_set",
+  "canonical": "{\"abc\":\"X:1\\nT:t\\nM:4/4\\nL:1/8\\nQ:1/4=100\\nK:C\\nCDEF|\",\"cot\":\"melody\",\"id\":\"syn-a-s7\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":7,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "82fe85e0185330d5236b3f112e5fbe9d8493982a9db6ee36fafd5d17e58f03e3",
+  "sha_core": "e84829655ee4ec43e9e5d6bd77ff20b46b53bbfaf206a419a80fd1e2686a4c3e",
+  "sha_content": "748208f4910f83059b9610b5e68aa7c87f3edb395f145f450c3f29548d88381e",
+  "sha_render": "ae18889024124258d6593531b894a0a5935b14b0431e3bece8b877738f220f01"
+ },
+ {
+  "case": "abc_remove",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-e\",\"lyrics\":\"[verse]\\nx y z\\n\\n[chorus]\\na b c\",\"seed\":3,\"style\":\"jazz\"}",
+  "sha_canonical": "6dc7fc581446d21fa6367a2baf1bccc46c7d721714d280233694da70074cca95",
+  "sha_core": "6dc7fc581446d21fa6367a2baf1bccc46c7d721714d280233694da70074cca95",
+  "sha_content": "7d98b2fe09598bc6e67a95979073bf7be913b12fe618a7b8b1c65402fa8cf382",
+  "sha_render": "fbc081a6aeecab2d39bec1b2a060ce056f039f98946494dfda5af8a2ac68bb63"
+ },
+ {
+  "case": "from_draft",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a-s11\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":11,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "8a55a42b20a53328f25666eb62e8c655ed5c467da21548f3bfe7ffeb81c3d3fc",
+  "sha_core": "8a55a42b20a53328f25666eb62e8c655ed5c467da21548f3bfe7ffeb81c3d3fc",
+  "sha_content": "b16ec3f839224529845bd51e4e8c4509e66b70115769e79a7365eedc7f582b79",
+  "sha_render": "71080f072cfc70ea3c6ad2e01fde82db40305bd0a99ddda8fddafad9ae11a362"
+ },
+ {
+  "case": "compose_new",
+  "canonical": "{\"cot\":\"off\",\"id\":\"syn-a\",\"lyrics\":\"[verse]\\nfirst line of the verse\\nsecond line of the verse\\n\\n[chorus]\\nthe chorus line\\nanother chorus line\",\"seed\":7,\"style\":\"warm pop female vocal\"}",
+  "sha_canonical": "acf9b26a7a8d156d5e00a119ccba3f1c6489d159ee72a580c0f98e955313f5c1",
+  "sha_core": "acf9b26a7a8d156d5e00a119ccba3f1c6489d159ee72a580c0f98e955313f5c1",
+  "sha_content": "b16ec3f839224529845bd51e4e8c4509e66b70115769e79a7365eedc7f582b79",
+  "sha_render": "65b98f8aaab1e1f3f28f8ea6b65a6c7945d973d59b07763d6bb4b79b4edb5a76"
+ },
+ {
+  "case": "bad_operator",
+  "err": "lineage: unknown operator: \"inferred_sibling\""
+ },
+ {
+  "case": "bad_seed",
+  "err": "yue2: seed_out_of_range: seed must be an integer in 0..9007199254740991"
+ },
+ {
+  "case": "bad_cot",
+  "err": "yue2: bad_cot: cot must be full, melody or off"
+ }
+]

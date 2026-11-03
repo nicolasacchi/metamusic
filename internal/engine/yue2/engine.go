@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"slices"
 
 	"github.com/nicolasacchi/metamusic/internal/engine"
 )
@@ -17,6 +18,9 @@ const (
 	maxAudioSeconds = 360
 	sampleRate      = 48000
 )
+
+// tasks are the generation modes yue2 offers (lineage.Mode* values), sorted.
+var tasks = []string{"compose_new", "from_draft", "from_template", "lyric_edit", "new_seed", "same_seed_edit", "style_edit"}
 
 // Artifact names (C73.4); the provider package owns the sizes.
 const (
@@ -41,7 +45,8 @@ func (Engine) Name() string { return EngineName }
 
 // Caps implements engine.Engine.
 func (Engine) Caps() engine.Caps {
-	return engine.Caps{Text2Song: true, PlanScore: true, RenderFromScore: true, MaxSeconds: maxAudioSeconds, SampleRate: sampleRate}
+	return engine.Caps{Text2Song: true, PlanScore: true, RenderFromScore: true,
+		MinSeconds: minAudioSeconds, MaxSeconds: maxAudioSeconds, SampleRate: sampleRate, Tasks: slices.Clone(tasks)}
 }
 
 // Validate is CheckRequest(raw, ModeYuE2, nil) filtered to errors and converted field by field.

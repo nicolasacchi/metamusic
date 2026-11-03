@@ -15,9 +15,9 @@ import (
 // planner warnings and the sizes the quote needs.
 func (p *planner) expandBase(b base) error {
 	op := b.spec.Operator
-	probe, err := lineage.ApplyParsed(b.req, op, lineage.Params{Mode: b.mode, Seed: b.req.Seed, ID: b.req.ID}, b.patch)
+	probe, err := p.derive(b, lineage.Params{Mode: b.mode, Seed: b.rec.Seed, ID: b.rec.ID})
 	if err != nil {
-		p.failures = append(p.failures, lintFailure{Item: b.item, TakeIndex: -1, RequestID: b.req.ID, Errors: []Issue{parseIssue(err)}})
+		p.failures = append(p.failures, lintFailure{Item: b.item, TakeIndex: -1, RequestID: b.rec.ID, Errors: []Issue{parseIssue(err)}})
 		return nil
 	}
 	content, _ := lineage.Keys(probe.Canonical)
@@ -34,9 +34,9 @@ func (p *planner) expandBase(b base) error {
 }
 
 func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
-	keep := b.mode == lineage.ModeComposeNew && nSeeds == 1 && sp.seed == b.req.Seed
+	keep := b.mode == lineage.ModeComposeNew && nSeeds == 1 && sp.seed == b.rec.Seed
 	reuse := ""
-	if b.draft != nil && sp.seed == b.req.Seed {
+	if b.draft != nil && sp.seed == b.rec.Seed {
 		rid, ok, err := lineage.ReusableDraftRecipe(p.ctx, p.q, lineage.DraftRow{ID: b.draft.ID, Revision: b.draft.Revision,
 			SourceRecipeID: b.draft.SourceRecipeID, RequestJSON: b.draft.RequestJSON})
 		if err != nil {
@@ -47,10 +47,10 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 			p.reused[rid] = true
 		}
 	}
-	id := b.req.ID
+	id := b.rec.ID
 	if reuse == "" {
 		var err error
-		id, err = lineage.AllocateID(b.req.ID, sp.seed, keep, p.taken())
+		id, err = lineage.AllocateID(b.rec.ID, sp.seed, keep, p.taken())
 		if p.err != nil {
 			return p.err
 		}
@@ -62,7 +62,7 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		}
 	}
 	params := lineage.Params{Mode: b.mode, SeedPolicy: sp.policy, NSeeds: nSeeds, Via: b.via, Seed: sp.seed, ID: id}
-	parsed, err := lineage.ApplyParsed(b.req, op, params, b.patch)
+	parsed, err := p.derive(b, params)
 	if err != nil {
 		p.failures = append(p.failures, lintFailure{Item: b.item, TakeIndex: len(p.takes), RequestID: id, Errors: []Issue{parseIssue(err)}})
 		return nil
@@ -92,7 +92,7 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		explicit = b.label
 	}
 	label := ""
-	if sp.seed == b.req.Seed {
+	if sp.seed == b.rec.Seed {
 		label = b.label
 	}
 	parentTitle := ""

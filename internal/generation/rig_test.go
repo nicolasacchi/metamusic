@@ -156,7 +156,7 @@ func newRig(t *testing.T, opts ...rigOpt) *rig {
 	lin := lineage.New(lineage.Options{Store: st, Now: r.clk.Now})
 	r.sp = spend.New(spend.Options{Store: st, Now: r.clk.Now, NewID: r.id, ConfirmKey: []byte("test-key"), Location: time.UTC, Rand: seeded(7)})
 	r.opts = generation.Options{
-		Store: st, Library: r.lib, Lineage: lin, Spend: r.sp, Engines: registry.Default(), Notify: r.notes, PublicURL: "http://mm.example.com",
+		Store: st, Library: r.lib, Lineage: lin, Spend: r.sp, Engines: registry.Default(registry.Options{}), Notify: r.notes, PublicURL: "http://mm.example.com",
 		Now: r.clk.Now, NewID: r.id, Wake: func() { r.wakes.Add(1) },
 		ColdStartS: 180, KillSlackS: 15, MaxRuntime: 15 * time.Minute, PriceMarginPPM: cfg.margin, Songwriting: cfg.sw,
 	}
