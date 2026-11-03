@@ -55,6 +55,13 @@ type Config struct {
 	// M5 (C250).
 	CallbackBacklogMax int // MM_CALLBACK_BACKLOG_MAX, default 6, 0..50; 0 disables the agent backlog gate
 
+	// E2 (second engine).
+	ACEStep           bool          // MM_ACESTEP, default off; needs MM_BACKEND fake or runpod
+	ACEStepColdStartS int           // MM_ACESTEP_COLD_START_S, default 300, 30..900
+	ACEStepMaxRuntime time.Duration // MM_ACESTEP_MAX_RUNTIME, default MM_JOB_MAX_RUNTIME, 30s..45m
+	ACEStepTasks      []string      // MM_ACESTEP_TASKS: ["turbo"] (default) or ["turbo","base"]
+	ACEStepPools      []string      // MM_ACESTEP_POOLS, default AMPERE_24,ADA_24
+
 	// M4a (C102).
 	OIDCIssuer  string       // MM_OIDC_ISSUER: "" ⇒ hosted connectors disabled
 	OIDCJWKSURL string       // MM_OIDC_JWKS_URL: "" ⇒ discovered from the issuer
@@ -133,7 +140,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
 	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}
