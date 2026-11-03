@@ -2,6 +2,6 @@
 // precomputed twiddles, deterministic Exp/Log/Pow, a PCG wrapper, a work meter, the resampler and the convolution.
 //
 // It imports nothing of the application (TestImportGraph_T1): the standard library, the exported analysis.OnsetEnvelope only
-// (D-T1-20) and the dsp subtree. No operator starts a goroutine and none reads a clock (D-T1-3). T1-F1 froze the signatures
-// as stubs; T1-D1 implements them.
+// (D-T1-20) and the dsp subtree. No operator starts a goroutine and none reads a clock (D-T1-3). The determinism guards (banned math, PCG only, no goroutines or clock,
+// bit-pattern goldens pinned for GOAMD64=v1, the GODEBUG=cpu.fma=off re-execution) are the tests in this package.
 package dsp

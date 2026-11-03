@@ -1,0 +1,5 @@
+# sha256 of the little-endian bit patterns of each primitive's output on fixed inputs. linux/amd64, GOAMD64=v1.
+conv 7cd204f448a81126c8bb8aa4c5592d6bf157d34298d1de4c0a10c79f1f6da039
+fft 02189b6ae0bd374ec862833dc2d6918e2c45e12a3e0160d44aadc053f8db9a9b
+rand cc101018f99819ca139081ef43bcbb4e19b8366cd03e2ad4e1ceff1844ff5adb
+resample bc2aa76a323aaf6c3ccd062161674ccdbb31be5203612062c87f5f04d0881f9c
