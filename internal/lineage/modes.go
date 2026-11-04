@@ -79,7 +79,7 @@ var Modes = []ModeSpec{
 	{Mode: ModeFromTemplate, Parent: "many"},
 	// song_pr: the base is the patch's base take, the item's own patch is forbidden (the stored patch applies), seeds are the base
 	// seed plus n-1 new ones (n <= 4). Operator is "" here like from_template: the planner uses the stored patch's operator.
-	{Mode: ModeSongPR, Seeds: SeedsParentNew, Parent: "required"},
+	{Mode: ModeSongPR, Seeds: SeedsParentNew, Parent: "required", Engines: []string{EngineYuE2}},
 }
 
 // Spec returns the row of a mode (M3 table first, then the E2 rows).
