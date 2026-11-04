@@ -20,3 +20,36 @@ type SlotWindow struct {
 	FromS float64 `json:"from_s"`
 	ToS   float64 `json:"to_s"`
 }
+
+// SuggestQuery is the suggest_duel_pairs request (C258). K <= 0 means 6; the service caps it at 15.
+type SuggestQuery struct {
+	Scope       string // lineage (default) | global
+	RootTrackID string // required for lineage
+	Section     *SectionSelector
+	K           int
+}
+
+// PairSuggestion is one suggested pair: the two takes, the expected information of one more verdict and what it is made of.
+type PairSuggestion struct {
+	ATrackID, BTrackID string
+	ATitle, BTitle     string
+	Score              float64
+	PAWinsB            float64
+	SDA, SDB           float64
+	HumanVerdict       int
+}
+
+// PairSuggestions is the suggest_duel_pairs answer.
+type PairSuggestions struct {
+	Scope       string
+	RootTrackID *string
+	Section     *string // the canonical section label both takes are timed on, when one was asked for
+	Model       SuggestModel
+	Pairs       []PairSuggestion
+}
+
+// SuggestModel reports the ladder fit the suggestions rest on.
+type SuggestModel struct {
+	Nu              float64
+	VerdictsCounted int
+}
