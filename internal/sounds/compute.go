@@ -32,6 +32,7 @@ type tempoMeasure struct {
 // input is everything the facets of one subject are a function of (C93.4).
 type input struct {
 	Engine, Style, Lyrics string
+	VocalLanguage         string   // request.vocal_language of an acestep15 take, only when it is a two-letter code (C164); "" otherwise
 	Declared              *float64 // tracks.bpm_declared
 	Plan                  *float64 // scores.bpm
 	Measured              *tempoMeasure
@@ -117,11 +118,12 @@ func takeDigest(version int, in input) string {
 		Engine   string   `json:"engine"`
 		Style    string   `json:"style"`
 		Lyrics   string   `json:"lyrics_sha256"`
+		VocalLg  string   `json:"vocal_language,omitempty"` // empty for yue2: its digests do not move
 		Declared *float64 `json:"declared_bpm"`
 		Plan     *float64 `json:"score_bpm"`
 		TempoV   string   `json:"tempo_version"`
 		TempoSum string   `json:"tempo_sha256"`
-	}{version, in.Engine, in.Style, sum256(in.Lyrics), in.Declared, in.Plan, mv, ms}))
+	}{version, in.Engine, in.Style, sum256(in.Lyrics), in.VocalLanguage, in.Declared, in.Plan, mv, ms}))
 }
 
 func fptr(v float64) *float64 { return &v }
@@ -140,6 +142,8 @@ func buildRows(ix *Index, in input) ([]soundRow, Parsed) {
 		if parsed.Language == "" {
 			if l := yue2.DetectLanguage(in.Lyrics); l != "" {
 				rows = append(rows, soundRow{Facet: "language", Value: l, Origin: "lyrics"})
+			} else if in.VocalLanguage != "" {
+				rows = append(rows, soundRow{Facet: "language", Value: in.VocalLanguage, Origin: "recipe"})
 			}
 		}
 		declared := in.Declared
@@ -244,6 +248,9 @@ func loadTake(ctx context.Context, q querier, id string) (in input, ok bool, err
 	if plan.Valid {
 		in.Plan = fptr(plan.Float64)
 	}
+	if in.Engine == "acestep15" {
+		in.VocalLanguage = vocalLanguage(ctx, q, id)
+	}
 	if strings.TrimSpace(in.Style) == "" {
 		terms, err := stringsOf(ctx, q, `SELECT term FROM track_style_terms WHERE track_id = ? ORDER BY term`, id)
 		if err != nil {
@@ -263,6 +270,19 @@ func loadTake(ctx context.Context, q querier, id string) (in input, ok bool, err
 		return in, false, fmt.Errorf("sounds: load tempo: %w", err)
 	}
 	return in, true, nil
+}
+
+// vocalLanguage reads request.vocal_language of an ACE-Step take (C164). The language facet is a two-letter code, so
+// "unknown", "yue" and anything unreadable yield "".
+func vocalLanguage(ctx context.Context, q querier, id string) string {
+	var l sql.NullString
+	if err := q.QueryRowContext(ctx, `SELECT json_extract(r.request_json, '$.vocal_language') FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, id).Scan(&l); err != nil {
+		return "" // a missing or unreadable language is "no answer", never an error
+	}
+	if len(l.String) != 2 || l.String[0] < 'a' || l.String[0] > 'z' || l.String[1] < 'a' || l.String[1] > 'z' {
+		return ""
+	}
+	return l.String
 }
 
 func stringsOf(ctx context.Context, q querier, query string, args ...any) ([]string, error) {
