@@ -16,10 +16,12 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/atlas"
+	"github.com/nicolasacchi/metamusic/internal/attention"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
+	"github.com/nicolasacchi/metamusic/internal/callbacks"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/crates"
@@ -58,6 +60,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songpr"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
@@ -68,6 +71,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 	"github.com/nicolasacchi/metamusic/internal/transform"
 	"github.com/nicolasacchi/metamusic/internal/upload"
+	"github.com/nicolasacchi/metamusic/internal/voice"
 )
 
 // Options tunes Build; every field is optional.
@@ -171,6 +175,11 @@ type Services struct {
 	Atlas       *atlas.Service
 	// Transform is the T1 service (C210); nil when MM_TRANSFORM_ENABLED is false. Its runner is started by serve, never by Build.
 	Transform *transform.Service
+	// M5 services (C250). Nothing is started.
+	SongPR    *songpr.Service
+	Callbacks *callbacks.Service
+	Attention *attention.Service
+	Voice     *voice.Service
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -265,7 +274,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		}
 		pipe = ingest.New(data, abs, mediatool.Tools{FFmpeg: cfg.FFmpeg, FLAC: cfg.FLAC, Metaflac: cfg.Metaflac}, media.Analyzer, now)
 	}
-	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears)
+	late := &m5Late{}
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +291,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
+	m5 := buildM5(m5Inputs{st: st, now: now, late: late})
 	l3 := buildL3(l3Inputs{st: st, now: now, muses: l1.Muses, songview: l1.SongView, sounds: l1.Sounds, prov: l1.Provenance, ctxb: ctxb, o: o.L3})
 	t1 := buildT1(t1Inputs{cfg: cfg, st: st, lib: lib, now: now, newID: newID})
 
@@ -292,6 +303,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	s := &Services{
 		Records: l2.Records, Syncer: l2.Syncer, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
+		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
 		Board: l1.Board, Provenance: l1.Provenance,
@@ -323,6 +335,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 		Records: l2.Records, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
+		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 	}
 	s.Server = httpserver.Options{
 		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
@@ -336,6 +349,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, LibSessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		Records: l2.Records, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
+		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 		BaseContext: o.M3.Shutdown,
 		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,

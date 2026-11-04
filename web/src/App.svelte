@@ -71,6 +71,9 @@
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
   import Batch from "./routes/Batch.svelte";
+  import Patch from "./routes/Patch.svelte";
+  import Callbacks from "./routes/Callbacks.svelte";
+  import Receipts from "./routes/Receipts.svelte";
   import Offline from "./routes/Offline.svelte";
   import New from "./routes/New.svelte";
   import Queue from "./routes/Queue.svelte";
@@ -279,6 +282,18 @@
       {/key}
     {:else if $router.route?.name === "judge"}
       <Judge search={searchOf($router)} navigate={router.navigate} />
+    {:else if $router.route?.name === "callbacks"}
+      <Callbacks navigate={router.navigate} />
+    {:else if $router.route?.name === "callback"}
+      {#key $router.params.id}
+        <Callbacks id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "patch"}
+      {#key $router.params.id}
+        <Patch id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
+    {:else if $router.route?.name === "receipts"}
+      <Receipts />
     {:else if $router.route?.name === "duels"}
       <Duels navigate={router.navigate} />
     {:else if $router.route?.name === "duel"}
