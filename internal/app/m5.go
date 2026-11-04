@@ -15,6 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/songpr"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 	"github.com/nicolasacchi/metamusic/internal/voice"
 )
 
@@ -34,6 +35,7 @@ type m5Inputs struct {
 	notifier notify.Notifier
 	cfg      config.Config
 	late     *m5Late
+	ctxb     *trackctx.Builder // M5-A1 wires the close-the-loop reader into /context
 }
 
 // buildM5 constructs the M5 services and fills the late seams; each lane fills only its own m5_<lane>.go (the L3 pattern).

@@ -8,8 +8,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 )
 
-// registerAttentionM5 registers get_listen_heat (C256, C260). Frozen by M5-F2; lane M5-A1 fills the handler (and adds the id
-// to implementedAttentionM5 in ops_attention_m5_test.go).
+// registerAttentionM5 registers get_listen_heat (C256, C260). A pure read: the heat is computed from listen events on every call.
 func registerAttentionM5(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_listen_heat", Method: "GET", Path: "/api/tracks/{id}/heat",
@@ -20,6 +19,10 @@ func registerAttentionM5(a huma.API, d Deps) {
 			if d.Attention == nil {
 				return nil, unavailable("attention")
 			}
-			return nil, notImplemented(taskA1)
+			h, err := d.Attention.Heat(ctx, in.ID)
+			if err != nil {
+				return nil, libErr(err)
+			}
+			return &listenHeatOut{Body: h}, nil
 		})
 }
