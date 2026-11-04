@@ -68,7 +68,8 @@ import (
 // tools/list; the bytes are schema growth on six existing tools: Comment.voice and origin_callback_id on add_comment and
 // update_comment (+298 each), Duel.section and the per-slot windows on next_duel and submit_duel (+374 each), and the song_pr
 // mode and patch_id on estimate_generation and estimate_variant (+39 each). Docs and enums of the new fields were left out.
-const toolsCeilingBytes = 109750
+// T1-F1b: re-baselined 109750 -> 110556 (measured 110456, +806): search_tracks (a first-class tool) gains the origin and lyrics_of parameters and TrackSummary gains transform.
+const toolsCeilingBytes = 110556
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

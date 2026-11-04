@@ -109,6 +109,8 @@ const node = (id: string, parent: string | null, generation: number, o: Partial<
   job_id: null,
   created_at: "2026-10-14T10:00:00Z",
   children_count: 0,
+  transform: null,
+  also_from: [],
   ...o,
 });
 

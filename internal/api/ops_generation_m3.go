@@ -187,7 +187,7 @@ func lineageFrom(t lineage.Tree) LineageTree {
 	for _, n := range t.Nodes {
 		ln := LineageNode{ID: n.ID, ParentID: n.ParentID, Generation: n.Generation, Title: n.Title, Status: n.Status, Seed: n.Seed, RecipeKnown: n.RecipeKnown,
 			Lossy: n.Lossy, RequestID: n.RequestID, Origin: n.Origin, Operator: nonEmpty(n.Operator), Inferred: n.Inferred, Rationale: n.Rationale,
-			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount}
+			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{}}
 		if n.CostMicroUSD != nil && n.CostBasis != nil {
 			ln.Cost = &library.GenerationCost{DisplayMicroUSD: int64(*n.CostMicroUSD), DisplayUSD: usd(*n.CostMicroUSD), Basis: *n.CostBasis}
 		}

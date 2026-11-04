@@ -53,6 +53,8 @@ type Bundle struct {
 	Provenance map[string]any `json:"provenance"`
 	Score      map[string]any `json:"score" nullable:"true"`
 	Lineage    map[string]any `json:"lineage"`
+	// Transform (T1, C211.4) describes how a transform Take was made; absent for every other take.
+	Transform  map[string]any `json:"transform,omitempty" nullable:"true" doc:"Kind, parameter summary, inputs with roles, alignment sources and safety summary; absent unless the take is a transform output"`
 	Judgments  map[string]any `json:"judgments"`
 	Perception map[string]any `json:"perception"`
 	Listening  map[string]any `json:"listening"`

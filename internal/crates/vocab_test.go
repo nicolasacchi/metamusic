@@ -52,7 +52,7 @@ func TestVocab_Tables(t *testing.T) {
 	if len(crates.SongKeys) != 21 || len(crates.TakeKeys) != 20 {
 		t.Errorf("%d song keys and %d take keys, want 21 and 20", len(crates.SongKeys), len(crates.TakeKeys))
 	}
-	want := []string{"crate_id", "cursor", "draft_id", "include_archived", "include_hidden", "limit", "root_track_id", "song_id", "sort", "track_id"}
+	want := []string{"crate_id", "cursor", "draft_id", "include_archived", "include_hidden", "limit", "lyrics_of", "origin", "root_track_id", "song_id", "sort", "track_id"}
 	got := slices.Clone(crates.NonSaved)
 	sort.Strings(got)
 	if !slices.Equal(got, want) {
