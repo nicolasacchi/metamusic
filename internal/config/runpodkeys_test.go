@@ -192,3 +192,57 @@ func TestSecrets_DerivedKeys(t *testing.T) {
 		t.Error("different roots derive the same key")
 	}
 }
+
+const (
+	canaryACEEP   = "canary-ace-endpoint-0006"
+	canaryACEJobs = "canary-ace-jobs-0007"
+)
+
+func TestRunPodKeys_ACEStepVariables(t *testing.T) {
+	base := rk("JOBS") + "=" + canaryJobs + "\n" + rk("READ") + "=" + canaryRead + "\nRUNPOD_ENDPOINT_ID=" + canaryEP + "\n"
+	t.Run("absent is fine", func(t *testing.T) {
+		dir := t.TempDir()
+		writeEnv(t, dir, "runpod.env", base)
+		k, ok, err := LoadRunPodKeys(dir)
+		if err != nil || !ok || k.ACEStepEndpointID != "" || k.ACEStepJobsKey != "" {
+			t.Fatalf("%v %v %v", k, ok, err)
+		}
+	})
+	t.Run("both present", func(t *testing.T) {
+		dir := t.TempDir()
+		writeEnv(t, dir, "runpod.env", base+"RUNPOD_ACESTEP_ENDPOINT_ID="+canaryACEEP+"\nRUNPOD_ACESTEP_JOBS_KEY="+canaryACEJobs+"\n")
+		k, ok, err := LoadRunPodKeys(dir)
+		if err != nil || !ok || k.ACEStepEndpointID != canaryACEEP || k.ACEStepJobsKey != canaryACEJobs {
+			t.Fatalf("%v %v %v", k, ok, err)
+		}
+		if got := k.String(); got != "RunPodKeys{jobs:set read:set write:unset endpoint:set console:default acestep_endpoint:set acestep_jobs:set}" {
+			t.Errorf("String = %s", got)
+		}
+	})
+	t.Run("provision tolerates absence of every endpoint id", func(t *testing.T) {
+		dir := t.TempDir()
+		writeEnv(t, dir, "runpod.env", rk("JOBS")+"="+canaryJobs+"\n"+rk("READ")+"="+canaryRead+"\n")
+		if k, ok, err := LoadRunPodKeysForProvision(dir); err != nil || !ok || k.ACEStepEndpointID != "" {
+			t.Fatalf("%v %v %v", k, ok, err)
+		}
+	})
+	t.Run("duplicate names the variable only", func(t *testing.T) {
+		dir := t.TempDir()
+		writeEnv(t, dir, "runpod.env", base+"RUNPOD_ACESTEP_ENDPOINT_ID="+canaryACEEP+"\nRUNPOD_ACESTEP_ENDPOINT_ID=x\n")
+		_, _, err := LoadRunPodKeys(dir)
+		if err == nil || !strings.Contains(err.Error(), "RUNPOD_ACESTEP_ENDPOINT_ID") || strings.Contains(err.Error(), canaryACEEP) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}
+
+func TestRunPodKeys_NeverPrinted_ACEStep(t *testing.T) {
+	k := RunPodKeys{Jobs: canaryJobs, Read: canaryRead, EndpointID: canaryEP, ACEStepEndpointID: canaryACEEP, ACEStepJobsKey: canaryACEJobs}
+	for _, s := range []string{k.String(), fmt.Sprintf("%v", k), fmt.Sprintf("%+v", k), fmt.Sprintf("%#v", k), fmt.Sprint(k)} {
+		for _, c := range []string{canaryACEEP, canaryACEJobs, canaryJobs, canaryEP} {
+			if strings.Contains(s, c) {
+				t.Errorf("%q leaks %s", s, c)
+			}
+		}
+	}
+}

@@ -28,6 +28,7 @@ func TestLoadDefaults(t *testing.T) {
 		OIDCScopes: []string{"openid", "metamusic"}, CallbackBacklogMax: 6,
 		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
 		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
+		ACEStepColdStartS: 300, ACEStepMaxRuntime: 15 * time.Minute, ACEStepTasks: []string{"turbo"}, ACEStepPools: []string{"AMPERE_24", "ADA_24"},
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Fatal(diff)

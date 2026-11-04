@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
 )
@@ -59,6 +60,12 @@ func configCheck(getenv func(string) string, s streams) error {
 		fmt.Fprintf(s.out, "callback backlog: %d per lineage root\n", cfg.CallbackBacklogMax)
 	} else {
 		fmt.Fprintln(s.out, "callback backlog: gate off")
+	}
+	if cfg.ACEStep {
+		fmt.Fprintf(s.out, "acestep: enabled (tasks %s, pools %s, cold start %ds, max runtime %s)\n",
+			strings.Join(cfg.ACEStepTasks, ","), strings.Join(cfg.ACEStepPools, ","), cfg.ACEStepColdStartS, cfg.ACEStepMaxRuntime)
+	} else {
+		fmt.Fprintln(s.out, "acestep: disabled")
 	}
 	if cfg.NtfyURL != "" {
 		fmt.Fprintf(s.out, "ntfy: enabled (token %s)\n", map[bool]string{true: "set", false: "not set"}[sec.NtfyToken != ""])

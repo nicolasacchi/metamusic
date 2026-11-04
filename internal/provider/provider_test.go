@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -399,12 +400,97 @@ func TestObservedArtifacts(t *testing.T) {
 	if len(ObservedArtifacts()) != 0 {
 		t.Error("ObservedArtifacts returned shared state")
 	}
-	if _, err := parseObserved([]byte(`{"full":["score.abc","plan.json"],"melody":["score.abc"],"off":[]}`)); err != nil {
+	if len(ObservedFor("acestep15")) != 0 || len(ObservedFor("nosuch")) != 0 {
+		t.Error("placeholder must be empty for every engine")
+	}
+	if _, err := parseObserved([]byte(`{"yue2":{"full":["score.abc","plan.json"],"melody":["score.abc"],"off":[]},"acestep15":{"default":["lyrics.lrc"]}}`)); err != nil {
 		t.Errorf("valid observed file refused: %v", err)
 	}
-	for _, bad := range []string{`{"loud":["score.abc"]}`, `{"full":["latent.npy"]}`, `{"full":["mm-result.json"]}`, `[]`, `{"full":"score.abc"}`} {
+	for _, bad := range []string{
+		`{"full":["score.abc"]}`,                  // the pre-engine format (keyed by cot)
+		`{"yue2":{"loud":["score.abc"]}}`,         // unknown variant
+		`{"yue2":{"full":["latent.npy"]}}`,        // never allowlisted
+		`{"yue2":{"full":["mm-result.json"]}}`,    // not observable
+		`{"yue2":{"full":["lyrics.lrc"]}}`,        // another engine's artifact
+		`{"acestep15":{"full":["lyrics.lrc"]}}`,   // yue2 variant on the other engine
+		`{"acestep15":{"default":["score.abc"]}}`, // another engine's artifact
+		`{"gpt":{"default":[]}}`,                  // unknown engine
+		`[]`, `{"yue2":[]}`, `{"yue2":{"full":"score.abc"}}`,
+	} {
 		if _, err := parseObserved([]byte(bad)); err == nil {
 			t.Errorf("parseObserved(%s) accepted", bad)
+		}
+	}
+}
+
+func TestArtifactsFor(t *testing.T) {
+	t.Parallel()
+	y, ok := ArtifactsFor("yue2")
+	if !ok || !reflect.DeepEqual(y, Artifacts) {
+		t.Error("yue2 allowlist must be exactly the M3 one")
+	}
+	a, ok := ArtifactsFor("acestep15")
+	if !ok {
+		t.Fatal("acestep15 has no allowlist")
+	}
+	type row struct {
+		name string
+		max  int64
+		req  bool
+	}
+	var got []row
+	for _, x := range a {
+		got = append(got, row{x.Name, x.MaxBytes, x.Required})
+	}
+	want := []row{{"request.json", 4 * mib, true}, {"result.json", 4 * mib, true}, {"lyrics.lrc", 1 * mib, false},
+		{"audio.flac", 192 * mib, true}, {ResultArtifact, 64 * kib, true}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("acestep15 allowlist\n got %v\nwant %v", got, want)
+	}
+	if _, ok := ArtifactsFor("unknown"); ok {
+		t.Error("unknown engine has an allowlist")
+	}
+	if n, ok := ArtifactMaxBytesFor("acestep15", "audio.flac"); !ok || n != 192*mib {
+		t.Errorf("ace audio limit %d %v", n, ok)
+	}
+	if n, ok := ArtifactMaxBytesFor("yue2", "audio.flac"); !ok || n != 160*mib {
+		t.Errorf("yue2 audio limit %d %v", n, ok)
+	}
+	for _, name := range []string{"config.json", "score.abc", "plan.json", "semantic.npy", "latent.npy"} {
+		if _, ok := ArtifactMaxBytesFor("acestep15", name); ok {
+			t.Errorf("%s allowlisted for acestep15", name)
+		}
+	}
+	// the returned slice is a copy
+	a[0].MaxBytes = 1
+	if b, _ := ArtifactsFor("acestep15"); b[0].MaxBytes != 4*mib {
+		t.Error("ArtifactsFor returned shared state")
+	}
+}
+
+// TestArtifacts_SchemaEnum_ACEStep compares the ACE allowlist with the ACE worker input schema once that schema is
+// committed (the contract-freeze lane adds worker/src/mmworker/schema/mm-worker-1.acestep15.input.schema.json).
+func TestArtifacts_SchemaEnum_ACEStep(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join("..", "..", "worker", "src", "mmworker", "schema", "mm-worker-1.acestep15.input.schema.json")
+	if _, err := os.Stat(path); err != nil {
+		t.Skip("the acestep15 worker schema is not committed yet")
+	}
+	_, in := loadSchema(t, "mm-worker-1.acestep15.input.schema.json")
+	uploads := in["properties"].(map[string]any)["uploads"].(map[string]any)
+	props := uploads["properties"].(map[string]any)
+	a, _ := ArtifactsFor("acestep15")
+	if len(props) != len(a) {
+		t.Fatalf("schema lists %d artifacts, Go %d", len(props), len(a))
+	}
+	for _, x := range a {
+		p, ok := props[x.Name].(map[string]any)
+		if !ok {
+			t.Errorf("%s missing from the schema", x.Name)
+			continue
+		}
+		if limit := p["properties"].(map[string]any)["max_bytes"].(map[string]any)["maximum"].(float64); int64(limit) != x.MaxBytes {
+			t.Errorf("%s: schema maximum %v, Go %d", x.Name, limit, x.MaxBytes)
 		}
 	}
 }

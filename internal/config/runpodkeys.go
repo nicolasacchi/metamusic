@@ -21,6 +21,11 @@ type RunPodKeys struct {
 	Jobs, Read, Write string // RUNPOD_JOBS_KEY (required), RUNPOD_READ_KEY (required), RUNPOD_WRITE_KEY (optional)
 	EndpointID        string // RUNPOD_ENDPOINT_ID (required; not secret, but private)
 	ConsoleURL        string // RUNPOD_CONSOLE_URL (optional; https only)
+
+	// Second engine (optional). Absent ACEStepEndpointID means no ACE-Step backend is built; absent ACEStepJobsKey
+	// means the Jobs key also covers that endpoint.
+	ACEStepEndpointID string // RUNPOD_ACESTEP_ENDPOINT_ID
+	ACEStepJobsKey    string // RUNPOD_ACESTEP_JOBS_KEY
 }
 
 func set(s string) string {
@@ -36,8 +41,12 @@ func (k RunPodKeys) String() string {
 	if k.ConsoleURL != "" && k.ConsoleURL != DefaultConsoleURL {
 		console = "custom"
 	}
-	return fmt.Sprintf("RunPodKeys{jobs:%s read:%s write:%s endpoint:%s console:%s}",
+	out := fmt.Sprintf("RunPodKeys{jobs:%s read:%s write:%s endpoint:%s console:%s",
 		set(k.Jobs), set(k.Read), set(k.Write), set(k.EndpointID), console)
+	if k.ACEStepEndpointID != "" || k.ACEStepJobsKey != "" {
+		out += fmt.Sprintf(" acestep_endpoint:%s acestep_jobs:%s", set(k.ACEStepEndpointID), set(k.ACEStepJobsKey))
+	}
+	return out + "}"
 }
 
 // GoString is String, so %#v cannot leak either.
@@ -76,6 +85,7 @@ func loadRunPodKeys(dir string, needEndpoint bool) (RunPodKeys, bool, error) {
 	k := RunPodKeys{
 		Jobs: vars["RUNPOD_JOBS_KEY"], Read: vars["RUNPOD_READ_KEY"], Write: vars["RUNPOD_WRITE_KEY"],
 		EndpointID: vars["RUNPOD_ENDPOINT_ID"], ConsoleURL: vars["RUNPOD_CONSOLE_URL"],
+		ACEStepEndpointID: vars["RUNPOD_ACESTEP_ENDPOINT_ID"], ACEStepJobsKey: vars["RUNPOD_ACESTEP_JOBS_KEY"],
 	}
 	for _, req := range []struct {
 		name, val string
