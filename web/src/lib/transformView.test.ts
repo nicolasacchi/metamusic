@@ -157,3 +157,20 @@ describe("429 explanation from the estimate", () => {
     expect(explainRateLimit(other, estimate, 8)).toBe(other);
   });
 });
+
+import { alsoFromRows, engineChip, specHashShort } from "./transformView";
+describe("lineage helpers", () => {
+  test("also-from rows use the tree's title or a short id, and a role label", () => {
+    const rows = alsoFromRows([{ role: "b", track_id: "abcdef123456" }, { role: "score_source", track_id: "t9" }], new Map([["t9", "Nine"]]));
+    expect(rows).toEqual([
+      { trackId: "abcdef123456", label: "abcdef12", role: "B", inTree: false },
+      { trackId: "t9", label: "Nine", role: "Score", inTree: true },
+    ]);
+    expect(alsoFromRows(undefined, new Map())).toEqual([]);
+  });
+  test("engine chip and hash prefix", () => {
+    expect(engineChip({ kind: "glacier" })).toBe("dsp · Glacier");
+    expect(engineChip(null)).toBe("");
+    expect(specHashShort("0123456789abcdef")).toBe("01234567");
+  });
+});

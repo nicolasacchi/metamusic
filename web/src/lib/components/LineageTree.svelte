@@ -2,6 +2,7 @@
   // Pre-order tree rows (C84.5). Node actions: open, Variant, A/B with parent, Compare.
   import type { components } from "../../api/schema";
   import { lineageRows } from "../lineageTree";
+  import { alsoFromRows, engineChip } from "../transformView";
   import { formatMicroUSD } from "../money";
   import { openAbWithParent, pushNavigate } from "../abParent";
   import { toggled, type Viewer } from "../genIntent";
@@ -22,6 +23,7 @@
   let busy = $state("");
   let error = $state("");
   const rows = $derived(lineageRows(nodes, collapsed));
+  const titles = $derived(new Map(nodes.map((n) => [n.id, n.title])));
 
   function toggle(id: string) {
     collapsed = toggled(collapsed, id, !collapsed.has(id));
@@ -47,6 +49,7 @@
       {/if}
       <a href="/tracks/{x.id}" data-testid="lineage-open">{x.title}</a>
       {#if x.operator}<span class="chip" data-testid="lineage-operator">{x.operator.replaceAll("_", " ")}</span>{/if}
+      {#if x.transform}<span class="chip engine" data-testid="lineage-engine" title="CPU transform">{engineChip(x.transform)}</span>{/if}
       {#if x.inferred}<span class="chip" data-testid="lineage-inferred" title="Inferred from matching recipes">inferred</span>{/if}
       <TrackBadges recipeKnown={x.recipe_known} lossy={x.lossy} />
       <span class="muted">{x.status}</span>
@@ -60,6 +63,11 @@
           <a href="/compare?a={x.parent_id}&b={x.id}" data-testid="lineage-compare">Compare</a>
         {/if}
       </span>
+      {#each alsoFromRows(x.also_from, titles) as a (a.trackId)}
+        <span class="also" data-testid="lineage-also-from">
+          <span aria-hidden="true">┄</span> also from <a href="/tracks/{a.trackId}">{a.label}</a> <span class="chip" data-testid="lineage-also-role">{a.role}</span>
+        </span>
+      {/each}
     </li>
   {/each}
 </ol>
@@ -95,6 +103,14 @@
     padding: 0 0.5rem;
     border-radius: 0.6rem;
     background: #3a322b;
+  }
+  .also {
+    flex-basis: 100%;
+    padding-left: 1.5rem;
+    border-left: 2px dotted #8a7f74;
+    color: #b3a89c;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
   .actions {
     display: inline-flex;
