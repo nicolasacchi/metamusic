@@ -91,4 +91,11 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-L3-2 play an agent-sequenced Record front to back and judge the order by ear: does the arc (a rise to a peak, a soft landing) sound right, and are the explained steps believable; note any step you would move
 - [ ] DC-L3-3 key spot check by ear: for three or more recordings you know, play along with the measured key shown on the Song page and note agree, relative key or wrong; the result decides whether the measured key stays on (otherwise `analysis.KeyEnabled` is set to false, see the runbook)
 
+## T1
+
+- [ ] DC-T1-1 phone, one-handed: open a take, Transform this take, pick a kind, fill the fields and Render with the thumb only; the sheet scrolls, every control is at least 44 px, and the page never scrolls sideways (360 px wide, portrait and landscape)
+- [ ] DC-T1-2 start a Glacier render and close the sheet: the progress bar, the phase and Cancel stay on the Transform card; Cancel ends it as Cancelled and no take appears; the mini player keeps playing the whole time
+- [ ] DC-T1-3 a Morph on two takes of the same lyrics: the partner picker lists the other style, the estimate shows the tempo and key source chips, and the "auto (guess)" downbeat toggle is reachable; after Done, "A/B with source" opens the duel
+- [ ] DC-T1-4 /transforms under More on the phone: the CPU meter, state chips and Cancel on a live row fit the width; a refused Render (queue full or allowance used) explains itself with when it resets
+
 ## Notes

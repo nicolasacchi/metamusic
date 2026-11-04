@@ -42,9 +42,50 @@ var Artifacts = []Artifact{
 	{ResultArtifact, 64 * kib, true},
 }
 
-// ArtifactMaxBytes is the size limit of an allowlisted artifact; ok is false for any other name.
+// ArtifactMaxBytes is the size limit of an allowlisted artifact of the first engine (yue2); ok is false for any other
+// name. Engine-aware callers use ArtifactMaxBytesFor.
 func ArtifactMaxBytes(name string) (limit int64, ok bool) {
-	for _, a := range Artifacts {
+	return ArtifactMaxBytesFor(engineYuE2, name)
+}
+
+// Engine names this package knows allowlists for (the engine packages own the same strings).
+const (
+	engineYuE2     = "yue2"
+	engineACEStep  = "acestep15"
+	observedACEKey = "default" // ACE-Step has no cot: one observed variant
+)
+
+// aceArtifacts is the ACE-Step allowlist: no config.json, plans, tokens or score; audio.flac has its own limit;
+// lyrics.lrc is optional. Order is the upload order, mm-result.json last.
+var aceArtifacts = []Artifact{
+	{"request.json", 4 * mib, true},
+	{"result.json", 4 * mib, true},
+	{"lyrics.lrc", 1 * mib, false},
+	{"audio.flac", 192 * mib, true},
+	{ResultArtifact, 64 * kib, true},
+}
+
+// ArtifactsFor returns a copy of the engine's allowlist; ok is false for an engine without one.
+func ArtifactsFor(engine string) ([]Artifact, bool) {
+	switch engine {
+	case engineYuE2:
+		return slices.Clone(Artifacts), true
+	case engineACEStep:
+		return slices.Clone(aceArtifacts), true
+	}
+	return nil, false
+}
+
+// ArtifactMaxBytesFor is the size limit of an artifact in the engine's allowlist.
+func ArtifactMaxBytesFor(engine, name string) (limit int64, ok bool) {
+	var list []Artifact
+	switch engine {
+	case engineYuE2:
+		list = Artifacts
+	case engineACEStep:
+		list = aceArtifacts
+	}
+	for _, a := range list {
 		if a.Name == name {
 			return a.MaxBytes, true
 		}
@@ -52,44 +93,64 @@ func ArtifactMaxBytes(name string) (limit int64, ok bool) {
 	return 0, false
 }
 
+// observedVariants are the keys an engine's observed set may use: yue2 by cot, ACE-Step a single one.
+var observedVariants = map[string][]string{
+	engineYuE2:    {"full", "melody", "off"},
+	engineACEStep: {observedACEKey},
+}
+
 //go:embed artifacts.observed.json
 var observedJSON []byte
 
 var (
 	observedOnce sync.Once
-	observed     map[string][]string
+	observed     map[string]map[string][]string
 	observedErr  error
 )
 
-// ObservedArtifacts returns, per cot, the artifact names recorded from real GPU renders (M3-X3). While the
-// committed file is the placeholder {} it is empty and every conditional artifact stays
-// optional-but-verified (C73.4). The returned map is a copy.
-func ObservedArtifacts() map[string][]string {
+func loadObserved() map[string]map[string][]string {
 	observedOnce.Do(func() { observed, observedErr = parseObserved(observedJSON) })
 	if observedErr != nil {
 		panic("provider: artifacts.observed.json: " + observedErr.Error()) // a committed file; caught by tests
 	}
-	out := make(map[string][]string, len(observed))
-	for k, v := range observed {
+	return observed
+}
+
+// ObservedFor returns, per variant, the artifact names recorded from real GPU renders of the engine (yue2: per cot).
+// While the committed file is the placeholder {} it is empty and every conditional artifact stays
+// optional-but-verified (C73.4). The returned map is a copy.
+func ObservedFor(engine string) map[string][]string {
+	src := loadObserved()[engine]
+	out := make(map[string][]string, len(src))
+	for k, v := range src {
 		out[k] = slices.Clone(v)
 	}
 	return out
 }
 
-func parseObserved(raw []byte) (map[string][]string, error) {
-	var m map[string][]string
+// ObservedArtifacts is ObservedFor("yue2"): per cot.
+func ObservedArtifacts() map[string][]string { return ObservedFor(engineYuE2) }
+
+// parseObserved reads the committed file: {engine: {variant: [names]}}. Unknown engines and variants, names outside
+// the engine's allowlist, and mm-result.json (never observable) are refused.
+func parseObserved(raw []byte) (map[string]map[string][]string, error) {
+	var m map[string]map[string][]string
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
-	for cot, names := range m {
-		switch cot {
-		case "full", "melody", "off":
-		default:
-			return nil, fmt.Errorf("unknown cot %q", cot)
+	for eng, variants := range m {
+		allowed, ok := observedVariants[eng]
+		if !ok {
+			return nil, fmt.Errorf("unknown engine %q", eng)
 		}
-		for _, n := range names {
-			if _, ok := ArtifactMaxBytes(n); !ok || n == ResultArtifact {
-				return nil, fmt.Errorf("cot %s lists %q, which is not an observable allowlisted artifact", cot, n)
+		for variant, names := range variants {
+			if !slices.Contains(allowed, variant) {
+				return nil, fmt.Errorf("engine %s: unknown variant %q", eng, variant)
+			}
+			for _, n := range names {
+				if _, ok := ArtifactMaxBytesFor(eng, n); !ok || n == ResultArtifact {
+					return nil, fmt.Errorf("engine %s variant %s lists %q, which is not an observable allowlisted artifact", eng, variant, n)
+				}
 			}
 		}
 	}

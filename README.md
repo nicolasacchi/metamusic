@@ -123,6 +123,11 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_STEPUP_OIDC_CLIENT` | `MM_AUTH=proxy` only. Client id of the OIDC client the app signs in with to demand a fresh second factor (ID token `amr`, `auth_time`) before any `/human/` call; needs `MM_OIDC_ISSUER`. Optional secrets file `stepup_client_secret` (else a public PKCE client). Unset: the edge's two-factor rule is the only gate. See `docs/connectors.md`. |
 | `MM_OIDC_JWKS_URL` | Optional override of the provider's signing-key URL (default: discovered from the issuer). |
 | `MM_CALLBACK_BACKLOG_MAX` | Agent spend pacing: an agent's estimate or create is refused (409 `CALLBACKS_BACKLOG`) while this many callbacks of one lineage root await a human verdict (default 6, 0..50, 0 disables). Humans are exempt. |
+| `MM_ACESTEP` | `1` enables the second engine (ACE-Step 1.5): its registry entry and backend (`fake` under `MM_BACKEND=fake`; RunPod under `MM_BACKEND=runpod` when `RUNPOD_ACESTEP_ENDPOINT_ID` is in `runpod.env`). Default `0`. Needs `MM_BACKEND` `fake` or `runpod`, else the server refuses to start. The engine also needs an operator adoption before it receives money. |
+| `MM_ACESTEP_COLD_START_S` | Cold-start allowance of the ACE-Step backend in quotes and queue-delay estimates (default 300, 30..900; the first engine's is `MM_COLD_START_S`). |
+| `MM_ACESTEP_MAX_RUNTIME` | Timeout of the ACE-Step endpoint and cap of its takes' `timeout_s` (default `MM_JOB_MAX_RUNTIME`, 30s..45m). |
+| `MM_ACESTEP_TASKS` | Task classes the ACE-Step endpoint is provisioned for: `turbo` (default) or `turbo,base`. |
+| `MM_ACESTEP_POOLS` | RunPod pool ids the ACE-Step endpoint is provisioned on (default `AMPERE_24,ADA_24`; comma list of `[A-Z0-9_]{2,40}`). |
 | `MM_OIDC_SCOPES` | Scopes advertised and required for connectors (default `openid metamusic`; must contain `metamusic`). |
 
 Agents authenticate with scoped personal access tokens minted by the CLI
