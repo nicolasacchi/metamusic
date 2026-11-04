@@ -105,6 +105,9 @@
         "link": {
           "type": "string"
         },
+        "origin_callback_id": {
+          "type": "string"
+        },
         "section": {
           "properties": {
             "confidence": {
@@ -133,7 +136,9 @@
             "web",
             "api",
             "mcp",
-            "stdio"
+            "stdio",
+            "subsonic",
+            "callback"
           ],
           "type": "string"
         },
@@ -160,6 +165,31 @@
         },
         "url": {
           "type": "string"
+        },
+        "voice": {
+          "properties": {
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "codec": {
+              "type": "string"
+            },
+            "container": {
+              "type": "string"
+            },
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "type": "object"
         }
       },
       "type": "object"
@@ -2067,7 +2097,8 @@
                   "style_edit",
                   "from_draft",
                   "compose_new",
-                  "from_template"
+                  "from_template",
+                  "song_pr"
                 ],
                 "type": "string"
               },
@@ -2128,6 +2159,9 @@
                   }
                 },
                 "type": "object"
+              },
+              "patch_id": {
+                "type": "string"
               },
               "recipe": {
                 "description": "compose_new: the song request, as sent",
@@ -2491,7 +2525,8 @@
             "new_seed",
             "same_seed_edit",
             "lyric_edit",
-            "style_edit"
+            "style_edit",
+            "song_pr"
           ],
           "type": "string"
         },
@@ -2538,6 +2573,9 @@
             }
           },
           "type": "object"
+        },
+        "patch_id": {
+          "type": "string"
         },
         "seeds": {
           "items": {
@@ -7837,6 +7875,17 @@
             "revealed": {
               "type": "boolean"
             },
+            "section": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
             "slots": {
               "properties": {
                 "a": {
@@ -7907,6 +7956,19 @@
                         "object",
                         "null"
                       ]
+                    },
+                    "window": {
+                      "properties": {
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        }
+                      },
+                      "type": "object"
                     },
                     "window_lufs": {
                       "format": "double",
@@ -7987,6 +8049,19 @@
                         "null"
                       ]
                     },
+                    "window": {
+                      "properties": {
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "window_lufs": {
                       "format": "double",
                       "type": [
@@ -8016,11 +8091,17 @@
                 },
                 "from_s": {
                   "format": "double",
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 },
                 "to_s": {
                   "format": "double",
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 }
               },
               "type": "object"
@@ -9210,6 +9291,17 @@
             "revealed": {
               "type": "boolean"
             },
+            "section": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
             "slots": {
               "properties": {
                 "a": {
@@ -9280,6 +9372,19 @@
                         "object",
                         "null"
                       ]
+                    },
+                    "window": {
+                      "properties": {
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        }
+                      },
+                      "type": "object"
                     },
                     "window_lufs": {
                       "format": "double",
@@ -9360,6 +9465,19 @@
                         "null"
                       ]
                     },
+                    "window": {
+                      "properties": {
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "window_lufs": {
                       "format": "double",
                       "type": [
@@ -9389,11 +9507,17 @@
                 },
                 "from_s": {
                   "format": "double",
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 },
                 "to_s": {
                   "format": "double",
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 }
               },
               "type": "object"
@@ -9572,6 +9696,9 @@
         "link": {
           "type": "string"
         },
+        "origin_callback_id": {
+          "type": "string"
+        },
         "section": {
           "properties": {
             "confidence": {
@@ -9600,7 +9727,9 @@
             "web",
             "api",
             "mcp",
-            "stdio"
+            "stdio",
+            "subsonic",
+            "callback"
           ],
           "type": "string"
         },
@@ -9627,6 +9756,31 @@
         },
         "url": {
           "type": "string"
+        },
+        "voice": {
+          "properties": {
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "codec": {
+              "type": "string"
+            },
+            "container": {
+              "type": "string"
+            },
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "type": "object"
         }
       },
       "type": "object"

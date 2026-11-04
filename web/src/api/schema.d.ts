@@ -228,6 +228,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/callbacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List callbacks
+         * @description Callbacks of Song PR children: pending ones first (oldest first), then answered ones. A callback asks the human whether a child fixed a comment, or kept what a keep comment praised, at the same musical spot.
+         */
+        get: operations["list_callbacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/callbacks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a callback
+         * @description One callback with the comment, the child, the spot on the child and on the source take, and the verdicts the caller may see.
+         */
+        get: operations["get_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/callbacks/{id}/verdicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a callback
+         * @description fixed, not_yet or worse for a fix callback; kept or lost for a keep callback. A human answer moves the comment; an agent answer is a critic verdict that never does. Repeating an identical answer returns it with replayed true.
+         */
+        post: operations["submit_callback_verdict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/comments/{id}": {
         parameters: {
             query?: never;
@@ -580,6 +640,26 @@ export interface paths {
          * @description The oldest unexpired duel waiting for your verdict, with signed clip links, or null. Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. Blind duels stay unrevealed until you have judged them.
          */
         get: operations["next_duel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/duels/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest duel pairs
+         * @description The pairs of takes whose next human verdict would teach the ladder most, by expected information, for one lineage or the whole library, optionally for the same section of both takes.
+         */
+        get: operations["suggest_duel_pairs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1048,6 +1128,50 @@ export interface paths {
          * @description The protected offline-set playlist with per-item media facts (FLAC and MP3 sizes and hashes), so a device can plan downloads without further calls. Edit it with update_playlist, sending the revision from this response.
          */
         get: operations["get_offline_set"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Song PRs
+         * @description Song PRs newest first, filtered by take, addressed comment or lineage root, without ops and diff.
+         */
+        get: operations["list_patches"];
+        put?: never;
+        /**
+         * Propose a Song PR
+         * @description Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.
+         */
+        post: operations["propose_patch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Song PR
+         * @description A Song PR with its ops, diff, scope and bounds report, the comments it addresses, its renders and the tally of callback answers.
+         */
+        get: operations["get_patch"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1972,6 +2096,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks/{id}/heat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the listening heat of a take
+         * @description A 120-bin heat strip of how the operator and their devices listened to a take (heard, replays, rewinds, skips), up to three hotspots where people went back, and the bins they left most. Computed on read from listen events.
+         */
+        get: operations["get_listen_heat"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/lineage": {
         parameters: {
             query?: never;
@@ -2126,6 +2270,26 @@ export interface paths {
          * @description Prices new-seed, same-seed edit, lyric edit or style edit takes of one mother track. Free; returns the confirmation_token create_variant needs. Reference tracks cannot be mothers.
          */
         post: operations["estimate_variant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/voice-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave a voice note on a track
+         * @description Records a spoken comment (at most 120 s and 4 MiB, base64) at a second of the track as a note, fix or keep comment. Only the operator and their devices; the MP3 rendition is what gets played back.
+         */
+        post: operations["create_voice_note"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3090,6 +3254,141 @@ export interface components {
             /** @description RFC 3339, start of the month in the server's time zone */
             start: string;
         };
+        Callback: {
+            child: components["schemas"]["CallbackChild"];
+            comment: components["schemas"]["CallbackComment"];
+            created_at: string;
+            /** @description Visible only after the caller's own source has answered */
+            critic_verdicts: components["schemas"]["CallbackVerdict"][];
+            human_verdict: {
+                created_at: string;
+                /** Format: double */
+                heard_at_s: number | null;
+                id: string;
+                map_basis: string | null;
+                note: string | null;
+                /** @enum {string} */
+                principal_kind: "human" | "device" | "agent";
+                regression_comment_id: string | null;
+                /** @enum {string} */
+                source: "human" | "critic";
+                state_after: string | null;
+                /** @description Comment state before a human verdict moved it */
+                state_before: string | null;
+                /** @enum {string} */
+                verdict: "fixed" | "not_yet" | "worse" | "kept" | "lost";
+            } | null;
+            id: string;
+            job_id: string;
+            /** @enum {string} */
+            kind: "fix" | "keep";
+            links: components["schemas"]["CallbackLinks"];
+            my_verdict: {
+                created_at: string;
+                /** Format: double */
+                heard_at_s: number | null;
+                id: string;
+                map_basis: string | null;
+                note: string | null;
+                /** @enum {string} */
+                principal_kind: "human" | "device" | "agent";
+                regression_comment_id: string | null;
+                /** @enum {string} */
+                source: "human" | "critic";
+                state_after: string | null;
+                /** @description Comment state before a human verdict moved it */
+                state_before: string | null;
+                /** @enum {string} */
+                verdict: "fixed" | "not_yet" | "worse" | "kept" | "lost";
+            } | null;
+            patch_id: string;
+            /**
+             * @description Whether the comment sits on the patch's base take or on an ancestor
+             * @enum {string}
+             */
+            relation: "self" | "ancestor";
+            spot: components["schemas"]["CallbackSpot"];
+            /**
+             * @description pending until a human verdict exists
+             * @enum {string}
+             */
+            state: "pending" | "answered";
+        };
+        CallbackChild: {
+            id: string;
+            /** Format: int64 */
+            seed: number;
+            title: string;
+        };
+        CallbackComment: {
+            /** Format: double */
+            at_second: number | null;
+            body: string;
+            id: string;
+            /** @enum {string} */
+            kind: "note" | "fix" | "keep" | "marker";
+            /** @description Section label; null when no timed section covers at_second */
+            section: {
+                /** Format: double */
+                confidence: number;
+                label: string;
+                /** @enum {string} */
+                source: "manual" | "measured" | "plan";
+            } | null;
+            /** @enum {string} */
+            state: "open" | "addressed" | "resolved" | "regressed";
+            track_id: string;
+            /** @description Present for a voice note */
+            voice?: components["schemas"]["VoiceNote"];
+        };
+        CallbackLinks: {
+            /** @description /tracks/<child>?t=<child_at_s> */
+            child: string;
+            /** @description /tracks/<source>?t=<source_at_s>; null without a source time */
+            source: string | null;
+        };
+        CallbackPage: {
+            items: components["schemas"]["Callback"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        CallbackSpot: {
+            /** @enum {string} */
+            basis: "section" | "proportional";
+            /** Format: double */
+            child_at_s: number;
+            /** Format: double */
+            confidence: number;
+            label: string | null;
+            /** Format: double */
+            source_at_s: number | null;
+        };
+        CallbackSubmitResult: {
+            /** @description The comment's state after a human fix verdict */
+            comment_state: string | null;
+            regression_comment_id: string | null;
+            replayed: boolean;
+            verdict: components["schemas"]["CallbackVerdict"];
+        };
+        CallbackVerdict: {
+            created_at: string;
+            /** Format: double */
+            heard_at_s: number | null;
+            id: string;
+            map_basis: string | null;
+            note: string | null;
+            /** @enum {string} */
+            principal_kind: "human" | "device" | "agent";
+            regression_comment_id: string | null;
+            /** @enum {string} */
+            source: "human" | "critic";
+            state_after: string | null;
+            /** @description Comment state before a human verdict moved it */
+            state_before: string | null;
+            /** @enum {string} */
+            verdict: "fixed" | "not_yet" | "worse" | "kept" | "lost";
+        };
         CapConnector: {
             /** Format: int64 */
             auto_approve_micro_usd: number | null;
@@ -3251,9 +3550,9 @@ export interface components {
             /** Format: double */
             duration_s: number;
             /** Format: double */
-            from_s: number;
+            from_s: number | null;
             /** Format: double */
-            to_s: number;
+            to_s: number | null;
         };
         CollectionCount: {
             /** Format: int64 */
@@ -3273,6 +3572,7 @@ export interface components {
             kind: "note" | "fix" | "keep" | "marker";
             /** @description Relative SPA link, /tracks/<id>?t=<s>; empty without at_second */
             link: string;
+            origin_callback_id?: string;
             /** @description Section label; null when no timed section covers at_second */
             section: {
                 /** Format: double */
@@ -3282,7 +3582,7 @@ export interface components {
                 source: "manual" | "measured" | "plan";
             } | null;
             /** @enum {string} */
-            source: "web" | "api" | "mcp" | "stdio";
+            source: "web" | "api" | "mcp" | "stdio" | "subsonic" | "callback";
             /** @enum {string} */
             state: "open" | "addressed" | "resolved" | "regressed";
             state_changed_at: string | null;
@@ -3290,6 +3590,7 @@ export interface components {
             updated_at: string;
             /** @description Absolute link */
             url: string;
+            voice?: components["schemas"]["VoiceNote"];
         };
         CommentPage: {
             items: components["schemas"]["Comment"][];
@@ -3568,6 +3869,8 @@ export interface components {
             from_s?: number;
             /** @description Attenuate the louder window to the quieter one (default true) */
             match_loudness?: boolean;
+            /** @description Lock both slots to the same section of each take instead of from_s/to_s; exclusive with them */
+            section?: components["schemas"]["DuelSectionSelector"];
             /** Format: double */
             to_s?: number;
         };
@@ -3621,6 +3924,22 @@ export interface components {
              * @description Days until the token expires; omitted = 90, 0 = never expires
              */
             ttl_days?: number;
+        };
+        CreateVoiceNoteInBody: {
+            /**
+             * Format: double
+             * @description Position in the track, rounded to 0.1 s
+             */
+            at_second?: number | null;
+            /** @description At most 4 MiB decoded and 120 s; webm or ogg with opus, or MP4 with aac or opus */
+            audio_base64: string;
+            /** @description Default "[voice note m:ss]" */
+            body?: string;
+            /**
+             * @description Default note
+             * @enum {string}
+             */
+            kind?: "note" | "fix" | "keep";
         };
         CreatedSubsonicClient: {
             /** @description mms_..., shown once; null on an idempotent replay */
@@ -4007,6 +4326,8 @@ export interface components {
             } | null;
             /** @description false while a blind duel hides which slot holds which track */
             revealed: boolean;
+            /** @description Set for a section-locked duel (C258) */
+            section?: components["schemas"]["DuelSection"];
             slots: components["schemas"]["DuelSlots"];
             /** @enum {string} */
             state: "open" | "decided" | "expired";
@@ -4017,6 +4338,22 @@ export interface components {
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
+        };
+        DuelSection: {
+            label: string;
+            source: string;
+        };
+        DuelSectionSelector: {
+            kind?: string;
+            label?: string;
+            /** Format: int64 */
+            ordinal?: number;
+        };
+        DuelSlotWindow: {
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
         };
         DuelSlots: {
             a: components["schemas"]["Slot"];
@@ -4177,10 +4514,11 @@ export interface components {
         };
         EstimateVariantInBody: {
             /** @enum {string} */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "song_pr";
             /** Format: int64 */
             n_seeds?: number;
             patch?: components["schemas"]["Patch"];
+            patch_id?: string;
             seeds?: number[];
             title?: string;
         };
@@ -4503,7 +4841,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
@@ -4515,6 +4853,7 @@ export interface components {
             parent_track_ids?: string[];
             /** @description *_edit modes and from_template */
             patch?: components["schemas"]["Patch"];
+            patch_id?: string;
             /** @description compose_new: the song request, as sent */
             recipe?: Record<string, never>;
             /** @description Explicit seeds (unique, 0..2^53-1); override n_seeds */
@@ -4928,6 +5267,36 @@ export interface components {
             to_ms?: number;
             track_id: string;
         };
+        ListenHeat: {
+            /** Format: double */
+            bin_s: number;
+            /** Format: int64 */
+            bins: number;
+            cold: number[] | null;
+            /** Format: double */
+            completion_rate: number | null;
+            /** Format: double */
+            duration_s: number;
+            heard: number[] | null;
+            hotspots: components["schemas"]["ListenHotspot"][] | null;
+            /** Format: int64 */
+            plays: number;
+            replays: number[] | null;
+            rewinds: number[] | null;
+            /** Format: int64 */
+            sessions: number;
+            skips: number[] | null;
+            track_id: string;
+        };
+        ListenHotspot: {
+            /** Format: double */
+            from_s: number;
+            label: string | null;
+            /** Format: int64 */
+            score: number;
+            /** Format: double */
+            to_s: number;
+        };
         ListenRejected: {
             code: string;
             id: string;
@@ -5234,7 +5603,7 @@ export interface components {
         NextActionSubject: {
             id: string | null;
             /** @enum {string} */
-            kind: "muse" | "song" | "record" | "taxonomy" | "library";
+            kind: "muse" | "song" | "record" | "taxonomy" | "library" | "take";
         };
         NextActionsPage: {
             generated_at: string;
@@ -5298,6 +5667,8 @@ export interface components {
                 } | null;
                 /** @description false while a blind duel hides which slot holds which track */
                 revealed: boolean;
+                /** @description Set for a section-locked duel (C258) */
+                section?: components["schemas"]["DuelSection"];
                 slots: components["schemas"]["DuelSlots"];
                 /** @enum {string} */
                 state: "open" | "decided" | "expired";
@@ -5399,6 +5770,40 @@ export interface components {
             /** Format: int64 */
             human_blind_n: number;
         };
+        PairSuggestion: {
+            a_title: string;
+            a_track_id: string;
+            b_title: string;
+            b_track_id: string;
+            /** Format: int64 */
+            human_verdicts: number;
+            /** Format: double */
+            p_a_beats_b: number;
+            /**
+             * Format: double
+             * @description p(1-p)(sd_a^2 + sd_b^2): the expected information of one more verdict
+             */
+            score: number;
+            /** Format: double */
+            sd_a: number;
+            /** Format: double */
+            sd_b: number;
+        };
+        PairSuggestionModel: {
+            /** Format: double */
+            nu: number;
+            /** Format: int64 */
+            verdicts_counted: number;
+        };
+        PairSuggestions: {
+            model: components["schemas"]["PairSuggestionModel"];
+            pairs: components["schemas"]["PairSuggestion"][];
+            root_track_id: string | null;
+            /** @enum {string} */
+            scope: "lineage" | "global";
+            /** @description The section label both tracks are timed on, when one was asked for */
+            section: string | null;
+        };
         PairingCodeOut: {
             /** @description Crockford base32, shown once */
             code: string | null;
@@ -5417,6 +5822,121 @@ export interface components {
             cot?: "full" | "melody" | "off";
             lyrics?: string;
             style?: string;
+        };
+        PatchAddress: {
+            /** @description At most 200 characters */
+            body_excerpt: string;
+            comment_id: string;
+            /** @enum {string} */
+            kind: "note" | "fix";
+            /** @enum {string} */
+            state: "open" | "addressed" | "resolved" | "regressed";
+            track_id: string;
+        };
+        PatchBase: {
+            recipe_hash: string;
+            title: string;
+            track_id: string;
+        };
+        PatchBounds: {
+            /** Format: int64 */
+            bpm_delta: number;
+            /** Format: int64 */
+            lines_changed: number;
+            /** Format: int64 */
+            max_bpm_delta: number;
+            /** Format: int64 */
+            max_lines: number;
+            /** Format: int64 */
+            max_sections: number;
+            /** Format: int64 */
+            max_style_terms: number;
+            /** Format: int64 */
+            sections_scoped: number;
+            /** Format: int64 */
+            style_terms_changed: number;
+        };
+        PatchCallbackTally: {
+            /** Format: int64 */
+            answered: number;
+            /** Format: int64 */
+            fixed: number;
+            /** Format: int64 */
+            kept: number;
+            /** Format: int64 */
+            lost: number;
+            /** Format: int64 */
+            not_yet: number;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            worse: number;
+        };
+        PatchCompiled: {
+            lyrics?: string;
+            style?: string;
+        };
+        PatchDiff: {
+            lyrics: components["schemas"]["PatchLineChange"][] | null;
+            style: components["schemas"]["PatchStyleChange"];
+        };
+        PatchLineChange: {
+            after: string;
+            before: string;
+            /** Format: int64 */
+            line_idx: number;
+            /** Format: int64 */
+            section_idx: number;
+        };
+        PatchOp: {
+            /**
+             * Format: int64
+             * @description replace_line
+             */
+            line_idx?: number;
+            /** @enum {string} */
+            op: "replace_line" | "set_style";
+            /**
+             * Format: int64
+             * @description replace_line
+             */
+            section_idx?: number;
+            /** @description set_style: the complete new style string */
+            style?: string;
+            /** @description replace_line: one lyric line, no tags, no newline */
+            text?: string;
+        };
+        PatchPage: {
+            items: components["schemas"]["SongPRSummary"][];
+            next_cursor: string | null;
+            /** Format: int64 */
+            total: number;
+        };
+        PatchRender: {
+            batch_id: string;
+            child_track_id: string | null;
+            job_id: string;
+            /** Format: int64 */
+            seed: number;
+            state: string;
+        };
+        PatchScope: {
+            bounds: components["schemas"]["PatchBounds"];
+            sections: components["schemas"]["PatchScopedSection"][] | null;
+        };
+        PatchScopedSection: {
+            comment_ids?: string[] | null;
+            extra?: boolean;
+            /** Format: int64 */
+            idx: number;
+            kind: string;
+            label: string;
+        };
+        PatchStyleChange: {
+            added: string[] | null;
+            after: string;
+            before: string;
+            removed: string[] | null;
         };
         PeaksLevel: {
             /** Format: double */
@@ -5680,6 +6200,16 @@ export interface components {
             /** Format: int64 */
             songs: number;
             term: string;
+        };
+        ProposePatchInBody: {
+            /** @description Non-hidden fix or note comments, open or regressed, on the base take or an ancestor */
+            addresses_comment_ids: string[] | null;
+            base_track_id: string;
+            /** @description Neighbour lyrics sections to put in scope */
+            extra_sections?: number[];
+            ops: components["schemas"]["PatchOp"][] | null;
+            rationale: string;
+            title?: string;
         };
         ProposePickInBody: {
             rationale: string;
@@ -6212,6 +6742,7 @@ export interface components {
                 seed: number;
                 title: string;
             } | null;
+            window?: components["schemas"]["DuelSlotWindow"];
             /** Format: double */
             window_lufs: number | null;
         };
@@ -6361,6 +6892,37 @@ export interface components {
             /** Format: int64 */
             generations: number;
             root_track_id: string;
+        };
+        SongPR: {
+            addresses: components["schemas"]["PatchAddress"][];
+            author: components["schemas"]["PrincipalRef"];
+            base: components["schemas"]["PatchBase"];
+            /** @description The scoped sections and what the patch uses of each bound */
+            bounds: components["schemas"]["PatchScope"];
+            callbacks: components["schemas"]["PatchCallbackTally"];
+            compiled: components["schemas"]["PatchCompiled"];
+            created_at: string;
+            diff: components["schemas"]["PatchDiff"];
+            id: string;
+            /** @enum {string} */
+            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            ops: components["schemas"]["PatchOp"][];
+            rationale: string;
+            renders: components["schemas"]["PatchRender"][];
+            title: string | null;
+        };
+        SongPRSummary: {
+            addresses: components["schemas"]["PatchAddress"][];
+            author: components["schemas"]["PrincipalRef"];
+            base: components["schemas"]["PatchBase"];
+            callbacks: components["schemas"]["PatchCallbackTally"];
+            created_at: string;
+            id: string;
+            /** @enum {string} */
+            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            rationale: string;
+            renders: components["schemas"]["PatchRender"][];
+            title: string | null;
         };
         SongPickRef: {
             /** @enum {string} */
@@ -6638,6 +7200,19 @@ export interface components {
         StyleTermDiff: {
             added: string[];
             removed: string[];
+        };
+        SubmitCallbackVerdictInBody: {
+            /**
+             * Format: double
+             * @description Where in the child the human listened
+             */
+            heard_at_s?: number;
+            note?: string;
+            /**
+             * @description fixed, not_yet or worse for a fix callback; kept or lost for a keep callback
+             * @enum {string}
+             */
+            verdict: "fixed" | "not_yet" | "worse" | "kept" | "lost";
         };
         SubmitDuelInBody: {
             /** Format: int64 */
@@ -7130,7 +7705,7 @@ export interface components {
                     };
                 } | null;
                 job_id: string;
-                /** @description reroll_seed, same_seed_edit, lyric_edit, style_edit, from_draft or compose_new */
+                /** @description reroll_seed, same_seed_edit, lyric_edit, style_edit, multi_edit, from_draft or compose_new */
                 operator: string;
                 rationale: string | null;
             } | null;
@@ -7780,6 +8355,16 @@ export interface components {
             /** Format: int64 */
             ties: number;
         };
+        VoiceNote: {
+            /** Format: int64 */
+            bytes: number;
+            codec: string;
+            container: string;
+            /** Format: double */
+            duration_s: number;
+            id: string;
+            url: string;
+        };
         WaitJobResult: {
             /** @description The state differs from since_state (or the job is terminal) */
             changed: boolean;
@@ -8283,6 +8868,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Budget"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_callbacks: {
+        parameters: {
+            query?: {
+                state?: ("pending" | "answered")[];
+                kind?: ("fix" | "keep")[];
+                child_track_id?: string;
+                /** @description Callbacks whose comment sits on this take */
+                track_id?: string;
+                comment_id?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallbackPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Callback id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Callback"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    submit_callback_verdict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Callback id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCallbackVerdictInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallbackSubmitResult"];
                 };
             };
             /** @description Error */
@@ -9034,6 +9725,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NextDuel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    suggest_duel_pairs: {
+        parameters: {
+            query?: {
+                /** @description lineage needs root_track_id (the 40 most recent tracks); global takes the 60 most recent rated or dueled tracks */
+                scope?: "lineage" | "global";
+                root_track_id?: string;
+                /** @description Only pairs whose tracks are both timed on this section */
+                section_label?: string;
+                /** @description With section_ordinal, instead of section_label */
+                section_kind?: string;
+                section_ordinal?: number;
+                k?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairSuggestions"];
                 };
             };
             /** @description Error */
@@ -9838,7 +10568,7 @@ export interface operations {
     list_next_actions: {
         parameters: {
             query?: {
-                subject_kind?: "muse" | "song" | "record" | "taxonomy" | "library";
+                subject_kind?: "muse" | "song" | "record" | "taxonomy" | "library" | "take";
                 subject_id?: string;
                 min_priority?: number;
                 /** @description Default by principal */
@@ -9888,6 +10618,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OfflineSet"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_patches: {
+        parameters: {
+            query?: {
+                /** @description Patches whose base is this take or whose renders produced it */
+                track_id?: string;
+                /** @description Patches that address this comment */
+                comment_id?: string;
+                /** @description Patches on this lineage */
+                root_track_id?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatchPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    propose_patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposePatchInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongPR"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Patch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongPR"];
                 };
             };
             /** @description Error */
@@ -11803,6 +12639,38 @@ export interface operations {
             };
         };
     };
+    get_listen_heat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenHeat"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_lineage: {
         parameters: {
             query?: {
@@ -12072,6 +12940,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_voice_note: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVoiceNoteInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comment"];
                 };
             };
             /** @description Error */

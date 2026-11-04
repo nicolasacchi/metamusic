@@ -17,10 +17,12 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/atlas"
+	"github.com/nicolasacchi/metamusic/internal/attention"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
+	"github.com/nicolasacchi/metamusic/internal/callbacks"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/crates"
@@ -51,6 +53,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songpr"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
@@ -60,6 +63,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/tape"
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 	"github.com/nicolasacchi/metamusic/internal/transform"
+	"github.com/nicolasacchi/metamusic/internal/voice"
 )
 
 // SpecVersion is the OpenAPI document version. It is fixed (not the build
@@ -150,6 +154,12 @@ type Deps struct {
 	// T1 (C212). A nil Transform (MM_TRANSFORM_ENABLED=false, or a test rig without it) makes the seven transform operations
 	// answer 503 UNAVAILABLE {component: "transform"}.
 	Transform *transform.Service
+	// M5 (C250). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component} (songpr,
+	// callbacks, attention, voice). Section duels and pair suggestions live on Duels.
+	SongPR    *songpr.Service
+	Callbacks *callbacks.Service
+	Attention *attention.Service
+	Voice     *voice.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -212,19 +222,31 @@ var wireNames = map[string]string{
 	"internal/drafts.UploadDraft":       "UploadedDraft",
 	"internal/drafts.UploadIssue":       "UploadLineIssue",
 	// M2b: package-local names that are too generic for the one OpenAPI namespace.
-	"internal/duels.Page":               "DuelPage",
-	"internal/duels.NextResult":         "NextDuel",
-	"internal/duels.Window":             "ClipWindow",
-	"internal/duels.Slots":              "DuelSlots",
-	"internal/duels.SlotsSummary":       "DuelSlotsSummary",
-	"internal/ladder.Counts":            "VerdictCounts",
-	"internal/ears.Side":                "ComparisonSide",
-	"internal/ears.Deltas":              "ComparisonDeltas",
-	"internal/ears.Flag":                "AnalysisFlag",
-	"internal/ears.Structure":           "TrackStructure",
-	"internal/ears.Provenance":          "AnalysisProvenance",
-	"internal/ears.SeedPair":            "SeedPair",
-	"internal/analysis.Span":            "TimeSpan",
+	"internal/duels.Page":         "DuelPage",
+	"internal/duels.NextResult":   "NextDuel",
+	"internal/duels.Window":       "ClipWindow",
+	"internal/duels.Slots":        "DuelSlots",
+	"internal/duels.SlotsSummary": "DuelSlotsSummary",
+	"internal/ladder.Counts":      "VerdictCounts",
+	"internal/ears.Side":          "ComparisonSide",
+	"internal/ears.Deltas":        "ComparisonDeltas",
+	"internal/ears.Flag":          "AnalysisFlag",
+	"internal/ears.Structure":     "TrackStructure",
+	"internal/ears.Provenance":    "AnalysisProvenance",
+	"internal/ears.SeedPair":      "SeedPair",
+	"internal/analysis.Span":      "TimeSpan",
+	// M5: package-local names too generic for the one OpenAPI namespace.
+	"internal/songpr.Diff":              "PatchDiff",
+	"internal/songpr.LineChange":        "PatchLineChange",
+	"internal/songpr.StyleChange":       "PatchStyleChange",
+	"internal/songpr.Scope":             "PatchScope",
+	"internal/songpr.ScopedSection":     "PatchScopedSection",
+	"internal/songpr.Bounds":            "PatchBounds",
+	"internal/attention.Heat":           "ListenHeat",
+	"internal/attention.Hotspot":        "ListenHotspot",
+	"internal/duels.SectionSelector":    "DuelSectionSelector",
+	"internal/duels.SlotWindow":         "DuelSlotWindow",
+	"internal/judgments.VoiceRef":       "VoiceNote",
 	"internal/analysis/tokens.Stream":   "TokenStream",
 	"internal/analysis/tokens.Repeat":   "TokenRepeat",
 	"internal/analysis/tokens.Periodic": "TokenPeriodic",
@@ -290,6 +312,11 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerAtlasL3(a, d)
 	registerAdherenceL3(a, d)
 	registerTransformT1(a, d)
+	registerSongPRM5(a, d)
+	registerCallbacksM5(a, d)
+	registerAttentionM5(a, d)
+	registerDuelsM5(a, d)
+	registerVoiceM5(a, d)
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

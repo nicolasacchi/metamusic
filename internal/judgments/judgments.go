@@ -57,13 +57,16 @@ type Comment struct {
 	Section        *SectionRef       `json:"section" doc:"Section label; null when no timed section covers at_second"`
 	Kind           string            `json:"kind" enum:"note,fix,keep,marker"`
 	State          string            `json:"state" enum:"open,addressed,resolved,regressed"`
-	Source         string            `json:"source" enum:"web,api,mcp,stdio"`
+	Source         string            `json:"source" enum:"web,api,mcp,stdio,subsonic,callback"`
 	Author         auth.PrincipalRef `json:"author"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
 	EditedAt       *string           `json:"edited_at"`
 	StateChangedAt *string           `json:"state_changed_at"`
 	Hidden         bool              `json:"hidden"`
+	// M5 (C255, C259): a spoken note and the callback a regression comment came from; absent otherwise.
+	Voice            *VoiceRef `json:"voice,omitempty"`
+	OriginCallbackID *string   `json:"origin_callback_id,omitempty"`
 }
 
 // NewComment is the input of AddComment.

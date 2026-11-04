@@ -165,7 +165,8 @@ func (st standing) mineVerdict() *verdictRow {
 }
 
 func (d duelRow) window() Window {
-	return Window{FromS: float64(d.FromMS) / 1000, ToS: float64(d.ToMS) / 1000, DurationS: float64(d.ToMS-d.FromMS) / 1000}
+	from, to := float64(d.FromMS)/1000, float64(d.ToMS)/1000
+	return Window{FromS: &from, ToS: &to, DurationS: float64(d.ToMS-d.FromMS) / 1000}
 }
 
 func (d duelRow) loudnessMatched() bool { return d.Match == "matched" || d.Match == "limited" }

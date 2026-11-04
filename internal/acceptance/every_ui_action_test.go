@@ -448,6 +448,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 	}
 	var called []string
+	stubbed := map[string]bool{} // M5 operations whose lane has not landed: their audit row has status 501
 	for _, id := range uiOrder {
 		op, ok := have[id]
 		script := uiScript[id]
@@ -477,6 +478,11 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 		if task := l3StubOf(raw); task != "" {
 			t.Fatalf("scripted call %s answers 501 NOT_IMPLEMENTED (stub of %s): L3 left no pending stub", id, task)
+		}
+		if task := m5StubOf(raw); task != "" {
+			called = append(called, id) // the stub call is audited like any other
+			stubbed[id] = true
+			continue // an M5 lane that has not landed answers its stub (M5-F2); INT-B turns this into a failure
 		}
 		if raw.IsError {
 			t.Fatalf("%s: tool error: %+v", id, raw.Content)
@@ -509,7 +515,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		if row["transport"] != "mcp" {
 			t.Errorf("audit row %v has transport %v, want mcp", row["op"], row["transport"])
 		}
-		if s, _ := row["status"].(float64); int(s)/100 != 2 {
+		if s, _ := row["status"].(float64); int(s)/100 != 2 && !(int(s) == 501 && stubbed[row["op"].(string)]) {
 			t.Errorf("audit row %v has status %v", row["op"], row["status"])
 		}
 		gotOps = append(gotOps, row["op"].(string))
