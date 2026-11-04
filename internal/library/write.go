@@ -494,8 +494,8 @@ func scoreSource(t NewTake) string {
 var TransformKinds = []string{"morph", "shepard", "glacier", "polytempo", "ensemble", "score_render", "master", "widen", "binaural"}
 
 // enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import. The nine transform
-// kinds follow the seven original operators (7 + 9).
-var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new"}, E2Operators...), TransformKinds...)
+// kinds follow the original operators; multi_edit is M5's Song PR operator (C253.4).
+var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new", "multi_edit"}, E2Operators...), TransformKinds...)
 
 // E2Operators are the Operator Ledger operators of ACE-Step modes (C149.1): engine_port (port), extend, repaint,
 // reference_render (reference), complete_tracks (complete) and extract_stems (stems; E2b records it against the parent take

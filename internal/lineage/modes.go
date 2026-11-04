@@ -12,6 +12,7 @@ const (
 	ModeFromDraft    = "from_draft"
 	ModeComposeNew   = "compose_new"
 	ModeFromTemplate = "from_template"
+	ModeSongPR       = "song_pr" // M5 (C253.4): renders a stored Song PR; the operator is the patch's
 )
 
 // Operators written to the Operator Ledger (C71.5).
@@ -23,6 +24,7 @@ const (
 	OpStyleEdit       = "style_edit"
 	OpFromDraft       = "from_draft"
 	OpComposeNew      = "compose_new"
+	OpMultiEdit       = "multi_edit" // M5: a Song PR that changes lyrics and style together (lyric_edit and style_edit are its single-field forms)
 )
 
 // Rule says whether a patch field is forbidden, optional or required for a mode.
@@ -75,6 +77,9 @@ var Modes = []ModeSpec{
 	{Mode: ModeFromDraft, Operator: OpFromDraft, Seeds: SeedsDraftNew, Parent: "optional"},
 	{Mode: ModeComposeNew, Operator: OpComposeNew, Seeds: SeedsRecipeNew, Parent: "none"},
 	{Mode: ModeFromTemplate, Parent: "many"},
+	// song_pr: the base is the patch's base take, the item's own patch is forbidden (the stored patch applies), seeds are the base
+	// seed plus n-1 new ones (n <= 4). Operator is "" here like from_template: the planner uses the stored patch's operator.
+	{Mode: ModeSongPR, Seeds: SeedsParentNew, Parent: "required"},
 }
 
 // Spec returns the row of a mode (M3 table first, then the E2 rows).
@@ -137,7 +142,7 @@ func (m ModeSpec) CheckPatch(p *Patch) (field, rule string) {
 
 var operators = map[string]bool{
 	OpInferredSibling: true, OpRerollSeed: true, OpSameSeedEdit: true, OpLyricEdit: true, OpStyleEdit: true,
-	OpFromDraft: true, OpComposeNew: true,
+	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true,
 	// E2 (C149.1)
 	OpEnginePort: true, OpExtend: true, OpRepaint: true, OpReferenceRender: true, OpCompleteTracks: true, OpExtractStems: true,
 }

@@ -25,6 +25,7 @@ func TestModes_Table(t *testing.T) {
 		ModeFromDraft:    {OpFromDraft, false, [5]Rule{}, SeedsDraftNew, "optional"},
 		ModeComposeNew:   {OpComposeNew, false, [5]Rule{}, SeedsRecipeNew, "none"},
 		ModeFromTemplate: {"", false, [5]Rule{}, "", "many"},
+		ModeSongPR:       {"", false, [5]Rule{}, SeedsParentNew, "required"},
 	}
 	if len(Modes) != len(want) {
 		t.Fatalf("%d rows, want %d", len(Modes), len(want))
@@ -50,6 +51,27 @@ func TestModes_Table(t *testing.T) {
 	}
 	if _, ok := Spec("nope"); ok {
 		t.Error("Spec accepted an unknown mode")
+	}
+}
+
+// TestSongPR_ModeAndOperator: song_pr has no operator of its own (the stored patch decides) and forbids an item patch; multi_edit
+// is a ledger operator that CheckOperator accepts (C253.4).
+func TestSongPR_ModeAndOperator(t *testing.T) {
+	t.Parallel()
+	m, ok := Spec(ModeSongPR)
+	if !ok || m.Operator != "" || m.Patch || m.Seeds != SeedsParentNew || m.Parent != "required" {
+		t.Fatalf("song_pr row = %+v", m)
+	}
+	if f, r := m.CheckPatch(&Patch{Lyrics: sp("x")}); f != "patch" || r != "patch_forbidden" {
+		t.Errorf("an item patch on song_pr: (%q, %q)", f, r)
+	}
+	if IsTemplateMode(ModeSongPR) {
+		t.Error("song_pr is not a template mode")
+	}
+	for _, op := range []string{OpMultiEdit, OpLyricEdit, OpStyleEdit} {
+		if !ValidOperator(op) || CheckOperator(op) != nil {
+			t.Errorf("operator %q refused", op)
+		}
 	}
 }
 
