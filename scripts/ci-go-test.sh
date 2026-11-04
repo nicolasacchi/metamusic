@@ -87,8 +87,9 @@ case "$cmd" in
     # the race detector finds nothing there and only slows the bit-exact goldens. They run in plain mode (coverage and shuffle
     # stay on, so the coverage job still sees them); the nightly (MM_FULL_RACE=1) keeps them under -race. Mirrors NORACE_RE in the Makefile.
     noracere='^\./internal/(dsp|score)(/|$)'
-    flags_nr=()
-    for f in "${flags[@]}"; do case "$f" in -race | -gcflags=modernc.org/...=-race=false) ;; *) flags_nr+=("$f") ;; esac; done
+    # the covdata of -race runs is counter mode atomic and covdata refuses to merge another mode, so the plain runs say it too
+    flags_nr=(-covermode=atomic)
+    for f in "${flags[@]}"; do case "$f" in -race | -gcflags=modernc.org/...=-race=false) ;; -covermode=*) ;; *) flags_nr+=("$f") ;; esac; done
     wholenr=()
     # END T1-I1 dsp/score without -race
     for u in "${plan[@]}"; do
