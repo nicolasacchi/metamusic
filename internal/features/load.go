@@ -224,6 +224,7 @@ func loadTake(ctx context.Context, q db, id string) (tl takeLoad, ok bool, err e
 		if in.ExpectedDurationS == nil {
 			in.ExpectedDurationS = expected
 		}
+		applyEngineInputs(engine, reqJSON, &in)
 		if in.Facets, err = facetsOf(ctx, q, "take_sounds", "track_id", id); err != nil {
 			return tl, false, err
 		}
