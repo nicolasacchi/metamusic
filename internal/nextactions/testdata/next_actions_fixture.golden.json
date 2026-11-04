@@ -188,6 +188,22 @@
     }
   },
   {
+    "Code": "open_fix_unaddressed",
+    "Audience": "agent",
+    "Subject": "take 01900000-0000-7000-8000-000000000101",
+    "Text": "\"Luna Park\" has 1 open fix comment(s) no patch addresses — read the context and propose a Song PR (propose_patch)",
+    "Priority": 58,
+    "Hint": {
+      "Op": "get_track_context",
+      "Args": {
+        "id": "01900000-0000-7000-8000-000000000101"
+      }
+    },
+    "Evidence": {
+      "fixes": 1
+    }
+  },
+  {
     "Code": "song_no_muse",
     "Audience": "agent",
     "Subject": "song 01900000-0000-7000-8000-000000d22006",
