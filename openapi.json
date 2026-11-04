@@ -259,6 +259,22 @@
         ],
         "type": "object"
       },
+      "AlsoFrom": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "role"
+        ],
+        "type": "object"
+      },
       "AnalysisFlag": {
         "additionalProperties": false,
         "properties": {
@@ -3848,6 +3864,14 @@
           "track": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "transform": {
+            "additionalProperties": {},
+            "description": "Kind, parameter summary, inputs with roles, alignment sources and safety summary; absent unless the take is a transform output",
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
@@ -9024,6 +9048,13 @@
       "LineageNode": {
         "additionalProperties": false,
         "properties": {
+          "also_from": {
+            "description": "Further inputs of a transform; annotations, never tree edges",
+            "items": {
+              "$ref": "#/components/schemas/AlsoFrom"
+            },
+            "type": "array"
+          },
           "children_count": {
             "format": "int64",
             "type": "integer"
@@ -9140,6 +9171,30 @@
           },
           "title": {
             "type": "string"
+          },
+          "transform": {
+            "additionalProperties": false,
+            "description": "Set when the node is a transform output; null otherwise",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "spec_hash": {
+                "type": "string"
+              },
+              "transform_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "transform_id",
+              "spec_hash"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
@@ -9162,7 +9217,9 @@
           "cost",
           "job_id",
           "created_at",
-          "children_count"
+          "children_count",
+          "transform",
+          "also_from"
         ],
         "type": "object"
       },
@@ -18534,6 +18591,7 @@
             "type": "integer"
           },
           "origin": {
+            "description": "import, job or transform",
             "type": "string"
           },
           "playlists": {
@@ -18678,6 +18736,30 @@
           "title": {
             "type": "string"
           },
+          "transform": {
+            "additionalProperties": false,
+            "description": "Set when the take is a transform output; null otherwise",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "spec_hash": {
+                "type": "string"
+              },
+              "transform_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "transform_id",
+              "spec_hash"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "truncated": {
             "additionalProperties": false,
             "description": "null when result.json was not imported",
@@ -18712,6 +18794,7 @@
           "status",
           "status_set_by",
           "origin",
+          "transform",
           "recorded_at",
           "created_at",
           "duration_s",
@@ -19093,7 +19176,7 @@
             "type": "integer"
           },
           "origin": {
-            "description": "import or job",
+            "description": "import, job or transform (a transform Take)",
             "type": "string"
           },
           "parent_track_id": {
@@ -19172,6 +19255,30 @@
           "title": {
             "type": "string"
           },
+          "transform": {
+            "additionalProperties": false,
+            "description": "Set when the take is a transform output; null otherwise",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "spec_hash": {
+                "type": "string"
+              },
+              "transform_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "transform_id",
+              "spec_hash"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "truncated": {
             "description": "abc or semantic stream truncated; null when unknown",
             "type": [
@@ -19212,7 +19319,8 @@
           "song_id",
           "is_pick",
           "song_title",
-          "song_angle"
+          "song_angle",
+          "transform"
         ],
         "type": "object"
       },
@@ -28749,7 +28857,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform) and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -28990,6 +29098,34 @@
             "in": "query",
             "name": "crate_id",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Repeatable; transform is derived (job means generated by a job)",
+            "explode": true,
+            "in": "query",
+            "name": "origin",
+            "schema": {
+              "description": "Repeatable; transform is derived (job means generated by a job)",
+              "items": {
+                "enum": [
+                  "import",
+                  "job",
+                  "transform"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Takes whose lyrics equal this track's (morph partners); empty lyrics match nothing",
+            "explode": false,
+            "in": "query",
+            "name": "lyrics_of",
+            "schema": {
+              "description": "Takes whose lyrics equal this track's (morph partners); empty lyrics match nothing",
               "type": "string"
             }
           },

@@ -14,7 +14,7 @@ type SongQuery = NonNullable<operations["list_songs"]["parameters"]["query"]>;
 type TakeQuery = NonNullable<operations["search_tracks"]["parameters"]["query"]>;
 
 /** Parameters of the list operations a saved filter never carries. */
-export const NON_SAVED = ["limit", "cursor", "sort", "include_hidden", "include_archived", "draft_id", "track_id", "song_id", "root_track_id", "crate_id"] as const;
+export const NON_SAVED = ["limit", "cursor", "sort", "include_hidden", "include_archived", "draft_id", "track_id", "song_id", "root_track_id", "crate_id", "origin", "lyrics_of"] as const;
 type NonSaved = (typeof NON_SAVED)[number];
 
 export type FieldKind = "bool" | "int" | "number" | "string" | "strings" | "instant";

@@ -1,0 +1,2 @@
+# pcm_sha256 of Finish on a fixed click-noise + pink buffer. linux/amd64, GOAMD64=v1; MM_UPDATE_GOLDEN=1 rewrites.
+652bd905a54f79a5386853a93fbe0d4bf76a10a7806173baa184baae629e52b7

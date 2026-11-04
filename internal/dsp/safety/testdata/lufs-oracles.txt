@@ -1,0 +1,12 @@
+# ffmpeg ebur128 integrated loudness (LUFS) of the three TestLUFS_Sine signals.
+# Recorded with ffmpeg n9.0.2-36-g6882969ce9-20261027 (lavfi aevalsrc, float32 WAV).
+# Signal: 997 Hz sine, 48000 Hz, 2 channels, 10 s, peak amplitude as listed.
+# Command per case:
+#   ffmpeg -f lavfi -i "aevalsrc=sin(2*PI*997*t):s=48000:d=10" -af "volume=<dB>dB,<pan>" -c:a pcm_f32le -ar 48000 x.wav
+#   ffmpeg -i x.wav -af "ebur128=metadata=1:peak=true,ametadata=print:key=lavfi.r128.I:file=-" -f null -   (last lavfi.r128.I)
+# pan: both = pan=stereo|c0=c0|c1=c0 ; one = pan=stereo|c0=c0|c1=0*c0
+# case        peak_dbfs  channels  integrated_lufs  true_peak_dbfs
+both_20       -20.00     both      -20.006          -20.0
+both_3        -3.01      both      -3.016           -3.0
+one_20        -20.00     one       -23.016          -20.0
+# tolerance used by the unit test: +/- 0.05 LU

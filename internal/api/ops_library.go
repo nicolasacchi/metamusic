@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -13,7 +15,7 @@ func registerLibrary(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
-		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound and crate_id filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform) and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/library"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {
@@ -28,6 +30,10 @@ func registerLibrary(a huma.API, d Deps) {
 			})
 			if err != nil {
 				return nil, m2bErr(err, taskK)
+			}
+			params.Origin = in.Origin
+			if in.LyricsOf != "" || slices.Contains(in.Origin, "transform") {
+				return nil, m2bErr(errors.ErrUnsupported, taskT1B6)
 			}
 			if params, err = expandTrackCrate(ctx, d, params); err != nil {
 				return nil, err

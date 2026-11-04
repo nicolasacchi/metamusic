@@ -295,7 +295,7 @@
           <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
         </section>
         {#if track.recipe_known && !track.lossy}
-          <TransformPanel trackId={id} />
+          <TransformPanel trackId={id} hasScore={track.score !== null} />
         {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <EarsPanel trackId={id} />

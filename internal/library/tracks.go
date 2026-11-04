@@ -51,7 +51,7 @@ type TrackSummary struct {
 	Lossy       bool `json:"lossy" doc:"The master is an MP3; there is no lossless file"`
 
 	// M3 (C81.1)
-	Origin              string  `json:"origin" doc:"import or job"`
+	Origin              string  `json:"origin" doc:"import, job or transform (a transform Take)"`
 	CostDisplayMicroUSD *int64  `json:"cost_display_micro_usd" doc:"Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes"`
 	CostDisplayUSD      *string `json:"cost_display_usd"`
 
@@ -62,6 +62,9 @@ type TrackSummary struct {
 	// Wave 4b: list rows show "Song · angle" without a second request.
 	SongTitle *string `json:"song_title" doc:"Title of the take's Song; null when it has none"`
 	SongAngle *string `json:"song_angle" doc:"The Song's angle; null when unset or the take has no Song"`
+
+	// T1 (C211.4)
+	Transform *TransformRef `json:"transform" doc:"Set when the take is a transform output; null otherwise"`
 
 	jobID string // the job of a generated take (not part of the response)
 }
@@ -824,26 +827,27 @@ type ImportInfo struct {
 
 // TrackDetail is the full track view.
 type TrackDetail struct {
-	ID          string       `json:"id"`
-	Title       string       `json:"title"`
-	Slug        string       `json:"slug"`
-	Status      string       `json:"status"`
-	StatusSetBy string       `json:"status_set_by"`
-	Origin      string       `json:"origin"`
-	RecordedAt  string       `json:"recorded_at"`
-	CreatedAt   string       `json:"created_at"`
-	DurationS   float64      `json:"duration_s"`
-	Audio       AudioInfo    `json:"audio"`
-	Recipe      RecipeInfo   `json:"recipe"`
-	StyleTerms  []string     `json:"style_terms" nullable:"false"`
-	BPMDeclared *int         `json:"bpm_declared"`
-	Lineage     Lineage      `json:"lineage"`
-	Truncated   *Truncation  `json:"truncated" doc:"null when result.json was not imported"`
-	Score       *ScoreInfo   `json:"score" doc:"null when the track has no score"`
-	Sections    []SectionOut `json:"sections" nullable:"false"`
-	Timed       bool         `json:"timed"`
-	Analysis    AnalysisInfo `json:"analysis"`
-	Import      ImportInfo   `json:"import"`
+	ID          string        `json:"id"`
+	Title       string        `json:"title"`
+	Slug        string        `json:"slug"`
+	Status      string        `json:"status"`
+	StatusSetBy string        `json:"status_set_by"`
+	Origin      string        `json:"origin" doc:"import, job or transform"`
+	Transform   *TransformRef `json:"transform" doc:"Set when the take is a transform output; null otherwise"`
+	RecordedAt  string        `json:"recorded_at"`
+	CreatedAt   string        `json:"created_at"`
+	DurationS   float64       `json:"duration_s"`
+	Audio       AudioInfo     `json:"audio"`
+	Recipe      RecipeInfo    `json:"recipe"`
+	StyleTerms  []string      `json:"style_terms" nullable:"false"`
+	BPMDeclared *int          `json:"bpm_declared"`
+	Lineage     Lineage       `json:"lineage"`
+	Truncated   *Truncation   `json:"truncated" doc:"null when result.json was not imported"`
+	Score       *ScoreInfo    `json:"score" doc:"null when the track has no score"`
+	Sections    []SectionOut  `json:"sections" nullable:"false"`
+	Timed       bool          `json:"timed"`
+	Analysis    AnalysisInfo  `json:"analysis"`
+	Import      ImportInfo    `json:"import"`
 
 	// M2a (C38)
 	Rating       TrackRating    `json:"rating"`
