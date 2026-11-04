@@ -104,8 +104,15 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if via == "" {
 		via = spend.ViaAPI
 	}
+	// song_pr items name their base through the stored patch: resolve it first so the batch engine derives from that base like
+	// from any variant (patches are yue2-only, propose refuses other bases)
+	items, patches, err := s.resolvePatches(ctx, s.o.Store.R, in.Items)
+	if err != nil {
+		return Estimate{}, err
+	}
+	in.Items = items
 	// E2: one engine per batch (D-E2-13), its adoption (D-E2-15) and its routed backend (C151.3); for yue2 this is the M3 gate.
-	name, err := s.batchEngine(ctx, in, name)
+	name, err = s.batchEngine(ctx, in, name)
 	if err != nil {
 		return Estimate{}, err
 	}
@@ -141,9 +148,19 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err := s.checkMothers(ctx, in.Items); err != nil {
 		return Estimate{}, err
 	}
+	var parents []string
+	for _, it := range in.Items {
+		parents = append(parents, mothers(it)...)
+	}
+	if err := s.gateBacklog(ctx, s.o.Store.R, p, parents); err != nil {
+		return Estimate{}, err
+	}
 	pl := &planner{s: s, ctx: ctx, q: s.o.Store.R, eng: eng, backend: st.Backend, engName: name, ace: name != DefaultEngine, trial: in.TrialID,
 		ids: map[string]bool{}, planned: map[string][]int64{}, renders: map[string]int{}, tracks: map[string]trackInfo{}, drafts: map[string]draftInfo{},
-		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}}
+		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}, patches: patches}
+	if err := pl.loadInFlight(); err != nil {
+		return Estimate{}, err
+	}
 	if err := pl.loadDrafts(in.Items); err != nil {
 		return Estimate{}, err
 	}
