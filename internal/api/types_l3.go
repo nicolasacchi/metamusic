@@ -177,7 +177,7 @@ type suggestionOut struct{ Body Suggestion }
 
 // NextActionSubject is what an action is about; id is null for library and taxonomy level actions.
 type NextActionSubject struct {
-	Kind string  `json:"kind" enum:"muse,song,record,taxonomy,library"`
+	Kind string  `json:"kind" enum:"muse,song,record,taxonomy,library,take"`
 	ID   *string `json:"id" nullable:"true"`
 }
 
@@ -214,7 +214,7 @@ type NextActionsPage struct {
 }
 
 type listNextActionsIn struct {
-	SubjectKind string `query:"subject_kind" enum:"muse,song,record,taxonomy,library"`
+	SubjectKind string `query:"subject_kind" enum:"muse,song,record,taxonomy,library,take"`
 	SubjectID   string `query:"subject_id"`
 	MinPriority int    `query:"min_priority" minimum:"0" maximum:"100"`
 	Audience    string `query:"audience" enum:"agent,human,both" doc:"Default by principal"`

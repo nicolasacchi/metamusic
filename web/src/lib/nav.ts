@@ -26,6 +26,7 @@ const TAB_OF: Record<string, Tab> = {
   home: "library",
   track: "library",
   lineage: "library",
+  patch: "library",
   song: "library",
   sounds: "library",
   atlas: "library",
@@ -37,6 +38,8 @@ const TAB_OF: Record<string, Tab> = {
   playlist: "library",
   queue: "queue",
   judge: "judge",
+  callbacks: "judge",
+  callback: "judge",
   duels: "judge",
   duel: "judge",
   ladder: "judge",
@@ -62,6 +65,7 @@ const TAB_OF: Record<string, Tab> = {
   settings: "more",
   "settings-backups": "more",
   "settings-audit": "more",
+  receipts: "more",
   "settings-curation": "more",
   // Secure
   human: "more",
@@ -108,6 +112,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Crates", path: "/crates", tab: "library" },
   { label: "Playlists", path: "/playlists", tab: "library" },
   { label: "One by one", path: "/judge", tab: "judge" },
+  { label: "Callbacks", path: "/judge/callbacks", tab: "judge" },
   { label: "Duels", path: "/duels", tab: "judge" },
   { label: "Ladder", path: "/ladder", tab: "judge" },
   { label: "Board", path: "/board", tab: "more", group: "Make" },
@@ -121,6 +126,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Settings", path: "/settings", tab: "more", group: "Settings" },
   { label: "Backups", path: "/settings/backups", tab: "more", group: "Settings" },
   { label: "Audit", path: "/settings/audit", tab: "more", group: "Settings" },
+  { label: "Receipts", path: "/receipts", tab: "more", group: "Settings" },
   { label: "Curation", path: "/settings/curation", tab: "more", group: "Settings" },
   { label: "Approvals", path: "/human/", tab: "more", group: "Secure", secure: true, testid: "approvals-nav" },
   { label: "Spend", path: "/human/spend", tab: "more", group: "Secure", secure: true },
@@ -153,6 +159,8 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "playlists" || routeName === "playlist";
     case "/judge":
       return routeName === "judge";
+    case "/judge/callbacks":
+      return routeName === "callbacks" || routeName === "callback";
     case "/duels":
       return routeName === "duels" || routeName === "duel";
     case "/ladder":
@@ -165,7 +173,7 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
 /** Routes that are only reached from a page (an id, a form, query arguments), not from a tab. */
 export const CONTEXTUAL_ROUTES = new Set([
   "track", "muse", "song", "draft-new", "draft-upload", "draft", "playlist", "duel", "compare", "job", "batch", "lineage", "human-confirm",
-  "record", "crate", "human-record-publish",
+  "record", "crate", "human-record-publish", "callback", "patch",
 ]);
 
 const TITLES: Record<string, string> = {
@@ -184,6 +192,10 @@ const TITLES: Record<string, string> = {
   lineage: "Lineage",
   queue: "Play queue",
   judge: "Judge",
+  callbacks: "Callbacks",
+  callback: "Callback",
+  patch: "Song PR",
+  receipts: "Receipts",
   duels: "Duels",
   duel: "Duel",
   ladder: "Ladder",
@@ -225,5 +237,5 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "duels", "ladder", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "more"].includes(routeName);
 }

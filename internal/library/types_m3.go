@@ -40,7 +40,7 @@ type GenerationCost struct {
 type GenerationInfo struct {
 	JobID     string          `json:"job_id"`
 	BatchID   string          `json:"batch_id"`
-	Operator  string          `json:"operator" doc:"reroll_seed, same_seed_edit, lyric_edit, style_edit, from_draft or compose_new"`
+	Operator  string          `json:"operator" doc:"reroll_seed, same_seed_edit, lyric_edit, style_edit, multi_edit, from_draft or compose_new"`
 	Rationale *string         `json:"rationale"`
 	Cost      *GenerationCost `json:"cost"`
 	Env       *Env            `json:"env"`

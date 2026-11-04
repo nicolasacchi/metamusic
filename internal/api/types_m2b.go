@@ -49,12 +49,13 @@ type getClipIn struct {
 type createDuelIn struct {
 	IdemHeader
 	Body struct {
-		ATrackID      string   `json:"a_track_id" minLength:"1"`
-		BTrackID      string   `json:"b_track_id" minLength:"1"`
-		Blind         *bool    `json:"blind,omitempty" doc:"Hide which slot holds which track until the human verdict (default true)"`
-		FromS         *float64 `json:"from_s,omitempty" minimum:"0" maximum:"86400" doc:"Window start in seconds; default: about 30% into the shorter track"`
-		ToS           *float64 `json:"to_s,omitempty" minimum:"0" maximum:"86400"`
-		MatchLoudness *bool    `json:"match_loudness,omitempty" doc:"Attenuate the louder window to the quieter one (default true)"`
+		ATrackID      string                 `json:"a_track_id" minLength:"1"`
+		BTrackID      string                 `json:"b_track_id" minLength:"1"`
+		Blind         *bool                  `json:"blind,omitempty" doc:"Hide which slot holds which track until the human verdict (default true)"`
+		FromS         *float64               `json:"from_s,omitempty" minimum:"0" maximum:"86400" doc:"Window start in seconds; default: about 30% into the shorter track"`
+		ToS           *float64               `json:"to_s,omitempty" minimum:"0" maximum:"86400"`
+		MatchLoudness *bool                  `json:"match_loudness,omitempty" doc:"Attenuate the louder window to the quieter one (default true)"`
+		Section       *duels.SectionSelector `json:"section,omitempty" doc:"Lock both slots to the same section of each take instead of from_s/to_s; exclusive with them"`
 	}
 }
 

@@ -201,7 +201,7 @@ type m3Services struct {
 // default row, the leaf services and, when a backend exists and the runner is enabled, an unstarted
 // runner and reconciler. Nothing here calls a backend method.
 func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *store.Store, data *os.Root, lib *library.Service, notifier notify.Notifier,
-	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service) (*m3Services, error) {
+	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service, late *m5Late) (*m3Services, error) {
 	clk := o.Clock
 	if clk == nil {
 		clk = clockFromNow{now}
@@ -231,7 +231,8 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		Store: st, Library: lib, Lineage: m.Lineage, Spend: m.Spend, Engines: engines, Gate: m.Gate, Notify: notifier,
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
-		Songwriting: songwriting.New(st), // the minimum-render control (X4) reads songwriting.min_duration_s
+		Songwriting: songwriting.New(st),                       // the minimum-render control (X4) reads songwriting.min_duration_s
+		PatchSource: &late.patches, BacklogGate: &late.backlog, // M5 seams (C253.4, C255.5)
 	})
 	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
 	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
@@ -250,7 +251,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 				log.Warn("generation ingest unavailable: ffmpeg tools missing; finished takes will fail INGEST_FAILED")
 			}
 			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Pipeline: pipe, Library: lib, Ears: ears, Lineage: m.Lineage, Spend: m.Spend,
-				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log})
+				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook})
 		}
 		var pre func(context.Context, int64) error
 		if o.Live {

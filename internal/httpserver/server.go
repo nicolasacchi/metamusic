@@ -16,10 +16,12 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/atlas"
+	"github.com/nicolasacchi/metamusic/internal/attention"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/board"
+	"github.com/nicolasacchi/metamusic/internal/callbacks"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/crates"
@@ -55,6 +57,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
 	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
+	"github.com/nicolasacchi/metamusic/internal/songpr"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
@@ -65,6 +68,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/trackctx"
 	"github.com/nicolasacchi/metamusic/internal/transform"
 	"github.com/nicolasacchi/metamusic/internal/upload"
+	"github.com/nicolasacchi/metamusic/internal/voice"
 )
 
 // Options configures New.
@@ -150,6 +154,11 @@ type Options struct {
 	Atlas       *atlas.Service
 	// Transform (T1, C212); nil makes the seven transform operations answer 503 UNAVAILABLE {component: transform}. It reaches api.Deps only.
 	Transform *transform.Service
+	// M5 (C250).
+	SongPR    *songpr.Service
+	Callbacks *callbacks.Service
+	Attention *attention.Service
+	Voice     *voice.Service
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
@@ -202,7 +211,8 @@ func New(o Options) (http.Handler, error) {
 		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board,
 		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts,
 		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
-		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform})
+		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform,
+		SongPR: o.SongPR, Callbacks: o.Callbacks, Attention: o.Attention, Voice: o.Voice})
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()

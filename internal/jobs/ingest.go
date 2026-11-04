@@ -73,6 +73,8 @@ type BridgeOptions struct {
 	// Fault injects a crash at a named point (tests): "after_ingest" runs between the pipeline and the
 	// take transaction, and a returned error leaves the pipeline's files behind as a crash would.
 	Fault func(point string) error
+	// TakeHook is called inside the take transaction and after its commit (C255); nil keeps today's behaviour exactly.
+	TakeHook TakeHook
 }
 
 // FaultAfterIngest is the bridge's crash point between the pipeline and the take transaction.
@@ -229,6 +231,13 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 		b.o.Log.Warn("remove consumed uploads", "job", job.ID)
 	}
 	b.analyse(ctx, owner, job, trackID)
+	if b.o.TakeHook != nil {
+		if info, err := takeInfo(ctx, b.o.Store.R, job, trackID, store.LeaseFence{}); err == nil {
+			b.o.TakeHook.AfterTakeCommit(ctx, info)
+		} else {
+			b.o.Log.Warn("take hook info", "job", job.ID)
+		}
+	}
 	return trackID, nil
 }
 
@@ -511,6 +520,15 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 		}
 		if err := b.o.Library.InsertTake(ctx, tx, take); err != nil {
 			return err
+		}
+		if b.o.TakeHook != nil {
+			info, err := takeInfo(ctx, tx, job, take.ID, f)
+			if err != nil {
+				return fmt.Errorf("jobs: take hook info: %w", err)
+			}
+			if err := b.o.TakeHook.AfterTakeTx(ctx, tx, info); err != nil {
+				return fmt.Errorf("jobs: take hook: %w", err)
+			}
 		}
 		if job.DraftID != nil {
 			if _, err := tx.ExecContext(ctx, draftFulfilSQL+f.And(), append([]any{take.ID, store.FormatTime(f.Now), *job.DraftID}, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
