@@ -468,6 +468,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)
 			h.OK(t, "POST", "/human/api/records/"+st.record+"/publish", map[string]any{"revision": st.recordRev, "published": true})
 		}
+		seedM5Callback(t, r, st, id) // M5-C1: a callback exists before the scripted callback calls (a no-op for every other id)
 		args := script(st)
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)
