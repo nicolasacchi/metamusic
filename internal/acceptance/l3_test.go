@@ -709,7 +709,7 @@ func TestAcceptance_L3_NextActions_FullList(t *testing.T) {
 	ro, _ := r.Agent(t, auth.ScopeRead)
 
 	wantAgent := map[string]int{"record_undecided_slots": 2, "muse_record_candidate": 1, "muse_unrendered": 5, "song_duel": 5, "muse_unjudged": 2,
-		"muse_partial_angles": 1, "record_empty_slot": 1, "taxonomy_unmapped": 2, "song_no_muse": 5}
+		"muse_partial_angles": 1, "record_empty_slot": 1, "taxonomy_unmapped": 2, "song_no_muse": 5, "open_fix_unaddressed": 1}
 	wantMore := map[string]int{"muse_unrendered": 3, "song_duel": 2, "song_no_muse": 1}
 	for name, c := range map[string]*servertest.Client{"generate agent": gen, "read-only agent": ro} {
 		items, more, total := nextPage(t, c)
