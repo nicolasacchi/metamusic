@@ -1482,7 +1482,3 @@ The contracts above are the design of record; where the code differs, this log s
 - The measured key is not yet trusted on real music: the detector's correlation on real takes is good but there is no ground truth, and multi-part imports of one song get different keys. The operator decides at X3 whether to keep the measured key or set `analysis.KeyEnabled = false` (the runbook describes the fallback).
 - Known gaps, not built: the Atlas point carries no tempo, key or energy values (an API change after L3); key and energy badges on the Track page; the Atlas has no Board angle filter.
 
-
-## Amendments by T1 (lane B6)
-
-- **Features of a transform Take are measured-only.** For recipe engine `dsp` the take compute passes no declared, plan, style, facet or expected-duration input, the same way a reference Take is treated, so no predicted energy and no requested tempo appear. Pinned by `TestFeatures_DspMeasuredOnly`. The feature sweep and the compute after Ears analysis are unchanged.

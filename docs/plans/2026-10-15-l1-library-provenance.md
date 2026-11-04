@@ -2142,8 +2142,3 @@ Contracts amended by L3 (plan `docs/plans/2026-11-02-l3-library-agents-atlas.md`
 - **C95 (Reconciler).** A feature step (`provenance.UseFeatures`) is installed by the server and by the CLI Reconciler alike, so both derive identical `take_features` and `song_features` rows.
 - **C99 (Muse visibility).** The Muse-text allowlist gains exactly one operation, `list_next_actions`, whose text names Muses by a short id only.
 - **C101 (tooling).** `library verify` includes the L3 anomaly families (features, sequences, proposals).
-
-## Amendments by T1 (lane B6)
-
-- **Sound compute for a transform Take.** A Take made by a CPU transform has recipe engine `dsp` and no style text. Its style-derived facets (genre family, vocal, mood and the like) come from the nearest ancestor whose engine is not `dsp`; a `score_render` root has none, so it keeps only the `engine` facet and the measured `tempo_band`. A BPM written in an ancestor's style text is not inherited: the transformed audio's tempo is measured only. Pinned by `TestSounds_DspInheritsFromAncestor`.
-- **Pick derivation.** The `newest` source skips transform Takes: a transform never becomes the Pick by being recent. A pin, human stars or a ladder win can still select it. A Song whose only eligible Takes are transforms has no Pick until one is pinned or rated. Pinned by `TestPick_TransformNeverNewest`.
