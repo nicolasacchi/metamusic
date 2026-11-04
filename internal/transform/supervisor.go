@@ -30,6 +30,9 @@ type ExecChild struct {
 	ExtraEnv []string
 	// ReadRSS returns the child's resident set in KiB; nil reads /proc/<pid>/status (a no-op where /proc is absent).
 	ReadRSS func(pid int) (kib int64, ok bool)
+	// After arms the wall deadline: it returns the channel that fires when d has passed and a stop func. Tests only (they fire it
+	// once the child is known to be running); nil means a real timer.
+	After func(d time.Duration) (<-chan time.Time, func())
 	// RSSPoll and Throttle default to the C200.4 constants.
 	RSSPoll, Throttle time.Duration
 }
@@ -125,9 +128,15 @@ func (c *ExecChild) Run(ctx context.Context, j ChildJob, progress ChildProgress)
 	limitKiB := int64(float64(j.MemMB)*1.5+rssSlackMiB) * 1024
 	var deadline <-chan time.Time
 	if j.Deadline > 0 {
-		t := time.NewTimer(j.Deadline)
-		defer t.Stop()
-		deadline = t.C
+		if c.After != nil {
+			ch, stop := c.After(j.Deadline)
+			defer stop()
+			deadline = ch
+		} else {
+			t := time.NewTimer(j.Deadline)
+			defer t.Stop()
+			deadline = t.C
+		}
 	}
 	tick := time.NewTicker(rssPoll)
 	defer tick.Stop()

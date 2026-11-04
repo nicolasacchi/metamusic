@@ -99,7 +99,7 @@ func (s *superRig) run(ctx context.Context, memMB int, deadline time.Duration, p
 
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(2 * time.Minute) // a hang detector only: every wait here is for an event, not for a duration
 	for !ok() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
@@ -196,21 +196,28 @@ func TestSupervisor_ExitCodeAndStderrTail(t *testing.T) {
 	}
 }
 
-// TestSupervisor_Deadline: past the wall deadline the whole process group is killed, grandchildren included.
+// TestSupervisor_Deadline: past the wall deadline the whole process group is killed, grandchildren included. The deadline is
+// fired by the test once the child has announced that it and its grandchild are running (no wall-clock race with a slow start
+// under load); the group's death is then awaited with a bounded poll after the kill.
 func TestSupervisor_Deadline(t *testing.T) {
 	s := newSuper(t, "grandchild")
-	start := time.Now()
-	res, err := s.run(context.Background(), 100, 600*time.Millisecond, nil)
-	if !errors.Is(err, transform.ErrChildDeadline) {
+	fire := make(chan time.Time)
+	s.c.After = func(time.Duration) (<-chan time.Time, func()) { return fire, func() {} }
+	done := make(chan error, 1)
+	go func() { _, err := s.run(context.Background(), 100, time.Hour, nil); done <- err }()
+	waitFor(t, "the child and its grandchild", func() bool { return fileExists(filepath.Join(s.dir, "ready")) })
+	b, err := os.ReadFile(filepath.Join(s.dir, "gpid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := strconv.Atoi(string(b))
+	if !processAlive(pid) {
+		t.Fatal("the grandchild is not running before the deadline")
+	}
+	close(fire)
+	if err := <-done; !errors.Is(err, transform.ErrChildDeadline) {
 		t.Fatalf("err = %v, want the deadline", err)
 	}
-	if d := time.Since(start); d > 5*time.Second {
-		t.Errorf("the deadline took %v", d)
-	}
-	_ = res
-	waitFor(t, "the grandchild", func() bool { return fileExists(filepath.Join(s.dir, "gpid")) })
-	b, _ := os.ReadFile(filepath.Join(s.dir, "gpid"))
-	pid, _ := strconv.Atoi(string(b))
 	waitFor(t, "the grandchild to die", func() bool { return !processAlive(pid) })
 }
 
