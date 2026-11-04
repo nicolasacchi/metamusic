@@ -2,12 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/dsp"
+	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
@@ -98,4 +101,22 @@ func RunTransforms(ctx context.Context, svc *Services, running *sync.WaitGroup) 
 	}
 	running.Add(1)
 	go func() { defer running.Done(); t.Run(ctx) }()
+}
+
+// resampleOr is the second-input resampler of D-T1-19: the test override, else the windowed-sinc dsp.Resample on each channel.
+func resampleOr(r transform.Resampler) transform.Resampler {
+	if r != nil {
+		return r
+	}
+	return func(b pcm.Buffer, to int) (pcm.Buffer, error) {
+		if b.Rate <= 0 || to <= 0 {
+			return pcm.Buffer{}, errors.New("app: resample needs positive rates")
+		}
+		ratio := float64(to) / float64(b.Rate)
+		out := pcm.Buffer{Rate: to}
+		for c := range b.Ch {
+			out.Ch[c] = dsp.Resample(b.Ch[c], ratio, 0)
+		}
+		return out, nil
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/transform"
@@ -58,4 +59,22 @@ func TestBuildT1(t *testing.T) {
 	svc2.Kick() // the injected wake works on a running loop
 	cancel()
 	wg.Wait() // the runner stops with its context
+}
+
+// TestResampleOr: the default second-input resampler converts both channels by the rate ratio; an override wins.
+func TestResampleOr(t *testing.T) {
+	b := pcm.Buffer{Rate: 24000}
+	b.Ch[0], b.Ch[1] = make([]float64, 2400), make([]float64, 2400)
+	out, err := resampleOr(nil)(b, 48000)
+	if err != nil || out.Rate != 48000 || len(out.Ch[0]) != 4800 || len(out.Ch[1]) != 4800 {
+		t.Fatalf("out rate %d len %d err %v", out.Rate, len(out.Ch[0]), err)
+	}
+	if _, err := resampleOr(nil)(pcm.Buffer{}, 48000); err == nil {
+		t.Error("a buffer with no rate was resampled")
+	}
+	called := false
+	_, _ = resampleOr(func(pcm.Buffer, int) (pcm.Buffer, error) { called = true; return pcm.Buffer{}, nil })(b, 1)
+	if !called {
+		t.Error("the override was ignored")
+	}
 }
