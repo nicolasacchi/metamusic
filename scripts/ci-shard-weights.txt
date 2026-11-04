@@ -12,9 +12,11 @@
 ./internal/provenance 92
 ./internal/api 91
 ./internal/recordview 89
+./internal/dsp/safety 73
 ./internal/ears 72
 ./internal/crates 71
 ./internal/mcpgen 70
+./internal/dsp/pcm 68
 ./internal/tape 62
 ./internal/media/cover 58
 ./internal/store 57
@@ -36,6 +38,7 @@
 ./internal/analysis/ffmpeg 27
 ./internal/media/clip 26
 ./internal/connectors 26
+./internal/dsp 25
 ./internal/trackctx 20
 ./internal/duels 19
 ./internal/httpserver 18
