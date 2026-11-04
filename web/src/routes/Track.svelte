@@ -279,7 +279,10 @@
           <h2>Comments</h2>
           <CommentsPanel trackId={id} bind:comments />
         </section>
-        <SongPrPanel trackId={id} />
+        <!-- M5-W1: Song PR panel (one mount; the panel owns its fetches) -->
+        {#if track.recipe_known && !track.lossy}
+          <SongPrPanel trackId={id} {comments} sections={track.sections} baseStyle={track.recipe.style} canPropose={me?.kind === "human"} navigate={navigate ?? defaultNavigate} />
+        {/if}
         <section class="card" data-testid="track-curation">
           <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
         </section>
