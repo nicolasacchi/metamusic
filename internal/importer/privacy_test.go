@@ -218,6 +218,9 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// get_record is the one allowlisted surface (TestMuseText_OnlyInAllowlistedOps, lane INT-B's leak sweep)
 		case strings.HasPrefix(p, "/api/transforms/{"):
 			// T1: a transform view holds ids, titles, kind, state, numbers and coded warnings; its inputs are Takes, never recipe reference metadata
+		case strings.HasPrefix(p, "/api/patches/{") || strings.HasPrefix(p, "/api/callbacks/{"):
+			// M5: Song PRs and callbacks hold ids, the patch's own lines and comment text, never recipe reference metadata (a
+			// reference or unknown-engine base is refused with RECIPE_UNKNOWN); lane INT-B's TestOps_M5_LeaksNothing sweeps them
 		case p == "/api/compare":
 			// M2b compare_tracks needs two distinct takes and reads recipes, never reference metadata
 		case strings.Contains(p, "{"):

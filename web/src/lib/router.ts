@@ -42,6 +42,8 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/playlists", name: "playlists" },
   { pattern: "/playlists/:id", name: "playlist" },
   { pattern: "/judge", name: "judge" },
+  { pattern: "/judge/callbacks", name: "callbacks" },
+  { pattern: "/judge/callbacks/:id", name: "callback" },
   { pattern: "/duels", name: "duels" },
   { pattern: "/duels/:id", name: "duel" },
   { pattern: "/ladder", name: "ladder" },
@@ -60,6 +62,8 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/transforms", name: "transforms" }, // T1: the transform queue and history (More, beside Jobs)
   { pattern: "/batches/:id", name: "batch" },
   { pattern: "/lineage/:id", name: "lineage" },
+  { pattern: "/patches/:id", name: "patch" },
+  { pattern: "/receipts", name: "receipts" },
   { pattern: "/human/generate", name: "human-generate" },
   { pattern: "/human/confirm/:batch", name: "human-confirm" },
   { pattern: "/human/spend", name: "human-spend" },

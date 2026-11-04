@@ -42,6 +42,7 @@ type CreateInput struct {
 	ATrackID, BTrackID   string
 	Blind, MatchLoudness *bool
 	FromS, ToS           *float64
+	Section              *SectionSelector // C258: a section-locked duel; exclusive with FromS/ToS (lane M5-D1)
 }
 
 // VerdictInput is the submit_duel request.
@@ -91,10 +92,12 @@ func SourceFor(p auth.Principal) (string, error) {
 // carry nullable:"false" and are never nil in a response.
 
 // Window is the clip window of a duel.
+// For a section-locked duel the bounds differ per slot (C258): while the duel is unrevealed FromS and ToS are null and the
+// per-slot windows are hidden; DurationS is the same for both slots.
 type Window struct {
-	FromS     float64 `json:"from_s"`
-	ToS       float64 `json:"to_s"`
-	DurationS float64 `json:"duration_s"`
+	FromS     *float64 `json:"from_s"`
+	ToS       *float64 `json:"to_s"`
+	DurationS float64  `json:"duration_s"`
 }
 
 // ClipRef is a signed clip link inside a slot.
@@ -126,6 +129,8 @@ type Slot struct {
 	Track      *TrackBriefOrNull `json:"track"`
 	GainDB     *float64          `json:"gain_db"`
 	WindowLUFS *float64          `json:"window_lufs"`
+	// Window is the slot's own window of a section-locked duel (C258); absent for window duels and while unrevealed.
+	Window *SlotWindow `json:"window,omitempty"`
 }
 
 // Slots holds both sides.
@@ -163,6 +168,7 @@ type Duel struct {
 	MyVerdict       *VerdictOrNull `json:"my_verdict"`
 	HumanVerdict    *VerdictOrNull `json:"human_verdict"`
 	CriticVerdicts  []Verdict      `json:"critic_verdicts" nullable:"false"`
+	Section         *DuelSection   `json:"section,omitempty" doc:"Set for a section-locked duel (C258)"`
 }
 
 // SlotSummary is a slot in a list row.

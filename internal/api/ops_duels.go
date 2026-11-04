@@ -25,8 +25,11 @@ func registerDuels(a huma.API, d Deps) {
 				return nil, unavailable("duels")
 			}
 			b := in.Body
+			if b.Section != nil { // section-locked duels land with lane M5-D1 (C258); D1 deletes this guard
+				return nil, notImplemented(taskD1)
+			}
 			du, err := d.Duels.Create(ctx, auth.FromContext(ctx), duels.CreateInput{
-				ATrackID: b.ATrackID, BTrackID: b.BTrackID, Blind: b.Blind, MatchLoudness: b.MatchLoudness, FromS: b.FromS, ToS: b.ToS})
+				ATrackID: b.ATrackID, BTrackID: b.BTrackID, Blind: b.Blind, MatchLoudness: b.MatchLoudness, FromS: b.FromS, ToS: b.ToS, Section: b.Section})
 			if err != nil {
 				return nil, m2bErr(err, "M2b-J2")
 			}

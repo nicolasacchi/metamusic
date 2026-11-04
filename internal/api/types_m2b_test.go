@@ -176,7 +176,7 @@ func clipRef(sha string, secs float64) duels.ClipRef {
 func fixtureDuels() (open, revealed duels.Duel) {
 	open = duels.Duel{ID: "01900000-0000-7000-8000-000000000b01", State: "open", Blind: true, Revealed: false,
 		CreatedAt: "2026-10-13T11:00:00Z", ExpiresAt: "2026-11-12T11:00:00Z", CreatedByKind: "human",
-		Window: duels.Window{FromS: 16.3, ToS: 61.3, DurationS: 45}, LoudnessMatched: true,
+		Window: duels.Window{FromS: ptr(16.3), ToS: ptr(61.3), DurationS: 45}, LoudnessMatched: true,
 		Slots:          duels.Slots{A: duels.Slot{Clip: clipRef(sha1hex, 45)}, B: duels.Slot{Clip: clipRef(sha2hex, 45)}},
 		CriticVerdicts: []duels.Verdict{}}
 	hv := duels.Verdict{ID: "01900000-0000-7000-8000-000000000c01", Source: "human", PrincipalKind: "human", Verdict: "a",

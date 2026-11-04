@@ -108,7 +108,7 @@ type Patch struct {
 
 // ItemIn is the one input shape behind every create path; estimate_variant builds one item.
 type ItemIn struct {
-	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template" doc:"How the take list is built; see the modes table"`
+	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr" doc:"How the take list is built; see the modes table"`
 	ParentTrackID  *string    `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`
 	ParentTrackIDs []string   `json:"parent_track_ids,omitempty" nullable:"false" minItems:"2" maxItems:"50" doc:"from_template: the mothers"`
 	DraftIDs       []string   `json:"draft_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"from_draft: the drafts to render"`
@@ -118,6 +118,7 @@ type ItemIn struct {
 	NSeeds         int        `json:"n_seeds,omitempty" minimum:"1" maximum:"10" doc:"Seeds per base recipe (default 1)"`
 	Seeds          []int64    `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10" doc:"Explicit seeds (unique, 0..2^53-1); override n_seeds"`
 	Title          *string    `json:"title,omitempty" minLength:"1" maxLength:"200" doc:"compose_new, single-take items"`
+	PatchID        *string    `json:"patch_id,omitempty"`
 }
 
 // ---- money building blocks ----
@@ -748,11 +749,12 @@ type estimateGenerationIn struct {
 type estimateVariantIn struct {
 	ID   string `path:"id" doc:"The mother track"`
 	Body struct {
-		Mode   string  `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit"`
-		NSeeds int     `json:"n_seeds,omitempty" minimum:"1" maximum:"10"`
-		Seeds  []int64 `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10"`
-		Patch  *Patch  `json:"patch,omitempty"`
-		Title  *string `json:"title,omitempty" minLength:"1" maxLength:"200"`
+		Mode    string  `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,song_pr"`
+		NSeeds  int     `json:"n_seeds,omitempty" minimum:"1" maximum:"10"`
+		Seeds   []int64 `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10"`
+		Patch   *Patch  `json:"patch,omitempty"`
+		Title   *string `json:"title,omitempty" minLength:"1" maxLength:"200"`
+		PatchID *string `json:"patch_id,omitempty"`
 	}
 }
 
