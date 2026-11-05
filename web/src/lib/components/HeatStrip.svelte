@@ -10,17 +10,19 @@
   interface Props {
     trackId: string;
     /** Seconds; the strip spans the take. */
-    duration: number;
+    duration?: number;
     /** Pre-loaded heat (server-side rendering in unit tests; the strip otherwise fetches it). */
     initial?: Load<ListenHeat>;
+    /** Reference and lossy takes carry no heat worth a request (browsers log every non-2xx as a console error). */
+    enabled?: boolean;
   }
-  let { trackId, initial }: Props = $props();
+  let { trackId, initial, enabled = true }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let heat = $state<Load<ListenHeat>>(initial ?? { state: "loading" });
 
   $effect(() => {
-    if (initial) return;
+    if (initial || !enabled) return;
     const mine = trackId;
     heat = { state: "loading" };
     void loadHeat(api, mine).then((r) => {
@@ -33,6 +35,7 @@
   const spots = $derived(heat.state === "ready" ? (heat.value.hotspots ?? []) : []);
 </script>
 
+{#if enabled || initial}
 <div class="heat" data-testid="heat-strip" data-track={trackId} data-state={heat.state}>
   {#if heat.state === "ready" && bands}
     <svg class="bands" viewBox="0 0 {bins} 3" preserveAspectRatio="none" role="img" aria-label={heatSummary(heat.value)} data-testid="heat-bands">
@@ -62,6 +65,7 @@
     <p class="muted note" data-testid="heat-error">{heat.message}</p>
   {/if}
 </div>
+{/if}
 
 <style>
   .heat {

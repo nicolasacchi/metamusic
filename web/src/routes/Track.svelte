@@ -248,7 +248,7 @@
     <div class="wave" bind:clientWidth={width}>
       <Waveform {peaks} {duration} current={position} onseek={seek} {bits} height={96} label="Track waveform" {pins} onpin={(cid) => { const c = comments.find((x) => x.id === cid); if (c?.at_second != null) jumpTo(id, c.at_second); }} />
     </div>
-    <HeatStrip trackId={id} {duration} />
+    <HeatStrip trackId={id} {duration} enabled={track.recipe_known && !track.lossy} />
 
     {#if j}
       <div class="judge" data-testid="track-judge">

@@ -103,18 +103,18 @@ describe("PatchView", () => {
 describe("HeatStrip", () => {
   const heat = { track_id: "t1", duration_s: 120, bins: 4, bin_s: 30, sessions: 2, plays: 3, completion_rate: 0.5, heard: [2, 1, 0, 0], replays: [0, 2, 0, 0], rewinds: [0, 1, 0, 0], skips: [0, 0, 0, 1], cold: [3], hotspots: [{ from_s: 30, to_s: 60, score: 5, label: "chorus 1" }] };
   test("draws the bands and a hotspot chip", () => {
-    const h = html(HeatStrip, { trackId: "t1", duration: 120, initial: { state: "ready", value: heat } });
+    const h = html(HeatStrip, { trackId: "t1", initial: { state: "ready", value: heat } });
     expect(h).toContain('data-testid="heat-bands"');
     expect(h).toContain("0:30–1:00 · chorus 1");
     expect(h).toContain('aria-label="Listening heat: 2 sessions, 50% completed, 1 hotspot"');
   });
   test("no listening yet says so and has no chips", () => {
-    const h = html(HeatStrip, { trackId: "t1", duration: 120, initial: { state: "ready", value: { ...heat, sessions: 0, hotspots: [], heard: [0, 0, 0, 0], replays: [0, 0, 0, 0], rewinds: [0, 0, 0, 0], skips: [0, 0, 0, 0] } } });
+    const h = html(HeatStrip, { trackId: "t1", initial: { state: "ready", value: { ...heat, sessions: 0, hotspots: [], heard: [0, 0, 0, 0], replays: [0, 0, 0, 0], rewinds: [0, 0, 0, 0], skips: [0, 0, 0, 0] } } });
     expect(h).toContain("No listening recorded yet");
     expect(h).not.toContain("heat-hotspot");
   });
   test("501 shows 'not available yet'", () => {
-    expect(html(HeatStrip, { trackId: "t1", duration: 120, initial: { state: "unavailable" } })).toContain("not available yet");
+    expect(html(HeatStrip, { trackId: "t1", initial: { state: "unavailable" } })).toContain("not available yet");
   });
 });
 
@@ -128,5 +128,7 @@ describe("Track page mounts", () => {
   test("reference and lossy takes cannot be patched", () => {
     expect(page(trackReference)).not.toContain('data-testid="song-pr-panel"');
     expect(page(trackLossy)).not.toContain('data-testid="song-pr-panel"');
+    expect(page(trackReference)).not.toContain('data-testid="heat-strip"');
+    expect(page(trackLossy)).not.toContain('data-testid="heat-strip"');
   });
 });
