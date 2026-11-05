@@ -32,7 +32,7 @@ const (
 	CaseFirstPull CanaryCase = "first-pull"
 )
 
-// ErrInitFailConfirm: the init-fail case needs the operator's confirmation that the endpoint carries a wrong revision.
+// ErrInitFailConfirm reports that the init-fail case needs the operator's confirmation that the endpoint carries a wrong revision.
 var ErrInitFailConfirm = errors.New("canary: the init-fail case needs --init-fail-confirm: first run `metamusic runpod provision --engine acestep15 --activate --max 1 --init-fail`, which sets a deliberately wrong MM_ACESTEP_MAIN_REVISION")
 
 // part names the E2 delivery part of a case: "a" (E2-X4a) or "b" (E2-X4b, the only gate for the E2b flags).
@@ -508,7 +508,7 @@ func sameArtifact(a, b *stageResult) (same, known bool) {
 
 // initFailDriver replaces the normal wait loop: the worker can never start (a wrong revision), so the case waits up to
 // the start window for main's evidence trip (crash_loop, C151.4), cancels the job, and confirms that the workers are 0.
-func initFailDriver(c *canary, ctx context.Context, spec CanarySpec, prov cProvider) *CanaryReport {
+func initFailDriver(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) *CanaryReport {
 	window := c.o.StartTimeout
 	if window <= 0 {
 		window = DefaultCanaryStartTimeout

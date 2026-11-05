@@ -197,7 +197,7 @@ func PlaceholderRTF(class, gpu string) [2]int {
 
 // Only narrows a report to one case (the init-fail window stays with the part, and only when that case is init-fail).
 func (r BudgetReport) Only(c CanaryCase) BudgetReport {
-	var out BudgetReport = r
+	out := r
 	out.Cases, out.WorstMicro, out.InitFailMicro = nil, 0, 0
 	for _, bc := range r.Cases {
 		if bc.Case == c {

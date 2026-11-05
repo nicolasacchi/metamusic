@@ -79,7 +79,7 @@ type CanarySpec struct {
 	Item   map[string]any
 	assert func(c *canary, prov cProvider, job cJob, meas map[string]any)
 	// driver, when set, replaces the wait loop after the batch is created (the init-fail case).
-	driver func(c *canary, ctx context.Context, spec CanarySpec, prov cProvider) *CanaryReport
+	driver func(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) *CanaryReport
 }
 
 // abcScore renders a two-voice score of n 4/4 bars at 120 quarter notes per minute (2 s per bar).
@@ -185,7 +185,7 @@ type CanaryOptions struct {
 	InitFailConfirm bool
 }
 
-// ErrMaxUSDRequired: an ACE-Step canary case spends real money and has no default ceiling.
+// ErrMaxUSDRequired reports that an ACE-Step canary case spends real money and has no default ceiling.
 var ErrMaxUSDRequired = errors.New("canary: --max-usd is required for --engine acestep15 (print the worst case with --dry-run, then pass the approved figure)")
 
 // ErrKillSwitchConfirm is returned when the kill-switch case is started without KillSwitchConfirm.
@@ -591,7 +591,7 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 	}
 	c.logf("batch %s created for case %s (ceiling %s)", batch.ID, spec.Case, money.MicroUSD(est.Cost.CeilingMicroUSD).USD())
 	if spec.driver != nil {
-		return spec.driver(c, ctx, spec, prov), nil
+		return spec.driver(ctx, c, spec, prov), nil
 	}
 	return c.drive(ctx, spec, prov), nil
 }

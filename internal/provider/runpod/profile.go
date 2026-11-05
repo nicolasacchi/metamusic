@@ -98,7 +98,7 @@ func yue2ProfileWith(cfg DesiredConfig, weights map[string]string) EngineProfile
 	return p
 }
 
-// ErrBadTasks: --tasks / MM_ACESTEP_TASKS is not one of the task lists an endpoint can be provisioned for.
+// ErrBadTasks reports that --tasks / MM_ACESTEP_TASKS is not one of the task lists an endpoint can be provisioned for.
 var ErrBadTasks = errors.New(`runpod: provision: tasks must be "turbo" or "turbo,base"`)
 
 var vramRe = regexp.MustCompile(`(?:^|_)(\d{2,3})(?:_|$)`)

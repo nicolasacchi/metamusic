@@ -1094,7 +1094,7 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	g, gerr := parseEngine(*engineFlag)
 	if gerr != nil {
-		return usage(string(gerr.(usageError)))
+		return usage(gerr.Error())
 	}
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
@@ -1238,7 +1238,7 @@ func cmdCanaryACEStep(ctx context.Context, getenv func(string) string, s streams
 
 // writeMeasured merges a run into the measured document; it writes nothing when the run measured nothing.
 func writeMeasured(path string, rep *runpod.CanaryReport) error {
-	existing, err := os.ReadFile(path)
+	existing, err := os.ReadFile(path) //nolint:gosec // the operator-typed --measured-out path
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return errors.New("cannot read the file")
 	}
@@ -1249,7 +1249,7 @@ func writeMeasured(path string, rep *runpod.CanaryReport) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
+	if err := os.WriteFile(path, raw, 0o600); err != nil { //nolint:gosec // the operator-typed --measured-out path
 		return errors.New("cannot write the file")
 	}
 	return nil
