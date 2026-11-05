@@ -135,9 +135,9 @@ func exitCode(code int) string {
 	}
 }
 
-// nsPerUnit mirrors the cost model's NSPerUnit starting value (C209.2): the work meter's budget is the CPU budget less the tool
-// shares, converted at this rate. B2's cost.go owns the model; INT dedups the constant when both lanes have merged.
-const nsPerUnit = 1.2
+// nsPerUnit is the cost model's NSPerUnit (C209.2) in nanoseconds, from cost.go's DefaultCosts (the one place it lives): the
+// work meter's budget is the CPU budget less the tool shares, converted at this rate.
+var nsPerUnit = float64(DefaultCosts.NSPerUnitMilli) / 1000
 
 // unitsBudget is units_budget = floor((max_cpu_ms - tool/decode/encode/ingest shares) * 1e6 / NSPerUnit) of C209.3, never
 // below one so a tight budget fails inside the child as ExitBudget rather than being unlimited.
