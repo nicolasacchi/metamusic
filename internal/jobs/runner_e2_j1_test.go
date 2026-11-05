@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -589,7 +590,7 @@ func TestProviderAdmin_UpdateBackend(t *testing.T) {
 	if got := d.count(`SELECT COUNT(*) FROM provider_trips WHERE reset_at IS NULL AND backend = ?`, aceName); got != 0 {
 		t.Errorf("the ACE trip is still open")
 	}
-	if _, err := a.Update(t.Context(), humanP, UpdateIn{Armed: &yes, Reason: "x", Backend: "nope"}); err == nil || err != provider.ErrNoBackend {
+	if _, err := a.Update(t.Context(), humanP, UpdateIn{Armed: &yes, Reason: "x", Backend: "nope"}); !errors.Is(err, provider.ErrNoBackend) {
 		t.Errorf("unknown backend: %v", err)
 	}
 	// statusFor reads one backend's own state
