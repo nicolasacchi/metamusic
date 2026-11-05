@@ -762,10 +762,10 @@ type LineageNode struct {
 	AlsoFrom  []AlsoFrom            `json:"also_from" nullable:"false" doc:"Further inputs of a transform; annotations, never tree edges"`
 
 	// E2 (D-E2-12, D-E2-25, C157.1)
-	Engine      string            `json:"engine"`
+	Engine      string            `json:"engine,omitempty"`
 	Reference   *LineageReference `json:"reference,omitempty"`
-	Stems       int               `json:"stems"`
-	CrossEngine bool              `json:"cross_engine"`
+	Stems       int               `json:"stems,omitempty"`
+	CrossEngine bool              `json:"cross_engine,omitempty"`
 }
 
 // LineageReference is the reference edge of a node, in seconds.

@@ -5454,8 +5454,8 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             critic_stars: number | null;
-            cross_engine: boolean;
-            engine: string;
+            cross_engine?: boolean;
+            engine?: string;
             /** Format: int64 */
             generation: number;
             id: string;
@@ -5479,7 +5479,7 @@ export interface components {
             stars: number | null;
             status: string;
             /** Format: int64 */
-            stems: number;
+            stems?: number;
             title: string;
             /** @description Set when the node is a transform output; null otherwise */
             transform: {

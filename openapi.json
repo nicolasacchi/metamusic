@@ -10143,10 +10143,7 @@
           "created_at",
           "children_count",
           "transform",
-          "also_from",
-          "engine",
-          "stems",
-          "cross_engine"
+          "also_from"
         ],
         "type": "object"
       },
