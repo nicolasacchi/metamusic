@@ -41,84 +41,6 @@ func backoff(k int) time.Duration {
 	return min(30*time.Minute, time.Minute<<(k-1))
 }
 
-// gateInfo is the claim gate read from local rows only.
-type gateInfo struct {
-	ok         bool
-	reason     string
-	quote      *provider.Quote
-	workersMax int
-	idleS      int
-	price      money.MicroUSD // list price x margin; 0 without a usable quote
-}
-
-func (r *Runner) gateConfig() provider.GateConfig {
-	mode := provider.ModeFake
-	if r.o.Backend.Name() == provider.BackendRunPod {
-		mode = provider.ModeRunPod
-	}
-	return provider.GateConfig{Mode: mode, KeysLoaded: true, ColdStartS: r.o.ColdStartS, MaxRuntime: r.o.MaxRuntime}
-}
-
-// readGate reads armed, tripped and the cached quote of the active backend through x.
-func (r *Runner) readGate(ctx context.Context, x q) (gateInfo, error) {
-	g := gateInfo{workersMax: provider.MaxWorkers}
-	backend := r.o.Backend.Name()
-	var armed int
-	var quoteJSON, quoteAt sql.NullString
-	err := x.QueryRowContext(ctx, `SELECT armed, quote_json, quote_at FROM provider_state WHERE backend = ?`, backend).Scan(&armed, &quoteJSON, &quoteAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		g.reason = "not_armed"
-		return g, nil
-	}
-	if err != nil {
-		return g, fmt.Errorf("jobs: read provider state: %w", err)
-	}
-	var trips int
-	if err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, backend).Scan(&trips); err != nil {
-		return g, fmt.Errorf("jobs: read trips: %w", err)
-	}
-	if quoteJSON.Valid {
-		qt, qerr := decodeQuote(quoteJSON.String, quoteAt.String)
-		if qerr == nil {
-			g.quote = &qt
-		}
-	}
-	now := r.o.Clock.Now()
-	switch {
-	case armed != 1:
-		g.reason = "not_armed"
-	case trips > 0:
-		g.reason = "tripped"
-	case backend == provider.BackendRunPod:
-		if g.quote == nil {
-			g.reason = provider.ReasonQuoteStale
-		} else if why := provider.QuoteCheck(*g.quote, now, r.gateConfig()); why != "" {
-			g.reason = why
-		}
-	default:
-		// the fake backend needs no quote; a stale one is ignored rather than refused
-		if g.quote != nil && now.Sub(g.quote.ObservedAt) > provider.QuoteMaxAge {
-			g.quote = nil
-		}
-	}
-	if g.reason != "" {
-		return g, nil
-	}
-	g.ok = true
-	if g.quote != nil {
-		if g.quote.Endpoint.WorkersMax > 0 {
-			g.workersMax = g.quote.Endpoint.WorkersMax
-		}
-		if g.quote.Endpoint.IdleTimeoutS != nil {
-			g.idleS = *g.quote.Endpoint.IdleTimeoutS
-		}
-		if g.quote.ListPricePPH > 0 {
-			g.price = money.WithMarginPPM(g.quote.ListPricePPH, r.o.PriceMarginPPM)
-		}
-	}
-	return g, nil
-}
-
 // candidateSQL selects the next claimable job (C69 claim SQL). A queued job with an `unknown` attempt
 // whose ambiguous top-up was not reserved waits (and fails once the ghost's window closed).
 const candidateSQL = `SELECT j.id FROM jobs j JOIN batches b ON b.id = j.batch_id
@@ -167,24 +89,6 @@ func (e *PreflightError) Error() string {
 	return "jobs: preflight " + e.Check + ": " + redact.Error(e.Err)
 }
 func (e *PreflightError) Unwrap() error { return e.Err }
-
-// phaseClaim claims and submits queued jobs while capacity allows.
-func (r *Runner) phaseClaim(ctx context.Context, rep *StepReport) error {
-	for range maxClaimsPerStep {
-		ok, err := r.claimOne(ctx)
-		if err != nil {
-			if errors.Is(err, store.ErrLeaseShort) {
-				return nil // the heartbeat renews first; no submit this tick
-			}
-			return err
-		}
-		if !ok {
-			return nil
-		}
-		rep.Claimed++
-	}
-	return nil
-}
 
 // claim is what a committed claim transaction leaves for the submit step.
 type claim struct {

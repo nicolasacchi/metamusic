@@ -25,7 +25,9 @@ const (
 // hold (C76.5).
 func (r *Reconciler) reconcileBilling(ctx context.Context) error {
 	now := r.o.Clock.Now()
-	if r.o.Backend.Capabilities().Billing != "hour" {
+	if r.o.Peer || r.o.Backend.Capabilities().Billing != "hour" {
+		// a peer backend has no billing windows of its own (billing_windows has no backend column): its batches are
+		// released by the residual hold, scoped to its backend
 		return r.holdRelease(ctx, now)
 	}
 	fetchFailed := false
@@ -92,7 +94,8 @@ func (r *Reconciler) fetchBuckets(ctx context.Context, now time.Time) error {
 	}
 	var lastEnd, oldest sql.NullString
 	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT (SELECT MAX(window_end) FROM billing_windows),
-		(SELECT MIN(created_at) FROM batches WHERE reconciled_at IS NULL AND state IN ('active','finished'))`).Scan(&lastEnd, &oldest); err != nil {
+		(SELECT MIN(created_at) FROM batches WHERE reconciled_at IS NULL AND state IN ('active','finished') AND (? = '' OR backend = ?))`,
+		r.scope(), r.scope()).Scan(&lastEnd, &oldest); err != nil {
 		return err
 	}
 	var from time.Time
@@ -262,7 +265,8 @@ type billBatch struct {
 func (r *Reconciler) unreconciled(ctx context.Context) ([]billBatch, error) {
 	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT b.id, b.created_at, b.finished_at, b.idle_s, b.state,
 		(SELECT COUNT(*) FROM job_attempts a JOIN jobs j ON j.id = a.job_id WHERE j.batch_id = b.id AND a.state <> 'rejected')
-		FROM batches b WHERE b.reconciled_at IS NULL AND b.state IN ('active','finished') ORDER BY b.created_at, b.id`)
+		FROM batches b WHERE b.reconciled_at IS NULL AND b.state IN ('active','finished') AND (? = '' OR b.backend = ?) ORDER BY b.created_at, b.id`,
+		r.scope(), r.scope())
 	if err != nil {
 		return nil, err
 	}
@@ -315,8 +319,8 @@ func (r *Reconciler) windowEnd(ctx context.Context, now, start time.Time, batche
 		}
 		if ok {
 			var n int
-			if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM batches WHERE created_at >= ? AND created_at < ?`,
-				store.FormatTime(b.Add(-windowQuiet)), store.FormatTime(b)).Scan(&n); err != nil {
+			if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM batches WHERE created_at >= ? AND created_at < ? AND (? = '' OR backend = ?)`,
+				store.FormatTime(b.Add(-windowQuiet)), store.FormatTime(b), r.scope(), r.scope()).Scan(&n); err != nil {
 				return time.Time{}, false, err
 			}
 			ok = n == 0
@@ -442,7 +446,8 @@ type activity struct{ from, to time.Time }
 // every batch that reached the provider (an unfinished batch is active until now).
 func (r *Reconciler) activities(ctx context.Context) ([]activity, error) {
 	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT b.created_at, b.finished_at, b.idle_s FROM batches b
-		WHERE EXISTS (SELECT 1 FROM job_attempts a JOIN jobs j ON j.id = a.job_id WHERE j.batch_id = b.id AND a.state <> 'rejected')`)
+		WHERE EXISTS (SELECT 1 FROM job_attempts a JOIN jobs j ON j.id = a.job_id WHERE j.batch_id = b.id AND a.state <> 'rejected')
+		AND (? = '' OR b.backend = ?)`, r.scope(), r.scope())
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +484,8 @@ func overlapsActivity(bucketStart time.Time, as []activity) bool {
 // stalled pushes one ntfy per 72 h when finished batches wait for a quiet window that never comes.
 func (r *Reconciler) stalled(ctx context.Context, now time.Time) error {
 	var oldest sql.NullString
-	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MIN(finished_at) FROM batches WHERE state = 'finished' AND reconciled_at IS NULL`).Scan(&oldest); err != nil {
+	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MIN(finished_at) FROM batches WHERE state = 'finished' AND reconciled_at IS NULL AND (? = '' OR backend = ?)`,
+		r.scope(), r.scope()).Scan(&oldest); err != nil {
 		return err
 	}
 	if !oldest.Valid {
@@ -515,8 +521,8 @@ func (r *Reconciler) stalled(ctx context.Context, now time.Time) error {
 // holdRelease releases the outstanding of batches finished more than ResidualHold ago when billing cannot
 // be read (C76.5 "none"): one transaction per batch, reason `hold_elapsed`, and a weekly reminder.
 func (r *Reconciler) holdRelease(ctx context.Context, now time.Time) error {
-	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT id FROM batches WHERE state = 'finished' AND reconciled_at IS NULL AND finished_at <= ? ORDER BY finished_at`,
-		store.FormatTime(now.Add(-r.o.ResidualHold)))
+	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT id FROM batches WHERE state = 'finished' AND reconciled_at IS NULL AND finished_at <= ? AND (? = '' OR backend = ?) ORDER BY finished_at`,
+		store.FormatTime(now.Add(-r.o.ResidualHold)), r.scope(), r.scope())
 	if err != nil {
 		return err
 	}
