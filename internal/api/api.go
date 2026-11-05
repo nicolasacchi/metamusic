@@ -30,6 +30,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
+	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/generation"
@@ -49,6 +51,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/prompts"
+	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/sequence"
@@ -160,6 +163,13 @@ type Deps struct {
 	Callbacks *callbacks.Service
 	Attention *attention.Service
 	Voice     *voice.Service
+
+	// E2 (C151, C160). A nil dependency makes list_engines answer 503 UNAVAILABLE {component}; Engines lists the registered
+	// engines for get_system_info. Adoption is the adoption record; Backends and Gates the per-backend set and gates.
+	Engines  registry.Registry
+	Backends *provider.Set
+	Gates    *provider.GateSet
+	Adoption *engineadopt.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -312,6 +322,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerAtlasL3(a, d)
 	registerAdherenceL3(a, d)
 	registerTransformT1(a, d)
+	registerEnginesE2(a, d)
 	registerSongPRM5(a, d)
 	registerCallbacksM5(a, d)
 	registerAttentionM5(a, d)

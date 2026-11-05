@@ -61,6 +61,15 @@ type RunnerOptions struct {
 	Trip TripFunc
 	// MeterKey derives worker_key from a provider worker id (C76.6); nil leaves worker_key empty.
 	MeterKey []byte
+
+	// E2 seams (C151.2, C153.3, D-E2-39; see seams_e2.go). Backends, when set, replaces Backend: a tick iterates its names
+	// and claims for every backend that is armed, untripped, quoted and preflighted. Expects holds the pinned weights per
+	// engine (Expect stays the yue2 value); Inputs mints the signed fetch URLs of an edit's source and reference audio at
+	// submit. All are nil-safe: nil keeps the single-backend M3 behaviour.
+	Backends *provider.Set
+	Gates    *provider.GateSet
+	Expects  map[string]provider.WorkerExpect
+	Inputs   InputMinter
 }
 
 // TripFunc opens a provider trip for reason inside tx under the lease fence.

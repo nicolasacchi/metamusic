@@ -221,6 +221,9 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 		case strings.HasPrefix(p, "/api/patches/{") || strings.HasPrefix(p, "/api/callbacks/{"):
 			// M5: Song PRs and callbacks hold ids, the patch's own lines and comment text, never recipe reference metadata (a
 			// reference or unknown-engine base is refused with RECIPE_UNKNOWN); lane INT-B's TestOps_M5_LeaksNothing sweeps them
+		case p == "/api/duels/suggestions":
+			// M5-D1: the default scope (lineage) needs a root track; the global scope reads ids, titles and ladder numbers only
+			out[op] = append(out[op], p+"?scope=global")
 		case p == "/api/compare":
 			// M2b compare_tracks needs two distinct takes and reads recipes, never reference metadata
 		case strings.Contains(p, "{"):
