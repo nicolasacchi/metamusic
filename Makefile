@@ -27,7 +27,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi dsp test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
+.PHONY: build web openapi dsp test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary worker-acestep contract-acestep
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -138,6 +138,18 @@ worker:
 # Worker contract tests against the real yue2 (CPU torch), same steps as the worker-contract workflow.
 contract:
 	$(LOOP) contract -- scripts/worker-contract.sh
+
+# BEGIN E2-I1 ACE-Step worker targets (C162.1). Neither is part of `make check`. They reuse the worker/contract loop names so the metrics
+# schema and the loop allowlist stay untouched. contract-acestep installs ACE-Step (CPU torch, Python 3.11) and so belongs to CI; do not
+# run it on a developer machine.
+# worker-acestep: the whole worker unit suite (models.py/inputs.py are exercised by their own PW1 tests) with a 90 % coverage gate on the engine, models and inputs modules.
+worker-acestep:
+	$(LOOP) worker -- sh -c 'cd worker && uv run pytest tests --cov=mmworker.engines.acestep --cov=mmworker.models --cov=mmworker.inputs --cov-fail-under=90'
+
+# Worker contract tests against the pinned ACE-Step commit (CPU torch), the ENGINE argument of scripts/worker-contract.sh.
+contract-acestep:
+	$(LOOP) contract -- scripts/worker-contract.sh acestep15
+# END E2-I1
 
 # PRINT-ONLY: the canary spends real money and is typed by the operator (M3-X3, after explicit approval).
 # This target never runs it; it prints the documented command.

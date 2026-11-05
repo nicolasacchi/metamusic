@@ -147,6 +147,16 @@ jobs:
           restore-keys: uv-${{ runner.os }}-
       - run: uv sync --frozen --group dev
       - run: uv run pytest --cov=mmworker --cov-fail-under=90
+      # BEGIN E2-I1 (C162.1): 90 % on the ACE-Step engine adapter, models.py and inputs.py (the whole-package gate above hides a weak
+      # module behind strong ones). Skipped until PW2 adds the adapter; make worker-acestep runs the same command.
+      - name: ACE-Step worker modules coverage
+        run: |
+          if [ -f src/mmworker/engines/acestep.py ]; then
+            uv run pytest --cov=mmworker.engines.acestep --cov=mmworker.models --cov=mmworker.inputs --cov-fail-under=90
+          else
+            echo "::notice::src/mmworker/engines/acestep.py does not exist yet; nothing to gate"
+          fi
+      # END E2-I1
 
   lint:
     runs-on: ubuntu-24.04
