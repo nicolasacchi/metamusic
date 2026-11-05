@@ -13,7 +13,7 @@ export const MAX_TAKES = 50;
 export type VariantMode = "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
 const VARIANT_MODES: readonly string[] = ["new_seed", "same_seed_edit", "lyric_edit", "style_edit"];
 
-export type IntentMode = VariantMode | "from_draft" | "from_template" | "compose_new";
+export type IntentMode = VariantMode | "from_draft" | "from_template" | "compose_new" | "song_pr";
 
 /** Which fields apply depends on the mode (see ItemIn in the API schema); the rest stay unset. */
 export interface GenerationIntent {
@@ -28,6 +28,8 @@ export interface GenerationIntent {
   n_seeds?: number;
   seeds?: number[];
   patch?: Patch;
+  /** song_pr (M5): the Song PR to render; priced and created like any generation item. */
+  patch_id?: string;
   title?: string;
   /** compose_new */
   recipe?: Record<string, unknown>;
@@ -86,6 +88,7 @@ function isIntent(v: unknown): v is GenerationIntent {
   if (isVariantMode(mode)) return typeof o.parent_track_id === "string";
   if (mode === "from_draft") return Array.isArray(o.draft_ids) && o.draft_ids.every((x) => typeof x === "string");
   if (mode === "from_template") return Array.isArray(o.parent_track_ids) && typeof o.template_mode === "string" && isVariantMode(o.template_mode);
+  if (mode === "song_pr") return typeof o.patch_id === "string" && o.patch_id !== "";
   if (mode === "compose_new") return typeof o.recipe === "object" && o.recipe !== null;
   return false;
 }

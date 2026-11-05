@@ -40,7 +40,11 @@ const (
 
 // GateConfig is the process-local input of the generation-enabled computation.
 type GateConfig struct {
-	Mode       string        // ModeNone | ModeFake | ModeRunPod
+	Mode string // ModeNone | ModeFake | ModeRunPod
+	// Backend overrides the provider_state key derived from Mode ("" => BackendFake / BackendRunPod, M3's single backend);
+	// the ACE-Step gates of E2 set BackendFakeACEStep / BackendRunPodACEStep and Engine.
+	Backend    string
+	Engine     string        // "" => yue2
 	KeysLoaded bool          // runpod.env loaded in this process
 	ColdStartS int           // MM_COLD_START_S: the provisioned queueDelay is ColdStartS + 60
 	MaxRuntime time.Duration // MM_JOB_MAX_RUNTIME: the endpoint timeout
@@ -48,6 +52,9 @@ type GateConfig struct {
 
 // BackendName is the provider_state key of the configured mode ("" for none).
 func (c GateConfig) BackendName() string {
+	if c.Backend != "" && c.Mode != ModeNone {
+		return c.Backend
+	}
 	switch c.Mode {
 	case ModeFake:
 		return BackendFake
