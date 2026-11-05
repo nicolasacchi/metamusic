@@ -22,6 +22,7 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "list_callbacks", "get_callback", "submit_callback_verdict", // M5-W2: Judge Callbacks
   "suggest_duel_pairs", // M5-W2: Smart round
   "create_voice_note", // M5-V1/W2: voice recorder
+  "list_engines", // E2-W1b: the /engines capability matrix (E2-W-INT adds the spec)
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */
