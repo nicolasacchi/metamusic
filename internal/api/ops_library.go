@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
-	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -31,10 +29,7 @@ func registerLibrary(a huma.API, d Deps) {
 			if err != nil {
 				return nil, m2bErr(err, taskK)
 			}
-			params.Origin = in.Origin
-			if in.LyricsOf != "" || slices.Contains(in.Origin, "transform") {
-				return nil, m2bErr(errors.ErrUnsupported, taskT1B6)
-			}
+			params.Origin, params.LyricsOf = in.Origin, in.LyricsOf
 			if params, err = expandTrackCrate(ctx, d, params); err != nil {
 				return nil, err
 			}

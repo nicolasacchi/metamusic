@@ -23,10 +23,7 @@ const (
 )
 
 // The T1 lane that replaces the transform stubs (details.task of a 501): B4 owns the operation handlers (C212).
-const (
-	taskT1B4 = "T1-B4"
-	taskT1B6 = "T1-B6" // lyrics_of and origin=transform until the library readers land
-)
+const taskT1B4 = "T1-B4"
 
 // The L3 lanes that replace a stub (details.task of a 501).
 const (

@@ -44,6 +44,21 @@ type Node struct {
 	JobID         *string         `json:"job_id"`
 	CreatedAt     string          `json:"created_at"`
 	ChildrenCount int             `json:"children_count"`
+	Transform     *TransformRef   `json:"transform"`
+	AlsoFrom      []AlsoFrom      `json:"also_from"`
+}
+
+// TransformRef marks a node that is a transform output (D-T1-4).
+type TransformRef struct {
+	Kind        string `json:"kind"`
+	TransformID string `json:"transform_id"`
+	SpecHash    string `json:"spec_hash"`
+}
+
+// AlsoFrom is a further input of a transform: an annotation, never a tree edge (D-T1-5).
+type AlsoFrom struct {
+	TrackID string `json:"track_id"`
+	Role    string `json:"role"`
 }
 
 // Tree is the lineage of one track's root, nodes in pre-order (generation, created_at).
@@ -55,7 +70,8 @@ type Tree struct {
 }
 
 const treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.request_id, t.parent_track_id, t.generation, r.seed, r.engine,
-	t.lossy, COALESCE(m.inferred, 0), m.rationale, hr.stars, ar.stars, t.origin, j.outcome, j.id, t.created_at,
+	t.lossy, COALESCE(m.inferred, 0), m.rationale, hr.stars, ar.stars,
+	CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, tr.kind, tr.spec_hash, j.outcome, j.id, t.created_at,
 	j.expected_micro_usd, b.n_takes, b.reconciled_at IS NOT NULL,
 	(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.job_id = j.id AND l.kind = 'settle' AND l.reason IN ('execution','execution_unknown')),
 	(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.batch_id = j.batch_id AND l.kind = 'settle' AND l.reason = 'overhead')
@@ -63,6 +79,7 @@ const treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.req
 	LEFT JOIN mutations m ON m.child_track_id = t.id
 	LEFT JOIN ratings hr ON hr.track_id = t.id AND hr.source = 'human'
 	LEFT JOIN ratings ar ON ar.track_id = t.id AND ar.source = 'agent'
+	LEFT JOIN transforms tr ON tr.id = t.transform_id
 	LEFT JOIN jobs j ON j.id = t.job_id
 	LEFT JOIN batches b ON b.id = j.batch_id
 	WHERE t.root_track_id = ?`
@@ -95,7 +112,7 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 	var rootNode *Node
 	for rows.Next() {
 		n := &Node{}
-		var parent, rationale, outcome, jobID sql.NullString
+		var parent, rationale, outcome, jobID, tKind, tHash sql.NullString
 		var seed int64
 		var engine string
 		var stars, critic sql.NullInt64
@@ -103,7 +120,7 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 		var expected, nTakes, execSettled, overheadSettled sql.NullInt64
 		var reconciled sql.NullBool
 		if err := rows.Scan(&n.ID, &n.Title, &n.Status, &n.Operator, &n.RequestID, &parent, &n.Generation, &seed, &engine,
-			&lossy, &inferred, &rationale, &stars, &critic, &n.Origin, &outcome, &jobID, &n.CreatedAt,
+			&lossy, &inferred, &rationale, &stars, &critic, &n.Origin, &tKind, &tHash, &outcome, &jobID, &n.CreatedAt,
 			&expected, &nTakes, &reconciled, &execSettled, &overheadSettled); err != nil {
 			return Tree{}, fmt.Errorf("lineage: tree: %w", err)
 		}
@@ -113,6 +130,10 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 			n.Seed = &v
 		}
 		n.Lossy, n.Inferred = lossy == 1, inferred == 1
+		n.AlsoFrom = []AlsoFrom{}
+		if tKind.Valid {
+			n.Transform = &TransformRef{Kind: tKind.String, TransformID: n.ID, SpecHash: tHash.String}
+		}
 		if parent.Valid {
 			n.ParentID = &parent.String
 		}
@@ -148,6 +169,9 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 	}
 	if rootNode == nil {
 		return Tree{}, ErrNotFound
+	}
+	if err := s.alsoFrom(ctx, root, nodes); err != nil {
+		return Tree{}, err
 	}
 	for id, kids := range children {
 		sort.SliceStable(kids, func(a, b int) bool {
@@ -199,4 +223,28 @@ func DisplayCost(expected, nTakes int64, exec, overhead sql.NullInt64, reconcile
 		basis = reconciledCost
 	}
 	return money.MicroUSD(exec.Int64 + share), basis
+}
+
+// alsoFrom annotates the transform nodes of one tree with the inputs that are not their ledger parent (D-T1-5). The
+// annotated track gains no child edge: the tree is built from parent_track_id alone.
+func (s *Service) alsoFrom(ctx context.Context, root string, nodes map[string]*Node) error {
+	rows, err := s.st.R.QueryContext(ctx, `SELECT ti.transform_id, ti.track_id, ti.role
+		FROM transform_inputs ti JOIN tracks t ON t.id = ti.transform_id
+		WHERE t.root_track_id = ? AND (t.parent_track_id IS NULL OR ti.track_id <> t.parent_track_id)
+		ORDER BY ti.transform_id, ti.ord`, root)
+	if err != nil {
+		return fmt.Errorf("lineage: also_from: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id string
+		var a AlsoFrom
+		if err := rows.Scan(&id, &a.TrackID, &a.Role); err != nil {
+			return fmt.Errorf("lineage: also_from: %w", err)
+		}
+		if n := nodes[id]; n != nil {
+			n.AlsoFrom = append(n.AlsoFrom, a)
+		}
+	}
+	return rows.Err()
 }
