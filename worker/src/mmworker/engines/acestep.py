@@ -1,12 +1,11 @@
-"""The ACE-Step 1.5 engine (engine id acestep15) behind the adapter protocol (C154.4, E2a tasks; E2-PW3 adds the E2b branches).
+"""The ACE-Step 1.5 engine (engine id acestep15) behind the adapter protocol (C154.4, E2a + E2b).
 
 Importing this module needs neither torch nor ACE-Step: the real ACE-Step API is imported lazily inside
 `load_backend`, and everything else talks to a `Backend` (the real one, or `FakeAceStep` in tests and selftest).
 
 Facts this module encodes (E2-P0a, pinned ACE-Step v0.1.8):
   * the adapter, not ACE-Step, supplies the instruction string of every task and enforces which DiT class may run
-    which task (turbo: text2music, repaint, extend; base: complete, extract). This build renders ENABLED_TASKS;
-    the others answer TASK_UNAVAILABLE;
+    which task (turbo: text2music, repaint, extend; base: complete, extract);
   * `initialize_service` overwrites the `.py` files of `checkpoints/<dit>/`, so each DiT directory is a real
     directory: weights symlinked in, the pinned code's `.py` files copied in (nothing is written afterwards);
   * ACE-Step does not clamp the duration: MM_ACESTEP_MAX_SECONDS is the guard;
@@ -55,13 +54,16 @@ DEFAULT_ROOT = "/tmp/acestep"  # noqa: S108 - a per-process scratch tree, rebuil
 DEFAULT_MAX_SECONDS = 480  # 20..24 GB tier; 600 only on larger cards (preflight enforces)
 SAMPLE_RATE = 48000
 REF_FRAMES = 30 * SAMPLE_RATE  # a reference clip passes upstream untouched only at exactly this length
+LRC_SEED = 42  # the seed the upstream UI uses for the alignment pass
+LRC_MAX_BYTES = 1 << 20
+_LRC_LINE = re.compile(r"^\[\d{2,}:\d{2}\.\d{2,3}\]")
 _REV = re.compile(r"[0-9a-f]{40}")
 
 # task -> DiT class that renders it. `extend` is a repaint over silence appended to the source (turbo).
 TASK_CLASS = {"text2music": "turbo", "repaint": "turbo", "extend": "turbo", "complete": "base", "extract": "base"}
-# Tasks this build renders (E2a). E2-PW3 adds extend, complete and extract, and the LRC pass.
-ENABLED_TASKS = frozenset({"text2music", "repaint"})
-LRC_ENABLED = False
+# Tasks this build renders, and whether it runs the LRC alignment pass. E2-PW2 shipped text2music and repaint only.
+ENABLED_TASKS = frozenset(TASK_CLASS)
+LRC_ENABLED = True
 # task -> ACE-Step task_type
 UPSTREAM_TASK = {"text2music": "text2music", "repaint": "repaint", "extend": "repaint", "complete": "complete",
                  "extract": "extract"}
@@ -385,6 +387,9 @@ _REQUIRED = _COMMON - {"bpm", "keyscale", "timesignature", "lrc"}
 _TASK_KEYS = {  # (required extras, optional extras)
     "text2music": ({"duration_ds"}, {"ref"}),
     "repaint": ({"src", "repaint_from_ds", "repaint_to_ds"}, {"ref"}),
+    "extend": ({"src", "extend_ds"}, set()),
+    "complete": ({"src", "tracks", "guidance_milli"}, set()),
+    "extract": ({"src", "tracks", "guidance_milli"}, set()),
 }
 _KEY = re.compile(r"[A-G][#b]? (Major|Minor)")
 _LANG = re.compile(r"[a-z]{2,8}")
@@ -416,7 +421,9 @@ class Plan:
     config: dict[str, Any]  # GenerationConfig kwargs
     seconds: float  # expected output length
     src_s: float | None = None
+    pad_s: float | None = None  # extend: seconds of silence appended to the source
     ref: bool = False
+    lrc: bool = False
     resolved: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -480,12 +487,17 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
     for k in ("instrumental", "thinking"):
         if not isinstance(request[k], bool):
             raise ValueError(f"{k} must be a boolean")
-    if request.get("lrc", False) is not False and not LRC_ENABLED:  # the LRC pass is E2b
+    if request.get("lrc", False) is not False and not LRC_ENABLED:
         raise WorkerError("TASK_UNAVAILABLE", "lrc is not supported by this worker build")
+    lrc = request.get("lrc", False)
+    if not isinstance(lrc, bool):
+        raise ValueError("lrc must be a boolean")
     if request["instrumental"] and request["lyrics"]:
         raise ValueError("instrumental requests carry no lyrics")
     if request["thinking"] and task != "text2music":
         raise ValueError("thinking is a text2music option")
+    if lrc and (task != "text2music" or request["instrumental"] or not request["lyrics"]):
+        raise ValueError("lrc needs a text2music request with lyrics")
     _int(request, "seed", 0, 9007199254740991)
     if "bpm" in request:
         _int(request, "bpm", 30, 300)
@@ -494,12 +506,16 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
     if "timesignature" in request and request["timesignature"] not in ("2", "3", "4", "6"):
         raise ValueError("timesignature must be 2, 3, 4 or 6")
     steps = _int(request, "inference_steps", 8, 64)
-    if steps != 8:
+    if cls == "turbo" and steps != 8:
         raise ValueError("turbo renders in exactly 8 steps")
-    if "guidance_milli" in request:
+    if cls == "base":
+        if not 32 <= steps <= 64:
+            raise ValueError("base steps must be 32..64")
+        guidance = _int(request, "guidance_milli", 1000, 15000)
+    elif "guidance_milli" in request:
         raise ValueError("guidance_milli is a base-class parameter")
 
-    src_s = None
+    src_s = pad_s = None
     if "src" in request:
         src = _obj(request, "src", {"track_id": 0, "master_sha256": 0, "duration_ds": 0})
         src_s = _int(src, "duration_ds", 1, 6000) / 10
@@ -514,33 +530,47 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
         if not a < b <= int(src_s * 10):
             raise ValueError("the repaint range must be inside the source")
         start, end, seconds = a / 10, b / 10, src_s
-    else:  # unreachable: only ENABLED_TASKS get here
-        raise ValueError(f"unknown task {task!r}")
+    elif task == "extend":
+        pad_s = _int(request, "extend_ds", 30, 900) / 10
+        start, end, seconds = src_s, src_s + pad_s, src_s + pad_s
+    else:
+        tracks = request["tracks"]
+        limit = 1 if task == "extract" else 4
+        if (not isinstance(tracks, list) or not 1 <= len(tracks) <= limit or len(set(map(str, tracks))) != len(tracks)
+                or any(t not in TRACK_NAMES for t in tracks)):
+            raise ValueError(f"tracks must be 1..{limit} distinct names from the ACE-Step track list")
+        seconds = src_s
     if seconds > max_seconds:
         raise ValueError(f"the render would be {seconds:g} s, over this worker's {max_seconds} s cap")
 
     gen, config, resolved = resolve_params(request["engine_params_version"], cls, UPSTREAM_TASK[task],
                                            thinking=request["thinking"])
     gen.update(
-        task_type=UPSTREAM_TASK[task], instruction=_instruction(task, []),
+        task_type=UPSTREAM_TASK[task], instruction=_instruction(task, request.get("tracks", [])),
         caption=request["caption"], lyrics="[Instrumental]" if request["instrumental"] else request["lyrics"],
         instrumental=request["instrumental"], vocal_language=request["vocal_language"], seed=request["seed"],
-        inference_steps=steps, guidance_scale=1.0)
+        inference_steps=steps, guidance_scale=guidance / 1000 if cls == "base" else 1.0)
     for k, name in (("bpm", "bpm"), ("keyscale", "keyscale"), ("timesignature", "timesignature")):
         if k in request:
             gen[name] = request[k]
     if task == "text2music":
         gen["duration"] = seconds
+    elif task == "complete":
+        gen["duration"] = src_s  # complete still reads `duration`; the source length is what it renders
     if start is not None:
         gen.update(repainting_start=start, repainting_end=end)
     config.update(use_random_seed=False, seeds=[request["seed"]], audio_format="flac")
     resolved.update(task_type=gen["task_type"], instruction=gen["instruction"], inference_steps=steps,
                     guidance_scale=gen["guidance_scale"], seed=request["seed"])
-    return Plan(task, cls, dict(request), gen, config, seconds, src_s, ref, resolved)
+    return Plan(task, cls, dict(request), gen, config, seconds, src_s, pad_s, ref, lrc, resolved)
 
 
 def _instruction(task: str, tracks: Sequence[str]) -> str:
-    return INSTRUCTIONS["repaint" if task == "repaint" else "text2music"]
+    if task == "extract":
+        return INSTRUCTIONS["extract"].format(TRACK_NAME=tracks[0].upper())
+    if task == "complete":
+        return INSTRUCTIONS["complete"].format(TRACK_CLASSES=" | ".join(t.upper() for t in tracks))
+    return INSTRUCTIONS["repaint" if task in ("repaint", "extend") else "text2music"]
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -564,9 +594,9 @@ def _mismatch(msg: str) -> WorkerError:
     return WorkerError("INPUT_MISMATCH", msg)
 
 
-def check_source(path: Path, expect_s: float, tmp: Path) -> Path:
-    """The fetched source as a `.flac` path ACE-Step can load (the fetched file has no extension). Its length must
-    match the request."""
+def check_source(path: Path, expect_s: float, tmp: Path, pad_s: float | None) -> Path:
+    """The fetched source as a `.flac` path ACE-Step can load (the fetched file has no extension); for extend the
+    source padded with `pad_s` of digital silence (same rate and channels, 24-bit). Its length must match the request."""
     sf = _sf()
     try:
         info = sf.info(str(path))
@@ -575,7 +605,15 @@ def check_source(path: Path, expect_s: float, tmp: Path) -> Path:
     seconds = info.frames / info.samplerate if info.samplerate else 0.0
     if abs(seconds - expect_s) > 0.15:
         raise _mismatch(f"src_audio is {seconds:.2f} s, the request says {expect_s:.1f} s")
-    return _alias(path, tmp / "src.flac")
+    out = tmp / ("src_padded.flac" if pad_s else "src.flac")
+    if not pad_s:
+        return _alias(path, out)
+    import numpy as np  # noqa: PLC0415
+
+    data, rate = sf.read(str(path), dtype="float32", always_2d=True)
+    silence = np.zeros((int(round(pad_s * rate)), data.shape[1]), dtype=np.float32)
+    sf.write(str(out), np.concatenate([data, silence]), rate, format="FLAC", subtype="PCM_24")
+    return out
 
 
 def _alias(path: Path, out: Path) -> Path:
@@ -605,6 +643,17 @@ def check_reference(path: Path, tmp: Path) -> Path:
     return _alias(path, tmp / "reference.flac")
 
 
+def valid_lrc(text: Any) -> str | None:
+    """The LRC text normalised (no blank lines, trailing newline) or None when it must be dropped."""
+    if not isinstance(text, str):
+        return None
+    lines = [ln.rstrip() for ln in text.splitlines() if ln.strip()]
+    if not lines or not all(_LRC_LINE.match(ln) for ln in lines):
+        return None
+    out = "\n".join(lines) + "\n"
+    return out if len(out.encode()) <= LRC_MAX_BYTES else None
+
+
 def _jsonable(v: Any) -> Any:
     if isinstance(v, bool) or v is None or isinstance(v, (str, int)):
         return v
@@ -622,9 +671,9 @@ class AceResult:
 
     truncated = None  # not reported by ACE-Step: the output schema requires null
 
-    def __init__(self, audio: Any, rate: int, plan: Plan, info: dict[str, Any],
+    def __init__(self, audio: Any, rate: int, plan: Plan, info: dict[str, Any], lrc: str | None,
                  timings: Mapping[str, float] | None = None) -> None:
-        self.audio, self.rate, self.plan, self.info = audio, rate, plan, info
+        self.audio, self.rate, self.plan, self.info, self.lrc = audio, rate, plan, info, lrc
         self.timings: dict[str, float] = dict(timings or {})  # merged into mm-result `timings` by the handler
 
     def save_artifacts(self, directory: str | Path) -> None:
@@ -640,6 +689,8 @@ class AceResult:
         result = {**self.info, "audio": {"channels": got.channels, "frames": got.frames, "subtype": got.subtype,
                                          "sample_rate": got.samplerate}}
         (d / "result.json").write_text(json.dumps(_jsonable(result), sort_keys=True, separators=(",", ":")))
+        if self.lrc is not None:
+            (d / "lyrics.lrc").write_text(self.lrc, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -754,7 +805,7 @@ class Adapter:
         plan = params
         gen = dict(plan.gen)
         if plan.src_s is not None:
-            gen["src_audio"] = str(check_source(inputs["src_audio"], plan.src_s, tmp))
+            gen["src_audio"] = str(check_source(inputs["src_audio"], plan.src_s, tmp, plan.pad_s))
         if plan.ref:
             gen["reference_audio"] = str(check_reference(inputs["reference_audio"], tmp))
 
@@ -788,22 +839,50 @@ class Adapter:
             raise RuntimeError("ACE-Step returned audio that is not [channels, samples]")
         pcm = pcm.T.copy()  # soundfile wants [frames, channels]
         extra = getattr(res, "extra_outputs", None) or {}
+        lrc, lrc_s = None, None
+        if plan.lrc:  # must run right after the render, on the same handler: it needs extra_outputs
+            if cancelled():
+                raise Cancelled()
+            t1 = self._clock()
+            lrc = self._lrc(b.dits[plan.cls], plan, extra, pcm.shape[0] / rate)
+            lrc_s = self._clock() - t1
         meta = extra.get("lm_metadata") or {}
         info = {
             "success": True, "error": None, "status_message": redact.message(getattr(res, "status_message", "")),
             "task": plan.task, "seed": plan.request["seed"], "sample_rate": rate,
             "time_costs": {**{str(k): v for k, v in (extra.get("time_costs") or {}).items()
-                              if isinstance(v, (int, float))}, "generate_s": gen_s},
+                              if isinstance(v, (int, float))}, "generate_s": gen_s, **({"lrc_s": lrc_s} if lrc_s is not None else {})},
             "lm_metadata": {k: meta.get(k) for k in ("bpm", "keyscale", "duration", "vocal_language")},
             "models": {"dit": f"{REPO_BASE if plan.cls == 'base' else REPO_MAIN}:{layout()['dits'][plan.cls]['dir']}",
                        "lm": f"{REPO_MAIN}:{params_version(plan.request['engine_params_version'])['lm']['model']}"},
-            "params": plan.resolved,
+            "params": plan.resolved, "lrc": {"requested": plan.lrc, "produced": lrc is not None},
         }
         timings: dict[str, float] = {**cost_timings(extra.get("time_costs") or {}), **vram}
+        if lrc_s is not None:
+            timings["lrc_s"] = round(lrc_s, 3)
         util = getattr(b, "lm_gpu_memory_utilization_milli", None)
         if isinstance(util, int) and not isinstance(util, bool):
             timings["lm_gpu_memory_utilization_milli"] = util
-        return AceResult(pcm, rate, plan, info, timings)
+        return AceResult(pcm, rate, plan, info, lrc, timings)
+
+    def _lrc(self, dit: Any, plan: Plan, extra: Mapping[str, Any], seconds: float) -> str | None:
+        """The alignment call (never fabricated: any failure or malformed text drops the lyrics.lrc file)."""
+        keys = ("pred_latents", "encoder_hidden_states", "encoder_attention_mask", "context_latents",
+                "lyric_token_idss")
+        if any(extra.get(k) is None for k in keys):
+            return None
+        lang = plan.request["vocal_language"]
+        try:
+            out = dit.get_lyric_timestamp(
+                pred_latent=extra["pred_latents"][0:1], encoder_hidden_states=extra["encoder_hidden_states"][0:1],
+                encoder_attention_mask=extra["encoder_attention_mask"][0:1],
+                context_latents=extra["context_latents"][0:1], lyric_token_ids=extra["lyric_token_idss"][0:1],
+                total_duration_seconds=float(seconds), vocal_language="en" if lang == "unknown" else lang,
+                inference_steps=plan.request["inference_steps"], seed=LRC_SEED)
+        except Exception as e:
+            _log(f"lrc alignment failed: {type(e).__name__}")
+            return None
+        return valid_lrc(out.get("lrc_text")) if isinstance(out, dict) and out.get("success") else None
 
     def env_fingerprint(self, environ: Mapping[str, str]) -> dict[str, object]:
         fp = envmod.fingerprint(self.weights, environ)
@@ -826,9 +905,12 @@ class FakeAceStep:
 
     def __init__(self, classes: Sequence[str] = ("turbo", "base"), *, max_audio_s: float | None = None,
                  success: bool = True, error: str | None = None, rate: int = SAMPLE_RATE,
+                 lrc_text: str | None = "[00:00.00]la la\n[00:04.00]la\n", lrc_error: bool = False,
                  on_generate: Callable[[Callable[..., Any]], None] | None = None, tensor_kind: str = "numpy",
                  progress_script: Sequence[float] | None = None, lm_util_milli: int | None = None) -> None:
         self.dits = {c: FakeDit() for c in classes}
+        for d in self.dits.values():
+            d.lrc_text, d.lrc_error = lrc_text, lrc_error
         self.llm = object()
         self.max_audio_s, self.success, self.error, self.rate = max_audio_s, success, error, rate
         self.on_generate, self.tensor_kind = on_generate, tensor_kind
@@ -873,12 +955,24 @@ class FakeAceStep:
             "time_costs": {"lm_total_time": 0.1, "dit_total_time_cost": 0.2, "pipeline_total_time": 0.3},
             "lm_metadata": {"bpm": params.get("bpm") or 120, "keyscale": params.get("keyscale") or "C Major",
                             "duration": seconds, "vocal_language": params.get("vocal_language", "en")},
+            "pred_latents": [[0.0]], "encoder_hidden_states": [[0.0]], "encoder_attention_mask": [[1]],
+            "context_latents": [[0.0]], "lyric_token_idss": [[1]],
         }
         return _FakeResult([{"path": "", "tensor": tensor, "sample_rate": self.rate}], "", extra, True)
 
 
 class FakeDit:
-    """A DiT handler double (E2-PW3 adds get_lyric_timestamp)."""
+    lrc_text: str | None = None
+    lrc_error = False
+
+    def __init__(self) -> None:
+        self.lrc_calls: list[dict[str, Any]] = []
+
+    def get_lyric_timestamp(self, **kw: Any) -> dict[str, Any]:
+        self.lrc_calls.append(kw)
+        if self.lrc_error:
+            raise RuntimeError("alignment failed")
+        return {"lrc_text": self.lrc_text, "success": self.lrc_text is not None, "error": None}
 
 
 @dataclass
