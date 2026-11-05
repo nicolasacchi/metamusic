@@ -192,3 +192,69 @@ func TestGlobalWorkerBound_Table(t *testing.T) {
 		t.Errorf("X = %d", got.XMicro)
 	}
 }
+
+func TestParseSeeds_Strict(t *testing.T) {
+	t.Parallel()
+	for name, raw := range map[string]string{
+		"garbage":       `{`,
+		"unknown field": `{"version":1,"sourced":false,"engines":{},"x":1}`,
+		"bad version":   `{"version":2,"sourced":false,"engines":{}}`,
+		"raw gpu name":  `{"version":1,"sourced":false,"engines":{"e":{"turbo":{"NVIDIA RTX A5000":{"rtf_milli":100,"load_s":1}}}}}`,
+		"rtf range":     `{"version":1,"sourced":false,"engines":{"e":{"turbo":{"A5000":{"rtf_milli":1,"load_s":1}}}}}`,
+		"load range":    `{"version":1,"sourced":false,"engines":{"e":{"turbo":{"A5000":{"rtf_milli":100,"load_s":601}}}}}`,
+	} {
+		if _, err := parseSeeds([]byte(raw)); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	if _, err := parseSeeds(engineRTFSeedJSON); err != nil {
+		t.Errorf("committed seed: %v", err)
+	}
+}
+
+// TestEngineRTF_StoreErrors: a failing store is an error, never a silent seed fallback or an ok answer.
+func TestEngineRTF_StoreErrors(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, ok, err := r.s.EngineRTF(ctx, r.st.R, "acestep15", "turbo", []string{"A5000"}); err == nil || ok {
+		t.Errorf("EngineRTF: %v %v", ok, err)
+	}
+	if _, err := r.s.EngineRTFRows(ctx, r.st.R, "acestep15"); err == nil {
+		t.Error("EngineRTFRows swallowed the error")
+	}
+	err := r.tx(func(tx *sql.Tx) error {
+		return r.s.RecordEngineRTF(ctx, tx, "acestep15", "turbo", "A5000", "job:1", 1000, 1000)
+	})
+	if err == nil {
+		t.Error("RecordEngineRTF swallowed the error")
+	}
+}
+
+func TestEngineRTF_NoClassesKnown(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := context.Background()
+	if _, _, ok, err := r.s.EngineRTF(ctx, r.st.R, "other", "turbo", nil); ok || err != nil {
+		t.Errorf("unknown engine, no classes: %v %v", ok, err)
+	}
+	r.exec(`INSERT INTO engine_rtf VALUES('other','base','L4',700,15,1,'2026-10-14T12:00:00.000Z','job:j',NULL)`)
+	if rtf, load, ok, _ := r.s.EngineRTF(ctx, r.st.R, "other", "base", nil); !ok || rtf != 700 || load != 15 {
+		t.Errorf("measured-only engine: %d %d %v", rtf, load, ok)
+	}
+}
+
+// TestRecordEngineRTF_RowCheckFailure: a failing write (here a missing table) surfaces as an error.
+func TestRecordEngineRTF_RowCheckFailure(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.exec(`DROP TRIGGER engine_rtf_no_delete`)
+	r.exec(`DROP TABLE engine_rtf`)
+	err := r.tx(func(tx *sql.Tx) error {
+		return r.s.RecordEngineRTF(context.Background(), tx, "acestep15", "turbo", "A5000", "job:1", 1000, 1000)
+	})
+	if err == nil {
+		t.Error("write into a missing table succeeded")
+	}
+}

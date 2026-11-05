@@ -33,9 +33,11 @@ type seedFile struct {
 	Engines map[string]map[string]map[string]seedCell `json:"engines"`
 }
 
-var loadSeeds = sync.OnceValues(func() (seedFile, error) {
+var loadSeeds = sync.OnceValues(func() (seedFile, error) { return parseSeeds(engineRTFSeedJSON) })
+
+func parseSeeds(raw []byte) (seedFile, error) {
 	var f seedFile
-	dec := json.NewDecoder(bytes.NewReader(engineRTFSeedJSON))
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&f); err != nil {
 		return seedFile{}, fmt.Errorf("spend: engine_rtf seed: %w", err)
@@ -53,7 +55,7 @@ var loadSeeds = sync.OnceValues(func() (seedFile, error) {
 		}
 	}
 	return f, nil
-})
+}
 
 type measuredRow struct {
 	rawClass            string
