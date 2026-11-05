@@ -64,7 +64,11 @@ func (r *Runner) phasePoll(ctx context.Context, rep *StepReport) error {
 			if now.Before(hold) || (!last.IsZero() && now.Before(last.Add(r.pollInterval(j.State, a))) && !now.Before(last)) {
 				continue
 			}
-			st, perr := r.o.Backend.Poll(ctx, provider.Ref{Backend: r.o.Backend.Name(), ID: a.Ref})
+			be, ok := r.backendFor(a.Backend)
+			if !ok {
+				continue // the attempt's backend left the set: it settles by its time bound
+			}
+			st, perr := be.Poll(ctx, provider.Ref{Backend: be.Name(), ID: a.Ref})
 			rep.Polled++
 			if perr != nil {
 				if err := r.pollFailed(ctx, j, a, perr); err != nil {
@@ -127,7 +131,7 @@ func (r *Runner) pollFailed(ctx context.Context, j jobRec, a attRec, err error) 
 	}
 	r.mu.Unlock()
 	if errors.Is(err, provider.ErrAccess) || errors.Is(err, provider.ErrEndpointNotFound) {
-		if terr := r.tripProvider(ctx, "provider_access", map[string]any{"op": "poll"}); terr != nil {
+		if terr := r.tripProviderOn(ctx, r.backendName(a.Backend), "provider_access", map[string]any{"op": "poll"}); terr != nil {
 			return terr
 		}
 	}
@@ -236,7 +240,7 @@ func (r *Runner) recordObservation(ctx context.Context, tx *sql.Tx, f store.Leas
 		sets, args = append(sets, "last_queued_at = ?"), append(args, store.FormatTime(f.Now))
 	}
 	if st.WorkerID != "" && a.WorkerKey == "" && len(r.o.MeterKey) > 0 {
-		sets, args = append(sets, "worker_key = ?"), append(args, workerKey(r.o.MeterKey, st.WorkerID))
+		sets, args = append(sets, "worker_key = ?"), append(args, r.workerKeyFor(a.Backend, st.WorkerID))
 	}
 	if len(sets) == 0 {
 		return nil
