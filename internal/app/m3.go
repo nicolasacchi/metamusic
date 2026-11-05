@@ -16,6 +16,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/ears"
+	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
@@ -195,6 +196,7 @@ type m3Services struct {
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
 	Hub        *jobs.Hub
+	Engines    engine.Registry
 }
 
 // buildM3 constructs the generation services (C39 amended): backend selection, the provider_state
@@ -227,6 +229,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 	m.Lineage = lineage.New(lineage.Options{Store: st, Now: now})
 	m.Spend = spend.New(spend.Options{Store: st, Now: now, NewID: newID, Rand: rnd, ConfirmKey: sec.ConfirmKey()})
 	engines := registry.Default(registry.Options{})
+	m.Engines = engines
 	m.Generation = generation.New(generation.Options{
 		Store: st, Library: lib, Lineage: m.Lineage, Spend: m.Spend, Engines: engines, Gate: m.Gate, Notify: notifier,
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,

@@ -101,14 +101,19 @@ func nullableSchema[S any](r huma.Registry) *huma.Schema {
 type Patch struct {
 	Style    *string        `json:"style,omitempty" minLength:"1" maxLength:"4000"`
 	Lyrics   *string        `json:"lyrics,omitempty" minLength:"1" maxLength:"20000"`
-	Cot      *string        `json:"cot,omitempty" enum:"full,melody,off"`
+	Cot      *string        `json:"cot,omitempty" enum:"full,melody,off,think"`
 	ABC      NullableString `json:"abc,omitzero" doc:"A string sets the score, null removes it, absent keeps it"`
 	CFGScale NullableNumber `json:"cfg_scale,omitzero" doc:"A number sets it, null removes it, absent keeps it"`
+	// acestep15 parents only (any use with a yue2 parent is <field>_forbidden; abc and cfg_scale with an acestep15 parent likewise)
+	BPM           *int     `json:"bpm,omitempty" minimum:"30" maximum:"300"`
+	KeyScale      *string  `json:"keyscale,omitempty" maxLength:"12"`
+	TimeSignature *string  `json:"timesignature,omitempty" enum:"2,3,4,6"`
+	DurationS     *float64 `json:"duration_s,omitempty"`
 }
 
 // ItemIn is the one input shape behind every create path; estimate_variant builds one item.
 type ItemIn struct {
-	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr" doc:"How the take list is built; see the modes table"`
+	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems" doc:"How the take list is built; see the modes table"`
 	ParentTrackID  *string    `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`
 	ParentTrackIDs []string   `json:"parent_track_ids,omitempty" nullable:"false" minItems:"2" maxItems:"50" doc:"from_template: the mothers"`
 	DraftIDs       []string   `json:"draft_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"from_draft: the drafts to render"`
@@ -119,6 +124,9 @@ type ItemIn struct {
 	Seeds          []int64    `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10" doc:"Explicit seeds (unique, 0..2^53-1); override n_seeds"`
 	Title          *string    `json:"title,omitempty" minLength:"1" maxLength:"200" doc:"compose_new, single-take items"`
 	PatchID        *string    `json:"patch_id,omitempty"`
+	Engine         string     `json:"engine,omitempty" enum:"yue2,acestep15"`
+	Edit           *EditIn    `json:"edit,omitempty"`
+	Reference      *RefIn     `json:"reference,omitempty"`
 }
 
 // ---- money building blocks ----
@@ -186,6 +194,14 @@ type TakePlan struct {
 	TimeoutS       int     `json:"timeout_s"`
 	MaxMicroUSD    int64   `json:"max_micro_usd"`
 	MaxUSD         string  `json:"max_usd"`
+
+	// E2 (C149.2)
+	Engine      string         `json:"engine"`
+	Task        *string        `json:"task"`
+	TaskClass   *string        `json:"task_class" enum:"turbo,base"`
+	Edit        *TakeEdit      `json:"edit,omitempty"`
+	Reference   *TakeReference `json:"reference,omitempty"`
+	CrossEngine bool           `json:"cross_engine"`
 }
 
 // EstimateItem groups the takes one input item expanded to.
@@ -198,7 +214,7 @@ type EstimateItem struct {
 // EstimateWarning is a lint or planner warning for one take.
 type EstimateWarning struct {
 	TakeIndex int    `json:"take_index"`
-	Code      string `json:"code"`
+	Code      string `json:"code" doc:"Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated"`
 	Field     string `json:"field"`
 	Severity  string `json:"severity" enum:"warning,error"`
 	Message   string `json:"message"`
@@ -316,6 +332,9 @@ type JobSummary struct {
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 	Cost          JobCost `json:"cost"`
+	// E2 (C149, C166): acestep15 jobs name their task and, for an extract job, the stem; null otherwise.
+	Task *string `json:"task"`
+	Stem *string `json:"stem"`
 }
 
 // JobTruncated says which streams hit the token limit.
@@ -675,8 +694,18 @@ type meterShape MeterView
 // Schema implements huma.SchemaProvider.
 func (MeterOrNull) Schema(r huma.Registry) *huma.Schema { return nullableSchema[meterShape](r) }
 
-// ProviderStatus never contains the endpoint id, keys, provider refs or worker ids.
+// ProviderStatus never contains the endpoint id, keys, provider refs or worker ids. The embedded body is the M3 object of the
+// default backend (compatibility, C151.3); Backends holds one object per backend (the default backend included) and
+// GlobalBound the bound across the endpoints (C151.5).
 type ProviderStatus struct {
+	ProviderStatusBody
+	Engine      string          `json:"engine"`
+	Backends    []BackendStatus `json:"backends" nullable:"false"`
+	GlobalBound GlobalBound     `json:"global_bound"`
+}
+
+// ProviderStatusBody is the status of one backend.
+type ProviderStatusBody struct {
 	Backend              string               `json:"backend"`
 	GenerationEnabled    bool                 `json:"generation_enabled"`
 	DisabledReason       *string              `json:"disabled_reason"`
@@ -751,8 +780,9 @@ type LineageTree struct {
 
 type estimateGenerationIn struct {
 	Body struct {
-		Engine *string  `json:"engine,omitempty" enum:"yue2" doc:"Default yue2"`
-		Items  []ItemIn `json:"items" minItems:"1" maxItems:"20"`
+		Engine  *string          `json:"engine,omitempty" enum:"yue2,acestep15" doc:"Default yue2; one engine per batch"`
+		Items   []ItemIn         `json:"items" minItems:"1" maxItems:"20"`
+		Options *EstimateOptions `json:"options,omitempty"`
 	}
 }
 
@@ -876,6 +906,7 @@ type updateProviderStateIn struct {
 		Armed     *bool  `json:"armed,omitempty"`
 		ResetTrip *bool  `json:"reset_trip,omitempty" doc:"Clear the open trip (no-op when none is open)"`
 		Reason    string `json:"reason" minLength:"1" maxLength:"500"`
+		Backend   string `json:"backend,omitempty"`
 	}
 }
 
