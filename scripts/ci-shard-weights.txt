@@ -40,6 +40,7 @@
 ./internal/connectors 26
 ./internal/dsp 25
 ./internal/trackctx 20
+./internal/transform 19
 ./internal/duels 19
 ./internal/httpserver 18
 ./internal/backup 18
@@ -105,6 +106,7 @@
 ./internal/sequencer 1
 ./internal/subsonic/subsonictest 1
 ./internal/tape/tapetest 1
+./internal/transform/transformtest 1
 ./deploy 1
 ./internal/clock/clocktest 1
 ./internal/engine 1

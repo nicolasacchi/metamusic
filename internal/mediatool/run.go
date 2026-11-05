@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -28,6 +29,10 @@ type RunOpts struct {
 	MaxStdout int64         // required (> 0) when Stdout is nil: cap for captured stdout; exceeded => process killed, ErrOutputLimit
 	MaxStderr int           // ring buffer size (default 64 KiB); errors carry its last 2 KiB
 	Stdin     io.Reader     // fed to the tool's stdin; nil => /dev/null. Run does not wait for a reader blocked in Read.
+	// Group runs the tool as its own process group and kills the whole group (SIGKILL) on timeout or cancel, so helpers the
+	// tool forked die with it. Opt-in (T1: fluidsynth and long ffmpeg runs of a cancellable transform); every other caller
+	// keeps the single-process behaviour.
+	Group bool
 }
 
 // ErrOutputLimit is returned when captured stdout exceeds RunOpts.MaxStdout.
@@ -128,6 +133,19 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 	}
 	cmd := exec.CommandContext(ctx, bin, args...) // #nosec G204 -- argv rule in package doc
 	cmd.WaitDelay = waitDelay
+	if o.Group {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error {
+			if cmd.Process == nil {
+				return nil
+			}
+			// the group id is the pid (Setpgid with Pgid 0); a negative pid addresses the whole group
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+				return cmd.Process.Kill()
+			}
+			return nil
+		}
+	}
 	cmd.Stdin = nil // /dev/null
 	if o.Stdin != nil {
 		// Feed the tool through our own OS pipe rather than cmd.Stdin = reader: exec waits for its copier goroutine, which

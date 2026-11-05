@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -136,6 +137,9 @@ func buildRows(ix *Index, in input) ([]soundRow, Parsed) {
 	if !in.reference() {
 		rows = append(rows, soundRow{Facet: "engine", Value: in.Engine, Origin: "recipe"})
 		parsed = Parse(ix, in.Style)
+		if in.Engine == engineDSP {
+			parsed.BPM = 0 // a BPM in an ancestor's style text does not describe the transformed audio: tempo is measured only
+		}
 		for _, m := range parsed.Matches {
 			rows = append(rows, soundRow{Facet: m.Facet, Value: m.Value, Origin: "style"})
 		}
@@ -236,7 +240,7 @@ func loadTake(ctx context.Context, q querier, id string) (in input, ok bool, err
 	err = q.QueryRowContext(ctx, `SELECT r.engine, r.style, r.lyrics, t.bpm_declared, sc.bpm
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id LEFT JOIN scores sc ON sc.track_id = t.id WHERE t.id = ?`, id).
 		Scan(&in.Engine, &in.Style, &in.Lyrics, &declared, &plan)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return in, false, nil
 	}
 	if err != nil {
@@ -251,7 +255,14 @@ func loadTake(ctx context.Context, q querier, id string) (in input, ok bool, err
 	if in.Engine == "acestep15" {
 		in.VocalLanguage = vocalLanguage(ctx, q, id)
 	}
-	if strings.TrimSpace(in.Style) == "" {
+	if in.Engine == engineDSP {
+		// C211.6 (L1 amendment): a transform Take's recipe is a spec with no style text; its style-derived facets come from the
+		// nearest non-dsp ancestor. A score_render root has none: only the engine facet and the measured tempo_band remain.
+		if in.Style, err = ancestorStyle(ctx, q, id); err != nil {
+			return in, false, err
+		}
+	}
+	if strings.TrimSpace(in.Style) == "" && in.Engine != engineDSP {
 		terms, err := stringsOf(ctx, q, `SELECT term FROM track_style_terms WHERE track_id = ? ORDER BY term`, id)
 		if err != nil {
 			return in, false, err
@@ -583,4 +594,42 @@ func (s *Service) sweep(ctx context.Context, tx *sql.Tx, env Env, limit int, sca
 		}
 	}
 	return ch, nil
+}
+
+// engineDSP is recipes.engine of a transform Take (library.EngineDSP; this package does not import library).
+const engineDSP = "dsp"
+
+// ancestorStyle is the style text of the nearest non-dsp ancestor of take id, "" when the chain ends without one (a
+// score_render root) or at a reference recipe.
+func ancestorStyle(ctx context.Context, q querier, id string) (string, error) {
+	cur := id
+	for range 64 { // a lineage chain is a few levels deep; the bound only guards a corrupt cycle
+		var parent sql.NullString
+		if err := q.QueryRowContext(ctx, `SELECT parent_track_id FROM tracks WHERE id = ?`, cur).Scan(&parent); err != nil {
+			return "", fmt.Errorf("sounds: ancestor: %w", err)
+		}
+		if !parent.Valid {
+			return "", nil
+		}
+		cur = parent.String
+		var engine, style string
+		if err := q.QueryRowContext(ctx, `SELECT r.engine, r.style FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, cur).Scan(&engine, &style); err != nil {
+			return "", fmt.Errorf("sounds: ancestor: %w", err)
+		}
+		switch engine {
+		case engineDSP:
+			continue
+		case "unknown":
+			return "", nil
+		}
+		if strings.TrimSpace(style) != "" {
+			return style, nil
+		}
+		terms, err := stringsOf(ctx, q, `SELECT term FROM track_style_terms WHERE track_id = ? ORDER BY term`, cur)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(terms, ", "), nil
+	}
+	return "", nil
 }
