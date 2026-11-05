@@ -1,0 +1,7 @@
+# pcm_sha256 of the 24-bit render of each case on a fixed synthetic input, seed 7. linux/amd64, GOAMD64=v1.
+ensemble cistern_nodry 258bddf077f65a3cbe5a85fd2258b8e745a8237b439969fb35ff440320f507e5
+ensemble hangar 533dfd0a4ecee1a7dfe442c69a05f8051287c5268746e01428147aabf104c76b
+glacier default 8a0235532388cbd0c745be03f962313adeae34a22c1d6054d0323b5413eb454b
+glacier wide_window 4d0aa53ba28350ee54fc1e19acebc04e5babe2f26db73c3d3b50550eb12119d4
+shepard down_bars 1532f767c652481c038c14fa528509a4801e5d58adebb9233db737ea56293251
+shepard up a9d06645f9e665396454365c0bb17762c65544766c2b223abbcb91f5fe5bf032
