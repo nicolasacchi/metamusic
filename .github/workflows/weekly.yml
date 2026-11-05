@@ -9,6 +9,11 @@ on:
 
 permissions: {}
 
+env:
+  # BEGIN T1-I1 toolchain pin (D-T1-3d): bit-exact DSP goldens need GOAMD64=v1 (v3 emits FMA); pinned explicitly, as in ci.yml.
+  GOAMD64: v1
+  # END T1-I1 toolchain pin
+
 jobs:
   runpod-openapi-drift:
     # The public management OpenAPI document (api.runpod.io/v2) against the committed snapshot, through the same
@@ -152,3 +157,90 @@ jobs:
           cache: true
       - name: sequencer property tests, full instance counts
         run: go test -shuffle=on -count=1 -timeout 25m -run 'TestPlan_NeverWorse|TestPlan_ExactPermutationInvariant|TestPlan_ExactMatchesBruteForce|TestSequencer_HeuristicGap|TestSequencer_Heuristic_LargeN' ./internal/sequencer
+
+  # BEGIN T1-I1 weekly jobs (transforms): determinism goldens, fast-tier budget, informational bench
+  t1-determinism:
+    # D-T1-3 / C215.2: the committed pcm_sha256 goldens (TestDeterminism_Golden_AMD64: skips off amd64, FAILS when GOAMD64 is not
+    # v1) and the same hashes under GODEBUG=cpu.fma=off (TestDeterminism_FMAOff, which re-executes itself). Plain mode, no -race.
+    # A run in which a determinism test SKIPS is a failure: the runner is amd64, so a skip means the guard is not guarding.
+    # Until the D lanes land there is no such test: that is a warning, not a pass (the pattern matches nothing, so nothing is claimed).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: toolchain pin is in effect
+        run: |
+          [ "$(go env GOAMD64)" = v1 ] || { echo "::error::GOAMD64 is $(go env GOAMD64), not v1"; exit 1; }
+          [ "$(go env GOARCH)" = amd64 ] || { echo "::error::runner is $(go env GOARCH), not amd64"; exit 1; }
+          go version
+      - name: TestDeterminism_*
+        run: |
+          set -euo pipefail
+          listed=$(go test -list '^TestDeterminism_' ./internal/... | grep -E '^TestDeterminism_' || true)
+          if [ -z "$listed" ]; then
+            echo "::warning::no TestDeterminism_* test exists yet (the DSP lanes add them); nothing was verified"
+            exit 0
+          fi
+          echo "$listed"
+          go test -count=1 -v -timeout 15m -run '^TestDeterminism_' ./internal/... | tee "$RUNNER_TEMP/det.txt"
+          if grep -E -- '--- SKIP' "$RUNNER_TEMP/det.txt"; then echo "::error::a determinism test was skipped on an amd64 runner"; exit 1; fi
+          for t in $listed; do grep -q -- "--- PASS: $t " "$RUNNER_TEMP/det.txt" || { echo "::error::$t did not pass"; exit 1; }; done
+
+  t1-fast-budget:
+    # C215.2 TestFast_Budget as a timing check on the `go test -json` stream: the dsp and score packages (short tier, no -race,
+    # as in `make dsp`) must keep every test under 3 s on a CI runner (the target is 1 s at 16 kHz). Over budget fails the run:
+    # the response is to move the slowest tests to a weekly-only tier, not to raise the limit.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: dsp and score tests, -short, per-test timings
+        run: |
+          set -euo pipefail
+          pkgs=$(go list ./... | grep -E '/internal/(dsp|score)(/|$)')
+          go test -short -count=1 -json $pkgs > "$RUNNER_TEMP/fast.jsonl" || { echo "::error::dsp/score short tests failed"; exit 1; }
+          over=$(jq -rs '[.[] | select(.Test != null and .Action == "pass" and .Elapsed > 3) | "\(.Package) \(.Test) \(.Elapsed)s"] | .[]' "$RUNNER_TEMP/fast.jsonl")
+          if [ -n "$over" ]; then echo "::error::dsp/score tests over the 3 s fast-tier budget:"; echo "$over"; exit 1; fi
+          echo "slowest tests:"; jq -rs '[.[] | select(.Test != null and .Action == "pass")] | sort_by(-.Elapsed) | .[:5][] | "\(.Elapsed)s \(.Package) \(.Test)"' "$RUNNER_TEMP/fast.jsonl"
+
+  t1-transform-bench:
+    # C215.2: BenchmarkTransforms is informational (no threshold): one iteration per kind, results in the job summary so the
+    # trend is visible week to week. Absent until the transform lanes add it (-run '^$' keeps every test out of this job).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: BenchmarkTransforms
+        run: |
+          set -euo pipefail
+          go test -run '^$' -bench '^BenchmarkTransforms' -benchtime 1x -benchmem -timeout 25m ./internal/... | tee "$RUNNER_TEMP/bench.txt"
+          if grep -q '^Benchmark' "$RUNNER_TEMP/bench.txt"; then
+            { echo '### BenchmarkTransforms (informational)'; echo '```'; grep '^Benchmark' "$RUNNER_TEMP/bench.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::BenchmarkTransforms does not exist yet; nothing was measured"
+          fi
+  # END T1-I1 weekly jobs

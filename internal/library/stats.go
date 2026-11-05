@@ -150,7 +150,7 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 	if st.Tracks.ByStatus, err = s.countBy(ctx, `SELECT status, COUNT(*) FROM tracks GROUP BY status`); err != nil {
 		return st, err
 	}
-	if st.Tracks.ByOrigin, err = s.countBy(ctx, `SELECT origin, COUNT(*) FROM tracks GROUP BY origin`); err != nil {
+	if st.Tracks.ByOrigin, err = s.countBy(ctx, `SELECT CASE WHEN transform_id IS NOT NULL THEN 'transform' ELSE origin END AS o, COUNT(*) FROM tracks GROUP BY o`); err != nil {
 		return st, err
 	}
 	if err := r.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(duration_s),0),
