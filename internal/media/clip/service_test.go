@@ -201,10 +201,7 @@ func loggingFFmpeg(t testing.TB, realBin string) (bin, log string) {
 	dir := t.TempDir()
 	log = filepath.Join(dir, "calls.log")
 	bin = filepath.Join(dir, "ffmpeg")
-	script := "#!/bin/sh\necho call >> '" + log + "'\nexec '" + realBin + "' \"$@\"\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeFakeTool(t, bin, "echo call >> '"+log+"'\nexec '"+realBin+"' \"$@\"\n")
 	return bin, log
 }
 
