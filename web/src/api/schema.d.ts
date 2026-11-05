@@ -4628,12 +4628,12 @@ export interface components {
             /** @description How to adopt a not adopted engine (the CLI line, or the trial from E2c) */
             adopt_hint: string | null;
             adoption: components["schemas"]["EngineAdoption"];
-            /** @description null when no backend is configured for the engine */
+            /** @description absent when no backend is configured for the engine */
             backend?: components["schemas"]["EngineBackend"];
             caps: components["schemas"]["EngineCaps"];
             /** @description Registered in this process (MM_ACESTEP for acestep15) */
             enabled: boolean;
-            /** @description null for an engine without a verified-features file (yue2) */
+            /** @description absent for an engine without a verified-features file (yue2) */
             features?: components["schemas"]["EngineFeatures"];
             /** @example ACE-Step 1.5 */
             label: string;
@@ -5711,11 +5711,9 @@ export interface components {
             } | null;
             /** @description The master is an MP3; mp3 points at it */
             lossy: boolean;
-            /** @description Signed link to the take's lyrics.lrc; null when it has none */
             lrc?: components["schemas"]["LRCLink"];
             mp3: components["schemas"]["MP3Link"];
-            /** @description Signed links to the take's stem artifacts (E2b); empty when it has none */
-            stems: components["schemas"]["StemLink"][];
+            stems?: components["schemas"]["StemLink"][];
             track_id: string;
             /**
              * Format: int64

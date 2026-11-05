@@ -73,8 +73,8 @@ type mediaLinksOut struct {
 		Lossy     bool              `json:"lossy" doc:"The master is an MP3; mp3 points at it"`
 		MP3       MP3Link           `json:"mp3"`
 		Cover     *CoverLinksOrNull `json:"cover" doc:"Signed links to the track's deterministic cover art (512 and 1024 px); null while no cover service is wired"`
-		Stems     []StemLink        `json:"stems" nullable:"false" doc:"Signed links to the take's stem artifacts (E2b); empty when it has none"`
-		LRC       *LRCLink          `json:"lrc,omitempty" doc:"Signed link to the take's lyrics.lrc; null when it has none"`
+		Stems     []StemLink        `json:"stems,omitempty" nullable:"false"`
+		LRC       *LRCLink          `json:"lrc,omitempty"`
 	}
 }
 

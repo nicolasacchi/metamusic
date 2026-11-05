@@ -6999,7 +6999,7 @@
           },
           "backend": {
             "$ref": "#/components/schemas/EngineBackend",
-            "description": "null when no backend is configured for the engine"
+            "description": "absent when no backend is configured for the engine"
           },
           "caps": {
             "$ref": "#/components/schemas/EngineCaps"
@@ -7010,7 +7010,7 @@
           },
           "features": {
             "$ref": "#/components/schemas/EngineFeatures",
-            "description": "null for an engine without a verified-features file (yue2)"
+            "description": "absent for an engine without a verified-features file (yue2)"
           },
           "label": {
             "examples": [
@@ -10952,14 +10952,12 @@
             "type": "boolean"
           },
           "lrc": {
-            "$ref": "#/components/schemas/LRCLink",
-            "description": "Signed link to the take's lyrics.lrc; null when it has none"
+            "$ref": "#/components/schemas/LRCLink"
           },
           "mp3": {
             "$ref": "#/components/schemas/MP3Link"
           },
           "stems": {
-            "description": "Signed links to the take's stem artifacts (E2b); empty when it has none",
             "items": {
               "$ref": "#/components/schemas/StemLink"
             },
@@ -10981,8 +10979,7 @@
           "flac",
           "lossy",
           "mp3",
-          "cover",
-          "stems"
+          "cover"
         ],
         "type": "object"
       },

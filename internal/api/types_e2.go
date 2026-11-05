@@ -123,10 +123,10 @@ type EngineView struct {
 	Label       string          `json:"label" example:"ACE-Step 1.5"`
 	Enabled     bool            `json:"enabled" doc:"Registered in this process (MM_ACESTEP for acestep15)"`
 	Adoption    EngineAdoption  `json:"adoption"`
-	Backend     *EngineBackend  `json:"backend,omitempty" doc:"null when no backend is configured for the engine"`
+	Backend     *EngineBackend  `json:"backend,omitempty" doc:"absent when no backend is configured for the engine"`
 	Caps        EngineCaps      `json:"caps"`
 	TaskClasses []string        `json:"task_classes" nullable:"false" doc:"turbo and/or base: the model families the endpoint is provisioned for"`
-	Features    *EngineFeatures `json:"features,omitempty" doc:"null for an engine without a verified-features file (yue2)"`
+	Features    *EngineFeatures `json:"features,omitempty" doc:"absent for an engine without a verified-features file (yue2)"`
 	Warnings    []string        `json:"warnings" nullable:"false" doc:"Operator-facing reasons the engine is limited"`
 	// Selectable is what the engine picker needs: whether a generation of this engine can be estimated right now, and why not.
 	Selectable        bool    `json:"selectable"`
