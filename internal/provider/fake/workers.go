@@ -53,6 +53,7 @@ type worker struct {
 	used         bool      // NoWarmReuse: served once, never again
 	phantom      bool      // ExtraWorkersPerJob: billed, never serves
 	stuck        bool      // fake:stuck_worker
+	unhealthy    bool      // fake:init_fail: the worker exits at load and restarts; /health counts it UNHEALTHY
 	creatorBatch string
 	serves       []serve
 }
@@ -61,6 +62,8 @@ func (w *worker) alive() bool { return w.stop.IsZero() }
 
 func (w *worker) status(now time.Time) string {
 	switch {
+	case w.unhealthy:
+		return "UNHEALTHY"
 	case w.stuck:
 		return "RUNNING"
 	case now.Before(w.ready):
@@ -177,6 +180,8 @@ func (b *Backend) schedule(t time.Time) {
 			cold := time.Duration(b.o.ColdStartS) * time.Second
 			if j.mk.hasCold {
 				cold = j.mk.cold
+			} else if j.mk.slowLoad {
+				cold = b.slowLoad(j.mk)
 			}
 			w = b.newWorker(j, t, cold, false)
 			if b.o.Adversarial.ExtraWorkersPerJob {
@@ -415,7 +420,7 @@ func (b *Backend) Submit(ctx context.Context, t provider.TakeSpec) (provider.Ref
 	sum := sha256.Sum256([]byte(t.JobID + "/" + t.AttemptID))
 	j := &job{
 		seq: b.seq, id: fmt.Sprintf("fake-%06d-%s", b.seq, hex.EncodeToString(sum[:4])), spec: t, mk: mk, attempt: n,
-		batch: t.JobID, submitted: now, eligible: now.Add(queueDelay), doomed: n <= mk.queueExpire, state: provider.Queued, raw: "IN_QUEUE",
+		batch: t.JobID, submitted: now, eligible: now.Add(queueDelay), doomed: n <= mk.queueExpire || mk.initFail, state: provider.Queued, raw: "IN_QUEUE",
 	}
 	if b.o.BatchOf != nil {
 		j.batch = b.o.BatchOf(t.JobID)
@@ -429,11 +434,15 @@ func (b *Backend) Submit(ctx context.Context, t provider.TakeSpec) (provider.Ref
 		b.wseq++
 		b.workers = append(b.workers, &worker{id: fmt.Sprintf("fakew-%04d", b.wseq), start: now, ready: now, stuck: true, phantom: true, creatorBatch: j.batch})
 	}
+	if mk.initFail && !b.hasUnhealthy() {
+		b.wseq++
+		b.workers = append(b.workers, &worker{id: fmt.Sprintf("fakew-%04d", b.wseq), start: now, ready: now, stuck: true, phantom: true, unhealthy: true, creatorBatch: j.batch})
+	}
 	b.applyDrift()
 	if (n == 1 && mk.submit == "accepted_5xx") || b.acceptThenFail(t.JobID, t.AttemptID) {
 		return provider.Ref{}, acceptedThenFailed()
 	}
-	return provider.Ref{Backend: provider.BackendFake, ID: j.id}, nil
+	return provider.Ref{Backend: b.Name(), ID: j.id}, nil
 }
 
 func (b *Backend) hasStuck() bool {
@@ -446,7 +455,7 @@ func (b *Backend) hasStuck() bool {
 }
 
 func (b *Backend) lookup(r provider.Ref) *job {
-	if r.Backend != provider.BackendFake {
+	if r.Backend != b.Name() {
 		return nil
 	}
 	return b.byID[r.ID]
