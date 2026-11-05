@@ -82,6 +82,9 @@ type markers struct {
 	runBetweenPolls    bool
 	noStart            bool
 	sameAudio          bool
+	initFail           bool          // fake:init_fail: the worker cannot load and never accepts a job (C153.4)
+	slowLoad           bool          // fake:slow_load[=secs]: the cold start exceeds its allowance
+	slowLoadFor        time.Duration // 0 = the default overshoot
 }
 
 const maxMarkerSeconds = 1e6
@@ -158,18 +161,30 @@ func parseMarkers(style string) markers {
 			m.noStart = true
 		case "same_audio":
 			m.sameAudio = true
+		case "init_fail":
+			m.initFail = true
+		case "slow_load":
+			m.slowLoad = true
+			if d, ok := secs(); ok {
+				m.slowLoadFor = d
+			}
 		}
 	}
 	return m
 }
 
-// styleOf extracts the recipe style from a canonical request; "" when it has none.
+// styleOf extracts the text that carries the fault markers from a canonical request: the yue2 style, or for an
+// ACE-Step request (which has none) its caption; "" when it has neither.
 func styleOf(request json.RawMessage) string {
 	var r struct {
-		Style string `json:"style"`
+		Style   string `json:"style"`
+		Caption string `json:"caption"`
 	}
 	if json.Unmarshal(request, &r) != nil {
 		return ""
+	}
+	if r.Style == "" {
+		return r.Caption
 	}
 	return r.Style
 }

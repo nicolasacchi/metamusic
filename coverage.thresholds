@@ -55,3 +55,10 @@ internal/atlas          93
 internal/dsp/...        70
 internal/transform      80
 # END T1-I1
+# BEGIN E2-I1 (E2 packages). internal/engine/acestep: measured 97.4 (F1c), floor measured - 1 rounded down. internal/engineadopt is a stub
+# until E2-OP (measured on the stub: 11.1), so its floor sits just under the stub figure and only proves the pattern matches; INT-B
+# raises it to measured - 1 on the merged branch. internal/enginetrial and internal/suites (E2c) are NOT listed: the gate refuses a
+# pattern that matches no package, so the lane that creates a package adds its floor. internal/engine/registry is covered by internal/....
+internal/engine/acestep 96
+internal/engineadopt    10
+# END E2-I1

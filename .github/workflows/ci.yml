@@ -44,10 +44,32 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # The Azure Ubuntu mirror is sometimes slow (about 30 s per package, `Ign:` timeouts): fail fast, retry, and keep the
+      # downloaded .debs in a runner-owned dir that actions/cache restores, so only a cold cache touches the mirror.
+      - name: apt config (retries, cached archive dir)
+        run: |
+          mkdir -p "$HOME/apt-archives/partial"
+          chmod -R a+rwX "$HOME/apt-archives"
+          sudo tee /etc/apt/apt.conf.d/99ci-cache >/dev/null <<EOF
+          Dir::Cache::Archives "$HOME/apt-archives";
+          APT::Keep-Downloaded-Packages "true";
+          Acquire::Retries "5";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          EOF
+      - name: cache apt packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/apt-archives
+            !~/apt-archives/partial
+            !~/apt-archives/lock
+          key: apt-ubuntu-24.04-v1-flac
       - name: apt flac
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flac
+          sudo chown -R "$USER" "$HOME/apt-archives"
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -125,6 +147,16 @@ jobs:
           restore-keys: uv-${{ runner.os }}-
       - run: uv sync --frozen --group dev
       - run: uv run pytest --cov=mmworker --cov-fail-under=90
+      # BEGIN E2-I1 (C162.1): 90 % on the ACE-Step engine adapter, models.py and inputs.py (the whole-package gate above hides a weak
+      # module behind strong ones). Skipped until PW2 adds the adapter; make worker-acestep runs the same command.
+      - name: ACE-Step worker modules coverage
+        run: |
+          if [ -f src/mmworker/engines/acestep.py ]; then
+            uv run pytest --cov=mmworker.engines.acestep --cov=mmworker.models --cov=mmworker.inputs --cov-fail-under=90
+          else
+            echo "::notice::src/mmworker/engines/acestep.py does not exist yet; nothing to gate"
+          fi
+      # END E2-I1
 
   lint:
     runs-on: ubuntu-24.04
@@ -271,10 +303,32 @@ jobs:
       - name: install web deps
         working-directory: web
         run: bun install --frozen-lockfile
+      # The Azure Ubuntu mirror is sometimes slow (about 30 s per package, `Ign:` timeouts): fail fast, retry, and keep the
+      # downloaded .debs in a runner-owned dir that actions/cache restores, so only a cold cache touches the mirror.
+      - name: apt config (retries, cached archive dir)
+        run: |
+          mkdir -p "$HOME/apt-archives/partial"
+          chmod -R a+rwX "$HOME/apt-archives"
+          sudo tee /etc/apt/apt.conf.d/99ci-cache >/dev/null <<EOF
+          Dir::Cache::Archives "$HOME/apt-archives";
+          APT::Keep-Downloaded-Packages "true";
+          Acquire::Retries "5";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          EOF
+      - name: cache apt packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/apt-archives
+            !~/apt-archives/partial
+            !~/apt-archives/lock
+          key: apt-ubuntu-24.04-v1-${{ hashFiles('web/bun.lock') }}
       - name: apt flac
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flac
+          sudo chown -R "$USER" "$HOME/apt-archives"
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -310,7 +364,9 @@ jobs:
           key: playwright-${{ runner.os }}-firefox-${{ steps.pw.outputs.version }}
       - name: install firefox (chrome is preinstalled on the runner)
         working-directory: web
-        run: bunx playwright install --with-deps firefox
+        run: |
+          bunx playwright install --with-deps firefox
+          sudo chown -R "$USER" "$HOME/apt-archives"
       # The secret-leak check (GET /__e2e/leaks must be []) runs in the Playwright global-setup
       # teardown. No HAR recording or upload: network captures could hold credentials.
       - name: e2e

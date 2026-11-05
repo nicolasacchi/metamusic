@@ -63,7 +63,7 @@
 
 <h1>Duels</h1>
 <NewDuelForm {navigate} />
-<SmartRound />
+<SmartRound {navigate} />
 
 <section aria-label="Next duel">
   {#if loading}

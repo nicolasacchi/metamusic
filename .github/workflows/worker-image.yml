@@ -27,6 +27,9 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/nicolasacchi/metamusic-worker
+  # BEGIN E2-I1
+  IMAGE_ACESTEP: ghcr.io/nicolasacchi/metamusic-worker-acestep
+  # END E2-I1
 
 jobs:
   build-smoke:
@@ -144,3 +147,169 @@ jobs:
             echo "$DIGEST"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # BEGIN E2-I1 ACE-Step worker image (C162.1, C154.6): worker/Dockerfile.acestep, build context worker/, Python 3.11 and
+  # torch 2.10.0+cu128 (E2-P0a). Built in CI only; ACE-Step code never runs on a developer machine.
+  # Never a required check and never triggered by a Go-only PR: the workflow path filter is worker/**, and the first step of the
+  # job narrows that to the files that change the image (see the list below). The job is also tolerant of the Dockerfile not
+  # existing yet (PW2 adds it): without the file every step after "decide" is skipped and the job passes.
+  # The digest the ACE-Step endpoint uses is committed by hand in deploy/worker-acestep-image.digest; CI never edits it.
+  acestep-build-smoke:
+    if: github.repository == 'nicolasacchi/metamusic'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: decide whether the ACE-Step image is affected
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          build=false
+          if [ ! -f worker/Dockerfile.acestep ]; then
+            echo "worker/Dockerfile.acestep does not exist yet: nothing to build"
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            build=true
+          else
+            case "$EVENT" in
+              pull_request) base=$PR_BASE ;;
+              *) base=$PUSH_BEFORE ;;
+            esac
+            if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              build=true
+            elif git diff --name-only "$base" HEAD -- \
+                 worker/Dockerfile.acestep worker/Dockerfile.dockerignore worker/src worker/pyproject.toml worker/uv.lock \
+                 worker/third_party_allow.txt worker/contract/ACESTEP_COMMIT \
+                 .github/workflows/worker-image.yml | grep -q .; then
+              build=true
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "ACE-Step image build: $build"
+      - name: free disk space (CUDA wheels are large; plain deletes, nothing third-party)
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null || true
+          df -h /
+      - name: read the ACE-Step pin
+        if: steps.decide.outputs.build == 'true'
+        id: pin
+        run: |
+          pin=$(tr -d '[:space:]' < worker/contract/ACESTEP_COMMIT)
+          printf '%s' "$pin" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::worker/contract/ACESTEP_COMMIT is not a 40-hex commit"; exit 1; }
+          echo "acestep=$pin" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.decide.outputs.build == 'true'
+      - name: build (no push)
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: worker
+          file: worker/Dockerfile.acestep
+          load: true
+          push: false
+          tags: ${{ env.IMAGE_ACESTEP }}:smoke
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            ACESTEP_COMMIT=${{ steps.pin.outputs.acestep }}
+          cache-from: type=gha,scope=worker-image-acestep
+          cache-to: type=gha,scope=worker-image-acestep,mode=max
+      - name: smoke Python 3.11, imports and engine label
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          docker run --rm --entrypoint python "$IMAGE_ACESTEP:smoke" -c "import sys; assert sys.version_info[:2] == (3, 11), sys.version"
+          docker run --rm --entrypoint python "$IMAGE_ACESTEP:smoke" -c "import acestep, mmworker"
+          [ "$(docker image inspect "$IMAGE_ACESTEP:smoke" --format '{{ index .Config.Labels "io.metamusic.engine" }}')" = acestep15 ]
+      - name: smoke torch 2.10.0 with CUDA build >= 12.8
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          docker run --rm --entrypoint python "$IMAGE_ACESTEP:smoke" -c "import sys, torch; v = torch.version.cuda; print('torch', torch.__version__, 'cuda', v); ok = torch.__version__.startswith('2.10.0') and v and tuple(int(x) for x in v.split('.')[:2]) >= (12, 8); sys.exit(0 if ok else 1)"
+      - name: smoke no weights baked beyond the allowed base DiT, notices present
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          docker run --rm --entrypoint sh "$IMAGE_ACESTEP:smoke" -c 'test -s /opt/mm/THIRD_PARTY_NOTICES'
+          # only the hub cache may hold weights (the base DiT when models_mode = bundle_cached_base_baked, D-E2-5); nothing else
+          docker run --rm --entrypoint sh "$IMAGE_ACESTEP:smoke" -c '! find / -xdev \( -path /opt/mm/hf-cache -o -path /proc -o -path /sys \) -prune -o -type f \( -name "*.safetensors" -o -name "*.ckpt" -o -name "*.pth" -o -name "*.gguf" \) -size +50M -print | grep -q .'
+      - name: image size (bound 14 GB)
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          size=$(docker image inspect "$IMAGE_ACESTEP:smoke" --format '{{.Size}}')
+          echo "image size: $size bytes ($((size / 1048576)) MiB)"
+          echo "ACE-Step worker image size: $((size / 1048576)) MiB" >> "$GITHUB_STEP_SUMMARY"
+          [ "$size" -le 14000000000 ] || { echo "::error::image above the 14 GB first-pull bound"; exit 1; }
+      - name: smoke selftest mode
+        if: steps.decide.outputs.build == 'true'
+        run: docker run --rm -e MODE=selftest -e ENGINE=acestep15 "$IMAGE_ACESTEP:smoke"
+
+  acestep-publish:
+    needs: acestep-build-smoke
+    if: github.repository == 'nicolasacchi/metamusic' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.acestep-build-smoke.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null || true
+      - name: read the ACE-Step pin
+        id: pin
+        run: echo "acestep=$(tr -d '[:space:]' < worker/contract/ACESTEP_COMMIT)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build and push (layers come from the acestep-build-smoke cache)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: worker
+          file: worker/Dockerfile.acestep
+          push: true
+          tags: |
+            ${{ env.IMAGE_ACESTEP }}:${{ github.sha }}
+            ${{ env.IMAGE_ACESTEP }}:main
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            ACESTEP_COMMIT=${{ steps.pin.outputs.acestep }}
+          provenance: mode=max
+          cache-from: type=gha,scope=worker-image-acestep
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_ACESTEP }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: digest to the job summary
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            echo "### ACE-Step worker image"
+            echo
+            echo "Digest for deploy/worker-acestep-image.digest (committed by hand; CI never edits it):"
+            echo
+            echo '```'
+            echo "$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+  # END E2-I1

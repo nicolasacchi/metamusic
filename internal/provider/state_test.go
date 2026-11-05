@@ -122,3 +122,82 @@ func TestGate_ArmedAndTripped(t *testing.T) {
 		t.Fatalf("armed+tripped: %+v %v", s, err)
 	}
 }
+
+// TestGateSet_PerBackendState: every backend reads only its own provider_state row, quote and trip (C151.1). Arming,
+// disarming or tripping one never arms or affects another.
+func TestGateSet_PerBackendState(t *testing.T) {
+	t.Parallel()
+	st := openGateStore(t)
+	now := func() time.Time { return gateNow }
+	gy := provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeFake}, now)
+	ga := provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeFake, Backend: provider.BackendFakeACEStep, Engine: provider.EngineACEStep}, now)
+	gs, err := provider.NewGateSet(provider.BackendFake, gy, ga)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	armed := func() (y, a bool) {
+		sy, err := gs.StateFor(ctx, provider.BackendFake)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sa, err := gs.StateFor(ctx, provider.BackendFakeACEStep)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sy.Backend != provider.BackendFake || sa.Backend != provider.BackendFakeACEStep {
+			t.Fatalf("backend names %q %q", sy.Backend, sa.Backend)
+		}
+		return sy.Armed && !sy.Tripped, sa.Armed && !sa.Tripped
+	}
+	if y, a := armed(); y || a {
+		t.Fatal("no rows: both disarmed")
+	}
+	putState(t, st, provider.BackendFake, 1, nil)
+	putState(t, st, provider.BackendFakeACEStep, 0, nil)
+	if y, a := armed(); !y || a {
+		t.Fatalf("arming yue2 must not arm acestep: %v %v", y, a)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := st.W.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`UPDATE provider_state SET armed = 1 WHERE backend = ?`, provider.BackendFakeACEStep)
+	exec(`UPDATE provider_state SET armed = 0 WHERE backend = ?`, provider.BackendFake)
+	if y, a := armed(); y || !a {
+		t.Fatalf("disarming yue2 must not disarm acestep: %v %v", y, a)
+	}
+	exec(`UPDATE provider_state SET armed = 1 WHERE backend = ?`, provider.BackendFake)
+	exec(`INSERT INTO provider_trips(id, backend, tripped_at, reason, details_json, actions_json) VALUES ('t2', ?, ?, 'crash_loop', '{}', '[]')`,
+		provider.BackendFakeACEStep, store.FormatTime(gateNow))
+	if y, a := armed(); !y || a {
+		t.Fatalf("a trip on acestep must leave yue2 armed: %v %v", y, a)
+	}
+	if s, _ := gs.StateFor(ctx, provider.BackendFake); s.Tripped || s.TripID != "" {
+		t.Errorf("yue2 sees acestep's trip: %+v", s)
+	}
+}
+
+// TestGate_ForeignQuoteNeverEnables: a quote cached for another backend does not enable this backend's gate.
+func TestGate_ForeignQuoteNeverEnables(t *testing.T) {
+	t.Parallel()
+	st := openGateStore(t)
+	q := goodQuote(gateNow.Add(-time.Minute))
+	q.Backend = provider.BackendRunPod
+	putState(t, st, provider.BackendRunPodACEStep, 1, &q)
+	g := provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeRunPod, Backend: provider.BackendRunPodACEStep, Engine: provider.EngineACEStep, KeysLoaded: true, ColdStartS: 180, MaxRuntime: 900 * time.Second}, func() time.Time { return gateNow })
+	s, err := g.State(context.Background())
+	if err != nil || s.Enabled || s.Reason != provider.ReasonEndpointConfig {
+		t.Fatalf("%+v %v", s, err)
+	}
+	q.Backend = provider.BackendRunPodACEStep
+	q.Endpoint.ScalerValue = "240"
+	st2 := openGateStore(t)
+	putState(t, st2, provider.BackendRunPodACEStep, 1, &q)
+	g2 := provider.NewGate(st2.R, provider.GateConfig{Mode: provider.ModeRunPod, Backend: provider.BackendRunPodACEStep, KeysLoaded: true, ColdStartS: 180, MaxRuntime: 900 * time.Second}, func() time.Time { return gateNow })
+	if s, err := g2.State(context.Background()); err != nil || !s.Enabled {
+		t.Fatalf("own quote must enable: %+v %v", s, err)
+	}
+}
