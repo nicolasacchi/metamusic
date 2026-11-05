@@ -708,6 +708,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the render engines
+         * @description Each engine with its adoption state, backend (armed, tripped, cold start), effective capabilities (modes, limits, stem names), verified features and whether a generation of it can be estimated right now, and why not.
+         */
+        get: operations["list_engines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports/jsonl": {
         parameters: {
             query?: never;
@@ -1957,7 +1977,7 @@ export interface paths {
         };
         /**
          * Search tracks
-         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform) and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
+         * @description Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform), engine and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.
          */
         get: operations["search_tracks"];
         put?: never;
@@ -2935,6 +2955,86 @@ export interface components {
         AxisPair: {
             x: components["schemas"]["AxisInfo"];
             y: components["schemas"]["AxisInfo"];
+        };
+        BackendStatus: {
+            armed: boolean;
+            armed_changed_at: string;
+            armed_changed_by: components["schemas"]["PrincipalRef"];
+            backend: string;
+            balance: components["schemas"]["Balance"];
+            capabilities: components["schemas"]["ProviderCapabilities"];
+            /** Format: int64 */
+            cold_start_s: number;
+            disabled_reason: string | null;
+            endpoint: {
+                drift: components["schemas"]["DriftView"][];
+                excluded_types: string[];
+                flashboot: string;
+                gpu_pools: string[];
+                /** Format: int64 */
+                idle_timeout_s: number | null;
+                image_digest_short: string;
+                name: string;
+                /** Format: int64 */
+                workers_max: number;
+                /** Format: int64 */
+                workers_min: number;
+            } | null;
+            engine: string;
+            generation_enabled: boolean;
+            /** Format: int64 */
+            kill_slack_s: number;
+            last_reconcile_at: string | null;
+            /** Format: int64 */
+            max_runtime_s: number;
+            meter: {
+                /** Format: int64 */
+                billed_seconds_24h: number;
+                /** Format: int64 */
+                lifetimes_24h: number;
+                /** Format: int64 */
+                max_workers_seen_24h: number;
+            } | null;
+            price: {
+                observed_at: string;
+                /** Format: int64 */
+                per_hour_micro_usd: number;
+                per_hour_usd: string;
+            } | null;
+            /** Format: int64 */
+            price_margin_ppm: number;
+            quote_observed_at: string | null;
+            restored_unreconciled: boolean;
+            rtf: components["schemas"]["RTFView"][];
+            /** Format: int64 */
+            skew_ms: number | null;
+            trip: {
+                /** @description What the reconciler did */
+                actions: string[];
+                id: string;
+                reason: string;
+                reset_at: string | null;
+                tripped_at: string;
+            } | null;
+            /** @description At most 5 */
+            trips_recent: components["schemas"]["TripView"][];
+            /** Format: int64 */
+            ttl_s: number;
+            workers: {
+                /** Format: int64 */
+                idle: number;
+                /** Format: int64 */
+                initializing: number;
+                /** @description RFC 3339 UTC; null unless a worker is initializing */
+                initializing_since: string | null;
+                observed_at: string;
+                /** Format: int64 */
+                running: number;
+                /** Format: int64 */
+                throttled: number;
+                /** Format: int64 */
+                unhealthy: number;
+            } | null;
         };
         BacklogStats: {
             collections: components["schemas"]["CollectionCount"][];
@@ -4395,6 +4495,15 @@ export interface components {
             add?: components["schemas"]["CrateMember"][] | null;
             remove?: components["schemas"]["CrateMember"][] | null;
         };
+        EditIn: {
+            /** Format: double */
+            extend_s?: number;
+            /** Format: double */
+            from_s?: number;
+            /** Format: double */
+            to_s?: number;
+            tracks?: ("backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds")[];
+        };
         EditRecordSlotsInBody: {
             ops: components["schemas"]["SlotOp"][] | null;
             /** Format: int64 */
@@ -4419,6 +4528,129 @@ export interface components {
             /** Format: double */
             mean_lufs: number | null;
             slot_id: string;
+        };
+        EngineAdoption: {
+            /** @description RFC 3339 UTC */
+            changed_at: string | null;
+            changed_by: string | null;
+            reason: string | null;
+            /** @enum {string} */
+            state: "adopted" | "not_adopted" | "none";
+            /** @description The deciding trial (E2c); null for seed and cli rows */
+            trial_id: string | null;
+            /** @enum {string|null} */
+            via: "seed" | "cli" | "trial" | null;
+        };
+        EngineBackend: {
+            armed: boolean;
+            /** Format: int64 */
+            cold_start_s: number;
+            /** @description backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable */
+            disabled_reason: string | null;
+            /** @description Generation can work at all (keys, quote, endpoint) */
+            enabled: boolean;
+            /** Format: int64 */
+            max_runtime_s: number;
+            /** @description fake, fake-acestep, runpod-serverless or runpod-serverless-acestep */
+            name: string;
+            trip_reason: string | null;
+            tripped: boolean;
+        };
+        EngineCaps: {
+            complete: boolean;
+            extend: boolean;
+            /** Format: int64 */
+            extend_max_s: number;
+            /** Format: int64 */
+            extend_min_s: number;
+            /** @description Accepts a key and scale */
+            key: boolean;
+            lora: boolean;
+            lrc: boolean;
+            /**
+             * Format: int64
+             * @description The effective cap: the minimum of the verified maximum over the endpoint's pools
+             */
+            max_seconds: number;
+            /** Format: int64 */
+            min_seconds: number;
+            plan_score: boolean;
+            reference_audio: boolean;
+            /**
+             * Format: int64
+             * @description Longest reference window, seconds
+             */
+            reference_max_s: number;
+            render_from_score: boolean;
+            /** @description Repaint a time range of a take */
+            repaint_interval: boolean;
+            /** Format: int64 */
+            repaint_max_s: number;
+            /** Format: int64 */
+            repaint_min_s: number;
+            /** Format: int64 */
+            sample_rate: number;
+            stem_names: string[];
+            stems: boolean;
+            /** @description The generation modes the engine offers now, sorted */
+            tasks: string[];
+            /** @description Accepts bpm and time signature */
+            tempo: boolean;
+            text2song: boolean;
+        };
+        EngineFeatures: {
+            /** @enum {string|null} */
+            models_mode: "bundle_only" | "bundle_cached_base_baked" | "two_cached" | null;
+            pools: components["schemas"]["EnginePool"][];
+            reference_reproducible: boolean;
+            seed_reproducible: boolean;
+            /** @description Engine tasks a canary proved */
+            tasks: string[];
+            /** @description Capabilities the engine supports but no canary proved yet (shown as not yet verified) */
+            unverified: string[];
+            /** @description 1970-01-01 until a canary ran */
+            verified_at: string;
+        };
+        EngineList: {
+            /** @example yue2 */
+            default_engine: string;
+            /** @description yue2 first, then the other engines by name */
+            engines: components["schemas"]["EngineView"][];
+        };
+        EnginePool: {
+            /** Format: int64 */
+            max_s: number;
+            pool: string;
+            /** @description A passing canary names this maximum; false is the documented default */
+            verified: boolean;
+        };
+        EngineView: {
+            /** @description How to adopt a not adopted engine (the CLI line, or the trial from E2c) */
+            adopt_hint: string | null;
+            adoption: components["schemas"]["EngineAdoption"];
+            /** @description absent when no backend is configured for the engine */
+            backend?: components["schemas"]["EngineBackend"];
+            caps: components["schemas"]["EngineCaps"];
+            /** @description Registered in this process (MM_ACESTEP for acestep15) */
+            enabled: boolean;
+            /** @description absent for an engine without a verified-features file (yue2) */
+            features?: components["schemas"]["EngineFeatures"];
+            /** @example ACE-Step 1.5 */
+            label: string;
+            /** @description yue2 or acestep15 */
+            name: string;
+            /** @description The open engine trial (E2c); always null before */
+            open_trial_id: string | null;
+            selectable: boolean;
+            /** @description turbo and/or base: the model families the endpoint is provisioned for */
+            task_classes: string[];
+            /**
+             * @description Why selectable is false; the first failing check in this order
+             * @enum {string|null}
+             */
+            unavailable_reason: "not_enabled" | "not_adopted" | "backend_absent" | "backend_disabled" | "disarmed" | "tripped" | null;
+            /** @description Operator-facing reasons the engine is limited */
+            warnings: string[];
         };
         EnsembleParams: {
             /** @description A number sets it, null means minus infinity, absent keeps the default */
@@ -4500,17 +4732,22 @@ export interface components {
         };
         EstimateGenerationInBody: {
             /**
-             * @description Default yue2
+             * @description Default yue2; one engine per batch
              * @enum {string}
              */
-            engine?: "yue2";
+            engine?: "yue2" | "acestep15";
             items: components["schemas"]["ItemIn"][] | null;
+            options?: components["schemas"]["EstimateOptions"];
         };
         EstimateItem: {
             /** Format: int64 */
             index: number;
             mode: string;
             takes: components["schemas"]["TakePlan"][];
+        };
+        EstimateOptions: {
+            backend?: string;
+            trial_id?: string;
         };
         EstimatePrice: {
             gpu_pools: string[];
@@ -4531,6 +4768,7 @@ export interface components {
             title?: string;
         };
         EstimateWarning: {
+            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated */
             code: string;
             field: string;
             message: string;
@@ -4749,6 +4987,16 @@ export interface components {
             /** Format: double */
             window_s?: number | null;
         };
+        GlobalBound: {
+            /** @description The backends with a live workers.max above zero */
+            backends: string[];
+            /** Format: int64 */
+            g_micro_per_hour: number;
+            g_usd_per_hour: string;
+            /** Format: int64 */
+            x_micro: number;
+            x_usd: string;
+        };
         GrantEffective: {
             /** Format: int64 */
             auto_approve_micro_usd: number;
@@ -4845,11 +5093,14 @@ export interface components {
         ItemIn: {
             /** @description from_draft: the drafts to render */
             draft_ids?: string[];
+            edit?: components["schemas"]["EditIn"];
+            /** @enum {string} */
+            engine?: "yue2" | "acestep15";
             /**
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
@@ -4864,6 +5115,7 @@ export interface components {
             patch_id?: string;
             /** @description compose_new: the song request, as sent */
             recipe?: Record<string, never>;
+            reference?: components["schemas"]["RefIn"];
             /** @description Explicit seeds (unique, 0..2^53-1); override n_seeds */
             seeds?: number[];
             /**
@@ -4941,8 +5193,10 @@ export interface components {
             started_at: string | null;
             /** @enum {string} */
             state: "awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired";
+            stem: string | null;
             /** Format: int64 */
             take_index: number;
+            task: string | null;
             /** Format: int64 */
             timeout_s: number;
             timings: components["schemas"]["JobTimings"];
@@ -5002,8 +5256,10 @@ export interface components {
             seed: number;
             /** @enum {string} */
             state: "awaiting_confirmation" | "queued" | "submitting" | "starting" | "generating" | "transferring" | "ingesting" | "cancelling" | "failing" | "completed" | "failed" | "cancelled" | "expired";
+            stem: string | null;
             /** Format: int64 */
             take_index: number;
+            task: string | null;
             title: string;
             track_id: string | null;
             updated_at: string;
@@ -5034,6 +5290,17 @@ export interface components {
             };
             /** Format: int64 */
             tags: number;
+        };
+        LRCInfo: {
+            /** Format: int64 */
+            bytes: number;
+            sha256: string;
+        };
+        LRCLink: {
+            /** Format: int64 */
+            bytes: number;
+            sha256: string;
+            url: string;
         };
         LadderCounts: {
             /** Format: int64 */
@@ -5187,6 +5454,8 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             critic_stars: number | null;
+            cross_engine?: boolean;
+            engine?: string;
             /** Format: int64 */
             generation: number;
             id: string;
@@ -5199,6 +5468,7 @@ export interface components {
             parent_id: string | null;
             rationale: string | null;
             recipe_known: boolean;
+            reference?: components["schemas"]["LineageReference"];
             request_id: string;
             /**
              * Format: int64
@@ -5208,6 +5478,8 @@ export interface components {
             /** Format: int64 */
             stars: number | null;
             status: string;
+            /** Format: int64 */
+            stems?: number;
             title: string;
             /** @description Set when the node is a transform output; null otherwise */
             transform: {
@@ -5215,6 +5487,13 @@ export interface components {
                 spec_hash: string;
                 transform_id: string;
             } | null;
+        };
+        LineageReference: {
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
+            track_id: string;
         };
         LineageTree: {
             nodes: components["schemas"]["LineageNode"][];
@@ -5444,7 +5723,9 @@ export interface components {
             } | null;
             /** @description The master is an MP3; mp3 points at it */
             lossy: boolean;
+            lrc?: components["schemas"]["LRCLink"];
             mp3: components["schemas"]["MP3Link"];
+            stems?: components["schemas"]["StemLink"][];
             track_id: string;
             /**
              * Format: int64
@@ -5832,12 +6113,19 @@ export interface components {
         Patch: {
             /** @description A string sets the score, null removes it, absent keeps it */
             abc?: string | null;
+            /** Format: int64 */
+            bpm?: number;
             /** @description A number sets it, null removes it, absent keeps it */
             cfg_scale?: number | null;
             /** @enum {string} */
-            cot?: "full" | "melody" | "off";
+            cot?: "full" | "melody" | "off" | "think";
+            /** Format: double */
+            duration_s?: number;
+            keyscale?: string;
             lyrics?: string;
             style?: string;
+            /** @enum {string} */
+            timesignature?: "2" | "3" | "4" | "6";
         };
         PatchAddress: {
             /** @description At most 200 characters */
@@ -6260,6 +6548,7 @@ export interface components {
             armed_changed_at: string;
             armed_changed_by: components["schemas"]["PrincipalRef"];
             backend: string;
+            backends: components["schemas"]["BackendStatus"][];
             balance: components["schemas"]["Balance"];
             capabilities: components["schemas"]["ProviderCapabilities"];
             /** Format: int64 */
@@ -6279,7 +6568,9 @@ export interface components {
                 /** Format: int64 */
                 workers_min: number;
             } | null;
+            engine: string;
             generation_enabled: boolean;
+            global_bound: components["schemas"]["GlobalBound"];
             /** Format: int64 */
             kill_slack_s: number;
             last_reconcile_at: string | null;
@@ -6384,6 +6675,21 @@ export interface components {
         ReasonBody: {
             reason?: string;
         };
+        RecipeACE: {
+            /** Format: int64 */
+            bpm: number | null;
+            /** Format: double */
+            duration_s: number | null;
+            edit?: components["schemas"]["RecipeEdit"];
+            keyscale: string | null;
+            ref?: components["schemas"]["RecipeRef"];
+            src?: components["schemas"]["RecipeSrc"];
+            /** @enum {string} */
+            task: "text2music" | "repaint" | "extend" | "complete" | "extract";
+            /** @enum {string} */
+            task_class: "turbo" | "base";
+            timesignature: string | null;
+        };
         RecipeDiff: {
             /** @description seed, style, lyrics and/or cot */
             changed: string[];
@@ -6391,7 +6697,17 @@ export interface components {
             seed: components["schemas"]["SeedPair"];
             style_terms: components["schemas"]["StyleTermDiff"];
         };
+        RecipeEdit: {
+            /** Format: double */
+            extend_s: number | null;
+            /** Format: double */
+            from_s: number | null;
+            /** Format: double */
+            to_s: number | null;
+            tracks: string[];
+        };
         RecipeInfo: {
+            acestep?: components["schemas"]["RecipeACE"];
             cot: string;
             engine: string;
             hash: string;
@@ -6403,6 +6719,20 @@ export interface components {
             /** Format: int64 */
             sources_count: number;
             style: string;
+        };
+        RecipeRef: {
+            clip_sha256: string;
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
+            track_id: string;
+        };
+        RecipeSrc: {
+            /** Format: double */
+            duration_s: number;
+            master_sha256: string;
+            track_id: string;
         };
         RecipeStats: {
             /** Format: int64 */
@@ -6526,6 +6856,14 @@ export interface components {
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
+        };
+        RefIn: {
+            /** Format: double */
+            from_s?: number;
+            /** Format: double */
+            to_s?: number;
+            /** Format: uuid */
+            track_id: string;
         };
         RejectBatchInBody: {
             reason: string;
@@ -7197,6 +7535,20 @@ export interface components {
             count: number;
             status: string;
         };
+        StemInfo: {
+            artifact: string;
+            /** Format: int64 */
+            bytes: number;
+            name: string;
+            sha256: string;
+        };
+        StemLink: {
+            /** Format: int64 */
+            bytes: number;
+            name: string;
+            sha256: string;
+            url: string;
+        };
         StorageStats: {
             /** Format: int64 */
             derived_bytes: number;
@@ -7294,6 +7646,7 @@ export interface components {
             audit_failures: number;
             auth_mode: string;
             commit: string;
+            engines: string[];
             /**
              * Format: int64
              * @description SQLite migration level
@@ -7362,6 +7715,16 @@ export interface components {
             tempo: components["schemas"]["TakeTempo"];
             title: string;
         };
+        TakeEdit: {
+            /** Format: double */
+            extend_s: number | null;
+            /** Format: double */
+            from_s: number | null;
+            stem: string | null;
+            /** Format: double */
+            to_s: number | null;
+            tracks: string[];
+        };
         TakeLadder: {
             /** Format: int64 */
             n_duels: number;
@@ -7371,7 +7734,10 @@ export interface components {
             u: number;
         };
         TakePlan: {
+            cross_engine: boolean;
             draft_id: string | null;
+            edit?: components["schemas"]["TakeEdit"];
+            engine: string;
             /** Format: int64 */
             expected_audio_s: number;
             /** Format: int64 */
@@ -7379,14 +7745,26 @@ export interface components {
             max_usd: string;
             operator: string;
             parent_track_id: string | null;
+            reference?: components["schemas"]["TakeReference"];
             request_id: string;
             /** Format: int64 */
             seed: number;
             /** Format: int64 */
             take_index: number;
+            task: string | null;
+            /** @enum {string|null} */
+            task_class: "turbo" | "base" | null;
             /** Format: int64 */
             timeout_s: number;
             title: string;
+        };
+        TakeReference: {
+            clip_sha256: string;
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
+            track_id: string;
         };
         TakeTempo: {
             /** Format: double */
@@ -7731,6 +8109,7 @@ export interface components {
             listening: components["schemas"]["ListeningStats"];
             /** @description The master is an MP3; bits_per_sample is nominal and there is no lossless file */
             lossy: boolean;
+            lrc?: components["schemas"]["LRCInfo"];
             /** Format: int64 */
             open_comments: number;
             /** @description import, job or transform */
@@ -7766,6 +8145,7 @@ export interface components {
             } | null;
             status: string;
             status_set_by: string;
+            stems?: components["schemas"]["StemInfo"][];
             style_terms: string[];
             tags: components["schemas"]["TagRef"][];
             timed: boolean;
@@ -7890,6 +8270,7 @@ export interface components {
             critic_stars: number | null;
             /** Format: double */
             duration_s: number;
+            engine: string;
             has_score: boolean;
             id: string;
             /** Format: double */
@@ -8267,6 +8648,7 @@ export interface components {
         };
         UpdateProviderStateInBody: {
             armed?: boolean;
+            backend?: string;
             reason: string;
             /** @description Clear the open trip (no-op when none is open) */
             reset_trip?: boolean;
@@ -9870,6 +10252,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubmitResult"];
+                };
+            };
+        };
+    };
+    list_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -12354,6 +12765,7 @@ export interface operations {
                 crate_id?: string;
                 /** @description Repeatable; transform is derived (job means generated by a job) */
                 origin?: ("import" | "job" | "transform")[];
+                engine?: ("yue2" | "acestep15" | "dsp")[];
                 /** @description Takes whose lyrics equal this track's (morph partners); empty lyrics match nothing */
                 lyrics_of?: string;
                 /** @description Default recorded_desc, or relevance when q is set; stars_desc is human stars, unrated last */

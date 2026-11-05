@@ -80,7 +80,11 @@ const (
 // TakeIn is one take to quote.
 type TakeIn struct {
 	AudioS int  // expected audio seconds
-	Full   bool // cot=full: the model plans the ABC score first
+	Full   bool // cot=full: the model plans the ABC score first (yue2 only)
+	// E2 per-take terms (C152). The zero value means "use QuoteParams.RTFMilli and the package LoadS", so every yue2 call
+	// site is byte-identical (TestQuoteTakes_YueUnchanged).
+	RTFMilli int // engine and class RTF (milli); 0 = p.RTFMilli
+	LoadS    int // fixed seconds of this take (model load, planner LM, input fetch, VAE encode, lrc_fixed_s); 0 = LoadS
 }
 
 // QuoteBatch quotes takes without ABC planning (cot melody or off); see QuoteTakes.
@@ -94,7 +98,7 @@ func QuoteBatch(p QuoteParams, audioS []int) BatchQuote {
 
 // QuoteTakes computes the quote with integer arithmetic only (C72.1, phase model above):
 //
-//	gen     = LoadS + ceil((rtf + plan) × audio / 1000)
+//	gen     = LoadS + ceil((rtf + plan) × audio / 1000)   (rtf and LoadS may be per take, C152)
 //	expect  = gen + ExpectedUploadS
 //	timeout = min(MaxRuntimeS, ceil(1.6 × gen) + WorkerFinishMarginS + UploadBudgetS + TimeoutSlackS)
 //
@@ -108,10 +112,17 @@ func QuoteTakes(p QuoteParams, takes []TakeIn) BatchQuote {
 	var sumExpected money.MicroUSD
 	for _, t := range takes {
 		rate := int64(p.RTFMilli)
+		if t.RTFMilli > 0 {
+			rate = int64(t.RTFMilli)
+		}
 		if t.Full {
 			rate += PlanMilli
 		}
-		gen := LoadS + ceilDiv(rate*int64(t.AudioS), 1000)
+		load := int64(LoadS)
+		if t.LoadS > 0 {
+			load = int64(t.LoadS)
+		}
+		gen := load + ceilDiv(rate*int64(t.AudioS), 1000)
 		exp := int(gen) + ExpectedUploadS
 		to := ceilDiv(headroomNum*gen, headroomDen) + WorkerFinishMarginS + UploadBudgetS + TimeoutSlackS
 		to = min(int64(p.MaxRuntimeS), to)

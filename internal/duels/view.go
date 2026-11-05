@@ -28,11 +28,14 @@ type duelRow struct {
 	TPA, TPB            sql.NullFloat64
 	CreatedBy, Kind     string
 	CreatedAt, ExpireAt time.Time
+	// Section-locked duels (C258): slot B's own window and the section both slots are aligned on; NULL for window duels.
+	BFromMS, BToMS           sql.NullInt64
+	SectionLabel, SectionSrc sql.NullString
 }
 
 const duelCols = `d.id, d.slot_a_track_id, d.slot_b_track_id, d.swapped, d.blind, d.from_ms, d.to_ms, d.clip_def, d.tool_version, d.match,
 	d.target_lufs, d.gain_a_cdb, d.gain_b_cdb, d.window_lufs_a, d.window_lufs_b, d.window_tp_a, d.window_tp_b,
-	d.created_by, d.created_by_kind, d.created_at, d.expires_at`
+	d.created_by, d.created_by_kind, d.created_at, d.expires_at, d.b_from_ms, d.b_to_ms, d.section_label, d.section_source`
 
 type scanner interface{ Scan(...any) error }
 
@@ -40,7 +43,8 @@ func scanDuel(sc scanner) (duelRow, error) {
 	var d duelRow
 	var created, expires string
 	if err := sc.Scan(&d.ID, &d.SlotA, &d.SlotB, &d.Swapped, &d.Blind, &d.FromMS, &d.ToMS, &d.ClipDef, &d.Tool, &d.Match,
-		&d.TargetLUFS, &d.GainACDB, &d.GainBCDB, &d.LUFSA, &d.LUFSB, &d.TPA, &d.TPB, &d.CreatedBy, &d.Kind, &created, &expires); err != nil {
+		&d.TargetLUFS, &d.GainACDB, &d.GainBCDB, &d.LUFSA, &d.LUFSB, &d.TPA, &d.TPB, &d.CreatedBy, &d.Kind, &created, &expires,
+		&d.BFromMS, &d.BToMS, &d.SectionLabel, &d.SectionSrc); err != nil {
 		return d, err
 	}
 	var err error
@@ -164,9 +168,32 @@ func (st standing) mineVerdict() *verdictRow {
 	return nil
 }
 
-func (d duelRow) window() Window {
+// sectionLocked is true for a duel created with a section (C258): each slot has its own window.
+func (d duelRow) sectionLocked() bool { return d.SectionLabel.Valid }
+
+// window is the duel-level window. For a section-locked duel the bounds are hidden (null) until the duel is revealed to
+// the caller (they would tell the slots apart); the duration is the same for both slots. Once revealed the bounds are slot
+// A's window; the slots' own windows are in Slot.Window.
+func (d duelRow) window(revealed bool) Window {
 	from, to := float64(d.FromMS)/1000, float64(d.ToMS)/1000
-	return Window{FromS: &from, ToS: &to, DurationS: float64(d.ToMS-d.FromMS) / 1000}
+	w := Window{FromS: &from, ToS: &to, DurationS: float64(d.ToMS-d.FromMS) / 1000}
+	if d.sectionLocked() && !revealed {
+		w.FromS, w.ToS = nil, nil
+	}
+	return w
+}
+
+// slotWindow is the window clipped for slot A (slotB false) or slot B.
+func (d duelRow) slotWindow(slotB bool) clip.Window {
+	if slotB && d.BFromMS.Valid {
+		return clip.Window{StartMS: d.BFromMS.Int64, EndMS: d.BToMS.Int64}
+	}
+	return clip.Window{StartMS: d.FromMS, EndMS: d.ToMS}
+}
+
+func (d duelRow) slotWindowView(slotB bool) *SlotWindow {
+	w := d.slotWindow(slotB)
+	return &SlotWindow{FromS: float64(w.StartMS) / 1000, ToS: float64(w.EndMS) / 1000}
 }
 
 func (d duelRow) loudnessMatched() bool { return d.Match == "matched" || d.Match == "limited" }
@@ -217,7 +244,7 @@ func (d duelRow) spec(r library.TrackRef, slotB bool) clip.Spec {
 		g = d.GainBCDB
 	}
 	return clip.Spec{MasterSHA256: r.MasterSHA256, MasterPath: r.MasterPath, SampleRate: r.SampleRate, Channels: r.Channels,
-		W: clip.Window{StartMS: d.FromMS, EndMS: d.ToMS}, GainCDB: g}
+		W: d.slotWindow(slotB), GainCDB: g}
 }
 
 // clipRef signs a link to a rendered clip for p.
@@ -251,7 +278,7 @@ func (s *Service) view(ctx context.Context, p auth.Principal, d duelRow, vs []ve
 		return Duel{}, err
 	}
 	out := Duel{ID: d.ID, State: st.state, Blind: d.Blind, Revealed: st.revealed, CreatedAt: rfc(d.CreatedAt), ExpiresAt: rfc(d.ExpireAt),
-		CreatedByKind: d.Kind, Window: d.window(), LoudnessMatched: d.loudnessMatched(), CriticVerdicts: []Verdict{}}
+		CreatedByKind: d.Kind, Window: d.window(st.revealed), LoudnessMatched: d.loudnessMatched(), CriticVerdicts: []Verdict{}}
 	var clips [2]ClipRef
 	for i, r := range [2]library.TrackRef{ra, rb} {
 		var obj clip.Object
@@ -277,6 +304,12 @@ func (s *Service) view(ctx context.Context, p auth.Principal, d duelRow, vs []ve
 		g := func(c int) *float64 { v := float64(c) / 100; return &v }
 		out.Slots.A.GainDB, out.Slots.B.GainDB = g(d.GainACDB), g(d.GainBCDB)
 		out.Slots.A.WindowLUFS, out.Slots.B.WindowLUFS = nullFloat(d.LUFSA), nullFloat(d.LUFSB)
+		if d.sectionLocked() {
+			out.Slots.A.Window, out.Slots.B.Window = d.slotWindowView(false), d.slotWindowView(true)
+		}
+	}
+	if d.sectionLocked() {
+		out.Section = &DuelSection{Label: d.SectionLabel.String, Source: d.SectionSrc.String}
 	}
 	if mine := st.mineVerdict(); mine != nil {
 		v := VerdictOrNull(verdictView(*mine, st.revealed))

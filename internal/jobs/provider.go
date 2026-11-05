@@ -98,6 +98,8 @@ type RTFRow struct {
 
 // ProviderStatus is the read model of C81 ProviderStatus.
 type ProviderStatus struct {
+	// Engine is the engine the backend renders ("yue2" for the M3 single-backend answer).
+	Engine          string
 	State           provider.State
 	LastReconcile   *time.Time
 	PricePerHour    money.MicroUSD
@@ -122,6 +124,8 @@ type UpdateIn struct {
 	Armed     *bool
 	ResetTrip bool
 	Reason    string
+	// Backend names the backend to change ("" = the default backend, C151.3).
+	Backend string
 	// AfterRestore is the explicit acknowledgment of `runpod arm --after-restore`: arming a restored
 	// database without a covering billing reconciliation (needed when billing cannot be read).
 	AfterRestore bool
