@@ -59,3 +59,49 @@ export function lineageRows<N extends LineageNodeLike>(nodes: readonly N[], coll
   for (const t of tops) walk(t, 0, "", true, true);
   return rows;
 }
+
+// E2: engine badges and the reference edge. The edge is computed from the node's `reference` (recipe.ref), never stored.
+export interface EngineNodeLike {
+  id: string;
+  title: string;
+  engine?: string;
+  cross_engine?: boolean;
+  stems?: number;
+  reference?: { track_id: string; from_s: number; to_s: number };
+}
+
+export interface NodeBadge {
+  kind: "engine" | "cross" | "stems";
+  text: string;
+  title: string;
+}
+
+const ENGINE_LABELS: Record<string, string> = { yue2: "YuE2", acestep15: "ACE-Step", dsp: "DSP" };
+
+/** Badges of a node: the engine unless it is the default (absent or yue2), cross-engine edits, and a stems chip. */
+export function nodeBadges(n: EngineNodeLike): NodeBadge[] {
+  const out: NodeBadge[] = [];
+  if (n.engine && n.engine !== "yue2") out.push({ kind: "engine", text: ENGINE_LABELS[n.engine] ?? n.engine, title: "Rendered by this engine" });
+  if (n.cross_engine) out.push({ kind: "cross", text: "cross engine", title: "Edited from a take made by another engine" });
+  if (n.stems && n.stems > 0) out.push({ kind: "stems", text: `${n.stems} stem${n.stems === 1 ? "" : "s"}`, title: "Stems extracted from this take" });
+  return out;
+}
+
+export interface ReferenceEdge {
+  fromId: string;
+  toId: string;
+  /** The referenced take is among the loaded nodes. */
+  inTree: boolean;
+  label: string;
+}
+
+/** Dashed reference edges (reference take, then the render that followed it), in node order. */
+export function referenceEdges(nodes: readonly EngineNodeLike[]): ReferenceEdge[] {
+  const ids = new Map(nodes.map((n) => [n.id, n.title]));
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return nodes.flatMap((n) =>
+    n.reference
+      ? [{ fromId: n.reference.track_id, toId: n.id, inTree: ids.has(n.reference.track_id), label: `${ids.get(n.reference.track_id) ?? "reference take"} ${r1(n.reference.from_s)}–${r1(n.reference.to_s)} s` }]
+      : [],
+  );
+}
