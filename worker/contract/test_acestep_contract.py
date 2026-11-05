@@ -8,6 +8,7 @@ no weights and needs no GPU. Run via the ACE-Step contract job (see the PR text 
 from __future__ import annotations
 
 import dataclasses
+import importlib.machinery
 import re
 import sys
 import types
@@ -21,7 +22,9 @@ try:  # the CPU job installs CPU torch; PyPI's torchaudio is a CUDA build that c
 except (ImportError, OSError):
     for _name in [m for m in sys.modules if m == "torchaudio" or m.startswith("torchaudio.")]:
         del sys.modules[_name]
-    sys.modules["torchaudio"] = types.ModuleType("torchaudio")  # acestep.audio_utils only imports it at module level
+    _stub = types.ModuleType("torchaudio")  # acestep.audio_utils only imports it at module level
+    _stub.__spec__ = importlib.machinery.ModuleSpec("torchaudio", loader=None)  # find_spec() users need a spec
+    sys.modules["torchaudio"] = _stub
 
 import acestep.constants as upstream_constants  # noqa: E402 - a missing acestep must fail this job, never skip it
 import acestep.inference as upstream_inference  # noqa: E402
