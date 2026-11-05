@@ -331,6 +331,7 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		go func() { defer running.Done(); retryDerive(runCtx, steps, health, b.retryBase) }()
 	}
 	startL2(runCtx, pruneCtx, svc, &running, &pruned) // the Syncer, the tape runner and the tape sweep (C118)
+	app.RunTransforms(runCtx, svc, &running)          // the transform runner (T1, C210.2); idles without the media pipeline
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()

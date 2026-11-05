@@ -104,6 +104,8 @@ type Options struct {
 	L2 L2Options
 	// L3 (C133): the features wiring switch.
 	L3 L3Options
+	// T1 (C216.3): test injection points of the transform service; nil-valued in production.
+	T1 T1Options
 }
 
 // Services is everything Build wires.
@@ -293,7 +295,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	wireL2Curation(st, l1.SongView, ctxb)
 	m5 := buildM5(m5Inputs{st: st, now: now, late: late})
 	l3 := buildL3(l3Inputs{st: st, now: now, muses: l1.Muses, songview: l1.SongView, sounds: l1.Sounds, prov: l1.Provenance, ctxb: ctxb, o: o.L3})
-	t1 := buildT1(t1Inputs{cfg: cfg, st: st, lib: lib, now: now, newID: newID})
+	t1 := buildT1(t1Inputs{cfg: cfg, st: st, lib: lib, data: data, ears: media.Ears, pipe: pipe, now: now, newID: newID, o: o.T1})
 
 	// M4a is built after L2 so the Subsonic handler can serve the Record albums (C126.7).
 	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
