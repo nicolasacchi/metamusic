@@ -3,9 +3,26 @@
   import type { components } from "../api/schema";
   import ConfirmSpend from "../lib/components/ConfirmSpend.svelte";
   import EstimateView from "../lib/components/EstimateView.svelte";
+  import EnginePicker from "../lib/components/EnginePicker.svelte";
   import ModeForm from "../lib/components/ModeForm.svelte";
+  import ModePanel from "../lib/components/ModePanel.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
-  import { clearIntent, intentToEstimate, isVariantMode, loadIntent, saveIntent, validateIntent, type GenerationIntent } from "../lib/genIntent";
+  import { capsOf, engineLabel, fetchEngines, modeUnavailable, pickerChoices, type EnginesResult } from "../lib/engines";
+  import {
+    ACESTEP,
+    clearIntent,
+    engineOf,
+    engineSwitchable,
+    intentToEstimate,
+    isEngineMode,
+    isVariantMode,
+    loadIntent,
+    saveIntent,
+    validateIntent,
+    withEngine,
+    type EngineName,
+    type GenerationIntent,
+  } from "../lib/genIntent";
 
   type Estimate = components["schemas"]["Estimate"];
 
@@ -20,11 +37,38 @@
 
   /** Edit modes, templates and compose need the user's input before there is anything to price. */
   function needsForm(i: GenerationIntent): boolean {
+    if (isEngineMode(i.mode)) return validateIntent(i) !== null;
     if (i.mode === "compose_new" || i.mode === "from_template") return true;
     if (i.mode === "same_seed_edit" || i.mode === "lyric_edit" || i.mode === "style_edit") return !i.patch || (!i.patch.style && !i.patch.lyrics);
     return false;
   }
   let editing = $state(false);
+
+  /* Engines: list_engines is fetched only when it matters (an ACE-Step intent, or the user asks to change engine), so the
+     yue2 flow makes no extra request and, while the operation answers 501, logs no console error. */
+  let engines = $state<EnginesResult | null>(null);
+  let enginesBusy = $state(false);
+  async function loadEngines() {
+    if (engines?.kind === "ok" || enginesBusy) return;
+    enginesBusy = true;
+    engines = await fetchEngines();
+    enginesBusy = false;
+  }
+  const engineList = $derived(engines?.kind === "ok" ? engines.list : null);
+  const current = $derived<EngineName>(intent ? engineOf(intent) : "yue2");
+  const choices = $derived(
+    engineList && intent
+      ? pickerChoices(engineList, (name) => (name === "yue2" && isEngineMode(intent!.mode) ? "This action needs ACE-Step." : ""))
+      : [],
+  );
+  const panelCaps = $derived(capsOf(engineList, ACESTEP));
+  const modeOff = $derived(intent && isEngineMode(intent.mode) && engineList ? modeUnavailable(intent.mode, panelCaps) : "");
+  function pickEngine(name: string) {
+    if (!intent || (name !== "yue2" && name !== ACESTEP)) return;
+    intent = withEngine(intent, name);
+    saveIntent(sessionStorage, intent);
+    if (!editing) void run(intent);
+  }
 
   async function run(i: GenerationIntent) {
     const bad = validateIntent(i);
@@ -51,6 +95,7 @@
 
   /* svelte-ignore state_referenced_locally */
   if (intent) {
+    if (engineOf(intent) !== "yue2") void loadEngines();
     if (needsForm(intent)) editing = true;
     else void run(intent);
   }
@@ -76,12 +121,32 @@
 {:else}
   <p class="muted" data-testid="intent-summary">
     {intent.mode.replaceAll("_", " ")}
+    {#if current !== "yue2"}on {engineLabel(engineList, current)}{/if}
     {#if isVariantMode(intent.mode) && intent.parent_track_id}of <a href="/tracks/{intent.parent_track_id}">{intent.parent_track_id}</a>{/if}
     {#if intent.draft_ids}· {intent.draft_ids.length} draft{intent.draft_ids.length === 1 ? "" : "s"}{/if}
     {#if intent.mode === "from_template"}· {intent.parent_track_ids?.length ?? 0} tracks{/if}
   </p>
   <ProviderBanner provider={estimate?.provider ?? null} />
-  {#if editing}
+  {#if engineSwitchable(intent)}
+    {#if choices.length}
+      <EnginePicker {choices} value={current} onpick={pickEngine} />
+    {:else}
+      <p class="engine-line" data-testid="engine-line">
+        Engine: {engineLabel(engineList, current)}
+        {#if engines?.kind === "unavailable"}
+          <span class="muted" data-testid="engines-unavailable">· YuE2 is the only engine available.</span>
+        {:else if engines?.kind === "error"}
+          <span class="muted" role="alert">· {engines.message}</span>
+        {:else if !isEngineMode(intent.mode)}
+          <button type="button" onclick={loadEngines} disabled={enginesBusy} data-testid="change-engine">{enginesBusy ? "Loading…" : "Change engine"}</button>
+        {/if}
+      </p>
+    {/if}
+  {/if}
+  {#if modeOff}<p role="alert" data-testid="mode-unavailable">{modeOff}</p>{/if}
+  {#if editing && isEngineMode(intent.mode)}
+    <ModePanel mode={intent.mode} {intent} caps={panelCaps} onsubmit={submitted} />
+  {:else if editing}
     <ModeForm {intent} onsubmit={submitted} />
   {:else}
     {#if busy}<p class="muted" aria-busy="true">Estimating…</p>{/if}
@@ -93,3 +158,18 @@
     <p><button type="button" onclick={() => (editing = true)} data-testid="change-options">Change options</button></p>
   {/if}
 {/if}
+
+<style>
+  .engine-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .engine-line button {
+    min-height: var(--hit);
+    min-width: var(--hit);
+  }
+</style>
