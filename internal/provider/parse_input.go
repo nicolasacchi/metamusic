@@ -32,6 +32,9 @@ type WorkerInput struct {
 	Start     StartTarget             `json:"start"`
 	Uploads   map[string]UploadTarget `json:"uploads"`
 	Expect    WorkerExpect            `json:"expect"`
+	// Inputs are the fetchable source and reference audio of an ACE-Step edit (C153.2). Absent for yue2, whose job is
+	// byte-identical to M3's (TestTakeSpec_Yue2InputByteIdentical).
+	Inputs map[string]InputRef `json:"inputs,omitempty"`
 }
 
 // StartTarget is the signed start-handshake URL (D-M3-28).
@@ -95,16 +98,25 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 		return bad("deadline_unix", "out of range")
 	case in.MinAudioS < 0 || in.MinAudioS > MaxMinAudioS:
 		return bad("min_audio_s", "out of range")
+	case in.Engine == EngineACEStep && top != nil && top["min_audio_s"] != nil:
+		return bad("min_audio_s", "is not part of the acestep15 input")
+	case in.Engine != EngineACEStep && in.Inputs != nil:
+		return bad("inputs", "is only part of the acestep15 input")
 	case !validURL(in.Start.URL):
 		return bad("start.url", "malformed")
 	}
-	for _, name := range requiredUploads {
-		if _, ok := in.Uploads[name]; !ok {
-			return bad("uploads."+name, "missing")
+	engine := in.Engine
+	if engine != EngineACEStep {
+		engine = EngineYuE2
+	}
+	list, _ := ArtifactsFor(engine)
+	for _, a := range list {
+		if _, ok := in.Uploads[a.Name]; a.Required && !ok {
+			return bad("uploads."+a.Name, "missing")
 		}
 	}
 	for name, t := range in.Uploads {
-		limit, ok := ArtifactMaxBytes(name)
+		limit, ok := ArtifactMaxBytesFor(engine, name)
 		switch {
 		case !ok:
 			return bad("uploads."+name, "is not an allowlisted artifact")
@@ -114,8 +126,14 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 			return bad("uploads."+name+".max_bytes", "out of range")
 		}
 	}
+	if err := checkInputs(in); err != nil {
+		return WorkerInput{}, err
+	}
 	if len(in.Expect.Weights) == 0 {
 		return bad("expect.weights", "must not be empty")
+	}
+	if in.Engine == EngineACEStep && len(in.Expect.Weights) > 2 {
+		return bad("expect.weights", "holds at most two repositories")
 	}
 	for repo, rev := range in.Expect.Weights {
 		if !revRE.MatchString(rev) {
@@ -125,8 +143,45 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 	return in, nil
 }
 
-// requiredUploads are the artifacts every take must be able to upload (C73.4 "Required: yes").
-var requiredUploads = []string{"audio.flac", "request.json", "config.json", "result.json", ResultArtifact}
+// maxInputBytes bounds one fetchable input (a frozen master, at most 600 s of 24-bit stereo 48 kHz PCM).
+const maxInputBytes = 192 << 20
+
+var sha256RE = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// checkInputs validates the ACE-Step inputs object: keys are src_audio and reference_audio, each needs a URL, a digest
+// and a size, and the keys match the request (src iff src_audio, ref iff reference_audio).
+func checkInputs(in WorkerInput) error {
+	if in.Engine != EngineACEStep {
+		return nil
+	}
+	bad := func(field, rule string) error { return fmt.Errorf("%w: %s %s", ErrWorkerInput, field, rule) }
+	var req struct {
+		Src json.RawMessage `json:"src"`
+		Ref json.RawMessage `json:"ref"`
+	}
+	_ = json.Unmarshal(in.Request, &req)
+	hasSrc, hasRef := len(req.Src) > 0 && string(req.Src) != "null", len(req.Ref) > 0 && string(req.Ref) != "null"
+	for k, r := range in.Inputs {
+		if k != InputSrcAudio && k != InputReferenceAudio {
+			return bad("inputs."+k, "is not an input name")
+		}
+		switch {
+		case !validURL(r.URL):
+			return bad("inputs."+k+".url", "malformed")
+		case !sha256RE.MatchString(r.SHA256):
+			return bad("inputs."+k+".sha256", "must be 64 hex digits")
+		case r.Bytes < 1 || r.Bytes > maxInputBytes:
+			return bad("inputs."+k+".bytes", "out of range")
+		}
+	}
+	if _, ok := in.Inputs[InputSrcAudio]; ok != hasSrc {
+		return bad("inputs.src_audio", "must be present exactly when the request has src")
+	}
+	if _, ok := in.Inputs[InputReferenceAudio]; ok != hasRef {
+		return bad("inputs.reference_audio", "must be present exactly when the request has ref")
+	}
+	return nil
+}
 
 func validURL(u string) bool { return len(u) <= maxURLLen && urlRE.MatchString(u) }
 
@@ -161,7 +216,7 @@ func BuildWorkerInput(t TakeSpec) ([]byte, error) {
 	return json.Marshal(WorkerInput{
 		Contract: Contract, TakeID: t.JobID, AttemptID: t.AttemptID, Engine: t.Engine, Request: t.Request,
 		TimeoutS: t.TimeoutS, UploadBudgetS: t.UploadBudgetS, DeadlineUnix: t.Deadline.Unix(), MinAudioS: t.MinAudioS,
-		Start: StartTarget{URL: t.StartURL}, Uploads: uploads, Expect: t.Expect,
+		Start: StartTarget{URL: t.StartURL}, Uploads: uploads, Expect: t.Expect, Inputs: t.Inputs,
 	})
 }
 

@@ -268,6 +268,9 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"wait_for_transform":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother, "timeout_s": 0} },
 	"cancel_transform":           func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
 	"get_transform_capabilities": func(*uiState) map[string]any { return nil },
+
+	// E2 (C160): the engine matrix, a generic MCP operation with the /engines route
+	"list_engines": func(*uiState) map[string]any { return nil },
 }
 
 // t1PendingStub lists the transform operations whose handler still answers 501 (lane B4 has not landed): the script keeps
@@ -324,6 +327,8 @@ var uiOrder = []string{
 	"suggest_sequence", "list_next_actions", "list_taxonomy_proposals", "get_song_atlas", "get_adherence",
 	// T1: transforms of a Take
 	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
+	// E2: the engine matrix
+	"list_engines",
 }
 
 // afterStep records the ids later steps need.
@@ -460,7 +465,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			}
 			script = spendScript[id]
 		}
-		if t1PendingStub[id] {
+		if t1PendingStub[id] || e2PendingStub[id] {
 			continue
 		}
 		if id == "export_record_tape" && st.record != "" {

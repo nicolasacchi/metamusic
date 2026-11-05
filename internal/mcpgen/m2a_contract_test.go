@@ -69,7 +69,14 @@ import (
 // update_comment (+298 each), Duel.section and the per-slot windows on next_duel and submit_duel (+374 each), and the song_pr
 // mode and patch_id on estimate_generation and estimate_variant (+39 each). Docs and enums of the new fields were left out.
 // T1-F1b: re-baselined 109750 -> 110556 (measured 110456, +806): search_tracks (a first-class tool) gains the origin and lyrics_of parameters and TrackSummary gains transform.
-const toolsCeilingBytes = 110556
+//
+// E2-F2 re-baselined 110556 -> 115327 (measured 115227, +4 771; no new tool, list_engines is generic, D-E2-35): schema growth
+// on twelve existing tools, all additive. estimate_generation +1 484 input (item engine, edit, reference, the ACE patch fields,
+// options, six modes) and +641 output (per-take engine, task, class, edit, reference, cross_engine), estimate_variant +1 091
+// (the same Patch and Estimate), get_track +1 269 (recipe.acestep, stems, lrc), get_media_links +300 (stem and lrc links),
+// search_tracks +162 (engine filter), the job tools +66 each (task, stem), get_system_info +53 (engines). Docs and numeric
+// constraints of the new fields were left out of the tool schemas; describe_operation and the server validate them.
+const toolsCeilingBytes = 115327
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.
