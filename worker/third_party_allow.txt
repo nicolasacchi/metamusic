@@ -1,0 +1,25 @@
+# SPDX identifiers whose distributions may be installed in worker/Dockerfile.acestep (tools/gen_notices.py fails
+# the image build for a distribution with no recognisable licence or one that is not listed here). One per line.
+# Permissive licences only; GPL, AGPL, SSPL and non-commercial licences are deliberately absent.
+MIT
+BSD-2-Clause
+BSD-3-Clause
+0BSD
+MIT-0
+ISC
+Apache-2.0
+MPL-2.0
+PSF-2.0
+Python-2.0
+Unlicense
+Zlib
+HPND
+CC0-1.0
+# PyTorch's CUDA wheels depend on NVIDIA's nvidia-*-cu12 runtime libraries (cuBLAS, cuDNN, NCCL ...), shipped under
+# NVIDIA's proprietary licence, which permits redistribution of the runtime libraries inside an application image
+# (CUDA Toolkit EULA, attachment A). They are the only non-open entries.
+LicenseRef-NVIDIA-Proprietary
+# paramiko (a dependency of the RunPod SDK, which the yue2 image installs too) is LGPL-2.1: an unmodified library
+# installed from PyPI and imported, replaceable by the user. No other LGPL distribution is allowed here.
+LGPL-2.1
+LGPL-2.1-or-later

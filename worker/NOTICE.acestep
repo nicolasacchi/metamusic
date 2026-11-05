@@ -1,0 +1,45 @@
+metamusic ACE-Step worker image - third-party notices
+
+This image runs ACE-Step 1.5 for music generation. Weights are NOT part of the image, except the ACE-Step base DiT
+(see below); the main model bundle is mounted from RunPod's cached-model directory at run time.
+
+ACE-Step 1.5 code
+  Source:   https://github.com/ace-step/ACE-Step-1.5 (pinned commit: worker/contract/ACESTEP_COMMIT)
+  Licence:  MIT, Copyright (c) 2026 ACEStep
+  Included: the nano-vllm inference engine (acestep/third_parts/nano-vllm), MIT, Copyright (c) 2025 Xingkai Yu
+
+ACE-Step model weights
+  Models:   ACE-Step/Ace-Step1.5 (main bundle, at run time) and ACE-Step/acestep-v15-base (baked into this image
+            at build time, sha256-verified against the Hugging Face listing at the pinned revision)
+  Licence:  MIT per the model cards ("License: [MIT]"; front matter "license: mit")
+  Cards state, verbatim: "Commercial-Ready: Unlike many models trained on ambiguous datasets, ACE-Step v1.5 is
+            designed for creators. You can strictly use the generated music for commercial purposes."
+            The training data is described as licensed music, royalty-free / public-domain music and synthetic
+            MIDI-to-audio data.
+  The cards carry no warranty, indemnity or usage-restriction text; wording in public documents is "code MIT;
+  weights MIT per model card". The card text is kept next to the baked base weights (README.md).
+
+Qwen3 (Alibaba Cloud) - Apache License 2.0
+  The ACE-Step main bundle redistributes models derived from Qwen3:
+    acestep-5Hz-lm-1.7B       the 5 Hz language model, based on Qwen/Qwen3-1.7B
+    Qwen3-Embedding-0.6B      the text encoder (a copy of Qwen/Qwen3-Embedding-0.6B)
+  Upstream licence, read at the revisions below:
+    Qwen/Qwen3-1.7B @ 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+        LICENSE: Apache License, Version 2.0, "Copyright 2024 Alibaba Cloud"
+        ("Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in
+        compliance with the License. ... distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+        WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.")
+    Qwen/Qwen3-Embedding-0.6B @ 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+        model card front matter: "license: apache-2.0" (the repository has no separate LICENSE file)
+  Apache-2.0 section 4 obligations: a copy of the licence accompanies this notice (the text below); the models are
+  modified (the LM is fine-tuned by ACE-Step; this worker changes no weights); the NOTICE of the upstream models
+  contains no attribution text beyond the copyright line above.
+
+Python packages
+  PyTorch, torchaudio, torchvision, transformers, diffusers and the other packages listed at the end of this file
+  are installed under their own licences, listed per distribution below. The flash-attn wheel is a third-party
+  prebuild (mjun0812/flash-attention-prebuild-wheels v0.7.12) of Dao-AILab/flash-attention (BSD-3-Clause); it is
+  pinned by sha256 in worker/Dockerfile.acestep.
+
+System packages (Debian): libsndfile1 (LGPL-2.1+), ffmpeg (LGPL-2.1+/GPL-2+ build as packaged by Debian); both are
+  dynamically used through their own interfaces and are unmodified.
