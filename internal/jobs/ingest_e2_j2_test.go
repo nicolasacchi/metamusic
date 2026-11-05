@@ -495,3 +495,32 @@ func (b *bridgeRig) captureACE(job string, flac []byte) (JobRow, AttemptRow, []u
 	}
 	return jr, ar, files, o
 }
+
+// TestIngest_ACEStep_KeepsWorkerTimings: the P0b measurements the canary reads (peak_vram_mb_<component>,
+// lm_gpu_memory_utilization_milli) ride in mm-result timings. The strict output decode accepts any numeric timing key, and the
+// take keeps mm-result.json verbatim as its frozen artifact, so the numbers are read back from the take, not from a column.
+func TestIngest_ACEStep_KeepsWorkerTimings(t *testing.T) {
+	b := newACERig(t, true, aceEngines())
+	job := b.seedACE(b.aceRecipe(aceRequest(t, nil)))
+	b.runACE(job, b.flac(80), func(o *provider.Output) {
+		v, m, lm := json.Number("18432"), json.Number("17200.5"), json.Number("700")
+		o.Timings["peak_vram_mb_dit"], o.Timings["peak_vram_mb_vae"], o.Timings["lm_gpu_memory_utilization_milli"] = &v, &m, &lm
+	})
+	b.wantState(job, StateCompleted)
+	path := b.str(`SELECT a.path FROM artifacts a JOIN tracks t ON t.id = a.track_id WHERE t.job_id = ? AND a.name = 'mm-result.json'`, job)
+	raw, err := b.data.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Timings map[string]float64 `json:"timings"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]float64{"peak_vram_mb_dit": 18432, "peak_vram_mb_vae": 17200.5, "lm_gpu_memory_utilization_milli": 700} {
+		if got.Timings[k] != want {
+			t.Errorf("stored timings[%s] = %v, want %v", k, got.Timings[k], want)
+		}
+	}
+}
