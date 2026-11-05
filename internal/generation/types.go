@@ -52,6 +52,9 @@ type planTake struct {
 	MaxMicroUSD      int64   `json:"max_micro_usd"`
 	InputBytes       int     `json:"input_bytes"`
 	Warnings         []Issue `json:"warnings"`
+
+	// Ref is the reference clip an E2 take pinned at estimate (C149.3): create renders it again and compares the digest.
+	Ref *frozenRef `json:"ref,omitempty"`
 }
 
 // paramsDoc is jobs.mutation_json.params (C71.4).
@@ -60,6 +63,10 @@ type paramsDoc struct {
 	SeedPolicy string  `json:"seed_policy"`
 	NSeeds     int     `json:"n_seeds"`
 	Via        *string `json:"via"`
+	// E2: absent (omitted) for every yue2 take, so M3's stored documents are unchanged.
+	TrialID     string `json:"trial_id,omitempty"`     // options.trial_id of the estimate (C158.2)
+	CrossEngine bool   `json:"cross_engine,omitempty"` // D-E2-25: the parent was rendered by the other engine
+	Stem        string `json:"stem,omitempty"`         // extract_stems: the stem name of this job
 }
 
 // quoteDoc is estimates.quote_json: the frozen inputs of the quote.
