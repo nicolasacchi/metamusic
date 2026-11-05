@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -179,4 +181,59 @@ func TestRun_StdinBlockedReaderCancel(t *testing.T) {
 	if err == nil || time.Since(start) > waitDelay+2*time.Second {
 		t.Fatalf("err=%v after %v", err, time.Since(start))
 	}
+}
+
+// TestMediatool_GroupKill: in group mode a cancel kills the tool's whole process group, so a helper it forked dies too; without
+// the option the orphan survives (the existing single-process behaviour is unchanged).
+func TestMediatool_GroupKill(t *testing.T) {
+	alive := func(pid int) bool { return syscall.Kill(pid, 0) == nil }
+	run := func(group bool) (pid int, took time.Duration) {
+		t.Helper()
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		sh := script(t, `sleep 30 &
+echo $! > `+pidFile+`
+wait`)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			for i := 0; i < 200; i++ { // cancel once the helper has announced itself
+				if b, err := os.ReadFile(pidFile); err == nil && len(bytes.TrimSpace(b)) > 0 {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			cancel()
+		}()
+		start := time.Now()
+		_, err := Run(ctx, sh, nil, RunOpts{Timeout: 20 * time.Second, MaxStdout: 1 << 10, Group: group})
+		took = time.Since(start)
+		if err == nil {
+			t.Fatal("a cancelled run must fail")
+		}
+		b, rerr := os.ReadFile(pidFile)
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		pid, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+		return pid, took
+	}
+	pid, took := run(true)
+	if took > 3*time.Second {
+		t.Errorf("group cancel took %v", took)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for alive(pid) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if alive(pid) {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		t.Error("the forked helper survived a group kill")
+	}
+	if testing.Short() {
+		return // the guard below waits out WaitDelay (5 s)
+	}
+	orphan, _ := run(false)
+	if !alive(orphan) {
+		t.Error("without Group the helper is expected to outlive the cancel (guard against a vacuous test)")
+	}
+	_ = syscall.Kill(orphan, syscall.SIGKILL)
 }

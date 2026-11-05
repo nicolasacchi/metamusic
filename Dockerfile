@@ -15,6 +15,10 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 FROM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
 WORKDIR /src
+# BEGIN T1-I1 toolchain pin (D-T1-3d): the DSP goldens are bit-exact and GOAMD64=v3 lets the compiler emit FMA. v1 is Go's
+# default; it is set explicitly so a base-image change cannot move it, and the build fails below if the binary says otherwise.
+ENV GOAMD64=v1
+# END T1-I1 toolchain pin
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd/ ./cmd/
@@ -27,6 +31,11 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
       -o /out/metamusic ./cmd/metamusic
+# BEGIN T1-I1 the shipped binary records GOAMD64=v1 (GOAMD64 exists only on amd64; other targets skip the check)
+RUN [ "$(go env GOARCH)" != amd64 ] \
+ || go version -m /out/metamusic | grep -Eq '^[[:space:]]+build[[:space:]]+GOAMD64=v1$' \
+ || { echo "release binary is not built with GOAMD64=v1" >&2; go version -m /out/metamusic >&2; exit 1; }
+# END T1-I1 the shipped binary records GOAMD64=v1
 
 FROM alpine:3.24
 RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
