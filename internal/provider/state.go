@@ -194,6 +194,9 @@ func (g *Gate) StateIn(ctx context.Context, q querier) (State, error) {
 	if g.cfg.Mode == ModeRunPod && st.Reason == "" {
 		if st.Quote == nil {
 			st.Reason = ReasonQuoteStale
+		} else if st.Quote.Backend != "" && st.Quote.Backend != st.Backend {
+			// a quote observed for another backend never enables this one (C151: each backend has its own quote)
+			st.Reason = ReasonEndpointConfig
 		} else if r := QuoteCheck(*st.Quote, g.now(), g.cfg); r != "" {
 			st.Reason = r
 		} else {

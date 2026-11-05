@@ -166,8 +166,8 @@ func TestRequest_T1KindMembers(t *testing.T) {
 		rec := r.callWith(t1Agent(auth.ScopeRead, auth.ScopeWrite), w.method, w.path, body)
 		var m map[string]any
 		_ = json.Unmarshal(rec.Body.Bytes(), &m)
-		if rec.Code != 501 { // past validation, into the stub
-			t.Errorf("%s: %d %v, want the request to validate and reach the 501 stub", kind, rec.Code, m)
+		if rec.Code != 503 { // past validation, into the handler (the service of this rig is disabled)
+			t.Errorf("%s: %d %v, want the request to validate and reach the handler (503 UNAVAILABLE)", kind, rec.Code, m)
 		}
 	}
 	for name, body := range map[string]string{

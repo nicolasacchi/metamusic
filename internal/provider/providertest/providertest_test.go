@@ -1,8 +1,13 @@
 package providertest_test
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"context"
 	"errors"
+	"github.com/google/jsonschema-go/jsonschema"
 	"sync"
 	"testing"
 	"time"
@@ -120,5 +125,47 @@ func TestProvidertest_Panicking(t *testing.T) {
 	}
 	if b.Calls().Total() != 9 {
 		t.Errorf("calls %+v", b.Calls())
+	}
+}
+
+func TestProvidertest_ACEStep(t *testing.T) {
+	t.Parallel()
+	b := providertest.NewACEStep(providertest.Script{})
+	if b.Name() != provider.BackendFakeACEStep || b.Engine() != provider.EngineACEStep {
+		t.Fatalf("%q %q", b.Name(), b.Engine())
+	}
+	if providertest.New("fake", providertest.Script{}).Engine() != provider.EngineYuE2 {
+		t.Error("the default scripted backend serves yue2")
+	}
+	q, _ := b.Quote(context.Background())
+	if q.Backend != provider.BackendFakeACEStep {
+		t.Errorf("quote backend %q", q.Backend)
+	}
+}
+
+func TestACEStepOutput_ValidatesAgainstSchema(t *testing.T) {
+	t.Parallel()
+	raw := providertest.ACEStepOutput("take-1", "att-1", 30.5, map[string]string{"ACE-Step/Ace-Step1.5": "0123456789abcdef0123456789abcdef01234567"},
+		"request.json", "result.json", "lyrics.lrc", "audio.flac", "mm-result.json")
+	f, err := os.ReadFile(filepath.Join("..", "..", "..", "worker", "src", "mmworker", "schema", "mm-worker-1.acestep15.output.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s jsonschema.Schema
+	if err := json.Unmarshal(f, &s); err != nil {
+		t.Fatal(err)
+	}
+	rs, err := s.Resolve(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inst any
+	_ = json.Unmarshal(raw, &inst)
+	if err := rs.Validate(inst); err != nil {
+		t.Fatalf("%v\n%s", err, raw)
+	}
+	out, err := provider.DecodeOutput(raw)
+	if err != nil || out.Truncated != nil || len(out.Artifacts) != 4 {
+		t.Errorf("decode: %+v %v", out, err)
 	}
 }
