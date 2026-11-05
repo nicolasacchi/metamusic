@@ -5454,6 +5454,8 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             critic_stars: number | null;
+            cross_engine: boolean;
+            engine: string;
             /** Format: int64 */
             generation: number;
             id: string;
@@ -5466,6 +5468,7 @@ export interface components {
             parent_id: string | null;
             rationale: string | null;
             recipe_known: boolean;
+            reference?: components["schemas"]["LineageReference"];
             request_id: string;
             /**
              * Format: int64
@@ -5475,6 +5478,8 @@ export interface components {
             /** Format: int64 */
             stars: number | null;
             status: string;
+            /** Format: int64 */
+            stems: number;
             title: string;
             /** @description Set when the node is a transform output; null otherwise */
             transform: {
@@ -5482,6 +5487,13 @@ export interface components {
                 spec_hash: string;
                 transform_id: string;
             } | null;
+        };
+        LineageReference: {
+            /** Format: double */
+            from_s: number;
+            /** Format: double */
+            to_s: number;
+            track_id: string;
         };
         LineageTree: {
             nodes: components["schemas"]["LineageNode"][];

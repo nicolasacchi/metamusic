@@ -10010,6 +10010,12 @@
               "null"
             ]
           },
+          "cross_engine": {
+            "type": "boolean"
+          },
+          "engine": {
+            "type": "string"
+          },
           "generation": {
             "format": "int64",
             "type": "integer"
@@ -10059,6 +10065,9 @@
           "recipe_known": {
             "type": "boolean"
           },
+          "reference": {
+            "$ref": "#/components/schemas/LineageReference"
+          },
           "request_id": {
             "type": "string"
           },
@@ -10079,6 +10088,10 @@
           },
           "status": {
             "type": "string"
+          },
+          "stems": {
+            "format": "int64",
+            "type": "integer"
           },
           "title": {
             "type": "string"
@@ -10130,7 +10143,32 @@
           "created_at",
           "children_count",
           "transform",
-          "also_from"
+          "also_from",
+          "engine",
+          "stems",
+          "cross_engine"
+        ],
+        "type": "object"
+      },
+      "LineageReference": {
+        "additionalProperties": false,
+        "properties": {
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "from_s",
+          "to_s"
         ],
         "type": "object"
       },

@@ -213,7 +213,11 @@ func lineageFrom(t lineage.Tree) LineageTree {
 	for _, n := range t.Nodes {
 		ln := LineageNode{ID: n.ID, ParentID: n.ParentID, Generation: n.Generation, Title: n.Title, Status: n.Status, Seed: n.Seed, RecipeKnown: n.RecipeKnown,
 			Lossy: n.Lossy, RequestID: n.RequestID, Origin: n.Origin, Operator: nonEmpty(n.Operator), Inferred: n.Inferred, Rationale: n.Rationale,
-			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{}}
+			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{},
+			Engine: nodeEngine(n), Stems: n.Stems, CrossEngine: n.CrossEngine}
+		if r := n.Reference; r != nil {
+			ln.Reference = &LineageReference{TrackID: r.TrackID, FromS: r.FromS, ToS: r.ToS}
+		}
 		if n.Transform != nil {
 			ln.Transform = &library.TransformRef{Kind: n.Transform.Kind, TransformID: n.Transform.TransformID, SpecHash: n.Transform.SpecHash}
 		}

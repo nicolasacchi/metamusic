@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// ErrNoBackend: no enabled backend serves the engine (422 BACKEND_UNAVAILABLE at the API, C151.1).
+// ErrNoBackend means no enabled backend serves the engine (422 BACKEND_UNAVAILABLE at the API, C151.1).
 var ErrNoBackend = errors.New("provider: no enabled backend for this engine")
 
 // Set is the ordered set of backends of a process: one per engine (D-E2-1). It is immutable after construction and

@@ -760,6 +760,19 @@ type LineageNode struct {
 	// T1 (C211.3)
 	Transform *library.TransformRef `json:"transform" doc:"Set when the node is a transform output; null otherwise"`
 	AlsoFrom  []AlsoFrom            `json:"also_from" nullable:"false" doc:"Further inputs of a transform; annotations, never tree edges"`
+
+	// E2 (D-E2-12, D-E2-25, C157.1)
+	Engine      string            `json:"engine"`
+	Reference   *LineageReference `json:"reference,omitempty"`
+	Stems       int               `json:"stems"`
+	CrossEngine bool              `json:"cross_engine"`
+}
+
+// LineageReference is the reference edge of a node, in seconds.
+type LineageReference struct {
+	TrackID string  `json:"track_id"`
+	FromS   float64 `json:"from_s"`
+	ToS     float64 `json:"to_s"`
 }
 
 // AlsoFrom is an extra input of a transform Take.
