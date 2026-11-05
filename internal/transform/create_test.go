@@ -277,7 +277,7 @@ func TestCreate_CrossPrincipalReuse(t *testing.T) {
 	r := newRig(t)
 	a := r.create(agentA, glacier(r.tx("A")))
 	reserved := func() int64 {
-		q, err := r.svc.poolQuota(t.Context(), r.st.R, "agent")
+		q, err := r.svc.QuotaOf(t.Context(), r.st.R, "agent", r.clock())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -292,8 +292,8 @@ func TestCreate_CrossPrincipalReuse(t *testing.T) {
 		t.Error("the second principal was charged or created a row")
 	}
 	// the owner may cancel; the other agent may not
-	_, err := r.svc.Cancel(t.Context(), agentB, a.View.ID)
-	if pe := wantProblem(t, err, 403, "FORBIDDEN"); pe.Details["owner"] != "agent:tok-a" {
+	_, err := r.cancel(t.Context(), agentB, a.View.ID)
+	if pe := wantProblem(t, err, 403, "FORBIDDEN"); pe.Details["owner"] != "agent a" {
 		t.Errorf("details %v", pe.Details)
 	}
 }
@@ -316,7 +316,7 @@ func TestCancel_CrossPrincipalReuse(t *testing.T) {
 		done <- w
 	}()
 	time.Sleep(50 * time.Millisecond)
-	v, err := r.svc.Cancel(t.Context(), agentA, a.View.ID)
+	v, err := r.cancel(t.Context(), agentA, a.View.ID)
 	if err != nil || v.State != StateCancelled || v.Error == nil || v.Error.Code != ErrCancelledByUser || v.UsedMS == nil || *v.UsedMS != 0 {
 		t.Fatalf("cancel = %+v %v", v, err)
 	}
@@ -338,19 +338,19 @@ func TestCancel_Rules(t *testing.T) {
 	q := r.create(agentA, glacier(r.tx("A")))
 	run := r.create(agentA, req(KindGlacier, fmt.Sprintf(`{"source_id":%q,"factor":11}`, r.tx("A"))))
 	r.exec(`UPDATE transforms SET state='running', attempts=1, owner='t', lease_expires_at='2026-10-07T12:00:00.000Z', started_at='2026-10-07T12:00:00.000Z' WHERE id=?`, run.View.ID)
-	v, err := r.svc.Cancel(t.Context(), human, run.View.ID)
+	v, err := r.cancel(t.Context(), human, run.View.ID)
 	if err != nil || v.State != StateRunning || v.CancelRequestedAt == nil {
 		t.Fatalf("running cancel %+v %v", v, err)
 	}
-	v, err = r.svc.Cancel(t.Context(), human, q.View.ID)
+	v, err = r.cancel(t.Context(), human, q.View.ID)
 	if err != nil || v.State != StateCancelled || v.FinishedAt == nil {
 		t.Fatalf("queued cancel %+v %v", v, err)
 	}
-	v2, err := r.svc.Cancel(t.Context(), agentA, q.View.ID) // already terminal: unchanged, no error
+	v2, err := r.cancel(t.Context(), agentA, q.View.ID) // already terminal: unchanged, no error
 	if err != nil || v2.State != StateCancelled || *v2.FinishedAt != *v.FinishedAt {
 		t.Fatalf("terminal cancel %+v %v", v2, err)
 	}
-	_, err = r.svc.Cancel(t.Context(), human, "nope")
+	_, err = r.cancel(t.Context(), human, "nope")
 	wantProblem(t, err, 404, "NOT_FOUND")
 }
 
@@ -367,7 +367,7 @@ func TestCreate_AfterFailureNewRow(t *testing.T) {
 	if r.count(`SELECT COUNT(DISTINCT recipe_id) FROM transforms`) != 1 || r.count(`SELECT COUNT(*) FROM transforms WHERE spec_hash = ?`, first.View.SpecHash) != 2 {
 		t.Error("expected two rows on one recipe")
 	}
-	if _, err := r.svc.Cancel(t.Context(), human, second.View.ID); err != nil {
+	if _, err := r.cancel(t.Context(), human, second.View.ID); err != nil {
 		t.Fatal(err)
 	}
 	third := r.create(human, glacier(r.tx("A")))
@@ -496,28 +496,28 @@ func TestQuota_DailyCPU(t *testing.T) {
 	budget := e.CPU.MaxMS
 	r.svc.o.Config.TransformAgentDailyCPUS = int(2*budget/1000) + 1 // room for two reservations of about this size, not three
 	a := r.create(agentA, one(10))
-	used, _ := DailyCPUUsedMS(t.Context(), r.st.R, "agent", r.clock().Add(-QuotaWindow))
+	used := r.usedPlusReserved("agent")
 	if used != a.View.MaxMS {
 		t.Errorf("live row reserves %d, want %d", used, a.View.MaxMS)
 	}
 	b := r.create(agentA, one(11))
 	_, err = r.svc.Create(t.Context(), agentA, one(12), nil)
 	pe := wantProblem(t, err, 429, ErrQuotaExceeded)
-	if pe.Details["cap_ms"] != r.svc.poolCapMS("agent") || pe.Details["reserved_ms"] == nil || pe.Details["resets_at"] == nil {
+	if pe.Details["cap_ms"] != r.svc.capMS("agent") || pe.Details["reserved_ms"] == nil || pe.Details["resets_at"] == nil {
 		t.Errorf("details %v", pe.Details)
 	}
 	// finishing releases the reservation and counts the measured CPU instead
 	r.finish(a.View.ID, StateDone, 10)
 	r.finish(b.View.ID, StateDone, 10)
-	used, _ = DailyCPUUsedMS(t.Context(), r.st.R, "agent", r.clock().Add(-QuotaWindow))
+	used = r.usedPlusReserved("agent")
 	if used != 20 {
 		t.Errorf("used %d, want 20", used)
 	}
 	r.create(agentA, one(12))
 	// a day later the finished rows have left the window
 	r.advance(25 * time.Hour)
-	used, _ = DailyCPUUsedMS(t.Context(), r.st.R, "agent", r.clock().Add(-QuotaWindow))
-	q, _ := r.svc.poolQuota(t.Context(), r.st.R, "agent")
+	used = r.usedPlusReserved("agent")
+	q, _ := r.svc.QuotaOf(t.Context(), r.st.R, "agent", r.clock())
 	if used != q.ReservedMS || q.UsedMS != 0 {
 		t.Errorf("rolled window: used %d reserved %d usedMS %d", used, q.ReservedMS, q.UsedMS)
 	}
@@ -560,10 +560,10 @@ func TestQuota_CancelledQueuedReleases(t *testing.T) {
 	r.svc.o.Config.TransformAgentDailyCPUS = int(e.CPU.MaxMS/1000) + 1
 	for i := 0; i < 5; i++ {
 		v := r.create(agentA, glacier(r.tx("A")))
-		if _, err := r.svc.Cancel(t.Context(), agentA, v.View.ID); err != nil {
+		if _, err := r.cancel(t.Context(), agentA, v.View.ID); err != nil {
 			t.Fatal(err)
 		}
-		q, _ := r.svc.poolQuota(t.Context(), r.st.R, "agent")
+		q, _ := r.svc.QuotaOf(t.Context(), r.st.R, "agent", r.clock())
 		if q.UsedMS != 0 || q.ReservedMS != 0 {
 			t.Fatalf("loop %d: used %d reserved %d", i, q.UsedMS, q.ReservedMS)
 		}
@@ -573,4 +573,13 @@ func TestQuota_CancelledQueuedReleases(t *testing.T) {
 	if n.Int64 != 0 || r.count(`SELECT COUNT(*) FROM transforms WHERE state = 'cancelled'`) != 5 {
 		t.Errorf("cancelled rows record cpu_ms %d", n.Int64)
 	}
+}
+
+func (r *rig) usedPlusReserved(kind string) int64 {
+	r.t.Helper()
+	q, err := r.svc.QuotaOf(r.t.Context(), r.st.R, kind, r.clock())
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return q.UsedMS + q.ReservedMS
 }

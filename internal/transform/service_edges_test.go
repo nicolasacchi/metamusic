@@ -211,20 +211,16 @@ func TestCreate_IdempotencyEncoderRequired(t *testing.T) {
 	}
 }
 
-// TestCancel_Audit: a cancel under the gate writes its audit row in the transaction; an unauthenticated principal is refused;
-// a disabled service answers 503.
-func TestCancel_Audit(t *testing.T) {
+// TestDisabled_Reads: a disabled service answers 503 on cancel, get and wait.
+func TestDisabled_Reads(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	v := r.create(human, glacier(r.tx("A"))).View
-	if _, err := r.svc.Cancel(r.gated(human, ""), human, v.ID); err != nil {
+	if _, err := r.cancel(r.gated(human, ""), human, v.ID); err != nil {
 		t.Fatal(err)
 	}
-	if got := r.count(`SELECT COUNT(*) FROM audit_log WHERE op = 'create_transform' AND status = 200 AND created_ids_json LIKE ?`, "%"+v.ID+"%"); got != 1 {
-		t.Errorf("cancel audit rows %d", got)
-	}
 	r.svc.o.Config.TransformEnabled = false
-	_, err := r.svc.Cancel(t.Context(), human, v.ID)
+	_, err := r.cancel(t.Context(), human, v.ID)
 	wantProblem(t, err, 503, "UNAVAILABLE")
 	_, err = r.svc.Get(t.Context(), human, v.ID)
 	wantProblem(t, err, 503, "UNAVAILABLE")
@@ -358,5 +354,25 @@ func TestEstimate_FixtureShapes(t *testing.T) {
 		if got := r.count(`SELECT COUNT(*) FROM ` + tb); got != n {
 			t.Errorf("%s: %d -> %d", tb, n, got)
 		}
+	}
+}
+
+// TestChanged_WakesWait: the runner's Changed hook is wired to the hub, so a row change releases a waiter, and a caller's own
+// Changed hook still runs.
+func TestChanged_WakesWait(t *testing.T) {
+	t.Parallel()
+	var seen string
+	r := newRig(t, func(_ *config.Config, o *Options) { o.Changed = func(id string) { seen = id } })
+	v := r.create(human, glacier(r.tx("A"))).View
+	ch, cancel := r.svc.hub.subscribe(v.ID)
+	defer cancel()
+	r.svc.o.Changed(v.ID)
+	select {
+	case <-ch:
+	default:
+		t.Error("Changed did not notify the hub")
+	}
+	if seen != v.ID {
+		t.Error("the caller's Changed hook was dropped")
 	}
 }

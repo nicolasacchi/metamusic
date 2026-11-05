@@ -9,12 +9,10 @@ import (
 	"math"
 	"net/http"
 	"path/filepath"
-	"time"
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/problem"
-	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // Request is the body of estimate and create (C212.2) in this package's terms: Members holds the JSON object of every member
@@ -40,7 +38,7 @@ type Estimate struct {
 	Inputs      []EstimateInput
 	Resolved    json.RawMessage
 	Warnings    []Warning
-	Quota       QuotaInfo
+	Quota       Quota
 	Queue       QueueEstimate
 	Existing    *Existing
 	Tools       ToolsEstimate
@@ -79,13 +77,6 @@ type KeyInfo struct {
 	PC      int
 	Minor   bool
 	Source  string
-}
-
-// QuotaInfo is the daily CPU pool of the caller's principal kind (shared by every principal of that kind, D-T1-10).
-type QuotaInfo struct {
-	PrincipalKind             string
-	CapMS, UsedMS, ReservedMS int64
-	ResetsAt                  time.Time
 }
 
 // QueueEstimate is the queue as an estimate sees it.
@@ -158,20 +149,10 @@ func (s *Service) ready() error {
 // principalPool maps a principal to its quota pool (D-T1-10): agents draw from the agent pool, every human-like principal (the
 // operator, a paired device, the CLI) from the human pool.
 func principalPool(p auth.Principal) (string, error) {
-	switch p.Kind {
-	case auth.KindAgent:
-		return "agent", nil
-	case auth.KindHuman, auth.KindDevice, auth.KindSystem:
-		return "human", nil
+	if p.Kind == auth.KindAnonymous || p.Key() == "" {
+		return "", forbidden("a transform needs an authenticated principal", nil)
 	}
-	return "", forbidden("a transform needs an authenticated principal", nil)
-}
-
-func (s *Service) poolCapMS(pool string) int64 {
-	if pool == "agent" {
-		return int64(s.o.Config.TransformAgentDailyCPUS) * 1000
-	}
-	return int64(s.o.Config.TransformHumanDailyCPUS) * 1000
+	return QuotaKind(p), nil
 }
 
 // build runs steps 2 to 5 of the create order (C210.1) over q, in order, and stops at the first refusal: the request shape
@@ -450,43 +431,6 @@ func (s *Service) queueState(ctx context.Context, q queryer) (running, queued in
 	return running, queued, rows.Err()
 }
 
-// DailyCPUUsedMS is the rolling-window usage of one principal kind (one shared pool, D-T1-10): live rows reserve max_cpu_ms and
-// every terminal row inside the window counts its measured cpu_ms (0 for a job that never ran, so a cancelled queued job
-// releases its reservation at once). C201.3.
-func DailyCPUUsedMS(ctx context.Context, q queryer, principalKind string, since time.Time) (int64, error) {
-	var n sql.NullInt64
-	err := q.QueryRowContext(ctx, `SELECT SUM(COALESCE(cpu_ms, max_cpu_ms)) FROM transforms
-		WHERE principal_kind = ? AND (state IN ('queued','running') OR finished_at >= ?)`, principalKind, store.FormatTime(since)).Scan(&n)
-	if err != nil {
-		return 0, fmt.Errorf("transform: daily cpu: %w", err)
-	}
-	return n.Int64, nil
-}
-
-// poolQuota reads the pool of one principal kind: used (finished inside the window), reserved (live) and when it next frees up.
-func (s *Service) poolQuota(ctx context.Context, q queryer, pool string) (QuotaInfo, error) {
-	now := s.o.Now()
-	since := now.Add(-QuotaWindow)
-	out := QuotaInfo{PrincipalKind: pool, CapMS: s.poolCapMS(pool), ResetsAt: now.Add(QuotaWindow)}
-	var used, reserved sql.NullInt64
-	var oldest sql.NullString
-	err := q.QueryRowContext(ctx, `SELECT
-		SUM(CASE WHEN state IN ('done','failed','cancelled') THEN cpu_ms END),
-		SUM(CASE WHEN state IN ('queued','running') THEN max_cpu_ms END),
-		MIN(CASE WHEN state IN ('done','failed','cancelled') AND cpu_ms > 0 THEN finished_at END)
-		FROM transforms WHERE principal_kind = ? AND (state IN ('queued','running') OR finished_at >= ?)`, pool, store.FormatTime(since)).Scan(&used, &reserved, &oldest)
-	if err != nil {
-		return out, fmt.Errorf("transform: quota: %w", err)
-	}
-	out.UsedMS, out.ReservedMS = used.Int64, reserved.Int64
-	if oldest.Valid {
-		if t, err := store.ParseTime(oldest.String); err == nil {
-			out.ResetsAt = t.Add(QuotaWindow)
-		}
-	}
-	return out, nil
-}
-
 func (s *Service) existing(ctx context.Context, q queryer, specHash string) (*Existing, error) {
 	var id, st string
 	err := q.QueryRowContext(ctx, `SELECT id, state FROM transforms WHERE spec_hash = ? AND state IN ('queued','running','done')`, specHash).Scan(&id, &st)
@@ -518,7 +462,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, req Request) (
 	if err != nil {
 		return Estimate{}, err
 	}
-	quota, err := s.poolQuota(ctx, q, pl.PrincipalKd)
+	quota, err := s.QuotaOf(ctx, q, pl.PrincipalKd, s.o.Now())
 	if err != nil {
 		return Estimate{}, err
 	}

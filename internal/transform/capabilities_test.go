@@ -213,7 +213,7 @@ func TestCapabilities_Content(t *testing.T) {
 	if c.Limits != (LimitsInfo{MaxInputs: 2, MaxInputS: 600, MaxOutputS: 300, MaxMemMB: 512, MaxCPUS: 120, Concurrent: 1}) {
 		t.Errorf("limits %+v", c.Limits)
 	}
-	if c.Queue != (QueueInfo{Queued: 1, Max: 3}) || c.Quota.PrincipalKind != "agent" || c.Quota.CapMS != 1_800_000 || c.Quota.ReservedMS == 0 {
+	if c.Queue != (QueueInfo{Queued: 1, Max: 3}) || c.Quota.Kind != "agent" || c.Quota.CapMS != 1_800_000 || c.Quota.ReservedMS == 0 {
 		t.Errorf("queue %+v quota %+v", c.Queue, c.Quota)
 	}
 	if !c.Tools.Fluidsynth || c.Tools.FluidsynthVersion != "2.3.4" || len(c.Soundfonts) != 1 || c.Soundfonts[0] != (SoundfontInfo{Name: "orchestra", SHA12: "abcdef012345", Bytes: 1234}) {

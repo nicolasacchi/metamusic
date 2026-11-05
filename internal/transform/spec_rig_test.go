@@ -209,3 +209,11 @@ func ptrStr(s string) *string { return &s }
 type configT = config.Config
 
 func testPrincipalNoName() auth.Principal { return auth.Principal{Kind: auth.KindAgent, ID: "x"} }
+
+// cancel runs B3's Cancel and reads the view afterwards, as B4's operation will.
+func (r *rig) cancel(ctx context.Context, p auth.Principal, id string) (View, error) {
+	if err := r.svc.Cancel(ctx, p, id); err != nil {
+		return View{}, err
+	}
+	return r.svc.Get(ctx, p, id)
+}

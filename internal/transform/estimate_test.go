@@ -167,13 +167,13 @@ func TestEstimate_Content(t *testing.T) {
 	if e.Queue != (QueueEstimate{Running: 0, Queued: 0, PositionIfCreated: 1}) || e.Existing != nil {
 		t.Errorf("queue %+v existing %+v", e.Queue, e.Existing)
 	}
-	if e.Quota.PrincipalKind != "agent" || e.Quota.CapMS != 1_800_000 || e.Quota.UsedMS != 0 || e.Quota.ReservedMS != 0 {
+	if e.Quota.Kind != "agent" || e.Quota.CapMS != 1_800_000 || e.Quota.UsedMS != 0 || e.Quota.ReservedMS != 0 {
 		t.Errorf("quota %+v", e.Quota)
 	}
 	if !e.Tools.FFmpeg || !e.Tools.FLAC || e.Tools.Fluidsynth {
 		t.Errorf("tools %+v", e.Tools)
 	}
-	if h, _ := r.svc.Estimate(t.Context(), human, glacier(r.tx("A"))); h.Quota.PrincipalKind != "human" || h.Quota.CapMS != 14_400_000 {
+	if h, _ := r.svc.Estimate(t.Context(), human, glacier(r.tx("A"))); h.Quota.Kind != "human" || h.Quota.CapMS != 14_400_000 {
 		t.Errorf("human quota %+v", h.Quota)
 	}
 	// once created, the estimate sees it as existing and the queue as one longer
