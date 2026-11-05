@@ -36,8 +36,10 @@
 ./internal/sounds 30
 ./internal/nextactions 28
 ./internal/analysis/ffmpeg 27
+./internal/dsp/ops 27
 ./internal/media/clip 26
 ./internal/connectors 26
+./internal/dsp/dsptest 26
 ./internal/dsp 25
 ./internal/trackctx 20
 ./internal/transform 19
