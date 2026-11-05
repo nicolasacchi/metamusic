@@ -39,7 +39,6 @@ const (
 	taskS1 = "M5-S1" // propose_patch, get_patch, list_patches; item mode song_pr
 	taskC1 = "M5-C1" // list_callbacks, get_callback, submit_callback_verdict
 	taskA1 = "M5-A1" // get_listen_heat
-	taskD1 = "M5-D1" // suggest_duel_pairs; create_duel section
 	taskV1 = "M5-V1" // create_voice_note
 
 	// notImplementedCode is the code of every stub answer.

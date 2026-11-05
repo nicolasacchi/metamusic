@@ -145,7 +145,7 @@ func (s *Service) List(ctx context.Context, p auth.Principal, f ListFilter) (Pag
 func (s *Service) summary(p auth.Principal, d duelRow, vs []verdictRow, refs map[string]library.TrackRef) DuelSummary {
 	st := s.standingOf(p, d, vs)
 	out := DuelSummary{ID: d.ID, State: st.state, Blind: d.Blind, Revealed: st.revealed, CreatedAt: rfc(d.CreatedAt), ExpiresAt: rfc(d.ExpireAt),
-		Window: d.window(), LoudnessMatched: d.loudnessMatched()}
+		Window: d.window(st.revealed), LoudnessMatched: d.loudnessMatched()}
 	if st.revealed {
 		if r, ok := refs[d.SlotA]; ok {
 			out.Slots.A.Track = brief(r)
