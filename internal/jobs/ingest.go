@@ -263,10 +263,7 @@ type ingestEngine struct {
 // engineFor resolves the engine of a recipe. yue2 keeps its fixed required set, so a bridge without a registry is
 // byte-for-byte the M3 bridge; any other engine must be registered (the runner never claims a job of one that is not).
 func (b *IngestBridge) engineFor(req recipeInfo) (ingestEngine, error) {
-	name := req.engine
-	if name == "" {
-		name = provider.EngineYuE2
-	}
+	name := req.engine // recipes.engine is NOT NULL
 	e, ok := b.o.Engines[name]
 	if name == provider.EngineYuE2 {
 		ie := ingestEngine{name: name, reportsTruncation: true, learnsRTF: true, required: requiredIngest}
