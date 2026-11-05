@@ -175,16 +175,16 @@ func TestWiden_CorrelationBounds(t *testing.T) {
 	}
 	rows := []row{
 		// rho 0.9 at full width 2 stays at 0.65: the bound does not bite, so the strength must NOT be reduced needlessly
-		{name: "rho 0.9 width 2", b: dsptest.PinkStereo(testRate, 11, 8, 0.9), p: WidenParams{2, 0, 0}},
-		{name: "rho 0.6 width 2", b: dsptest.PinkStereo(testRate, 12, 8, 0.6), p: WidenParams{2, 0, 0}, reduced: true},
-		{name: "rho 0.6 default", b: dsptest.PinkStereo(testRate, 12, 8, 0.6), p: WidenParams{1.3, 0.1, 120}},
-		{name: "rho 0.2", b: dsptest.PinkStereo(testRate, 13, 8, 0.2), p: WidenParams{1.5, 0.1, 120}, pass: true, warn: WarnWidenAlreadyWide},
-		{name: "rho -0.5", b: dsptest.PinkStereo(testRate, 14, 8, -0.5), p: WidenParams{1.5, 0.1, 120}, pass: true, warn: WarnWidenOutOfPhase},
+		{name: "rho 0.9 width 2", b: dsptest.PinkStereo(testRate, 11, 4, 0.9), p: WidenParams{2, 0, 0}},
+		{name: "rho 0.6 width 2", b: dsptest.PinkStereo(testRate, 12, 4, 0.6), p: WidenParams{2, 0, 0}, reduced: true},
+		{name: "rho 0.6 default", b: dsptest.PinkStereo(testRate, 12, 4, 0.6), p: WidenParams{1.3, 0.1, 120}},
+		{name: "rho 0.2", b: dsptest.PinkStereo(testRate, 13, 4, 0.2), p: WidenParams{1.5, 0.1, 120}, pass: true, warn: WarnWidenAlreadyWide},
+		{name: "rho -0.5", b: dsptest.PinkStereo(testRate, 14, 4, -0.5), p: WidenParams{1.5, 0.1, 120}, pass: true, warn: WarnWidenOutOfPhase},
 		// the real-world shapes of FixtureT1: MONO, WIDE and OOP rows
-		{name: "MONO", b: dsptest.RealWorldShape("MONO", testRate, 8, 21), p: WidenParams{1.3, 0.1, 120}},
-		{name: "MONO width 2", b: dsptest.RealWorldShape("MONO", testRate, 8, 21), p: WidenParams{2, 0.5, 0}},
-		{name: "WIDE", b: dsptest.RealWorldShape("WIDE", testRate, 8, 22), p: WidenParams{1.3, 0.1, 120}, pass: true, warn: WarnWidenAlreadyWide},
-		{name: "OOP", b: dsptest.RealWorldShape("OOP", testRate, 8, 23), p: WidenParams{1.3, 0.1, 120}, pass: true, warn: WarnWidenOutOfPhase},
+		{name: "MONO", b: dsptest.RealWorldShape("MONO", testRate, 4, 21), p: WidenParams{1.3, 0.1, 120}},
+		{name: "MONO width 2", b: dsptest.RealWorldShape("MONO", testRate, 4, 21), p: WidenParams{2, 0.5, 0}},
+		{name: "WIDE", b: dsptest.RealWorldShape("WIDE", testRate, 4, 22), p: WidenParams{1.3, 0.1, 120}, pass: true, warn: WarnWidenAlreadyWide},
+		{name: "OOP", b: dsptest.RealWorldShape("OOP", testRate, 4, 23), p: WidenParams{1.3, 0.1, 120}, pass: true, warn: WarnWidenOutOfPhase},
 	}
 	for _, r := range rows {
 		out, info, err := Widen(r.b, r.p, nil)
@@ -298,4 +298,14 @@ func TestWiden_Params(t *testing.T) {
 		t.Error("a job without input accepted")
 	}
 	_ = filt.Butterworth
+}
+
+func TestParamError_Message(t *testing.T) {
+	t.Parallel()
+	if got := (&ParamError{Field: "width", Rule: RuleRange}).Error(); got != "ops: invalid width: range" {
+		t.Errorf("message %q", got)
+	}
+	if _, err := runWiden(context.Background(), RunIn{Rate: testRate, Inputs: []pcm.Buffer{{Rate: testRate}}}); err == nil {
+		t.Error("an empty input accepted")
+	}
 }

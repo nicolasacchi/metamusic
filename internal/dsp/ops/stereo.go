@@ -19,7 +19,6 @@ func (e *ParamError) Error() string { return "ops: invalid " + e.Field + ": " + 
 // Rule names of ParamError.
 const (
 	RuleRange   = "range"
-	RuleStep    = "step"
 	RulePreset  = "preset_unknown"
 	RuleInput   = "input"
 	RuleChannel = "channels"
@@ -133,13 +132,13 @@ const (
 // sums5 are the running sums of one stretch of a channel pair: n, sum l, sum r, sum ll, sum rr, sum lr.
 type sums5 struct{ n, l, r, ll, rr, lr float64 }
 
-func (a *sums5) add(b sums5) {
-	a.n += b.n
-	a.l += b.l
-	a.r += b.r
-	a.ll += b.ll
-	a.rr += b.rr
-	a.lr += b.lr
+func (s *sums5) add(b sums5) {
+	s.n += b.n
+	s.l += b.l
+	s.r += b.r
+	s.ll += b.ll
+	s.rr += b.rr
+	s.lr += b.lr
 }
 
 // rho is the Pearson coefficient from the sums (0 when a channel is constant).
