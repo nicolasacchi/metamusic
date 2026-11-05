@@ -1,0 +1,29 @@
+acestep15 canary, part a: worst case at the ILLUSTRATIVE price, not a quote 690000 micro-USD/h (cold start 300 s, idle 20 s, kill slack 15 s, max runtime 900 s)
+placeholder RTFs (unsourced seeds), pools AMPERE_24,ADA_24; no first-pull term (not billed)
+case t2m        max    84143 micro-USD (0.084143), --max-usd at least 0.168286
+  t2m            30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+case t2m-long   max   104843 micro-USD (0.104843), --max-usd at least 0.209686
+  t2m-long      480 s turbo timeout  212 s reserve   43509 + overhead   61334 =  104843
+case reference  max   423781 micro-USD (0.423781), --max-usd at least 0.847562
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  seed-a         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  seed-b         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  ref-a          30 s turbo timeout  112 s reserve   24342 + overhead   61334 =   85676
+  ref-b          30 s turbo timeout  112 s reserve   24342 + overhead   61334 =   85676
+case repaint    max   347688 micro-USD (0.347688), --max-usd at least 0.695376
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  range          30 s turbo timeout  112 s reserve   24342 + overhead   61334 =   85676
+  source-long   120 s turbo timeout  125 s reserve   26834 + overhead   61334 =   88168
+  boundary      120 s turbo timeout  133 s reserve   28367 + overhead   61334 =   89701
+case terminate  max    88168 micro-USD (0.088168), --max-usd at least 0.176336
+  terminate     120 s turbo timeout  125 s reserve   26834 + overhead   61334 =   88168
+case timeout    max    69959 micro-USD (0.069959), --max-usd at least 0.139918
+  timeout       120 s turbo timeout   30 s reserve    8625 + overhead   61334 =   69959
+case kill-switch max    88168 micro-USD (0.088168), --max-usd at least 0.176336
+  kill-switch   120 s turbo timeout  125 s reserve   26834 + overhead   61334 =   88168
+case init-fail  max    84143 micro-USD (0.084143), --max-usd at least 0.168286
+  init-fail      30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+case first-pull max    84143 micro-USD (0.084143), --max-usd at least 0.168286
+  first-pull     30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+init-fail window (12m0s) 138000 micro-USD
+WORST CASE part a: 1513036 micro-USD (1.513036) reserved, not expected spend; approve it, then pass it as --max-usd per case

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -138,6 +139,9 @@ type Options struct {
 	PurgeAfter     time.Duration // finished jobs answer 404 after this long (0: never)
 	SkewOffset     time.Duration // added to the Date header
 	RequestHost    string        // host in requestUrls (default api.runpod.ai)
+	// KnownEndpoints, when set, makes a health read of any other endpoint id answer 404, like RunPod does for an id that
+	// names no endpoint (the E2 two-endpoint probe). Nil: every id answers (M3's behaviour).
+	KnownEndpoints []string
 }
 
 // Req is one recorded request.
@@ -350,6 +354,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			s.createJob(body)
 		}
 		s.applyFault(w, r, f)
+		return
+	}
+	if op == OpHealth && s.o.KnownEndpoints != nil && !slices.Contains(s.o.KnownEndpoints, arg) {
+		s.problem(w, 404, "Not Found", "endpoint not found")
 		return
 	}
 	switch op {
