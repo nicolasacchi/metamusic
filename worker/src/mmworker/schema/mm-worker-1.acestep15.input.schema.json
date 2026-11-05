@@ -1,0 +1,757 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.worker/1 job input (engine acestep15)",
+  "description": "The `input` of a RunPod job for the ACE-Step 1.5 worker (C153.2): the M3 object with engine fixed to acestep15, an engine-native request, optional fetchable inputs and no min_audio_s. Mirrored by provider.ParseWorkerInput (Go) and mmworker.contract (Python); selected by the optional input engine (absent or yue2 selects mm-worker-1.input.schema.json).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "take_id",
+    "attempt_id",
+    "engine",
+    "request",
+    "timeout_s",
+    "upload_budget_s",
+    "deadline_unix",
+    "start",
+    "uploads",
+    "expect"
+  ],
+  "properties": {
+    "contract": {
+      "const": "mm.worker/1"
+    },
+    "take_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "engine": {
+      "const": "acestep15"
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "task",
+        "caption",
+        "lyrics",
+        "instrumental",
+        "vocal_language",
+        "seed",
+        "thinking",
+        "engine_params_version",
+        "inference_steps"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,179}$"
+        },
+        "task": {
+          "enum": [
+            "text2music",
+            "repaint",
+            "extend",
+            "complete",
+            "extract"
+          ]
+        },
+        "caption": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "lyrics": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "instrumental": {
+          "type": "boolean"
+        },
+        "vocal_language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,8}$"
+        },
+        "bpm": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 300
+        },
+        "keyscale": {
+          "type": "string",
+          "pattern": "^[A-G][#b]? (Major|Minor)$"
+        },
+        "timesignature": {
+          "enum": [
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        },
+        "duration_ds": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 6000
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "thinking": {
+          "type": "boolean"
+        },
+        "lrc": {
+          "type": "boolean"
+        },
+        "engine_params_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "inference_steps": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 64
+        },
+        "guidance_milli": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 15000
+        },
+        "src": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "track_id",
+            "master_sha256",
+            "duration_ds"
+          ],
+          "properties": {
+            "track_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "master_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "duration_ds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6000
+            }
+          }
+        },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "track_id",
+            "clip_sha256",
+            "from_ds",
+            "to_ds"
+          ],
+          "properties": {
+            "track_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "clip_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "from_ds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6000
+            },
+            "to_ds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6000
+            }
+          }
+        },
+        "repaint_from_ds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6000
+        },
+        "repaint_to_ds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6000
+        },
+        "extend_ds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 900
+        },
+        "tracks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "backing_vocals",
+              "bass",
+              "brass",
+              "drums",
+              "fx",
+              "guitar",
+              "keyboard",
+              "percussion",
+              "strings",
+              "synth",
+              "vocals",
+              "woodwinds"
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "const": "text2music"
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "required": [
+              "duration_ds"
+            ],
+            "properties": {
+              "inference_steps": {
+                "const": 8
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "src"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_from_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_to_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "extend_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "tracks"
+                  ]
+                },
+                {
+                  "required": [
+                    "guidance_milli"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "const": "repaint"
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "required": [
+              "src",
+              "repaint_from_ds",
+              "repaint_to_ds"
+            ],
+            "properties": {
+              "inference_steps": {
+                "const": 8
+              },
+              "thinking": {
+                "const": false
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "duration_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "extend_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "tracks"
+                  ]
+                },
+                {
+                  "required": [
+                    "guidance_milli"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "const": "extend"
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "required": [
+              "src",
+              "extend_ds"
+            ],
+            "properties": {
+              "inference_steps": {
+                "const": 8
+              },
+              "thinking": {
+                "const": false
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "duration_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_from_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_to_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "tracks"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "guidance_milli"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "enum": [
+                  "complete",
+                  "extract"
+                ]
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "required": [
+              "src",
+              "tracks",
+              "guidance_milli"
+            ],
+            "properties": {
+              "inference_steps": {
+                "type": "integer",
+                "minimum": 32,
+                "maximum": 64
+              },
+              "thinking": {
+                "const": false
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "duration_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_from_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_to_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "extend_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "const": "extract"
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "properties": {
+              "tracks": {
+                "maxItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "timeout_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "upload_budget_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "deadline_unix": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://[^\\s]+$",
+          "maxLength": 2048
+        }
+      }
+    },
+    "uploads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audio.flac",
+        "request.json",
+        "result.json",
+        "mm-result.json"
+      ],
+      "properties": {
+        "audio.flac": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 201326592
+            }
+          }
+        },
+        "request.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            }
+          }
+        },
+        "lyrics.lrc": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            }
+          }
+        },
+        "mm-result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65536
+            }
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "src_audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 201326592
+            }
+          }
+        },
+        "reference_audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 201326592
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weights"
+      ],
+      "properties": {
+        "weights": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 2,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "request": {
+            "required": [
+              "src"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "inputs"
+        ],
+        "properties": {
+          "inputs": {
+            "required": [
+              "src_audio"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "inputs": {
+            "not": {
+              "required": [
+                "src_audio"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "request": {
+            "required": [
+              "ref"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "inputs"
+        ],
+        "properties": {
+          "inputs": {
+            "required": [
+              "reference_audio"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "inputs": {
+            "not": {
+              "required": [
+                "reference_audio"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

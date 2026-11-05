@@ -74,8 +74,19 @@ func patchIn(p *Patch) *lineage.Patch {
 }
 
 func itemIn(it ItemIn) generation.Item {
-	return generation.Item{Mode: it.Mode, ParentTrackID: it.ParentTrackID, ParentTrackIDs: it.ParentTrackIDs, DraftIDs: it.DraftIDs,
-		Recipe: []byte(it.Recipe), Patch: patchIn(it.Patch), TemplateMode: it.TemplateMode, NSeeds: it.NSeeds, Seeds: it.Seeds, Title: it.Title}
+	g := generation.Item{Mode: it.Mode, ParentTrackID: it.ParentTrackID, ParentTrackIDs: it.ParentTrackIDs, DraftIDs: it.DraftIDs,
+		Recipe: []byte(it.Recipe), Patch: patchIn(it.Patch), TemplateMode: it.TemplateMode, NSeeds: it.NSeeds, Seeds: it.Seeds, Title: it.Title,
+		Engine: it.Engine}
+	if e := it.Edit; e != nil {
+		g.Edit = &generation.Edit{FromS: e.FromS, ToS: e.ToS, ExtendS: e.ExtendS, Tracks: e.Tracks}
+	}
+	if r := it.Reference; r != nil {
+		g.Reference = &generation.Reference{TrackID: r.TrackID, FromS: r.FromS, ToS: r.ToS}
+	}
+	if p := it.Patch; p != nil && (p.BPM != nil || p.KeyScale != nil || p.TimeSignature != nil || p.DurationS != nil) {
+		g.EnginePatch = &generation.EnginePatch{BPM: p.BPM, KeyScale: p.KeyScale, TimeSignature: p.TimeSignature, DurationS: p.DurationS}
+	}
+	return g
 }
 
 // estimateVia is the path the later create will take: the operator's SPA confirms through the human path,
@@ -120,9 +131,7 @@ func estimateFrom(e generation.Estimate) Estimate {
 	for _, it := range e.Items {
 		ei := EstimateItem{Index: it.Index, Mode: it.Mode, Takes: []TakePlan{}}
 		for _, t := range it.Takes {
-			ei.Takes = append(ei.Takes, TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
-				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, TimeoutS: t.TimeoutS,
-				MaxMicroUSD: int64(t.Max), MaxUSD: usd(t.Max)})
+			ei.Takes = append(ei.Takes, takePlanFrom(e.Engine, t))
 		}
 		out.Items = append(out.Items, ei)
 	}
@@ -130,6 +139,23 @@ func estimateFrom(e generation.Estimate) Estimate {
 		out.Warnings = append(out.Warnings, EstimateWarning{TakeIndex: w.TakeIndex, Code: w.Code, Field: w.Field, Severity: w.Severity, Message: w.Text})
 	}
 	return out
+}
+
+// takePlanFrom renders one planned take, including the E2 fields (engine, task, class, echoed edit and reference).
+func takePlanFrom(batchEngine string, t generation.TakePlan) TakePlan {
+	tp := TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
+		ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, TimeoutS: t.TimeoutS,
+		MaxMicroUSD: int64(t.Max), MaxUSD: usd(t.Max), Engine: t.Engine, Task: nonEmpty(t.Task), TaskClass: nonEmpty(t.TaskClass), CrossEngine: t.CrossEngine}
+	if tp.Engine == "" {
+		tp.Engine = batchEngine
+	}
+	if e := t.Edit; e != nil {
+		tp.Edit = &TakeEdit{FromS: e.FromS, ToS: e.ToS, ExtendS: e.ExtendS, Tracks: nonNil(e.Tracks), Stem: nonEmpty(e.Stem)}
+	}
+	if r := t.Reference; r != nil {
+		tp.Reference = &TakeReference{TrackID: r.TrackID, FromS: r.FromS, ToS: r.ToS, ClipSHA256: r.ClipSHA256}
+	}
+	return tp
 }
 
 func approvalFrom(viewer auth.Principal, v generation.ApprovalView) ApprovalStatus {
@@ -187,7 +213,11 @@ func lineageFrom(t lineage.Tree) LineageTree {
 	for _, n := range t.Nodes {
 		ln := LineageNode{ID: n.ID, ParentID: n.ParentID, Generation: n.Generation, Title: n.Title, Status: n.Status, Seed: n.Seed, RecipeKnown: n.RecipeKnown,
 			Lossy: n.Lossy, RequestID: n.RequestID, Origin: n.Origin, Operator: nonEmpty(n.Operator), Inferred: n.Inferred, Rationale: n.Rationale,
-			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{}}
+			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{},
+			Engine: nodeEngine(n), Stems: n.Stems, CrossEngine: n.CrossEngine}
+		if r := n.Reference; r != nil {
+			ln.Reference = &LineageReference{TrackID: r.TrackID, FromS: r.FromS, ToS: r.ToS}
+		}
 		if n.Transform != nil {
 			ln.Transform = &library.TransformRef{Kind: n.Transform.Kind, TransformID: n.Transform.TransformID, SpecHash: n.Transform.SpecHash}
 		}
@@ -200,6 +230,17 @@ func lineageFrom(t lineage.Tree) LineageTree {
 		out.Nodes = append(out.Nodes, ln)
 	}
 	return out
+}
+
+// nodeEngine is the engine badge of a node: the recipe's engine, yue2 when the tree left it out (the common case).
+func nodeEngine(n lineage.Node) string {
+	switch {
+	case n.Engine != "":
+		return n.Engine
+	case n.RecipeKnown:
+		return "yue2"
+	}
+	return "unknown"
 }
 
 func strOrEmpty(s *string) string {
@@ -224,6 +265,10 @@ func registerGenerationM3(a huma.API, d Deps) {
 				return nil, unavailable("generation")
 			}
 			p := auth.FromContext(ctx)
+			var opts EstimateOptions
+			if in.Body.Options != nil {
+				opts = *in.Body.Options
+			}
 			items := make([]generation.Item, len(in.Body.Items))
 			for i, it := range in.Body.Items {
 				if err := songPRPending(it.Mode, it.PatchID); err != nil {
@@ -231,7 +276,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 				}
 				items[i] = itemIn(it)
 			}
-			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p)})
+			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID})
 			if err != nil {
 				return nil, genErr(err)
 			}

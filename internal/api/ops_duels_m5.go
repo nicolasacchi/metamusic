@@ -6,11 +6,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/duels"
 )
 
-// registerDuelsM5 registers suggest_duel_pairs (C258, C260). Frozen by M5-F2; lane M5-D1 fills the handler (and adds the id to
-// implementedDuelsM5 in ops_duels_m5_test.go). create_duel's section field is gated in ops_duels.go until D1 lands (see
-// sectionDuelPending).
+// registerDuelsM5 registers suggest_duel_pairs (C258, C260). create_duel's section field is handled by registerDuels.
 func registerDuelsM5(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "suggest_duel_pairs", Method: "GET", Path: "/api/duels/suggestions",
@@ -21,6 +20,30 @@ func registerDuelsM5(a huma.API, d Deps) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
 			}
-			return nil, notImplemented(taskD1)
+			q := duels.SuggestQuery{Scope: in.Scope, RootTrackID: in.RootTrackID, K: in.K}
+			if in.SectionLabel != "" || in.SectionKind != "" || in.SectionOrdinal != 0 {
+				sel := duels.SectionSelector{}
+				if in.SectionLabel != "" {
+					sel.Label = &in.SectionLabel
+				}
+				if in.SectionKind != "" {
+					sel.Kind = &in.SectionKind
+				}
+				if in.SectionOrdinal != 0 {
+					sel.Ordinal = &in.SectionOrdinal
+				}
+				q.Section = &sel
+			}
+			res, err := d.Duels.Suggest(ctx, q)
+			if err != nil {
+				return nil, m2bErr(err, "M5-D1")
+			}
+			out := PairSuggestions{Scope: res.Scope, RootTrackID: res.RootTrackID, Section: res.Section,
+				Model: PairSuggestionModel{Nu: res.Model.Nu, VerdictsCounted: res.Model.VerdictsCounted}, Pairs: make([]PairSuggestion, 0, len(res.Pairs))}
+			for _, p := range res.Pairs {
+				out.Pairs = append(out.Pairs, PairSuggestion{ATrackID: p.ATrackID, BTrackID: p.BTrackID, ATitle: p.ATitle, BTitle: p.BTitle,
+					Score: p.Score, PAWinsB: p.PAWinsB, SDA: p.SDA, SDB: p.SDB, HumanVerdict: p.HumanVerdict})
+			}
+			return &pairSuggestionsOut{Body: out}, nil
 		})
 }

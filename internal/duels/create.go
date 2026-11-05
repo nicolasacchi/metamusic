@@ -35,6 +35,16 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateInput) 
 	if open >= MaxOpenDuels {
 		return Duel{}, problem.E(409, "DUEL_LIMIT_REACHED", "too many open duels; judge or wait for some to expire", map[string]any{"open": open, "limit": MaxOpenDuels})
 	}
+	var key sectionKey
+	if in.Section != nil {
+		if in.FromS != nil || in.ToS != nil {
+			return Duel{}, invalid("section", "section cannot be combined with from_s or to_s")
+		}
+		var err error
+		if key, err = parseSection(in.Section); err != nil {
+			return Duel{}, err
+		}
+	}
 	if in.ATrackID == in.BTrackID {
 		return Duel{}, problem.E(422, "DUEL_SAME_TRACK", "a duel needs two different tracks", map[string]any{"track_id": in.ATrackID})
 	}
@@ -48,18 +58,45 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateInput) 
 		}
 	}
 	ra, rb := refs[in.ATrackID], refs[in.BTrackID]
-	w, err := clip.ResolveWindow(math.Min(ra.DurationS, rb.DurationS), in.FromS, in.ToS)
-	if err != nil {
-		return Duel{}, err
+	var w, wb clip.Window // wb: the window of requested track B in a section-locked duel
+	var secLabel, secSource sql.NullString
+	if in.Section != nil {
+		sa, err := s.sectionOf(ctx, in.ATrackID, key)
+		if err != nil {
+			return Duel{}, err
+		}
+		sb, err := s.sectionOf(ctx, in.BTrackID, key)
+		if err != nil {
+			return Duel{}, err
+		}
+		if w, wb, err = clip.ResolveSectionWindows(
+			clip.SectionSpan{StartS: sa.sec.StartS, EndS: sa.sec.EndS}, clip.SectionSpan{StartS: sb.sec.StartS, EndS: sb.sec.EndS},
+			ra.DurationS, rb.DurationS); err != nil {
+			return Duel{}, err
+		}
+		secLabel = sql.NullString{String: key.canonical(), Valid: true}
+		secSource = sql.NullString{String: sectionSource(sa.source, sb.source), Valid: true}
+	} else {
+		var err error
+		if w, err = clip.ResolveWindow(math.Min(ra.DurationS, rb.DurationS), in.FromS, in.ToS); err != nil {
+			return Duel{}, err
+		}
 	}
 	blind := in.Blind == nil || *in.Blind
 	swapped := blind && s.coin()
 	slotA, slotB := ra, rb
 	if swapped {
 		slotA, slotB = rb, ra
+		if in.Section != nil {
+			w, wb = wb, w // each slot keeps the window of its own track
+		}
 	}
 	d := duelRow{ID: s.newID(), SlotA: slotA.ID, SlotB: slotB.ID, Swapped: swapped, Blind: blind, FromMS: w.StartMS, ToMS: w.EndMS,
-		ClipDef: clip.Def, Tool: s.o.Clips.ToolVersion(), Match: "off", CreatedBy: p.Key(), Kind: string(p.Kind)}
+		ClipDef: clip.Def, Tool: s.o.Clips.ToolVersion(), Match: "off", CreatedBy: p.Key(), Kind: string(p.Kind),
+		SectionLabel: secLabel, SectionSrc: secSource}
+	if secLabel.Valid {
+		d.BFromMS, d.BToMS = sql.NullInt64{Int64: wb.StartMS, Valid: true}, sql.NullInt64{Int64: wb.EndMS, Valid: true}
+	}
 	specA, specB := d.spec(slotA, false), d.spec(slotB, true)
 	if in.MatchLoudness == nil || *in.MatchLoudness {
 		ma, err := s.o.Clips.Measure(ctx, specA)
@@ -92,10 +129,12 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateInput) 
 	now := s.now().UTC().Truncate(time.Second)
 	d.CreatedAt, d.ExpireAt = now, now.Add(s.expiry)
 	if _, err := s.o.Store.W.ExecContext(ctx, `INSERT INTO duels(id, slot_a_track_id, slot_b_track_id, swapped, blind, from_ms, to_ms, clip_def, tool_version,
-		match, target_lufs, gain_a_cdb, gain_b_cdb, window_lufs_a, window_lufs_b, window_tp_a, window_tp_b, created_by, created_by_kind, created_at, expires_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		match, target_lufs, gain_a_cdb, gain_b_cdb, window_lufs_a, window_lufs_b, window_tp_a, window_tp_b, created_by, created_by_kind, created_at, expires_at,
+		b_from_ms, b_to_ms, section_label, section_source)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		d.ID, d.SlotA, d.SlotB, d.Swapped, d.Blind, d.FromMS, d.ToMS, d.ClipDef, d.Tool, d.Match, d.TargetLUFS, d.GainACDB, d.GainBCDB,
-		d.LUFSA, d.LUFSB, d.TPA, d.TPB, d.CreatedBy, d.Kind, rfc(d.CreatedAt), rfc(d.ExpireAt)); err != nil {
+		d.LUFSA, d.LUFSB, d.TPA, d.TPB, d.CreatedBy, d.Kind, rfc(d.CreatedAt), rfc(d.ExpireAt),
+		d.BFromMS, d.BToMS, d.SectionLabel, d.SectionSrc); err != nil {
 		return Duel{}, fmt.Errorf("duels: insert: %w", err)
 	}
 	return s.view(ctx, p, d, nil, &objs, false)

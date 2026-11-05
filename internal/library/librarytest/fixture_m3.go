@@ -60,6 +60,7 @@ func seedID(kind, name string) string {
 func tsM3(t time.Time) string { return store.FormatTime(t) }
 
 type batchSpec struct {
+	engine, backend                                   string // "" => yue2 on fake (E2 fixtures set acestep15 on fake-acestep)
 	id, estimateID, principal, kind, name, via, state string
 	jobs                                              []string
 	rationale                                         any
@@ -80,6 +81,9 @@ func quoteFor(n int) (expected, maxMicro, retry, ceiling int64) {
 
 func insertEstimateAndBatch(tb testing.TB, st *store.Store, b batchSpec) {
 	tb.Helper()
+	if b.engine == "" {
+		b.engine, b.backend = "yue2", "fake"
+	}
 	n := len(b.jobs)
 	expected, maxMicro, retry, ceiling := quoteFor(n)
 	h := sha256.Sum256([]byte("token/" + b.id))
@@ -91,8 +95,8 @@ func insertEstimateAndBatch(tb testing.TB, st *store.Store, b batchSpec) {
 	mustExec(tb, st, `INSERT INTO estimates(id, principal_id, principal_kind, engine, backend, items_json, recipe_hashes, n_takes, quote_json,
 		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, workers_max, idle_s,
 		requires_approval, approval_reasons, token_hash, created_at, expires_at, consumed_at, consumed_batch_id)
-		VALUES (?,?,?,'yue2','fake','[]','[]',?,'{}',?,?,?,?,690000,2,20,?,?,?,?,?,?,?)`,
-		b.estimateID, b.principal, b.kind, n, expected, maxMicro, retry, ceiling, needs, reasons, hex.EncodeToString(h[:]),
+		VALUES (?,?,?,?,?,'[]','[]',?,'{}',?,?,?,?,690000,2,20,?,?,?,?,?,?,?)`,
+		b.estimateID, b.principal, b.kind, b.engine, b.backend, n, expected, maxMicro, retry, ceiling, needs, reasons, hex.EncodeToString(h[:]),
 		tsM3(b.created.Add(-time.Minute)), tsM3(b.created.Add(9*time.Minute)), tsM3(b.created), b.id)
 	fin := any(nil)
 	if b.state != "active" && b.state != "awaiting_confirmation" {
@@ -100,8 +104,8 @@ func insertEstimateAndBatch(tb testing.TB, st *store.Store, b batchSpec) {
 	}
 	mustExec(tb, st, `INSERT INTO batches(id, estimate_id, principal_id, principal_kind, principal_name, via, engine, backend, n_takes, rationale,
 		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, attempt_overhead_s, kill_slack_s,
-		workers_max, idle_s, state, created_at, finished_at) VALUES (?,?,?,?,?,?,'yue2','fake',?,?,?,?,?,?,690000,200,15,2,20,?,?,?)`,
-		b.id, b.estimateID, b.principal, b.kind, b.name, b.via, n, b.rationale, expected, maxMicro, retry, ceiling, b.state, tsM3(b.created), fin)
+		workers_max, idle_s, state, created_at, finished_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,690000,200,15,2,20,?,?,?)`,
+		b.id, b.estimateID, b.principal, b.kind, b.name, b.via, b.engine, b.backend, n, b.rationale, expected, maxMicro, retry, ceiling, b.state, tsM3(b.created), fin)
 	appr := `INSERT INTO approvals(batch_id, state, reasons, via, decided_by, decided_at, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)`
 	switch b.state {
 	case "awaiting_confirmation":
@@ -128,6 +132,7 @@ func insertEnv(tb testing.TB, st *store.Store, now time.Time) {
 }
 
 type jobSpec struct {
+	engine, backend                                       string // "" => yue2 on fake
 	id, batchID, recipeID, parent, operator, title, state string
 	index                                                 int
 	created                                               time.Time
@@ -136,6 +141,9 @@ type jobSpec struct {
 
 func insertJob(tb testing.TB, st *store.Store, j jobSpec) {
 	tb.Helper()
+	if j.engine == "" {
+		j.engine, j.backend = "yue2", "fake"
+	}
 	initial := j.state
 	if initial != "awaiting_confirmation" {
 		initial = "queued"
@@ -146,8 +154,8 @@ func insertJob(tb testing.TB, st *store.Store, j jobSpec) {
 	}
 	mustExec(tb, st, `INSERT INTO jobs(id, batch_id, take_index, kind, engine, backend, recipe_id, source_track_id, operator, mutation_json, title,
 		expected_audio_s, expected_s, timeout_s, expected_micro_usd, reserved_micro_usd, state, next_attempt_at, queued_at, created_at, updated_at)
-		VALUES (?,?,?,'generate','yue2','fake',?,?,?,?,?,216,96,186,?,?,?,?,?,?,?)`,
-		j.id, j.batchID, j.index, j.recipeID, nullStrArg(j.parent), j.operator, j.mutation, j.title, fxExpectedMicro, fxTakeMicro, initial,
+		VALUES (?,?,?,'generate',?,?,?,?,?,?,?,216,96,186,?,?,?,?,?,?,?)`,
+		j.id, j.batchID, j.index, j.engine, j.backend, j.recipeID, nullStrArg(j.parent), j.operator, j.mutation, j.title, fxExpectedMicro, fxTakeMicro, initial,
 		tsM3(j.created), queued, tsM3(j.created), tsM3(j.created))
 }
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -38,6 +39,7 @@ type systemOut struct {
 		UptimeS       int64    `json:"uptime_s"`
 		AuditFailures int64    `json:"audit_failures" doc:"Audit rows lost since start after retries; non-zero means a gap in the audit trail"`
 		StartupIssues []string `json:"startup_issues" nullable:"false" doc:"Failing startup steps as step=CODE; non-empty means the server is degraded and retrying; empty when ready"`
+		Engines       []string `json:"engines" nullable:"false"`
 	}
 }
 
@@ -96,6 +98,11 @@ func registerSystem(a huma.API, d Deps) {
 			b.StartedAt = started.UTC().Format(time.RFC3339)
 			b.UptimeS = int64(now.Sub(started).Seconds())
 			b.AuditFailures = audit.Failures()
+			b.Engines = []string{}
+			for n := range d.Engines {
+				b.Engines = append(b.Engines, n)
+			}
+			slices.Sort(b.Engines)
 			b.StartupIssues = []string{}
 			for _, i := range d.Startup.Issues() {
 				b.StartupIssues = append(b.StartupIssues, i.Step+"="+i.Code)

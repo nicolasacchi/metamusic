@@ -41,9 +41,21 @@ func providerTrip(t jobs.TripInfo) TripView {
 
 // providerStatus renders the jobs read model; it never carries the endpoint id, keys, refs or worker ids.
 func providerStatus(viewer auth.Principal, s jobs.ProviderStatus) ProviderStatus {
+	body := providerStatusBody(viewer, s)
+	engine := s.Engine
+	if engine == "" {
+		engine = "yue2"
+	}
+	// Backends: the default backend's own entry. The per-backend list over the whole set and the global bound are filled by
+	// the provider operations (E2-OP) from jobs.ProviderAdmin.StatusAll.
+	return ProviderStatus{ProviderStatusBody: body, Engine: engine, Backends: []BackendStatus{{ProviderStatusBody: body, Engine: engine}},
+		GlobalBound: GlobalBound{GUSDPerHour: usd(0), XUSD: usd(0), Backends: []string{}}}
+}
+
+func providerStatusBody(viewer auth.Principal, s jobs.ProviderStatus) ProviderStatusBody {
 	st := s.State
 	by, byID := keyKind(st.ArmedChangedBy)
-	out := ProviderStatus{
+	out := ProviderStatusBody{
 		Backend: st.Backend, GenerationEnabled: st.Enabled, Armed: st.Armed,
 		ArmedChangedBy: RefFor(viewer, st.ArmedChangedBy, by, byID), ArmedChangedAt: tsOut(st.ArmedChangedAt),
 		TripsRecent: []TripView{}, LastReconcileAt: tsPtr(s.LastReconcile),
