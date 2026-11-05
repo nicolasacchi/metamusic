@@ -1,6 +1,7 @@
 package spend
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -41,13 +42,13 @@ func TestE2Seams_NotImplementedYet(t *testing.T) {
 	t.Parallel()
 	var s *Service
 	ctx := t.Context()
-	if _, _, ok, err := s.EngineRTF(ctx, nil, "acestep15", "turbo", nil); ok || err != ErrNotImplemented {
+	if _, _, ok, err := s.EngineRTF(ctx, nil, "acestep15", "turbo", nil); ok || !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("EngineRTF: %v %v", ok, err)
 	}
-	if _, err := s.EngineRTFRows(ctx, nil, "acestep15"); err != ErrNotImplemented {
+	if _, err := s.EngineRTFRows(ctx, nil, "acestep15"); !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("EngineRTFRows: %v", err)
 	}
-	if err := s.RecordEngineRTF(ctx, nil, "acestep15", "turbo", "x", "job:1", 1, 1); err != ErrNotImplemented {
+	if err := s.RecordEngineRTF(ctx, nil, "acestep15", "turbo", "x", "job:1", 1, 1); !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("RecordEngineRTF: %v", err)
 	}
 	defer func() {
