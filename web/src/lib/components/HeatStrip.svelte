@@ -60,27 +60,36 @@
       </ul>
     {/if}
   {:else if heat.state === "unavailable"}
-    <p class="muted note" data-testid="heat-unavailable">Listening heat is not available yet.</p>
+    <span class="sr" data-testid="heat-unavailable">Listening heat is not available yet.</span>
   {:else if heat.state === "error"}
-    <p class="muted note" data-testid="heat-error">{heat.message}</p>
+    <span class="sr" data-testid="heat-error">{heat.message}</span>
   {/if}
 </div>
 {/if}
 
 <style>
+  /* The strip adds no height of its own: its bands overlay the bottom edge of the waveform above (the phone's judging controls
+     must not move down under the fixed bars), and the sr-only states never take space. Only hotspot chips are in flow. */
   .heat {
+    position: relative;
     min-width: 0;
     max-width: 100%;
-    margin: 0.2rem 0 0.4rem;
-    /* The strip's height is fixed from the first paint, so loading, unavailable and ready never shift the controls below it. */
-    min-height: 1.1rem;
+    height: 0;
+  }
+  .heat:has(.chips) {
+    height: auto;
+    padding-top: 0.3rem;
   }
   .bands {
-    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -0.6rem;
     width: 100%;
-    height: 1.1rem;
+    height: 0.45rem;
+    pointer-events: none;
     border-radius: var(--r-sm);
-    background: var(--bg-sunken);
+    background: color-mix(in srgb, var(--bg-sunken) 70%, transparent);
   }
   .heard {
     fill: var(--accent);
@@ -98,18 +107,9 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
-  .note {
-    margin: 0;
-    font-size: var(--fs-xs);
-    line-height: 1.1rem;
-    height: 1.1rem;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
   .chips {
     list-style: none;
-    margin: 0.3rem 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-wrap: wrap;
