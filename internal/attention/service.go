@@ -58,7 +58,7 @@ func (s *Service) Timing(ctx context.Context, trackID string) (anchor.Timing, er
 }
 
 func (s *Service) events(ctx context.Context, trackID string) ([]listening.Event, error) {
-	rows, err := s.st.R.QueryContext(ctx, `SELECT id, session_id, kind, from_ms, to_ms, client_at FROM listen_events
+	rows, err := s.st.R.QueryContext(ctx, `SELECT id, session_id, kind, from_ms, to_ms, detail, client_at FROM listen_events
 		WHERE track_id = ? AND principal_kind IN ('human', 'device') AND kind IN ('start', 'segment', 'seek', 'complete', 'skip')
 		ORDER BY client_at, id`, trackID)
 	if err != nil {
@@ -69,8 +69,9 @@ func (s *Service) events(ctx context.Context, trackID string) ([]listening.Event
 	for rows.Next() {
 		e := listening.Event{TrackID: trackID}
 		var from, to sql.NullInt64
+		var detail sql.NullString
 		var at string
-		if err := rows.Scan(&e.ID, &e.SessionID, &e.Kind, &from, &to, &at); err != nil {
+		if err := rows.Scan(&e.ID, &e.SessionID, &e.Kind, &from, &to, &detail, &at); err != nil {
 			return nil, fmt.Errorf("attention: events: %w", err)
 		}
 		if from.Valid {
@@ -79,8 +80,11 @@ func (s *Service) events(ctx context.Context, trackID string) ([]listening.Event
 		if to.Valid {
 			e.ToMS = &to.Int64
 		}
+		if detail.Valid {
+			e.Detail = &detail.String
+		}
 		e.ClientAt, _ = time.Parse(time.RFC3339, at)
-		out = append(out, e)
+		out = append(out, listening.Unnormalise(e))
 	}
 	return out, rows.Err()
 }

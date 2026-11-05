@@ -145,3 +145,42 @@ func TestContext_CloseLoopWired_REST(t *testing.T) {
 		t.Errorf("a root take reports ancestor_open_fix: %v", j)
 	}
 }
+
+// TestListenHeat_RewindCounted_REST: the client's backward seek is stored (it used to be dropped as bad_range) and the heat
+// counts it as a rewind in the bin it landed in, which makes a hotspot; reading the heat writes nothing.
+func TestListenHeat_RewindCounted_REST(t *testing.T) {
+	t.Parallel()
+	r := judgRig(t)
+	human := r.Human(t)
+	luna := lt.TrackLuna // 12 s, 0.1 s bins
+	heat := func() map[string]any {
+		resp := human.Do(t, "GET", "/api/tracks/"+luna+"/heat", nil)
+		if resp.Status != 200 {
+			t.Fatalf("%d %s", resp.Status, resp.Body)
+		}
+		return obj(t, resp.JSON(t))
+	}
+	base := heat()
+	resp := human.Do(t, "POST", "/api/listen-events", map[string]any{"events": []any{
+		heatEvent(51, luna, "session-rew", "start", 0, -1),
+		heatEvent(52, luna, "session-rew", "seek", 9000, 2000), // rewind 9 s -> 2 s
+		heatEvent(53, luna, "session-rew", "seek", 8000, 2500), // another one, same bin region
+	}})
+	got := obj(t, resp.JSON(t))
+	if resp.Status != 200 || got["accepted"] != 3.0 || len(got["rejected"].([]any)) != 0 {
+		t.Fatalf("rewinds not accepted: %d %s", resp.Status, resp.Body)
+	}
+	n := heatRowCount(t, r, "listen_events")
+	h := heat()
+	rw, brw := h["rewinds"].([]any), base["rewinds"].([]any)
+	if rw[20] != brw[20].(float64)+1 || rw[25] != brw[25].(float64)+1 {
+		t.Errorf("rewinds[20]=%v (was %v) rewinds[25]=%v (was %v)", rw[20], brw[20], rw[25], brw[25])
+	}
+	if skips := h["skips"].([]any); skips[90] != base["skips"].([]any)[90] {
+		t.Errorf("a rewind origin counted as a skip: %v", skips[90])
+	}
+	heat()
+	if heatRowCount(t, r, "listen_events") != n {
+		t.Error("GET heat changed listen_events")
+	}
+}

@@ -59,6 +59,10 @@ var (
 	sources   = []string{"web", "api", "mcp", "stdio", "subsonic"}
 )
 
+// RewindDetail marks a stored seek that went backwards. The table requires from_ms <= to_ms, so a rewind is stored with its
+// two positions swapped (from_ms the landing point, to_ms the origin) and this detail; ReadEvent undoes the swap.
+const RewindDetail = "rewind"
+
 const (
 	rangeSlackMS = 2000
 	maxPast      = 30 * 24 * time.Hour
@@ -94,8 +98,8 @@ func (s *Service) validate(e Event, dur int64, ok bool) string {
 			return "bad_range"
 		}
 	}
-	if e.FromMS != nil && e.ToMS != nil && *e.ToMS < *e.FromMS {
-		return "bad_range"
+	if e.FromMS != nil && e.ToMS != nil && *e.ToMS < *e.FromMS && e.Kind != "seek" {
+		return "bad_range" // only a seek may run backwards (a rewind); Log stores it normalised, see RewindDetail
 	}
 	now := s.now()
 	if e.ClientAt.IsZero() || e.ClientAt.Before(now.Add(-maxPast)) || e.ClientAt.After(now.Add(maxFuture)) {
@@ -143,9 +147,15 @@ func (s *Service) Log(ctx context.Context, p auth.Principal, src string, evs []E
 			rejected = append(rejected, Rejected{ID: e.ID, Code: code})
 			continue
 		}
+		from, to, detail := e.FromMS, e.ToMS, e.Detail
+		if e.Kind == "seek" && from != nil && to != nil && *to < *from {
+			from, to = to, from
+			d := RewindDetail
+			detail = &d
+		}
 		res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO listen_events
 (id, track_id, session_id, kind, from_ms, to_ms, format, device_id, detail, source, principal_kind, principal_id, client_at, received_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, strings.ToLower(e.ID), e.TrackID, e.SessionID, e.Kind, e.FromMS, e.ToMS, e.Format, e.DeviceID, e.Detail, src, kind, p.Key(),
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, strings.ToLower(e.ID), e.TrackID, e.SessionID, e.Kind, from, to, e.Format, e.DeviceID, detail, src, kind, p.Key(),
 			e.ClientAt.UTC().Format(time.RFC3339), received)
 		if err != nil {
 			return 0, 0, nil, fmt.Errorf("listening: insert: %w", err)
@@ -160,6 +170,14 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, strings.ToLower(e.ID), e.TrackID, e.Sessi
 		return 0, 0, nil, fmt.Errorf("listening: commit: %w", err)
 	}
 	return accepted, duplicates, rejected, nil
+}
+
+// Unnormalise turns a stored row back into the event the client sent: a seek tagged RewindDetail gets its positions swapped back.
+func Unnormalise(e Event) Event {
+	if e.Kind == "seek" && e.Detail != nil && *e.Detail == RewindDetail && e.FromMS != nil && e.ToMS != nil {
+		e.FromMS, e.ToMS, e.Detail = e.ToMS, e.FromMS, nil
+	}
+	return e
 }
 
 // Stats summarises human listening of one track: only human and device events count.
