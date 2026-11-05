@@ -35,10 +35,7 @@ func TestArgv_OnlyWorkPaths_Clip(t *testing.T) {
 			e := newEnv(t)
 			logf := filepath.Join(t.TempDir(), "argv.log")
 			bin := filepath.Join(t.TempDir(), "ffmpeg")
-			script := "#!/bin/sh\n{ printf '%s\\n' \"$@\"; } > '" + logf + "'\nexit 1\n"
-			if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			writeFakeTool(t, bin, "{ printf '%s\\n' \"$@\"; } > '"+logf+"'\nexit 1\n")
 			sp := e.fakeMaster(t, "argv")
 			sp.SampleRate, sp.GainCDB = c.rate, c.gain
 			s := clip.New(e.root, e.dir, mediatool.Tools{FFmpeg: bin}, cliptest.NewAnalyzer(), nil, nil, clip.Options{})

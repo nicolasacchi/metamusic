@@ -6,12 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
@@ -119,6 +122,31 @@ func (e *env) putMasterBytes(rel string, b []byte, rate, ch int) clip.Spec {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// writeFakeTool writes a shell script tool and returns once it can be exec'd. A parallel test's fork may have inherited
+// the script's write descriptor and holds it until its own exec, which fails ours with "text file busy"; the window
+// closes for good once that child has exec'd (the descriptor is closed here, so no later fork inherits it). The probe
+// runs exit before body, so a logging fake records no probe call.
+func writeFakeTool(t testing.TB, path, body string) {
+	t.Helper()
+	script := "#!/bin/sh\n[ -n \"$MM_FAKE_TOOL_PROBE\" ] && exit 0\n" + body
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		cmd := exec.Command(path) //nolint:gosec // the fake tool this test just wrote
+		cmd.Env = append(os.Environ(), "MM_FAKE_TOOL_PROBE=1")
+		err := cmd.Run()
+		if err == nil || !errors.Is(err, syscall.ETXTBSY) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("fake tool %s stays busy: %v", path, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
 
 // decode returns the interleaved float samples of a FLAC file and its channel count.
 func decode(t testing.TB, tools mediatool.Tools, path string, channels int) []float32 {
