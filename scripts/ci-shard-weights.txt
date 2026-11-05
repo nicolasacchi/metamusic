@@ -118,7 +118,6 @@
 # BEGIN T1-I1 provisional weights (T1 packages): ESTIMATES from the plan's CI budget (about +1.5 min of dsp/score wall in the go
 # shards, C215.2), not measurements: these packages were stubs when this block was written. No package is split. Replace the block
 # (D1 owns the lines for ./internal/dsp, ./internal/dsp/safety and ./internal/dsp/pcm, by coordinator exception.) Replace the block with real timings at INT-B (scripts/ci-weights-refresh.sh write <run-id of a green run on the merged branch>).
-./internal/transform 30
 ./internal/dsp/pv 25
 ./internal/dsp/ops 25
 ./internal/dsp/ir 10
