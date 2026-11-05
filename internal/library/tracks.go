@@ -91,7 +91,10 @@ type SearchParams struct {
 	HasOpenComments            *bool
 	RecipeKnown                *bool    // (r.engine <> 'unknown') = v (M2c)
 	Lossy                      *bool    // t.lossy = v (M2c)
-	Origin                     []string // import | job (M3, C81.1)
+	Origin                     []string // import | job | transform (M3 C81.1; transform is derived, T1 D-T1-4)
+	LyricsOf                   string   // T1 (C211.4): Takes whose normalised lyrics equal this Take's
+	lyricsIDs                  []string // set by the service from LyricsOf
+	lyricsSet                  bool
 	SongID                     string   // take belongs to this Song (L1, C98)
 	IsPick                     *bool    // take is (not) its Song's current Pick (L1, C98)
 	SessionID                  string   // take is in this Session by derived membership (L1, C98)
@@ -139,7 +142,8 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   hs.stars, ha.stars,
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open'),
-  (r.engine <> 'unknown'), t.lossy, t.origin, t.job_id`
+  (r.engine <> 'unknown'), t.lossy, CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, t.job_id,
+  (SELECT x.kind FROM transforms x WHERE x.id = t.transform_id), (SELECT x.spec_hash FROM transforms x WHERE x.id = t.transform_id)`
 
 // the human and agent rating rows of a track (primary-key lookups)
 const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'`
@@ -190,7 +194,7 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 		return q, invalid("unrated", "cannot be combined with min_stars")
 	}
 	for _, o := range p.Origin {
-		if !oneOf(o, "import", "job") {
+		if !oneOf(o, searchOrigins...) {
 			return q, invalid("origin", "unknown origin %q", o)
 		}
 	}
@@ -299,10 +303,7 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 		*args = append(*args, boolInt(*p.Lossy))
 	}
 	if len(p.Origin) > 0 {
-		where += ` AND t.origin IN (` + placeholders(len(p.Origin)) + `)`
-		for _, o := range p.Origin {
-			*args = append(*args, o)
-		}
+		where += originWhere(p.Origin)
 	}
 	if p.SongID != "" || p.IsPick != nil || p.SessionID != "" {
 		if p.noSongs {
@@ -327,16 +328,21 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 			}
 		}
 	}
+	where += lyricsWhere(p, args)
 	where, err = compileL2(p, where, args)
 	if err != nil {
 		return q, err
 	}
 	q.where = where
+	if p.lyricsSet && p.Sort == "" {
+		sort = "created_asc"
+	}
 	q.order = map[string]string{
 		"recorded_desc": `t.recorded_at DESC, t.id DESC`,
 		"recorded_asc":  `t.recorded_at ASC, t.id ASC`,
 		"duration_desc": `t.duration_s DESC, t.id DESC`,
 		"duration_asc":  `t.duration_s ASC, t.id ASC`,
+		"created_asc":   `t.created_at ASC, t.id ASC`,
 		"title_asc":     `t.title COLLATE NOCASE ASC, t.id ASC`,
 		"relevance":     `f.rank ASC, t.id ASC`,
 		"stars_desc":    `(hs.stars IS NULL) ASC, hs.stars DESC, t.recorded_at DESC, t.id DESC`,
@@ -352,6 +358,9 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	}
 	p.noSongs = !has
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
+		return TrackPage{}, err
+	}
+	if err := s.resolveLyricsOf(ctx, &p); err != nil {
 		return TrackPage{}, err
 	}
 	q, err := compileSearch(p)
@@ -421,6 +430,9 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 	}
 	p.noSongs = !has
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.resolveLyricsOf(ctx, &p); err != nil {
 		return nil, err
 	}
 	q, err := compileSearch(p)
@@ -558,14 +570,16 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 		hasScore, timedFlag bool
 		stars, critic       sql.NullInt64
 		jobID               sql.NullString
+		tKind, tHash        sql.NullString
 	)
 	if err := rows.Scan(&t.ID, &t.Title, &t.Status, &t.DurationS, &t.RecordedAt, &t.CreatedAt, &t.RequestID, &t.Seed, &style, &bpm,
 		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount,
-		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy, &t.Origin, &jobID); err != nil {
+		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy, &t.Origin, &jobID, &tKind, &tHash); err != nil {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
 	t.jobID = jobID.String
+	t.Transform = transformRef(t.ID, tKind, tHash)
 	terms, _ := yue2.StyleTerms(style)
 	if terms == nil {
 		terms = []string{}
@@ -919,17 +933,19 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		bpm           sql.NullInt64
 		tabc, tsem    sql.NullInt64
 		recipeID      string
+		tKind, tHash  sql.NullString
 	)
-	err := s.st.R.QueryRowContext(ctx, `SELECT t.id, t.title, t.slug, t.status, t.status_set_by, t.origin, t.recorded_at, t.created_at, t.duration_s,
+	err := s.st.R.QueryRowContext(ctx, `SELECT t.id, t.title, t.slug, t.status, t.status_set_by, CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, t.recorded_at, t.created_at, t.duration_s,
 		t.sample_rate, t.bits_per_sample, t.channels, t.total_samples, t.master_sha256, t.master_bytes, t.audio_md5,
 		t.bpm_declared, t.root_track_id, t.parent_track_id, t.generation, t.truncated_abc, t.truncated_semantic, t.import_rule, t.import_run_id,
 		t.lossy, r.id, r.engine, r.request_id, r.style, r.lyrics, r.cot, r.seed, r.hash,
-		(SELECT COUNT(*) FROM recipe_sources rs WHERE rs.recipe_id = r.id)
+		(SELECT COUNT(*) FROM recipe_sources rs WHERE rs.recipe_id = r.id),
+		(SELECT x.kind FROM transforms x WHERE x.id = t.transform_id), (SELECT x.spec_hash FROM transforms x WHERE x.id = t.transform_id)
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, id).
 		Scan(&d.ID, &d.Title, &d.Slug, &d.Status, &d.StatusSetBy, &d.Origin, &d.RecordedAt, &d.CreatedAt, &d.DurationS,
 			&d.Audio.SampleRate, &d.Audio.BitsPerSample, &d.Audio.Channels, &d.Audio.TotalSamples, &d.Audio.MasterSHA256, &d.Audio.MasterBytes, &d.Audio.AudioMD5,
 			&bpm, &d.Lineage.RootTrackID, &parent, &d.Lineage.Generation, &tabc, &tsem, &d.Import.Rule, &runID,
-			&d.Lossy, &recipeID, &d.Recipe.Engine, &d.Recipe.RequestID, &d.Recipe.Style, &d.Recipe.Lyrics, &d.Recipe.Cot, &d.Recipe.Seed, &d.Recipe.Hash, &d.Recipe.SourcesCount)
+			&d.Lossy, &recipeID, &d.Recipe.Engine, &d.Recipe.RequestID, &d.Recipe.Style, &d.Recipe.Lyrics, &d.Recipe.Cot, &d.Recipe.Seed, &d.Recipe.Hash, &d.Recipe.SourcesCount, &tKind, &tHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -937,6 +953,7 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		return d, fmt.Errorf("library: track: %w", err)
 	}
 	d.Recipe.ID = recipeID
+	d.Transform = transformRef(id, tKind, tHash)
 	d.RecipeKnown = RecipeKnownEngine(d.Recipe.Engine)
 	if bpm.Valid {
 		v := int(bpm.Int64)
