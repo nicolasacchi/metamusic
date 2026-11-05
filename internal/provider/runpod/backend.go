@@ -46,6 +46,10 @@ type BackendOptions struct {
 	ProbeJSON []byte
 	// Desired, when set, extends the drift check with the image, the GPU selection and the pinned env.
 	Desired *EndpointSpec
+	// Engine is the engine this backend's endpoint renders: "" or "yue2" (M3's backend, unchanged) or
+	// "acestep15", which makes Name() the ACE-Step backend and Engine() report it (C151.1, C155). The keys
+	// of an ACE-Step backend come from KeysFor.
+	Engine string
 }
 
 // Backend implements provider.Backend over the RunPod serverless API.
@@ -78,7 +82,12 @@ func NewBackend(o BackendOptions) *Backend {
 func (b *Backend) Client() *Client { return b.c }
 
 // Name implements provider.Backend.
-func (b *Backend) Name() string { return provider.BackendRunPod }
+func (b *Backend) Name() string {
+	if b.o.Engine == provider.EngineACEStep {
+		return provider.BackendRunPodACEStep
+	}
+	return provider.BackendRunPod
+}
 
 // isCode reports whether err is a *Error with one of the codes.
 func isCode(err error, codes ...Code) bool {

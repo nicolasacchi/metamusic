@@ -1,0 +1,36 @@
+{
+  "case": "t2m",
+  "proposed": {
+    "features": {
+      "models_mode": "bundle_cached_base_baked"
+    },
+    "engine_rtf": [
+      {
+        "engine": "acestep15",
+        "task_class": "turbo",
+        "gpu_class": "A5000",
+        "rtf_milli": 400,
+        "load_s": 10,
+        "updated_by": "canary:mm-canary-20261014-t2m-t2m-1"
+      }
+    ]
+  }
+}
+{
+  "case": "reference",
+  "proposed": {
+    "features": {
+      "reference": true,
+      "reference_reproducible": true,
+      "seed_reproducible": true
+    }
+  }
+}
+{
+  "case": "repaint",
+  "proposed": {
+    "tasks_add": [
+      "repaint"
+    ]
+  }
+}
