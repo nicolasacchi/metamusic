@@ -278,11 +278,11 @@ func FixtureL3(tb testing.TB, st *store.Store, now time.Time) L3Info {
 }
 
 // ApplyL3 adds the L3 world to a library that already holds FixtureM3's and FixtureL1's rows (servertest uses it).
-func ApplyL3(tb testing.TB, st *store.Store, now time.Time) {
+func ApplyL3(tb testing.TB, st *store.Store, now time.Time) L3Info {
 	tb.Helper()
 	b := newL3Builder(tb, st, now, L2Info{})
 	b.out.Muses, b.out.Songs, b.out.Takes = map[string]string{}, map[string]string{}, map[string]string{}
-	b.world()
+	return b.world()
 }
 
 // FixtureL3Upgrade builds the data at schema 10 (a store opened with store.OpenRaw and store.MigrateTo(..., 10)) for
