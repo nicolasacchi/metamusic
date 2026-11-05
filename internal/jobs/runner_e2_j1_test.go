@@ -562,7 +562,15 @@ func TestProviderAdmin_UpdateBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.UseBackends(gates, nil, nil)
+	snap := SweepSnapshot{ObservedAt: t0, WorkerCounts: map[string]int{"running": 1}}
+	a.UseBackends(gates, map[string]func() SweepSnapshot{provider.BackendFake: func() SweepSnapshot { return snap }},
+		map[string]func() provider.Capabilities{provider.BackendFake: func() provider.Capabilities { return provider.Capabilities{Billing: "hour"} }})
+	if ss, err := a.statusFor(t.Context(), provider.BackendFake); err != nil || ss.Workers == nil || ss.Workers.Running != 1 || ss.Capability.Billing != "hour" {
+		t.Errorf("per-backend sweep and capabilities of the default: %+v %v", ss.Workers, err)
+	}
+	if _, err := a.statusFor(t.Context(), "nope"); !errors.Is(err, provider.ErrNoBackend) {
+		t.Errorf("statusFor unknown backend: %v", err)
+	}
 	yes, no := true, false
 	st, err := a.Update(t.Context(), humanP, UpdateIn{Armed: &yes, Reason: "go", Backend: aceName})
 	if err != nil || !st.State.Armed || st.State.Backend != aceName {
@@ -621,5 +629,63 @@ func TestRunner_ViewsCarryTheirBackendsConfig(t *testing.T) {
 	}
 	if vs[0].rstate != d.run.rstate || vs[1].rstate != d.run.rstate {
 		t.Error("views must share the runner's lease and clocks")
+	}
+}
+
+func TestRunner_PlainWorkerKeyWithoutASet(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	if got := r.run.workerKeyFor(provider.BackendFake, "w1"); got != workerKey([]byte(nil), "w1") {
+		t.Errorf("no set must keep M3's plain key: %q", got)
+	}
+}
+
+func TestRunner_ClaimErrorStopsTheStepForEveryBackend(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	d.run.o.Fault = func(point string) error {
+		if point == FaultAfterClaimCommit {
+			return errCrash
+		}
+		return nil
+	}
+	d.seedBatch(batchSpec{jobs: 1})
+	d.seedBatch(batchSpec{jobs: 1, backend: aceName})
+	if _, err := d.run.Step(t.Context()); !errors.Is(err, errCrash) {
+		t.Fatalf("Step: %v, want the injected crash", err)
+	}
+	if d.ace.Calls().Submit != 0 {
+		t.Error("the second backend submitted after the step crashed")
+	}
+}
+
+func TestRunner_CancelOnADepartedBackendSendsNothing(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	ace := d.seedBatch(batchSpec{jobs: 1, backend: aceName})
+	d.steps(2)
+	only, err := provider.NewSet(provider.BackendFake, d.be)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.run.UseSet(only, nil, nil)
+	if err := d.run.sendCancels(t.Context(), ace.Jobs[0], d.atts(ace.Jobs[0])); err != nil {
+		t.Fatal(err)
+	}
+	if d.be.Calls().Cancel != 0 || d.ace.Calls().Cancel != 0 {
+		t.Errorf("cancels: default %d, ACE %d", d.be.Calls().Cancel, d.ace.Calls().Cancel)
+	}
+}
+
+func TestMeterRouter_UnknownBackendFallsBackToTheDefault(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	rt := NewMeterRouter(d.reconcilers()[:1]) // only the default backend has a reconciler
+	ace := d.seedBatch(batchSpec{jobs: 1, backend: aceName})
+	if _, _, err := rt.OverheadSeconds(t.Context(), d.st.R, ace.Batch); err != nil {
+		t.Errorf("fallback: %v", err)
+	}
+	if _, _, err := rt.OverheadSeconds(t.Context(), d.st.R, "no-such-batch"); err == nil {
+		t.Error("a missing batch must be an error")
 	}
 }
