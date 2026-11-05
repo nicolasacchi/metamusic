@@ -26,12 +26,13 @@ RUN git init -q /src/acestep \
  && rm -rf /src/acestep/.git
 RUN uv venv /opt/venv
 ENV VIRTUAL_ENV=/opt/venv PATH=/opt/venv/bin:$PATH
-# flash-attn: a third-party prebuilt wheel (cp311, cu128, torch 2.10), pinned by sha256 (supply chain).
+# flash-attn: a third-party prebuilt wheel (cp311, cu128, torch 2.10), pinned by sha256 (supply chain). The file keeps
+# its original name: the wheel's local version (+cu128torch2.10) must match the filename or uv refuses it.
 ARG FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl
 ARG FLASH_ATTN_SHA256=fa848ca9b2039a70810547e9fd9a007cf5d14f0c6e09acad51afa0b5c3b50196
-RUN curl -fsSL -o /tmp/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl "${FLASH_ATTN_URL}" \
- && echo "${FLASH_ATTN_SHA256}  /tmp/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl" | sha256sum -c - \
- && uv pip install --no-deps /tmp/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl \
+RUN curl -fsSL -o /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl "${FLASH_ATTN_URL}" \
+ && echo "${FLASH_ATTN_SHA256}  /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl" | sha256sum -c - \
+ && uv pip install --no-deps /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl \
  && rm -f /tmp/flash_attn-*.whl
 # torch comes from ACE-Step's own pin (torch 2.10.0+cu128 for linux x86_64), CUDA wheels from the PyTorch index.
 RUN uv pip install --extra-index-url https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match \

@@ -1,11 +1,11 @@
 # Requirements of the ACE-Step contract job (worker/contract/test_acestep_contract.py): the inference-only subset of
-# the pinned ACE-Step's dependencies, without torch (the job installs CPU torch 2.10.0 itself; torchaudio is listed
-# because acestep.audio_utils imports it at module level) and without the UI /
+# the pinned ACE-Step's dependencies, without torch (the job installs CPU torch 2.10.0 itself; torchaudio is not
+# installed: PyPI's wheel is a CUDA build that cannot load beside CPU torch, so the contract test stubs the module that
+# acestep.audio_utils imports at module level) and without the UI /
 # training extras (gradio, lightning, tensorboard, peft, modelscope, torchcodec, torchao). ACE-Step itself is
 # installed with --no-deps from github.com/ace-step/ACE-Step-1.5 at worker/contract/ACESTEP_COMMIT.
 # nano-vllm is not listed: it needs triton and a CUDA flash-attn wheel and the LM imports it lazily; the image
 # installs it from the ACE-Step tree (worker/Dockerfile.acestep). A test pins this list to the Dockerfile's.
-torchaudio==2.10.0
 transformers>=4.51.0,<4.58.0
 diffusers>=0.37.0
 accelerate>=1.12.0

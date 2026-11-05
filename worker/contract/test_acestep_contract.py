@@ -10,10 +10,18 @@ from __future__ import annotations
 import dataclasses
 import re
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+try:  # the CPU job installs CPU torch; PyPI's torchaudio is a CUDA build that cannot load beside it
+    import torchaudio  # noqa: F401
+except (ImportError, OSError):
+    for _name in [m for m in sys.modules if m == "torchaudio" or m.startswith("torchaudio.")]:
+        del sys.modules[_name]
+    sys.modules["torchaudio"] = types.ModuleType("torchaudio")  # acestep.audio_utils only imports it at module level
 
 import acestep.constants as upstream_constants  # noqa: E402 - a missing acestep must fail this job, never skip it
 import acestep.inference as upstream_inference  # noqa: E402

@@ -31,6 +31,8 @@ def test_dockerfile_acestep_pins() -> None:
     assert '"torch==2.10.0+cu128"' in DOCKERFILE and "download.pytorch.org/whl/cu128" in DOCKERFILE
     assert re.search(r"^ARG FLASH_ATTN_SHA256=[0-9a-f]{64}$", DOCKERFILE, re.M)
     assert "sha256sum -c" in DOCKERFILE and "cp311" in DOCKERFILE
+    # uv checks the wheel's local version against the file name
+    assert "/tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl" in DOCKERFILE
 
 
 def test_dockerfile_acestep_runtime_contract() -> None:
@@ -93,9 +95,8 @@ def test_contract_requirements_match_the_dockerfile() -> None:
     block = re.search(r"RUN uv pip install \\\n((?:\s+\"[^\n]*\\\n)*\s+\"[^\n]*)", DOCKERFILE)
     assert block, "dependency block not found"
     image = re.findall(r'"([^"]+)"', block.group(1))
-    assert sorted(x for x in req if not x.startswith("torchaudio")) == sorted(
-        x for x in image if not x.startswith("runpod")), (req, image)
-    assert "torchaudio==2.10.0" in req and '"torchaudio==2.10.0+cu128"' in DOCKERFILE
+    assert sorted(req) == sorted(x for x in image if not x.startswith("runpod")), (req, image)
+    assert not any(r.startswith("torch") for r in req) and '"torchaudio==2.10.0+cu128"' in DOCKERFILE
 
 
 def test_dockerfile_acestep_dockerignore_applies() -> None:
