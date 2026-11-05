@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -23,9 +25,18 @@ func fakeQuote() provider.Quote {
 		GPUClasses: []string{"A5000", "RTX 3090", "RTX 4090"}, Endpoint: provider.EndpointConfig{WorkersMax: 2, IdleTimeoutS: &idle}}
 }
 
-// quoteInputs resolves the provider quote of an estimate from local facts only.
-func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provider.State) (spend.QuoteParams, provider.Quote, error) {
-	pq := fakeQuote()
+// fakeACEQuote is the same for the fake ACE-Step backend; its GPU classes are the ones the engine_rtf seed knows, so the fake
+// is estimable from the first request as well.
+func fakeACEQuote() provider.Quote {
+	q := fakeQuote()
+	q.Backend, q.GPUClasses = provider.BackendFakeACEStep, []string{"A5000", "RTX 4090"}
+	return q
+}
+
+// quoteBase resolves the provider quote of an estimate from local facts only: price, workers and idle time, with the cold
+// start and maximum runtime of the routed backend. The RTF is the caller's.
+func (s *Service) quoteBase(st provider.State, fake provider.Quote, coldStartS, maxRuntimeS int) (spend.QuoteParams, provider.Quote, error) {
+	pq := fake
 	switch {
 	case st.Quote != nil:
 		pq = *st.Quote
@@ -42,6 +53,16 @@ func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provide
 	if pq.Endpoint.IdleTimeoutS == nil {
 		return spend.QuoteParams{}, pq, disabledErr(provider.ReasonEndpointConfig)
 	}
+	return spend.QuoteParams{PricePPH: price, ColdStartS: coldStartS, IdleS: *pq.Endpoint.IdleTimeoutS,
+		WorkersMax: pq.Endpoint.WorkersMax, MaxRuntimeS: maxRuntimeS, KillSlackS: s.o.KillSlackS}, pq, nil
+}
+
+// quoteInputs resolves the provider quote of a yue2 estimate from local facts only.
+func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provider.State) (spend.QuoteParams, provider.Quote, error) {
+	qp, pq, err := s.quoteBase(st, fakeQuote(), s.o.ColdStartS, int(s.o.MaxRuntime/time.Second))
+	if err != nil {
+		return spend.QuoteParams{}, pq, err
+	}
 	rtf, ok, err := s.o.Spend.RTFMilli(ctx, q, pq.GPUClasses)
 	if err != nil {
 		return spend.QuoteParams{}, pq, fmt.Errorf("generation: rtf: %w", err)
@@ -49,8 +70,8 @@ func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provide
 	if !ok {
 		rtf = spend.DefaultRTFMilli
 	}
-	return spend.QuoteParams{PricePPH: price, RTFMilli: rtf, ColdStartS: s.o.ColdStartS, IdleS: *pq.Endpoint.IdleTimeoutS,
-		WorkersMax: pq.Endpoint.WorkersMax, MaxRuntimeS: int(s.o.MaxRuntime / time.Second), KillSlackS: s.o.KillSlackS}, pq, nil
+	qp.RTFMilli = rtf
+	return qp, pq, nil
 }
 
 func principalKind(p auth.Principal) string {
@@ -70,8 +91,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if name == "" {
 		name = DefaultEngine
 	}
-	eng, ok := s.o.Engines[name]
-	if !ok {
+	if _, ok := s.o.Engines[name]; !ok {
 		return Estimate{}, perr(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "unknown engine", map[string]any{"field": "engine"})
 	}
 	if len(in.Items) == 0 {
@@ -84,15 +104,30 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if via == "" {
 		via = spend.ViaAPI
 	}
-	st, err := s.o.Gate.State(ctx)
+	// E2: one engine per batch (D-E2-13), its adoption (D-E2-15) and its routed backend (C151.3); for yue2 this is the M3 gate.
+	name, err := s.batchEngine(ctx, in, name)
+	if err != nil {
+		return Estimate{}, err
+	}
+	eng, ok := s.o.Engines[name]
+	if !ok {
+		return Estimate{}, s.unknownEngine(name)
+	}
+	if _, ok := engine.CodecOf(eng); !ok { // an engine without a recipe codec cannot be planned at all (C163)
+		return Estimate{}, perr(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "engine has no recipe codec", map[string]any{"field": "engine", "engine": name})
+	}
+	if err := s.admit(ctx, s.o.Store.R, name, in.TrialID); err != nil {
+		return Estimate{}, err
+	}
+	st, be, err := s.routeGate(ctx, name, in.Backend)
 	if err != nil {
 		return Estimate{}, err
 	}
 	if !st.Enabled {
-		return Estimate{}, disabledErr(st.Reason)
+		return Estimate{}, disabledBackendErr(name, st)
 	}
 	for i, it := range in.Items {
-		if err := validateItem(i, it); err != nil {
+		if err := validateItem(i, it, eng); err != nil {
 			return Estimate{}, err
 		}
 	}
@@ -106,21 +141,29 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err := s.checkMothers(ctx, in.Items); err != nil {
 		return Estimate{}, err
 	}
-	pl := &planner{s: s, ctx: ctx, q: s.o.Store.R, eng: eng, backend: st.Backend, ids: map[string]bool{}, planned: map[string][]int64{},
-		renders: map[string]int{}, tracks: map[string]trackInfo{}, drafts: map[string]draftInfo{}, reused: map[string]bool{}}
+	pl := &planner{s: s, ctx: ctx, q: s.o.Store.R, eng: eng, backend: st.Backend, engName: name, ace: name != DefaultEngine, trial: in.TrialID,
+		ids: map[string]bool{}, planned: map[string][]int64{}, renders: map[string]int{}, tracks: map[string]trackInfo{}, drafts: map[string]draftInfo{},
+		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}}
 	if err := pl.loadDrafts(in.Items); err != nil {
 		return Estimate{}, err
 	}
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
 	}
-	qp, pq, err := s.quoteInputs(ctx, s.o.Store.R, st)
+	var qp spend.QuoteParams
+	var pq provider.Quote
+	var takes []spend.TakeIn
+	if pl.ace {
+		qp, pq, takes, err = s.quoteACE(ctx, pl, st, be)
+	} else {
+		qp, pq, err = s.quoteInputs(ctx, s.o.Store.R, st)
+		takes = make([]spend.TakeIn, len(pl.takes))
+		for i, t := range pl.takes {
+			takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON)}
+		}
+	}
 	if err != nil {
 		return Estimate{}, err
-	}
-	takes := make([]spend.TakeIn, len(pl.takes))
-	for i, t := range pl.takes {
-		takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON)}
 	}
 	bq := spend.QuoteTakes(qp, takes)
 	for i, t := range pl.takes {
@@ -128,6 +171,11 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		t.ExpectedS, t.TimeoutS = c.ExpectedS, c.TimeoutS
 		t.ExpectedMicroUSD, t.TakeMicroUSD, t.MaxMicroUSD = int64(c.ExpectedMicro), int64(c.TakeMicro), int64(c.MaxMicro)
 		t.OverheadMicroUSD = int64(bq.AttemptOverheadMicro)
+	}
+	if pl.ace {
+		if err := pl.refuseOverRuntime(takes, bq, qp.MaxRuntimeS); err != nil {
+			return Estimate{}, err
+		}
 	}
 
 	caps, err := s.o.Spend.LoadCaps(ctx, s.o.Store.R)
@@ -162,8 +210,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		t := pq.ObservedAt
 		est.PriceObservedAt = &t
 	}
-	for i, t := range pl.takes {
-		_ = i
+	for _, t := range pl.takes {
 		for _, w := range t.Warnings {
 			est.Warnings = append(est.Warnings, Warning{TakeIndex: t.TakeIndex, Code: w.Code, Field: w.Field, Severity: w.Severity, Text: w.Message})
 		}
@@ -172,8 +219,12 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		pi := PlannedItem{Index: i, Mode: it.Mode}
 		for _, k := range pl.items[i] {
 			t := pl.takes[k]
-			pi.Takes = append(pi.Takes, TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
-				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, MinAudioS: t.MinAudioS, TimeoutS: t.TimeoutS, Max: money.MicroUSD(t.MaxMicroUSD)})
+			tp := TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
+				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, MinAudioS: t.MinAudioS, TimeoutS: t.TimeoutS, Max: money.MicroUSD(t.MaxMicroUSD)}
+			if e := pl.e2[k]; e != nil {
+				tp.Engine, tp.Task, tp.TaskClass, tp.Edit, tp.Reference, tp.CrossEngine = name, e.Task, e.Class, e.Edit, e.Ref, e.Cross
+			}
+			pi.Takes = append(pi.Takes, tp)
 		}
 		est.Items = append(est.Items, pi)
 	}

@@ -97,6 +97,11 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	if via != spend.ViaHumanCreate || p.Kind != auth.KindHuman {
 		via = spend.ViaAPI
 	}
+	hash := s.o.Spend.HashToken(in.Token)
+	// E2: the reference clips the estimate pinned are rendered again before the transaction opens (hooks.go).
+	if err = s.preflightE2(ctx, hash, p.Key()); err != nil {
+		return Created{}, err
+	}
 	tx, err := s.o.Store.W.BeginTx(ctx, nil)
 	if err != nil {
 		return Created{}, err
@@ -108,17 +113,17 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 		}
 	}()
 
-	// 1. provider gate: local facts only, read through the transaction
-	st, err := s.o.Gate.StateIn(ctx, tx)
+	// 1. provider gate: local facts only, read through the transaction; the estimate's backend picks the gate (C151.3)
+	var peekBackend, peekEngine string
+	peekErr := tx.QueryRowContext(ctx, `SELECT backend, engine FROM estimates WHERE token_hash = ? AND principal_id = ?`, hash, p.Key()).Scan(&peekBackend, &peekEngine)
+	st, err := s.createGate(ctx, tx, peekEngine, peekBackend)
 	if err != nil {
 		return Created{}, err
 	}
-	if err = gateErr(st); err != nil {
+	if err = gateErrFor(peekEngine, st); err != nil {
 		return Created{}, err
 	}
-	hash := s.o.Spend.HashToken(in.Token)
-	var peekBackend string
-	switch e := tx.QueryRowContext(ctx, `SELECT backend FROM estimates WHERE token_hash = ? AND principal_id = ?`, hash, p.Key()).Scan(&peekBackend); {
+	switch e := peekErr; {
 	case e == nil && peekBackend != st.Backend:
 		err = staleErr(map[string]any{"reason": "backend_changed"})
 		return Created{}, err
@@ -136,6 +141,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	}
 	est, err := loadEstimate(ctx, tx, estID)
 	if err != nil {
+		return Created{}, err
+	}
+	if err = s.admitCreate(ctx, tx, est); err != nil { // an engine rejected since the estimate gets no money (D-E2-15)
 		return Created{}, err
 	}
 	if in.VariantTrackID != nil && !variantShape(est, *in.VariantTrackID) {
@@ -170,6 +178,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	// 6. insert
 	need := spend.NeedsApproval(p, via, len(est.Items), money.MicroUSD(est.Ceiling), tok, caps)
 	if err = s.insertBatch(ctx, tx, p, in, est, batchID, via, need, now); err != nil {
+		return Created{}, err
+	}
+	if err = s.batchCreated(ctx, tx, est, batchID); err != nil {
 		return Created{}, err
 	}
 	created, err = loadCreated(ctx, tx, batchID)
