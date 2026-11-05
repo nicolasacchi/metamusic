@@ -34,6 +34,7 @@ type TakeInput struct {
 	RecordedAt, CreatedAt int64
 	HumanStars            *int
 	U, SD                 *float64 // ladder strength; nil means "not in the fit"
+	Transform             bool     // T1: the take is a transform output; it never wins by being the newest (C211.6)
 }
 
 // Input is everything Derive needs.

@@ -88,10 +88,19 @@ func Derive(in Input) Result {
 		return res
 	}
 
-	// 4. newest
-	ev.Rule = string(SourceNewest)
-	ev.RecordedAt = store.FormatTime(time.UnixMilli(elig[0].RecordedAt))
-	res.TakeID, res.Source, res.Evidence = ptr(elig[0].ID), SourceNewest, ev
+	// 4. newest, among the takes that are not transform outputs (C211.6): a transform becomes the Pick only by being
+	// pinned or by winning the ladder or the stars, never by being recent. With nothing else eligible there is no Pick.
+	for i := range elig { // elig is newest first
+		if elig[i].Transform {
+			continue
+		}
+		ev.Rule = string(SourceNewest)
+		ev.RecordedAt = store.FormatTime(time.UnixMilli(elig[i].RecordedAt))
+		res.TakeID, res.Source, res.Evidence = ptr(elig[i].ID), SourceNewest, ev
+		return res
+	}
+	ev.Rule = string(SourceNone)
+	res.Evidence = ev
 	return res
 }
 

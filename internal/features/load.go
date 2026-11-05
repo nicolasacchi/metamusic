@@ -173,6 +173,9 @@ func facetsOf(ctx context.Context, q db, table, keyCol, id string) (Facets, erro
 	return f, rows.Err()
 }
 
+// dspEngine is recipes.engine of a transform Take (library.EngineDSP; features imports no library).
+const dspEngine = "dsp"
+
 type measuredDoc struct {
 	BPM             *float64 `json:"bpm"`
 	Confidence      float64  `json:"confidence"`
@@ -205,7 +208,12 @@ func loadTake(ctx context.Context, q db, id string) (tl takeLoad, ok bool, err e
 	if strings.TrimSpace(req.Style) == "" {
 		req.Style = style
 	}
-	in := TakeInput{DurationS: dur, RecipeKnown: engine != "unknown"}
+	if engine == dspEngine {
+		// D-T1-24: a transform Take is measured-only, like a reference Take. Its recipe is a spec, not a request: no declared,
+		// plan, style, facet or expected-duration input may reach the derivation.
+		declared, plan, bars, spb = sql.NullInt64{}, sql.NullFloat64{}, sql.NullInt64{}, sql.NullFloat64{}
+	}
+	in := TakeInput{DurationS: dur, RecipeKnown: engine != "unknown" && engine != dspEngine}
 	if declared.Valid {
 		in.DeclaredBPM = ptr(float64(declared.Int64))
 	}

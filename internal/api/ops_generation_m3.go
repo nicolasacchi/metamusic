@@ -188,6 +188,12 @@ func lineageFrom(t lineage.Tree) LineageTree {
 		ln := LineageNode{ID: n.ID, ParentID: n.ParentID, Generation: n.Generation, Title: n.Title, Status: n.Status, Seed: n.Seed, RecipeKnown: n.RecipeKnown,
 			Lossy: n.Lossy, RequestID: n.RequestID, Origin: n.Origin, Operator: nonEmpty(n.Operator), Inferred: n.Inferred, Rationale: n.Rationale,
 			Stars: n.Stars, CriticStars: n.CriticStars, Outcome: n.Outcome, JobID: n.JobID, CreatedAt: n.CreatedAt, ChildrenCount: n.ChildrenCount, AlsoFrom: []AlsoFrom{}}
+		if n.Transform != nil {
+			ln.Transform = &library.TransformRef{Kind: n.Transform.Kind, TransformID: n.Transform.TransformID, SpecHash: n.Transform.SpecHash}
+		}
+		for _, a := range n.AlsoFrom {
+			ln.AlsoFrom = append(ln.AlsoFrom, AlsoFrom{TrackID: a.TrackID, Role: a.Role})
+		}
 		if n.CostMicroUSD != nil && n.CostBasis != nil {
 			ln.Cost = &library.GenerationCost{DisplayMicroUSD: int64(*n.CostMicroUSD), DisplayUSD: usd(*n.CostMicroUSD), Basis: *n.CostBasis}
 		}
