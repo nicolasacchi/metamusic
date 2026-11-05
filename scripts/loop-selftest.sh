@@ -27,12 +27,12 @@ rc=0
 chk "non-allowlisted target refused" '[ "$rc" = 2 ]'
 
 # M1 targets (C23) are accepted and their rows pass the shared validator
-for t in fixture-db cover routing seed; do
+for t in fixture-db cover routing seed dsp; do
   "$root/scripts/loop" "$t" -- true >/dev/null
   chk "target $t accepted" 'jq -e "select(.target==\"$t\")" "$MM_METRICS_FILE" >/dev/null'
 done
 chk "new-target rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" "$MM_METRICS_FILE" >/dev/null'
-chk "schema enum has new targets" 'jq -e ".properties.target.enum | contains([\"cover\",\"routing\",\"seed\",\"fixture-db\"])" "$root/metrics/loop.schema.json" >/dev/null'
+chk "schema enum has new targets" 'jq -e ".properties.target.enum | contains([\"cover\",\"routing\",\"seed\",\"fixture-db\",\"dsp\"])" "$root/metrics/loop.schema.json" >/dev/null'
 
 # CI-rebalance targets: the long and perf tiers are allowlisted, heavy (scoped like test) and in the schema enum
 for t in test-long perf; do
