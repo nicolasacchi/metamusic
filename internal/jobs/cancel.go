@@ -239,7 +239,11 @@ func (r *Runner) sendCancels(ctx context.Context, jobID string, atts []attRec) e
 	}
 	sent, failed := 0, ""
 	for _, a := range due {
-		err := r.o.Backend.Cancel(ctx, provider.Ref{Backend: r.o.Backend.Name(), ID: a.Ref})
+		be, ok := r.backendFor(a.Backend)
+		if !ok {
+			continue // the attempt's backend left the set: nothing can be cancelled there
+		}
+		err := be.Cancel(ctx, provider.Ref{Backend: be.Name(), ID: a.Ref})
 		r.mu.Lock()
 		r.lastCancel[a.ID] = now
 		r.mu.Unlock()
@@ -248,7 +252,7 @@ func (r *Runner) sendCancels(ctx context.Context, jobID string, atts []attRec) e
 			sent++
 		case errors.Is(err, provider.ErrAccess), errors.Is(err, provider.ErrEndpointNotFound):
 			failed = "access"
-			if terr := r.tripProvider(ctx, "provider_access", map[string]any{"op": "cancel"}); terr != nil {
+			if terr := r.tripProviderOn(ctx, be.Name(), "provider_access", map[string]any{"op": "cancel"}); terr != nil {
 				return terr
 			}
 		default:

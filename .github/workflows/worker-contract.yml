@@ -9,6 +9,10 @@ on:
       - 'internal/engine/yue2/**'
       - '.github/workflows/worker-contract.yml'
       - 'scripts/worker-contract.sh'
+      # BEGIN E2-I1 (C162.1): the ACE-Step contract also follows the Go side of its engine and the committed endpoint files
+      - 'internal/engine/acestep/**'
+      - 'deploy/worker-acestep-*'
+      # END E2-I1
   push:
     branches: [main]
     paths:
@@ -16,6 +20,10 @@ on:
       - 'internal/engine/yue2/**'
       - '.github/workflows/worker-contract.yml'
       - 'scripts/worker-contract.sh'
+      # BEGIN E2-I1 (C162.1): the ACE-Step contract also follows the Go side of its engine and the committed endpoint files
+      - 'internal/engine/acestep/**'
+      - 'deploy/worker-acestep-*'
+      # END E2-I1
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -46,3 +54,40 @@ jobs:
           restore-keys: uv-contract-${{ runner.os }}-
       - name: contract tests
         run: scripts/worker-contract.sh
+
+  # BEGIN E2-I1 ACE-Step contract (C162.1, C154.7): CPU torch 2.10.0 on Python 3.11 against the pinned ACE-Step commit, through the
+  # same script (scripts/worker-contract.sh acestep15). Not a required check (about 5 min cold). The weekly cron above re-runs it
+  # against the pin to catch upstream or wheel drift. Tolerant of PW2 not having landed: without worker/contract/ACESTEP_COMMIT the
+  # job passes after saying so.
+  contract-acestep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: is the ACE-Step contract in the tree
+        id: present
+        run: |
+          if [ -f worker/contract/ACESTEP_COMMIT ] && [ -f worker/contract/test_acestep_contract.py ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::worker/contract/ACESTEP_COMMIT or test_acestep_contract.py does not exist yet; nothing to run"
+          fi
+      - name: install uv (pinned version)
+        if: steps.present.outputs.present == 'true'
+        run: pipx install "uv==0.11.7"
+      - name: cache uv and the downloaded wheels (keyed on the lock, the requirement list and ACESTEP_COMMIT)
+        if: steps.present.outputs.present == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: uv-contract-acestep-${{ runner.os }}-${{ hashFiles('worker/uv.lock', 'worker/contract/ACESTEP_COMMIT', 'worker/contract/acestep-requirements.txt') }}
+          restore-keys: uv-contract-acestep-${{ runner.os }}-
+      - name: ACE-Step contract tests
+        if: steps.present.outputs.present == 'true'
+        run: scripts/worker-contract.sh acestep15
+  # END E2-I1

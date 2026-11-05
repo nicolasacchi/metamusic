@@ -105,7 +105,11 @@ func (b *Backend) Quote(ctx context.Context) (provider.Quote, error) {
 	if b.s.Quote != nil {
 		return b.s.Quote(ctx)
 	}
-	return GoodQuote(b.name, time.Now()), nil
+	q := GoodQuote(b.name, time.Now())
+	if b.Engine() == provider.EngineACEStep {
+		q.Endpoint.Name = "mm-acestep"
+	}
+	return q, nil
 }
 
 // Submit implements provider.Backend; the spec is recorded before the script runs.

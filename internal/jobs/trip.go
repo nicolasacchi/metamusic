@@ -42,8 +42,11 @@ var TripActionOps = map[string]string{
 // tripCancelJobs moves every job with a live attempt towards cancelled with PROVIDER_TRIPPED (rows 5b, 11
 // and 14) and sends the Cancel POSTs. A transferring job whose verified result already decided the take
 // keeps it. It returns the number of jobs moved.
-func (r *Runner) tripCancelJobs(ctx context.Context, reason string) (int, error) {
-	js, err := queryJobs(ctx, r.o.Store.R, `state IN ('queued','submitting','starting','generating','transferring') ORDER BY created_at, take_index`)
+//
+// scope is the backend the trip belongs to ("" outside a multi-backend process: every job): a trip stops its own backend only
+// (C151.2), so the jobs of the others keep running.
+func (r *Runner) tripCancelJobs(ctx context.Context, scope, reason string) (int, error) {
+	js, err := queryJobs(ctx, r.o.Store.R, `state IN ('queued','submitting','starting','generating','transferring') AND (? = '' OR backend = ?) ORDER BY created_at, take_index`, scope, scope)
 	if err != nil {
 		return 0, err
 	}
@@ -99,7 +102,7 @@ func (r *Runner) tripCancelJobs(ctx context.Context, reason string) (int, error)
 
 // tripFirst opens the trip in its own transaction (one open trip per backend).
 func (r *Reconciler) tripFirst(ctx context.Context, reason string, details map[string]any) error {
-	return r.o.Runner.tripProvider(ctx, reason, details)
+	return r.o.Runner.tripProviderOn(ctx, r.o.Backend.Name(), reason, details)
 }
 
 type openTrip struct{ id, reason string }
@@ -166,7 +169,7 @@ func (r *Reconciler) act(ctx context.Context, t openTrip) (bool, error) {
 		return false, err
 	}
 	var actions []string
-	n, err := r.o.Runner.tripCancelJobs(ctx, t.reason)
+	n, err := r.o.Runner.tripCancelJobs(ctx, r.scope(), t.reason)
 	if err != nil {
 		return false, err
 	}

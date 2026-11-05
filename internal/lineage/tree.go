@@ -46,6 +46,19 @@ type Node struct {
 	ChildrenCount int             `json:"children_count"`
 	Transform     *TransformRef   `json:"transform"`
 	AlsoFrom      []AlsoFrom      `json:"also_from"`
+
+	// E2 (C149, D-E2-12, D-E2-25): omitted for a yue2 take without them, so the node's wire bytes do not move.
+	Engine      string         `json:"engine,omitempty"`
+	Reference   *NodeReference `json:"reference,omitempty"`
+	Stems       int            `json:"stems,omitempty"`
+	CrossEngine bool           `json:"cross_engine,omitempty"`
+}
+
+// NodeReference is the reference edge of a node: the take whose clip window steered the render, in seconds.
+type NodeReference struct {
+	TrackID string  `json:"track_id"`
+	FromS   float64 `json:"from_s"`
+	ToS     float64 `json:"to_s"`
 }
 
 // TransformRef marks a node that is a transform output (D-T1-4).
@@ -74,7 +87,10 @@ const treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.req
 	CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, tr.kind, tr.spec_hash, j.outcome, j.id, t.created_at,
 	j.expected_micro_usd, b.n_takes, b.reconciled_at IS NOT NULL,
 	(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.job_id = j.id AND l.kind = 'settle' AND l.reason IN ('execution','execution_unknown')),
-	(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.batch_id = j.batch_id AND l.kind = 'settle' AND l.reason = 'overhead')
+	(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.batch_id = j.batch_id AND l.kind = 'settle' AND l.reason = 'overhead'),
+	json_extract(r.request_json, '$.ref.track_id'), json_extract(r.request_json, '$.ref.from_ds'), json_extract(r.request_json, '$.ref.to_ds'),
+	(SELECT COUNT(*) FROM artifacts a WHERE a.track_id = t.id AND a.name GLOB 'stem-*.flac'),
+	COALESCE(json_extract(m.params_json, '$.cross_engine'), 0)
 	FROM tracks t JOIN recipes r ON r.id = t.recipe_id
 	LEFT JOIN mutations m ON m.child_track_id = t.id
 	LEFT JOIN ratings hr ON hr.track_id = t.id AND hr.source = 'human'
@@ -119,12 +135,22 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 		var lossy, inferred int
 		var expected, nTakes, execSettled, overheadSettled sql.NullInt64
 		var reconciled sql.NullBool
+		var refTrack sql.NullString
+		var refFrom, refTo sql.NullInt64
+		var stems, cross int
 		if err := rows.Scan(&n.ID, &n.Title, &n.Status, &n.Operator, &n.RequestID, &parent, &n.Generation, &seed, &engine,
 			&lossy, &inferred, &rationale, &stars, &critic, &n.Origin, &tKind, &tHash, &outcome, &jobID, &n.CreatedAt,
-			&expected, &nTakes, &reconciled, &execSettled, &overheadSettled); err != nil {
+			&expected, &nTakes, &reconciled, &execSettled, &overheadSettled, &refTrack, &refFrom, &refTo, &stems, &cross); err != nil {
 			return Tree{}, fmt.Errorf("lineage: tree: %w", err)
 		}
 		n.RecipeKnown = engine != "unknown"
+		if engine != "yue2" && engine != "unknown" {
+			n.Engine = engine
+		}
+		if refTrack.Valid {
+			n.Reference = &NodeReference{TrackID: refTrack.String, FromS: float64(refFrom.Int64) / 10, ToS: float64(refTo.Int64) / 10}
+		}
+		n.Stems, n.CrossEngine = stems, cross == 1
 		if n.RecipeKnown {
 			v := seed
 			n.Seed = &v

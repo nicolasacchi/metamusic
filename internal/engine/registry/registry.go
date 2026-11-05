@@ -25,3 +25,7 @@ func Default(o Options) engine.Registry {
 	}
 	return reg
 }
+
+// Registry names engine.Registry for packages that must not import the engine interface next to an implementation
+// (the import-graph rule of C70): the API, the app and the HTTP server hold the registry through this alias.
+type Registry = engine.Registry

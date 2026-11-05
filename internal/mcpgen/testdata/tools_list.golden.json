@@ -513,9 +513,21 @@
           ],
           "type": "string"
         },
+        "stem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "take_index": {
           "format": "int64",
           "type": "integer"
+        },
+        "task": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "timeout_s": {
           "format": "int64",
@@ -1243,9 +1255,21 @@
                 ],
                 "type": "string"
               },
+              "stem": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "take_index": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "task": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "title": {
                 "type": "string"
@@ -1513,6 +1537,9 @@
                   "duration_s": {
                     "format": "double",
                     "type": "number"
+                  },
+                  "engine": {
+                    "type": "string"
                   },
                   "has_score": {
                     "type": "boolean"
@@ -2001,9 +2028,21 @@
                 ],
                 "type": "string"
               },
+              "stem": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "take_index": {
                 "format": "int64",
                 "type": "integer"
+              },
+              "task": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "title": {
                 "type": "string"
@@ -2086,9 +2125,10 @@
       "additionalProperties": false,
       "properties": {
         "engine": {
-          "description": "Default yue2",
+          "description": "Default yue2; one engine per batch",
           "enum": [
-            "yue2"
+            "yue2",
+            "acestep15"
           ],
           "type": "string"
         },
@@ -2105,6 +2145,52 @@
                 "minItems": 1,
                 "type": "array"
               },
+              "edit": {
+                "additionalProperties": false,
+                "properties": {
+                  "extend_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "from_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "to_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "tracks": {
+                    "items": {
+                      "enum": [
+                        "backing_vocals",
+                        "bass",
+                        "brass",
+                        "drums",
+                        "fx",
+                        "guitar",
+                        "keyboard",
+                        "percussion",
+                        "strings",
+                        "synth",
+                        "vocals",
+                        "woodwinds"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 6,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "engine": {
+                "enum": [
+                  "yue2",
+                  "acestep15"
+                ],
+                "type": "string"
+              },
               "mode": {
                 "description": "How the take list is built; see the modes table",
                 "enum": [
@@ -2115,7 +2201,13 @@
                   "from_draft",
                   "compose_new",
                   "from_template",
-                  "song_pr"
+                  "song_pr",
+                  "port",
+                  "extend",
+                  "repaint",
+                  "reference",
+                  "complete",
+                  "stems"
                 ],
                 "type": "string"
               },
@@ -2149,6 +2241,12 @@
                       "null"
                     ]
                   },
+                  "bpm": {
+                    "format": "int64",
+                    "maximum": 300,
+                    "minimum": 30,
+                    "type": "integer"
+                  },
                   "cfg_scale": {
                     "description": "A number sets it, null removes it, absent keeps it",
                     "type": [
@@ -2160,8 +2258,17 @@
                     "enum": [
                       "full",
                       "melody",
-                      "off"
+                      "off",
+                      "think"
                     ],
+                    "type": "string"
+                  },
+                  "duration_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "keyscale": {
+                    "maxLength": 12,
                     "type": "string"
                   },
                   "lyrics": {
@@ -2173,6 +2280,15 @@
                     "maxLength": 4000,
                     "minLength": 1,
                     "type": "string"
+                  },
+                  "timesignature": {
+                    "enum": [
+                      "2",
+                      "3",
+                      "4",
+                      "6"
+                    ],
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -2182,6 +2298,27 @@
               },
               "recipe": {
                 "description": "compose_new: the song request, as sent",
+                "type": "object"
+              },
+              "reference": {
+                "additionalProperties": false,
+                "properties": {
+                  "from_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "to_s": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "track_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "track_id"
+                ],
                 "type": "object"
               },
               "seeds": {
@@ -2222,6 +2359,18 @@
             "array",
             "null"
           ]
+        },
+        "options": {
+          "additionalProperties": false,
+          "properties": {
+            "backend": {
+              "type": "string"
+            },
+            "trial_id": {
+              "type": "string"
+            }
+          },
+          "type": "object"
         }
       },
       "required": [
@@ -2386,11 +2535,55 @@
               "takes": {
                 "items": {
                   "properties": {
+                    "cross_engine": {
+                      "type": "boolean"
+                    },
                     "draft_id": {
                       "type": [
                         "string",
                         "null"
                       ]
+                    },
+                    "edit": {
+                      "properties": {
+                        "extend_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "from_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "stem": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "tracks": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "engine": {
+                      "type": "string"
                     },
                     "expected_audio_s": {
                       "format": "int64",
@@ -2412,6 +2605,25 @@
                         "null"
                       ]
                     },
+                    "reference": {
+                      "properties": {
+                        "clip_sha256": {
+                          "type": "string"
+                        },
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "track_id": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "request_id": {
                       "type": "string"
                     },
@@ -2422,6 +2634,22 @@
                     "take_index": {
                       "format": "int64",
                       "type": "integer"
+                    },
+                    "task": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "task_class": {
+                      "enum": [
+                        "turbo",
+                        "base"
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "timeout_s": {
                       "format": "int64",
@@ -2563,6 +2791,12 @@
                 "null"
               ]
             },
+            "bpm": {
+              "format": "int64",
+              "maximum": 300,
+              "minimum": 30,
+              "type": "integer"
+            },
             "cfg_scale": {
               "description": "A number sets it, null removes it, absent keeps it",
               "type": [
@@ -2574,8 +2808,17 @@
               "enum": [
                 "full",
                 "melody",
-                "off"
+                "off",
+                "think"
               ],
+              "type": "string"
+            },
+            "duration_s": {
+              "format": "double",
+              "type": "number"
+            },
+            "keyscale": {
+              "maxLength": 12,
               "type": "string"
             },
             "lyrics": {
@@ -2586,6 +2829,15 @@
             "style": {
               "maxLength": 4000,
               "minLength": 1,
+              "type": "string"
+            },
+            "timesignature": {
+              "enum": [
+                "2",
+                "3",
+                "4",
+                "6"
+              ],
               "type": "string"
             }
           },
@@ -2772,11 +3024,55 @@
               "takes": {
                 "items": {
                   "properties": {
+                    "cross_engine": {
+                      "type": "boolean"
+                    },
                     "draft_id": {
                       "type": [
                         "string",
                         "null"
                       ]
+                    },
+                    "edit": {
+                      "properties": {
+                        "extend_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "from_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "stem": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "tracks": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "engine": {
+                      "type": "string"
                     },
                     "expected_audio_s": {
                       "format": "int64",
@@ -2798,6 +3094,25 @@
                         "null"
                       ]
                     },
+                    "reference": {
+                      "properties": {
+                        "clip_sha256": {
+                          "type": "string"
+                        },
+                        "from_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "to_s": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "track_id": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "request_id": {
                       "type": "string"
                     },
@@ -2808,6 +3123,22 @@
                     "take_index": {
                       "format": "int64",
                       "type": "integer"
+                    },
+                    "task": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "task_class": {
+                      "enum": [
+                        "turbo",
+                        "base"
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "timeout_s": {
                       "format": "int64",
@@ -3829,9 +4160,21 @@
           ],
           "type": "string"
         },
+        "stem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "take_index": {
           "format": "int64",
           "type": "integer"
+        },
+        "task": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "timeout_s": {
           "format": "int64",
@@ -3968,6 +4311,21 @@
         "lossy": {
           "type": "boolean"
         },
+        "lrc": {
+          "properties": {
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
         "mp3": {
           "properties": {
             "bitrate_kbps": {
@@ -3989,6 +4347,27 @@
             }
           },
           "type": "object"
+        },
+        "stems": {
+          "items": {
+            "properties": {
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
         },
         "track_id": {
           "type": "string"
@@ -5529,6 +5908,12 @@
         "commit": {
           "type": "string"
         },
+        "engines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "schema_version": {
           "format": "int64",
           "type": "integer"
@@ -5932,6 +6317,18 @@
         "lossy": {
           "type": "boolean"
         },
+        "lrc": {
+          "properties": {
+            "bytes": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
         "open_comments": {
           "format": "int64",
           "type": "integer"
@@ -6045,6 +6442,120 @@
         },
         "recipe": {
           "properties": {
+            "acestep": {
+              "properties": {
+                "bpm": {
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "duration_s": {
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "edit": {
+                  "properties": {
+                    "extend_s": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "from_s": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "to_s": {
+                      "format": "double",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "tracks": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "keyscale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ref": {
+                  "properties": {
+                    "clip_sha256": {
+                      "type": "string"
+                    },
+                    "from_s": {
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "to_s": {
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "track_id": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "src": {
+                  "properties": {
+                    "duration_s": {
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "master_sha256": {
+                      "type": "string"
+                    },
+                    "track_id": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "task": {
+                  "enum": [
+                    "text2music",
+                    "repaint",
+                    "extend",
+                    "complete",
+                    "extract"
+                  ],
+                  "type": "string"
+                },
+                "task_class": {
+                  "enum": [
+                    "turbo",
+                    "base"
+                  ],
+                  "type": "string"
+                },
+                "timesignature": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
             "cot": {
               "type": "string"
             },
@@ -6212,6 +6723,27 @@
         },
         "status_set_by": {
           "type": "string"
+        },
+        "stems": {
+          "items": {
+            "properties": {
+              "artifact": {
+                "type": "string"
+              },
+              "bytes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
         },
         "style_terms": {
           "items": {
@@ -8661,7 +9193,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform) and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+    "description": "Search tracks\n\nLists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform), engine and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -8671,6 +9203,17 @@
         "cursor": {
           "description": "Opaque cursor from next_cursor",
           "type": "string"
+        },
+        "engine": {
+          "items": {
+            "enum": [
+              "yue2",
+              "acestep15",
+              "dsp"
+            ],
+            "type": "string"
+          },
+          "type": "array"
         },
         "has_open_comments": {
           "type": "boolean"
@@ -8874,6 +9417,9 @@
               "duration_s": {
                 "format": "double",
                 "type": "number"
+              },
+              "engine": {
+                "type": "string"
               },
               "has_score": {
                 "type": "boolean"
@@ -10177,9 +10723,21 @@
               ],
               "type": "string"
             },
+            "stem": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "take_index": {
               "format": "int64",
               "type": "integer"
+            },
+            "task": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "timeout_s": {
               "format": "int64",

@@ -246,3 +246,18 @@ web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
 #internal/transform/*	t1-transforms
 #internal/dsp/*	t1-transforms
 # END T1-I1
+# BEGIN E2-I1 (e2-* specs). Same constraint as the T1 block: the map cannot name a spec that does not exist yet (verify-selftest fails on a
+# line whose spec file is missing). W-INT (E2a) and W1b (E2b/E2c) own web/e2e/e2-*.spec.ts and uncomment the lines in the PR that adds the
+# spec files, keeping these exact patterns (internal/engine/* is already mapped to core above and shadows any narrower engine line). A changed e2-*.spec.ts already runs itself; unmapped web/src paths fall back to @core.
+#web/src/routes/Engines.svelte	e2-engine-picker e2-trial
+#web/src/lib/components/Engine*	e2-engine-picker e2-init-failure
+#web/src/lib/components/RangeSelect.svelte	e2-repaint e2-extend
+#web/src/lib/components/Reference*	e2-reference
+#web/src/lib/components/Stem*	e2-stems
+#web/src/lib/components/Trial*	e2-trial
+#web/src/routes/Suite*.svelte	e2-suite
+#web/src/lib/engineIntent.ts	e2-engine-picker e2-repaint e2-reference
+#internal/engineadopt/*	e2-engine-picker e2-trial
+#internal/enginetrial/*	e2-trial
+#internal/suites/*	e2-suite
+# END E2-I1

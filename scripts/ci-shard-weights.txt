@@ -124,3 +124,12 @@
 ./internal/dsp/ir 10
 ./internal/dsp/align 10
 # END T1-I1 provisional weights
+# BEGIN E2-I1 provisional weights (E2 packages): ESTIMATES, not measurements. engine/acestep measures 0.03 s and engineadopt is a stub
+# (neither is slow); the heavy E2 tests live in packages that already carry a line (acceptance, jobs, api, servertest). The two E2c
+# packages do not exist yet and are listed so the shards stay balanced when they land; a weight for a missing package is ignored.
+# Replace with real timings at INT-B (scripts/ci-weights-refresh.sh write <run-id of a green run on the merged branch>).
+./internal/engine/acestep 3
+./internal/engineadopt 5
+./internal/enginetrial 10
+./internal/suites 10
+# END E2-I1 provisional weights

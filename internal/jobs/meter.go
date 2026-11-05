@@ -109,6 +109,19 @@ func (m *meterModel) execSeconds(a meterAttempt) int64 {
 
 // loadMeter reads the snapshot and computes attribution and per-batch overhead.
 func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meterModel, error) {
+	return loadMeterFor(ctx, x, now, lastSweep, meterScope{})
+}
+
+// meterScope restricts the meter to one backend of a multi-backend process: its batches and attempts by their backend
+// column, its worker lifetimes by the owner their key names (scopedWorkerKey). The zero value is M3's whole database.
+type meterScope struct{ backend, def string }
+
+func (s meterScope) owns(key string) bool {
+	return s.backend == "" || keyBackend(key, s.def) == s.backend
+}
+
+// loadMeterFor is loadMeter over one backend's batches, attempts and lifetimes.
+func loadMeterFor(ctx context.Context, x Querier, now, lastSweep time.Time, sc meterScope) (*meterModel, error) {
 	m := &meterModel{now: now, lastSweep: lastSweep, owner: map[int]string{}, overheadS: map[string]int64{}, lastEnd: map[string]time.Time{}, lifetimesOf: map[string][]int{}}
 	since, err := meterBillableSince(ctx, x)
 	if err != nil {
@@ -126,6 +139,9 @@ func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meter
 			rows.Close()
 			return nil, err
 		}
+		if !sc.owns(l.key) {
+			continue
+		}
 		// the lifetime starts when it first became billable, never before the record was first metered
 		l.started, l.lastSeen = mustT(st), mustT(ls)
 		if f := mustT(fs); f.After(l.started) {
@@ -139,7 +155,8 @@ func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meter
 	brows, err := x.QueryContext(ctx, `SELECT b.id, b.created_at, b.finished_at, b.idle_s, b.price_pph_micro_usd,
 		COALESCE((SELECT SUM(micro_usd) FROM ledger WHERE batch_id = b.id AND kind = 'reserve'), 0),
 		COALESCE((SELECT SUM(micro_usd) FROM ledger WHERE batch_id = b.id AND kind = 'settle' AND reason IN ('execution','execution_unknown','excess')), 0)
-		FROM batches b WHERE b.reconciled_at IS NULL AND b.state IN ('active','finished') ORDER BY b.created_at, b.id`)
+		FROM batches b WHERE b.reconciled_at IS NULL AND b.state IN ('active','finished') AND (? = '' OR b.backend = ?) ORDER BY b.created_at, b.id`,
+		sc.backend, sc.backend)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +178,7 @@ func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meter
 	arows, err := x.QueryContext(ctx, `SELECT a.id, j.batch_id, a.worker_key, a.submitted_at, a.state, a.in_progress_seen, a.announced_at, a.terminal_at,
 		a.execution_ms, a.terminal_basis, j.started_at, j.timeout_s, bt.kill_slack_s
 		FROM job_attempts a JOIN jobs j ON j.id = a.job_id JOIN batches bt ON bt.id = j.batch_id
-		WHERE a.worker_key IS NOT NULL AND a.worker_key <> '' ORDER BY a.submitted_at, a.id`)
+		WHERE a.worker_key IS NOT NULL AND a.worker_key <> '' AND (? = '' OR a.backend = ?) ORDER BY a.submitted_at, a.id`, sc.backend, sc.backend)
 	if err != nil {
 		return nil, err
 	}
@@ -273,12 +290,16 @@ func (m *meterModel) attribute() {
 	}
 }
 
+func (r *Reconciler) meterScope() meterScope {
+	return meterScope{backend: r.scope(), def: r.o.DefaultBackend}
+}
+
 // OverheadSeconds implements BatchMeter (C76.6). The batch is ready when every worker lifetime attributed
 // to it has ended or its last attempt ended at least idle_s + 60 s ago; a batch whose attempts never
 // touched a worker settles zero overhead at once.
 func (r *Reconciler) OverheadSeconds(ctx context.Context, x Querier, batchID string) (int64, bool, error) {
 	now := r.o.Clock.Now()
-	m, err := loadMeter(ctx, x, now, r.lastSweepAt())
+	m, err := loadMeterFor(ctx, x, now, r.lastSweepAt(), r.meterScope())
 	if err != nil {
 		return 0, false, err
 	}
@@ -311,7 +332,7 @@ func (r *Reconciler) OverheadSeconds(ctx context.Context, x Querier, batchID str
 
 // meterOver is the C76.6 trip test: metered worker time above what the open batches reserved.
 func (r *Reconciler) meterOver(ctx context.Context) (over bool, detail map[string]any, err error) {
-	m, err := loadMeter(ctx, r.o.Store.R, r.o.Clock.Now(), r.lastSweepAt())
+	m, err := loadMeterFor(ctx, r.o.Store.R, r.o.Clock.Now(), r.lastSweepAt(), r.meterScope())
 	if err != nil {
 		return false, nil, err
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -31,6 +32,25 @@ func workerKey(key []byte, id string) string {
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(id))
 	return hex.EncodeToString(m.Sum(nil))
+}
+
+// scopedWorkerKey is workerKey for a worker of the named backend. The default backend (and a process without a Set) keeps M3's
+// plain key, so existing rows stay valid; any other backend's key is "<backend>:<hex>", which makes the owner of a
+// worker_meter lifetime recoverable from the key alone (the table has no backend column).
+func scopedWorkerKey(key []byte, def, backend, id string) string {
+	k := workerKey(key, id)
+	if def == "" || backend == "" || backend == def {
+		return k
+	}
+	return backend + ":" + k
+}
+
+// keyBackend is the backend a worker key belongs to: the prefix of a scoped key, otherwise the default backend.
+func keyBackend(key, def string) string {
+	if i := strings.IndexByte(key, ':'); i > 0 {
+		return key[:i]
+	}
+	return def
 }
 
 // finishAttempt turns a live attempt `done` and settles it exactly once in the caller's transaction
@@ -209,9 +229,24 @@ func (r *Runner) trip(ctx context.Context, tx *sql.Tx, f store.LeaseFence, backe
 
 // tripProvider opens a trip in its own transaction.
 func (r *Runner) tripProvider(ctx context.Context, reason string, details map[string]any) error {
+	return r.tripProviderOn(ctx, r.o.Backend.Name(), reason, details)
+}
+
+// tripProviderOn opens a trip of the named backend only (C151.2): a refused key or a stuck worker on one endpoint never
+// stops another.
+func (r *Runner) tripProviderOn(ctx context.Context, backend, reason string, details map[string]any) error {
 	return r.tx(ctx, func(tx *sql.Tx) error {
-		return r.trip(ctx, tx, r.fence(), r.o.Backend.Name(), reason, details)
+		return r.trip(ctx, tx, r.fence(), backend, reason, details)
 	})
+}
+
+// backendName is the provider_state key of an attempt's backend: its own name, or the runner's backend when the attempt
+// carries none (M3 rows).
+func (r *Runner) backendName(name string) string {
+	if name != "" && r.o.Backends != nil {
+		return name
+	}
+	return r.o.Backend.Name()
 }
 
 // settledSince is a small helper for tests and the batch summary: Σ settle rows of a batch.

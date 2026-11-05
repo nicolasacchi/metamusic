@@ -29,6 +29,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
+	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/gate"
@@ -51,6 +53,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/prompts"
+	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
@@ -154,6 +157,11 @@ type Options struct {
 	Atlas       *atlas.Service
 	// Transform (T1, C212); nil makes the seven transform operations answer 503 UNAVAILABLE {component: transform}. It reaches api.Deps only.
 	Transform *transform.Service
+	// E2 (C151, C160): reach api.Deps only.
+	Engines  registry.Registry
+	Backends *provider.Set
+	Gates    *provider.GateSet
+	Adoption *engineadopt.Service
 	// M5 (C250).
 	SongPR    *songpr.Service
 	Callbacks *callbacks.Service
@@ -212,6 +220,7 @@ func New(o Options) (http.Handler, error) {
 		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts,
 		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
 		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform,
+		Engines: o.Engines, Backends: o.Backends, Gates: o.Gates, Adoption: o.Adoption,
 		SongPR: o.SongPR, Callbacks: o.Callbacks, Attention: o.Attention, Voice: o.Voice})
 	gated := http.Handler(inner)
 	if o.Store != nil {

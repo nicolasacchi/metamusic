@@ -55,6 +55,9 @@ type TrackSummary struct {
 	CostDisplayMicroUSD *int64  `json:"cost_display_micro_usd" doc:"Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes"`
 	CostDisplayUSD      *string `json:"cost_display_usd"`
 
+	// E2 (C149): the engine that rendered the take (recipes.engine: yue2, acestep15, dsp for a transform, unknown for a reference).
+	Engine string `json:"engine"`
+
 	// L1 (C98)
 	SongID *string `json:"song_id" doc:"The Song this take belongs to; null before the Song exists or on a pre-L1 schema"`
 	IsPick bool    `json:"is_pick" doc:"The take is its Song's current Pick"`
@@ -95,6 +98,7 @@ type SearchParams struct {
 	LyricsOf                   string   // T1 (C211.4): Takes whose normalised lyrics equal this Take's
 	lyricsIDs                  []string // set by the service from LyricsOf
 	lyricsSet                  bool
+	Engine                     []string // E2 (C149): recipes.engine, OR (yue2, acestep15, dsp, unknown)
 	SongID                     string   // take belongs to this Song (L1, C98)
 	IsPick                     *bool    // take is (not) its Song's current Pick (L1, C98)
 	SessionID                  string   // take is in this Session by derived membership (L1, C98)
@@ -142,7 +146,7 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   hs.stars, ha.stars,
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
   (SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open'),
-  (r.engine <> 'unknown'), t.lossy, CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, t.job_id,
+  (r.engine <> 'unknown'), t.lossy, CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, t.job_id, r.engine,
   (SELECT x.kind FROM transforms x WHERE x.id = t.transform_id), (SELECT x.spec_hash FROM transforms x WHERE x.id = t.transform_id)`
 
 // the human and agent rating rows of a track (primary-key lookups)
@@ -196,6 +200,11 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 	for _, o := range p.Origin {
 		if !oneOf(o, searchOrigins...) {
 			return q, invalid("origin", "unknown origin %q", o)
+		}
+	}
+	for _, e := range p.Engine {
+		if !oneOf(e, "yue2", "acestep15", "dsp", "unknown") {
+			return q, invalid("engine", "unknown engine %q", e)
 		}
 	}
 	if p.Sort != "" && !oneOf(p.Sort, trackSorts...) {
@@ -301,6 +310,12 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 	if p.Lossy != nil {
 		where += ` AND t.lossy = ?`
 		*args = append(*args, boolInt(*p.Lossy))
+	}
+	if len(p.Engine) > 0 {
+		where += ` AND r.engine IN (` + placeholders(len(p.Engine)) + `)`
+		for _, e := range p.Engine {
+			*args = append(*args, e)
+		}
 	}
 	if len(p.Origin) > 0 {
 		where += originWhere(p.Origin)
@@ -574,7 +589,7 @@ func scanSummary(rows *sql.Rows) (TrackSummary, error) {
 	)
 	if err := rows.Scan(&t.ID, &t.Title, &t.Status, &t.DurationS, &t.RecordedAt, &t.CreatedAt, &t.RequestID, &t.Seed, &style, &bpm,
 		&hasScore, &timedFlag, &trunc, &lufs, &bw, &t.RootTrackID, &parent, &t.ChildrenCount,
-		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy, &t.Origin, &jobID, &tKind, &tHash); err != nil {
+		&stars, &critic, &t.Comments, &t.OpenComments, &t.RecipeKnown, &t.Lossy, &t.Origin, &jobID, &t.Engine, &tKind, &tHash); err != nil {
 		return t, fmt.Errorf("library: scan track: %w", err)
 	}
 	t.HasScore, t.Timed = hasScore, timedFlag
@@ -764,6 +779,10 @@ type RecipeInfo struct {
 	Seed         int64  `json:"seed"`
 	Hash         string `json:"hash"`
 	SourcesCount int    `json:"sources_count"`
+
+	// E2 (C148.3, C149): the engine-native facts of an acestep15 recipe, null for every other engine. Seconds are the
+	// stored deciseconds divided by ten.
+	ACE *RecipeACE `json:"acestep,omitempty"`
 }
 
 // Sibling is another take of the same lineage root.
@@ -880,6 +899,10 @@ type TrackDetail struct {
 
 	// L1 (C98)
 	Song *TrackSong `json:"song" doc:"The Song of the take; null before the Song exists or on a pre-L1 schema"`
+
+	// E2 (C157.1, C166): stems attached to the take as artifacts (E2b; empty until then) and its lyrics.lrc artifact.
+	Stems []StemInfo `json:"stems,omitempty" nullable:"false"`
+	LRC   *LRCInfo   `json:"lrc,omitempty"`
 }
 
 // TrackSong is the Song reference of a TrackDetail (C98).
@@ -926,7 +949,7 @@ func selectSections(bySource map[string][]SectionOut) (best string, rows []Secti
 
 // Track returns the full detail of one track.
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
-	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}}
+	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}, Stems: []StemInfo{}}
 	d.Rating.TrackID = id
 	var (
 		parent, runID sql.NullString
@@ -978,6 +1001,9 @@ func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
 		return d, err
 	}
 	if err := s.judgmentExtras(ctx, &d); err != nil {
+		return d, err
+	}
+	if err := s.e2Extras(ctx, &d); err != nil {
 		return d, err
 	}
 	if d.Origin == "job" {
