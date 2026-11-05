@@ -53,8 +53,21 @@ def norm(token: str) -> str:
     return _ALIASES.get(t.lower(), t)
 
 
+_NVIDIA_NAME = re.compile(r"^(nvidia|cuda)[-_]", re.I)
+_NVIDIA_TEXT = re.compile(r"proprietary|nvidia", re.I)
+
+
 def licence_of(md: metadata.PackageMetadata) -> str | None:
     """The distribution's licence expression, or None when nothing recognisable is declared."""
+    lic = _licence_of(md)
+    # NVIDIA's runtime wheels declare "Other/Proprietary License" or a LicenseRef; only NVIDIA-named distributions
+    # are mapped, so a proprietary licence anywhere else still fails the build.
+    if lic and _NVIDIA_NAME.match(md.get("Name") or "") and (lic.startswith("LicenseRef-NVIDIA") or _NVIDIA_TEXT.search(lic)):
+        return "LicenseRef-NVIDIA-Proprietary"
+    return lic
+
+
+def _licence_of(md: metadata.PackageMetadata) -> str | None:
     expr = md.get("License-Expression")
     if expr:
         return " ".join(norm(x) if x not in ("AND", "OR", "WITH") else x for x in re.split(r"\s+|(?=[()])|(?<=[()])", expr) if x)
@@ -76,14 +89,17 @@ def licence_of(md: metadata.PackageMetadata) -> str | None:
 
 def allowed(expr: str, allow: set[str]) -> bool:
     """`A OR B` needs one alternative to be fully allowed; `A AND B` needs both."""
+    expr = re.sub(r"\s+WITH\s+\S+", "", expr)  # SPDX exceptions (LLVM-exception ...) do not widen a licence
     for alt in re.split(r"\s+OR\s+", expr):
-        toks = [norm(t) for t in re.split(r"\s+AND\s+|\s+WITH\s+", alt.strip().strip("()")) if t.strip()]
+        toks = [norm(t) for t in re.split(r"\s+AND\s+", alt.strip().strip("()")) if t.strip()]
         if toks and all(t in allow for t in toks):
             return True
     return False
 
 
 def read_allow(path: Path) -> set[str]:
+    """SPDX identifiers, plus `dist:<name>` lines that accept one named distribution whatever it declares (each with
+    its reason in the file)."""
     out = set()
     for line in path.read_text().splitlines():
         line = line.split("#", 1)[0].strip()
@@ -100,6 +116,9 @@ def collect(dists: Iterable[metadata.Distribution], allow: set[str]) -> tuple[li
         if name == OWN:  # this worker's own code (the repository's licence applies); no third-party notice
             continue
         lic = licence_of(md)
+        if f"dist:{name.lower()}" in allow:
+            rows.append((name, md.get("Version") or "?", (lic or "UNKNOWN") + " (accepted by name in third_party_allow.txt)"))
+            continue
         if lic is None:
             problems.append(f"{name}: no recognisable licence in the package metadata")
         elif not allowed(lic, allow):

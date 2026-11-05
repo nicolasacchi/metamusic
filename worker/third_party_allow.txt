@@ -13,6 +13,8 @@ PSF-2.0
 Python-2.0
 Unlicense
 Zlib
+MIT-CMU
+CNRI-Python
 HPND
 CC0-1.0
 # PyTorch's CUDA wheels depend on NVIDIA's nvidia-*-cu12 runtime libraries (cuBLAS, cuDNN, NCCL ...), shipped under
@@ -23,3 +25,10 @@ LicenseRef-NVIDIA-Proprietary
 # installed from PyPI and imported, replaceable by the user. No other LGPL distribution is allowed here.
 LGPL-2.1
 LGPL-2.1-or-later
+# frozendict (a transitive dependency of the ACE-Step stack) is LGPL-3.0: an unmodified library installed from PyPI
+# and imported, replaceable by the user.
+LGPL-3.0-only
+# pytorch-wavelets declares "Free To Use But Restricted": its DWT code (all that ACE-Step's DCW uses, pytorch_wavelets.DWT)
+# is MIT, Copyright (c) 2020 Fergal Cotter; only the DTCWT part carries the Kingsbury MATLAB toolbox terms, which this
+# image never calls. Accepted by name, not by licence; revisit if DTCWT is ever used.
+dist:pytorch-wavelets

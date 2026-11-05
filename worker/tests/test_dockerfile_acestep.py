@@ -211,9 +211,31 @@ def test_third_party_sniff_embedded_licence_text(tmp_path: Path) -> None:
     assert problems == [] and {r[0]: r[2] for r in rows} == {"texty": "MIT", "apachey": "Apache-2.0"}
 
 
+def test_third_party_nvidia_and_exceptions(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    make_dist(site, "nvidia-cublas-cu12", Classifier=["License :: Other/Proprietary License"])
+    make_dist(site, "cuda-bindings", **{"License-Expression": "LicenseRef-NVIDIA-SOFTWARE-LICENSE"})
+    make_dist(site, "llvmlite", **{"License-Expression": "BSD-2-Clause AND Apache-2.0 WITH LLVM-exception"})
+    make_dist(site, "regex", **{"License-Expression": "Apache-2.0 AND CNRI-Python"})
+    make_dist(site, "pytorch-wavelets", Classifier=["License :: Free To Use But Restricted"])
+    make_dist(site, "pillow", **{"License-Expression": "MIT-CMU"})
+    make_dist(site, "frozendict", **{"License-Expression": "LGPL-3.0-only"})
+    rows, problems = gen_notices.collect(dists(site), ALLOW)
+    assert problems == [], problems
+    lic = {n: l for n, _, l in rows}
+    assert lic["nvidia-cublas-cu12"] == lic["cuda-bindings"] == "LicenseRef-NVIDIA-Proprietary"
+    assert "accepted by name" in lic["pytorch-wavelets"]
+    # proprietary or restricted licences anywhere else still fail the build
+    other = tmp_path / "other"
+    make_dist(other, "somelib", Classifier=["License :: Other/Proprietary License"])
+    make_dist(other, "pytorch-wavelets2", Classifier=["License :: Free To Use But Restricted"])
+    _, problems = gen_notices.collect(dists(other), ALLOW)
+    assert sorted(p.split(":")[0] for p in problems) == ["pytorch-wavelets2", "somelib"]
+
+
 def test_allow_list_is_permissive_only() -> None:
     assert not any(re.search(r"GPL|SSPL|NC|Proprietary", a) and a != "LicenseRef-NVIDIA-Proprietary"
-                   and not a.startswith("LGPL-2.1") for a in ALLOW)
+                   and not a.startswith(("LGPL-2.1", "LGPL-3.0-only")) for a in ALLOW)
     assert "LicenseRef-NVIDIA-Proprietary" in ALLOW and "MIT" in ALLOW
 
 
