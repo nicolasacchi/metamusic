@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -32,25 +31,6 @@ func workerKey(key []byte, id string) string {
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(id))
 	return hex.EncodeToString(m.Sum(nil))
-}
-
-// scopedWorkerKey is workerKey for a worker of the named backend. The default backend (and a process without a Set) keeps M3's
-// plain key, so existing rows stay valid; any other backend's key is "<backend>:<hex>", which makes the owner of a
-// worker_meter lifetime recoverable from the key alone (the table has no backend column).
-func scopedWorkerKey(key []byte, def, backend, id string) string {
-	k := workerKey(key, id)
-	if def == "" || backend == "" || backend == def {
-		return k
-	}
-	return backend + ":" + k
-}
-
-// keyBackend is the backend a worker key belongs to: the prefix of a scoped key, otherwise the default backend.
-func keyBackend(key, def string) string {
-	if i := strings.IndexByte(key, ':'); i > 0 {
-		return key[:i]
-	}
-	return def
 }
 
 // finishAttempt turns a live attempt `done` and settles it exactly once in the caller's transaction
