@@ -54,6 +54,9 @@ type Options struct {
 	KillLatencyMS int64          // executionTime overshoot at a timeout kill; default from canary-measured.json
 	Permissions   Permissions
 	Adversarial   Adversarial
+	// Name and Engine identify the instance: empty means the yue2 fake (provider.BackendFake, "yue2"). NewACEStep
+	// sets both for the ACE-Step instance.
+	Name, Engine string
 	// BatchOf maps a job id to its batch for AccruedCostByBatch (TakeSpec carries no batch). Nil means each
 	// job is its own batch.
 	BatchOf func(jobID string) string
@@ -161,7 +164,12 @@ func (b *Backend) Counters() Counters {
 }
 
 // Name implements provider.Backend.
-func (b *Backend) Name() string { return provider.BackendFake }
+func (b *Backend) Name() string {
+	if b.o.Name != "" {
+		return b.o.Name
+	}
+	return provider.BackendFake
+}
 
 func (b *Backend) revoked() bool { return b.o.Permissions.AccessRevoked }
 
@@ -182,7 +190,7 @@ func (b *Backend) Quote(ctx context.Context) (provider.Quote, error) {
 	now := b.enter(ctx)
 	defer b.mu.Unlock()
 	return provider.Quote{
-		Backend: provider.BackendFake, ListPricePPH: b.priceAt(now),
+		Backend: b.Name(), ListPricePPH: b.priceAt(now),
 		Pools: []string{"AMPERE_24"}, GPUClasses: []string{"NVIDIA RTX A5000"},
 		Endpoint: b.endpointConfig(), ObservedAt: now,
 	}, nil
@@ -191,7 +199,7 @@ func (b *Backend) Quote(ctx context.Context) (provider.Quote, error) {
 func (b *Backend) endpointConfig() provider.EndpointConfig {
 	idle := b.idleS
 	return provider.EndpointConfig{
-		Name: "mm-fake", Type: "QUEUE", ScalerType: "QUEUE_DELAY", ScalerValue: strconv.Itoa(b.o.ColdStartS + 60),
+		Name: b.endpointName(), Type: "QUEUE", ScalerType: "QUEUE_DELAY", ScalerValue: strconv.Itoa(b.o.ColdStartS + 60),
 		WorkersMin: 0, WorkersMax: b.maxW, IdleTimeoutS: &idle, TimeoutMS: endpointTimeoutMS, GPUCount: 1, MinCUDA: "12.8",
 		Pools: []string{"AMPERE_24"}, Flashboot: "true", ImageDigest: imageDigest,
 	}
@@ -231,7 +239,7 @@ func (b *Backend) Sweep(ctx context.Context) (provider.SweepReport, error) {
 		drift = append(drift, provider.Drift{Field: d.field, Want: d.want, Got: d.got})
 	}
 	skew := time.Duration(0)
-	return provider.SweepReport{Workers: ws, Endpoint: &ep, Drift: drift, ObservedAt: now, Skew: &skew}, nil
+	return provider.SweepReport{Workers: ws, Health: b.healthLocked(now), Endpoint: &ep, Drift: drift, ObservedAt: now, Skew: &skew}, nil
 }
 
 // ScaleToZero implements provider.Backend: workers.max = 0; idle workers stop at once, busy ones when

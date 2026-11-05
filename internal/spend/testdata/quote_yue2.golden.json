@@ -1,0 +1,309 @@
+[
+  {
+    "Name": "melody61",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 680,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 2,
+      "MaxRuntimeS": 900,
+      "KillSlackS": 15
+    },
+    "Takes": [
+      {
+        "AudioS": 61,
+        "Full": false,
+        "RTFMilli": 0,
+        "LoadS": 0
+      }
+    ],
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 61,
+          "ExpectedS": 62,
+          "TimeoutS": 164,
+          "GenS": 52,
+          "GenBudgetS": 94,
+          "ExpectedMicro": 11884,
+          "TakeMicro": 34309,
+          "MaxMicro": 84143
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 61718,
+      "MaxMicro": 84143,
+      "RetryAllowanceMicro": 84143,
+      "CeilingMicro": 168286,
+      "ETAS": 302
+    }
+  },
+  {
+    "Name": "full225",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 680,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 2,
+      "MaxRuntimeS": 900,
+      "KillSlackS": 15
+    },
+    "Takes": [
+      {
+        "AudioS": 225,
+        "Full": true,
+        "RTFMilli": 0,
+        "LoadS": 0
+      }
+    ],
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 225,
+          "ExpectedS": 223,
+          "TimeoutS": 421,
+          "GenS": 213,
+          "GenBudgetS": 351,
+          "ExpectedMicro": 42742,
+          "TakeMicro": 83567,
+          "MaxMicro": 133401
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 92576,
+      "MaxMicro": 133401,
+      "RetryAllowanceMicro": 133401,
+      "CeilingMicro": 266802,
+      "ETAS": 463
+    }
+  },
+  {
+    "Name": "batch_mixed",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 680,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 2,
+      "MaxRuntimeS": 900,
+      "KillSlackS": 15
+    },
+    "Takes": [
+      {
+        "AudioS": 30,
+        "Full": false,
+        "RTFMilli": 0,
+        "LoadS": 0
+      },
+      {
+        "AudioS": 180,
+        "Full": true,
+        "RTFMilli": 0,
+        "LoadS": 0
+      },
+      {
+        "AudioS": 360,
+        "Full": false,
+        "RTFMilli": 0,
+        "LoadS": 0
+      }
+    ],
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 30,
+          "ExpectedS": 41,
+          "TimeoutS": 130,
+          "GenS": 31,
+          "GenBudgetS": 60,
+          "ExpectedMicro": 7859,
+          "TakeMicro": 27792,
+          "MaxMicro": 77626
+        },
+        {
+          "AudioS": 180,
+          "ExpectedS": 182,
+          "TimeoutS": 356,
+          "GenS": 172,
+          "GenBudgetS": 286,
+          "ExpectedMicro": 34884,
+          "TakeMicro": 71109,
+          "MaxMicro": 120943
+        },
+        {
+          "AudioS": 360,
+          "ExpectedS": 265,
+          "TimeoutS": 488,
+          "GenS": 255,
+          "GenBudgetS": 418,
+          "ExpectedMicro": 50792,
+          "TakeMicro": 96409,
+          "MaxMicro": 146243
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 143369,
+      "MaxMicro": 344812,
+      "RetryAllowanceMicro": 292486,
+      "CeilingMicro": 637298,
+      "ETAS": 770
+    }
+  },
+  {
+    "Name": "runtime_clamp",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 680,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 2,
+      "MaxRuntimeS": 300,
+      "KillSlackS": 15
+    },
+    "Takes": [
+      {
+        "AudioS": 360,
+        "Full": true,
+        "RTFMilli": 0,
+        "LoadS": 0
+      }
+    ],
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 360,
+          "ExpectedS": 344,
+          "TimeoutS": 300,
+          "GenS": 334,
+          "GenBudgetS": 230,
+          "ExpectedMicro": 57500,
+          "TakeMicro": 60375,
+          "MaxMicro": 110209
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 107334,
+      "MaxMicro": 110209,
+      "RetryAllowanceMicro": 110209,
+      "CeilingMicro": 220418,
+      "ETAS": 584
+    }
+  },
+  {
+    "Name": "learned_rtf",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 1500,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 1,
+      "MaxRuntimeS": 900,
+      "KillSlackS": 15
+    },
+    "Takes": [
+      {
+        "AudioS": 90,
+        "Full": false,
+        "RTFMilli": 0,
+        "LoadS": 0
+      },
+      {
+        "AudioS": 90,
+        "Full": false,
+        "RTFMilli": 0,
+        "LoadS": 0
+      }
+    ],
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 90,
+          "ExpectedS": 155,
+          "TimeoutS": 312,
+          "GenS": 145,
+          "GenBudgetS": 242,
+          "ExpectedMicro": 29709,
+          "TakeMicro": 62675,
+          "MaxMicro": 112509
+        },
+        {
+          "AudioS": 90,
+          "ExpectedS": 155,
+          "TimeoutS": 312,
+          "GenS": 145,
+          "GenBudgetS": 242,
+          "ExpectedMicro": 29709,
+          "TakeMicro": 62675,
+          "MaxMicro": 112509
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 109252,
+      "MaxMicro": 225018,
+      "RetryAllowanceMicro": 112509,
+      "CeilingMicro": 337527,
+      "ETAS": 550
+    }
+  },
+  {
+    "Name": "batch_wrapper",
+    "P": {
+      "PricePPH": 690000,
+      "RTFMilli": 680,
+      "ColdStartS": 240,
+      "IdleS": 20,
+      "WorkersMax": 2,
+      "MaxRuntimeS": 900,
+      "KillSlackS": 15
+    },
+    "Takes": null,
+    "Quote": {
+      "Takes": [
+        {
+          "AudioS": 30,
+          "ExpectedS": 41,
+          "TimeoutS": 130,
+          "GenS": 31,
+          "GenBudgetS": 60,
+          "ExpectedMicro": 7859,
+          "TakeMicro": 27792,
+          "MaxMicro": 77626
+        },
+        {
+          "AudioS": 120,
+          "ExpectedS": 102,
+          "TimeoutS": 228,
+          "GenS": 92,
+          "GenBudgetS": 158,
+          "ExpectedMicro": 19550,
+          "TakeMicro": 46575,
+          "MaxMicro": 96409
+        },
+        {
+          "AudioS": 360,
+          "ExpectedS": 265,
+          "TimeoutS": 488,
+          "GenS": 255,
+          "GenBudgetS": 418,
+          "ExpectedMicro": 50792,
+          "TakeMicro": 96409,
+          "MaxMicro": 146243
+        }
+      ],
+      "AttemptOverheadS": 260,
+      "AttemptOverheadMicro": 49834,
+      "ExpectedMicro": 128035,
+      "MaxMicro": 320278,
+      "RetryAllowanceMicro": 292486,
+      "CeilingMicro": 612764,
+      "ETAS": 770
+    }
+  }
+]
