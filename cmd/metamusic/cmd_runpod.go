@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -32,16 +34,23 @@ import (
 const runpodUsage = `usage: metamusic runpod <command>
 
   probe [--schema] [--keys] [--out FILE]      compare the public API spec with the snapshot; classify the keys
-  provision [--admin-env FILE] [--image REF@sha256:...] [--activate [--max 1|2] | --deactivate]
+  provision [--engine yue2|acestep15] [--admin-env FILE] [--image REF@sha256:...] [--activate [--max 1|2] | --deactivate]
             [--pools AMPERE_24[,ADA_24]] [--vae-source image|cached|volume:PATH] [--timeout-case] [--dry-run]
-                                              create or reconcile the endpoint (the only command that reads the admin key)
-  status [--json] [--job ID [--repoll]]       read-only: endpoint, workers, health, armed/trip state, billing, meter
-  arm --endpoint-name N --reason TEXT [--after-restore]
-  disarm --reason TEXT
-  reset-trip --reason TEXT
+            [--tasks turbo[,base]] [--init-fail] [--verify-models]
+                                              create or reconcile the endpoint (the only command that reads the admin key);
+                                              an acestep15 endpoint is created inactive (workers.max 0), activated by a later run
+  status [--engine E] [--json] [--job ID [--repoll]]   read-only: endpoint, workers, health, armed/trip state, billing, meter
+  arm [--engine E] --endpoint-name N --reason TEXT [--after-restore]   (N is mm-yue2 or mm-acestep, typed)
+  disarm [--engine E] --reason TEXT
+  reset-trip [--engine E] --reason TEXT
   canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
+  canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
+                                              (E2a); --max-usd is required
+         [--source-track ID] [--pools P[,P]] [--max-s 480|600] [--init-fail-confirm] [--measured-out FILE]
+  canary --engine acestep15 --all --dry-run [--part a|b] [--price-usd-hour N]
+                                              prints the worst case and spends nothing
 
 canary --start-timeout: how long the job may take to start generating (default 12m). The first cold start
 includes a one-time image pull of about 7.7 GB, which RunPod does not bill. When the window expires the
@@ -89,6 +98,47 @@ func cmdRunPod(ctx context.Context, args []string, getenv func(string) string, s
 		return nil
 	}
 	return usageError(fmt.Sprintf("runpod: unknown subcommand %q\n\n%s", args[0], runpodUsage))
+}
+
+// ---- engines ---------------------------------------------------------------------------------------------------
+
+// rpEngine is what `--engine` selects: the engine, its provider_state backend and its endpoint name.
+type rpEngine struct {
+	name, backend, endpoint string
+}
+
+func (g rpEngine) isACE() bool { return g.name == acestep.Name }
+
+// parseEngine validates an --engine value (yue2 when empty).
+func parseEngine(v string) (rpEngine, error) {
+	switch v {
+	case "", "yue2":
+		return rpEngine{name: "yue2", backend: provider.BackendRunPod, endpoint: runpod.DefaultEndpointName}, nil
+	case acestep.Name:
+		return rpEngine{name: acestep.Name, backend: provider.BackendRunPodACEStep, endpoint: runpod.ACEStepEndpointName}, nil
+	}
+	return rpEngine{}, usageError("--engine must be yue2 or acestep15")
+}
+
+// engineKeys narrows the loaded keys to the engine's endpoint. An ACE-Step run without RUNPOD_ACESTEP_ENDPOINT_ID has no
+// endpoint to talk to: haveKeys goes false and every command says so.
+func (e *runpodEnv) forEngine(g rpEngine) {
+	if !g.isACE() {
+		return
+	}
+	e.keys = runpod.KeysFor(e.keys, g.name)
+	if e.keys.EndpointID == "" {
+		e.haveKeys = false
+	}
+}
+
+// gateConfig is the provider gate of the engine's backend. The yue2 gate is exactly M3's.
+func (e *runpodEnv) gateConfig(g rpEngine) provider.GateConfig {
+	if !g.isACE() {
+		return provider.GateConfig{Mode: provider.ModeRunPod, KeysLoaded: true, ColdStartS: e.cfg.ColdStartS, MaxRuntime: e.cfg.JobMaxRuntime}
+	}
+	return provider.GateConfig{Mode: provider.ModeRunPod, Backend: g.backend, Engine: g.name, KeysLoaded: true,
+		ColdStartS: e.cfg.ACEStepColdStartS, MaxRuntime: e.cfg.ACEStepMaxRuntime}
 }
 
 // ---- shared setup ------------------------------------------------------------------------------------------
@@ -286,14 +336,18 @@ func cmdRunPodProbe(ctx context.Context, args []string, getenv func(string) stri
 
 func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("runpod provision", s)
+	engineFlag := fs.String("engine", "yue2", "the engine whose endpoint to provision: yue2 or acestep15")
 	adminEnv := fs.String("admin-env", "", "the all-access key file (default: <secrets dir>/runpod-admin.env)")
 	image := fs.String("image", "", "worker image `REF@sha256:DIGEST` (tags are refused)")
 	activate := fs.Bool("activate", false, "set workers.max above zero")
 	deactivate := fs.Bool("deactivate", false, "set workers.max to zero (the manual kill switch)")
 	maxW := fs.Int("max", 0, "workers.max with --activate: 1 or 2 (default 2)")
-	pools := fs.String("pools", "", "GPU pools, comma separated (default AMPERE_24,ADA_24)")
-	vae := fs.String("vae-source", "image", "where the worker finds the VAE: image (baked into the worker image; default), cached (needs a second cached model, which RunPod does not offer) or volume:PATH")
+	pools := fs.String("pools", "", "GPU pools, comma separated (default AMPERE_24,ADA_24; acestep15: MM_ACESTEP_POOLS)")
+	vae := fs.String("vae-source", "image", "yue2 only: where the worker finds the VAE: image (baked into the worker image; default), cached (needs a second cached model, which RunPod does not offer) or volume:PATH")
 	timeoutCase := fs.Bool("timeout-case", false, "add MM_WORKER_DEADLINE=provider (the canary's timeout case only)")
+	tasks := fs.String("tasks", "", "acestep15 only: the task classes the endpoint is provisioned for, turbo or turbo,base (default MM_ACESTEP_TASKS)")
+	initFail := fs.Bool("init-fail", false, "acestep15 only, with --activate: write a deliberately wrong MM_ACESTEP_MAIN_REVISION (the canary's init-fail case); a normal provision run restores it")
+	verifyModels := fs.Bool("verify-models", false, "acestep15 only, read-only: report the endpoint and the cached-model console steps; models_mode is decided by the canary's t2m case")
 	dry := fs.Bool("dry-run", false, "print the diff and change nothing")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
@@ -301,6 +355,12 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 	if fs.NArg() > 0 {
 		return usageError("runpod provision: unexpected argument " + fs.Arg(0))
 	}
+	g, err := parseEngine(*engineFlag)
+	if err != nil {
+		return err
+	}
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
 	switch {
 	case *activate && *deactivate:
 		return usageError("runpod provision: --activate and --deactivate exclude each other")
@@ -308,6 +368,14 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 		return usageError("runpod provision: --max needs --activate")
 	case *maxW != 0 && *maxW != 1 && *maxW != 2:
 		return usageError("runpod provision: --max must be 1 or 2")
+	case g.isACE() && given["vae-source"]:
+		return usageError("runpod provision: --vae-source is a yue2 flag; the acestep15 endpoint has no VAE source (everything it needs is in the one cached model)")
+	case !g.isACE() && (given["tasks"] || *initFail || *verifyModels):
+		return usageError("runpod provision: --tasks, --init-fail and --verify-models are acestep15 flags")
+	case *initFail && !*activate:
+		return usageError("runpod provision: --init-fail needs --activate (a worker must start for the init failure to show)")
+	case *verifyModels && (*activate || *deactivate || *initFail || *image != ""):
+		return usageError("runpod provision: --verify-models is read-only and takes no other change")
 	}
 	workers := 0
 	if *activate {
@@ -329,7 +397,7 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 		return fatal(err)
 	}
 	var st *store.Store
-	if !*dry {
+	if !*dry && !*verifyModels {
 		if st, err = openExistingDB(ctx, e.cfg); err != nil {
 			return fatal(fmt.Errorf("provision records an audit row: %w", err))
 		}
@@ -340,17 +408,43 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 	if err != nil {
 		return fatal(err)
 	}
-	opts := runpod.ProvisionOptions{
-		Desired: runpod.DesiredConfig{ColdStartS: e.cfg.ColdStartS, MaxRuntime: e.cfg.JobMaxRuntime, VAESource: *vae, TimeoutCase: *timeoutCase},
-		Weights: yue2.Weights, Image: *image, MaxWorkers: workers, DryRun: *dry,
-	}
+	desired := runpod.DesiredConfig{ColdStartS: e.cfg.ColdStartS, MaxRuntime: e.cfg.JobMaxRuntime, VAESource: *vae, TimeoutCase: *timeoutCase}
 	if *pools != "" {
-		opts.Desired.Pools = strings.Split(*pools, ",")
+		desired.Pools = strings.Split(*pools, ",")
+	}
+	opts := runpod.ProvisionOptions{Desired: desired, Weights: yue2.Weights, Image: *image, MaxWorkers: workers, DryRun: *dry}
+	if g.isACE() {
+		taskList := *tasks
+		if taskList == "" {
+			taskList = strings.Join(e.cfg.ACEStepTasks, ",")
+		}
+		if acestep.NormalizeTasks(taskList) == "" {
+			return usageError(`runpod provision: --tasks must be "turbo" or "turbo,base"`)
+		}
+		opts.Desired.ColdStartS, opts.Desired.MaxRuntime = e.cfg.ACEStepColdStartS, e.cfg.ACEStepMaxRuntime
+		if *pools == "" {
+			opts.Desired.Pools = e.cfg.ACEStepPools
+		}
+		prof := runpod.ACEStepProfile(opts.Desired, taskList)
+		if *initFail {
+			prof.Env[acestep.EnvMainRevision] = strings.Repeat("0", 40)
+		}
+		opts.Profile = &prof
+		if *verifyModels {
+			rep, verr := runpod.VerifyModels(ctx, cl, opts)
+			if verr != nil {
+				return fatal(errors.New(cl.Redactor().Error(verr)))
+			}
+			return printJSON(s, rep)
+		}
 	}
 	started := time.Now()
 	res, perr := runpod.Provision(ctx, cl, opts)
 	if st != nil && (res.Applied || (perr != nil && (res.Action == "create" || res.Action == "patch"))) {
 		d := map[string]any{"action": res.Action, "diff": res.Diff, "workers_max": res.WorkersMax, "timeout_case": *timeoutCase}
+		if g.isACE() {
+			d["engine"], d["init_fail"] = g.name, *initFail
+		}
 		if aerr := auditCLI(ctx, st, "cli:runpod-provision", d, time.Since(started), perr != nil); aerr != nil && perr == nil {
 			perr = aerr
 		}
@@ -359,8 +453,16 @@ func cmdRunPodProvision(ctx context.Context, args []string, getenv func(string) 
 	if perr != nil {
 		return fatal(errors.New(cl.Redactor().Error(perr)))
 	}
+	if *initFail && !*dry {
+		fmt.Fprintln(s.out, "warning: the endpoint now carries a wrong MM_ACESTEP_MAIN_REVISION on purpose (the init-fail canary case); run `metamusic runpod provision --engine acestep15 --deactivate` to restore it")
+	}
 	if res.Action == "create" && res.Applied && res.EndpointID != "" {
-		fmt.Fprintf(s.out, "endpoint id: %s\nappend this line to runpod.env: RUNPOD_ENDPOINT_ID=%s\n", res.EndpointID, res.EndpointID)
+		if g.isACE() {
+			// the second engine's hint names the variable only: the id is read in the console
+			fmt.Fprintln(s.out, "endpoint created (inactive); append RUNPOD_ACESTEP_ENDPOINT_ID=<its id> to runpod.env (read the id in the RunPod console; it is not printed here)")
+		} else {
+			fmt.Fprintf(s.out, "endpoint id: %s\nappend this line to runpod.env: RUNPOD_ENDPOINT_ID=%s\n", res.EndpointID, res.EndpointID)
+		}
 	}
 	return nil
 }
@@ -467,6 +569,7 @@ type attemptView struct {
 // cmdRunPodStatus is read-only: it never POSTs or PATCHes. --repoll issues one GET /status per attempt ref.
 func cmdRunPodStatus(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("runpod status", s)
+	engineFlag := fs.String("engine", "yue2", "the engine whose endpoint to show: yue2 or acestep15")
 	asJSON := fs.Bool("json", false, "print JSON")
 	jobID := fs.String("job", "", "also show the redacted events and attempt timings of job `ID`")
 	repoll := fs.Bool("repoll", false, "with --job: GET /status once more for each attempt and print the HTTP code and status")
@@ -479,11 +582,19 @@ func cmdRunPodStatus(ctx context.Context, args []string, getenv func(string) str
 	if *repoll && *jobID == "" {
 		return usageError("runpod status: --repoll needs --job")
 	}
+	g, err := parseEngine(*engineFlag)
+	if err != nil {
+		return err
+	}
 	e, err := loadRunPod(getenv)
 	if err != nil {
 		return fatal(err)
 	}
-	v := statusView{Backend: provider.BackendRunPod, Database: "absent", KeysAbsent: !e.haveKeys, LiveAttempts: []liveAttemptView{}}
+	e.forEngine(g)
+	v := statusView{Backend: g.backend, Database: "absent", KeysAbsent: !e.haveKeys, LiveAttempts: []liveAttemptView{}}
+	if g.isACE() && !e.haveKeys {
+		v.Errors = append(v.Errors, "RUNPOD_ACESTEP_ENDPOINT_ID is not set in runpod.env (or runpod.env is absent)")
+	}
 	var st *store.Store
 	if _, serr := os.Stat(filepath.Join(e.cfg.DataDir, "metamusic.db")); serr == nil {
 		if st, err = store.Open(ctx, filepath.Join(e.cfg.DataDir, "metamusic.db")); err != nil {
@@ -517,7 +628,7 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 	var armed int
 	var by, at string
 	var reason sql.NullString
-	switch err := db.QueryRowContext(ctx, `SELECT armed, changed_by, changed_at, reason FROM provider_state WHERE backend = ?`, provider.BackendRunPod).
+	switch err := db.QueryRowContext(ctx, `SELECT armed, changed_by, changed_at, reason FROM provider_state WHERE backend = ?`, v.Backend).
 		Scan(&armed, &by, &at, &reason); {
 	case errors.Is(err, sql.ErrNoRows):
 	case err != nil:
@@ -527,7 +638,7 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 		v.Armed, v.ChangedBy, v.ChangedAt, v.Reason = &a, by, at, reason.String
 	}
 	var t tripView
-	switch err := db.QueryRowContext(ctx, `SELECT id, reason, tripped_at FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, provider.BackendRunPod).
+	switch err := db.QueryRowContext(ctx, `SELECT id, reason, tripped_at FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, v.Backend).
 		Scan(&t.ID, &t.Reason, &t.At); {
 	case errors.Is(err, sql.ErrNoRows):
 	case err != nil:
@@ -732,10 +843,11 @@ func parseReasonFlags(name string, args []string, s streams, extra func(*flag.Fl
 }
 
 func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	var name *string
+	var name, engineFlag *string
 	var afterRestore *bool
 	reason, _, err := parseReasonFlags("arm", args, s, func(fs *flag.FlagSet) {
-		name = fs.String("endpoint-name", "", "the endpoint's name, typed to confirm (mm-yue2)")
+		engineFlag = fs.String("engine", "yue2", "the engine whose backend to arm: yue2 or acestep15")
+		name = fs.String("endpoint-name", "", "the endpoint's name, typed to confirm (mm-yue2, or mm-acestep for acestep15)")
 		afterRestore = fs.Bool("after-restore", false, "acknowledge a restore when billing is not readable")
 	})
 	if err != nil {
@@ -744,10 +856,15 @@ func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string
 	if *name == "" {
 		return usageError("runpod arm: --endpoint-name is required")
 	}
+	g, err := parseEngine(*engineFlag)
+	if err != nil {
+		return err
+	}
 	e, err := loadRunPod(getenv)
 	if err != nil {
 		return fatal(err)
 	}
+	e.forEngine(g)
 	if err := e.requireKeys(); err != nil {
 		return exitError{code: 3, err: fmt.Errorf("refusing to arm: %w", err)}
 	}
@@ -756,8 +873,7 @@ func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string
 		return fatal(err)
 	}
 	defer func() { _ = st.Close() }()
-	gate := provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeRunPod, KeysLoaded: true, ColdStartS: e.cfg.ColdStartS,
-		MaxRuntime: e.cfg.JobMaxRuntime}, time.Now)
+	gate := provider.NewGate(st.R, e.gateConfig(g), time.Now)
 	state, err := gate.State(ctx)
 	if err != nil {
 		return fatal(err)
@@ -771,12 +887,15 @@ func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string
 	if !state.Enabled {
 		return exitError{code: 3, err: fmt.Errorf("refusing to arm: generation is disabled (%s)", state.Reason)}
 	}
-	if err := checkRestoreCovered(ctx, st.R, e, *afterRestore); err != nil {
+	if err := checkRestoreCovered(ctx, st.R, e, g, *afterRestore); err != nil {
 		return exitError{code: 3, err: err}
 	}
 	started := time.Now()
 	details := map[string]any{"armed": true, "reason": reason, "after_restore": *afterRestore, "prior_armed": state.Armed}
-	if err := setArmed(ctx, st, true, reason, details, started); err != nil {
+	if g.isACE() {
+		details["engine"] = g.name
+	}
+	if err := setArmed(ctx, st, g.backend, true, reason, details, started); err != nil {
 		return fatal(err)
 	}
 	fmt.Fprintln(s.out, "armed")
@@ -785,9 +904,9 @@ func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string
 
 // checkRestoreCovered refuses with RECONCILE_REQUIRED while a restore is not covered by a billing
 // reconciliation (C76.7); with billing none, --after-restore is the explicit acknowledgment.
-func checkRestoreCovered(ctx context.Context, db *sql.DB, e *runpodEnv, afterRestore bool) error {
+func checkRestoreCovered(ctx context.Context, db *sql.DB, e *runpodEnv, g rpEngine, afterRestore bool) error {
 	var restored sql.NullString
-	err := db.QueryRowContext(ctx, `SELECT restored_at FROM provider_state WHERE backend = ?`, provider.BackendRunPod).Scan(&restored)
+	err := db.QueryRowContext(ctx, `SELECT restored_at FROM provider_state WHERE backend = ?`, g.backend).Scan(&restored)
 	if errors.Is(err, sql.ErrNoRows) || !restored.Valid {
 		return nil
 	}
@@ -801,14 +920,24 @@ func checkRestoreCovered(ctx context.Context, db *sql.DB, e *runpodEnv, afterRes
 	if covered {
 		return nil
 	}
-	be := runpod.NewBackend(runpod.BackendOptions{Keys: e.keys, ProbeJSON: runpod.EmbeddedCapabilities, ColdStartS: e.cfg.ColdStartS, MaxRuntime: e.cfg.JobMaxRuntime})
+	gc := e.gateConfig(g)
+	be := runpod.NewBackend(runpod.BackendOptions{Keys: e.keys, ProbeJSON: runpod.EmbeddedCapabilities, ColdStartS: gc.ColdStartS, MaxRuntime: gc.MaxRuntime,
+		Engine: engineOpt(g)})
 	if be.Capabilities().Billing == "none" && afterRestore {
 		return nil
 	}
 	return errors.New("refusing to arm: RECONCILE_REQUIRED (a restore is not yet covered by a billing reconciliation; with billing none use --after-restore after checking the account)")
 }
 
-func setArmed(ctx context.Context, st *store.Store, armed bool, reason string, details map[string]any, started time.Time) error {
+// engineOpt is BackendOptions.Engine: empty for yue2, which keeps M3's backend as it was.
+func engineOpt(g rpEngine) string {
+	if g.isACE() {
+		return g.name
+	}
+	return ""
+}
+
+func setArmed(ctx context.Context, st *store.Store, backend string, armed bool, reason string, details map[string]any, started time.Time) error {
 	tx, err := st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -819,13 +948,13 @@ func setArmed(ctx context.Context, st *store.Store, armed bool, reason string, d
 		a = 1
 	}
 	now := store.FormatTime(time.Now())
-	res, err := tx.ExecContext(ctx, `UPDATE provider_state SET armed = ?, changed_by = 'system:cli', changed_at = ?, reason = ? WHERE backend = ?`, a, now, reason, provider.BackendRunPod)
+	res, err := tx.ExecContext(ctx, `UPDATE provider_state SET armed = ?, changed_by = 'system:cli', changed_at = ?, reason = ? WHERE backend = ?`, a, now, reason, backend)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO provider_state(backend, armed, changed_by, changed_at, reason) VALUES (?,?,'system:cli',?,?)`,
-			provider.BackendRunPod, a, now, reason); err != nil {
+			backend, a, now, reason); err != nil {
 			return err
 		}
 	}
@@ -844,7 +973,14 @@ func setArmed(ctx context.Context, st *store.Store, armed bool, reason string, d
 }
 
 func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	reason, _, err := parseReasonFlags("disarm", args, s, nil)
+	var engineFlag *string
+	reason, _, err := parseReasonFlags("disarm", args, s, func(fs *flag.FlagSet) {
+		engineFlag = fs.String("engine", "yue2", "the engine whose backend to disarm: yue2 or acestep15")
+	})
+	if err != nil {
+		return err
+	}
+	g, err := parseEngine(*engineFlag)
 	if err != nil {
 		return err
 	}
@@ -857,7 +993,11 @@ func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) str
 		return fatal(err)
 	}
 	defer func() { _ = st.Close() }()
-	if err := setArmed(ctx, st, false, reason, map[string]any{"armed": false, "reason": reason}, time.Now()); err != nil {
+	details := map[string]any{"armed": false, "reason": reason}
+	if g.isACE() {
+		details["engine"] = g.name
+	}
+	if err := setArmed(ctx, st, g.backend, false, reason, details, time.Now()); err != nil {
 		return fatal(err)
 	}
 	fmt.Fprintln(s.out, "disarmed")
@@ -865,7 +1005,14 @@ func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) str
 }
 
 func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	reason, _, err := parseReasonFlags("reset-trip", args, s, nil)
+	var engineFlag *string
+	reason, _, err := parseReasonFlags("reset-trip", args, s, func(fs *flag.FlagSet) {
+		engineFlag = fs.String("engine", "yue2", "the engine whose backend trip to reset: yue2 or acestep15")
+	})
+	if err != nil {
+		return err
+	}
+	g, err := parseEngine(*engineFlag)
 	if err != nil {
 		return err
 	}
@@ -885,7 +1032,7 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 	}
 	defer func() { _ = tx.Rollback() }()
 	var id string
-	switch err := tx.QueryRowContext(ctx, `SELECT id FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, provider.BackendRunPod).Scan(&id); {
+	switch err := tx.QueryRowContext(ctx, `SELECT id FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, g.backend).Scan(&id); {
 	case errors.Is(err, sql.ErrNoRows):
 		fmt.Fprintln(s.out, "no open trip; nothing changed")
 		return nil
@@ -896,7 +1043,11 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 		store.FormatTime(time.Now()), reason, id); err != nil {
 		return fatal(err)
 	}
-	e, err := audit.SystemEntry("cli:runpod-reset-trip", time.Now(), map[string]any{"trip_id": id, "reason": reason}, time.Since(started), 0, false)
+	details := map[string]any{"trip_id": id, "reason": reason}
+	if g.isACE() {
+		details["engine"] = g.name
+	}
+	e, err := audit.SystemEntry("cli:runpod-reset-trip", time.Now(), details, time.Since(started), 0, false)
 	if err != nil {
 		return fatal(err)
 	}
@@ -915,13 +1066,23 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	fs := newFlags("runpod canary", s)
 	urlFlag := fs.String("url", "", "the server's base `URL`")
-	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars")
-	cs := fs.String("case", "main", "main|cot-full|terminate|timeout|kill-switch")
+	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars (required for --engine acestep15)")
+	cs := fs.String("case", "", "yue2: main|cot-full|terminate|timeout|kill-switch (default main); acestep15: see the usage")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")
 	killConfirm := fs.Bool("kill-switch-confirm", false, "kill-switch case: an operator will run `provision --deactivate` while the job is generating")
 	startTimeout := fs.Duration("start-timeout", runpod.DefaultCanaryStartTimeout,
 		"how long the job may take to start generating; the first cold start includes a one-time ~7.7 GB image pull (not billed by RunPod)")
+	engineFlag := fs.String("engine", "yue2", "yue2 or acestep15")
+	all := fs.Bool("all", false, "acestep15: every case of the part, only with --dry-run")
+	dry := fs.Bool("dry-run", false, "acestep15: print the worst case and spend nothing")
+	partFlag := fs.String("part", "", "acestep15 --dry-run: a (E2a) or b (E2b); default both")
+	source := fs.String("source-track", "", "acestep15: a kept 30 s track the edit cases use instead of rendering their own source")
+	poolsFlag := fs.String("pools", "", "acestep15: the configured GPU pools (default MM_ACESTEP_POOLS)")
+	maxS := fs.Int("max-s", 480, "acestep15 t2m-long and base-long: the candidate maximum in seconds (480; 600 only on a 32/48 GB pool being verified)")
+	initConfirm := fs.Bool("init-fail-confirm", false, "init-fail case: the endpoint was provisioned with `provision --engine acestep15 --init-fail`")
+	measuredOut := fs.String("measured-out", "", "acestep15: merge the run into this engine-canary-measured.json (review and commit it yourself)")
+	priceFlag := fs.String("price-usd-hour", "", "acestep15 --dry-run: the worker price in dollars per hour (default: the illustrative 0.69)")
 	if err := fs.Parse(args); err != nil {
 		return exitError{code: runpod.ExitUsage, err: errors.New(err.Error())}
 	}
@@ -930,6 +1091,25 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	if fs.NArg() > 0 {
 		return usage("unexpected argument " + fs.Arg(0))
+	}
+	g, gerr := parseEngine(*engineFlag)
+	if gerr != nil {
+		return usage(string(gerr.(usageError)))
+	}
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	if g.isACE() {
+		return cmdCanaryACEStep(ctx, getenv, s, aceCanaryFlags{url: *urlFlag, maxUSD: *maxUSD, maxUSDGiven: given["max-usd"], cs: *cs, verify: *verify,
+			keep: *keep, killConfirm: *killConfirm, startTimeout: *startTimeout, all: *all, dry: *dry, part: *partFlag, source: *source,
+			pools: *poolsFlag, maxS: *maxS, initConfirm: *initConfirm, measuredOut: *measuredOut, price: *priceFlag}, usage)
+	}
+	for _, f := range []string{"all", "dry-run", "part", "source-track", "pools", "max-s", "init-fail-confirm", "measured-out", "price-usd-hour"} {
+		if given[f] {
+			return usage("--" + f + " is an acestep15 flag")
+		}
+	}
+	if *cs == "" {
+		*cs = "main"
 	}
 	if *urlFlag == "" {
 		return usage("--url is required")
@@ -969,6 +1149,163 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	if rep.Exit != 0 {
 		return exitError{code: rep.Exit}
+	}
+	return nil
+}
+
+// aceCanaryFlags are the parsed flags of `runpod canary --engine acestep15`.
+type aceCanaryFlags struct {
+	url, maxUSD, cs, verify, part, source, pools, measuredOut, price string
+	maxUSDGiven, keep, killConfirm, all, dry, initConfirm            bool
+	startTimeout                                                     time.Duration
+	maxS                                                             int
+}
+
+func cmdCanaryACEStep(ctx context.Context, getenv func(string) string, s streams, f aceCanaryFlags, usage func(string) error) error {
+	cfg, cfgErr := config.LoadOffline(getenv)
+	pools := acestep.DefaultPools()
+	if cfgErr == nil {
+		pools = cfg.ACEStepPools
+	}
+	if f.pools != "" {
+		pools = strings.Split(f.pools, ",")
+	}
+	if f.maxS != 480 && f.maxS != 600 {
+		return usage("--max-s must be 480 or 600")
+	}
+	if f.dry {
+		return cmdCanaryDryRun(s, f, cfg, cfgErr == nil, pools, usage)
+	}
+	switch {
+	case f.all:
+		return usage("--all only works with --dry-run: the cases are spend, typed one at a time")
+	case f.part != "" || f.price != "":
+		return usage("--part and --price-usd-hour belong to --dry-run")
+	case !f.maxUSDGiven:
+		return exitError{code: runpod.ExitUsage, err: runpod.ErrMaxUSDRequired}
+	case f.url == "":
+		return usage("--url is required")
+	}
+	limit, err := money.ParseUSD(f.maxUSD)
+	if err != nil || limit <= 0 {
+		return usage("--max-usd must be a positive dollar amount")
+	}
+	token := getenv("MM_TOKEN")
+	if token == "" {
+		return usage("MM_TOKEN is not set (a PAT with read + write + generate)")
+	}
+	if f.startTimeout <= 0 {
+		return usage("--start-timeout must be a positive duration")
+	}
+	o := runpod.CanaryOptions{BaseURL: f.url, Token: token, MaxUSD: limit, Keep: f.keep, Log: s.err, StartTimeout: f.startTimeout,
+		KillSwitchConfirm: f.killConfirm, Engine: runpod.EngineACEStep, SourceTrack: f.source, Pools: pools, MaxS: f.maxS, InitFailConfirm: f.initConfirm}
+	var rep *runpod.CanaryReport
+	if f.verify != "" {
+		rep, err = runpod.VerifyBilling(ctx, o, f.verify)
+	} else {
+		if f.cs == "" {
+			return usage("--case is required for --engine acestep15")
+		}
+		c, cerr := runpod.ParseACEStepCase(f.cs)
+		if cerr != nil {
+			return usage(cerr.Error())
+		}
+		o.Case = c
+		switch {
+		case c == runpod.CaseKillSwitch && !f.killConfirm:
+			return usage("--case kill-switch needs --kill-switch-confirm: an operator must run `metamusic runpod provision --engine acestep15 --deactivate` while the job is generating, or the case fails")
+		case c == runpod.CaseInitFail && !f.initConfirm:
+			return exitError{code: runpod.ExitUsage, err: runpod.ErrInitFailConfirm}
+		}
+		rep, err = runpod.RunCanary(ctx, o)
+	}
+	if err != nil {
+		return exitError{code: runpod.ExitFail, err: errors.New(strings.ReplaceAll(err.Error(), token, "<token>"))}
+	}
+	if f.measuredOut != "" && rep.Engine == runpod.EngineACEStep {
+		if merr := writeMeasured(f.measuredOut, rep); merr != nil {
+			fmt.Fprintf(s.err, "metamusic: --measured-out: %v\n", merr)
+		}
+	}
+	if err := printJSON(s, rep); err != nil {
+		return err
+	}
+	if rep.Exit != 0 {
+		return exitError{code: rep.Exit}
+	}
+	return nil
+}
+
+// writeMeasured merges a run into the measured document; it writes nothing when the run measured nothing.
+func writeMeasured(path string, rep *runpod.CanaryReport) error {
+	existing, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.New("cannot read the file")
+	}
+	if len(existing) == 0 {
+		existing = runpod.EmbeddedMeasured
+	}
+	raw, err := runpod.MergeMeasured(existing, rep, time.Now())
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		return errors.New("cannot write the file")
+	}
+	return nil
+}
+
+// cmdCanaryDryRun prints the worst case of the ACE-Step canary (C162.4). It needs no server, no token and no key, and it
+// spends nothing.
+func cmdCanaryDryRun(s streams, f aceCanaryFlags, cfg config.Config, haveCfg bool, pools []string, usage func(string) error) error {
+	if f.cs == "" && !f.all {
+		return usage("--dry-run needs --all (every case of the part) or --case")
+	}
+	if f.all && f.cs != "" {
+		return usage("--all and --case exclude each other")
+	}
+	p := runpod.BudgetParams{Pools: pools, MaxS: f.maxS, SourceTrack: f.source != "", InitFailWindow: f.startTimeout}
+	if haveCfg {
+		p.ColdStartS, p.KillSlackS, p.MaxRuntimeS = cfg.ACEStepColdStartS, cfg.KillSlackS, int(cfg.ACEStepMaxRuntime/time.Second)
+	}
+	if f.price != "" {
+		pr, err := money.ParseUSD(f.price)
+		if err != nil || pr <= 0 {
+			return usage("--price-usd-hour must be a positive dollar amount")
+		}
+		p.PricePPH = pr
+	}
+	parts := []string{"a", "b"}
+	switch f.part {
+	case "":
+	case "a", "b":
+		parts = []string{f.part}
+	default:
+		return usage("--part must be a or b")
+	}
+	var want runpod.CanaryCase
+	if f.cs != "" {
+		c, err := runpod.ParseACEStepCase(f.cs)
+		if err != nil {
+			return usage(err.Error())
+		}
+		want = c
+		parts = nil
+		for _, pt := range []string{"a", "b"} {
+			if slices.Contains(runpod.ACEStepCanaryCases(pt), c) {
+				parts = []string{pt}
+			}
+		}
+	}
+	for _, pt := range parts {
+		r, err := runpod.CanaryWorstCase(pt, p)
+		if err != nil {
+			return usage(err.Error())
+		}
+		if want != "" {
+			r = r.Only(want)
+		}
+		fmt.Fprint(s.out, r.Format())
 	}
 	return nil
 }
