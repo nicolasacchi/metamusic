@@ -1,0 +1,67 @@
+{
+  "case": "extend",
+  "proposed": {
+    "tasks_add": [
+      "extend"
+    ],
+    "notes": [
+      "extend_seam_experimental stays until a listening review of the seam clears it"
+    ]
+  }
+}
+{
+  "case": "complete",
+  "proposed": {
+    "features": {
+      "models_mode": "bundle_cached_base_baked"
+    },
+    "tasks_add": [
+      "complete"
+    ],
+    "engine_rtf": [
+      {
+        "engine": "acestep15",
+        "task_class": "base",
+        "gpu_class": "A5000",
+        "rtf_milli": 400,
+        "load_s": 20,
+        "updated_by": "canary:mm-canary-20261014-complete-complete-1"
+      }
+    ]
+  }
+}
+{
+  "case": "extract",
+  "proposed": {
+    "tasks_add": [
+      "extract"
+    ],
+    "engine_rtf": [
+      {
+        "engine": "acestep15",
+        "task_class": "base",
+        "gpu_class": "A5000",
+        "rtf_milli": 400,
+        "load_s": 20,
+        "updated_by": "canary:mm-canary-20261014-extract-extract-1"
+      }
+    ]
+  }
+}
+{
+  "case": "base-long",
+  "proposed": {
+    "notes": [
+      "base-long is measured only: use its execution_ms to set MM_ACESTEP_MAX_RUNTIME (D-E2-17b)"
+    ]
+  }
+}
+{
+  "case": "lrc",
+  "proposed": {
+    "features": {
+      "lrc": true,
+      "lrc_fixed_s": 18
+    }
+  }
+}
