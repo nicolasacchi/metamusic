@@ -48,6 +48,9 @@ commands:
                                  run Tier A analysis (silence, clipping, token loops, spectrogram) on takes that lack it
   library reconcile [--dry-run] [--wait] | verify
                                  settle the derived library model (Songs, Muses, Sessions) now, or check its invariants
+  transform verify TAKE_ID | --all [--limit N]
+                                 re-render a transform from its stored spec and compare the audio hash (exit 1 on a mismatch)
+  transform sweep                recover and clean up transforms offline (refuses while a server holds a live lease)
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
   config check                   validate the MM_* environment exactly as serve does, without touching data, ports or network
@@ -119,6 +122,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdAnalyze(ctx, rest, getenv, s)
 	case "library":
 		err = cmdLibrary(ctx, rest, getenv, s)
+	case "transform":
+		err = cmdTransform(ctx, rest, getenv, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
 	case "config":
