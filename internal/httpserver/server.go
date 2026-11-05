@@ -29,7 +29,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
-	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/features"
@@ -158,7 +158,7 @@ type Options struct {
 	// Transform (T1, C212); nil makes the seven transform operations answer 503 UNAVAILABLE {component: transform}. It reaches api.Deps only.
 	Transform *transform.Service
 	// E2 (C151, C160): reach api.Deps only.
-	Engines  engine.Registry
+	Engines  registry.Registry
 	Backends *provider.Set
 	Gates    *provider.GateSet
 	Adoption *engineadopt.Service

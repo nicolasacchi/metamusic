@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
@@ -29,7 +29,7 @@ type e2Inputs struct {
 // e2Services is what buildE2 adds to Services.
 type e2Services struct {
 	// Engines is the registry generation and the runner use (yue2 only until E2-INT flips registry.Options.ACEStep).
-	Engines engine.Registry
+	Engines registry.Registry
 	// Backends and Gates are the per-engine backend set and its gates: one entry (the M3 backend) until E2-PF/PR add the
 	// ACE-Step backends; empty for MM_BACKEND=none.
 	Backends *provider.Set

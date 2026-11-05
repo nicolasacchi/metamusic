@@ -30,7 +30,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
-	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/features"
@@ -166,7 +166,7 @@ type Deps struct {
 
 	// E2 (C151, C160). A nil dependency makes list_engines answer 503 UNAVAILABLE {component}; Engines lists the registered
 	// engines for get_system_info. Adoption is the adoption record; Backends and Gates the per-backend set and gates.
-	Engines  engine.Registry
+	Engines  registry.Registry
 	Backends *provider.Set
 	Gates    *provider.GateSet
 	Adoption *engineadopt.Service

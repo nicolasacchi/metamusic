@@ -16,7 +16,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/ears"
-	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
@@ -196,7 +195,7 @@ type m3Services struct {
 	Runner     *jobs.Runner
 	Reconciler *jobs.Reconciler
 	Hub        *jobs.Hub
-	Engines    engine.Registry
+	Engines    registry.Registry
 }
 
 // buildM3 constructs the generation services (C39 amended): backend selection, the provider_state

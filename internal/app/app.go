@@ -29,7 +29,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
-	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/exports"
 	"github.com/nicolasacchi/metamusic/internal/features"
@@ -180,7 +180,7 @@ type Services struct {
 	// Transform is the T1 service (C210); nil when MM_TRANSFORM_ENABLED is false. Its runner is started by serve, never by Build.
 	Transform *transform.Service
 	// E2 services (C151, C160): the registry, the per-engine backend set and gates, and the adoption record.
-	Engines  engine.Registry
+	Engines  registry.Registry
 	Backends *provider.Set
 	Gates    *provider.GateSet
 	Adoption *engineadopt.Service
