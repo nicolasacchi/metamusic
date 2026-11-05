@@ -50,7 +50,7 @@
       {/each}
     </svg>
     {#if heat.value.sessions === 0}
-      <p class="muted note" data-testid="heat-empty">No listening recorded yet.</p>
+      <span class="sr" data-testid="heat-empty">No listening recorded yet.</span>
     {/if}
     {#if spots.length > 0}
       <ul class="chips" data-testid="heat-hotspots" aria-label="Hotspots where you went back">
@@ -72,6 +72,8 @@
     min-width: 0;
     max-width: 100%;
     margin: 0.2rem 0 0.4rem;
+    /* The strip's height is fixed from the first paint, so loading, unavailable and ready never shift the controls below it. */
+    min-height: 1.1rem;
   }
   .bands {
     display: block;
@@ -89,9 +91,21 @@
   .skip {
     fill: #7a8fa6;
   }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
   .note {
-    margin: 0.2rem 0;
-    font-size: var(--fs-sm);
+    margin: 0;
+    font-size: var(--fs-xs);
+    line-height: 1.1rem;
+    height: 1.1rem;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .chips {
     list-style: none;
