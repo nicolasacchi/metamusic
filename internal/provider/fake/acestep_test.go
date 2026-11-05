@@ -269,10 +269,11 @@ func TestFake_StemTonePerName(t *testing.T) {
 		}
 		return up.body("audio.flac")
 	}
-	if string(stem("vocals")) == string(stem("drums")) {
+	vocals := stem("vocals")
+	if string(vocals) == string(stem("drums")) {
 		t.Error("stems of different names must differ")
 	}
-	if string(stem("vocals")) != string(stem("vocals")) {
+	if string(vocals) != string(stem("vocals")) {
 		t.Error("a stem must be deterministic")
 	}
 }
