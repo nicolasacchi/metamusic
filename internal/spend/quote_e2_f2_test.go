@@ -35,3 +35,25 @@ func TestQuoteTakes_PerTakeTerms(t *testing.T) {
 		t.Error("explicit package terms differ from the zero value")
 	}
 }
+
+// TestE2Seams_NotImplementedYet pins the frozen stubs until lane E2-SP replaces them (it deletes this test with them).
+func TestE2Seams_NotImplementedYet(t *testing.T) {
+	t.Parallel()
+	var s *Service
+	ctx := t.Context()
+	if _, _, ok, err := s.EngineRTF(ctx, nil, "acestep15", "turbo", nil); ok || err != ErrNotImplemented {
+		t.Errorf("EngineRTF: %v %v", ok, err)
+	}
+	if _, err := s.EngineRTFRows(ctx, nil, "acestep15"); err != ErrNotImplemented {
+		t.Errorf("EngineRTFRows: %v", err)
+	}
+	if err := s.RecordEngineRTF(ctx, nil, "acestep15", "turbo", "x", "job:1", 1, 1); err != ErrNotImplemented {
+		t.Errorf("RecordEngineRTF: %v", err)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("ComputeGlobalBound did not panic with its STUB marker")
+		}
+	}()
+	ComputeGlobalBound(nil)
+}
