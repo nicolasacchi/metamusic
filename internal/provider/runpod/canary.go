@@ -73,6 +73,13 @@ type CanarySpec struct {
 	Bars           int
 	Cot            string
 	ExpectedAudioS int // after the engine's clamp
+
+	// E2: the engine ("" = yue2), the estimate item of an ACE-Step stage and its outcome assertions.
+	Engine string
+	Item   map[string]any
+	assert func(c *canary, prov cProvider, job cJob, meas map[string]any)
+	// driver, when set, replaces the wait loop after the batch is created (the init-fail case).
+	driver func(c *canary, ctx context.Context, spec CanarySpec, prov cProvider) *CanaryReport
 }
 
 // abcScore renders a two-voice score of n 4/4 bars at 120 quarter notes per minute (2 s per bar).
@@ -163,7 +170,23 @@ type CanaryOptions struct {
 	// KillSwitchConfirm is the operator's acknowledgement that someone will run `metamusic runpod provision
 	// --deactivate` while the kill-switch job is generating. The case refuses to start without it.
 	KillSwitchConfirm bool
+
+	// E2 (C155.4). Engine selects the ACE-Step canary ("acestep15"); the empty value is M3's yue2 canary, unchanged.
+	// An ACE-Step run refuses to start without an explicit MaxUSD (there is no default ceiling for it).
+	Engine string
+	// SourceTrack is an existing track (a kept t2m take) that source-needing cases (reference, repaint, extend,
+	// complete, extract) use instead of rendering their own 30 s source first.
+	SourceTrack string
+	// Pools names the configured GPU pools (MM_ACESTEP_POOLS) in the proposed features patch.
+	Pools []string
+	// MaxS is the candidate maximum of the t2m-long case (480, or 600 on a 32/48 GB pool being verified).
+	MaxS int
+	// InitFailConfirm: the operator has provisioned the endpoint with `provision --engine acestep15 --init-fail`.
+	InitFailConfirm bool
 }
+
+// ErrMaxUSDRequired: an ACE-Step canary case spends real money and has no default ceiling.
+var ErrMaxUSDRequired = errors.New("canary: --max-usd is required for --engine acestep15 (print the worst case with --dry-run, then pass the approved figure)")
 
 // ErrKillSwitchConfirm is returned when the kill-switch case is started without KillSwitchConfirm.
 var ErrKillSwitchConfirm = errors.New("canary: the kill-switch case needs --kill-switch-confirm: an operator must run `metamusic runpod provision --deactivate` while the job is generating, or the case fails")
@@ -184,6 +207,10 @@ type CanaryReport struct {
 	Checks     []CanaryCheck      `json:"checks,omitempty"`
 	Measured   map[string]any     `json:"measured,omitempty"`
 	Billing    *CanaryBillingView `json:"billing,omitempty"`
+	// E2: the engine, the per-stage observations of a multi-take case and the proposed features patch.
+	Engine   string         `json:"engine,omitempty"`
+	Stages   []CanaryStage  `json:"stages,omitempty"`
+	Proposed *ProposedPatch `json:"proposed_patch,omitempty"`
 }
 
 // CanaryCheck is one assertion.
@@ -266,21 +293,24 @@ type cBatch struct {
 }
 
 type cJob struct {
-	ID        string       `json:"id"`
-	State     string       `json:"state"`
-	Outcome   *string      `json:"outcome"`
-	ErrorCode *string      `json:"error_code"`
-	TrackID   *string      `json:"track_id"`
-	AudioS    *json.Number `json:"audio_s"`
-	TimeoutS  int          `json:"timeout_s"`
-	Artifacts []struct {
+	ID             string       `json:"id"`
+	State          string       `json:"state"`
+	Outcome        *string      `json:"outcome"`
+	ErrorCode      *string      `json:"error_code"`
+	TrackID        *string      `json:"track_id"`
+	AudioS         *json.Number `json:"audio_s"`
+	TimeoutS       int          `json:"timeout_s"`
+	ExpectedAudioS int          `json:"expected_audio_s"`
+	Artifacts      []struct {
 		Name     string `json:"name"`
+		Bytes    int64  `json:"bytes"`
+		SHA256   string `json:"sha256"`
 		Verified bool   `json:"verified"`
 	} `json:"artifacts"`
-	Timings struct {
-		ExecutionMS *int64 `json:"execution_ms"`
-		ColdStartS  *int64 `json:"cold_start_s"`
-	} `json:"timings"`
+	Env *struct {
+		GPUClass string `json:"gpu_class"`
+	} `json:"env"`
+	Timings cTimings `json:"timings"`
 }
 
 func (j cJob) terminal() bool {
@@ -305,6 +335,15 @@ type canary struct {
 	hc  *http.Client
 	rep *CanaryReport
 
+	// E2 multi-stage runs (all zero for the yue2 canary): prefix names the checks of a stage, keepStage keeps the
+	// stage's track for the next stage, skipIdle skips the end-of-stage wait for zero workers, lastJob is the
+	// stage's final job view.
+	prefix    string
+	keepStage bool
+	skipIdle  bool
+	lastJob   cJob
+	ceilSum   money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
+
 	// observation across every provider-status read of the drive phase (the sampler reads concurrently)
 	mu          sync.Mutex
 	observing   bool
@@ -316,8 +355,8 @@ type canary struct {
 // status reads /api/provider and, during the drive phase, records what it shows: the most live workers
 // seen and whether the endpoint was seen deactivated.
 func (c *canary) status(ctx context.Context) (cProvider, error) {
-	var p cProvider
-	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &p); err != nil {
+	p, err := c.readProvider(ctx)
+	if err != nil {
 		return p, err
 	}
 	c.mu.Lock()
@@ -427,7 +466,7 @@ func (c *canary) do(ctx context.Context, method, path string, hdr map[string]str
 }
 
 func (c *canary) check(name string, ok bool, format string, a ...any) bool {
-	c.rep.Checks = append(c.rep.Checks, CanaryCheck{Name: name, OK: ok, Note: fmt.Sprintf(format, a...)})
+	c.rep.Checks = append(c.rep.Checks, CanaryCheck{Name: c.prefix + name, OK: ok, Note: fmt.Sprintf(format, a...)})
 	return ok
 }
 
@@ -445,6 +484,9 @@ func (c *canary) sleep(ctx context.Context, d time.Duration) error { return slee
 // be carried out at all (usage, an unreachable server before anything was created); a report always has an
 // Exit. Once a batch exists, any early exit cancels the job first (a canary never leaves a take running).
 func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
+	if o.Engine == EngineACEStep && o.MaxUSD <= 0 {
+		return nil, ErrMaxUSDRequired
+	}
 	if o.Clock == nil {
 		o.Clock = clock.Real
 	}
@@ -481,6 +523,9 @@ func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
 	if o.Case == CaseKillSwitch && !o.KillSwitchConfirm {
 		return nil, ErrKillSwitchConfirm
 	}
+	if o.Engine == EngineACEStep {
+		return c.runACEStep(ctx)
+	}
 	spec, err := NewCanarySpec(o.Case, o.Day, o.N)
 	if err != nil {
 		return nil, err
@@ -512,10 +557,7 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 	}
 
 	var est cEstimate
-	err = c.do(ctx, http.MethodPost, "/api/generations/estimate", nil, map[string]any{
-		"engine": "yue2",
-		"items":  []any{map[string]any{"mode": "compose_new", "recipe": spec.Recipe, "title": spec.RequestID}},
-	}, &est)
+	err = c.do(ctx, http.MethodPost, "/api/generations/estimate", nil, c.estimateBody(spec), &est)
 	if err != nil {
 		return nil, err
 	}
@@ -526,6 +568,13 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 	if !CeilingAllowed(money.MicroUSD(est.Cost.CeilingMicroUSD), c.o.MaxUSD) {
 		return c.finish("refused", ExitRefused, "the estimate ceiling %s exceeds --max-usd %s",
 			money.MicroUSD(est.Cost.CeilingMicroUSD).USD(), c.o.MaxUSD.USD()), nil
+	}
+	if c.o.Engine == EngineACEStep {
+		// a case may have several stages: --max-usd bounds the sum of their ceilings, not each one alone
+		c.ceilSum += money.MicroUSD(est.Cost.CeilingMicroUSD)
+		if c.ceilSum > c.o.MaxUSD {
+			return c.finish("refused", ExitRefused, "the stages' estimate ceilings so far (%s) exceed --max-usd %s", c.ceilSum.USD(), c.o.MaxUSD.USD()), nil
+		}
 	}
 	var batch cBatch
 	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": idempotencyKey(spec.RequestID, est.ConfirmationToken)},
@@ -541,6 +590,9 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "the batch awaits a human confirmation; nothing was submitted"), nil
 	}
 	c.logf("batch %s created for case %s (ceiling %s)", batch.ID, spec.Case, money.MicroUSD(est.Cost.CeilingMicroUSD).USD())
+	if spec.driver != nil {
+		return spec.driver(c, ctx, spec, prov), nil
+	}
 	return c.drive(ctx, spec, prov), nil
 }
 
@@ -644,6 +696,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 			return c.finish("aborted", ExitAborted, "the job did not finish within %s; cancelled", overall)
 		}
 	}
+	c.lastJob = job
 	c.rep.FinalState = job.State
 	if job.ErrorCode != nil {
 		c.rep.ErrorCode = *job.ErrorCode
@@ -663,7 +716,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	c.assertOutcome(spec, prov, job, meas)
 	c.checkSettled(ctx, meas)
 	ran := seenGenerating || cancelled || job.State == "completed"
-	c.waitIdle(ctx, ran)
+	if !c.skipIdle {
+		c.waitIdle(ctx, ran)
+	}
 	samples, maxLive, _ := c.observed()
 	meas["max_workers_seen"] = maxLive
 	meas["workers_samples"] = samples
@@ -682,7 +737,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		c.check("kill_switch_flipped", flipped, "%s", killSwitchNote(flipped, job.State))
 	}
 
-	if !c.o.Keep && job.TrackID != nil && *job.TrackID != "" {
+	if !c.o.Keep && !c.keepStage && job.TrackID != nil && *job.TrackID != "" {
 		if err := c.do(ctx, http.MethodPatch, "/api/tracks/"+*job.TrackID, nil, map[string]string{"status": "discarded"}, nil); err != nil {
 			c.check("discard_track", false, "%v", err)
 		}
@@ -781,6 +836,10 @@ func (c *canary) checkSettled(ctx context.Context, meas map[string]any) {
 }
 
 func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas map[string]any) {
+	if spec.assert != nil {
+		spec.assert(c, prov, job, meas)
+		return
+	}
 	switch spec.Case {
 	case CaseMain, CaseCotFull:
 		ok := c.check("completed", job.State == "completed" && job.Outcome != nil && *job.Outcome == "clean", "state %s", job.State)
