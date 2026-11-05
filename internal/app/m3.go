@@ -264,7 +264,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 			Store: st, Backend: bi.b, Engines: engines, Spend: m.Spend, Uploads: m.Uploads, Ingest: ing, Notify: notifier, Hub: m.Hub,
 			Clock: clk, NewID: newID, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, Expect: provider.WorkerExpect{Weights: yue2.Weights}, Log: log,
-			Preflight: pre,
+			Preflight: pre, MeterKey: sec.MeterKey(), // attempts record their worker_key (C76.6)
 		})
 		m.Reconciler = jobs.NewReconciler(jobs.ReconcilerOptions{
 			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID,
@@ -275,6 +275,9 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		// get_provider_status shows what the reconciler's last sweep saw (workers, live endpoint, drift); without
 		// this the status always had workers: null (the canary's max_workers_seen was 0 in every run).
 		m.Provider.UseSweep(m.Reconciler.Snapshot)
+		// the worker-lifetime meter attributes cold start and idle tail to a finishing batch (C76.6); without it every
+		// batch settled zero overhead. e2_set.go re-wires it to the per-backend router when the set has more backends.
+		m.Runner.UseMeter(m.Reconciler)
 		wake.set(m.Runner.Wake)
 	}
 	return m, nil

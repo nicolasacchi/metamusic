@@ -323,6 +323,18 @@ func (r *Reconciler) OverheadSeconds(ctx context.Context, x Querier, batchID str
 		}
 	}
 	lastEnd, ok := m.lastEnd[batchID]
+	if !ok {
+		// no attempt of the batch is tied to a worker lifetime (it ended before a worker was identified, or no sweep
+		// caught it): wait idle_s + 60 s from the batch's last attempt end instead of forever, or the batch never finishes
+		var last sql.NullString
+		if err := x.QueryRowContext(ctx, `SELECT MAX(a.terminal_at) FROM job_attempts a JOIN jobs j ON j.id = a.job_id
+			WHERE j.batch_id = ? AND a.state <> 'rejected'`, batchID).Scan(&last); err != nil {
+			return 0, false, err
+		}
+		if t := parseT(last); t != nil {
+			lastEnd, ok = *t, true
+		}
+	}
 	waited := ok && !now.Before(lastEnd.Add(time.Duration(idle+60)*time.Second))
 	if len(m.lifetimesOf[batchID]) == 0 {
 		return secs, waited, nil // attempts ran but no worker has been seen yet: give the sweeps time

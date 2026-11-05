@@ -113,6 +113,7 @@ func rebaseOnSet(in e2Inputs, set *provider.Set, gates *provider.GateSet, extras
 		return err
 	}
 	m.Reconciler = rs[0]
+	m.Runner.UseMeter(jobs.NewMeterRouter(rs)) // each backend's overhead lands on its own batches
 	sweeps := map[string]func() jobs.SweepSnapshot{}
 	caps := map[string]func() provider.Capabilities{}
 	for _, r := range rs {
