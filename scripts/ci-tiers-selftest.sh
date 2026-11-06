@@ -94,4 +94,18 @@ chk "coverage.thresholds and shard weights carry E2-I1 blocks and keep the T1-I1
 chk "no workflow uses the type=gha buildx cache" '! grep -rq "type=gha" "$wf"'
 chk "image builds read ghcr :buildcache and only the publish jobs write it" 'w="$wf/worker-image.yml"; [ "$(grep -c "cache-from: type=registry,ref=.*:buildcache" "$w")" = 4 ] && [ "$(grep -c "cache-to: type=registry" "$w")" = 2 ] && for j in publish acestep-publish; do awk "/^  $j:/{f=1;next} /^  [a-z]/{f=0} f" "$w" | grep "cache-to: type=registry" >/dev/null || exit 1; done'
 # END E2-I1
+# BEGIN apt steps never hang a job
+chk "ci.yml apt steps use scripts/apt-install.sh and no bare apt-get update; playwright install is bounded" '[ "$(grep -c "scripts/apt-install.sh flac" "$wf/ci.yml")" = 2 ] && ! grep -q "^ *sudo apt-get update" "$wf/ci.yml" && grep -q "timeout 300 bunx playwright install --with-deps firefox" "$wf/ci.yml"'
+(
+  fb=$tmp/fakebin; mkdir -p "$fb"; log=$tmp/apt.log
+  printf '#!/bin/sh\necho "apt-get $*" >>"%s"\ncase "$*" in *--no-download*) [ -n "$NODL_OK" ] ;; *update*) [ -z "$UPD_FAIL" ] ;; *) [ -z "$INST_FAIL" ] ;; esac\n' "$log" >"$fb/apt-get"
+  printf '#!/bin/sh\nexec "$@"\n' >"$fb/sudo"; chmod +x "$fb/apt-get" "$fb/sudo"
+  run() { : >"$log"; PATH="$fb:$PATH" APT_TIMEOUT=5 APT_ATTEMPTS=3 "$root/scripts/apt-install.sh" flac >/dev/null 2>&1; }
+  NODL_OK=1 run && ! grep -q update "$log" || { echo "FAIL: cache hit must not run update"; exit 1; }
+  run && grep -q "^apt-get update" "$log" || { echo "FAIL: cache miss must update and install"; exit 1; }
+  UPD_FAIL=1 run && { echo "FAIL: persistent failure must fail"; exit 1; }
+  [ "$(grep -c "^apt-get update" "$log")" = 3 ] || { echo "FAIL: want exactly 3 attempts"; exit 1; }
+  echo "ok:   apt-install: no-download first, update+install fallback, 3 bounded attempts"
+) || fail=1
+# END apt steps never hang a job
 exit $fail
