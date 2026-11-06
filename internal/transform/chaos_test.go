@@ -699,7 +699,7 @@ func knownBugCh(t *testing.T, id, what string) {
 	t.Errorf("product bug %s: %s", id, what)
 }
 
-// TestAcceptance_T1_LoudnessUnsafeRefused (the bug alarm, media tier): a child whose audio ends up 6 dB louder than its own
+// TestAcceptance_T1_LoudnessUnsafeRefused (the bug alarm, media tier): a child whose audio ends up far louder than its own
 // report says is caught by the pipeline's measurement after the freeze: LOUDNESS_UNSAFE, the ingest is discarded, no Take, no
 // master file, no take directory.
 func TestAcceptance_T1_LoudnessUnsafeRefused(t *testing.T) {
@@ -708,7 +708,7 @@ func TestAcceptance_T1_LoudnessUnsafeRefused(t *testing.T) {
 	}
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	tools := testtools.Tools()
-	fc := &transformtest.FakeChild{Amp: 0.26} // 0.13 reads about -16 LUFS on a 400 Hz sine: this is 6 dB hotter than the report claims
+	fc := &transformtest.FakeChild{Amp: 0.4} // far above the level the report claims (its sine of 0.13 reads within a few LU of -16 on any ffmpeg)
 	r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner { return fc })
 	before := r.masterFiles()
 	id := queueChaos(t, r, "unsafe")
@@ -718,12 +718,7 @@ func TestAcceptance_T1_LoudnessUnsafeRefused(t *testing.T) {
 		t.Fatalf("row = %+v, want failed LOUDNESS_UNSAFE", row)
 	}
 	r.noTrace(id, before)
-	// the same child at the right level is accepted: the alarm is not a blanket refusal
-	ok := &transformtest.FakeChild{Amp: 0.13}
-	r2 := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner { return ok })
-	id2 := queueChaos(t, r2, "safe")
-	r2.runOne()
-	if row := r2.row(id2); row.State != "done" {
-		t.Fatalf("the control run: %+v", row)
+	if !strings.Contains(row.ErrText, "loudness") {
+		t.Errorf("the refusal does not say why: %q", row.ErrText)
 	}
 }

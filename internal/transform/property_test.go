@@ -74,6 +74,7 @@ type propCase struct {
 	alignment json.RawMessage
 	inputs    []ops.Input
 	wantLen   int // frames, -1 = not closed-form here
+	minLen    int // frames: a lower bound where there is no closed form
 	rho       float64
 	pair      bool
 }
@@ -132,6 +133,9 @@ func buildCase(t *testing.T, kind string, r *rand.Rand) propCase {
 		member = map[string]any{"source_id": "x", "space": []string{"cathedral", "cistern", "hangar", "canyon"}[r.IntN(4)], "wet_db": uniformStep(r, -12, -3, 1), "tail_s": uniformStep(r, 0, 2, 0.5)}
 	case "master":
 		member = map[string]any{"source_id": "x", "preset": []string{"neutral", "warm", "bright", "punch"}[r.IntN(4)], "comp_amount": uniformStep(r, 0, 1, 0.05)}
+	case "binaural":
+		member = map[string]any{"source_id": "x", "model": []string{"hrtf", "parametric"}[r.IntN(2)], "preset": []string{"studio", "wide", "near"}[r.IntN(3)],
+			"room": []string{"none", "studio", "hall"}[r.IntN(3)], "room_mix_db": -12 - r.IntN(20), "tail_s": uniformStep(r, 0, 2, 0.5)}
 	case "widen":
 		c.rho = uniform(r, -0.8, 0.99)
 		l, rr := dsptest.Correlated(r.Uint64(), dsptest.Frames(propRate, secs), uniform(r, 0.05, 0.2), c.rho)
@@ -151,6 +155,7 @@ func buildCase(t *testing.T, kind string, r *rand.Rand) propCase {
 	}
 	c.params = resolved
 	c.inputs = []ops.Input{{Role: "source", Buf: in, BeatsPerBar: 4}}
+	c.minLen = in.Frames()
 	switch kind {
 	case "master", "widen":
 		c.wantLen = in.Frames()
@@ -194,7 +199,7 @@ func TestProperty_AnyTransformIsSafe(t *testing.T) {
 	}
 	kinds := propertyKinds()
 	if len(kinds) < 7 {
-		t.Fatalf("only %v are registered: the five T1a kinds and master and widen are expected", kinds)
+		t.Fatalf("only %v are registered: the five T1a kinds, master and widen are expected", kinds)
 	}
 	for _, kind := range kinds {
 		for _, seed := range propertyTimelines() {
@@ -250,8 +255,8 @@ func TestProperty_AnyTransformIsSafe(t *testing.T) {
 				if !ok || float64(rep1.Units) > 1.1*float64(model) {
 					t.Errorf("metered %d units, model %d (ok=%v)", rep1.Units, model, ok)
 				}
-				if c.wantLen < 0 && out1.Frames() < 1 {
-					t.Error("empty output")
+				if c.wantLen < 0 && out1.Frames() < max(c.minLen, 1) {
+					t.Errorf("output of %d frames is shorter than its input (%d) or empty", out1.Frames(), c.minLen)
 				}
 				if kind == "widen" && doc.Hifi.Widen != nil {
 					if floor := math.Min(0.30, doc.Hifi.Widen.RhoIn); doc.Hifi.Widen.RhoOut < floor-1e-9 {

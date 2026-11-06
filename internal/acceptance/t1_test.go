@@ -559,7 +559,6 @@ func (tr *t1Rig) writerOK(c *servertest.Client, method, path string, body any) a
 // TestAcceptance_T1_Glacier50x: a glacier of an 18 s excerpt at x50 (900 s, the output cap) is accepted and renders within its
 // budget.
 func TestAcceptance_T1_Glacier50x(t *testing.T) {
-	knownBug(t, "B5-1", "estimate refuses the plan's own 50x of 18 s glacier with TRANSFORM_TOO_LARGE memory_mb 1398 > 1024 (glacier streams since D5, but B2's MemFactor still models a buffer)")
 	tr := newT1Rig(t)
 	v := tr.RunDone(glacierBody(tr.Info.Tx["A"], 50, 18))
 	id := v["id"].(string)

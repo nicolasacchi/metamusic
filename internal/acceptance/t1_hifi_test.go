@@ -3,17 +3,20 @@ package acceptance_test
 import (
 	"math"
 	"net/http"
+	"slices"
 	"testing"
 )
 
 // The T1h acceptance (C224.3): master and widen end to end through the real REST surface, the real child and the real ingest.
-// binaural (lane H2) is not on main when this lane was written: its rows are named TODOs below and skip.
+// master, widen and binaural (lane H2, merged) all run the real child.
 
-const todoBinaural = "TODO(T1-H2): the binaural kind is not registered on main yet; enable when H2 merges (create master -> widen -> binaural, a second binaural refused already_binaural, master after binaural warns after_binaural)"
+func binauralBody(src string) map[string]any {
+	return map[string]any{"kind": "binaural", "binaural": map[string]any{"source_id": src, "room": "none"}}
+}
 
 func hifiBodies(tr *t1Rig) map[string]map[string]any {
 	b := t1Bodies(tr)
-	return map[string]map[string]any{"master": b["master"], "widen": b["widen"]}
+	return map[string]map[string]any{"master": b["master"], "widen": b["widen"], "binaural": binauralBody(tr.Info.Tx["A"])}
 }
 
 // TestAcceptance_T1_HiFi_TakeShape: each hi-fi kind is an ordinary Take: engine dsp, one input, the ledger operator is the kind,
@@ -32,7 +35,6 @@ func TestAcceptance_T1_HiFi_TakeShape(t *testing.T) {
 			}
 		})
 	}
-	t.Run("binaural", func(t *testing.T) { t.Skip(todoBinaural) })
 	if got := tr.fileState(a); got != before {
 		t.Errorf("parent changed: %+v -> %+v", before, got)
 	}
@@ -60,28 +62,50 @@ func TestAcceptance_T1_HiFi_LoudnessMatched(t *testing.T) {
 			}
 		})
 	}
-	t.Run("binaural", func(t *testing.T) { t.Skip(todoBinaural) })
 }
 
-// TestAcceptance_T1_HiFi_Chain: master -> widen creates two Takes in a line (the source of each is the previous result). The
-// binaural half of the chain rules (terminal kind) is the TODO below.
+// TestAcceptance_T1_HiFi_Chain: master -> widen -> binaural creates three Takes in a line (the source of each is the previous
+// result); the third refuses a second binaural (already_binaural) and a master after binaural is allowed with the after_binaural
+// warning.
 func TestAcceptance_T1_HiFi_Chain(t *testing.T) {
 	tr := newT1Rig(t)
 	a := tr.Info.Tx["A"]
 	m := tr.RunDone(masterBody(a, "neutral"))["id"].(string)
 	w := tr.RunDone(widenBody(m))["id"].(string)
-	lin := obj(tr.H.OK(t, "GET", "/api/tracks/"+w, nil))["lineage"]
-	if obj(lin)["parent_track_id"] != m || obj(lin)["operator"] != "widen" || obj(lin)["root_track_id"] != a || obj(lin)["generation"].(float64) != 2 {
-		t.Errorf("widen lineage = %v", lin)
+	// before binaural: a clean chain, no warning
+	est := obj(tr.H.OK(t, "POST", "/api/transforms/estimate", binauralBody(w)))
+	codes := func(e map[string]any) (out []string) {
+		for _, x := range e["warnings"].([]any) {
+			out = append(out, obj(x)["code"].(string))
+		}
+		return out
 	}
-	// the estimate of a chained kind warns of nothing about binaural
-	est := obj(tr.H.OK(t, "POST", "/api/transforms/estimate", masterBody(w, "bright")))
-	for _, x := range est["warnings"].([]any) {
-		if obj(x)["code"] == "after_binaural" {
-			t.Errorf("after_binaural on a chain without binaural: %v", est["warnings"])
+	if slices.Contains(codes(est), "after_binaural") || !slices.Contains(codes(est), "binaural_headphones_only") {
+		t.Errorf("binaural estimate warnings = %v", codes(est))
+	}
+	bi := tr.RunDone(binauralBody(w))["id"].(string)
+	for child, want := range map[string][3]any{m: {a, "master", 1.0}, w: {m, "widen", 2.0}, bi: {w, "binaural", 3.0}} {
+		lin := obj(obj(tr.H.OK(t, "GET", "/api/tracks/"+child, nil))["lineage"])
+		if lin["parent_track_id"] != want[0] || lin["operator"] != want[1] || lin["root_track_id"] != a || lin["generation"].(float64) != want[2] {
+			t.Errorf("lineage of %s = %v, want %v", want[1], lin, want)
 		}
 	}
-	t.Run("binaural", func(t *testing.T) { t.Skip(todoBinaural) })
+	// a second binaural is refused, on the estimate and on create
+	for _, path := range []string{"/api/transforms/estimate", "/api/transforms"} {
+		resp := tr.H.Do(t, "POST", path, binauralBody(bi), tr.idem()...)
+		e := obj(resp.JSON(t))
+		if resp.Status != http.StatusUnprocessableEntity || e["code"] != "INVALID_TRANSFORM" || obj(e["details"])["rule"] != "already_binaural" {
+			t.Errorf("%s of a second binaural = %d %v", path, resp.Status, e)
+		}
+	}
+	// a master after binaural is allowed and warned about
+	after := obj(tr.H.OK(t, "POST", "/api/transforms/estimate", masterBody(bi, "bright")))
+	if !slices.Contains(codes(after), "after_binaural") {
+		t.Errorf("master after binaural warnings = %v", codes(after))
+	}
+	if st, v := tr.Create(tr.H, masterBody(bi, "bright")); st != http.StatusAccepted {
+		t.Errorf("create master after binaural = %d %v", st, v)
+	}
 }
 
 // TestAcceptance_T1_HiFi_SameSpecReuses: the second create of a hi-fi spec is a reuse (200, same id), also for another principal.
@@ -97,7 +121,6 @@ func TestAcceptance_T1_HiFi_SameSpecReuses(t *testing.T) {
 			}
 		})
 	}
-	t.Run("binaural", func(t *testing.T) { t.Skip(todoBinaural) })
 }
 
 // TestAcceptance_T1_HiFi_JoinsLibrary: the result joins its parent's Song, is listed under origin=transform, and a duel against
@@ -130,5 +153,4 @@ func TestAcceptance_T1_HiFi_JoinsLibrary(t *testing.T) {
 	if duel["id"] == nil {
 		t.Errorf("duel = %v", duel)
 	}
-	t.Run("binaural", func(t *testing.T) { t.Skip(todoBinaural) })
 }
