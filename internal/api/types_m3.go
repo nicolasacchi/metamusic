@@ -366,6 +366,9 @@ type JobTimings struct {
 	QueueDelayMS *int64 `json:"queue_delay_ms"`
 	ExecutionMS  *int64 `json:"execution_ms"`
 	ColdStartS   *int64 `json:"cold_start_s" doc:"Announced time minus the worker's start"`
+	// Extra holds the worker's numeric timing keys of an engine that reports them (peak_vram_mb_*, vram_resident_mb,
+	// lm_gpu_memory_utilization_milli, lm_s, dit_s, decode_s); absent for YuE2.
+	Extra map[string]float64 `json:"extra,omitempty"`
 }
 
 // JobEvent is one entry of the job's append-only event log.

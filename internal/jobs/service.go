@@ -141,6 +141,9 @@ type JobArtifact struct {
 // JobTimings are the measured durations.
 type JobTimings struct {
 	QueueDelayMS, ExecutionMS, ColdStartS *int64
+	// Extra carries the worker's numeric timing keys of an engine that reports them (E2 P0b): peak_vram_mb_<component>,
+	// vram_resident_mb, lm_gpu_memory_utilization_milli, lm_s, dit_s, decode_s. nil for yue2 and for jobs without them.
+	Extra map[string]float64
 }
 
 // JobEventRow is one entry of the job's event log.
@@ -475,6 +478,9 @@ func (s *Service) fullJob(ctx context.Context, id string) (Job, error) {
 	if err := s.fillTimings(ctx, &j); err != nil {
 		return j, err
 	}
+	if err := s.fillTimingsExtra(ctx, &j); err != nil {
+		return j, err
+	}
 	rows, err := x.QueryContext(ctx, `SELECT at, from_state, to_state, event, code FROM (SELECT id, at, from_state, to_state, event, code FROM job_events WHERE job_id = ? ORDER BY id DESC LIMIT 50) ORDER BY id`, id)
 	if err != nil {
 		return j, err
@@ -551,6 +557,23 @@ func (s *Service) fillTimings(ctx context.Context, j *Job) error {
 			v := int64(d / time.Second)
 			j.Timings.ColdStartS = &v
 		}
+	}
+	return nil
+}
+
+// fillTimingsExtra reads the worker's numeric timing keys that the runner kept on the job's ingested event (workerTimings).
+func (s *Service) fillTimingsExtra(ctx context.Context, j *Job) error {
+	var raw sql.NullString
+	err := s.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.timings') FROM job_events WHERE job_id = ? AND event = 'ingested' ORDER BY id DESC LIMIT 1`, j.ID).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !raw.Valid) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var m map[string]float64
+	if json.Unmarshal([]byte(raw.String), &m) == nil && len(m) > 0 {
+		j.Timings.Extra = m
 	}
 	return nil
 }
