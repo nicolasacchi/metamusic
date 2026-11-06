@@ -1,6 +1,7 @@
 package transform
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -352,7 +353,7 @@ func chainKinds(ctx context.Context, q queryer, trackID string) ([]Kind, error) 
 
 func rawFloat(m map[string]json.RawMessage, name string) *float64 {
 	raw, ok := m[name]
-	if !ok {
+	if !ok || string(bytes.TrimSpace(raw)) == "null" { // a JSON null is an absent value, not 0
 		return nil
 	}
 	var f float64

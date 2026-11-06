@@ -243,4 +243,62 @@ jobs:
           else
             echo "::warning::BenchmarkTransforms does not exist yet; nothing was measured"
           fi
+  t1-chaos:
+    # The full chaos suite of the transforms (B5): ten progress points instead of the PR subset of three (MM_T1_CHAOS_FULL=1), the
+    # tests the PR shards skip for time (MM_T1_WEEKLY=1: the lease-expiry chaos, the 900 s glacier), with the real render child,
+    # ffmpeg and flac. MM_REQUIRE_MEDIA_TOOLS=1: a missing media tool fails the run instead of skipping it.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: apt flac
+        run: scripts/apt-install.sh flac
+      - name: install tools
+        run: |
+          scripts/tools.sh
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+      - name: chaos suite, all points
+        env:
+          MM_T1_CHAOS_FULL: "1"
+          MM_T1_WEEKLY: "1"
+        run: go test -race -shuffle=on -count=1 -timeout 40m -run 'TestChaos_' ./internal/transform
+      - name: the 900 s glacier
+        env:
+          MM_T1_WEEKLY: "1"
+        run: go test -race -shuffle=on -count=1 -timeout 15m -run 'TestAcceptance_T1_Glacier50x' ./internal/acceptance
+
+  t1-property:
+    # The long run of the transform safety property suite (C216.4): 12 timelines per PR (one under -race), 300 here, in plain
+    # mode (the detector makes the DSP loops 5-10x slower), split over a matrix by MM_PROPERTY_SHARD. A failing seed replays by its
+    # subtest name or with MM_PROPERTY_TIMELINES=300 MM_PROPERTY_SHARD=i/N.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: AnyTransformIsSafe, 300 timelines, shard ${{ matrix.shard }}/6
+        env:
+          MM_PROPERTY_TIMELINES: "300"
+          MM_PROPERTY_SHARD: "${{ matrix.shard }}/6"
+        run: go test -shuffle=on -count=1 -timeout 40m -run 'TestProperty_AnyTransformIsSafe' ./internal/transform
   # END T1-I1 weekly jobs

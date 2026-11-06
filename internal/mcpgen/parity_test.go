@@ -458,7 +458,7 @@ func runParity(t *testing.T, stdio bool) {
 		if task := m4aStubTask(resp.Status, resp.Body); task != "" {
 			t.Fatalf("parity %s answers 501 NOT_IMPLEMENTED (stub of %s): no M4a stub may remain", op.ID, task)
 		}
-		if resp.Status == 501 && c.Status != 501 && bytes.Contains(resp.Body, []byte("NOT_IMPLEMENTED")) { // no stub may remain, except a case that names the 501 (T1 until lane B4)
+		if resp.Status == 501 && bytes.Contains(resp.Body, []byte("NOT_IMPLEMENTED")) { // no stub may remain
 			t.Fatalf("parity %s answers 501 NOT_IMPLEMENTED: %s", op.ID, resp.Body)
 		}
 		if c.Status != 0 && resp.Status != c.Status || c.Status == 0 && resp.Status/100 != 2 {

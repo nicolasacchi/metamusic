@@ -42,7 +42,7 @@ type Options struct {
 	Log      *slog.Logger
 	Fault    func(point string) error // tests: after_decode, after_child, after_encode, after_ingest
 	Child    ChildRunner              // nil means the exec supervisor over Self; tests inject transformtest.FakeChild
-	Resample Resampler                // second input at another rate (D-T1-19); nil refuses such an input until dsp.Resample lands
+	Resample Resampler                // second input at another rate (D-T1-19); the app wires dsp.Resample, nil refuses such an input
 	// Toolchain reports the running toolchain for transform.json and Verify; nil means the build's own.
 	Toolchain func() Toolchain
 	// Changed is called with the transform id after every row change the runner makes, so the in-process hub of B2's Wait can

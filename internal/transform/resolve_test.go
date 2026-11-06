@@ -1,6 +1,7 @@
 package transform
 
 import (
+	"encoding/json"
 	"fmt"
 	dalign "github.com/nicolasacchi/metamusic/internal/dsp/align"
 	"math"
@@ -401,3 +402,16 @@ func TestResolve_PairLimits(t *testing.T) {
 	_, err = r.build(g(`,"factor":20,"length_s":4`)) // 80 s of output
 	wantRule(t, err, "length_s", RuleTooLong)
 }
+
+// TestRawFloat_NullIsAbsent: a JSON null is an absent value, not 0 (B5-3: master's resolved "target_lufs": null clamped to -12).
+func TestRawFloat_NullIsAbsent(t *testing.T) {
+	m := map[string]json.RawMessage{"a": json.RawMessage(`null`), "b": json.RawMessage(` null `), "c": json.RawMessage(`-14.5`), "d": json.RawMessage(`"x"`)}
+	for name, want := range map[string]*float64{"a": nil, "b": nil, "c": ptr(-14.5), "d": nil, "e": nil} {
+		got := rawFloat(m, name)
+		if (got == nil) != (want == nil) || got != nil && *got != *want {
+			t.Errorf("rawFloat(%s) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func ptr(f float64) *float64 { return &f }

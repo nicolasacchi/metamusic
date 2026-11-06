@@ -71,7 +71,7 @@ func buildT1(in t1Inputs) *transform.Service {
 		Fault:     in.o.Fault,
 		Child:     in.o.Child,
 		Media:     in.o.Media,
-		Resample:  in.o.Resample,
+		Resample:  resampleOr(in.o.Resample),
 		Toolchain: in.o.Toolchain,
 	}
 	// never a typed-nil interface: a nil *ingest.Pipeline or *ears.Service would look present

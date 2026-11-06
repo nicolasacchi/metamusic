@@ -46,14 +46,11 @@ internal/features       89
 internal/sequencer      97
 internal/nextactions    89
 internal/atlas          93
-# BEGIN T1-I1 (T1 packages, staged). Earlier milestones set measured - 1 after the lanes landed; here I1 runs in parallel with the D/B
-# lanes while internal/dsp/... and internal/transform are still F1 stubs (measured on the stubs: dsp/... 72.9, transform 84.8). A
-# measured - 1 floor on stub bodies would redden every D/B lane the moment real code lands, so these two floors sit below the stub
-# figures and above nothing the lanes can plausibly undershoot; they also make the gate prove the patterns match a package. INT-B
-# raises both to measured - 1 on the merged branch (the 90 % figures of the plan are aims, not gates). internal/score/... (T1b) is
-# NOT listed: the gate refuses a pattern that matches no package, so its floor is added by the lane that creates the package.
-internal/dsp/...        70
-internal/transform      80
+# BEGIN T1-I1 (T1 packages). INT-B set both to measured - 1, rounded down, from the CI coverage job on the merged T1 branch (run
+# 42251326395: dsp/... 94.8, transform 89.3); the 90 % figures of the plan are aims, not gates. internal/score/... (T1b) is NOT listed:
+# the gate refuses a pattern that matches no package, so its floor is added by the lane that creates the package.
+internal/dsp/...        93
+internal/transform      88
 # END T1-I1
 # BEGIN E2-I1 (E2 packages). Floors are the unit-test coverage measured on the merged E2 branch (go test, no -short) minus one full
 # point, rounded down (E2-INT-B raised the two staged ones): internal/engine/acestep measured 97.4, internal/engineadopt 83.1.

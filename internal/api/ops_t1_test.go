@@ -3,7 +3,6 @@ package api_test
 import (
 	"encoding/json"
 	"net/http"
-	"slices"
 	"strings"
 	"testing"
 
@@ -32,10 +31,6 @@ var t1Ops = []t1Op{
 	{id: "cancel_transform", method: "POST", path: "/api/transforms/{id}/cancel", scope: auth.ScopeWrite, ui: "/transforms"},
 	{id: "get_transform_capabilities", method: "GET", path: "/api/transforms/capabilities", scope: auth.ScopeRead, ui: "/tracks/:id"},
 }
-
-// implementedT1 lists the operations whose stub a lane has replaced. A lane appends its ids from its own file's init()
-// (ops_t1_<lane>_test.go) and never edits this file (D-T1-26).
-var implementedT1 []string
 
 func t1Rig(t *testing.T, d api.Deps) *rig {
 	t.Helper()
@@ -94,22 +89,6 @@ func TestRegistry_T1Meta(t *testing.T) {
 		}
 		if o.DefaultStatus != 0 && o.DefaultStatus != 200 {
 			t.Errorf("%s: default status %d, want 200 (create answers 200 or 202 from its output Status)", w.id, o.DefaultStatus)
-		}
-	}
-}
-
-// TestOps_StubsAnswer501T1: until a lane lands, every handler answers 501 NOT_IMPLEMENTED naming its lane (details.task).
-func TestOps_StubsAnswer501T1(t *testing.T) {
-	t.Parallel()
-	r := t1Rig(t, api.Deps{Transform: transform.New(transform.Options{})})
-	for _, w := range t1Ops {
-		if slices.Contains(implementedT1, w.id) {
-			continue
-		}
-		code, body := t1Call(r, t1Agent(auth.ScopeRead, auth.ScopeWrite), w)
-		d, _ := body["details"].(map[string]any)
-		if code != 501 || body["code"] != "NOT_IMPLEMENTED" || d["task"] != "T1-B4" {
-			t.Errorf("%s: %d %v, want 501 NOT_IMPLEMENTED task T1-B4", w.id, code, body)
 		}
 	}
 }

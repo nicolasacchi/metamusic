@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HEADERS } from "./env";
-import { copyTree, startServer, stopServer, type RunningServer } from "./server";
+import { copyTree, specEnv, startServer, stopServer, type RunningServer } from "./server";
 
 export * from "@playwright/test";
 
@@ -27,13 +27,13 @@ class Pool {
     private readonly runDir: string,
   ) {}
 
-  async acquire(key: string): Promise<WorkerServer> {
+  async acquire(key: string, file: string): Promise<WorkerServer> {
     if (this.cur?.key === key) return this.cur.server;
     await this.retire();
     const dir = mkdtempSync(join(tmpdir(), `mm-e2e-w${this.workerIndex}-`));
     copyTree(join(this.template, "data"), join(dir, "data"));
     copyTree(join(this.template, "secrets"), join(dir, "secrets"));
-    const srv = await startServer(this.bin, join(dir, "data"), join(dir, "secrets"));
+    const srv = await startServer(this.bin, join(dir, "data"), join(dir, "secrets"), undefined, specEnv(file));
     this.cur = { key, srv, dir, server: { url: srv.url, seedDir: join(dir, "data", "inbox-synthetic") } };
     return this.cur.server;
   }
@@ -77,7 +77,7 @@ export const test = base.extend<{ server: WorkerServer; seedDir: string; agentTo
     { scope: "worker" },
   ],
   server: async ({ pool }, use, testInfo) => {
-    await use(await pool.acquire(`${testInfo.project.name}|${testInfo.file}`));
+    await use(await pool.acquire(`${testInfo.project.name}|${testInfo.file}`, testInfo.file));
   },
   baseURL: async ({ server }, use) => {
     await use(server.url);

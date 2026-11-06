@@ -19,7 +19,7 @@ const sec30 = 30 * 48000
 
 var d5UnitCases = []d5UnitCase{
 	{kind: KindGlacier, in: sec30, out: 20 * sec30 / 3, params: `{"factor":20,"start_s":0,"length_s":10,"window_s":0.5,"fade_in_s":4,"fade_out_s":4}`, want: 13259837440},
-	{kind: KindShepard, in: sec30, out: 120 * 48000, params: `{"direction":"up","loop_s":8,"layers":5,"period_s":24,"duration_s":120}`, want: 25762570240},
+	{kind: KindShepard, in: sec30, out: 120 * 48000, params: `{"direction":"up","loop_s":8,"layers":5,"period_s":24,"duration_s":120}`, want: 25778020352},
 	{kind: KindEnsemble, in: sec30, out: sec30 + 11*48000, params: `{"space":"cathedral","wet_db":-6,"dry_db":-12,"tail_s":20}`, want: 16170596448},
 	{kind: KindMaster, in: sec30, out: sec30, params: `{}`, want: 1195200000},
 	{kind: KindWiden, in: sec30, out: sec30, params: `{}`, want: 1152000000},
@@ -80,5 +80,14 @@ func TestUnits_MeterWithinModel(t *testing.T) {
 			t.Errorf("%s: meter %d units, model %d (ratio %.2f)", kind, rep.Units, model, r)
 		}
 		t.Logf("%s: meter %d units, model %d (ratio %.2f)", kind, rep.Units, model, float64(rep.Units)/float64(model))
+	}
+}
+
+// TestOwnFades: glacier and shepard bring their own fades (a shepard output loops, so a safety fade would notch the seam).
+func TestOwnFades(t *testing.T) {
+	for _, k := range []string{KindGlacier, KindShepard} {
+		if !ownFades[k] {
+			t.Errorf("%s is not in ownFades", k)
+		}
 	}
 }

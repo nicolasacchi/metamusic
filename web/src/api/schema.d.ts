@@ -5763,8 +5763,8 @@ export interface components {
             bpm_a?: number | null;
             /** Format: double */
             bpm_b?: number | null;
-            downbeat_a_s?: (Record<string, never> | null) & (number | "auto");
-            downbeat_b_s?: (Record<string, never> | null) & (number | "auto");
+            downbeat_a_s?: number | "auto" | null;
+            downbeat_b_s?: number | "auto" | null;
             /** @enum {string|null} */
             key_policy?: "to_a" | "none" | null;
             /** Format: double */
@@ -6415,8 +6415,8 @@ export interface components {
             bpm_b?: number | null;
             /** Format: int64 */
             converge_bar?: number | null;
-            downbeat_a_s?: (Record<string, never> | null) & (number | "auto");
-            downbeat_b_s?: (Record<string, never> | null) & (number | "auto");
+            downbeat_a_s?: number | "auto" | null;
+            downbeat_b_s?: number | "auto" | null;
             /** @enum {string|null} */
             pan?: "split" | "centre" | null;
             track_a_id: string;
