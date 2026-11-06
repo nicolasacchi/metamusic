@@ -2,6 +2,7 @@ package transform
 
 import (
 	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/dsp/ops"
 	"math"
 	"reflect"
 	"slices"
@@ -158,7 +159,7 @@ func TestEstimate_Content(t *testing.T) {
 	if e.CPU.ExpectedMS <= 0 || e.CPU.MaxMS != BudgetMS(e.CPU.ExpectedMS, 600) || e.CPU.BudgetMS != e.CPU.MaxMS {
 		t.Errorf("cpu %+v", e.CPU)
 	}
-	if e.Output.BytesEst != OutBytesEst(400*48000) || e.MemoryMB != int(MemoryMB(20*48000, 400*48000, 0)) {
+	if e.Output.BytesEst != OutBytesEst(400*48000) || e.MemoryMB != int(MemoryMB(20*48000, 400*48000, 1)) {
 		t.Errorf("bytes %d memory %d", e.Output.BytesEst, e.MemoryMB)
 	}
 	if !strings.HasPrefix(e.Title, "Synthetic Take XA — glacier ×20") || len(e.Inputs) != 1 || e.Inputs[0].Role != "source" || e.Inputs[0].DurationS != 20 {
@@ -211,7 +212,7 @@ func TestEstimate_Content(t *testing.T) {
 	}
 	// ensemble warns about the full mix
 	e, _ = r.svc.Estimate(t.Context(), human, req(KindEnsemble, fmt.Sprintf(`{"source_id":%q}`, r.tx("A"))))
-	if !slices.Contains(codes(e.Warnings), WarnEnsembleFullMix) || math.Abs(e.Output.Seconds-(20+9*70/60.0)) > 1e-6 {
+	if !slices.Contains(codes(e.Warnings), WarnEnsembleFullMix) || math.Abs(e.Output.Seconds-(20+float64(ensembleTailFrames(paramsMap(e.Resolved), 48000))/48000)) > 1e-6 {
 		t.Errorf("ensemble %v %v", codes(e.Warnings), e.Output.Seconds)
 	}
 }
@@ -282,5 +283,46 @@ func TestEstimate_RefusesWhatCreateRefuses(t *testing.T) {
 		if e1 == nil || e2 == nil || e1.Error() != e2.Error() {
 			t.Errorf("%s: estimate %v, create %v", name, e1, e2)
 		}
+	}
+}
+
+// TestCost_B2bMeasured pins the constants and estimates recalibrated from other lanes' measurements (T1-B2b).
+func TestCost_B2bMeasured(t *testing.T) {
+	t.Parallel()
+	// safety.Finish: about 700 units per frame, measured by H1 (the plan's 30 was 24x too low)
+	if DefaultCosts.SafetyUnitsPerFrame != 700 || DefaultCosts.SafetyUnitsPerFrame != ops.SafetyUnits(1) {
+		t.Errorf("SafetyUnitsPerFrame = %d", DefaultCosts.SafetyUnitsPerFrame)
+	}
+	// glacier holds the whole output for safety.Finish
+	if ks, _ := LookupKind(KindGlacier); ks.MemFactor < 1 {
+		t.Errorf("glacier MemFactor = %v", ks.MemFactor)
+	}
+	// the cathedral tail is D4's bound: pre-delay + 70/60 of the decay + onset, at least the measured ~11.6 s effective tail
+	// rounded down, and never the old rt60 x 70/60 = 10.5 s
+	m := paramsMap([]byte(`{"space":"cathedral","tail_s":40}`))
+	tail := float64(ensembleTailFrames(m, 48000)) / 48000
+	if tail < 10.6 || tail > 15 {
+		t.Errorf("cathedral tail %.2f s", tail)
+	}
+	if got := ensembleTailFrames(paramsMap([]byte(`{"space":"cathedral","tail_s":3}`)), 48000); got != 3*48000 {
+		t.Errorf("tail_s cut: %d", got)
+	}
+	// ensemble and glacier units are the operators' own prices plus safety
+	u := UnitsIn{InFrames: 48000 * 20, OutFrames: 48000 * 400, Channels: 2, Rate: 48000, Resolved: []byte(`{"window_s":0.5}`)}
+	if got, want := unitsGlacier(u), ops.GlacierUnits(u.OutFrames, 48000, 0.5)+700*u.OutFrames; got != want {
+		t.Errorf("glacier units %d, want %d", got, want)
+	}
+	u = UnitsIn{InFrames: 48000 * 20, OutFrames: 48000 * 32, Channels: 2, Rate: 48000, Resolved: []byte(`{"space":"cathedral","tail_s":20}`)}
+	if unitsEnsemble(u) < ops.EnsembleUnits(u.InFrames, 48000, ops.EnsembleParams{Space: "cathedral", TailS: 20})+700*u.OutFrames {
+		t.Error("ensemble units below the operator's price plus safety")
+	}
+	// a glacier estimate now carries the whole-output memory
+	r := newRig(t)
+	e, err := r.svc.Estimate(t.Context(), human, glacier(r.tx("A")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := int(MemoryMB(20*48000, 400*48000, 1)); e.MemoryMB != want {
+		t.Errorf("glacier memory %d, want %d", e.MemoryMB, want)
 	}
 }

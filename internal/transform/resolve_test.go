@@ -2,6 +2,7 @@ package transform
 
 import (
 	"fmt"
+	dalign "github.com/nicolasacchi/metamusic/internal/dsp/align"
 	"math"
 	"slices"
 	"testing"
@@ -83,7 +84,7 @@ func (r *rig) section(label, source string, idx int, kind string, start float64)
 		r.tx(label), source, idx, kind, kind+" 1", "["+kind+"]", start, start+4)
 }
 
-func align(pl *plan, i int) InputAlign { return pl.Spec.Alignment.Inputs[i] }
+func alignOf(pl *plan, i int) InputAlign { return pl.Spec.Alignment.Inputs[i] }
 
 // TestResolve_Ladder: tempo is explicit > plan > declared > measured with the source recorded, a measured octave-ambiguous tempo
 // folds toward the partner and nothing else does, a confidence below 0.30 warns but is accepted (D-T1-9 revision 3: the analyzer
@@ -97,37 +98,37 @@ func TestResolve_Ladder(t *testing.T) {
 	}
 	// declared: A through its feature row (requested tempo), B with no feature row through tracks.bpm_declared (the style's "128 bpm")
 	pl := r.mustBuild(pair("A", "B", ""))
-	if a := align(pl, 0); a.BPM != 92 || a.BPMSource != SrcDeclared {
+	if a := alignOf(pl, 0); a.BPM != 92 || a.BPMSource != SrcDeclared {
 		t.Errorf("A = %+v", a)
 	}
-	if b := align(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared || b.OctaveFold != 0 {
+	if b := alignOf(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared || b.OctaveFold != 0 {
 		t.Errorf("B = %+v", b)
 	}
 	// measured: with no declared tempo anywhere, the analyses row is read directly (B has no feature row)
 	r.clearDeclared("B", "MONO", "WIDE", "OOP", "I")
 	pl = r.mustBuild(pair("A", "B", ""))
-	if b := align(pl, 1); b.BPM != 128 || b.BPMSource != SrcMeasured || b.OctaveFold != 0 || pl.Res.Inputs[1].Confidence == nil {
+	if b := alignOf(pl, 1); b.BPM != 128 || b.BPMSource != SrcMeasured || b.OctaveFold != 0 || pl.Res.Inputs[1].Confidence == nil {
 		t.Errorf("B measured = %+v", b)
 	}
 	// explicit wins over everything, and is never folded
 	pl = r.mustBuild(pair("A", "B", `,"bpm_a":100,"bpm_b":64`))
-	if a, b := align(pl, 0), align(pl, 1); a.BPM != 100 || a.BPMSource != SrcExplicit || b.BPM != 64 || b.BPMSource != SrcExplicit || b.OctaveFold != 0 {
+	if a, b := alignOf(pl, 0), alignOf(pl, 1); a.BPM != 100 || a.BPMSource != SrcExplicit || b.BPM != 64 || b.BPMSource != SrcExplicit || b.OctaveFold != 0 {
 		t.Errorf("explicit = %+v %+v", a, b)
 	}
 	// plan: S has an aligned score (Q 120)
 	pl = r.mustBuild(req(KindMorph, fmt.Sprintf(`{"track_a_id":%q,"track_b_id":%q,"bars":2,"downbeat_a_s":0.4}`, r.tx("A"), r.tx("S"))))
-	if b := align(pl, 1); b.BPM != 120 || b.BPMSource != SrcPlan || b.PlanBarS == nil || *b.PlanBarS != 2 {
+	if b := alignOf(pl, 1); b.BPM != 120 || b.BPMSource != SrcPlan || b.PlanBarS == nil || *b.PlanBarS != 2 {
 		t.Errorf("S = %+v", b)
 	}
 	// a declared tempo is trusted even when the feature row says the measured one is an octave off (OCT: requested 128)
 	pl = r.mustBuild(pair("A", "OCT", ""))
-	if b := align(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared || b.OctaveFold != 0 {
+	if b := alignOf(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared || b.OctaveFold != 0 {
 		t.Errorf("OCT = %+v", b)
 	}
 	// measured and octave-ambiguous: 64 folds toward A's 92 (Fold(92, 64) = +1 -> 128)
 	r.insertFeature("MONO", "bpm_x100,bpm_basis,bpm_measured_x100,bpm_octave", "6400,'measured',6400,1")
 	pl = r.mustBuild(pair("A", "MONO", ""))
-	if b := align(pl, 1); b.BPM != 128 || b.BPMSource != SrcMeasured || b.OctaveFold != 1 {
+	if b := alignOf(pl, 1); b.BPM != 128 || b.BPMSource != SrcMeasured || b.OctaveFold != 1 {
 		t.Errorf("MONO = %+v", b)
 	}
 	if !slices.Contains(codes(pl.Warnings), WarnTempoOctaveFolded) {
@@ -135,7 +136,7 @@ func TestResolve_Ladder(t *testing.T) {
 	}
 	// the same take as A folds toward B instead (A is the one folded when it is the ambiguous one)
 	pl = r.mustBuild(pair("MONO", "B", ""))
-	if a := align(pl, 0); a.BPM != 128 || a.OctaveFold != 1 {
+	if a := alignOf(pl, 0); a.BPM != 128 || a.OctaveFold != 1 {
 		t.Errorf("MONO as A = %+v", a)
 	}
 	// confidence: 0.29 warns, 0.30 does not, both are accepted
@@ -149,7 +150,7 @@ func TestResolve_Ladder(t *testing.T) {
 		if got := slices.Contains(codes(pl.Warnings), WarnTempoMeasuredLowConfidence); got != c.warn {
 			t.Errorf("%s: low-confidence warning = %v, want %v", c.label, got, c.warn)
 		}
-		if b := align(pl, 1); b.BPM != 100 || b.BPMSource != SrcMeasured {
+		if b := alignOf(pl, 1); b.BPM != 100 || b.BPMSource != SrcMeasured {
 			t.Errorf("%s = %+v", c.label, b)
 		}
 	}
@@ -183,7 +184,7 @@ func TestResolve_Key(t *testing.T) {
 	r.exec(`UPDATE take_features SET key_num = 8, key_letter = 'A', key_basis = 'measured' WHERE track_id = ?`, r.tx("A"))
 	r.insertFeature("B", "key_num,key_letter,key_basis", "10,'B','declared'")
 	pl = r.mustBuild(q(""))
-	if a, b := align(pl, 0), align(pl, 1); a.KeyPC != 9 || !a.KeyMinor || a.KeySource != "measured" || b.KeyPC != 2 || b.KeyMinor || b.KeySource != "declared" {
+	if a, b := alignOf(pl, 0), alignOf(pl, 1); a.KeyPC != 9 || !a.KeyMinor || a.KeySource != "measured" || b.KeyPC != 2 || b.KeyMinor || b.KeySource != "declared" {
 		t.Errorf("keys %+v %+v", a, b)
 	}
 	if string(paramsMap(pl.Res.Params)["semitones_b"]) != "-2" {
@@ -193,13 +194,13 @@ func TestResolve_Key(t *testing.T) {
 		t.Error("a known key warned")
 	}
 	// B's feature row names no tempo, so the declared one on the Take is used
-	if b := align(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared {
+	if b := alignOf(pl, 1); b.BPM != 128 || b.BPMSource != SrcDeclared {
 		t.Errorf("B tempo %+v", b)
 	}
 	// explicit semitones_b skips the ladder; key_policy none too
 	pl = r.mustBuild(q(`,"semitones_b":3.5`))
-	if string(paramsMap(pl.Res.Params)["semitones_b"]) != "3.5" || align(pl, 0).KeySource != "" {
-		t.Errorf("explicit: %s %+v", paramsMap(pl.Res.Params)["semitones_b"], align(pl, 0))
+	if string(paramsMap(pl.Res.Params)["semitones_b"]) != "3.5" || alignOf(pl, 0).KeySource != "" {
+		t.Errorf("explicit: %s %+v", paramsMap(pl.Res.Params)["semitones_b"], alignOf(pl, 0))
 	}
 	pl = r.mustBuild(q(`,"key_policy":"none"`))
 	if _, ok := paramsMap(pl.Res.Params)["semitones_b"]; ok && string(paramsMap(pl.Res.Params)["semitones_b"]) != "0" {
@@ -339,12 +340,12 @@ func TestResolve_DownbeatRequired(t *testing.T) {
 	}
 	// the plan bar grid of S anchors B without a number; no downbeat_source is guessed for A
 	pl := r.mustBuild(pair("A", "S", `,"downbeat_a_s":0.5`))
-	if b := align(pl, 1); b.PlanBarS == nil || b.DownbeatS != nil || b.DownbeatAuto {
+	if b := alignOf(pl, 1); b.PlanBarS == nil || b.DownbeatS != nil || b.DownbeatAuto {
 		t.Errorf("S = %+v", b)
 	}
 	// auto opts in and warns
 	pl = r.mustBuild(pair("A", "B", `,"downbeat_a_s":"auto","downbeat_b_s":0.1`))
-	if a := align(pl, 0); !a.DownbeatAuto || a.DownbeatS != nil {
+	if a := alignOf(pl, 0); !a.DownbeatAuto || a.DownbeatS != nil {
 		t.Errorf("A = %+v", a)
 	}
 	if w := codes(pl.Warnings); !slices.Contains(w, WarnDownbeatAuto) || !slices.Contains(w, WarnBeatPhasePending) {
@@ -369,7 +370,7 @@ func TestResolve_PairLimits(t *testing.T) {
 	pl := r.mustBuild(r.morphAB(`,"bars":2,"a_at":{"bar":1},"b_at":{"bar":0}`))
 	barA := 4 * 60 / 92.0
 	tA := 0.4 + barA
-	total := rampTotal(92, 128, 8)
+	total := dalign.Ramp{T0: 92, T1: 128, Beats: 8}.Total()
 	bTail := 0.2 + 8*60/128.0
 	if want := tA + total + (20 - bTail); math.Abs(pl.Res.OutS-want) > 1e-9 {
 		t.Errorf("out %v, want %v", pl.Res.OutS, want)

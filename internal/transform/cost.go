@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"math"
 	"math/bits"
+
+	"github.com/nicolasacchi/metamusic/internal/dsp/align"
+	"github.com/nicolasacchi/metamusic/internal/dsp/ir"
+	"github.com/nicolasacchi/metamusic/internal/dsp/ops"
 )
 
 // The cost model of C209. Every number here is integer arithmetic (CPU budgets are integer milliseconds), so the estimate is the
@@ -18,12 +22,14 @@ type CostConstants struct {
 	NSPerUnitMilli int64
 	// DecodeMSPerS, EncodeMSPerS, IngestMSPerS, ToolMSPerS are milliseconds of CPU per second of audio.
 	DecodeMSPerS, EncodeMSPerS, IngestMSPerS, ToolMSPerS int64
-	// SafetyUnitsPerFrame is the work of the loudness stage: LUFS plus limiter, about 30 units per frame.
+	// SafetyUnitsPerFrame is the work of the loudness stage (safety.Finish), per frame.
 	SafetyUnitsPerFrame int64
 }
 
 // DefaultCosts is PROVISIONAL(T1-X0 step 5): the starting values of C209.2.
-var DefaultCosts = CostConstants{NSPerUnitMilli: 1200, DecodeMSPerS: 3, EncodeMSPerS: 10, IngestMSPerS: 30, ToolMSPerS: 40, SafetyUnitsPerFrame: 30}
+//
+// SafetyUnitsPerFrame is 700, measured by lane H1 (ops.SafetyUnits; was 30 in the plan). T1-B2b.
+var DefaultCosts = CostConstants{NSPerUnitMilli: 1200, DecodeMSPerS: 3, EncodeMSPerS: 10, IngestMSPerS: 30, ToolMSPerS: 40, SafetyUnitsPerFrame: ops.SafetyUnits(1)}
 
 // The phase-vocoder geometry the unit model assumes. PROVISIONAL(T1-X0 step 5 / lane D2): D2 may choose another window; the
 // model then moves with it. A frame advances by pvWindow/pvHopDiv samples.
@@ -128,12 +134,9 @@ func unitsPolytempo(in UnitsIn) int64 {
 	return pvSignalUnits(in.OutFrames, in.Channels) + 10*in.OutFrames*int64(in.Channels) + safetyUnits(in.OutFrames)
 }
 
-// unitsGlacier: F x ch x (2 FFT(N) + 20 N) with N the window and F = outLen/(N/2) + 1.
+// unitsGlacier is D4's GlacierUnits (the operator's own price of C209.1) plus safety.
 func unitsGlacier(in UnitsIn) int64 {
-	m := paramsMap(in.Resolved)
-	n := nextPow2(int64(math.Round(paramFloat(m, "window_s", 0.5) * float64(in.Rate))))
-	f := ceilDiv(in.OutFrames, n/2) + 1
-	return f*int64(in.Channels)*(2*fftUnits(n)+20*n) + safetyUnits(in.OutFrames)
+	return ops.GlacierUnits(in.OutFrames, in.Rate, paramFloat(paramsMap(in.Resolved), "window_s", 0.5)) + safetyUnits(in.OutFrames)
 }
 
 // unitsShepard: F x ch x ((1 + layers) FFT(N) + layers x 40 N).
@@ -142,27 +145,21 @@ func unitsShepard(in UnitsIn) int64 {
 	return pvFrames(in.OutFrames)*int64(in.Channels)*((1+layers)*fftUnits(pvWindow)+layers*40*pvWindow) + safetyUnits(in.OutFrames)
 }
 
-// ensembleTailFrames is the room tail the estimate assumes: the tail cut at -70 dB, bounded by tail_s.
+// ensembleTailFrames is the room tail the estimate assumes: D4's upper bound of the generated tail (ir.TailBound: pre-delay,
+// 70/60 of the slowest band's decay and the onset rise), cut at tail_s. Measured by D4: the effective cathedral tail is about
+// 11.6 s, which the former rt60 x 70/60 (10.5 s) under-promised by about 10 %. T1-B2b.
 func ensembleTailFrames(m map[string]json.RawMessage, rate int) int64 {
-	tail := paramFloat(m, "tail_s", 20)
-	rt60 := map[string]float64{"cathedral": 9, "cistern": 18, "hangar": 5, "canyon": 12}[paramString(m, "space")]
-	if rt60 > 0 {
-		tail = min(tail, rt60*70/60) // -70 dB is reached after 70/60 of the rt60
+	room, ok := ir.Preset(paramString(m, "space"))
+	if !ok {
+		room, _ = ir.Preset("cathedral")
 	}
-	return int64(math.Ceil(tail * float64(rate)))
+	return int64(min(ir.TailBound(room, rate), int(math.Round(paramFloat(m, "tail_s", 20)*float64(rate)))))
 }
 
-// unitsEnsemble: F x ch x ((1+V) FFT(N) + V 40 N + 25 N), plus the IR (7 FFT(2^k) + 20 IRlen) and the convolution per channel
-// (modelled as two FFTs of the padded length per channel).
+// unitsEnsemble is D4's EnsembleUnits (voices, room, convolution) plus safety.
 func unitsEnsemble(in UnitsIn) int64 {
 	m := paramsMap(in.Resolved)
-	v := int64(ensembleVoices)
-	f := pvFrames(in.InFrames)
-	voices := f * int64(in.Channels) * ((1+v)*fftUnits(pvWindow) + v*40*pvWindow + 25*pvWindow)
-	irLen := ensembleTailFrames(m, in.Rate)
-	ir := 7*fftUnits(nextPow2(irLen)) + 20*irLen
-	conv := int64(in.Channels) * 2 * fftUnits(nextPow2(in.InFrames+irLen))
-	return voices + ir + conv + safetyUnits(in.OutFrames)
+	return ops.EnsembleUnits(in.InFrames, in.Rate, ops.EnsembleParams{Space: paramString(m, "space"), TailS: paramFloat(m, "tail_s", 20)}) + safetyUnits(in.OutFrames)
 }
 
 // rampFrames is the length in frames of the morph transition: ramp.Total() of C204.6 for the resolved bars, tempos and
@@ -175,17 +172,7 @@ func rampFrames(m map[string]json.RawMessage, rate int) int64 {
 	if t0 <= 0 || t1 <= 0 {
 		return 0
 	}
-	return int64(math.Ceil(rampTotal(t0, t1, float64(bars*bpb)) * float64(rate)))
-}
-
-// rampTotal is Total() of the tempo ramp T(beta) = T0 r^(beta/B), r = T1/T0, over B beats: 60 B (1 - 1/r) / (T0 ln r), or
-// 60 B / T0 when r = 1 (C204.6). It is a copy of the closed form because the alignment package is not part of this lane.
-func rampTotal(t0, t1, beats float64) float64 {
-	r := t1 / t0
-	if math.Abs(math.Log(r)) < 1e-12 {
-		return 60 * beats / t0
-	}
-	return 60 * beats * (1 - 1/r) / (t0 * math.Log(r))
+	return int64(math.Ceil(align.Ramp{T0: t0, T1: t1, Beats: float64(bars * bpb)}.Total() * float64(rate)))
 }
 
 // planCPU turns the unit model of a kind into the CPU plan of one transform.
