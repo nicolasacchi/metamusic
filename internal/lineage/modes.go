@@ -77,6 +77,10 @@ var Modes = []ModeSpec{
 	{Mode: ModeFromDraft, Operator: OpFromDraft, Seeds: SeedsDraftNew, Parent: "optional"},
 	{Mode: ModeComposeNew, Operator: OpComposeNew, Seeds: SeedsRecipeNew, Parent: "none"},
 	{Mode: ModeFromTemplate, Parent: "many"},
+}
+
+// M5Modes are the rows M5 adds to the M3 table (C253.4); kept apart so the M3 table stays the seven original rows.
+var M5Modes = []ModeSpec{
 	// song_pr: the base is the patch's base take, the item's own patch is forbidden (the stored patch applies), seeds are the base
 	// seed plus n-1 new ones (n <= 4). Operator is "" here like from_template: the planner uses the stored patch's operator.
 	{Mode: ModeSongPR, Seeds: SeedsParentNew, Parent: "required", Engines: []string{EngineYuE2}},
@@ -90,6 +94,11 @@ func Spec(mode string) (ModeSpec, bool) {
 		}
 	}
 	for _, m := range E2Modes {
+		if m.Mode == mode {
+			return m, true
+		}
+	}
+	for _, m := range M5Modes {
 		if m.Mode == mode {
 			return m, true
 		}

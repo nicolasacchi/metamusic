@@ -25,7 +25,6 @@ func TestModes_Table(t *testing.T) {
 		ModeFromDraft:    {OpFromDraft, false, [5]Rule{}, SeedsDraftNew, "optional"},
 		ModeComposeNew:   {OpComposeNew, false, [5]Rule{}, SeedsRecipeNew, "none"},
 		ModeFromTemplate: {"", false, [5]Rule{}, "", "many"},
-		ModeSongPR:       {"", false, [5]Rule{}, SeedsParentNew, "required"},
 	}
 	if len(Modes) != len(want) {
 		t.Fatalf("%d rows, want %d", len(Modes), len(want))
