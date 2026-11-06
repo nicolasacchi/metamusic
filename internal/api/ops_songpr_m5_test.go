@@ -17,14 +17,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// implementedSongPRM5 lists the M5 operations whose 501 stub lane M5-S1 has replaced (ids from m5Ops in ops_m5_test.go). The lane
-// covers the behaviour in its own tests (songpr/*_test.go, TestSongPR_REST); it owns this file alone.
-var implementedSongPRM5 = map[string]bool{"propose_patch": true, "get_patch": true, "list_patches": true}
-
-// noObjectSongPRM5 lists the {id} reads the L1 leak sweep (ops_l1_leaks_test.go) has no object for in its rig; the lane deletes the
-// entry when INT-B's M5 sweep covers the operation.
-var noObjectSongPRM5 = map[string]bool{"get_patch": true}
-
 func songPRRig(t *testing.T) (*rig, lt.M5Info) {
 	t.Helper()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "s.db"))

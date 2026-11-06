@@ -23,9 +23,7 @@ type m5Op struct {
 	status                    int    // success status; 0 => 200
 	body                      int    // MaxBodyBytes; 0 => no body
 	component                 string // the 503 UNAVAILABLE component
-	task                      string // the lane that replaces the stub (details.task of the 501)
 	reqBody                   string // a body that passes validation
-	query                     string // a query string that passes validation
 }
 
 const m5Voice = 6 << 20
@@ -33,30 +31,18 @@ const m5Voice = 6 << 20
 // The C260 table, frozen by M5-F2. No M5 operation is a dedicated MCP tool (operator decision, L2/L3 precedent):
 // eight are generic, create_voice_note is excluded (a human recording, box B5).
 var m5Ops = []m5Op{
-	{id: "propose_patch", method: "POST", path: "/api/patches", scope: auth.ScopeWrite, mcp: "generic", ui: "/tracks/:id", create: true, status: 201, body: 64 * kib, component: "songpr", task: "M5-S1",
+	{id: "propose_patch", method: "POST", path: "/api/patches", scope: auth.ScopeWrite, mcp: "generic", ui: "/tracks/:id", create: true, status: 201, body: 64 * kib, component: "songpr",
 		reqBody: `{"base_track_id":"t","addresses_comment_ids":["c"],"rationale":"r","ops":[{"op":"set_style","style":"x"}]}`},
-	{id: "get_patch", method: "GET", path: "/api/patches/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/patches/:id", component: "songpr", task: "M5-S1"},
-	{id: "list_patches", method: "GET", path: "/api/patches", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "songpr", task: "M5-S1"},
-	{id: "list_callbacks", method: "GET", path: "/api/callbacks", scope: auth.ScopeRead, mcp: "generic", ui: "/judge/callbacks", component: "callbacks", task: "M5-C1"},
-	{id: "get_callback", method: "GET", path: "/api/callbacks/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/judge/callbacks/:id", component: "callbacks", task: "M5-C1"},
-	{id: "submit_callback_verdict", method: "POST", path: "/api/callbacks/{id}/verdicts", scope: auth.ScopeWrite, mcp: "generic", ui: "/judge/callbacks/:id", status: 201, body: 64 * kib, component: "callbacks", task: "M5-C1",
+	{id: "get_patch", method: "GET", path: "/api/patches/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/patches/:id", component: "songpr"},
+	{id: "list_patches", method: "GET", path: "/api/patches", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "songpr"},
+	{id: "list_callbacks", method: "GET", path: "/api/callbacks", scope: auth.ScopeRead, mcp: "generic", ui: "/judge/callbacks", component: "callbacks"},
+	{id: "get_callback", method: "GET", path: "/api/callbacks/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/judge/callbacks/:id", component: "callbacks"},
+	{id: "submit_callback_verdict", method: "POST", path: "/api/callbacks/{id}/verdicts", scope: auth.ScopeWrite, mcp: "generic", ui: "/judge/callbacks/:id", status: 201, body: 64 * kib, component: "callbacks",
 		reqBody: `{"verdict":"fixed"}`},
-	{id: "get_listen_heat", method: "GET", path: "/api/tracks/{id}/heat", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "attention", task: "M5-A1"},
-	{id: "suggest_duel_pairs", method: "GET", path: "/api/duels/suggestions", scope: auth.ScopeRead, mcp: "generic", ui: "/duels", component: "duels", task: "M5-D1"},
-	{id: "create_voice_note", method: "POST", path: "/api/tracks/{id}/voice-notes", scope: auth.ScopeWrite, mcp: "exclude:human-recording", ui: "/tracks/:id", create: true, status: 201, body: m5Voice, component: "voice", task: "M5-V1",
+	{id: "get_listen_heat", method: "GET", path: "/api/tracks/{id}/heat", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "attention"},
+	{id: "suggest_duel_pairs", method: "GET", path: "/api/duels/suggestions", scope: auth.ScopeRead, mcp: "generic", ui: "/duels", component: "duels"},
+	{id: "create_voice_note", method: "POST", path: "/api/tracks/{id}/voice-notes", scope: auth.ScopeWrite, mcp: "exclude:human-recording", ui: "/tracks/:id", create: true, status: 201, body: m5Voice, component: "voice",
 		reqBody: `{"audio_base64":"AAAA"}`},
-}
-
-// implementedM5 merges the per-lane tables (ops_<lane>_m5_test.go): a lane that takes an operation over adds it to its own map,
-// so parallel lanes never edit the same lines.
-func implementedM5() map[string]bool {
-	all := map[string]bool{}
-	for _, m := range []map[string]bool{implementedSongPRM5, implementedCallbacksM5, implementedAttentionM5, implementedDuelsM5, implementedVoiceM5} {
-		for id := range m {
-			all[id] = true
-		}
-	}
-	return all
 }
 
 func m5Deps() api.Deps {
@@ -66,9 +52,6 @@ func m5Deps() api.Deps {
 
 func m5Call(r *rig, p auth.Principal, w m5Op) (int, map[string]any) {
 	path := strings.NewReplacer("{id}", "x").Replace(w.path)
-	if w.query != "" {
-		path += "?" + w.query
-	}
 	rec := r.callWith(p, w.method, path, w.reqBody, idemHdr(w.create)...)
 	var m map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &m)
@@ -171,25 +154,6 @@ func TestOps_BodyLimitsM5(t *testing.T) {
 		}
 		if hasBody := o.RequestBody != nil; hasBody != (w.body != 0) {
 			t.Errorf("%s: request body = %v but limit = %d", w.id, hasBody, w.body)
-		}
-	}
-}
-
-// TestOps_StubsAnswer501M5: an operation whose lane has not landed answers 501 NOT_IMPLEMENTED naming the lane (details.task).
-// A lane that takes an operation over adds it to its own implemented<Lane>M5 map (ops_<lane>_m5_test.go) and covers the behaviour
-// in its own tests.
-func TestOps_StubsAnswer501M5(t *testing.T) {
-	t.Parallel()
-	r := m5Rig(t, m5Deps())
-	done := implementedM5()
-	for _, w := range m5Ops {
-		if done[w.id] {
-			continue
-		}
-		code, body := m5Call(r, m5Agent(auth.ScopeRead, auth.ScopeWrite), w)
-		d, _ := body["details"].(map[string]any)
-		if code != 501 || body["code"] != "NOT_IMPLEMENTED" || d["task"] != w.task {
-			t.Errorf("%s: %d %v, want 501 NOT_IMPLEMENTED task %s", w.id, code, body, w.task)
 		}
 	}
 }

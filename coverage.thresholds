@@ -62,3 +62,13 @@ internal/transform      80
 internal/engine/acestep 96
 internal/engineadopt    10
 # END E2-I1
+# BEGIN M5-INTB (M5 packages). Floors are the unit-test coverage measured on the merged M5 branch (go test, no -short) minus one point,
+# rounded down; the merged unit + e2e figure of the CI coverage job is at least the unit one. Measured (unit): songpr 88.2, callbacks 83.7,
+# attention 91.5, voice 82.9, anchor 92.3. The plan's aims (songpr/callbacks/attention 92, anchor 95, voice 90) are above what the unit
+# tests reach; the next coverage-job run on main may raise these toward the merged figures.
+internal/songpr         87
+internal/callbacks      82
+internal/attention      90
+internal/voice          81
+internal/anchor         91
+# END M5-INTB

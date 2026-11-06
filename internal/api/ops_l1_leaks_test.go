@@ -97,7 +97,15 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 			}
 		}
 	}
+	// M5: a Song PR with a callback on a second take, so the sweep reaches get_patch and get_callback (INT-B)
+	var child string
+	if err := r.Store.R.QueryRow(`SELECT id FROM tracks WHERE id <> ? ORDER BY id LIMIT 1`, track).Scan(&child); err != nil {
+		t.Fatal(err)
+	}
+	callbackID, _ := seedCallback(t, r, track, child)
+	patchID := q1(r, `SELECT patch_id FROM callbacks WHERE id = '`+callbackID+`'`)
 	ids := map[string]string{
+		"/api/patches/": patchID, "/api/callbacks/": callbackID,
 		"/api/tracks/": track, "/api/drafts/": draft, "/api/muses/": c.ID, "/api/songs/": c.SongID,
 		"/api/batches/": q1(r, `SELECT id FROM batches ORDER BY id LIMIT 1`), "/api/jobs/": q1(r, `SELECT id FROM jobs ORDER BY id LIMIT 1`),
 		"/api/duels/": q1(r, `SELECT id FROM duels ORDER BY id LIMIT 1`), "/api/imports/": q1(r, `SELECT id FROM import_runs ORDER BY id LIMIT 1`),
@@ -108,12 +116,6 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 	// sweeps them with the L2 fixture and the canary Muse (C127.4).
 	noObject := map[string]bool{"get_duel": true, "get_record": true, "get_record_changes": true, "get_crate": true, "get_tape": true,
 		"get_transform": true, "wait_for_transform": true} // T1: the rig holds no transforms; the 501 stubs have nothing to leak
-	// M5 {id} operations have no object in this rig either; each lane owns its entries (noObject<Lane>M5), INT-B sweeps them.
-	for _, m := range []map[string]bool{noObjectSongPRM5, noObjectCallbacksM5} {
-		for id := range m {
-			noObject[id] = true
-		}
-	}
 	called := map[string]bool{}
 	for _, op := range api.Operations(r.API) {
 		if op.Method != "GET" || op.Meta.HumanOnly || op.Path == "/api/openapi.json" {
@@ -152,7 +154,7 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 		}
 	}
 	// the allowlisted operations really do show the canary (the sweep is not vacuous)
-	for _, id := range []string{"list_muses", "get_muse", "get_song", "get_muse_board", "get_track_context"} {
+	for _, id := range []string{"list_muses", "get_muse", "get_song", "get_muse_board", "get_track_context", "get_patch", "get_callback", "list_patches", "list_callbacks"} {
 		if !called[id] {
 			t.Errorf("%s was not swept", id)
 		}
