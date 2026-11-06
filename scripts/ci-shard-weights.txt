@@ -136,3 +136,4 @@
 ./internal/enginetrial 10
 ./internal/suites 10
 # END E2-I1 provisional weights
+./internal/voice 30
