@@ -1,4 +1,5 @@
 # pcm_sha256 of the 24-bit render of each kind through ops.Run (operator plus safety) on a fixed synthetic job, seed 7. linux/amd64, GOAMD64=v1.
+binaural 5c7787138b53359d94c0c54785fb74911171dbfb08a54318041151abd8c36c54
 ensemble 8e2180ee48c7806d13795278c2fc3217870450ffe176888d96f0130830d91d55
 glacier cee45be4bc3abc0169d30077342193ceff92507bde7b72dbb38a5023520f936c
 master 8a5a2c0cf7cf5911a2a0a7d468ab47453dfc47ab6b1ca4e7b6f88b161839d9b0

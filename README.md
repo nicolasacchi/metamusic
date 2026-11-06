@@ -141,3 +141,7 @@ must never be committed; `make gate` (also run by the git hooks and CI) enforces
 ## Licence
 
 [MIT](LICENSE)
+
+Third-party data: the `binaural` transform embeds a derived head-related impulse response table
+(`internal/dsp/hrtf/table.q15`) built from the SADIE II database (University of York, Apache-2.0). Notice and credit:
+`internal/dsp/hrtf/NOTICE` and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
