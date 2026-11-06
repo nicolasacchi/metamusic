@@ -27,7 +27,7 @@ func isVariant(mode string) bool {
 	case lineage.ModeNewSeed, lineage.ModeSameSeedEdit, lineage.ModeLyricEdit, lineage.ModeStyleEdit:
 		return true
 	}
-	return false
+	return isE2Mode(mode) // the E2 modes derive from a parent take as well (titles, create_variant shape)
 }
 
 // itemTakeCount is how many takes an item expands to; it needs no database.
@@ -40,6 +40,10 @@ func itemTakeCount(it Item) int {
 		}
 	}
 	switch it.Mode {
+	case lineage.ModeStems:
+		return stemCount(it) // one job per name (D-E2-11)
+	case lineage.ModeComplete:
+		return 1
 	case lineage.ModeFromDraft:
 		return per * len(it.DraftIDs)
 	case lineage.ModeFromTemplate:
@@ -48,10 +52,17 @@ func itemTakeCount(it Item) int {
 	return per
 }
 
-func validateItem(i int, it Item) error {
-	spec, ok := lineage.Spec(it.Mode)
-	if !ok {
+func validateItem(i int, it Item, eng engine.Engine) error {
+	engineName := eng.Name()
+	if _, ok := lineage.Spec(it.Mode); !ok {
 		return invalidItem(i, "mode", "unknown_mode")
+	}
+	spec, ok := lineage.SpecFor(it.Mode, engineName)
+	if !ok {
+		return engineCapabilityErr(engineName, it.Mode, "mode")
+	}
+	if err := checkModeCaps(eng, it.Mode); err != nil {
+		return err
 	}
 	notAllowed := func(field string, present bool) error {
 		if present {
@@ -62,6 +73,10 @@ func validateItem(i int, it Item) error {
 	hasParent := it.ParentTrackID != nil && *it.ParentTrackID != ""
 	var errs []error
 	switch {
+	case isE2Mode(it.Mode):
+		if err := validateE2Shape(i, it, hasParent); err != nil {
+			return err
+		}
 	case isVariant(it.Mode):
 		if !hasParent {
 			return invalidItem(i, "parent_track_id", "required")
@@ -106,10 +121,16 @@ func validateItem(i int, it Item) error {
 	// patch rules of the mode (a template borrows its inner mode's row)
 	ps := spec
 	if it.Mode == lineage.ModeFromTemplate {
-		ps, _ = lineage.Spec(it.TemplateMode)
+		var ok bool
+		if ps, ok = lineage.SpecFor(it.TemplateMode, engineName); !ok {
+			return engineCapabilityErr(engineName, it.TemplateMode, "mode")
+		}
+		if err := checkModeCaps(eng, it.TemplateMode); err != nil {
+			return err
+		}
 	}
 	if it.Mode != lineage.ModeFromDraft && it.Mode != lineage.ModeComposeNew {
-		if f, r := ps.CheckPatch(it.Patch); f != "" {
+		if f, r := checkPatchFor(ps, engineName, it); f != "" {
 			return invalidItem(i, f, r)
 		}
 	}
@@ -128,6 +149,9 @@ func validateItem(i int, it Item) error {
 			return invalidItem(i, "seeds", "duplicate")
 		}
 		seen[s] = true
+	}
+	if isE2Mode(it.Mode) && spec.Seeds == lineage.SeedsParentOnly && (it.NSeeds > 1 || len(it.Seeds) > 0) {
+		return invalidItem(i, "n_seeds", "parent_seed_only") // complete and stems render the parent's seed; stems is one job per name
 	}
 	single := it.Mode == lineage.ModeSameSeedEdit || (it.Mode == lineage.ModeFromTemplate && it.TemplateMode == lineage.ModeSameSeedEdit)
 	if single && it.NSeeds > 1 {
@@ -166,13 +190,13 @@ func uniqueStrings(i int, field string, ids []string) error {
 type trackInfo struct {
 	ID, Title, Status, RecipeID, RequestJSON string
 	Seed                                     int64
+	Engine                                   string // recipes.engine of the take (E2)
 }
 
 func loadTrack(ctx context.Context, q lineage.Querier, id string) (trackInfo, bool, error) {
 	t := trackInfo{ID: id}
-	var engineName string
 	err := q.QueryRowContext(ctx, `SELECT t.title, t.status, t.recipe_id, r.request_json, r.seed, r.engine FROM tracks t JOIN recipes r ON r.id = t.recipe_id WHERE t.id = ?`, id).
-		Scan(&t.Title, &t.Status, &t.RecipeID, &t.RequestJSON, &t.Seed, &engineName)
+		Scan(&t.Title, &t.Status, &t.RecipeID, &t.RequestJSON, &t.Seed, &t.Engine)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, false, nil
 	}
@@ -247,11 +271,21 @@ func mothers(it Item) []string {
 	return append(out, it.ParentTrackIDs...)
 }
 
+// sources are the tracks an item reads as audio or recipe: its mothers and, for the E2 modes, the track it references. A
+// reference track is never a mother, a source or a reference (C149.1).
+func sources(it Item) []string {
+	out := mothers(it)
+	if it.Reference != nil && it.Reference.TrackID != "" {
+		out = append(out, it.Reference.TrackID)
+	}
+	return out
+}
+
 // checkMothers refuses reference and lossy mothers before anything else is computed (D-M3-34).
 func (s *Service) checkMothers(ctx context.Context, items []Item) error {
 	seen := map[string]bool{}
 	for _, it := range items {
-		for _, id := range mothers(it) {
+		for _, id := range sources(it) {
 			if seen[id] {
 				continue
 			}
@@ -279,6 +313,9 @@ type planner struct {
 	q       lineage.Querier
 	eng     engine.Engine
 	backend string
+	engName string // the batch engine's name (E2)
+	ace     bool   // the batch engine is not yue2: items expand through expand_e2.go
+	trial   string // options.trial_id, carried into the mutation params (C158.2)
 
 	takes    []*planTake
 	items    [][]int // take indexes per input item
@@ -290,6 +327,9 @@ type planner struct {
 	failures []lintFailure
 	reused   map[string]bool // draft recipes already claimed by a take of this estimate
 	err      error           // the first failed lookup inside a callback
+
+	refs map[string]library.TrackRef // media facts of source and reference tracks (inputs.go)
+	e2   map[int]*takeE2             // per take index: the engine facts the estimate reports (expand_e2.go)
 }
 
 type lintFailure struct {
@@ -371,6 +411,7 @@ type base struct {
 	patch  *lineage.Patch
 	via    *string
 	label  string
+	ace    *aceCtx // the ACE-Step facts of an E2 base (expand_e2.go); nil for yue2
 }
 
 // codec is the engine's recipe codec (C163); an engine without one cannot be planned.
@@ -405,8 +446,12 @@ func (p *planner) derive(b base, params lineage.Params) (engine.Recipe, error) {
 	if err != nil {
 		return engine.Recipe{}, err
 	}
-	return c.ApplyMode(b.rec, engine.ModeParams{Mode: params.Mode, Operator: b.spec.Operator, SeedPolicy: params.SeedPolicy,
-		NSeeds: params.NSeeds, Seed: params.Seed, ID: params.ID}, b.patch)
+	mp := engine.ModeParams{Mode: params.Mode, Operator: b.spec.Operator, SeedPolicy: params.SeedPolicy,
+		NSeeds: params.NSeeds, Seed: params.Seed, ID: params.ID}
+	if b.ace != nil {
+		return c.ApplyMode(b.rec, mp, b.ace.patch) // the engine's own typed patch
+	}
+	return c.ApplyMode(b.rec, mp, b.patch)
 }
 
 func (p *planner) expandAll(items []Item) error {
@@ -424,6 +469,8 @@ func (p *planner) expandAll(items []Item) error {
 					return err
 				}
 			}
+		case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems:
+			err = p.expandE2(i, it)
 		case lineage.ModeComposeNew:
 			err = p.expandCompose(i, it)
 		case lineage.ModeFromTemplate:
@@ -460,8 +507,8 @@ func (p *planner) expandVariant(i int, it Item, mode, parentID string, via *stri
 	if err != nil {
 		return fmt.Errorf("generation: parent recipe of %s: %w", parentID, err)
 	}
-	spec, _ := lineage.Spec(mode)
-	return p.expandBase(base{item: i, it: it, mode: mode, spec: spec, rec: rec, parent: &t, patch: it.Patch, via: via})
+	spec, _ := lineage.SpecFor(mode, p.engName)
+	return p.expandAny(base{item: i, it: it, mode: mode, spec: spec, rec: rec, parent: &t, patch: it.Patch, via: via})
 }
 
 func (p *planner) expandDraft(i int, it Item, d draftInfo) error {
@@ -486,6 +533,9 @@ func (p *planner) expandDraft(i int, it Item, d draftInfo) error {
 }
 
 func (p *planner) expandCompose(i int, it Item) error {
+	if p.ace {
+		return p.expandComposeACE(i, it)
+	}
 	raw := []byte(it.Recipe)
 	errs, warns := lineage.Lint(raw)
 	if len(errs) == 0 {

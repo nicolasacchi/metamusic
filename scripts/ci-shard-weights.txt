@@ -39,6 +39,7 @@
 ./internal/media/clip 26
 ./internal/connectors 26
 ./internal/dsp 25
+./internal/dsp/pv 25
 ./internal/trackctx 20
 ./internal/transform 19
 ./internal/duels 19
