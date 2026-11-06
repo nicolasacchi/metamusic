@@ -43,6 +43,7 @@ const androidFirefox = (policy: number) => ({
 // clips are always available, and nothing may skip on a missing tool.
 //   m2a-comments   x3  firefox          runs only the "jump:" tests (C41 budget)
 //   m2a-human      x4  pixel7, iphone15 the two pairing tests run on desktop chrome only (pairing codes are global)
+//   e2-repaint     x1  desktop chrome  the touch-drag test needs touch input over the DevTools protocol (touch devices on Chromium only)
 //   m2b-duels      x19 each mobile project skips 9 (8 keyboard/desktop-only tests and the serial queue/skip test,
 //                      which is chrome only) = 18; desktop chrome skips the mobile-toggle test = 1
 // A new skip needs a reason of this kind; anything capability- or environment-related must fail instead.

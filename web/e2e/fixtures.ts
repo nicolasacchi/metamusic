@@ -5,9 +5,9 @@
 import { test as base } from "@playwright/test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { HEADERS } from "./env";
-import { copyTree, specEnv, startServer, stopServer, type RunningServer } from "./server";
+import { copyTree, serverEnv, specEnv, startServer, stopServer, type RunningServer } from "./server";
 
 export * from "@playwright/test";
 
@@ -15,6 +15,19 @@ export interface WorkerServer {
   url: string;
   /** The unpacked seed archive of this server (byte-identity export check). */
   seedDir: string;
+  /** The environment this server runs with, for operator CLI calls against its data dir (e2Api.adoptEngine). */
+  env: Record<string, string>;
+}
+
+/**
+ * Extra server environment of a spec file. The e2-* specs run the second engine: MM_ACESTEP=1 over the fake ACE-Step backend,
+ * and, except for the capability matrix spec (which reads the committed features file, text2music only), a features file with
+ * every capability proved (MM_E2E_ACESTEP_FEATURES, honoured only by an MM_E2E server). Other specs run yue2 alone, as before.
+ */
+export function e2SpecEnv(file: string): Record<string, string> {
+  const name = basename(file);
+  if (!name.startsWith("e2-")) return {};
+  return { MM_ACESTEP: "1", ...(name === "e2-engines.spec.ts" ? {} : { MM_E2E_ACESTEP_FEATURES: "all" }) };
 }
 
 class Pool {
@@ -33,8 +46,10 @@ class Pool {
     const dir = mkdtempSync(join(tmpdir(), `mm-e2e-w${this.workerIndex}-`));
     copyTree(join(this.template, "data"), join(dir, "data"));
     copyTree(join(this.template, "secrets"), join(dir, "secrets"));
-    const srv = await startServer(this.bin, join(dir, "data"), join(dir, "secrets"), undefined, specEnv(file));
-    this.cur = { key, srv, dir, server: { url: srv.url, seedDir: join(dir, "data", "inbox-synthetic") } };
+    const extra = { ...specEnv(file), ...e2SpecEnv(file) };
+    const srv = await startServer(this.bin, join(dir, "data"), join(dir, "secrets"), undefined, extra);
+    const env = serverEnv(join(dir, "data"), join(dir, "secrets"), srv.url, extra);
+    this.cur = { key, srv, dir, server: { url: srv.url, seedDir: join(dir, "data", "inbox-synthetic"), env } };
     return this.cur.server;
   }
 

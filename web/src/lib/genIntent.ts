@@ -234,9 +234,12 @@ export function engineIntent(mode: Exclude<EngineMode, "reference">, parentTrack
   return { mode, engine: ACESTEP, parent_track_id: parentTrackId };
 }
 
-/** "Render with this as reference": the window defaults to the server's (the last 20 s) when unset. */
+/**
+ * "Render with this as reference": the window defaults to the server's (the last 20 s) when unset. The server wants the item's
+ * parent (the take whose style and lyrics the render inherits) as well as the reference, and here they are the same take.
+ */
 export function referenceIntent(trackId: string, from_s?: number, to_s?: number): GenerationIntent {
-  return { mode: "reference", engine: ACESTEP, reference: { track_id: trackId, ...(from_s !== undefined ? { from_s } : {}), ...(to_s !== undefined ? { to_s } : {}) } };
+  return { mode: "reference", engine: ACESTEP, parent_track_id: trackId, reference: { track_id: trackId, ...(from_s !== undefined ? { from_s } : {}), ...(to_s !== undefined ? { to_s } : {}) } };
 }
 
 /** The slice of whoami the generation entry points need. */

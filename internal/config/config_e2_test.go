@@ -102,6 +102,16 @@ func TestConfig_ACESTEPWithoutBackendRefused(t *testing.T) {
 	}
 }
 
+func TestConfig_E2EFeaturesSwapNeedsFakeBackend(t *testing.T) {
+	t.Parallel()
+	if _, err := Load(e2env("MM_ACESTEP", "1", "MM_BACKEND", "runpod", "MM_PUBLIC_URL", "https://mm.example.com", "MM_E2E_ACESTEP_FEATURES", "all")); err == nil || !strings.Contains(err.Error(), "requires fake backends") {
+		t.Errorf("runpod: %v", err)
+	}
+	if _, err := Load(e2env("MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_E2E_ACESTEP_FEATURES", "all")); err != nil {
+		t.Errorf("fake: %v", err)
+	}
+}
+
 // TestConfig_ACESTEPTasksNormalised: the task list is a set; order and spaces do not matter and it is stored sorted-by-class.
 func TestConfig_ACESTEPTasksNormalised(t *testing.T) {
 	t.Parallel()

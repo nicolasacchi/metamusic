@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INTENT_KEY, MAX_TAKES, clearIntent, intentToEstimate, loadIntent, saveIntent, validateIntent, type GenerationIntent } from "./genIntent";
+import { INTENT_KEY, MAX_TAKES, clearIntent, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, type GenerationIntent } from "./genIntent";
 
 function store() {
   const m = new Map<string, string>();
@@ -167,5 +167,16 @@ describe("genIntent engine fields (E2)", () => {
     expect(validateIntent({ mode: "complete", parent_track_id: "t", edit: { tracks: ["vocals", "drums", "bass", "synth", "fx"] } })).toMatch(/at most 4/);
     expect(validateIntent({ mode: "repaint", engine: "yue2", parent_track_id: "t", edit: { from_s: 1, to_s: 2 } })).toMatch(/ACE-Step/);
     expect(validateIntent({ mode: "reference" })).toMatch(/reference/);
+  });
+});
+
+describe("referenceIntent", () => {
+  test("the item names the take as its parent and as the reference (the server requires the parent)", () => {
+    const call = intentToEstimate(referenceIntent("t1", 5, 15));
+    expect(call).toEqual({
+      kind: "generation",
+      body: { items: [{ mode: "reference", parent_track_id: "t1", reference: { track_id: "t1", from_s: 5, to_s: 15 } }], engine: "acestep15" },
+    });
+    expect(intentToEstimate(referenceIntent("t1")).kind === "generation" && JSON.stringify(intentToEstimate(referenceIntent("t1")))).toContain('"reference":{"track_id":"t1"}');
   });
 });

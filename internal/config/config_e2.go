@@ -22,6 +22,10 @@ func loadE2(c *Config, getenv func(string) string) error {
 	if c.ACEStep && (c.Backend == "" || c.Backend == BackendNone) {
 		return errors.New("config: MM_ACESTEP=1 needs MM_BACKEND=fake or runpod")
 	}
+	if getenv("MM_E2E_ACESTEP_FEATURES") == "all" && c.Backend != BackendFake {
+		// the e2e features swap offers unverified tasks; it may only ever meet a fake backend, never a GPU one
+		return errors.New("config: MM_E2E_ACESTEP_FEATURES=all requires fake backends (MM_BACKEND=fake)")
+	}
 	n, err := intVar(getenv, "MM_ACESTEP_COLD_START_S", 300, 30, 900)
 	if err != nil {
 		return err

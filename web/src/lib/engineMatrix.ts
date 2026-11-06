@@ -36,8 +36,10 @@ function range(min: number, max: number): string {
 }
 
 function cell(d: Def, e: EngineView): Cell {
-  if (!d.has(e)) return { kind: "no", text: "No" };
+  // The server lists a capability as unverified exactly when its effective cap is off (the verified-features file gates
+  // the caps), so the unverified label has to win over "No" or it would never show.
   if (d.aliases.some((a) => e.features?.unverified?.includes(a))) return { kind: "unverified", text: "not yet verified" };
+  if (!d.has(e)) return { kind: "no", text: "No" };
   return { kind: "yes", text: d.text?.(e) || "Yes" };
 }
 
@@ -56,7 +58,8 @@ export function adoptionText(e: EngineView): string {
   const a = e.adoption;
   if (a.state === "adopted") return `Adopted${a.via ? ` (${a.via})` : ""}`;
   if (a.state === "not_adopted") return "Not adopted";
-  return "Not applicable";
+  // no log row yet: an engine with an adopt hint has simply not been adopted; one without needs no adoption
+  return e.adopt_hint ? "Not adopted" : "Not applicable";
 }
 
 /** One line for an engine's backend. */

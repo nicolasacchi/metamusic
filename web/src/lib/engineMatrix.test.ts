@@ -29,11 +29,18 @@ describe("engineMatrix", () => {
     const e = eng("acestep15", { extend: true }, { features: { unverified: ["extend"], tasks: [], pools: [], models_mode: null, reference_reproducible: false, seed_reproducible: false, verified_at: "" } });
     expect(engineMatrix(list(e)).find((r) => r.key === "extend")!.cells[0])?.toEqual({ kind: "unverified", text: "not yet verified" });
   });
+  test("an unverified feature is labelled even when its cap is off (the server's shape)", () => {
+    const f = { unverified: ["repaint", "reference_audio", "extract", "lrc"], tasks: ["text2music"], pools: [], models_mode: null, reference_reproducible: false, seed_reproducible: false, verified_at: "1970-01-01" };
+    const m = engineMatrix(list(eng("acestep15", {}, { features: f })));
+    for (const k of ["repaint", "reference", "stems", "lrc"]) expect(m.find((r) => r.key === k)!.cells[0]).toEqual({ kind: "unverified", text: "not yet verified" });
+    expect(m.find((r) => r.key === "tempo")!.cells[0]?.kind).not.toBe("unverified");
+  });
   test("max duration unknown is unverified", () => {
     expect(engineMatrix(list(eng("x", { max_seconds: 0 }))).at(-1)!.cells[0]?.kind).toBe("unverified");
   });
   test("adoption and backend text", () => {
     expect(adoptionText(eng("a"))).toBe("Adopted (seed)");
+    expect(adoptionText(eng("a", {}, { adoption: { state: "none", via: null, changed_by: null, changed_at: null, reason: null, trial_id: null }, adopt_hint: "metamusic engines adopt x" }))).toBe("Not adopted");
     expect(backendText(eng("a"))).toBe("No backend");
     const b = { name: "b", enabled: true, armed: true, tripped: true, trip_reason: "init_fail", disabled_reason: null, cold_start_s: 40, max_runtime_s: 600 };
     expect(backendText(eng("a", {}, { backend: b }))).toBe("Tripped (init_fail)");
