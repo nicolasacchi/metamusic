@@ -4,16 +4,11 @@ import { resolve } from "node:path";
 type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"?: { ui?: string } }>> };
 
 /**
- * UI operations whose pages are not built yet: the M5 operations frozen by M5-F2, one line
- * per lane (M5-W1, M5-W2, M5-V1 delete their ids when their specs exercise them). src/lib/e2e-coverage.test.ts fails on an id
- * that is no longer a UI operation, so an entry is only ever added for a page that is still to come.
+ * UI operations whose pages are not built yet. The M5 operations left in M5 INT-W (the m5-* specs exercise them all);
+ * what remains is E2's /engines matrix. src/lib/e2e-coverage.test.ts fails on an id that is no longer a UI operation, so an
+ * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  "propose_patch", "get_patch", "list_patches", // M5-W1: Song PR panel and patch page
-  "get_listen_heat", // M5-W1: heat strip
-  "list_callbacks", "get_callback", "submit_callback_verdict", // M5-W2: Judge Callbacks
-  "suggest_duel_pairs", // M5-W2: Smart round
-  "create_voice_note", // M5-V1/W2: voice recorder
   "list_engines", // E2-W1b: the /engines capability matrix (E2-W-INT adds the spec)
 ]);
 
