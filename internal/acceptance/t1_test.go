@@ -244,7 +244,7 @@ func TestAcceptance_T1_VerifyCLI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	bin := filepath.Join(fmt.Sprintf(t1ChildDirFmt, os.Getpid()), "metamusic")
+	bin := t1ChildBin()
 	run := func(args ...string) (string, int) {
 		cmd := exec.Command(bin, args...) // #nosec G204 -- the binary this test built
 		cmd.Env = []string{"MM_AUTH=local", "MM_DATA_DIR=" + tr.DataDir, "MM_SECRETS_DIR=" + sec, "MM_ADDR=127.0.0.1:0", "PATH=" + os.Getenv("PATH"),
@@ -382,7 +382,6 @@ func TestAcceptance_T1_ShepardLoop(t *testing.T) {
 		mono[i] = (l[i] + r[i]) / 2
 	}
 	t.Run("seam", func(t *testing.T) {
-		knownBug(t, "B5-2", "shepard is not in ops.ownFades, so safety.Finish fades the first and last 10 ms: every loop passes a ~20 ms notch at the seam")
 		const win, hop = 2048, 512
 		loop := append(append([]float64{}, mono...), mono...)
 		flux := func(at int) float64 { // spectral flux between the frames at at-hop and at
@@ -559,6 +558,7 @@ func (tr *t1Rig) writerOK(c *servertest.Client, method, path string, body any) a
 // TestAcceptance_T1_Glacier50x: a glacier of an 18 s excerpt at x50 (900 s, the output cap) is accepted and renders within its
 // budget.
 func TestAcceptance_T1_Glacier50x(t *testing.T) {
+	weeklyOnly(t, "75 s of CPU in a CI shard; the limit check is covered by the estimate tests and the real-child glacier by TestAcceptance_T1_RealChild")
 	tr := newT1Rig(t)
 	v := tr.RunDone(glacierBody(tr.Info.Tx["A"], 50, 18))
 	id := v["id"].(string)

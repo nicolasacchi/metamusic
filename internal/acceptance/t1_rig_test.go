@@ -3,10 +3,8 @@ package acceptance_test
 // The T1 acceptance rig (T1-B5): the real server (REST, MCP, audit, library) over a library that holds FixtureT1, with the
 // real ffmpeg/flac/metaflac, the real M1 ingest pipeline and the real render child.
 //
-// servertest.Options carries no T1 injection point (app.T1Options is not reachable from it), so the production wiring runs: the
-// transform service starts `<os.Executable()> dsp-run --work <dir>`. Here os.Executable is this test binary, so an init() below
-// answers that argv by exec'ing a `metamusic` binary the first test builds (the child is cmd/metamusic; a test binary cannot
-// link package main). The path is derived from the parent pid, because the supervisor passes the child no environment.
+// The render child is the exec supervisor over a `metamusic` binary the first test builds (servertest.Options.T1.Child): a test
+// binary cannot link package main, so it cannot be its own child.
 
 import (
 	"context"
@@ -22,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -36,22 +33,23 @@ import (
 
 const t1ChildDirFmt = "/tmp/mm-t1-child-%d"
 
-func init() {
-	if len(os.Args) >= 2 && os.Args[1] == "dsp-run" {
-		bin := filepath.Join(fmt.Sprintf(t1ChildDirFmt, os.Getppid()), "metamusic")
-		argv := append([]string{bin}, os.Args[1:]...)
-		err := syscall.Exec(bin, argv, os.Environ()) // #nosec G204 -- a binary this test process built
-		fmt.Fprintln(os.Stderr, "t1 test child:", err)
-		os.Exit(13)
-	}
-}
-
 var (
 	t1BuildOnce sync.Once
 	t1BuildErr  error
 )
 
-// t1BuildChild builds cmd/metamusic once per test process into the directory the init() above looks in.
+// weeklyOnly skips a test of the weekly tier (MM_T1_WEEKLY=1): too slow for a PR shard, run by the weekly workflow.
+func weeklyOnly(t *testing.T, why string) {
+	t.Helper()
+	if os.Getenv("MM_T1_WEEKLY") != "1" {
+		t.Skip("weekly tier (MM_T1_WEEKLY=1): " + why)
+	}
+}
+
+// t1ChildBin is the metamusic binary t1BuildChild builds for this test process.
+func t1ChildBin() string { return filepath.Join(fmt.Sprintf(t1ChildDirFmt, os.Getpid()), "metamusic") }
+
+// t1BuildChild builds cmd/metamusic once per test process into the directory of t1ChildBin.
 func t1BuildChild(t testing.TB) {
 	t.Helper()
 	t1BuildOnce.Do(func() {
@@ -107,6 +105,9 @@ func newT1RigWith(t *testing.T, mod func(*servertest.Options), labels ...string)
 	o := servertest.Options{Backend: "fake", RealTape: true}
 	if mod != nil {
 		mod(&o)
+	}
+	if o.T1.Child == nil {
+		o.T1.Child = &transform.ExecChild{Self: t1ChildBin()}
 	}
 	o.M2b.Media = true
 	o.Fixture, o.M2c, o.M3, o.L1, o.L2, o.L3, o.RealFeatures = true, true, true, true, true, true, true
@@ -347,15 +348,6 @@ func widenBody(src string) map[string]any {
 func (tr *t1Rig) writer() *servertest.Client {
 	c, _ := tr.Agent(tr.T, auth.ScopeRead, auth.ScopeWrite)
 	return c
-}
-
-// knownBug skips a test that documents a product bug found by T1-B5 and fails until the bug is fixed. The test body is the
-// specification: with MM_T1_KNOWN_BUGS=1 it runs and fails; the lane that fixes the bug deletes this call.
-func knownBug(t *testing.T, id, what string) {
-	t.Helper()
-	if os.Getenv("MM_T1_KNOWN_BUGS") != "1" {
-		t.Skipf("known product bug %s: %s (MM_T1_KNOWN_BUGS=1 runs this test and it fails)", id, what)
-	}
 }
 
 // decodeMaster reads a Take's master as planar float64 (decoded by the real ffmpeg, native rate).

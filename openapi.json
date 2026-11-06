@@ -11131,11 +11131,13 @@
                   "auto"
                 ],
                 "type": "string"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "type": "null"
               }
-            ],
-            "type": [
-              "",
-              "null"
             ]
           },
           "downbeat_b_s": {
@@ -11149,11 +11151,13 @@
                   "auto"
                 ],
                 "type": "string"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "type": "null"
               }
-            ],
-            "type": [
-              "",
-              "null"
             ]
           },
           "key_policy": {
@@ -13532,11 +13536,13 @@
                   "auto"
                 ],
                 "type": "string"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "type": "null"
               }
-            ],
-            "type": [
-              "",
-              "null"
             ]
           },
           "downbeat_b_s": {
@@ -13550,11 +13556,13 @@
                   "auto"
                 ],
                 "type": "string"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "type": "null"
               }
-            ],
-            "type": [
-              "",
-              "null"
             ]
           },
           "pan": {

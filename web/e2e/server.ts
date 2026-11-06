@@ -24,7 +24,18 @@ export function freePort(): Promise<number> {
   });
 }
 
-export function serverEnv(dataDir: string, secretsDir: string, url: string): Record<string, string> {
+/**
+ * Server settings that one spec file needs and the shared environment must not carry (a server serves one spec file, see
+ * fixtures.ts). t1-quota.spec.ts runs against a human transform pool of 0 s: every create is refused 429 while the capabilities,
+ * estimate and listing still answer. The default pool (4 h) never limits the other specs.
+ */
+export const SPEC_ENV: Record<string, Record<string, string>> = {
+  "t1-quota.spec.ts": { MM_TRANSFORM_HUMAN_DAILY_CPU_S: "0" },
+};
+
+export const specEnv = (file: string): Record<string, string> => SPEC_ENV[file.split("/").pop() ?? ""] ?? {};
+
+export function serverEnv(dataDir: string, secretsDir: string, url: string, extra: Record<string, string> = {}): Record<string, string> {
   const u = new URL(url);
   return {
     ...(process.env as Record<string, string>),
@@ -43,13 +54,14 @@ export function serverEnv(dataDir: string, secretsDir: string, url: string): Rec
     // M3 (C86.5): the fake backend finishes a take in about a second; specs steer slower ones with "fake:slow=<s>" in the style.
     MM_BACKEND: "fake",
     MM_FAKE_BACKEND: "fast",
+    ...extra,
   };
 }
 
-export async function startServer(bin: string, dataDir: string, secretsDir: string, timeoutMs = 15_000): Promise<RunningServer> {
+export async function startServer(bin: string, dataDir: string, secretsDir: string, timeoutMs = 15_000, extra: Record<string, string> = {}): Promise<RunningServer> {
   const port = await freePort();
   const url = `http://127.0.0.1:${port}`;
-  const child = spawn(bin, ["serve"], { env: serverEnv(dataDir, secretsDir, url), stdio: ["ignore", "ignore", "inherit"] });
+  const child = spawn(bin, ["serve"], { env: serverEnv(dataDir, secretsDir, url, extra), stdio: ["ignore", "ignore", "inherit"] });
   let dead = false;
   let spawnError: Error | undefined;
   const exited = new Promise<void>((r) => {

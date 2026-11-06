@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"testing"
 
@@ -12,17 +11,6 @@ import (
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
-
-// Lane B4 replaced every stub of the seven transform operations.
-func init() {
-	implementedT1 = append(implementedT1, slices.Collect(func(yield func(string) bool) {
-		for _, w := range t1Ops {
-			if !yield(w.id) {
-				return
-			}
-		}
-	})...)
-}
 
 type t1World struct {
 	r  *servertest.Rig

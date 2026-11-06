@@ -225,7 +225,7 @@ export function buildRequest(caps: Pick<KindCaps, "kind" | "params">, form: Form
   }
   if (Object.keys(errors).length > 0) return { body: null, errors };
   const title = form.title.trim();
-  const body = { kind: caps.kind, title: title === "" ? null : title, [caps.kind]: params } as unknown as TransformRequest;
+  const body = { kind: caps.kind, title: title === "" ? null : title, [caps.kind]: params } as TransformRequest;
   return { body, errors };
 }
 
