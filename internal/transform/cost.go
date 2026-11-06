@@ -36,8 +36,6 @@ var DefaultCosts = CostConstants{NSPerUnitMilli: 1200, DecodeMSPerS: 3, EncodeMS
 const (
 	pvWindow = 4096
 	pvHopDiv = 4
-	// ensembleVoices is the fixed choir preset of C202.3.
-	ensembleVoices = 5
 	// maxUnits keeps 13 x units x NSPerUnitMilli inside int64.
 	maxUnits = int64(1) << 50
 )
