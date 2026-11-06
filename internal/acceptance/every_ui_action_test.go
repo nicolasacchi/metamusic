@@ -461,9 +461,6 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			}
 			script = spendScript[id]
 		}
-		if e2PendingStub[id] {
-			continue
-		}
 		if id == "export_record_tape" && st.record != "" {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)
 			h.OK(t, "POST", "/human/api/records/"+st.record+"/publish", map[string]any{"revision": st.recordRev, "published": true})

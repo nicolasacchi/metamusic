@@ -303,7 +303,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	m5 := buildM5(m5Inputs{st: st, now: now, late: late})
 	l3 := buildL3(l3Inputs{st: st, now: now, muses: l1.Muses, songview: l1.SongView, sounds: l1.Sounds, prov: l1.Provenance, ctxb: ctxb, o: o.L3})
 	t1 := buildT1(t1Inputs{cfg: cfg, st: st, lib: lib, data: data, ears: media.Ears, pipe: pipe, now: now, newID: newID, o: o.T1})
-	e2, err := buildE2(e2Inputs{cfg: cfg, st: st, m3: m3, clips: media.Clips, now: now, newID: newID})
+	e2, err := buildE2(e2Inputs{cfg: cfg, st: st, m3: m3, clips: media.Clips, ctxb: ctxb, now: now, newID: newID})
 	if err != nil {
 		return nil, err
 	}

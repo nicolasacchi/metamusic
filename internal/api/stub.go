@@ -49,6 +49,3 @@ const (
 func notImplemented(task string) error {
 	return Err(501, notImplementedCode, "this operation is not implemented yet", map[string]any{"task": task})
 }
-
-// The E2 lane that replaces the engine stubs (details.task of a 501): OP owns the operation handlers (C160).
-const taskE2OP = "E2-OP"

@@ -12,10 +12,10 @@ import (
 // generic, none human-only (D-E2-35: no dedicated tool).
 var e2ParityIDs = []string{"list_engines"}
 
-// e2Cases are the parity cases of the E2 operations (lane E2-OP owns this list). Until it fills the handler the operation
-// answers the same 501 NOT_IMPLEMENTED problem on every face; E2-OP drops Status.
+// e2Cases are the parity cases of the E2 operations (lane E2-OP owns this list): list_engines answers the same 200 body on
+// every face.
 var e2Cases = []ParityCase{
-	{Op: "list_engines", Status: 501},
+	{Op: "list_engines"},
 }
 
 func init() { parityCases = append(parityCases, e2Cases...) }
