@@ -27,6 +27,8 @@
     trackId: string;
     /** The comments the Track page already loaded (shared with its Comments panel). */
     comments?: S["Comment"][];
+    /** Pre-loaded open and regressed fix comments (server-side rendering in unit tests; the panel otherwise fetches them). */
+    initialFixes?: S["Comment"][];
     /** The base lyrics sections (SectionOut.idx / lines are what replace_line addresses). */
     sections?: readonly S["SectionOut"][];
     /** The base recipe style, the starting point of the style field. */
@@ -37,7 +39,7 @@
     /** Pre-loaded list (server-side rendering in unit tests; the panel otherwise fetches it). */
     initial?: Load<S["PatchPage"]>;
   }
-  let { trackId, comments = [], sections = [], baseStyle = "", canPropose = false, navigate, initial }: Props = $props();
+  let { trackId, comments = [], initialFixes, sections = [], baseStyle = "", canPropose = false, navigate, initial }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let patches = $state<Load<S["PatchPage"]>>(initial ?? { state: "loading" });
@@ -50,7 +52,25 @@
     });
   });
 
-  const fixes = $derived(addressable(comments));
+  // The panel's own open+regressed fix comments, independent of the Comments panel's display filter. The shared list wins per id
+  // (it is fresher after a resolve or a new comment).
+  // svelte-ignore state_referenced_locally
+  let own = $state<S["Comment"][]>(initialFixes ?? []);
+  $effect(() => {
+    if (initialFixes) return;
+    const mine = trackId;
+    void (async () => {
+      try {
+        const r = await api.GET("/api/tracks/{id}/comments", {
+          params: { path: { id: mine }, query: { kind: ["fix"], state: ["open", "regressed"], order: "time", limit: 100 } },
+        });
+        if (mine === trackId && r.data) own = r.data.items;
+      } catch {
+        /* the shared list still feeds the panel */
+      }
+    })();
+  });
+  const fixes = $derived(addressable([...own.filter((o) => !comments.some((c) => c.id === o.id)), ...comments]));
 
   let open = $state(false);
   let picked = $state<string[]>([]);
