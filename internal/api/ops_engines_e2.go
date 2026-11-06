@@ -9,7 +9,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
-	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -33,14 +32,6 @@ const (
 	unavailDisarmed        = "disarmed"
 	unavailTripped         = "tripped"
 )
-
-func capsView(c engine.Caps) EngineCaps {
-	return EngineCaps{Text2Song: c.Text2Song, PlanScore: c.PlanScore, RenderFromScore: c.RenderFromScore, RepaintInterval: c.RepaintInterval,
-		Extend: c.Extend, Complete: c.Complete, Stems: c.Stems, ReferenceAudio: c.ReferenceAudio, LRC: c.LRC, Tempo: c.Tempo, Key: c.Key, LoRA: c.LoRA,
-		MinSeconds: c.MinSeconds, MaxSeconds: c.MaxSeconds, SampleRate: c.SampleRate, RepaintMinS: c.RepaintMinS, RepaintMaxS: c.RepaintMaxS,
-		ExtendMinS: c.ExtendMinS, ExtendMaxS: c.ExtendMaxS, ReferenceMaxS: c.ReferenceMaxS,
-		StemNames: nonNil(slices.Clone(c.StemNames)), Tasks: nonNil(slices.Clone(c.Tasks))}
-}
 
 // featuresView shows the verified-features file; the capabilities the engine supports but no canary proved are listed as
 // unverified (text2music, repaint, extend, complete, extract, reference_audio and lrc).
@@ -111,9 +102,14 @@ func (d Deps) engineViews(ctx context.Context) (EngineList, error) {
 		}
 		eng, registered := d.Engines[n]
 		v.Enabled = registered
-		v.Caps = capsView(engine.Caps{})
+		v.Caps = EngineCaps{StemNames: []string{}, Tasks: []string{}}
 		if registered {
-			v.Caps = capsView(eng.Caps())
+			c := eng.Caps() // the type is engine.Caps; api may not name it next to yue2 (import-graph rule of C70)
+			v.Caps = EngineCaps{Text2Song: c.Text2Song, PlanScore: c.PlanScore, RenderFromScore: c.RenderFromScore, RepaintInterval: c.RepaintInterval,
+				Extend: c.Extend, Complete: c.Complete, Stems: c.Stems, ReferenceAudio: c.ReferenceAudio, LRC: c.LRC, Tempo: c.Tempo, Key: c.Key, LoRA: c.LoRA,
+				MinSeconds: c.MinSeconds, MaxSeconds: c.MaxSeconds, SampleRate: c.SampleRate, RepaintMinS: c.RepaintMinS, RepaintMaxS: c.RepaintMaxS,
+				ExtendMinS: c.ExtendMinS, ExtendMaxS: c.ExtendMaxS, ReferenceMaxS: c.ReferenceMaxS,
+				StemNames: nonNil(slices.Clone(c.StemNames)), Tasks: nonNil(slices.Clone(c.Tasks))}
 		}
 		st, err := d.Adoption.State(ctx, d.Store.R, n)
 		if err != nil {

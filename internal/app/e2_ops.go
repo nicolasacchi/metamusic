@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
-	"github.com/nicolasacchi/metamusic/internal/engine"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -32,7 +32,7 @@ func buildE2Ops(in e2Inputs, e *e2Services) {
 // exists before E2) gets the zero advice, so its bundle is byte-identical to the yue2-only behaviour.
 type engineAdvisor struct {
 	st       *store.Store
-	engines  engine.Registry
+	engines  registry.Registry
 	adoption *engineadopt.Service
 }
 
