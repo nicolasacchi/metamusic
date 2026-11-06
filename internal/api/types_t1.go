@@ -29,13 +29,15 @@ type DownbeatSpec struct {
 	Auto    bool
 }
 
-// Schema implements huma.SchemaProvider: a number of seconds, or "auto".
+// Schema implements huma.SchemaProvider: a number of seconds, "auto", or null. The null is its own branch: Nullable beside OneOf
+// makes the generated TypeScript an intersection (Record<string, never> | null) & (number | "auto") that no value satisfies.
 func (DownbeatSpec) Schema(huma.Registry) *huma.Schema {
 	zero := 0.0
 	return &huma.Schema{OneOf: []*huma.Schema{
 		{Type: huma.TypeNumber, Minimum: &zero},
 		{Type: huma.TypeString, Enum: []any{"auto"}},
-	}, Nullable: true}
+		{Type: "null", Enum: []any{nil}}, // huma has no null type: without the enum this branch accepts every value and oneOf fails
+	}}
 }
 
 // UnmarshalJSON accepts a number or "auto".
