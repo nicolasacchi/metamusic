@@ -182,8 +182,8 @@ func (s *aceRest) finish(item map[string]any) map[string]any {
 		track = id
 	}
 	timings := map[string]any{"execution_ms": 12_000, "cold_start_s": 60}
-	for k, v := range s.extraTimings {
-		timings[k] = v
+	if len(s.extraTimings) > 0 {
+		timings["extra"] = s.extraTimings
 	}
 	if lrc := slices.Contains(names, "lyrics.lrc"); lrc {
 		timings["execution_ms"] = 30_000
@@ -394,7 +394,7 @@ func TestCanary_P0bRecordedOutputs(t *testing.T) {
 		t.Errorf("measured %v", rep.Measured)
 	}
 	rep = runACE(t, newAceRest(t), runpod.CaseT2M)
-	if rep.Measured["t2m.peak_vram_mb"] != "not_reported_by_job_view" {
+	if rep.Measured["t2m.peak_vram_mb"] != "not_reported_by_worker" {
 		t.Errorf("an unreported measurement must say so: %v", rep.Measured["t2m.peak_vram_mb"])
 	}
 }
