@@ -36,8 +36,10 @@ function range(min: number, max: number): string {
 }
 
 function cell(d: Def, e: EngineView): Cell {
-  if (!d.has(e)) return { kind: "no", text: "No" };
+  // The server lists a capability as unverified exactly when its effective cap is off (the verified-features file gates
+  // the caps), so the unverified label has to win over "No" or it would never show.
   if (d.aliases.some((a) => e.features?.unverified?.includes(a))) return { kind: "unverified", text: "not yet verified" };
+  if (!d.has(e)) return { kind: "no", text: "No" };
   return { kind: "yes", text: d.text?.(e) || "Yes" };
 }
 
