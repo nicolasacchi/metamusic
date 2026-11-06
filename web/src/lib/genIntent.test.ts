@@ -127,3 +127,45 @@ describe("canGenerate (C84)", () => {
     expect(canGenerate(null, { recipe_known: true, lossy: false })).toBe(false);
   });
 });
+
+describe("genIntent engine fields (E2)", () => {
+  const ace = { mode: "repaint", engine: "acestep15", parent_track_id: "t1", n_seeds: 1, edit: { from_s: 12.3, to_s: 20 } } as const satisfies GenerationIntent;
+  test("a yue2 item is byte-identical: no engine anywhere", () => {
+    const call = intentToEstimate({ mode: "compose_new", recipe: { id: "r" }, engine: "yue2" });
+    expect(JSON.stringify(call)).toBe(JSON.stringify({ kind: "generation", body: { items: [{ mode: "compose_new", recipe: { id: "r" } }] } }));
+  });
+  test("engine modes go to estimate_generation with the engine on the body, not the item", () => {
+    expect(intentToEstimate(ace)).toEqual({
+      kind: "generation",
+      body: { items: [{ mode: "repaint", parent_track_id: "t1", n_seeds: 1, edit: { from_s: 12.3, to_s: 20 } }], engine: "acestep15" },
+    });
+  });
+  test("a variant on ACE-Step leaves the variant endpoint", () => {
+    const c = intentToEstimate({ mode: "new_seed", parent_track_id: "t1", engine: "acestep15" });
+    expect(c.kind).toBe("generation");
+    expect(intentToEstimate({ mode: "new_seed", parent_track_id: "t1" }).kind).toBe("variant");
+  });
+  test("round trip and malformed engine intents", () => {
+    const s = store();
+    saveIntent(s, ace);
+    expect(loadIntent(s)).toEqual(ace);
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "repaint" }));
+    expect(loadIntent(s)).toBeNull();
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "new_seed", parent_track_id: "t", engine: "nope" }));
+    expect(loadIntent(s)).toBeNull();
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "reference", reference: { track_id: "t" } }));
+    expect(loadIntent(s)?.mode).toBe("reference");
+  });
+  test("validation per engine mode", () => {
+    expect(validateIntent(ace)).toBeNull();
+    expect(validateIntent({ ...ace, edit: { from_s: 20, to_s: 12 } })).toMatch(/end after/);
+    expect(validateIntent({ ...ace, edit: {} })).toMatch(/range/);
+    expect(validateIntent({ mode: "extend", parent_track_id: "t", edit: { extend_s: 30 } })).toBeNull();
+    expect(validateIntent({ mode: "extend", parent_track_id: "t", edit: {} })).toMatch(/seconds/);
+    expect(validateIntent({ mode: "stems", parent_track_id: "t", edit: { tracks: ["vocals", "drums"] } })).toBeNull();
+    expect(validateIntent({ mode: "stems", parent_track_id: "t", edit: { tracks: ["vocals", "vocals"] } })).toMatch(/once/);
+    expect(validateIntent({ mode: "complete", parent_track_id: "t", edit: { tracks: ["vocals", "drums", "bass", "synth", "fx"] } })).toMatch(/at most 4/);
+    expect(validateIntent({ mode: "repaint", engine: "yue2", parent_track_id: "t", edit: { from_s: 1, to_s: 2 } })).toMatch(/ACE-Step/);
+    expect(validateIntent({ mode: "reference" })).toMatch(/reference/);
+  });
+});

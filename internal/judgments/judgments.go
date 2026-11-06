@@ -118,6 +118,7 @@ type Service struct {
 	lib   *library.Service
 	now   func() time.Time
 	newID func() string
+	voice VoiceLinker // M5-V1: nil until wired
 }
 
 // New builds the judgments service; nil now means time.Now.

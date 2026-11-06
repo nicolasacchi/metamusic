@@ -307,6 +307,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	if err != nil {
 		return nil, err
 	}
+	resolvers = append(resolvers, wireM5Voice(m5, voiceInputs{cfg: cfg, st: st, data: data, signer: signer, judg: judg, now: now, newID: newID}))
 
 	// M4a is built after L2 so the Subsonic handler can serve the Record albums (C126.7).
 	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
