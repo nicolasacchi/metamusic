@@ -61,6 +61,7 @@ const (
 	EvNotSubmitted      = "not_submitted"
 	EvBatchNoCapacity   = "batch_no_capacity"
 	EvPreflightFailed   = "preflight_failed"
+	EvDurationMismatch  = "duration_mismatch"
 )
 
 // common detail keys every event may carry besides its own.
@@ -108,6 +109,7 @@ var eventDetailKeys = map[string][]string{
 	EvNotSubmitted:      {"queued_at"},
 	EvBatchNoCapacity:   {"failed_jobs"},
 	EvPreflightFailed:   {"check"},
+	EvDurationMismatch:  {"task", "expected_s", "audio_s"},
 }
 
 // EventNames lists every event the runner may write.
