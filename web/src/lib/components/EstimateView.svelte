@@ -2,6 +2,7 @@
   import type { components } from "../../api/schema";
   import { confirmDisabledReasons } from "../confirm";
   import { formatMicroUSD, formatMicroUSDCeil } from "../money";
+  import { takeDetail, taskClasses, warningHint } from "../engines";
   import BudgetBar from "./BudgetBar.svelte";
 
   type Estimate = components["schemas"]["Estimate"];
@@ -11,12 +12,18 @@
   let { estimate: e }: Props = $props();
 
   const reasons = $derived(confirmDisabledReasons(e));
+  const allTakes = $derived(e.items.flatMap((it) => it.takes));
+  const classes = $derived(taskClasses(allTakes));
+  const upTo = $derived(allTakes.length ? Math.max(...allTakes.map((t) => t.timeout_s)) : 0);
   const eta = $derived(e.eta_s >= 90 ? `${Math.round(e.eta_s / 60)} min` : `${e.eta_s} s`);
 </script>
 
 <section data-testid="estimate" aria-label="Estimate">
   <h2>Estimate</h2>
-  <p class="muted">{e.takes} take{e.takes === 1 ? "" : "s"} · engine {e.engine} · backend {e.backend} · ETA about {eta}</p>
+  <p class="muted">{e.takes} take{e.takes === 1 ? "" : "s"} · engine {e.engine}{#if classes.length} · class {classes.join(", ")}{/if} · backend {e.backend} · ETA about {eta}</p>
+  {#if e.engine !== "yue2"}
+    <p class="muted" data-testid="estimate-engine">Per take about {allTakes.length ? Math.round(allTakes.reduce((a, t) => a + t.expected_audio_s, 0) / allTakes.length) : 0} s of audio, up to {upTo} s of GPU time each.</p>
+  {/if}
 
   <table class="cost" data-testid="estimate-cost">
     <tbody>
@@ -30,7 +37,7 @@
   {#if e.warnings.length}
     <ul class="warnings" data-testid="estimate-warnings">
       {#each e.warnings as w, i (i)}
-        <li data-severity={w.severity}><b>{w.severity}</b> <code>{w.code}</code> {w.message}{#if w.take_index >= 0} <span class="muted">(take {w.take_index + 1}{w.field ? `, ${w.field}` : ""})</span>{/if}</li>
+        <li data-severity={w.severity}><b>{w.severity}</b> <code>{w.code}</code> {w.message}{#if warningHint(w.code)} <span class="muted" data-testid="hint-{w.code}">{warningHint(w.code)}</span>{/if}{#if w.take_index >= 0} <span class="muted">(take {w.take_index + 1}{w.field ? `, ${w.field}` : ""})</span>{/if}</li>
       {/each}
     </ul>
   {/if}
@@ -54,16 +61,18 @@
 
   <details>
     <summary>Takes</summary>
+    <div class="scroll">
     <table data-testid="estimate-takes">
-      <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Seed</th><th scope="col">Operator</th><th scope="col">Up to</th></tr></thead>
+      <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Seed</th><th scope="col">Operator</th>{#if e.engine !== "yue2"}<th scope="col">Task</th>{/if}<th scope="col">Up to</th></tr></thead>
       <tbody>
         {#each e.items as it (it.index)}
           {#each it.takes as t (t.take_index)}
-            <tr><td>{t.take_index + 1}</td><td>{t.title}</td><td>{t.seed}</td><td>{t.operator}</td><td>{formatMicroUSDCeil(t.max_micro_usd)}</td></tr>
+            <tr><td>{t.take_index + 1}</td><td>{t.title}</td><td>{t.seed}</td><td>{t.operator}</td>{#if e.engine !== "yue2"}<td data-testid="take-detail">{takeDetail(t)}</td>{/if}<td>{formatMicroUSDCeil(t.max_micro_usd)}</td></tr>
           {/each}
         {/each}
       </tbody>
     </table>
+    </div>
   </details>
 </section>
 
@@ -79,6 +88,13 @@
   }
   .reasons {
     color: #e88;
+  }
+  .scroll {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .warnings {
+    overflow-wrap: anywhere;
   }
   .note {
     border-left: 3px solid #f2a65a;

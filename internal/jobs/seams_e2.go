@@ -10,6 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/spend"
 )
 
 // The E2 seams of the jobs package (C151.2-5, C153.1, D-E2-30, D-E2-39). The contract freeze (E2-F2) fixed these shapes; the
@@ -41,18 +42,133 @@ type GlobalBoundView struct {
 	Backends              []string // the backends with live workers.max > 0
 }
 
+// BoundInputs are what the global worker bound is compared with (C151.5): the spend service reads the caps and the month's
+// usage, and the process configuration supplies the kill slack and price margin that statusFor does not carry per backend.
+type BoundInputs struct {
+	Spend *spend.Service
+	// KillSlackS and PriceMarginPPM are the process configuration; when set they replace the values the admin's own options
+	// carry (app.buildM3 leaves those zero), so the bound never understates X.
+	KillSlackS     int
+	PriceMarginPPM int64
+}
+
+// UseBound wires the cap comparison of Update. A single-backend process never asks (M3 behaviour); app.buildE2Ops wires it
+// whenever the process has the E2 backend set (TestBuildE2Ops_WiresBound).
+func (a *ProviderAdmin) UseBound(b BoundInputs) {
+	a.mu.Lock()
+	a.bound = b
+	a.mu.Unlock()
+}
+
+// engineOf names the engine a status renders ("yue2" unless the gate says otherwise).
+func engineOf(g *provider.Gate) string {
+	if g != nil && g.Config().Engine != "" {
+		return g.Config().Engine
+	}
+	return "yue2"
+}
+
 // StatusAll reads every backend's status and the global bound.
-//
-// STUB(E2-OP)
 func (a *ProviderAdmin) StatusAll(ctx context.Context, viewer auth.Principal) (ProviderStatuses, error) {
-	return ProviderStatuses{}, ErrE2NotImplemented
+	_ = viewer // principals are rendered by the API layer
+	def, err := a.statusFor(ctx, "")
+	if err != nil {
+		return ProviderStatuses{}, err
+	}
+	def.Engine = engineOf(a.o.Gate)
+	out := ProviderStatuses{Default: def}
+	a.mu.RLock()
+	gates := a.gates
+	a.mu.RUnlock()
+	names := gates.Names()
+	if len(names) == 0 {
+		out.Backends = []ProviderStatus{def}
+	}
+	for _, n := range names {
+		st, err := a.statusFor(ctx, n)
+		if err != nil {
+			return ProviderStatuses{}, err
+		}
+		g, _ := gates.For(n)
+		st.Engine = engineOf(g)
+		out.Backends = append(out.Backends, st)
+	}
+	a.mu.RLock()
+	bi := a.bound
+	a.mu.RUnlock()
+	out.Bound = boundOf(out.Backends, "", bi)
+	return out, nil
 }
 
 // StatusFor reads one backend's status; an unknown backend is provider.ErrNoBackend.
-//
-// STUB(E2-OP)
 func (a *ProviderAdmin) StatusFor(ctx context.Context, viewer auth.Principal, backend string) (ProviderStatus, error) {
-	return ProviderStatus{}, ErrE2NotImplemented
+	_ = viewer
+	g, _, _, err := a.resolve(backend)
+	if err != nil {
+		return ProviderStatus{}, err
+	}
+	st, err := a.statusFor(ctx, backend)
+	if err != nil {
+		return ProviderStatus{}, err
+	}
+	st.Engine = engineOf(g)
+	return st, nil
+}
+
+// boundOf is spend.ComputeGlobalBound over the statuses. A backend that is not armed contributes nothing (its endpoint is
+// scaled to zero by the arming rules); arm names a backend to count as armed, for the check before arming it.
+func boundOf(sts []ProviderStatus, arm string, bi BoundInputs) GlobalBoundView {
+	in := make([]spend.BackendBound, 0, len(sts))
+	for _, s := range sts {
+		if bi.KillSlackS > 0 {
+			s.KillSlackS = bi.KillSlackS
+		}
+		if bi.PriceMarginPPM > 0 {
+			s.PriceMarginPPM = bi.PriceMarginPPM
+		}
+		workers := 0
+		if s.Endpoint != nil && (s.State.Armed || (arm != "" && s.State.Backend == arm)) {
+			workers = s.Endpoint.WorkersMax
+		}
+		in = append(in, spend.BackendBound{Backend: s.State.Backend, WorkersMax: workers, PricePPH: money.WithMarginPPM(s.PricePerHour, s.PriceMarginPPM),
+			MaxRuntimeS: s.MaxRuntimeS, ColdStartS: s.ColdStartS, KillSlackS: s.KillSlackS})
+	}
+	b := spend.ComputeGlobalBound(in)
+	return GlobalBoundView{GMicroPerHour: b.GMicroPerHour, XMicro: b.XMicro, Backends: b.Backends}
+}
+
+// checkBound refuses arming backend when, with it armed, X (the worst simultaneous exposure of all endpoints) exceeds the
+// per-batch ceiling or the month's remaining headroom (C151.5, D-E2-30). A single-backend process is exactly M3 and skips it.
+func (a *ProviderAdmin) checkBound(ctx context.Context, backend string) error {
+	a.mu.RLock()
+	gates, bi := a.gates, a.bound
+	sp := bi.Spend
+	a.mu.RUnlock()
+	if len(gates.Names()) < 2 || sp == nil { // app wiring (e2_ops.go) always supplies spend; a bare admin has no caps to compare
+		return nil
+	}
+	var sts []ProviderStatus
+	for _, n := range gates.Names() {
+		st, err := a.statusFor(ctx, n)
+		if err != nil {
+			return err
+		}
+		sts = append(sts, st)
+	}
+	b := boundOf(sts, backend, bi)
+	caps, err := sp.LoadCaps(ctx, a.o.Store.R)
+	if err != nil {
+		return err
+	}
+	u, err := sp.Usage(ctx, a.o.Store.R, "", a.o.Clock.Now())
+	if err != nil {
+		return err
+	}
+	headroom := max(caps.MonthlyMicro-u.MonthSettled-u.Outstanding, 0)
+	if b.XMicro > caps.BatchMicro || b.XMicro > headroom {
+		return &ConcurrencyExceedsCapError{Backends: b.Backends, GMicroPerHour: b.GMicroPerHour, XMicro: b.XMicro}
+	}
+	return nil
 }
 
 // ConcurrencyExceedsCapError says arming or activating would let the two endpoints together exceed the per-batch ceiling or

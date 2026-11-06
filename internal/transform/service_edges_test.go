@@ -25,7 +25,7 @@ func TestResolve_Shepard(t *testing.T) {
 	if got := string(paramsMap(pl.Res.Params)["loop_bars"]); got != "4" || pl.Spec.Alignment == nil || len(pl.Spec.Alignment.Inputs) != 1 {
 		t.Errorf("loop_bars %s alignment %+v", got, pl.Spec.Alignment)
 	}
-	if a := align(pl, 0); a.BPM != 92 || a.BPMSource != SrcDeclared || a.BeatsPerBar != 4 {
+	if a := alignOf(pl, 0); a.BPM != 92 || a.BPMSource != SrcDeclared || a.BeatsPerBar != 4 {
 		t.Errorf("alignment %+v", a)
 	}
 	pl = r.mustBuild(sh("A", `,"loop_bars":2`))
@@ -67,7 +67,7 @@ func TestResolve_KeyFromABC(t *testing.T) {
 	}
 	r := newRig(t, func(_ *config.Config, o *Options) { o.ScoreABC = hook })
 	pl := r.mustBuild(r.morphAB(""))
-	if a := align(pl, 0); a.KeyPC != 2 || !a.KeyMinor || a.KeySource != SrcPlan {
+	if a := alignOf(pl, 0); a.KeyPC != 2 || !a.KeyMinor || a.KeySource != SrcPlan {
 		t.Errorf("A key %+v", a)
 	}
 	if s := string(paramsMap(pl.Res.Params)["semitones_b"]); s != "0" {
@@ -305,7 +305,7 @@ func TestEstimate_FixtureShapes(t *testing.T) {
 	_ = rows.Close()
 	var ok, refRef, picked, unpicked int
 	for _, s := range all {
-		_, err := r.svc.Estimate(t.Context(), human, glacier(s.id))
+		_, err := r.svc.Estimate(t.Context(), human, shortGlacier(s.id))
 		switch {
 		case s.engine == "unknown":
 			wantProblem(t, err, 422, "RECIPE_UNKNOWN")
@@ -343,7 +343,7 @@ func TestEstimate_FixtureShapes(t *testing.T) {
 	}
 	for _, s := range all {
 		if s.engine != "unknown" && s.lossy == 0 && (s.picked > 0 || s.id == r.tx("A")) {
-			r.create(human, glacier(s.id))
+			r.create(human, shortGlacier(s.id))
 			if s.picked > 0 {
 				break
 			}
@@ -375,4 +375,10 @@ func TestChanged_WakesWait(t *testing.T) {
 	if seen != v.ID {
 		t.Error("the caller's Changed hook was dropped")
 	}
+}
+
+// shortGlacier is a glacier of a 5 s excerpt: the default 30 s excerpt of a 200 s fixture Take needs about 1 GiB now that the
+// memory model counts safety's copy (glacier MemFactor 1).
+func shortGlacier(id string) Request {
+	return req(KindGlacier, fmt.Sprintf(`{"source_id":%q,"length_s":5}`, id))
 }

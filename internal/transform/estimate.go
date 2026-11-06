@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/dsp"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
@@ -370,7 +371,7 @@ func dedupWarnings(in []Warning) []Warning {
 func warnPair(in WarnIn) []Warning {
 	m := paramsMap(in.Resolved)
 	out := []Warning{{Code: WarnBeatPhasePending}}
-	if a, b := paramFloat(m, "bpm_a", 0), paramFloat(m, "bpm_b", 0); a > 0 && b > 0 && math.Abs(math.Log(b/a)) > 0.25 {
+	if a, b := paramFloat(m, "bpm_a", 0), paramFloat(m, "bpm_b", 0); a > 0 && b > 0 && math.Abs(dsp.Log(b/a)) > 0.25 {
 		out = append(out, Warning{Code: WarnLargeTempoChange})
 	}
 	if s := rawFloat(m, "semitones_b"); s != nil && math.Abs(*s) > 6 {

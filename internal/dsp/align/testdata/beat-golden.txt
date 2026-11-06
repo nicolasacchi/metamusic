@@ -1,0 +1,2 @@
+# sha256 of the bit patterns of LocalGrid's answers on fixed scenarios. linux/amd64, GOAMD64=v1.
+drift bd2e43ba52208336fc5a923b8f91c38b2668fd542b5e0d39dce4c552c491dbff

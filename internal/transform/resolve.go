@@ -10,6 +10,8 @@ import (
 	"net/http"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
+	"github.com/nicolasacchi/metamusic/internal/dsp"
+	"github.com/nicolasacchi/metamusic/internal/dsp/align"
 	"github.com/nicolasacchi/metamusic/internal/features"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/problem"
@@ -222,21 +224,10 @@ func (s *Service) analysisTempo(ctx context.Context, q queryer, trackID string) 
 	return features.TempoMeasure{BPM: m.BPM, Confidence: m.Confidence, OctaveAmbiguous: m.Octave}, true, nil
 }
 
-// foldOctave is Fold(partner, measured) of C204.5: the octave reading of a measured tempo (half, as measured, double) nearest
-// to the partner's tempo in log distance; ties go to 0. It returns the multiplier exponent (-1, 0, +1) and the folded tempo.
-// It is a copy of the closed rule because the alignment package belongs to lane D3.
+// foldOctave applies D3's align.Fold (C204.5): the exponent k of the octave reading nearest the partner and the folded tempo.
 func foldOctave(partner, measured float64) (int, float64) {
-	if partner <= 0 || measured <= 0 {
-		return 0, measured
-	}
-	best, bestD := 0, math.Abs(math.Log(measured/partner))
-	for _, k := range []int{-1, 1} {
-		d := math.Abs(math.Log(measured * math.Pow(2, float64(k)) / partner))
-		if d < bestD-1e-12 {
-			best, bestD = k, d
-		}
-	}
-	return best, measured * math.Pow(2, float64(best))
+	k := align.Fold(partner, measured)
+	return k, align.Folded(measured, k)
 }
 
 // ---- key ----
@@ -258,20 +249,9 @@ func camelotInverse(num int, letter string) (pc int, minor, ok bool) {
 	return (rel + 9) % 12, true, true
 }
 
-// keyShift is KeyShift of C204.4: the semitones to move B so it lands in A's key; a minor key and its relative major are the
-// same pitch set, and the result is folded into [-6, +5].
+// keyShift is D3's align.KeyShift (C204.4).
 func keyShift(aPC int, aMinor bool, bPC int, bMinor bool) float64 {
-	eq := func(pc int, minor bool) int {
-		if minor {
-			pc += 3
-		}
-		return ((pc % 12) + 12) % 12
-	}
-	d := ((eq(aPC, aMinor)-eq(bPC, bMinor))%12 + 12) % 12
-	if d > 5 {
-		d -= 12
-	}
-	return float64(d)
+	return align.KeyShift(aPC, aMinor, bPC, bMinor)
 }
 
 // resolveKey walks the key ladder: take_features.key_num/key_letter with its basis, else the ABC header of the Take's score
@@ -489,7 +469,9 @@ func (s *Service) resolveKeys(ctx context.Context, in []inputInfo, out map[strin
 }
 
 // rampSeconds is Total() of the transition for the resolved tempos and bars.
-func rampSeconds(t0, t1 float64, bars, bpb int) float64 { return rampTotal(t0, t1, float64(bars*bpb)) }
+func rampSeconds(t0, t1 float64, bars, bpb int) float64 {
+	return align.Ramp{T0: t0, T1: t1, Beats: float64(bars * bpb)}.Total()
+}
 
 // resolve runs the kind-specific resolution of the validated parameters against the loaded inputs: tempo, key, downbeat,
 // sections and the defaults that depend on them, the closed-form output length and the checks that need the inputs' lengths.
@@ -583,8 +565,8 @@ func (s *Service) resolvePair(ctx context.Context, q queryer, kind Kind, m map[s
 	out["converge_bar"] = conv
 	tc := d0a + float64(conv)*barA
 	l := t0
-	if math.Abs(math.Log(t0/t1)) > 1e-12 {
-		l = (t0 - t1) / math.Log(t0/t1)
+	if math.Abs(dsp.Log(t0/t1)) > 1e-12 {
+		l = (t0 - t1) / dsp.Log(t0/t1)
 	}
 	if tc < 60*(d0b*t1/60)/l { // no integer m >= 0 keeps the entry offset non-negative (C205.2)
 		return rule("converge_bar", RuleConvergeTooEarly)

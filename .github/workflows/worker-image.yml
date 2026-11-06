@@ -62,8 +62,8 @@ jobs:
           build-args: |
             GIT_SHA=${{ github.sha }}
             YUE2_COMMIT=${{ steps.pin.outputs.yue2 }}
-          cache-from: type=gha,scope=worker-image
-          cache-to: type=gha,scope=worker-image,mode=max
+          # E2-I1: read-only registry cache (never the 10 GB Actions cache, never written from a PR or build-smoke)
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
       - name: smoke imports and absent packages
         run: |
           docker run --rm --entrypoint python "$IMAGE:smoke" -c "import transformers, yue2, mmworker"
@@ -114,7 +114,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: build and push (layers come from the build-smoke cache)
+      - name: build and push (layers come from the registry buildcache)
         id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -128,7 +128,9 @@ jobs:
             GIT_SHA=${{ github.sha }}
             YUE2_COMMIT=${{ steps.pin.outputs.yue2 }}
           provenance: mode=max
-          cache-from: type=gha,scope=worker-image
+          # E2-I1: registry cache, written only here (main, upstream repo) with the packages: write token
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
@@ -223,8 +225,8 @@ jobs:
           build-args: |
             GIT_SHA=${{ github.sha }}
             ACESTEP_COMMIT=${{ steps.pin.outputs.acestep }}
-          cache-from: type=gha,scope=worker-image-acestep
-          cache-to: type=gha,scope=worker-image-acestep,mode=max
+          # E2-I1: read-only registry cache (never the 10 GB Actions cache, never written from a PR or build-smoke)
+          cache-from: type=registry,ref=${{ env.IMAGE_ACESTEP }}:buildcache
       - name: smoke Python 3.11, imports and engine label
         if: steps.decide.outputs.build == 'true'
         run: |
@@ -279,7 +281,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: build and push (layers come from the acestep-build-smoke cache)
+      - name: build and push (layers come from the registry buildcache)
         id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -293,7 +295,9 @@ jobs:
             GIT_SHA=${{ github.sha }}
             ACESTEP_COMMIT=${{ steps.pin.outputs.acestep }}
           provenance: mode=max
-          cache-from: type=gha,scope=worker-image-acestep
+          # E2-I1: registry cache, written only here (main, upstream repo) with the packages: write token
+          cache-from: type=registry,ref=${{ env.IMAGE_ACESTEP }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_ACESTEP }}:buildcache,mode=max
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE_ACESTEP }}

@@ -33,7 +33,7 @@ func TestMeasure_MatchesRESTBody(t *testing.T) {
 			t.Fatalf("%d %s", resp.Status, resp.Body)
 		}
 		body := bytes.TrimSuffix(resp.Body, []byte("\n"))
-		b, err := r.Services.Deps.Context.Build(context.Background(), auth.Principal{Kind: auth.KindAgent, ID: "x", Name: "x"}, id, nil)
+		b, err := r.Services.Deps.Context.Build(context.Background(), auth.Principal{Kind: auth.KindAgent, ID: "x", Name: "x", Scopes: []auth.Scope{auth.ScopeRead}}, id, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

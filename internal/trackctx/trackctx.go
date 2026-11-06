@@ -138,7 +138,7 @@ var order = map[string][]string{
 	"curation":    {"records", "crates"},
 	"track":       {"id", "title", "status", "stars", "critic_stars", "critic_verdict", "tags", "duration_s", "recipe_known", "lossy", "recorded_at", "url"},
 	"recipe":      {"engine", "known", "hash", "request", "note"},
-	"provenance":  {"origin", "import_rule", "truncated", "cost", "env", "job_id"},
+	"provenance":  {"origin", "import_rule", "truncated", "cost", "env", "job_id", "engine", "task", "cross_engine", "stems", "reference"},
 	"score":       {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"transform":   {"kind", "transform_id", "spec_hash", "title", "params", "inputs", "alignment", "safety"},
 	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
@@ -711,6 +711,8 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 	}
 	out.Provenance = map[string]any{"origin": d.Origin, "import_rule": d.Import.Rule, "truncated": newOmap("abc", tabc, "semantic", tsem),
 		"cost": cost, "env": env, "job_id": jobID}
+	adv := b.engineAdvice(ctx, p, d.ID) // E2 (C160): nothing for a yue2 take
+	engineProvenance(out.Provenance, adv)
 
 	// score
 	if sc := d.Score; sc != nil {
@@ -882,6 +884,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		na = append(na, "the take is truncated (abc/semantic): prefer a shorter arrangement")
 	}
 	na = b.museAwareActions(ctx, p, d.ID, na) // L3 C139.4: up to two Muse-aware strings, none without a reader
+	na = engineAwareActions(na, adv)          // E2 (C160): ACE-Step actions, none without an advisor
 	// The generation hint has the lowest priority: at most maxNextActions entries, the critique last, so
 	// the hint is the entry that is dropped when every conditional entry applies (C81.1).
 	if d.RecipeKnown && p.Has(auth.ScopeGenerate) && b.generationEnabled(ctx) && len(na)+2 <= maxNextActions {
