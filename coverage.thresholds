@@ -20,7 +20,7 @@ internal/money          95
 internal/generation     90
 internal/lineage        90
 internal/provider/runpod 90
-internal/provider/fake  85
+internal/provider/fake  90
 internal/picks          95
 internal/provenance     95
 internal/muses          90
@@ -55,12 +55,13 @@ internal/atlas          93
 internal/dsp/...        70
 internal/transform      80
 # END T1-I1
-# BEGIN E2-I1 (E2 packages). internal/engine/acestep: measured 97.4 (F1c), floor measured - 1 rounded down. internal/engineadopt is a stub
-# until E2-OP (measured on the stub: 11.1), so its floor sits just under the stub figure and only proves the pattern matches; INT-B
-# raises it to measured - 1 on the merged branch. internal/enginetrial and internal/suites (E2c) are NOT listed: the gate refuses a
-# pattern that matches no package, so the lane that creates a package adds its floor. internal/engine/registry is covered by internal/....
+# BEGIN E2-I1 (E2 packages). Floors are the unit-test coverage measured on the merged E2 branch (go test, no -short) minus one full
+# point, rounded down (E2-INT-B raised the two staged ones): internal/engine/acestep measured 97.4, internal/engineadopt 83.1.
+# internal/provider/fake measured 91.1 after the ACE-Step instance landed, so its general floor below moved from 85 to 90.
+# internal/enginetrial and internal/suites (E2c) are NOT listed: the gate refuses a pattern that matches no package, so the lane that
+# creates a package adds its floor. internal/engine/registry is covered by internal/....
 internal/engine/acestep 96
-internal/engineadopt    10
+internal/engineadopt    82
 # END E2-I1
 # BEGIN M5-INTB (M5 packages). Floors are the unit-test coverage measured on the merged M5 branch (go test, no -short) minus one point,
 # rounded down; the merged unit + e2e figure of the CI coverage job is at least the unit one. Measured (unit): songpr 88.2, callbacks 83.7,

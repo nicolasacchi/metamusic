@@ -137,6 +137,9 @@ type RunPodOptions struct {
 	Keys       runpodtest.KeySet
 	EndpointID string // default "ep-canary-0000" (runpodtest's default)
 	Disarmed   bool   // leave the provider disarmed (the production default)
+	// ACEStepEndpointID, when set (with ACEStep), is written to runpod.env as RUNPOD_ACESTEP_ENDPOINT_ID so the rig builds the
+	// runpod ACE-Step backend too (it shares the yue2 endpoint's jobs key); it is armed unless Disarmed.
+	ACEStepEndpointID string
 }
 
 // SeededReader is a deterministic random source: two readers of one seed return the same bytes, so the
@@ -291,6 +294,9 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		cfg.ACEStep, cfg.ACEStepColdStartS, cfg.ACEStepMaxRuntime = true, 300, 15*time.Minute
 		cfg.ACEStepTasks, cfg.ACEStepPools = []string{"turbo"}, []string{"AMPERE_24", "ADA_24"}
+		if o.RunPod != nil && o.RunPod.ACEStepEndpointID != "" {
+			cfg.ACEStepColdStartS = cfg.ColdStartS // runpodtest serves one endpoint shape (scaler value cold start + 60) for both ids
+		}
 	}
 	switch o.Backend {
 	case "", "none":
@@ -465,6 +471,9 @@ func New(tb testing.TB, o Options) *Rig {
 			ep = "ep-canary-0000"
 		}
 		env := "RUNPOD_JOBS_KEY=" + rp.Keys.Jobs + "\nRUNPOD_READ_KEY=" + rp.Keys.Read + "\nRUNPOD_WRITE_KEY=" + rp.Keys.Write + "\nRUNPOD_ENDPOINT_ID=" + ep + "\n"
+		if rp.ACEStepEndpointID != "" {
+			env += "RUNPOD_ACESTEP_ENDPOINT_ID=" + rp.ACEStepEndpointID + "\n"
+		}
 		if err := os.MkdirAll(cfg.SecretsDir, 0o700); err != nil {
 			tb.Fatal(err)
 		}
@@ -520,6 +529,11 @@ func New(tb testing.TB, o Options) *Rig {
 	if o.RunPod != nil && !o.RunPod.Disarmed {
 		if _, err := st.W.ExecContext(ctx, `UPDATE provider_state SET armed = 1, changed_by = 'system:test' WHERE backend = ?`, provider.BackendRunPod); err != nil {
 			tb.Fatal(err)
+		}
+		if o.RunPod.ACEStepEndpointID != "" {
+			if _, err := st.W.ExecContext(ctx, `UPDATE provider_state SET armed = 1, changed_by = 'system:test' WHERE backend = ?`, provider.BackendRunPodACEStep); err != nil {
+				tb.Fatal(err)
+			}
 		}
 	}
 	r.Fake, r.Backend, r.Runner, r.Reconciler = svc.Fake, svc.Backend, svc.Runner, svc.Reconciler
