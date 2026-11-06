@@ -5,6 +5,8 @@ import type { components } from "../api/schema";
 type ItemIn = components["schemas"]["ItemIn"];
 type Patch = components["schemas"]["Patch"];
 type VariantBody = components["schemas"]["EstimateVariantInBody"];
+type EditIn = components["schemas"]["EditIn"];
+type RefIn = components["schemas"]["RefIn"];
 
 export const INTENT_KEY = "mm.genIntent";
 /** D-M3-7: at most 50 takes per batch. */
@@ -13,7 +15,30 @@ export const MAX_TAKES = 50;
 export type VariantMode = "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
 const VARIANT_MODES: readonly string[] = ["new_seed", "same_seed_edit", "lyric_edit", "style_edit"];
 
-export type IntentMode = VariantMode | "from_draft" | "from_template" | "compose_new" | "song_pr";
+/** The ACE-Step modes (E2): each acts on a source take, or (reference) renders with a take's window as the reference. */
+export type EngineMode = "port" | "extend" | "repaint" | "reference" | "complete" | "stems";
+export const ENGINE_MODES: readonly EngineMode[] = ["port", "extend", "repaint", "reference", "complete", "stems"];
+export type EngineName = "yue2" | "acestep15";
+export const ENGINE_NAMES: readonly string[] = ["yue2", "acestep15"];
+/** The one engine other than the default; engine modes imply it. */
+export const ACESTEP: EngineName = "acestep15";
+/** At most this many tracks to complete with (C161). */
+export const MAX_COMPLETE_TRACKS = 4;
+/** The most stem names one item carries (EditIn.tracks maxItems). */
+export const MAX_STEM_TRACKS = 6;
+
+export type IntentMode = VariantMode | EngineMode | "from_draft" | "from_template" | "compose_new" | "song_pr";
+
+export function isEngineMode(m: string): m is EngineMode {
+  return (ENGINE_MODES as readonly string[]).includes(m);
+}
+
+/** The engine an intent renders on: its own field, ACE-Step for the engine modes, else yue2. */
+export function engineOf(i: { mode: string; engine?: string }): EngineName {
+  if (i.engine === ACESTEP) return ACESTEP;
+  if (i.engine === undefined && isEngineMode(i.mode)) return ACESTEP;
+  return "yue2";
+}
 
 /** Which fields apply depends on the mode (see ItemIn in the API schema); the rest stay unset. */
 export interface GenerationIntent {
@@ -33,6 +58,12 @@ export interface GenerationIntent {
   title?: string;
   /** compose_new */
   recipe?: Record<string, unknown>;
+  /** E2: the engine; absent means yue2 (or ACE-Step for an engine mode). Sent as the estimate body's engine, never inside the item. */
+  engine?: EngineName;
+  /** E2 repaint / extend / complete / stems: the time range, the extension or the stem names. */
+  edit?: EditIn;
+  /** E2 reference: the take window the render follows. */
+  reference?: RefIn;
 }
 
 export interface IntentStorage {
@@ -43,7 +74,7 @@ export interface IntentStorage {
 
 export type EstimateCall =
   | { kind: "variant"; trackId: string; body: VariantBody }
-  | { kind: "generation"; body: { items: ItemIn[] } };
+  | { kind: "generation"; body: { items: ItemIn[]; engine?: EngineName } };
 
 export function isVariantMode(m: string): m is VariantMode {
   return VARIANT_MODES.includes(m);
@@ -67,8 +98,36 @@ export function validateIntent(i: GenerationIntent): string | null {
     if ((i.parent_track_ids?.length ?? 0) > MAX_TAKES) return `Too many tracks: generate in batches of at most ${MAX_TAKES}.`;
   }
   if (isVariantMode(i.mode) && !i.parent_track_id) return "Pick a track to vary.";
+  const engineBad = validateEngineIntent(i);
+  if (engineBad) return engineBad;
   const n = takesOf(i);
   if (n > MAX_TAKES) return `That is ${n} takes: generate in batches of at most ${MAX_TAKES} (at most ${MAX_TAKES} takes per batch).`;
+  return null;
+}
+
+function validateEngineIntent(i: GenerationIntent): string | null {
+  if (!isEngineMode(i.mode)) return null;
+  if (engineOf(i) !== ACESTEP) return "This action needs the ACE-Step engine.";
+  if (i.mode === "reference") {
+    if (!i.reference?.track_id) return "Pick the take to use as the reference.";
+    const { from_s: a, to_s: b } = i.reference;
+    if (a !== undefined && b !== undefined && !(a < b)) return "The reference window must end after it starts.";
+    return null;
+  }
+  if (!i.parent_track_id) return "Pick a take to work on.";
+  const e = i.edit;
+  if (i.mode === "repaint") {
+    if (e?.from_s === undefined || e.to_s === undefined) return "Select the range to repaint.";
+    if (!(e.from_s < e.to_s)) return "The range must end after it starts.";
+  }
+  if (i.mode === "extend" && !(e?.extend_s !== undefined && e.extend_s > 0)) return "Enter how many seconds to add.";
+  if (i.mode === "complete" || i.mode === "stems") {
+    const t = e?.tracks ?? [];
+    if (t.length === 0) return "Pick at least one track name.";
+    if (new Set(t).size !== t.length) return "Each track name can appear once.";
+    const max = i.mode === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS;
+    if (t.length > max) return `Pick at most ${max} track names.`;
+  }
   return null;
 }
 
@@ -85,6 +144,9 @@ function isIntent(v: unknown): v is GenerationIntent {
   const o = v as Record<string, unknown>;
   const mode = o.mode;
   if (typeof mode !== "string") return false;
+  if (o.engine !== undefined && (typeof o.engine !== "string" || !ENGINE_NAMES.includes(o.engine))) return false;
+  if (mode === "reference") return typeof o.reference === "object" && o.reference !== null && typeof (o.reference as Record<string, unknown>).track_id === "string";
+  if (isEngineMode(mode)) return typeof o.parent_track_id === "string";
   if (isVariantMode(mode)) return typeof o.parent_track_id === "string";
   if (mode === "from_draft") return Array.isArray(o.draft_ids) && o.draft_ids.every((x) => typeof x === "string");
   if (mode === "from_template") return Array.isArray(o.parent_track_ids) && typeof o.template_mode === "string" && isVariantMode(o.template_mode);
@@ -107,7 +169,7 @@ export function loadIntent(s: IntentStorage): GenerationIntent | null {
 
 /** A single variant of one mother goes to estimate_variant; everything else to estimate_generation. */
 export function intentToEstimate(i: GenerationIntent): EstimateCall {
-  if (isVariantMode(i.mode)) {
+  if (isVariantMode(i.mode) && engineOf(i) === "yue2") {
     const body: VariantBody = { mode: i.mode };
     if (i.n_seeds !== undefined) body.n_seeds = i.n_seeds;
     if (i.seeds !== undefined) body.seeds = i.seeds;
@@ -115,7 +177,10 @@ export function intentToEstimate(i: GenerationIntent): EstimateCall {
     if (i.title !== undefined) body.title = i.title;
     return { kind: "variant", trackId: i.parent_track_id ?? "", body };
   }
-  return { kind: "generation", body: { items: [{ ...i, mode: i.mode } as ItemIn] } };
+  const { engine: _engine, ...item } = i;
+  void _engine;
+  const engine = engineOf(i);
+  return { kind: "generation", body: { items: [{ ...item, mode: i.mode } as ItemIn], ...(engine === "yue2" ? {} : { engine }) } };
 }
 
 /** "1, 2 3" ⇒ [1,2,3]; null when any token is not a safe non-negative integer or one repeats; [] for blank. */
@@ -150,6 +215,28 @@ export function templateIntent(parentTrackIds: string[], templateMode: VariantMo
 /** "New song": the form on /human/generate fills in the recipe. */
 export function composeIntent(): GenerationIntent {
   return { mode: "compose_new", recipe: {} };
+}
+
+/** The intent on another engine: yue2 drops the field (the default), anything else sets it. */
+export function withEngine(i: GenerationIntent, engine: EngineName): GenerationIntent {
+  const { engine: _old, ...rest } = i;
+  void _old;
+  return engine === "yue2" ? rest : { ...rest, engine };
+}
+
+/** Modes whose engine can be chosen on the generate page: variants of a take and the engine's own modes. */
+export function engineSwitchable(i: GenerationIntent): boolean {
+  return isVariantMode(i.mode) || isEngineMode(i.mode);
+}
+
+/** An ACE-Step mode on a source take (the take page, E2). */
+export function engineIntent(mode: Exclude<EngineMode, "reference">, parentTrackId: string): GenerationIntent {
+  return { mode, engine: ACESTEP, parent_track_id: parentTrackId };
+}
+
+/** "Render with this as reference": the window defaults to the server's (the last 20 s) when unset. */
+export function referenceIntent(trackId: string, from_s?: number, to_s?: number): GenerationIntent {
+  return { mode: "reference", engine: ACESTEP, reference: { track_id: trackId, ...(from_s !== undefined ? { from_s } : {}), ...(to_s !== undefined ? { to_s } : {}) } };
 }
 
 /** The slice of whoami the generation entry points need. */
