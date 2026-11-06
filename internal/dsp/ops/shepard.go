@@ -250,7 +250,7 @@ func Shepard(ctx context.Context, x pcm.Buffer, p ShepardParams, m *dsp.Meter) (
 				return pcm.Buffer{}, err
 			}
 			for _, y := range ys {
-				if err := blocks(m, len(y), 1, func(lo, hi int) {
+				if err := meterBlocks(m, len(y), 1, func(lo, hi int) {
 					for i := lo; i < hi; i++ {
 						acc[i] += y[i]
 					}

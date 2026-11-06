@@ -166,7 +166,7 @@ func ensembleStack(ctx context.Context, x pcm.Buffer, p EnsembleParams, m *dsp.M
 				d := delaySamples(v, rate)
 				dst := stack.Ch[c][d:]
 				a := float64(g * side)
-				if err := blocks(m, len(y), unitsStackSample, func(lo, hi int) {
+				if err := meterBlocks(m, len(y), unitsStackSample, func(lo, hi int) {
 					for i := lo; i < hi; i++ {
 						dst[i] += float64(a * y[i])
 					}
@@ -216,7 +216,7 @@ func Ensemble(ctx context.Context, x pcm.Buffer, p EnsembleParams, seed int64, m
 	for c, h := range [2][]float64{hl, hr} {
 		o := make([]float64, outLen)
 		sc := stack.Ch[c][:min(len(stack.Ch[c]), outLen)]
-		if err := blocks(m, len(sc), unitsDrySample, func(lo, hi int) {
+		if err := meterBlocks(m, len(sc), unitsDrySample, func(lo, hi int) {
 			for i := lo; i < hi; i++ {
 				o[i] = float64(dry * sc[i])
 			}
@@ -232,7 +232,7 @@ func Ensemble(ctx context.Context, x pcm.Buffer, p EnsembleParams, seed int64, m
 				return pcm.Buffer{}, 0, err
 			}
 			y = y[:min(len(y), outLen)]
-			if err := blocks(m, len(y), unitsWetSample, func(lo, hi int) {
+			if err := meterBlocks(m, len(y), unitsWetSample, func(lo, hi int) {
 				for i := lo; i < hi; i++ {
 					o[i] += float64(wet * y[i])
 				}

@@ -7,22 +7,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/dsp"
 )
 
-// ParamError is a refused operator parameter: the render child maps it to the invalid-job exit, the service to
-// INVALID_TRANSFORM {field, rule}. (The master and widen operators of T1h declare the same type and rules; the second lane to
-// merge drops its copy.)
-type ParamError struct{ Field, Rule string }
-
-func (e *ParamError) Error() string { return "ops: invalid " + e.Field + ": " + e.Rule }
-
-// Rule names of ParamError.
-const (
-	RuleRange   = "range"
-	RulePreset  = "preset_unknown"
-	RuleInput   = "input"
-	RuleChannel = "channels"
-	// RuleLoopSource is the shepard rule of C202.3 when neither loop_s nor a bar count with a tempo is available.
-	RuleLoopSource = "loop_source_required"
-)
+// RuleLoopSource is the shepard rule of C202.3 when neither loop_s nor a bar count with a tempo is available. (ParamError and
+// the other Rule* names live in stereo.go.)
+const RuleLoopSource = "loop_source_required"
 
 // parseParams decodes the resolved params object of job.json into v (unknown members are the service's business, not the
 // operator's): an absent or null object leaves v at its defaults.
@@ -77,8 +64,8 @@ func MakeLoop(x []float64, start, length, xfade int) []float64 {
 // meterBlock is the granularity of the work meter inside the long linear passes: at most this many elements between checks.
 const meterBlock = 8192
 
-// blocks runs fn over [0, n) in blocks of meterBlock elements and charges perElem units for each element before its block.
-func blocks(m *dsp.Meter, n int, perElem int64, fn func(lo, hi int)) error {
+// meterBlocks runs fn over [0, n) in blocks of meterBlock elements and charges perElem units for each element before its block.
+func meterBlocks(m *dsp.Meter, n int, perElem int64, fn func(lo, hi int)) error {
 	for lo := 0; lo < n; lo += meterBlock {
 		hi := min(lo+meterBlock, n)
 		if err := m.Add(perElem * int64(hi-lo)); err != nil {
@@ -101,7 +88,7 @@ func tile(loop []float64, n int, m *dsp.Meter) ([]float64, error) {
 	if len(loop) == 0 {
 		return out, nil
 	}
-	err := blocks(m, n, 1, func(lo, hi int) {
+	err := meterBlocks(m, n, 1, func(lo, hi int) {
 		for i := lo; i < hi; i++ {
 			out[i] = loop[i%len(loop)]
 		}
