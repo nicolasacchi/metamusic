@@ -8,10 +8,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// Rules is the registry (extension move 3): the rules of lanes NA1 (rules_a.go), NA2 (rules_b.go) and NA3 (rules_c.go) in that
-// order, pinned by testdata/rules_v1_{a,b,c}.golden.json. The engine orders by (priority desc, code, subject id), so the order here
+// Rules is the registry (extension move 3): the rules of lanes NA1 (rules_a.go), NA2 (rules_b.go) and NA3 (rules_c.go) and M5-C1 (rules_d.go) in
+// that order, pinned by testdata/rules_v1_{a,b,c,d}.golden.json. The engine orders by (priority desc, code, subject id), so the order here
 // is only the order of evaluation.
-var Rules = slices.Concat(rulesA, rulesB, rulesC)
+var Rules = slices.Concat(rulesA, rulesB, rulesC, rulesD)
 
 // museSongsCTE is the shared head of every statement about the Songs of the live Muses: one row per live, non-hidden, non-archived
 // Song of a live Muse with its state (the SQL of C90.4), queued job count, angle and draft. It takes one parameter, the JSON

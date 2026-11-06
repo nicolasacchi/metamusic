@@ -11,17 +11,19 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 var (
 	commentKinds  = []string{"note", "fix", "keep", "marker"}
 	commentStates = []string{"open", "addressed", "resolved", "regressed"}
-	commentSrcs   = []string{"web", "api", "mcp", "stdio", "subsonic"}
+	commentSrcs   = []string{"web", "api", "mcp", "stdio", "subsonic", "callback"}
 )
 
 // maxPageBytes is the serialized cap of a list page (M1 C17).
@@ -169,7 +171,7 @@ func (s *Service) AddComment(ctx context.Context, p auth.Principal, src string, 
 }
 
 const commentCols = `id, track_id, body, at_second, section_label, section_source, section_confidence, kind, state, source,
-	principal_kind, principal_id, principal_name, created_at, updated_at, edited_at, state_changed_at, hidden_at`
+	principal_kind, principal_id, principal_name, created_at, updated_at, edited_at, state_changed_at, hidden_at, origin_callback_id`
 
 type rowScanner interface{ Scan(...any) error }
 
@@ -179,10 +181,14 @@ func scanComment(r rowScanner) (Comment, error) {
 		at, conf                    sql.NullFloat64
 		label, lsrc                 sql.NullString
 		edited, stateChanged, hidAt sql.NullString
+		origin                      sql.NullString
 	)
 	if err := r.Scan(&c.ID, &c.TrackID, &c.Body, &at, &label, &lsrc, &conf, &c.Kind, &c.State, &c.Source,
-		&c.Author.Kind, &c.Author.ID, &c.Author.Name, &c.CreatedAt, &c.UpdatedAt, &edited, &stateChanged, &hidAt); err != nil {
+		&c.Author.Kind, &c.Author.ID, &c.Author.Name, &c.CreatedAt, &c.UpdatedAt, &edited, &stateChanged, &hidAt, &origin); err != nil {
 		return c, err
+	}
+	if origin.Valid {
+		c.OriginCallbackID = &origin.String
 	}
 	if at.Valid {
 		v := at.Float64
@@ -392,4 +398,153 @@ func (s *Service) Comments(ctx context.Context, trackID string, f CommentFilter)
 		page.NextCursor = &c
 	}
 	return page, nil
+}
+
+// SystemWriter names who moves a comment through the M5-only transitions (C255.3). update_comment never uses them: Transition
+// still refuses every move into addressed and regressed.
+type SystemWriter string
+
+const (
+	// SystemJob is take ingest: a Song PR child arrived, so the comments its patch addresses move open|regressed -> addressed.
+	SystemJob SystemWriter = "job"
+	// SystemHumanCallback is a human verdict on a fix callback: the order-free sibling rule picks the target (D-M5-4).
+	SystemHumanCallback SystemWriter = "callback"
+)
+
+// SystemTransition reports whether writer w may move a comment from one state to another (C255.3, TestSystemTransitions_Table
+// covers every cell). A move to the same state is a no-op and always allowed. The job writer only addresses (open|regressed ->
+// addressed). A human callback verdict reaches open, resolved or regressed from open, addressed or regressed; a resolved comment
+// is never moved by a callback.
+func SystemTransition(w SystemWriter, from, to string) error {
+	if !slices.Contains(commentStates, from) || !slices.Contains(commentStates, to) {
+		return ErrInvalidTransition
+	}
+	if from == to {
+		return nil
+	}
+	switch w {
+	case SystemJob:
+		if to == "addressed" && (from == "open" || from == "regressed") {
+			return nil
+		}
+	case SystemHumanCallback:
+		if from != "resolved" && (to == "open" || to == "resolved" || to == "regressed") {
+			return nil
+		}
+	}
+	return ErrInvalidTransition
+}
+
+// Move is the result of SystemMoveTx: the state the comment had, and whether a row changed.
+type Move struct {
+	From  string
+	Moved bool
+}
+
+// SystemMoveTx moves comment id to state `to` inside tx as writer w, recording `by` in state_changed_by. A fence adds the runner
+// lease predicate to the UPDATE (the take transaction); nil means the caller holds no lease (a human verdict). It returns
+// ErrInvalidTransition when the writer may not make that move from the comment's current state, and library.ErrNotFound for an
+// unknown comment. Same state is a no-op (Moved false).
+func SystemMoveTx(ctx context.Context, tx *sql.Tx, w SystemWriter, id, to, by string, now time.Time, fence *store.LeaseFence) (Move, error) {
+	var cur string
+	switch err := tx.QueryRowContext(ctx, `SELECT state FROM comments WHERE id = ?`, id).Scan(&cur); {
+	case errors.Is(err, sql.ErrNoRows):
+		return Move{}, library.ErrNotFound
+	case err != nil:
+		return Move{}, fmt.Errorf("judgments: comment state: %w", err)
+	}
+	if err := SystemTransition(w, cur, to); err != nil {
+		return Move{From: cur}, err
+	}
+	if cur == to {
+		return Move{From: cur}, nil
+	}
+	stamp := now.UTC().Format(time.RFC3339)
+	q := `UPDATE comments SET state = ?, state_changed_at = ?, state_changed_by = ?, updated_at = ? WHERE id = ? AND state = ?`
+	args := []any{to, stamp, by, stamp, id, cur}
+	if fence != nil {
+		q += fence.And() //nolint:gosec // G202: fixed C69 predicate
+		args = append(args, fence.Args()...)
+	}
+	res, err := tx.ExecContext(ctx, q, args...) //nolint:gosec // G202: fixed C69 predicate
+	if err != nil {
+		return Move{From: cur}, fmt.Errorf("judgments: system move: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return Move{From: cur}, err
+	}
+	if n == 0 && fence != nil {
+		if err := fence.Confirm(ctx, tx, 0); err != nil {
+			return Move{From: cur}, err
+		}
+	}
+	return Move{From: cur, Moved: n > 0}, nil
+}
+
+// NewCommentTx is the input of AddCommentTx: a comment a system path writes inside its own transaction (the regression comment
+// of a lost keep verdict). The author is the answering principal; Source is a transport label of commentSrcs ("callback").
+type NewCommentTx struct {
+	ID, TrackID, Body, Kind, Source string
+	AtSecond                        *float64
+	Author                          auth.Principal
+	OriginCallbackID                string // optional: the callback this comment came from (frozen column)
+	Now                             time.Time
+}
+
+// maxBodyRunes is the stored body cap of a comment.
+const maxBodyRunes = 4000
+
+// AddCommentTx inserts an open comment inside tx. It validates like AddComment (kind, source, 1..4000 body characters, at_second
+// inside the track) and computes the section label from the timed sections of the track, but never reads outside tx. A body
+// longer than the cap is cut at a rune boundary: the caller composes a prefix and a quoted body and must not fail on it.
+func AddCommentTx(ctx context.Context, tx *sql.Tx, in NewCommentTx) error {
+	if !slices.Contains(commentSrcs, in.Source) {
+		return inv("source", "unknown comment source %q", in.Source)
+	}
+	if !slices.Contains(commentKinds, in.Kind) {
+		return inv("kind", "must be note, fix, keep or marker")
+	}
+	body := strings.TrimSpace(in.Body)
+	if r := []rune(body); len(r) > maxBodyRunes {
+		body = string(r[:maxBodyRunes])
+	}
+	body, err := cleanBody(body)
+	if err != nil {
+		return err
+	}
+	var dur float64
+	switch err := tx.QueryRowContext(ctx, `SELECT duration_s FROM tracks WHERE id = ?`, in.TrackID).Scan(&dur); {
+	case errors.Is(err, sql.ErrNoRows):
+		return library.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("judgments: track lookup: %w", err)
+	}
+	var at, label, lsrc, lconf any
+	if in.AtSecond != nil {
+		t := *in.AtSecond
+		if math.IsNaN(t) || math.IsInf(t, 0) || t < 0 {
+			return inv("at_second", "must be 0 or more")
+		}
+		t = math.Round(math.Min(t, dur)*10) / 10
+		at = t
+		sec, err := sectionFor(ctx, tx, in.TrackID, t)
+		if err != nil {
+			return err
+		}
+		if sec != nil {
+			label, lsrc, lconf = sec.Label, sec.Source, sec.Confidence
+		}
+	}
+	var origin any
+	if in.OriginCallbackID != "" {
+		origin = in.OriginCallbackID
+	}
+	now := in.Now.UTC().Format(time.RFC3339)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO comments(id, track_id, body, at_second, section_label, section_source, section_confidence, kind, state, source,
+		principal_kind, principal_id, principal_name, created_at, updated_at, origin_callback_id) VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?,?,?,?)`,
+		in.ID, in.TrackID, body, at, label, lsrc, lconf, in.Kind, in.Source, string(in.Author.Kind), in.Author.Key(), in.Author.Name, now, now, origin); err != nil {
+		return fmt.Errorf("judgments: add comment: %w", err)
+	}
+	return nil
 }

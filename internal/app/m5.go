@@ -8,9 +8,11 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/attention"
 	"github.com/nicolasacchi/metamusic/internal/callbacks"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
+	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/songpr"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/voice"
@@ -26,9 +28,12 @@ type m5Services struct {
 
 // m5Inputs is what the M5 wiring files draw on.
 type m5Inputs struct {
-	st   *store.Store
-	now  func() time.Time
-	late *m5Late
+	st       *store.Store
+	now      func() time.Time
+	newID    func() string
+	notifier notify.Notifier
+	cfg      config.Config
+	late     *m5Late
 }
 
 // buildM5 constructs the M5 services and fills the late seams; each lane fills only its own m5_<lane>.go (the L3 pattern).
