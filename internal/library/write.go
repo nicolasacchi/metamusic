@@ -120,6 +120,10 @@ type NewTake struct {
 	// 'transform'): TransformID is its transform row and equals ID. It is the only write path of a dsp take.
 	TransformID string
 
+	// BPMDeclared, when > 0, is the declared tempo written to tracks.bpm_declared instead of the one parsed from the
+	// recipe's style text. An engine whose request carries the tempo as a field (ACE-Step, C164) sets it; yue2 leaves 0.
+	BPMDeclared int
+
 	// Out, when non-nil, receives the fulfilled drafts.
 	Out *Fulfilment
 }
@@ -372,6 +376,9 @@ func (s *Service) InsertTake(ctx context.Context, tx *sql.Tx, t NewTake) error {
 		root = t.ID
 	}
 	now := s.nowStr()
+	if t.BPMDeclared > 0 {
+		bpm = t.BPMDeclared
+	}
 	var bpmArg any
 	if bpm > 0 {
 		bpmArg = bpm

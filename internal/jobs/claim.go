@@ -133,20 +133,6 @@ func (r *Runner) backendFor(name string) (provider.Backend, bool) {
 	return r.o.Backends.Get(name)
 }
 
-// workerKeyFor derives worker_key for a worker of the named backend: the default backend keeps M3's plain key, any other
-// backend's key carries its name so a lifetime in worker_meter stays attributable to its backend (the table has no backend
-// column).
-func (r *Runner) workerKeyFor(backend, id string) string {
-	return scopedWorkerKey(r.o.MeterKey, r.defaultBackend(), backend, id)
-}
-
-func (r *Runner) defaultBackend() string {
-	if r.o.Backends == nil || r.o.Backends.Default() == nil {
-		return ""
-	}
-	return r.o.Backends.Default().Name()
-}
-
 // phaseClaim claims and submits queued jobs, backend by backend: a backend that is disarmed, tripped, unquoted or
 // unhealthy claims nothing and does not stop the others (C151.2; the gate of each view reads only its own rows).
 func (r *Runner) phaseClaim(ctx context.Context, rep *StepReport) error {
