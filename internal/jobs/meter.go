@@ -112,13 +112,9 @@ func loadMeter(ctx context.Context, x Querier, now, lastSweep time.Time) (*meter
 	return loadMeterFor(ctx, x, now, lastSweep, meterScope{})
 }
 
-// meterScope restricts the meter to one backend of a multi-backend process: its batches and attempts by their backend
-// column, its worker lifetimes by the owner their key names (scopedWorkerKey). The zero value is M3's whole database.
-type meterScope struct{ backend, def string }
-
-func (s meterScope) owns(key string) bool {
-	return s.backend == "" || keyBackend(key, s.def) == s.backend
-}
+// meterScope restricts the meter to one backend of a multi-backend process: its batches, attempts and worker lifetimes by
+// their backend column (migration 0016). The zero value is M3's whole database.
+type meterScope struct{ backend string }
 
 // loadMeterFor is loadMeter over one backend's batches, attempts and lifetimes.
 func loadMeterFor(ctx context.Context, x Querier, now, lastSweep time.Time, sc meterScope) (*meterModel, error) {
@@ -128,7 +124,7 @@ func loadMeterFor(ctx context.Context, x Querier, now, lastSweep time.Time, sc m
 		return nil, err
 	}
 	// rows first seen before billable_since carry the raw listing uptime (not billable): ignored
-	rows, err := x.QueryContext(ctx, `SELECT worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last FROM worker_meter WHERE first_seen_at >= ? ORDER BY started_at, worker_key`, since)
+	rows, err := x.QueryContext(ctx, `SELECT worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last FROM worker_meter WHERE first_seen_at >= ? AND (? = '' OR backend = ?) ORDER BY started_at, worker_key`, since, sc.backend, sc.backend)
 	if err != nil {
 		return nil, err
 	}
@@ -138,9 +134,6 @@ func loadMeterFor(ctx context.Context, x Querier, now, lastSweep time.Time, sc m
 		if err := rows.Scan(&l.key, &st, &fs, &ls, &l.uptimeS, &l.status); err != nil {
 			rows.Close()
 			return nil, err
-		}
-		if !sc.owns(l.key) {
-			continue
 		}
 		// the lifetime starts when it first became billable, never before the record was first metered
 		l.started, l.lastSeen = mustT(st), mustT(ls)
@@ -291,7 +284,7 @@ func (m *meterModel) attribute() {
 }
 
 func (r *Reconciler) meterScope() meterScope {
-	return meterScope{backend: r.scope(), def: r.o.DefaultBackend}
+	return meterScope{backend: r.scope()}
 }
 
 // OverheadSeconds implements BatchMeter (C76.6). The batch is ready when every worker lifetime attributed
@@ -323,6 +316,18 @@ func (r *Reconciler) OverheadSeconds(ctx context.Context, x Querier, batchID str
 		}
 	}
 	lastEnd, ok := m.lastEnd[batchID]
+	if !ok {
+		// no attempt of the batch is tied to a worker lifetime (it ended before a worker was identified, or no sweep
+		// caught it): wait idle_s + 60 s from the batch's last attempt end instead of forever, or the batch never finishes
+		var last sql.NullString
+		if err := x.QueryRowContext(ctx, `SELECT MAX(a.terminal_at) FROM job_attempts a JOIN jobs j ON j.id = a.job_id
+			WHERE j.batch_id = ? AND a.state <> 'rejected'`, batchID).Scan(&last); err != nil {
+			return 0, false, err
+		}
+		if t := parseT(last); t != nil {
+			lastEnd, ok = *t, true
+		}
+	}
 	waited := ok && !now.Before(lastEnd.Add(time.Duration(idle+60)*time.Second))
 	if len(m.lifetimesOf[batchID]) == 0 {
 		return secs, waited, nil // attempts ran but no worker has been seen yet: give the sweeps time

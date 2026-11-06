@@ -47,7 +47,7 @@ const runpodUsage = `usage: metamusic runpod <command>
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
   canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
-                                              (E2a); --max-usd is required
+                                              (E2a) or extend|complete|extract|base-long|lrc (E2b); --max-usd is required
          [--source-track ID] [--pools P[,P]] [--max-s 480|600] [--init-fail-confirm] [--measured-out FILE]
   canary --engine acestep15 --all --dry-run [--part a|b] [--price-usd-hour N]
                                               prints the worst case and spends nothing
@@ -653,7 +653,7 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 	v.LastReconcile = last.String
 	var n, billed int64
 	var end sql.NullString
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(window_end), COALESCE(SUM(billed_micro_usd),0) FROM billing_windows`).Scan(&n, &end, &billed); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(window_end), COALESCE(SUM(billed_micro_usd),0) FROM billing_windows WHERE backend = ?`, v.Backend).Scan(&n, &end, &billed); err != nil {
 		return err
 	}
 	v.Billing = map[string]any{"windows": n, "last_window_end": end.String, "billed": money.MicroUSD(billed).USD()}
@@ -914,7 +914,7 @@ func checkRestoreCovered(ctx context.Context, db *sql.DB, e *runpodEnv, g rpEngi
 		return err
 	}
 	var covered bool
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(window_end),'') >= ? FROM billing_windows`, restored.String).Scan(&covered); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(window_end),'') >= ? FROM billing_windows WHERE backend = ?`, restored.String, g.backend).Scan(&covered); err != nil {
 		return err
 	}
 	if covered {

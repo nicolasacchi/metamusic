@@ -54,6 +54,8 @@ type uiState struct {
 	recordRev, crateRev int
 	// T1: the transform create_transform queued
 	transform string
+	// M5: the Song PR propose_patch made
+	patch string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -331,6 +333,8 @@ func (s *uiState) afterStep(op string, res any) {
 	switch op {
 	case "add_comment":
 		s.comment, _ = m["id"].(string)
+	case "propose_patch":
+		s.patch, _ = m["id"].(string)
 	case "create_playlist":
 		s.playlist, _ = m["id"].(string)
 	case "export_playlist_zip":

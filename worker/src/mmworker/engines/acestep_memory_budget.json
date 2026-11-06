@@ -1,0 +1,8 @@
+{
+ "schema": "mm.acestep-memory-budget/1",
+ "measured": false,
+ "note": "Not measured yet (E2-P0b is folded into the first canary). While measured is false, preflight only logs. When true: static_gib terms (base_dit counted only when the base class is loaded) + activation_gib_per_s x MM_ACESTEP_MAX_SECONDS must be <= vram_fraction x visible VRAM, else NO_MEMORY.",
+ "vram_fraction": 0.9,
+ "static_gib": {"turbo_dit": null, "base_dit": null, "lm": null, "qwen3_encoder": null, "vae": null, "lm_kv_reservation": null},
+ "activation_gib_per_s": null
+}

@@ -70,9 +70,9 @@ func (r *Runner) attemptArtifacts(ctx context.Context, x q, j *jobRec) (arts map
 	required, optional := eng.Artifacts([]byte(request))
 	arts = map[string]int64{}
 	for _, n := range append(append([]string{}, required...), optional...) {
-		limit, ok := provider.ArtifactMaxBytes(n)
+		limit, ok := provider.ArtifactMaxBytesFor(j.Engine, n)
 		if !ok {
-			return nil, "", fmt.Errorf("jobs: engine %q lists %q, which is not allowlisted", j.Engine, n)
+			return nil, "", fmt.Errorf("jobs: engine %q lists %q, which is not in its artifact allowlist", j.Engine, n)
 		}
 		arts[n] = limit
 	}
@@ -258,7 +258,7 @@ func (r *Runner) claimTx(ctx context.Context, tx *sql.Tx, backend string) (*clai
 	} else if cnt == 0 {
 		return nil, store.ErrLeaseLost
 	}
-	if err := r.o.Uploads.OpenAttempt(ctx, tx, upload.JobRef{JobID: id, BatchID: batchID}, attemptID, arts, expUnix, f); err != nil {
+	if err := r.o.Uploads.OpenAttempt(ctx, tx, upload.JobRef{JobID: id, BatchID: batchID, Engine: j.Engine}, attemptID, arts, expUnix, f); err != nil {
 		return nil, err
 	}
 	idle := max(g.idleS, b.IdleS)
@@ -425,8 +425,11 @@ func (r *Runner) preflightFailed(ctx context.Context, err error, candidate strin
 		return insertEvent(ctx, tx, r.fence(), Event{JobID: candidate, Name: EvPreflightFailed, Detail: map[string]any{"check": check}})
 	})
 	why := "disk low"
-	if check == "route" {
+	switch check {
+	case "route":
 		why = "upload route down"
+	case "media":
+		why = "media route down"
 	}
 	_ = r.o.Notify.Notify(ctx, NotePreflightFailing(r.o.PublicURL, why))
 }
@@ -436,7 +439,7 @@ func (r *Runner) preflightFailed(ctx context.Context, err error, candidate strin
 // submit mints the capability URLs in memory, sends the attempt to the provider (never replayed) and
 // records the outcome.
 func (r *Runner) submit(ctx context.Context, c *claim) error {
-	spec, err := r.takeSpec(c)
+	spec, err := r.takeSpec(ctx, c)
 	if err != nil {
 		// nothing was sent: the attempt is rejected like a client-side refusal
 		return r.submitOutcome(ctx, c, provider.Ref{}, &submitFailure{kind: failRefused, code: CodeSubmitRejected, text: err.Error()})
@@ -456,21 +459,51 @@ func (r *Runner) submit(ctx context.Context, c *claim) error {
 	return r.submitOutcome(ctx, c, ref, nil)
 }
 
-func (r *Runner) takeSpec(c *claim) (provider.TakeSpec, error) {
-	ups, startURL, err := r.o.Uploads.Mint(upload.JobRef{JobID: c.job.ID, BatchID: c.batch.ID}, c.attempt, c.exp)
+func (r *Runner) takeSpec(ctx context.Context, c *claim) (provider.TakeSpec, error) {
+	ups, startURL, err := r.o.Uploads.Mint(upload.JobRef{JobID: c.job.ID, BatchID: c.batch.ID, Engine: c.job.Engine}, c.attempt, c.exp)
 	if err != nil {
 		return provider.TakeSpec{}, err
 	}
-	var m struct {
-		MinAudioS int `json:"min_audio_s"`
-	}
-	_ = json.Unmarshal([]byte(c.job.MutationJSON), &m) // absent in takes planned before the control: 0 = none
-	return provider.TakeSpec{
-		MinAudioS: m.MinAudioS,
-		JobID:     c.job.ID, AttemptID: c.attempt, Engine: c.job.Engine, Request: []byte(c.request),
+	spec := provider.TakeSpec{
+		JobID: c.job.ID, AttemptID: c.attempt, Engine: c.job.Engine, Request: []byte(c.request),
 		TimeoutS: c.job.TimeoutS, TTL: r.o.TTL, UploadBudgetS: uploadBudgetS, Uploads: ups, StartURL: startURL,
 		Expect: r.o.Expect, Deadline: time.Unix(c.exp, 0).UTC(),
-	}, nil
+	}
+	if c.job.Engine == provider.EngineYuE2 || c.job.Engine == "" {
+		var m struct {
+			MinAudioS int `json:"min_audio_s"`
+		}
+		_ = json.Unmarshal([]byte(c.job.MutationJSON), &m) // absent in takes planned before the control: 0 = none
+		spec.MinAudioS = m.MinAudioS
+		return spec, nil
+	}
+	// Another engine: no minimum-render control (C153), its own pinned weights, and the signed fetch URLs of an edit's
+	// source and reference audio, minted now and carried only in this in-memory spec (D-E2-9).
+	if e, ok := r.o.Expects[c.job.Engine]; ok {
+		spec.Expect = e
+	}
+	inputs, err := r.mintInputs(ctx, c)
+	if err != nil {
+		return provider.TakeSpec{}, err
+	}
+	spec.Inputs = inputs
+	return spec, nil
+}
+
+// mintInputs signs the edit inputs of a non-yue2 job so that they outlive the attempt's window. A request without src and
+// ref needs no minter. The error text never carries a URL.
+func (r *Runner) mintInputs(ctx context.Context, c *claim) (map[string]provider.InputRef, error) {
+	if !requestHasInputs(c.request) {
+		return nil, nil
+	}
+	if r.o.Inputs == nil {
+		return nil, errors.New("jobs: the request names input audio but no input minter is wired")
+	}
+	inputs, err := r.o.Inputs.MintInputs(ctx, json.RawMessage(c.request), time.Unix(c.exp, 0).UTC())
+	if err != nil {
+		return nil, fmt.Errorf("jobs: mint inputs: %s", redact.Error(err))
+	}
+	return inputs, nil
 }
 
 type failKind int

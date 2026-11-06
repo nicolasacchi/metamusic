@@ -272,7 +272,7 @@ func (r *Runner) verifyTransfer(ctx context.Context, tx *sql.Tx, jobID string) (
 	}
 	out, err := r.readOutput(res.UploadID)
 	if err != nil || out.Contract != provider.Contract || out.Status != "ok" || out.TakeID != j.ID || out.AttemptID != win ||
-		out.AudioSeconds == nil || !validTruncated(out.Truncated) {
+		out.AudioSeconds == nil || !truncatedShapeOK(reportsTruncation(r.o.Engines, j.Engine), out.Truncated) {
 		return failJob(CodeWorkerContract, Event{AttemptID: win, Name: EvFailed})
 	}
 	required, err := r.requiredArtifacts(ctx, tx, &j)
@@ -281,7 +281,7 @@ func (r *Runner) verifyTransfer(ctx context.Context, tx *sql.Tx, jobID string) (
 	}
 	var missing, mismatched []string
 	for name, dg := range out.Artifacts {
-		if _, allowed := provider.ArtifactMaxBytes(name); !allowed || name == provider.ResultArtifact {
+		if _, allowed := provider.ArtifactMaxBytesFor(j.Engine, name); !allowed || name == provider.ResultArtifact {
 			return failJob(CodeWorkerContract, Event{AttemptID: win, Name: EvFailed})
 		}
 		u, have := byName[name]
@@ -311,10 +311,22 @@ func (r *Runner) verifyTransfer(ctx context.Context, tx *sql.Tx, jobID string) (
 		}
 		return nil, nil
 	}
-	d := map[string]any{"artifacts": len(out.Artifacts), "truncated_abc": out.Truncated["abc"], "truncated_semantic": out.Truncated["semantic"]}
+	d := map[string]any{"artifacts": len(out.Artifacts)}
+	if reportsTruncation(r.o.Engines, j.Engine) {
+		d["truncated_abc"], d["truncated_semantic"] = out.Truncated["abc"], out.Truncated["semantic"]
+	}
 	_ = b
 	return nil, r.moveJob(ctx, tx, f, &j, StateIngesting, Event{AttemptID: win, Name: EvVerified, Detail: d},
 		set("state_deadline_at", store.FormatTime(f.Now.Add(ingestTimeout))))
+}
+
+// truncatedShapeOK is the worker output's truncated shape the engine's IngestPolicy asks for: an object of exactly abc and
+// semantic, or null for an engine that reports no truncation (C156).
+func truncatedShapeOK(reports bool, t map[string]bool) bool {
+	if reports {
+		return validTruncated(t)
+	}
+	return t == nil
 }
 
 func validTruncated(t map[string]bool) bool {
@@ -519,7 +531,10 @@ func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence
 	if out.Truncated["abc"] || out.Truncated["semantic"] {
 		outcome = "truncated"
 	}
-	sets := []setCol{set("outcome", outcome), set("track_id", trackID), set("truncated_abc", boolInt(out.Truncated["abc"])), set("truncated_semantic", boolInt(out.Truncated["semantic"]))}
+	sets := []setCol{set("outcome", outcome), set("track_id", trackID)}
+	if reportsTruncation(r.o.Engines, j.Engine) { // otherwise NULL: an engine that reports no truncation leaves it unknown
+		sets = append(sets, set("truncated_abc", boolInt(out.Truncated["abc"])), set("truncated_semantic", boolInt(out.Truncated["semantic"])))
+	}
 	if env.Valid {
 		sets = append(sets, set("env_id", env.String))
 	}

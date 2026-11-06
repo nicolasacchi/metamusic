@@ -240,7 +240,7 @@ func (r *Runner) recordObservation(ctx context.Context, tx *sql.Tx, f store.Leas
 		sets, args = append(sets, "last_queued_at = ?"), append(args, store.FormatTime(f.Now))
 	}
 	if st.WorkerID != "" && a.WorkerKey == "" && len(r.o.MeterKey) > 0 {
-		sets, args = append(sets, "worker_key = ?"), append(args, r.workerKeyFor(a.Backend, st.WorkerID))
+		sets, args = append(sets, "worker_key = ?"), append(args, workerKey(r.o.MeterKey, st.WorkerID))
 	}
 	if len(sets) == 0 {
 		return nil

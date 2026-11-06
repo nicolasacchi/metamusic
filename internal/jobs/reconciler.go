@@ -43,13 +43,11 @@ type ReconcilerOptions struct {
 	MaxRuntime               time.Duration
 	PriceMarginPPM           int64
 	GateCfg                  provider.GateConfig
-	// Scoped marks one reconciler of several (NewReconcilers, D-E2-39): every query that reads batches, attempts or worker
-	// lifetimes is restricted to this backend, quotes are stamped with its name and notifications name it. Peer marks a
-	// reconciler that is not the default backend's: it leaves the backend-agnostic steps (adoption, approvals, upload
-	// sweep) to the default one and, because billing_windows/billing_buckets carry no backend column, reconciles its
-	// batches by the residual hold only. DefaultBackend is the default backend's name (which keeps M3's plain worker keys).
-	Scoped, Peer   bool
-	DefaultBackend string
+	// Scoped marks one reconciler of several (NewReconcilers, D-E2-39): every query that reads batches, attempts, worker
+	// lifetimes, billing windows or buckets is restricted to this backend, quotes are stamped with its name and notifications
+	// name it. Peer marks a reconciler that is not the default backend's: it leaves the backend-agnostic steps (adoption,
+	// approvals, upload sweep) to the default one.
+	Scoped, Peer bool
 	// Location is the process time zone: a billing window never crosses one of its month boundaries.
 	// nil means time.Local.
 	Location *time.Location
@@ -389,8 +387,8 @@ func (r *Reconciler) refreshQuote(ctx context.Context) error {
 
 // ---- sweep ----
 
-const meterUpsertSQL = `INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last, image)
-	SELECT ?, ?, ?, ?, ?, ?, ? WHERE `
+const meterUpsertSQL = `INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last, image, backend)
+	SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE `
 
 const meterConflictSQL = ` ON CONFLICT(worker_key, started_at) DO UPDATE SET uptime_s = max(uptime_s, excluded.uptime_s),
 	last_seen_at = excluded.last_seen_at, status_last = excluded.status_last, image = COALESCE(excluded.image, image)`
@@ -435,9 +433,6 @@ func (r *Reconciler) workerKeyOf(id string) string {
 	if len(r.o.MeterKey) == 0 {
 		return ""
 	}
-	if r.o.Scoped {
-		return scopedWorkerKey(r.o.MeterKey, r.o.DefaultBackend, r.o.Backend.Name(), id)
-	}
 	return workerKey(r.o.MeterKey, id)
 }
 
@@ -467,7 +462,7 @@ func (r *Reconciler) recordWorkers(ctx context.Context, rep provider.SweepReport
 				if p.image != "" {
 					image = p.image
 				}
-				args := []any{p.key, store.FormatTime(p.obs.started), ts, ts, p.obs.billable, p.status, image}
+				args := []any{p.key, store.FormatTime(p.obs.started), ts, ts, p.obs.billable, p.status, image, r.o.Backend.Name()}
 				if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
 					return err
 				}
@@ -714,7 +709,7 @@ func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.Swe
 		ts := store.FormatTime(now)
 		for i, st := range statuses {
 			key := r.workerKeyOf(fmt.Sprintf("health:%d:%d", since.UnixNano(), i))
-			args := []any{key, store.FormatTime(since), ts, ts, uptime, st, nil}
+			args := []any{key, store.FormatTime(since), ts, ts, uptime, st, nil, r.o.Backend.Name()}
 			if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
 				return err
 			}

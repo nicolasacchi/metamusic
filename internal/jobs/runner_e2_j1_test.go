@@ -28,12 +28,13 @@ func (aceBE) Engine() string { return provider.EngineACEStep }
 // dual is a rig over two backends: the rig's own `fake` (yue2) and a scripted `fake-acestep`.
 type dual struct {
 	*rig
-	ace  aceBE
-	set  *provider.Set
-	mu   sync.Mutex
-	aSw  func() (provider.SweepReport, error)
-	aQ   func() (provider.Quote, error)
-	aPrg int
+	ace   aceBE
+	set   *provider.Set
+	mu    sync.Mutex
+	aSw   func() (provider.SweepReport, error)
+	aQ    func() (provider.Quote, error)
+	aBill func(from, to time.Time) ([]provider.BillBucket, error)
+	aPrg  int
 }
 
 // newDual builds the rig and puts its runner over the two-backend set. aceArmed seeds the ACE provider_state row.
@@ -61,6 +62,15 @@ func newDual(t *testing.T, aceArmed bool) *dual {
 			return provider.SweepReport{ObservedAt: d.clk.Now()}, nil
 		},
 		PurgeQueue: func(context.Context) error { d.mu.Lock(); d.aPrg++; d.mu.Unlock(); return nil },
+		Billing: func(_ context.Context, from, to time.Time) ([]provider.BillBucket, error) {
+			d.mu.Lock()
+			fn := d.aBill
+			d.mu.Unlock()
+			if fn != nil {
+				return fn(from, to)
+			}
+			return nil, nil
+		},
 	})}
 	var err error
 	if d.set, err = provider.NewSet(provider.BackendFake, d.be, d.ace); err != nil {
@@ -413,7 +423,7 @@ func TestReconciler_QuoteStampedWithOwnBackend(t *testing.T) {
 	}
 }
 
-func TestReconciler_PeerBillingIsScopedAndHeld(t *testing.T) {
+func TestReconciler_BillingIsPerBackend(t *testing.T) {
 	t.Parallel()
 	d := newDual(t, true)
 	yue := d.seedBatch(batchSpec{jobs: 1})
@@ -423,22 +433,46 @@ func TestReconciler_PeerBillingIsScopedAndHeld(t *testing.T) {
 	if !rs[1].o.Peer || rs[0].o.Peer || !rs[0].o.Scoped || !rs[1].o.Scoped {
 		t.Fatalf("scoping flags: %+v %+v", rs[0].o, rs[1].o)
 	}
-	d.advance(49 * time.Hour) // past ResidualHold (48 h)
+	// each endpoint bills the hour of the batches: the ACE endpoint's amount differs from the yue2 endpoint's
+	hour := t0.Truncate(time.Hour)
+	d.billingFn = func(from, to time.Time) ([]provider.BillBucket, error) {
+		return []provider.BillBucket{{Start: hour, End: hour.Add(time.Hour), Total: 3000, Compute: 3000}}, nil
+	}
+	d.mu.Lock()
+	d.aBill = func(from, to time.Time) ([]provider.BillBucket, error) {
+		return []provider.BillBucket{{Start: hour, End: hour.Add(time.Hour), Total: 9000, Compute: 9000}}, nil
+	}
+	d.mu.Unlock()
+	d.advance(8 * time.Hour) // past BillingLag (6 h) and the quiet window
 	d.hold(d.run)
-	if err := rs[1].Pass(t.Context()); err != nil { // only the ACE reconciler runs
+	if err := rs[0].Pass(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	reconciled := func(b string) bool {
-		return d.str(`SELECT COALESCE(reconciled_at, '') FROM batches WHERE id = ?`, b) != ""
+	rows := map[string]int64{}
+	rs0, err := d.st.R.Query(`SELECT backend, billed_micro_usd FROM billing_windows`)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !reconciled(ace.Batch) {
-		t.Error("the ACE batch was not released by the hold")
+	for rs0.Next() {
+		var b string
+		var v int64
+		if err := rs0.Scan(&b, &v); err != nil {
+			t.Fatal(err)
+		}
+		rows[b] = v
 	}
-	if reconciled(yue.Batch) {
-		t.Error("the ACE reconciler released a yue2 batch")
+	rs0.Close()
+	if rows[provider.BackendFake] != 3000 || rows[aceName] != 9000 {
+		t.Errorf("billing windows by backend: %v", rows)
 	}
-	if got := d.ace.Calls().Billing; got != 0 {
-		t.Errorf("the ACE backend billing was read %d times (no billing windows of its own)", got)
+	if got := d.count(`SELECT COUNT(*) FROM ledger WHERE kind = 'bill' AND backend = ?`, aceName); got != 1 {
+		t.Errorf("ACE bill rows %d", got)
+	}
+	if got := d.count(`SELECT COUNT(*) FROM billing_buckets WHERE backend = ?`, provider.BackendFake); got != 1 {
+		t.Errorf("default buckets %d", got)
+	}
+	if d.ace.Calls().Billing == 0 {
+		t.Error("the ACE endpoint's billing was never read")
 	}
 }
 
@@ -486,38 +520,13 @@ func TestReconciler_PeersRunConcurrentlyAndIsolated(t *testing.T) {
 	}
 }
 
-func TestScopedWorkerKey_Table(t *testing.T) {
-	t.Parallel()
-	key := []byte("meter-key-for-tests-0123456789")
-	plain := workerKey(key, "w1")
-	for _, tc := range []struct {
-		name, def, backend, want string
-	}{
-		{"no set", "", "fake", plain},
-		{"default backend keeps the plain key", "fake", "fake", plain},
-		{"other backend is prefixed", "fake", aceName, aceName + ":" + plain},
-		{"no backend", "fake", "", plain},
-	} {
-		if got := scopedWorkerKey(key, tc.def, tc.backend, "w1"); got != tc.want {
-			t.Errorf("%s: %q", tc.name, got)
-		}
-	}
-	if keyBackend(plain, "fake") != "fake" || keyBackend(aceName+":"+plain, "fake") != aceName {
-		t.Error("keyBackend")
-	}
-	if strings.Contains(scopedWorkerKey(key, "fake", aceName, "raw-worker-id"), "raw-worker-id") {
-		t.Error("raw worker id leaked into a key")
-	}
-}
-
 func TestMeter_ScopedPerBackend(t *testing.T) {
 	t.Parallel()
 	d := newDual(t, true)
 	key := []byte("meter-key-for-tests-0123456789")
-	yk, ak := scopedWorkerKey(key, provider.BackendFake, provider.BackendFake, "w-y"), scopedWorkerKey(key, provider.BackendFake, aceName, "w-a")
 	ts := store.FormatTime(t0)
-	for _, k := range []string{yk, ak} {
-		d.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,100,'RUNNING')`, k, ts, ts, ts)
+	for k, b := range map[string]string{workerKey(key, "w-y"): provider.BackendFake, workerKey(key, "w-a"): aceName} {
+		d.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last, backend) VALUES(?,?,?,?,100,'RUNNING',?)`, k, ts, ts, ts, b)
 	}
 	yue := d.seedBatch(batchSpec{jobs: 1})
 	ace := d.seedBatch(batchSpec{jobs: 1, backend: aceName})
@@ -528,8 +537,8 @@ func TestMeter_ScopedPerBackend(t *testing.T) {
 		notBatc string
 	}{
 		{meterScope{}, 2, "", ""},
-		{meterScope{backend: provider.BackendFake, def: provider.BackendFake}, 1, yue.Batch, ace.Batch},
-		{meterScope{backend: aceName, def: provider.BackendFake}, 1, ace.Batch, yue.Batch},
+		{meterScope{backend: provider.BackendFake}, 1, yue.Batch, ace.Batch},
+		{meterScope{backend: aceName}, 1, ace.Batch, yue.Batch},
 	} {
 		m, err := loadMeterFor(t.Context(), d.st.R, t0, time.Time{}, sc.scope)
 		if err != nil {
@@ -632,14 +641,6 @@ func TestRunner_ViewsCarryTheirBackendsConfig(t *testing.T) {
 	}
 }
 
-func TestRunner_PlainWorkerKeyWithoutASet(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	if got := r.run.workerKeyFor(provider.BackendFake, "w1"); got != workerKey([]byte(nil), "w1") {
-		t.Errorf("no set must keep M3's plain key: %q", got)
-	}
-}
-
 func TestRunner_ClaimErrorStopsTheStepForEveryBackend(t *testing.T) {
 	t.Parallel()
 	d := newDual(t, true)
@@ -687,5 +688,20 @@ func TestMeterRouter_UnknownBackendFallsBackToTheDefault(t *testing.T) {
 	}
 	if _, _, err := rt.OverheadSeconds(t.Context(), d.st.R, "no-such-batch"); err == nil {
 		t.Error("a missing batch must be an error")
+	}
+}
+
+func TestArmGate_CoverageIsPerBackend(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, false)
+	restored := t0.Add(time.Hour)
+	d.exec(`UPDATE provider_state SET restored_at = ?`, store.FormatTime(restored))
+	d.exec(`INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at, backend)
+		VALUES(?, ?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?, ?)`, store.FormatTime(restored), store.FormatTime(restored.Add(time.Hour)), store.FormatTime(restored.Add(time.Hour)), aceName)
+	for backend, want := range map[string]bool{aceName: true, provider.BackendFake: false} {
+		g, err := ArmGate(t.Context(), d.st.R, backend)
+		if err != nil || !g.Restored || g.Covered != want {
+			t.Errorf("%s: %+v %v, want covered=%v", backend, g, err, want)
+		}
 	}
 }
