@@ -1271,8 +1271,8 @@ func (s *Service) Media(ctx context.Context, trackID string) (MediaSet, error) {
 	return m, nil
 }
 
-// Resolve implements serve.Resolver: flac addresses masters, mp3 addresses
-// the MP3 rendition, jpg the spectrogram rendition.
+// Resolve implements serve.Resolver: flac addresses masters (and the stem artifacts of takes, E2b), mp3 addresses
+// the MP3 rendition, jpg the spectrogram rendition, lrc a take's lyrics.lrc artifact.
 func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, error) {
 	var (
 		q  string
@@ -1280,7 +1280,11 @@ func (s *Service) Resolve(ctx context.Context, sha, ext string) (serve.Object, e
 	)
 	switch ext {
 	case "flac":
-		q, ct = `SELECT master_path, created_at FROM tracks WHERE master_sha256 = ? AND lossy = 0`, "audio/flac"
+		// a stem artifact is addressed by its digest like a master (E2b, C157.1); a master wins when both exist
+		q, ct = `SELECT path, created_at FROM (SELECT master_path AS path, created_at, 0 AS pri FROM tracks WHERE master_sha256 = ?1 AND lossy = 0
+			UNION ALL SELECT path, created_at, 1 FROM artifacts WHERE sha256 = ?1 AND name GLOB 'stem-*.flac') ORDER BY pri LIMIT 1`, "audio/flac"
+	case "lrc":
+		q, ct = `SELECT path, created_at FROM artifacts WHERE sha256 = ? AND name = 'lyrics.lrc' LIMIT 1`, "text/plain; charset=utf-8"
 	case "mp3":
 		// the MP3 rendition, or the master of a lossy track (D-M2c-7)
 		q, ct = `SELECT path, created_at FROM renditions WHERE kind = 'mp3_320' AND sha256 = ?

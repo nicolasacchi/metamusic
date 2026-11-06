@@ -76,7 +76,7 @@ func jobsJobCost(c jobs.JobCostInfo) JobCost {
 func jobsSummary(j jobs.Job) JobSummary {
 	return JobSummary{ID: j.ID, BatchID: j.BatchID, TakeIndex: j.TakeIndex, State: j.State, Outcome: j.Outcome, ErrorCode: j.ErrorCode, Title: j.Title,
 		RequestID: j.RequestID, Seed: j.Seed, Operator: j.Operator, ParentTrackID: j.ParentTrackID, DraftID: j.DraftID, TrackID: j.TrackID,
-		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost)}
+		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost), Task: j.Task, Stem: j.Stem}
 }
 
 func jobsFull(j jobs.Job) Job {

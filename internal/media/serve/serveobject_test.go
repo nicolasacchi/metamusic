@@ -124,11 +124,11 @@ func TestServeObject_MissingFileIs500(t *testing.T) {
 	}
 }
 
-// TestMediaPath_PNG: the path regexp accepts png (C110.3) and nothing else new.
+// TestMediaPath_PNG: the path regexp accepts png (C110.3) and lrc (E2b), nothing else new.
 func TestMediaPath_PNG(t *testing.T) {
 	t.Parallel()
 	sha := strings.Repeat("0f", 32)
-	for ext, want := range map[string]bool{"png": true, "flac": true, "jpg": true, "gif": false, "PNG": false, "pngx": false} {
+	for ext, want := range map[string]bool{"png": true, "flac": true, "jpg": true, "lrc": true, "gif": false, "PNG": false, "pngx": false} {
 		if got := mediaPath.MatchString("/media/" + sha + "." + ext); got != want {
 			t.Errorf("ext %s: match=%v, want %v", ext, got, want)
 		}
