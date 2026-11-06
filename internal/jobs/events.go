@@ -84,7 +84,7 @@ var eventDetailKeys = map[string][]string{
 	EvResultReceived:    {"artifact_count", "status"},
 	EvCompletedRemote:   {"execution_ms"},
 	EvVerified:          {"artifacts", "truncated_abc", "truncated_semantic"},
-	EvIngested:          {"track_id", "outcome", "audio_s"},
+	EvIngested:          {"track_id", "outcome", "audio_s", "timings"},
 	EvEars:              {"warnings"},
 	EvCancelRequested:   {"by"},
 	EvCancelSent:        {"count", "error"},

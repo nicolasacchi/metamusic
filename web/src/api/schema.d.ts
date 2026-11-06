@@ -5272,6 +5272,9 @@ export interface components {
             cold_start_s: number | null;
             /** Format: int64 */
             execution_ms: number | null;
+            extra?: {
+                [key: string]: number;
+            };
             /** Format: int64 */
             queue_delay_ms: number | null;
         };

@@ -545,6 +545,11 @@ func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence
 			d["audio_s"] = v
 		}
 	}
+	if j.Engine != provider.EngineYuE2 {
+		if t := workerTimings(out); len(t) > 0 {
+			d["timings"] = t // read back by the job view as timings.extra
+		}
+	}
 	return r.moveJob(ctx, tx, f, j, StateCompleted, Event{Name: EvIngested, Detail: d}, sets...)
 }
 

@@ -83,7 +83,7 @@ func jobsFull(j jobs.Job) Job {
 	out := Job{JobSummary: jobsSummary(j), Engine: j.Engine, Backend: j.Backend, Mode: j.Mode, Attempts: j.Attempts, Resubmits: j.Resubmits,
 		StartedAt: tsPtr(j.StartedAt), FinishedAt: tsPtr(j.FinishedAt), DeadlineAt: tsPtr(j.DeadlineAt), TimeoutS: j.TimeoutS, ExpectedAudioS: j.ExpectedAudioS,
 		AudioS: j.AudioS, Env: j.Env, CancelRequestedAt: tsPtr(j.CancelReqAt), ErrorMessage: j.ErrorMessage,
-		Timings:   JobTimings{QueueDelayMS: j.Timings.QueueDelayMS, ExecutionMS: j.Timings.ExecutionMS, ColdStartS: j.Timings.ColdStartS},
+		Timings:   JobTimings{QueueDelayMS: j.Timings.QueueDelayMS, ExecutionMS: j.Timings.ExecutionMS, ColdStartS: j.Timings.ColdStartS, Extra: j.Timings.Extra},
 		Artifacts: []JobArtifact{}, Events: []JobEvent{}}
 	if j.TruncatedABC != nil && j.TruncSem != nil {
 		t := JobTruncatedOrNull{ABC: *j.TruncatedABC, Semantic: *j.TruncSem}
