@@ -239,10 +239,10 @@ web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
 # file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
 # live since T1-W3 added the spec files (t1-hifi joins the Go lines: the hi-fi kinds are DSP). A
 # changed t1-*.spec.ts already runs itself (see the header), and unmapped web/src paths already fall back to @core.
-web/src/routes/Transforms.svelte	t1-transforms
-web/src/lib/components/Transform*	t1-transforms
-web/src/lib/transform*.ts	t1-transforms
-internal/transform/*	t1-transforms t1-hifi
+web/src/routes/Transforms.svelte	t1-transforms t1-quota
+web/src/lib/components/Transform*	t1-transforms t1-quota
+web/src/lib/transform*.ts	t1-transforms t1-quota
+internal/transform/*	t1-transforms t1-hifi t1-quota
 internal/dsp/*	t1-transforms t1-hifi
 # END T1-I1
 # BEGIN E2-I1 (e2-* specs). Same constraint as the T1 block: the map cannot name a spec that does not exist yet (verify-selftest fails on a
