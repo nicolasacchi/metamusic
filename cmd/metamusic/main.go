@@ -51,6 +51,7 @@ commands:
   transform verify TAKE_ID | --all [--limit N]
                                  re-render a transform from its stored spec and compare the audio hash (exit 1 on a mismatch)
   transform sweep                recover and clean up transforms offline (refuses while a server holds a live lease)
+  dsp-run --work DIR             render child of the transform runner (started by the server; not for humans)
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
   engines list|adopt ENGINE --reason "..."|reject ENGINE --reason "..."
@@ -126,6 +127,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdLibrary(ctx, rest, getenv, s)
 	case "transform":
 		err = cmdTransform(ctx, rest, getenv, s)
+	case "dsp-run":
+		err = cmdDspRun(ctx, rest, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
 	case "engines":
