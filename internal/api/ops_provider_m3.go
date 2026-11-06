@@ -9,11 +9,13 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
+	"github.com/nicolasacchi/metamusic/internal/provider"
 )
 
 // providerErr maps provider-admin errors to the problem model.
 func providerErr(err error) error {
 	var gd *jobs.GenerationDisabledError
+	var ce *jobs.ConcurrencyExceedsCapError
 	switch {
 	case err == nil:
 		return nil
@@ -23,6 +25,8 @@ func providerErr(err error) error {
 		return Err(http.StatusConflict, "RECONCILE_REQUIRED", "this database was restored: arm after a billing reconciliation has covered the restore", nil)
 	case errors.Is(err, jobs.ErrReasonRequired):
 		return Err(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "a reason of 1 to 500 characters is required", map[string]any{"field": "reason"})
+	case errors.As(err, &ce):
+		return genErr(ErrConcurrencyExceedsCap(nonNil(ce.Backends), int64(ce.GMicroPerHour), int64(ce.XMicro)))
 	case errors.Is(err, errors.ErrUnsupported):
 		return Err(http.StatusNotImplemented, "NOT_IMPLEMENTED", "this operation is not implemented yet", map[string]any{"task": "M3-B6"})
 	case errors.Is(err, jobs.ErrNothingToChange):
@@ -46,10 +50,26 @@ func providerStatus(viewer auth.Principal, s jobs.ProviderStatus) ProviderStatus
 	if engine == "" {
 		engine = "yue2"
 	}
-	// Backends: the default backend's own entry. The per-backend list over the whole set and the global bound are filled by
-	// the provider operations (E2-OP) from jobs.ProviderAdmin.StatusAll.
+	// Backends: this backend's own entry; providerStatusAll fills the list over the whole set and the global bound.
 	return ProviderStatus{ProviderStatusBody: body, Engine: engine, Backends: []BackendStatus{{ProviderStatusBody: body, Engine: engine}},
 		GlobalBound: GlobalBound{GUSDPerHour: usd(0), XUSD: usd(0), Backends: []string{}}}
+}
+
+// providerStatusAll renders get_provider_status over every backend (C151.3): the top-level fields are top's (the default
+// backend's, M3-compatible), backends[] has one entry per backend and global_bound is G and X (C151.5).
+func providerStatusAll(viewer auth.Principal, top jobs.ProviderStatus, all jobs.ProviderStatuses) ProviderStatus {
+	out := providerStatus(viewer, top)
+	out.Backends = make([]BackendStatus, 0, len(all.Backends))
+	for _, b := range all.Backends {
+		eng := b.Engine
+		if eng == "" {
+			eng = engineYuE2
+		}
+		out.Backends = append(out.Backends, BackendStatus{ProviderStatusBody: providerStatusBody(viewer, b), Engine: eng})
+	}
+	out.GlobalBound = GlobalBound{GMicroPerHour: int64(all.Bound.GMicroPerHour), GUSDPerHour: usd(all.Bound.GMicroPerHour),
+		XMicro: int64(all.Bound.XMicro), XUSD: usd(all.Bound.XMicro), Backends: nonNil(all.Bound.Backends)}
+	return out
 }
 
 func providerStatusBody(viewer auth.Principal, s jobs.ProviderStatus) ProviderStatusBody {
@@ -123,11 +143,11 @@ func registerProviderM3(a huma.API, d Deps) {
 				return nil, unavailable("provider")
 			}
 			p := auth.FromContext(ctx)
-			s, err := d.Provider.Status(ctx, p)
+			all, err := d.Provider.StatusAll(ctx, p)
 			if err != nil {
 				return nil, providerErr(err)
 			}
-			return &providerStatusOut{Body: providerStatus(p, s)}, nil
+			return &providerStatusOut{Body: providerStatusAll(p, all.Default, all)}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -141,10 +161,18 @@ func registerProviderM3(a huma.API, d Deps) {
 			}
 			p := auth.FromContext(ctx)
 			reset := in.Body.ResetTrip != nil && *in.Body.ResetTrip
-			s, err := d.Provider.Update(ctx, p, jobs.UpdateIn{Armed: in.Body.Armed, ResetTrip: reset, Reason: in.Body.Reason})
+			s, err := d.Provider.Update(ctx, p, jobs.UpdateIn{Armed: in.Body.Armed, ResetTrip: reset, Reason: in.Body.Reason, Backend: in.Body.Backend})
+			if errors.Is(err, provider.ErrNoBackend) {
+				return nil, genErr(ErrBackendUnavailable("", in.Body.Backend))
+			}
 			if err != nil {
 				return nil, providerErr(err)
 			}
-			return &providerStatusOut{Body: providerStatus(p, s)}, nil
+			all, err := d.Provider.StatusAll(ctx, p)
+			if err != nil {
+				return nil, providerErr(err)
+			}
+			// the answer's top level is the backend that changed (the default one when none is named)
+			return &providerStatusOut{Body: providerStatusAll(p, s, all)}, nil
 		})
 }
