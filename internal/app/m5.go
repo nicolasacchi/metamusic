@@ -59,6 +59,23 @@ type m5Late struct {
 	backlog lateBacklogGate
 }
 
+// check refuses a wiring in which generation can create Song PR renders but the other seams are not there: without the take hook a
+// Song PR child would land without its callbacks (or, with the callbacks service unconfigured, its take would fail ingest after the GPU
+// has been paid for), and without the backlog gate an agent would not be paced by the operator's listening. Build calls it once the
+// M5 services exist; a wiring with no Song PR source (the PatchSource stays unsupported, so no song_pr job can be created) is fine.
+func (l *m5Late) check() error {
+	if l.patches.target == nil {
+		return nil
+	}
+	if l.hook.target == nil {
+		return errors.New("app: Song PR renders are wired without the callbacks take hook: a child would land without its callbacks")
+	}
+	if l.backlog.target == nil {
+		return errors.New("app: Song PR renders are wired without the callback backlog gate")
+	}
+	return nil
+}
+
 type lateTakeHook struct{ target jobs.TakeHook }
 
 func (l *lateTakeHook) AfterTakeTx(ctx context.Context, tx *sql.Tx, t jobs.TakeInfo) error {

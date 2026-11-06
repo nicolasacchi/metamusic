@@ -7,9 +7,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// M5-F2: the scripted agent session (every_ui_action_test.go) gets its M5 entries from one file per lane
-// (m5_<lane>_script_test.go), each adding to uiScript and uiOrder from an init, so parallel lanes never edit the same lines.
-// While a lane has not landed its operations answer the 501 stub and the loop skips them.
+// The scripted agent session (every_ui_action_test.go) gets its M5 entries from one file per lane (m5_<lane>_script_test.go), each
+// adding to uiScript and uiOrder from an init. Every M5 operation is implemented: a call that still answers a stub fails the session.
 
 // m5StubOf returns the task of an M5 stub's tool error (the problem 501 NOT_IMPLEMENTED with details.task "M5-..."), else "".
 func m5StubOf(res *mcp.CallToolResult) string {

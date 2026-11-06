@@ -9,14 +9,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// implementedCallbacksM5 lists the M5 operations whose 501 stub lane M5-C1 has replaced (ids from m5Ops in ops_m5_test.go). The lane
-// adds its ids here, drops the matching 501 parity cases and covers the behaviour in its own tests; it owns this file alone.
-var implementedCallbacksM5 = map[string]bool{"list_callbacks": true, "get_callback": true, "submit_callback_verdict": true}
-
-// noObjectCallbacksM5 lists the {id} reads the L1 leak sweep (ops_l1_leaks_test.go) has no object for in its rig; the lane deletes the
-// entry when INT-B's M5 sweep covers the operation.
-var noObjectCallbacksM5 = map[string]bool{"get_callback": true}
-
 // seedCallback writes the rows a Song PR child brings, straight through SQL (the take hook is covered in internal/callbacks): a
 // patch on base addressing a fix comment of base, a job that rendered it and one fix callback on child. It returns the callback and
 // comment ids.
