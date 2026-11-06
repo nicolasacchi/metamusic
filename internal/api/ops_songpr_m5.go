@@ -6,10 +6,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/songpr"
 )
 
-// registerSongPRM5 registers the three Song PR operations (C253, C260). Frozen by M5-F2: each answers 501 naming lane M5-S1
-// until that lane fills the handler (it then adds the id to implementedSongPRM5 in ops_songpr_m5_test.go).
+// registerSongPRM5 registers the three Song PR operations (C253, C260). Shapes frozen by M5-F2; M5-S1 fills the handlers.
 func registerSongPRM5(a huma.API, d Deps) {
 	Register(a, withBody(created(huma.Operation{
 		OperationID: "propose_patch", Method: "POST", Path: "/api/patches",
@@ -20,7 +20,17 @@ func registerSongPRM5(a huma.API, d Deps) {
 			if d.SongPR == nil {
 				return nil, unavailable("songpr")
 			}
-			return nil, notImplemented(taskS1)
+			p := auth.FromContext(ctx)
+			ops := make([]songpr.OpJSON, len(in.Body.Ops))
+			for i, o := range in.Body.Ops {
+				ops[i] = songpr.OpJSON{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style}
+			}
+			r, err := d.SongPR.Propose(ctx, p, songpr.ProposeInput{BaseTrackID: in.Body.BaseTrackID, AddressesCommentIDs: in.Body.AddressesCommentIDs,
+				Rationale: in.Body.Rationale, Title: in.Body.Title, ExtraSections: in.Body.ExtraSections, Ops: ops})
+			if err != nil {
+				return nil, genErr(err)
+			}
+			return &patchOut{Body: songPRFrom(p, r)}, nil
 		})
 
 	Register(a, huma.Operation{
@@ -32,7 +42,12 @@ func registerSongPRM5(a huma.API, d Deps) {
 			if d.SongPR == nil {
 				return nil, unavailable("songpr")
 			}
-			return nil, notImplemented(taskS1)
+			p := auth.FromContext(ctx)
+			r, err := d.SongPR.Get(ctx, p, in.ID)
+			if err != nil {
+				return nil, genErr(err)
+			}
+			return &patchOut{Body: songPRFrom(p, r)}, nil
 		})
 
 	Register(a, huma.Operation{
@@ -44,15 +59,37 @@ func registerSongPRM5(a huma.API, d Deps) {
 			if d.SongPR == nil {
 				return nil, unavailable("songpr")
 			}
-			return nil, notImplemented(taskS1)
+			p := auth.FromContext(ctx)
+			pg, err := d.SongPR.List(ctx, p, songpr.ListFilter{TrackID: in.TrackID, CommentID: in.CommentID, RootTrackID: in.RootTrackID, Limit: in.Limit, Cursor: in.Cursor})
+			if err != nil {
+				return nil, genErr(err)
+			}
+			out := PatchPage{Items: make([]SongPRSummary, len(pg.Items)), NextCursor: pg.NextCursor, Total: pg.Total}
+			for i, it := range pg.Items {
+				out.Items[i] = songPRSummaryFrom(p, it)
+			}
+			return &patchPageOut{Body: out}, nil
 		})
 }
 
-// songPRPending refuses the song_pr item mode and a patch_id until lane M5-S1 lands the generation side (C253.4); S1 deletes it
-// together with its two call sites in ops_generation_m3.go.
-func songPRPending(mode string, patchID *string) error {
-	if mode == "song_pr" || patchID != nil {
-		return notImplemented(taskS1)
+func songPRSummaryFrom(viewer auth.Principal, x songpr.Summary) SongPRSummary {
+	out := SongPRSummary{ID: x.ID, Base: PatchBase{TrackID: x.Base.TrackID, Title: x.Base.Title, RecipeHash: x.Base.RecipeHash}, Operator: x.Operator, Title: x.Title,
+		Rationale: x.Rationale, Addresses: make([]PatchAddress, len(x.Addresses)), Renders: make([]PatchRender, len(x.Renders)),
+		Callbacks: PatchCallbackTally(x.Callbacks), Author: RefFor(viewer, x.Author.Key, x.Author.Kind, x.Author.Name), CreatedAt: x.CreatedAt}
+	for i, a := range x.Addresses {
+		out.Addresses[i] = PatchAddress{CommentID: a.CommentID, TrackID: a.TrackID, Kind: a.Kind, State: a.State, BodyExcerpt: a.BodyExcerpt}
 	}
-	return nil
+	for i, r := range x.Renders {
+		out.Renders[i] = PatchRender{BatchID: r.BatchID, JobID: r.JobID, State: r.State, Seed: r.Seed, ChildTrackID: r.ChildTrackID}
+	}
+	return out
+}
+
+func songPRFrom(viewer auth.Principal, x songpr.SongPR) SongPR {
+	out := SongPR{SongPRSummary: songPRSummaryFrom(viewer, x.Summary), Ops: make([]PatchOp, len(x.Ops)), Diff: x.Diff, Bounds: x.Bounds,
+		Compiled: PatchCompiled{Lyrics: x.Compiled.Lyrics, Style: x.Compiled.Style}}
+	for i, o := range x.Ops {
+		out.Ops[i] = PatchOp{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style}
+	}
+	return out
 }

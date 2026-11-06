@@ -90,11 +90,13 @@ type e2Seams struct {
 	gates    *provider.GateSet
 	adoption AdoptionGate
 	refClips ReferenceClipper
+
+	batchHook BatchHook // set by UseBatchHook (hooks.go); UseEngines keeps it
 }
 
 // UseEngines wires the per-engine routing (C151.3), the adoption gate (D-E2-15) and the reference clip renderer (C165). The
 // app calls it once after every service exists (a setter, not an Options field, because the backend set is built after the
 // service). Any argument may be nil. Lane E2-G2 reads these in the estimate and create paths.
 func (s *Service) UseEngines(backends *provider.Set, gates *provider.GateSet, adoption AdoptionGate, refClips ReferenceClipper) {
-	s.e2 = e2Seams{backends: backends, gates: gates, adoption: adoption, refClips: refClips}
+	s.e2.backends, s.e2.gates, s.e2.adoption, s.e2.refClips = backends, gates, adoption, refClips
 }

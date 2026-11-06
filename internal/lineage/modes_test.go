@@ -53,6 +53,27 @@ func TestModes_Table(t *testing.T) {
 	}
 }
 
+// TestSongPR_ModeAndOperator: song_pr has no operator of its own (the stored patch decides) and forbids an item patch; multi_edit
+// is a ledger operator that CheckOperator accepts (C253.4).
+func TestSongPR_ModeAndOperator(t *testing.T) {
+	t.Parallel()
+	m, ok := Spec(ModeSongPR)
+	if !ok || m.Operator != "" || m.Patch || m.Seeds != SeedsParentNew || m.Parent != "required" {
+		t.Fatalf("song_pr row = %+v", m)
+	}
+	if f, r := m.CheckPatch(&Patch{Lyrics: sp("x")}); f != "patch" || r != "patch_forbidden" {
+		t.Errorf("an item patch on song_pr: (%q, %q)", f, r)
+	}
+	if IsTemplateMode(ModeSongPR) {
+		t.Error("song_pr is not a template mode")
+	}
+	for _, op := range []string{OpMultiEdit, OpLyricEdit, OpStyleEdit} {
+		if !ValidOperator(op) || CheckOperator(op) != nil {
+			t.Errorf("operator %q refused", op)
+		}
+	}
+}
+
 func TestCheckPatch(t *testing.T) {
 	t.Parallel()
 	lyric, _ := Spec(ModeLyricEdit)

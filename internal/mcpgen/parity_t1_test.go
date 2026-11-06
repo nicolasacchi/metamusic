@@ -7,21 +7,33 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
 // t1ParityIDs are the seven transform operations (C212.1): all generic, none human-only (D-T1-21).
 var t1ParityIDs = []string{"estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform", "get_transform_capabilities"}
 
-// t1Cases are the parity cases of the seven operations (lane B4 owns this list). Until B4 fills the handlers every operation
-// answers the same 501 NOT_IMPLEMENTED problem on every face; B4 drops Status and fills real arguments.
+// t1Cases are the parity cases of the seven operations (lane B4 owns this list). They run in this order on each rig, so a case
+// reads the transform id from the previous one (wait from create, cancel from wait, get from cancel). The Take is the plain
+// fixture Take; REST, MCP and stdio must answer the same JSON.
 var t1Cases = []ParityCase{
-	{Op: "estimate_transform", Status: 501, Args: fixedArgs(map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": lt.TrackLuna}})},
-	{Op: "create_transform", Status: 501, Args: fixedArgs(map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": lt.TrackLuna}})},
-	{Op: "get_transform", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "list_transforms", Status: 501, Args: fixedArgs(map[string]any{"limit": 10})},
-	{Op: "wait_for_transform", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "timeout_s": 0})},
-	{Op: "cancel_transform", Status: 501, Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
-	{Op: "get_transform_capabilities", Status: 501},
+	{Op: "get_transform_capabilities"},
+	{Op: "estimate_transform", Args: fixedArgs(t1Glacier())},
+	{Op: "create_transform", Args: fixedArgs(t1Glacier()), Masks: t1Masks},
+	{Op: "wait_for_transform", Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+		return map[string]any{"id": prev["id"], "timeout_s": 0, "since_state": "running"}
+	}, Masks: t1Masks},
+	{Op: "cancel_transform", Args: func(_ *servertest.Rig, prev map[string]any) map[string]any {
+		return map[string]any{"id": prev["transform"].(map[string]any)["id"]}
+	}, Masks: t1Masks},
+	{Op: "get_transform", Args: func(_ *servertest.Rig, prev map[string]any) map[string]any { return map[string]any{"id": prev["id"]} }, Masks: t1Masks},
+	{Op: "list_transforms", Args: fixedArgs(map[string]any{"limit": 10}), Masks: t1Masks},
+}
+
+var t1Masks = []string{"id", "take_id"}
+
+func t1Glacier() map[string]any {
+	return map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": lt.TrackLuna, "factor": 20, "length_s": 10}}
 }
 
 func init() { parityCases = append(parityCases, t1Cases...) }

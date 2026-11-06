@@ -133,7 +133,10 @@ type Scope struct {
 }
 
 // Patch is the M3 patch the compilation produces: only the changed fields are set.
-type Patch struct{ Style, Lyrics *string }
+type Patch struct {
+	Style  *string `json:"style,omitempty"`
+	Lyrics *string `json:"lyrics,omitempty"`
+}
 
 // Compiled is the result of Compile.
 type Compiled struct {
