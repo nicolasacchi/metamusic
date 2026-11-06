@@ -37,8 +37,8 @@ test("Render with this as reference: the window defaults to the last 20 s, the e
   const batch = await pollBatch(request, batchId, allTerminal, 120_000);
   const job = first(batch.jobs);
   if (job.state === "completed") {
-    const tr = await apiJSON<{ recipe: { acestep: { task: string; reference: { track_id: string; from_s: number; to_s: number } } } }>(request, "GET", `/api/tracks/${job.track_id}`);
-    expect(tr.recipe.acestep.reference).toMatchObject({ track_id: source, from_s: 20, to_s: 40 });
+    const tr = await apiJSON<{ recipe: { acestep: { task: string; ref: { track_id: string; from_s: number; to_s: number } } } }>(request, "GET", `/api/tracks/${job.track_id}`);
+    expect(tr.recipe.acestep.ref).toMatchObject({ track_id: source, from_s: 20, to_s: 40 });
   } else expect(job.error_code).toBe("DUPLICATE_AUDIO"); // the simulated renderer, not the product
   expect(watch.problems()).toEqual([]);
 });
@@ -66,7 +66,7 @@ test("an explicit window is used as selected and must fit the engine's limit", a
 
 test("the reference render is a child of the take it followed and names the window", async ({ request }) => {
   const child = await aceReference(request, source, 10, 30);
-  const tr = await apiJSON<{ lineage: { parent_track_id: string | null }; recipe: { acestep: { reference: { track_id: string; from_s: number; to_s: number } } } }>(request, "GET", `/api/tracks/${child}`);
-  expect(tr.recipe.acestep.reference).toMatchObject({ track_id: source, from_s: 10, to_s: 30 });
+  const tr = await apiJSON<{ lineage: { parent_track_id: string | null }; recipe: { acestep: { ref: { track_id: string; from_s: number; to_s: number } } } }>(request, "GET", `/api/tracks/${child}`);
+  expect(tr.recipe.acestep.ref).toMatchObject({ track_id: source, from_s: 10, to_s: 30 });
   expect(tr.lineage.parent_track_id).toBe(source);
 });
