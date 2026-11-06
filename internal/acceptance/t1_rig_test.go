@@ -349,15 +349,6 @@ func (tr *t1Rig) writer() *servertest.Client {
 	return c
 }
 
-// knownBug skips a test that documents a product bug found by T1-B5 and fails until the bug is fixed. The test body is the
-// specification: with MM_T1_KNOWN_BUGS=1 it runs and fails; the lane that fixes the bug deletes this call.
-func knownBug(t *testing.T, id, what string) {
-	t.Helper()
-	if os.Getenv("MM_T1_KNOWN_BUGS") != "1" {
-		t.Skipf("known product bug %s: %s (MM_T1_KNOWN_BUGS=1 runs this test and it fails)", id, what)
-	}
-}
-
 // decodeMaster reads a Take's master as planar float64 (decoded by the real ffmpeg, native rate).
 func (tr *t1Rig) decodeMaster(id string) (l, r []float64) {
 	tr.T.Helper()

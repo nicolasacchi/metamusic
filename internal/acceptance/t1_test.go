@@ -382,7 +382,6 @@ func TestAcceptance_T1_ShepardLoop(t *testing.T) {
 		mono[i] = (l[i] + r[i]) / 2
 	}
 	t.Run("seam", func(t *testing.T) {
-		knownBug(t, "B5-2", "shepard is not in ops.ownFades, so safety.Finish fades the first and last 10 ms: every loop passes a ~20 ms notch at the seam")
 		const win, hop = 2048, 512
 		loop := append(append([]float64{}, mono...), mono...)
 		flux := func(at int) float64 { // spectral flux between the frames at at-hop and at

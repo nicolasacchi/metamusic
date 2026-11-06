@@ -22,6 +22,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/flacmeta"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -799,6 +800,7 @@ func (s *Service) discardOrphan(id string) {
 			s.discardPaths(created)
 		}
 	}
+	s.discardStrayMasters(id)
 	dir := path.Join("takes", id)
 	if entries, err := fs.ReadDir(s.o.Data.FS(), dir); err == nil {
 		var created []string
@@ -810,6 +812,64 @@ func (s *Service) discardOrphan(id string) {
 		s.discardPaths(created)
 	}
 	_ = s.o.Data.Remove(dir)
+}
+
+// discardStrayMasters removes the master a crash left between the freeze (which claims audio/masters/<name>) and the journal
+// write that would have named it. Such a file belongs to no tracks row, and the freeze tags every master with MM_TAKE_ID, so it
+// is attributable without a journal: an unreferenced FLAC whose MM_TAKE_ID is this transform's id. Nothing else is touched.
+func (s *Service) discardStrayMasters(id string) {
+	const dir = "audio/masters"
+	entries, err := fs.ReadDir(s.o.Data.FS(), dir)
+	if err != nil {
+		return
+	}
+	owned := map[string]bool{}
+	rows, err := s.o.Store.R.Query(`SELECT master_path FROM tracks WHERE master_path LIKE 'audio/masters/%'`)
+	if err != nil {
+		return
+	}
+	for rows.Next() {
+		var p string
+		if rows.Scan(&p) == nil {
+			owned[p] = true
+		}
+	}
+	if rows.Close() != nil || rows.Err() != nil {
+		return
+	}
+	want := "MM_TAKE_ID=" + id
+	for _, e := range entries {
+		rel := path.Join(dir, e.Name())
+		if e.IsDir() || owned[rel] || !strings.HasSuffix(e.Name(), ".flac") {
+			continue
+		}
+		if s.masterTakeID(rel) == want {
+			s.discardPaths([]string{rel})
+		}
+	}
+}
+
+// masterTakeID returns the MM_TAKE_ID=<id> comment of a master, or "" when it has none or cannot be read.
+func (s *Service) masterTakeID(rel string) string {
+	f, err := s.o.Data.Open(rel)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	st, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	info, err := flacmeta.Read(f, st.Size())
+	if err != nil {
+		return ""
+	}
+	for _, c := range info.Comments {
+		if strings.HasPrefix(c, "MM_TAKE_ID=") {
+			return c
+		}
+	}
+	return ""
 }
 
 // discardPaths removes exactly the listed audio/masters/<file> and takes/<id>/<file> paths, then the then-empty take dirs.

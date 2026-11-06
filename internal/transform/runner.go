@@ -238,7 +238,8 @@ func (f *runFailure) Error() string { return f.code + ": " + f.msg }
 // clean makes a stored message safe: redacted, the data root masked, no newline, at most maxErrorText runes.
 func (s *Service) clean(msg string) string {
 	if s.o.DataDir != "" {
-		msg = strings.ReplaceAll(msg, s.o.DataDir, "<data>")
+		// everything below the data root goes with it: the layout (incoming/<id>/out.flac, audio/masters/...) is not for storage
+		msg = regexp.MustCompile(regexp.QuoteMeta(s.o.DataDir)+`[^\s"'`+"`"+`:;,()<>]*`).ReplaceAllString(msg, "<data>")
 	}
 	if s.o.Self != "" {
 		msg = strings.ReplaceAll(msg, s.o.Self, "<binary>")

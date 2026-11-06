@@ -417,7 +417,7 @@ func assertNoPaths(t *testing.T, r *rig, text string) {
 		}
 	}
 	if strings.Contains(text, "incoming/") {
-		knownBugCh(t, "B5-5", "the error text of a failed encode keeps the data-relative work path ("+text+"): the data root is masked but incoming/<id>/out.flac is shown")
+		t.Errorf("error text %q shows the data-dir layout", text)
 	}
 }
 
@@ -667,7 +667,7 @@ func TestChaos_OrphanMasterCrashWindow(t *testing.T) {
 	ents, _ := os.ReadDir(filepath.Join(r.dir, "audio", "masters"))
 	for _, e := range ents {
 		if !owned[e.Name()] {
-			knownBugCh(t, "B5-4", "a crash between the freeze and the journal write leaves an unreferenced master that neither Recover nor Sweep removes ("+e.Name()+"); the retry's master is a second file")
+			t.Errorf("master %s belongs to no track: the crash window left a second master", e.Name())
 		}
 	}
 }
@@ -688,15 +688,6 @@ func (w windowIngest) Ingest(ctx context.Context, req ingest.Request) (ingest.Re
 		_ = os.Mkdir(filepath.Join(w.root, "incoming", "transform-"+req.TrackID, "claimed.json"), 0o700)
 	}
 	return res, err
-}
-
-// knownBugCh is knownBug for this package: the test fails only with MM_T1_KNOWN_BUGS=1.
-func knownBugCh(t *testing.T, id, what string) {
-	t.Helper()
-	if os.Getenv("MM_T1_KNOWN_BUGS") != "1" {
-		t.Skipf("known product bug %s: %s (MM_T1_KNOWN_BUGS=1 runs this test and it fails)", id, what)
-	}
-	t.Errorf("product bug %s: %s", id, what)
 }
 
 // TestAcceptance_T1_LoudnessUnsafeRefused (the bug alarm, media tier): a child whose audio ends up far louder than its own
