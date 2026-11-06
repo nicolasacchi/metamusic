@@ -139,6 +139,11 @@ def _run(take, adapter, uploader, clock, start, job_id, spawn, tmp, gen_deadline
         raise WorkerError("PIPELINE_ERROR", redact.message(f"{type(e).__name__}: {e}")) from None
     timings["generate_s"] = round(clock() - g0, 3)
     _stopped(watch)
+    # numeric extras an adapter measured (acestep15: lm_s, dit_s, peak_vram_mb_<component> ...); the schema's timings
+    # object takes any number, and the fixed keys above are never overwritten.
+    for k, v in (getattr(result, "timings", None) or {}).items():
+        if k not in timings and isinstance(v, (int, float)) and not isinstance(v, bool):
+            timings[k] = v
 
     # 5. save.
     s0 = clock()

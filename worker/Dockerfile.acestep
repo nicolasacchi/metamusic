@@ -1,0 +1,110 @@
+# syntax=docker/dockerfile:1
+# metamusic ACE-Step worker image (C154.6). Build context is worker/ ONLY:
+#   docker build -f worker/Dockerfile.acestep --build-arg ACESTEP_COMMIT=<40 hex> --build-arg GIT_SHA=<sha> worker/
+# so worker/Dockerfile.acestep.dockerignore applies and nothing outside worker/ can enter the image.
+# The main model bundle (ACE-Step/Ace-Step1.5: turbo DiT, VAE, Qwen3 encoder, 1.7B LM) is NOT in the image: it comes
+# from RunPod's cached-model directory (one cached model per endpoint). The ACE-Step base DiT (ACE-Step/acestep-v15-base,
+# models_mode bundle_cached_base_baked) is baked in at build time at a pinned revision, sha256-verified against the Hugging
+# Face listing; the build fails on any mismatch. BASE_REVISION must equal acestep.Weights[ACE-Step/acestep-v15-base]
+# (internal/engine/acestep/weights.go; a Go test pins it). Python 3.11 because nano-vllm's triton and the flash-attn
+# wheel are cp311-only (E2-P0a); the dependency set is the inference-only subset of ACE-Step's pyproject (no gradio,
+# lightning, tensorboard, peft, modelscope, torchcodec, torchao).
+
+FROM python:3.11-slim@sha256:65bd3d9f1d7fa268dd1909973ba7eb4bdf41f6dcf2cfbe76ba9528b170f3fd79 AS build
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a /uv /bin/uv
+# The pinned ACE-Step release commit (code MIT); validated before anything is fetched, and verified after.
+ARG ACESTEP_COMMIT
+RUN test -n "${ACESTEP_COMMIT}" && printf '%s' "${ACESTEP_COMMIT}" | grep -Eq '^[0-9a-f]{40}$' \
+ || { echo "ACESTEP_COMMIT must be a 40-hex commit (--build-arg ACESTEP_COMMIT=...)" >&2; exit 1; }
+RUN git init -q /src/acestep \
+ && git -C /src/acestep fetch -q --depth 1 https://github.com/ace-step/ACE-Step-1.5.git "${ACESTEP_COMMIT}" \
+ && git -C /src/acestep checkout -q FETCH_HEAD \
+ && test "$(git -C /src/acestep rev-parse HEAD)" = "${ACESTEP_COMMIT}" \
+ && rm -rf /src/acestep/.git
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv PATH=/opt/venv/bin:$PATH
+# flash-attn: a third-party prebuilt wheel (cp311, cu128, torch 2.10), pinned by sha256 (supply chain). The file keeps
+# its original name: the wheel's local version (+cu128torch2.10) must match the filename or uv refuses it.
+ARG FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl
+ARG FLASH_ATTN_SHA256=fa848ca9b2039a70810547e9fd9a007cf5d14f0c6e09acad51afa0b5c3b50196
+RUN curl -fsSL -o /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl "${FLASH_ATTN_URL}" \
+ && echo "${FLASH_ATTN_SHA256}  /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl" | sha256sum -c - \
+ && uv pip install --no-deps /tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl \
+ && rm -f /tmp/flash_attn-*.whl
+# torch comes from ACE-Step's own pin (torch 2.10.0+cu128 for linux x86_64), CUDA wheels from the PyTorch index.
+RUN uv pip install --extra-index-url https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match \
+      "torch==2.10.0+cu128" "torchvision==0.25.0+cu128" "torchaudio==2.10.0+cu128"
+RUN uv pip install \
+      "transformers>=4.51.0,<4.58.0" "diffusers>=0.37.0" "accelerate>=1.12.0" "scipy>=1.10.1" "numpy" \
+      "soundfile>=0.13.1" "loguru>=0.7.3" "einops>=0.8.1" "numba>=0.63.1" "vector-quantize-pytorch>=1.27.15" \
+      "diskcache" "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "xxhash" "pyyaml" "tqdm" "setuptools<72" \
+      "runpod==1.12.0"
+# nano-vllm is pure Python (no builder stage needed); ACE-Step installs without its dependency list.
+RUN uv pip install --no-deps /src/acestep/acestep/third_parts/nano-vllm /src/acestep
+# First CI build measured 14.28 GB against the 14 GB first-pull bound: drop what a runtime image never executes (the
+# packages' own test suites and torch's C++ headers; nothing here JIT-compiles C++ extensions).
+RUN find /opt/venv -type d -name tests -prune -exec rm -rf {} + \
+ && rm -rf /opt/venv/lib/python3.11/site-packages/torch/include
+# The import graph must not need the training/UI extras, and DCW (which silently becomes a no-op without
+# pytorch_wavelets) must be importable. CPU-only: no GPU is touched.
+RUN python - <<'PY'
+import sys
+import acestep.handler, acestep.inference, acestep.llm_inference  # noqa: E401
+import importlib.util, pytorch_wavelets  # noqa: E401
+assert importlib.util.find_spec("nanovllm"), "nano-vllm is not installed"  # imported lazily by the LM (triton, flash-attn)
+bad = [m for m in ("gradio", "lightning", "tensorboard", "peft", "modelscope", "torchcodec", "torchao") if m in sys.modules]
+assert not bad, f"inference path imports training/UI extras: {bad}"
+PY
+COPY . /src/worker
+RUN uv pip install --no-deps /src/worker \
+ && uv pip freeze > /opt/venv/freeze.txt \
+ && python /src/worker/tools/gen_notices.py /src/worker/third_party_allow.txt /src/worker/NOTICE.acestep \
+      /src/worker/licenses /opt/mm/THIRD_PARTY_NOTICES
+
+FROM python:3.11-slim@sha256:65bd3d9f1d7fa268dd1909973ba7eb4bdf41f6dcf2cfbe76ba9528b170f3fd79 AS base
+ARG BASE_REVISION=e432212fec32b8965a14ffa57ae653438d6abd14
+COPY tools/fetch_vae.py /opt/fetch_vae.py
+RUN python - "${BASE_REVISION}" <<'PY'
+import sys
+sys.path.insert(0, "/opt")
+import fetch_vae as f
+from pathlib import Path
+repo, rev, hub = "ACE-Step/acestep-v15-base", sys.argv[1], Path("/opt/mm/hf-cache/hub")
+f.WANTED = {"config.json", "model.safetensors", "silence_latent.pt", "README.md"}  # README.md is the MIT model card
+f.WANTED_PREFIX = "no-prefix/"
+entries = f.listing(repo, rev)
+names = {e["path"] for e in entries}
+assert {"config.json", "model.safetensors", "silence_latent.pt"} <= names, names
+root = hub / ("models--" + repo.replace("/", "--"))
+snap = root / "snapshots" / rev
+for e in entries:
+    dest = snap / e["path"]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with f._open(f"{f.HOST}/{repo}/resolve/{rev}/{e['path']}") as r, open(dest, "wb") as out:
+        import shutil
+        shutil.copyfileobj(r, out, 1 << 20)
+    f.verify(dest, e)
+    print(f"verified {e['path']} ({e['size']} bytes)", flush=True)
+(root / "refs").mkdir(parents=True, exist_ok=True)
+(root / "refs" / "main").write_text(rev)
+PY
+
+FROM python:3.11-slim@sha256:65bd3d9f1d7fa268dd1909973ba7eb4bdf41f6dcf2cfbe76ba9528b170f3fd79
+COPY --from=base /opt/mm/hf-cache /opt/mm/hf-cache
+COPY --from=build /opt/mm/THIRD_PARTY_NOTICES /opt/mm/THIRD_PARTY_NOTICES
+COPY --from=build /opt/venv /opt/venv
+# libsndfile1: soundfile. ffmpeg (E2-P0a listed it for ACE-Step's lossy encode/decode fallbacks) is left out: the worker
+# reads FLAC with soundfile and encodes FLAC itself, and ACE-Step only shells out to ffmpeg for mp3/opus/aac
+# (acestep/audio_utils.py), which this worker never requests; it costs ~300 MB against the 14 GB bound.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libsndfile1 \
+ && rm -rf /var/lib/apt/lists/*
+ENV PATH=/opt/venv/bin:$PATH HF_HUB_OFFLINE=1 MODE=serverless ENGINE=acestep15 MM_ENGINE=acestep15 PYTHONUNBUFFERED=1 \
+    MM_ACESTEP_MODELS_DIR=/opt/mm/hf-cache/hub HF_HOME=/tmp/hf-home
+ARG ACESTEP_COMMIT GIT_SHA
+ENV MM_ACESTEP_COMMIT=$ACESTEP_COMMIT MM_WORKER_BUILD=$GIT_SHA
+LABEL io.metamusic.engine="acestep15" io.metamusic.code-commit="${ACESTEP_COMMIT}" io.metamusic.torch="2.10.0+cu128"
+ENTRYPOINT ["python", "-m", "mmworker"]
