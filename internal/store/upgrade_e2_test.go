@@ -130,7 +130,15 @@ func TestUpgrade_E2_FromEveryPriorSchema(t *testing.T) {
 			}
 			after := dbSnapshot(t, s.R)
 			for tb, rows := range before {
-				if strings.Join(rows, "\n") != strings.Join(after[tb], "\n") {
+				got := after[tb]
+				if tb == "ledger" || tb == "billing_windows" || tb == "billing_buckets" || tb == "worker_meter" {
+					// migration 0016 appends backend='runpod-serverless' to these tables' rows; its own test pins that
+					got = make([]string, len(after[tb]))
+					for i, r := range after[tb] {
+						got[i] = strings.TrimSuffix(r, "backend=runpod-serverless|")
+					}
+				}
+				if strings.Join(rows, "\n") != strings.Join(got, "\n") {
 					t.Errorf("table %s changed by the upgrade: %d rows before, %d after", tb, len(rows), len(after[tb]))
 				}
 			}

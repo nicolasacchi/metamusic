@@ -146,8 +146,8 @@ func TestRestore_DisarmsAndRequiresReconcile(t *testing.T) {
 		t.Errorf("status %+v %v", st.RestoredUnreconciled, err)
 	}
 	// a reconciliation window that ended before the restore does not cover it
-	r.exec(`INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at)
-		VALUES(?, ?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?)`, store.FormatTime(restoredAt.Add(-3*time.Hour)), store.FormatTime(restoredAt.Add(-time.Hour)), store.FormatTime(restoredAt))
+	r.exec(`INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at, backend)
+		VALUES(?, ?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?, 'fake')`, store.FormatTime(restoredAt.Add(-3*time.Hour)), store.FormatTime(restoredAt.Add(-time.Hour)), store.FormatTime(restoredAt))
 	if _, err := a.Update(t.Context(), humanP, UpdateIn{Armed: &yes, Reason: "go"}); !errors.Is(err, ErrReconcileRequired) {
 		t.Fatalf("an earlier window: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestRestore_DisarmsAndRequiresReconcile(t *testing.T) {
 	if err := backup.DisarmAfterRestore(t.Context(), r2.st, restoredAt, r2.newID); err != nil {
 		t.Fatal(err)
 	}
-	r2.exec(`INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at)
-		VALUES(?, ?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?)`, store.FormatTime(restoredAt.Add(-time.Hour)), store.FormatTime(restoredAt), store.FormatTime(restoredAt))
+	r2.exec(`INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd, provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at, backend)
+		VALUES(?, ?, 'hour', 1, 0, 0, 0, 0, 0, 'ok', ?, 'fake')`, store.FormatTime(restoredAt.Add(-time.Hour)), store.FormatTime(restoredAt), store.FormatTime(restoredAt))
 	if st, err := a2.Update(t.Context(), humanP, UpdateIn{Armed: &yes, Reason: "covered"}); err != nil || !st.State.Armed {
 		t.Errorf("covered restore: %+v %v", st.State, err)
 	}
