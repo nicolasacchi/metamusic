@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +23,9 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
+	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
+	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -51,6 +54,12 @@ type M3Options struct {
 	Shutdown context.Context
 	// Log is the logger of the runner and the reconciler; nil => slog.Default().
 	Log *slog.Logger
+	// FakeACE overrides the options of the fake-acestep backend (tests: speed, permissions, adversarial switches); it is read
+	// only under MM_ACESTEP=1 with MM_BACKEND=fake. FakeACEWorker does the same for its simulated worker (AudioScale, Tools,
+	// HeaderOnlyFLAC). Either one being set builds the worker in a non-live process too; the uploader, the input fetcher and
+	// the pinned weights are filled in by the wiring when left zero.
+	FakeACE       *fake.Options
+	FakeACEWorker *fake.SimWorkerOptions
 	// Live marks a process that serves real traffic (serve, dev): the runner gets the claim preflight (D-M3-33)
 	// and the fake backend gets a simulated worker that talks to the upload handlers in process. Rigs leave it
 	// false and drive the runner and the fake worker themselves.
@@ -196,18 +205,24 @@ type m3Services struct {
 	Reconciler *jobs.Reconciler
 	Hub        *jobs.Hub
 	Engines    registry.Registry
+	// E2 wiring inputs (e2_hooks.go): the options and clock the ACE-Step backend is built with, and the media route, which
+	// exists only after Build finished (the fake worker's input fetcher and the media preflight reach it late-bound).
+	opts  M3Options
+	clk   clock.Clock
+	media *lateHandler
 }
 
 // buildM3 constructs the generation services (C39 amended): backend selection, the provider_state
 // default row, the leaf services and, when a backend exists and the runner is enabled, an unstarted
 // runner and reconciler. Nothing here calls a backend method.
 func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *store.Store, data *os.Root, lib *library.Service, notifier notify.Notifier,
-	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service, late *m5Late) (*m3Services, error) {
+	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service, late *m5Late,
+	signer *mediaserve.Signer, clips *clip.Service, mediaH *lateHandler) (*m3Services, error) {
 	clk := o.Clock
 	if clk == nil {
 		clk = clockFromNow{now}
 	}
-	m := &m3Services{Hub: jobs.NewHub()}
+	m := &m3Services{Hub: jobs.NewHub(), opts: o, clk: clk, media: mediaH}
 	m.Uploads = upload.NewService(upload.ServiceOptions{Data: data, Signer: upload.NewSigner(sec.Key), Store: st, Clock: clk, NewID: newID, PublicURL: cfg.PublicURL, Wake: wake.call})
 	bi, err := selectBackend(cfg, o, clk, m.Uploads)
 	if err != nil {
@@ -227,7 +242,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 
 	m.Lineage = lineage.New(lineage.Options{Store: st, Now: now})
 	m.Spend = spend.New(spend.Options{Store: st, Now: now, NewID: newID, Rand: rnd, ConfirmKey: sec.ConfirmKey()})
-	engines := registry.Default(registry.Options{})
+	engines := registry.Default(registry.Options{ACEStep: cfg.ACEStep}) // MM_ACESTEP=1 flips list_engines enabled (C160)
 	m.Engines = engines
 	m.Generation = generation.New(generation.Options{
 		Store: st, Library: lib, Lineage: m.Lineage, Spend: m.Spend, Engines: engines, Gate: m.Gate, Notify: notifier,
@@ -237,7 +252,9 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		PatchSource: &late.patches, BacklogGate: &late.backlog, // M5 seams (C253.4, C255.5)
 	})
 	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
-	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk})
+	// the limits get_provider_status shows are the process's own (a zero kill slack or price margin was shown before)
+	m.Provider = jobs.NewProviderAdmin(jobs.ProviderOptions{Store: st, Gate: m.Gate, Clock: clk,
+		KillSlackS: cfg.KillSlackS, TTL: cfg.JobTTL, PriceMarginPPM: cfg.PriceMarginPPM})
 	if bi.b != nil {
 		m.Provider.UseCapabilities(bi.b.Capabilities)
 	}
@@ -253,11 +270,19 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 				log.Warn("generation ingest unavailable: ffmpeg tools missing; finished takes will fail INGEST_FAILED")
 			}
 			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Pipeline: pipe, Library: lib, Ears: ears, Lineage: m.Lineage, Spend: m.Spend,
-				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook})
+				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook, Engines: engines})
 		}
 		var pre func(context.Context, int64) error
 		if o.Live {
-			pre = livePreflight(cfg, bi, m.Uploads)
+			pre = livePreflight(cfg, bi, m.Uploads, mediaH)
+		}
+		var inputs jobs.InputMinter // signed fetch URLs for an edit's source and reference audio: ACE-Step only
+		if cfg.ACEStep {
+			var cr mediaserve.Resolver // never a typed-nil *clip.Service
+			if clips != nil {
+				cr = refClipResolver{st: st, clips: clips}
+			}
+			inputs = jobs.NewInputMinter(jobs.InputMinterOptions{Signer: signer, Store: st, Data: data, Clips: cr, PublicURL: cfg.PublicURL, Clock: clk})
 		}
 		owner := instanceID(rnd)
 		m.Runner = jobs.NewRunner(jobs.RunnerOptions{
@@ -265,6 +290,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 			Clock: clk, NewID: newID, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, Expect: provider.WorkerExpect{Weights: yue2.Weights}, Log: log,
 			Preflight: pre, MeterKey: sec.MeterKey(), // attempts record their worker_key (C76.6)
+			Inputs: inputs, // Expects["acestep15"] arrives with the backend set (rebaseOnSet)
 		})
 		m.Reconciler = jobs.NewReconciler(jobs.ReconcilerOptions{
 			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID,
@@ -287,16 +313,20 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 // is probed through the public URL, because the worker's PUT arrives that way. The fake backend's simulated
 // worker never leaves the process, so the same probe goes straight into the upload handler: the route check
 // stays meaningful and a dev address that is not reachable from itself does not stall every claim.
-func livePreflight(cfg config.Config, bi backendInfo, ups *upload.Service) func(context.Context, int64) error {
-	po := jobs.PreflightOptions{DataDir: cfg.DataDir, PublicURL: cfg.PublicURL}
+func livePreflight(cfg config.Config, bi backendInfo, ups *upload.Service, media http.Handler) func(context.Context, int64) error {
+	// the media route check is for an engine whose worker fetches signed inputs (C153.3)
+	po := jobs.PreflightOptions{DataDir: cfg.DataDir, PublicURL: cfg.PublicURL, CheckMedia: cfg.ACEStep}
 	if bi.fake != nil && ups != nil {
-		po.HTTP = &http.Client{Transport: handlerTransport{ups.Handler()}, Timeout: 5 * time.Second}
+		po.HTTP = &http.Client{Transport: handlerTransport{h: ups.Handler(), media: media}, Timeout: 5 * time.Second}
 	}
 	return jobs.NewPreflight(po)
 }
 
 // handlerTransport serves a request with an http.Handler in process.
-type handlerTransport struct{ h http.Handler }
+type handlerTransport struct {
+	h     http.Handler
+	media http.Handler // serves /media/ when set (the preflight's media route check)
+}
 
 type memResponse struct {
 	hdr  http.Header
@@ -319,7 +349,11 @@ func (t handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.RequestURI = r.URL.RequestURI()
 	rec := &memResponse{hdr: http.Header{}}
-	t.h.ServeHTTP(rec, r)
+	h := t.h
+	if t.media != nil && strings.HasPrefix(r.URL.Path, "/media/") {
+		h = t.media
+	}
+	h.ServeHTTP(rec, r)
 	if rec.code == 0 {
 		rec.code = http.StatusOK
 	}

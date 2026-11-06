@@ -48,8 +48,8 @@ func TestCoverageThresholds_E2(t *testing.T) {
 		}
 		got[fields[0]] = v
 	}
-	// acestep: floor = measured (97.4) - 1, rounded down; engineadopt is a stub until E2-OP lands, so its floor is staged.
-	want := map[string]float64{"internal/engine/acestep": 96, "internal/engineadopt": 5}
+	// acestep: floor = measured (97.4) - 1, rounded down; engineadopt: measured 83.1 after E2-OP, same rule (E2-INT-B raised it from the stub's 10).
+	want := map[string]float64{"internal/engine/acestep": 96, "internal/engineadopt": 82}
 	for pkg, min := range want {
 		v, ok := got[pkg]
 		if !ok {
