@@ -48,8 +48,10 @@
 ./internal/httpserver 18
 ./internal/backup 18
 ./internal/records 18
+./internal/callbacks 18
 ./internal/library 16
 ./internal/songview 16
+./internal/dsp/align 16
 ./internal/analysis/spectro 15
 ./internal/board 15
 ./internal/features 12
@@ -135,3 +137,4 @@
 ./internal/enginetrial 10
 ./internal/suites 10
 # END E2-I1 provisional weights
+./internal/voice 30

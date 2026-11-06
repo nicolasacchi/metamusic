@@ -345,9 +345,6 @@ func TestNoPendingM4aStubs(t *testing.T) {
 		if resp.Status == http.StatusNotImplemented && bytes.Contains(resp.Body, []byte(`"task":"T1-`)) {
 			continue // a T1 lane that has not landed (the freeze registers the operations first; INT-B turns this into a failure)
 		}
-		if resp.Status == http.StatusNotImplemented && bytes.Contains(resp.Body, []byte(`"task":"E2-`)) {
-			continue // an E2 lane that has not landed (E2-F2 registers list_engines first; INT-B turns this into a failure)
-		}
 		if resp.Status == http.StatusNotImplemented && bytes.Contains(resp.Body, []byte(`"task":"M5-`)) {
 			continue // an M5 lane that has not landed (M5-F2 registers the operations first; INT-B turns this into a failure)
 		}

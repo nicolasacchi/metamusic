@@ -53,6 +53,8 @@ commands:
   transform sweep                recover and clean up transforms offline (refuses while a server holds a live lease)
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
+  engines list|adopt ENGINE --reason "..."|reject ENGINE --reason "..."
+                                 show or change which engines may receive money (adopting is the operator's act; it is audited)
   config check                   validate the MM_* environment exactly as serve does, without touching data, ports or network
                                  (exit 0 ok, 1 invalid with one "config:" error per line on stderr, 2 usage)
   oidc probe --server URL --client-id ID [--client-secret-file FILE] [--redirect URL]
@@ -126,6 +128,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdTransform(ctx, rest, getenv, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
+	case "engines":
+		err = cmdEngines(ctx, rest, getenv, s)
 	case "config":
 		err = cmdConfig(rest, getenv, s)
 	case "oidc":

@@ -45,6 +45,7 @@ type ProviderAdmin struct {
 	gates  *provider.GateSet
 	sweeps map[string]func() SweepSnapshot
 	caps   map[string]func() provider.Capabilities
+	bound  BoundInputs // UseBound (seams_e2.go)
 }
 
 // NewProviderAdmin builds the service.
@@ -395,6 +396,11 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 		return ProviderStatus{}, err
 	}
 	if in.Armed != nil && *in.Armed {
+		if st.Backend != "" && st.Enabled {
+			if err := a.checkBound(ctx, st.Backend); err != nil {
+				return ProviderStatus{}, err
+			}
+		}
 		if st.Backend == "" {
 			return ProviderStatus{}, &GenerationDisabledError{Reason: provider.ReasonBackendNone}
 		}
@@ -441,7 +447,7 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 		return ProviderStatus{}, err
 	}
 	if in.Backend != "" {
-		return a.statusFor(ctx, in.Backend)
+		return a.StatusFor(ctx, p, in.Backend)
 	}
 	return a.Status(ctx, p)
 }
