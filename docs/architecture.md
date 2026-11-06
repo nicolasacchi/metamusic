@@ -228,9 +228,99 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
   proposals). No L3 operation spends money or calls a provider, and none is a dedicated MCP tool: all are reached through
   `call_operation`.
 
+## Engines (E2)
+
+- **Engine layer.** `internal/engine` defines what an engine is: capabilities (`Caps`: tasks, modes, limits, stems), an
+  optional *recipe codec* (parse a stored request, apply an operator or patch, hash it) and an ingest policy (does the engine
+  report truncation, does it teach the RTF table). `internal/engine/registry` holds the engines the build knows (yue2 always,
+  ACE-Step when `MM_ACESTEP=1`). Recipes, lineage, generation planning and ingest dispatch through the registry by engine name;
+  nothing outside `internal/engine/**` and the two ingest bridges branches on an engine name. The yue2 codec is byte-identical
+  to the pre-E2 code, and a yue2 job on the wire is unchanged.
+- **Capabilities follow proof.** What an engine can do is the intersection of its code (`Caps`), the operator's `MM_ACESTEP_TASKS`
+  (turbo, or turbo and base) and a committed `features.verified.json` that only a passing canary case may turn on; the rest shows
+  as "not yet verified" in `list_engines` and on the `/engines` page.
+- **Modes.** Beyond the yue2 modes: `port` (an existing song re-rendered by another engine), `repaint` (a time range),
+  `reference` (a 2 to 30 s clip as timbre and style reference, rendered to an exact 30 s FLAC and cached), `extend`, `complete`
+  and `stems`. Every change is a new Take through a job; a stem is the exception, an artifact of its source Take that creates no
+  Take, Song or Pick. ACE-Step pins every output-affecting parameter in `engine_params.json`, tied to the pinned upstream commit.
+- **One backend per endpoint.** Each engine has its own serverless endpoint and worker image and therefore its own backend
+  (`runpod-serverless`, `runpod-serverless-acestep`) with its own provider state (disarmed by default), quote, trips, reconciler
+  view, billing source, meter and cold-start allowance. One runner holds one view per backend, sharing the lease and the ingest
+  pool; a trip, crash loop or init failure on one backend never stops the other. With a single backend the M3 path is unchanged.
+  Spend caps stay global; the status shows the burn bound `G` and the worst simultaneous exposure `X`, and arming is refused when
+  `X` exceeds the per-batch ceiling or the month headroom.
+- **Adoption.** An engine other than yue2 receives money only after the operator adopts it with the CLI
+  (`metamusic engines adopt|reject --reason`); decisions are an append-only log with one audit row each, and there is no REST or
+  MCP path. A create for a non-adopted engine fails with `ENGINE_NOT_ADOPTED` (the gate fails closed when it is not wired).
+- **Worker inputs.** Input audio (a source master or a reference clip) reaches the worker as signed, short-lived download links
+  minted per attempt and never stored; the worker checks length and sha256 before use (`INPUT_FAILED`, `INPUT_MISMATCH`).
+- **Money.** Quotes use per-engine, per-task-class RTF (seeded from a committed file, then measured, with provenance). Billing
+  windows, buckets, the worker meter and the ledger carry a backend column, so each backend reconciles against its own billing.
+
+## Transforms (T1)
+
+- **What they are.** A transform turns existing Takes into a new Take with deterministic, ML-free DSP: `morph` (two songs,
+  tempo and key aligned), `shepard`, `glacier`, `polytempo`, `ensemble` (a room of copies) and the hi-fi kinds `master`,
+  `widen` and `binaural` (headphones only). The result is an ordinary Take of engine `dsp`: a frozen master that joins Songs,
+  Picks, Records, duels and stars; the parents are never modified. A transform never spends money.
+- **Pipeline.** `estimate_transform` resolves the spec (alignment, tempo ratios, expected length) and prices it in CPU units
+  against a quota (one pool for agents, one for the human, a queue limit, a per-job output and memory ceiling). A render is a
+  queue row; the runner starts a **render child** (`metamusic dsp-run --work <dir>`, stdlib plus `internal/dsp` only) with a
+  CPU budget and a memory guard. The child decodes the parents, runs the operator, applies the loudness and true-peak safety
+  stage (`internal/dsp/safety`, streaming for long outputs) and writes 24-bit PCM; the bridge re-hashes it, encodes FLAC and
+  ingests it through the normal path.
+- **Determinism contract.** The same spec re-renders to the same PCM hash. The release binary and CI are built with
+  `GOAMD64=v1` (v3 fuses multiply-adds and changes transcendental results); `internal/dsp` uses its own `Exp`, `Log` and `Pow`
+  and bans host-dependent math; any algorithm change bumps `dsp_version`; `transform verify` re-renders and compares, answering
+  "inconclusive" when the toolchain changed.
+- **Streaming finish.** `safety.FinishStream` reproduces the in-memory finish arithmetic for outputs rendered to scratch
+  (glacier), so long renders stay in bounded memory; a parity test fails on drift.
+- **Third-party data.** The binaural kind can use a derived HRTF table from SADIE II (Apache-2.0), committed at
+  `internal/dsp/hrtf/table.q15` with its NOTICE and credit; the privacy gate has one narrow exemption for exactly that file.
+
+## Closing the loop (M5)
+
+- **Flow.** A timestamped `fix` comment on a Take is *addressed* by a **Song PR**: `propose_patch` stores an immutable, bounded
+  patch (lyric lines inside the scoped sections, a few style terms, a small BPM change; never structure or ABC bars). Rendering
+  is the ordinary M3 estimate and confirmation with item mode `song_pr`; a patch renders at most three times. When the child
+  Take lands, in the same transaction, the addressed comments move to `addressed` and **callbacks** are created: one "did the
+  fix work" per comment and one "was this kept" per keep comment. The human answers fixed, not yet or worse (and kept or lost) at
+  the same musical spot (computed on read from section kind, ordinal and fraction); the human verdict moves the comment to
+  `resolved` or `regressed`, and a lost keep adds a regression comment. Agent (critic) answers are stored but never move state
+  and are hidden from the human until they have answered.
+- **Pacing.** Dollar caps bound money, not usefulness, so an agent's Song PR creates are refused while a lineage root has six
+  unanswered callbacks. A callback error rolls the Song PR take back; the build refuses to wire Song PRs without the callbacks
+  hook and the backlog gate.
+- **Attention.** Heat (120 bins) and hotspots are computed on read from human and device listen events; a backward seek is stored
+  with swapped positions and `detail = 'rewind'`. Agent listening never counts.
+- **Section duels.** A duel may be locked to a section; both slots play equal-length windows from each track's best timed
+  sections, and the unrevealed view carries no window or slot data. Untimed tracks are refused (`SECTION_UNTIMED`).
+  `suggest_duel_pairs` ranks pairs by ladder uncertainty.
+- **`/context`** carries per-comment relation and spot, ancestor comments, in-flight patches and listening hotspots.
+- **Voice notes.** A spoken comment (at most 120 s, 4 MiB) is recorded in the browser and saved only on an explicit Save. The
+  upload is stored content-addressed and read-only under `voice/`; only a 64 kbps mono MP3 rendition is served. Voice storage
+  is a media root of the backup.
+
+## Documented parity exceptions
+
+CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registry operation". They are:
+
+- **Binary and streaming routes** (media, stems, `.lrc`, worker upload and download links): registered with
+  `mcp: exclude:binary` and reached by signed links, never as tools.
+- **`create_voice_note`**: a registry operation (REST, audited, idempotent) with `mcp: exclude:human-recording`. It needs a
+  human or paired-device principal and is refused with 403 `HUMAN_ONLY` for every other principal before anything is read; the
+  reason for the exclusion is that the recording is made by a person in a browser and an agent has no microphone.
+- **Transforms: `transform verify` and `transform sweep`** are CLI-only host-operator maintenance. `verify` is a re-render with
+  no ingest and no queue row, writing only to a scratch directory; `sweep` is offline recovery under the runner lease. Neither
+  can be expressed as a queued transform kind, and neither is reachable by an agent token.
+- **`metamusic engines adopt|reject`**: an operator decision deliberately kept off REST and MCP, so that no agent can admit an
+  engine to spend. `engines list` mirrors `list_engines`.
+- **Provisioning and canary commands** (`runpod provision|probe|canary|arm|disarm`) are operator CLI; the provider state is
+  also reachable by the human-only `update_provider_state` operation.
+
 ## GPU work
 
-Rendering runs on a RunPod Serverless endpoint; the server submits jobs and ingests results.
+Rendering runs on a RunPod Serverless endpoint per engine (YuE2 and, when enabled, ACE-Step); the server submits jobs and ingests results. Transforms run on the application host.
 
 ## Build and delivery
 

@@ -381,3 +381,177 @@ logs the Pick changes the snapshot lacked), run `metamusic library reconcile --w
 
 Rollback of the L2 deploy (migration `0010`, schema 10) is restoring the pre-migration backup. Do not run an older
 binary against a migrated database.
+
+## Second engine: ACE-Step (E2)
+
+Everything in "Generation and RunPod (M3)" applies per engine. The ACE-Step engine has its own serverless endpoint
+(`mm-acestep`), its own worker image, its own backend and its own `provider_state` row, so arming, disarming, trips and
+reconciliation are per engine and never touch the YuE2 endpoint. It is off until `MM_ACESTEP=1` (needs `MM_BACKEND=fake` or
+`runpod`); with `fake` the engine runs against an in-process simulation and spends nothing.
+
+### Provisioning the second endpoint (inactive) and the cached model
+
+RunPod offers exactly **one cached model per endpoint** and its management API snapshot has no cached-model field, so the model
+is attached by hand in the console. The base DiT that `complete` and `stems` need is baked into the image instead.
+
+1. `metamusic runpod provision --engine acestep15 --image <ref@sha256:...> --dry-run`, review the plan. The image digest is
+   committed in `deploy/worker-acestep-image.digest`; tags are refused. `--tasks turbo` (default from `MM_ACESTEP_TASKS`) or
+   `--tasks turbo,base`; `--pools` defaults to `MM_ACESTEP_POOLS` (24 GB classes; 480 s is the documented maximum duration there).
+2. Run it without `--dry-run` from the all-access key file (`--admin-env FILE`, as for YuE2). **An ACE-Step endpoint is always
+   created inactive** (`workers.max = 0`); `--vae-source` is refused for it.
+3. **Console step (printed by the command, one per cached model):** open the endpoint `mm-acestep`, Model settings, and set the
+   cached model to the printed repository and revision. There is no `runpodctl` line on purpose. `provision --engine acestep15
+   --verify-models` is a read-only report of the endpoint and of those steps; whether the model is really visible to a worker is
+   proven by the canary's first case.
+4. Put the endpoint id into `runpod.env` as `RUNPOD_ACESTEP_ENDPOINT_ID` (the scoped keys are the same file). Without it the
+   engine reports `keys_absent` and everything else works. `metamusic runpod probe --keys` classifies the keys for both endpoints.
+5. Activation (`provision --engine acestep15 --activate --max 1`) follows the same rules as the first activation, then delete the
+   admin key file. `provision --activate` does not itself check the global concurrency bound; read `metamusic runpod status`
+   afterwards (see below).
+
+The first start of a fresh host pulls a large image and downloads the cached model; both are unbilled but long (tens of minutes
+the first time). The first canary case records the wall time. Do not read a long first start as a hang.
+
+### Engine adoption
+
+An engine other than YuE2 receives money only after the operator adopts it. There is no REST or MCP path.
+
+```
+metamusic engines list
+metamusic engines adopt acestep15 --reason "..."
+metamusic engines reject acestep15 --reason "..."
+```
+
+Each call appends one row to the append-only adoption log and one audit row (`cli:engines-adopt` or `cli:engines-reject`); history
+is never rewritten, and the latest row decides. A create for a non-adopted engine answers `ENGINE_NOT_ADOPTED` with this command
+as the hint. Adopt only after the canary passed and you listened to a take.
+
+### The ACE-Step canary
+
+The canary spends real money, is typed by the operator, and runs only with written approval. `--max-usd` is required and bounds
+the sum of the stage ceilings; the command refuses when the sum exceeds it.
+
+1. `metamusic runpod canary --engine acestep15 --all --dry-run [--part a|b]` prints the worst case per case and spends nothing
+   (`--price-usd-hour` overrides the illustrative price). Part `a` is the E2a spine, part `b` the E2b modes. Read the figures and
+   choose `--max-usd` from them.
+2. Run one case at a time, with `MM_TOKEN` (a PAT with read, write and generate):
+   `metamusic runpod canary --engine acestep15 --max-usd N --case t2m` and then `t2m-long` (use `--max-s 480`; 600 only on a
+   32/48 GB pool being verified), `reference`, `repaint`, `terminate`, `timeout`, `kill-switch` (needs `--kill-switch-confirm` and
+   `provision --engine acestep15 --deactivate` while the job runs), `init-fail` and `first-pull`. E2b adds `extend`, `complete`,
+   `extract`, `base-long` and `lrc`. `--source-track ID` reuses a kept 30 s track for the edit cases.
+3. `init-fail` needs the endpoint provisioned with `provision --engine acestep15 --activate --max 1 --init-fail`, then the canary
+   with `--init-fail-confirm`; restore afterwards with a normal `provision --engine acestep15 --deactivate`.
+4. A passing run prints a proposed `features.verified.json` and RTF patch; the files are **not** touched. `--measured-out FILE`
+   merges the measured numbers (peak VRAM per component, LM memory utilisation, phase seconds, read from the job's
+   `timings.extra`) into `engine-canary-measured.json` for you to review and commit. A capability flag is merged into
+   `features.verified.json` only for a case that passed; the rest stay off and the UI says "not yet verified".
+5. Exit codes: 0 pass, 1 fail, 2 usage, 3 refused (cost or disarmed), 4 aborted.
+
+### Arming, disarming and deploying per backend
+
+`metamusic runpod status|arm|disarm|reset-trip` take `--engine yue2|acestep15` (default yue2). `arm` needs the endpoint name typed:
+`--endpoint-name mm-acestep`. `get_provider_status` (and the Spend page) lists every backend and the global bounds `G` (burn rate
+if every endpoint ran flat out) and `X` (worst simultaneous exposure). **Arming is refused with `CONCURRENCY_EXCEEDS_CAP`** when
+`X` exceeds the per-batch ceiling or the month headroom; disarming is never refused. After raising `workers.max`, re-check status.
+
+Deploy order is the M3 order, **per backend that is armed: disarm, drain, deploy, arm.**
+
+1. `metamusic runpod disarm --engine acestep15 --reason TEXT` (and the same for the YuE2 backend if it is armed).
+2. Drain: `scripts/deploy-preflight.sh` refuses while any attempt is live; wait until `status` shows none for each engine.
+3. Deploy.
+4. Arm each backend again.
+
+A trip on one backend cancels only that backend's attempts, purges its queue and scales only its endpoint to zero; reset it with
+`reset-trip --engine ...`. If a worker never starts, the operator sees restarts or an `UNHEALTHY` worker in `status`, the job
+stays queued, and the reconciler trips that backend only on evidence older than five minutes (the job ends by its TTL); the manual
+step is the same scale-to-zero as in the M3 kill switch, for the `mm-acestep` endpoint.
+
+### Billing, the meter fix and drift
+
+Since migration `0016` the billing windows, buckets, worker meter and ledger carry a backend column, so each backend is trued up
+against its own billing. The worker-lifetime meter is wired in production (earlier builds settled every batch's worker overhead at
+zero); after the first deploy of this version, compare billed and reserved amounts per batch as in "Billing check". The weekly
+drift job watches the REST snapshot for each endpoint.
+
+### Stems, lyrics timing and reference clips
+
+A stem is stored as a `stem-<name>.flac` artifact of its source take; a repeated stem is numbered from 2. It creates no take, so
+it is not in the library lists. An invalid `lyrics.lrc` is dropped with an `lrc_dropped` job event and the take still lands.
+Reference clips are cut and cached under `derived/clips/` (evictable; not backed up).
+
+## Transforms (T1)
+
+Transforms are ML-free DSP renders on the application host and **never spend money**. The server must run with
+`MM_TRANSFORM_ENABLED` on; the render child is the same binary (`metamusic dsp-run`, started by the server, not for humans).
+
+### Quotas and limits
+
+`MM_TRANSFORM_AGENT_DAILY_CPU_S` (shared by all agent tokens) and `MM_TRANSFORM_HUMAN_DAILY_CPU_S` are daily CPU-second pools;
+one render runs at a time; `MM_TRANSFORM_QUEUE_MAX` bounds the queue (a full queue is 429 `TRANSFORM_QUEUE_FULL` with
+`Retry-After`); `MM_TRANSFORM_MAX_CPU_S`, `MM_TRANSFORM_MAX_OUT_S` and `MM_TRANSFORM_MAX_MEM_MB` bound one job (the budget kills
+a runaway child; a memory guard kills a child that exceeds its estimate). A refused render says when its pool resets.
+
+### Verifying a transform: `transform verify`
+
+`metamusic transform verify TAKE_ID` (or `--all [--limit N]`) re-renders the transform from its stored spec in a scratch directory
+and compares the PCM hash. It ingests nothing and writes no queue row. Output per take is `match`, `MISMATCH` or `inconclusive`;
+**exit 1 on any mismatch**, exit 0 for inconclusive. `inconclusive` means the answer cannot be trusted either way: the Go
+toolchain or the DSP version changed since the render, so a different hash is not evidence of corruption. A MISMATCH on an
+unchanged toolchain is a bug to report.
+
+### The determinism pin
+
+Release binaries and CI are built with `GOAMD64=v1`; the Dockerfile asserts it from the binary's build info. A binary built for a
+newer level fuses multiply-adds and changes the DSP results, so never override it. Any DSP algorithm change must bump
+`dsp_version`; renders made under an older version verify as inconclusive.
+
+### A transform is stuck: `transform sweep`
+
+First cancel it (`cancel_transform` or the Cancel button). A stopped server leaves a running row until its lease expires, then
+startup recovery requeues it (a second interruption ends as `INTERRUPTED`). For offline recovery, stop the server and run
+`metamusic transform sweep`; it refuses while a server holds an unexpired lease on a running transform. It removes unreferenced
+scratch directories and orphan masters.
+
+### Third-party data (binaural)
+
+The binaural kind embeds a derived head-related impulse response table from SADIE II (Apache-2.0); the credit and NOTICE are in
+`THIRD_PARTY_NOTICES.md` and `internal/dsp/hrtf/NOTICE`. Regenerating the table is an offline developer task (`tools/hrtfgen`,
+which needs the dataset, never committed); do not regenerate it casually, because changing it changes every binaural render.
+A binaural take is for headphones; do not play it through spatial or crossfeed processing.
+
+## Close the loop (M5)
+
+### Pacing guard
+
+`MM_CALLBACK_BACKLOG_MAX` (default 6, 0..50; 0 disables) stops an agent from creating Song PR renders while a lineage root has that
+many unanswered callbacks; answer the callbacks on the Judge page (or turn the guard off deliberately). A patch renders at most
+three times. These bound re-rendering speed; the dollar caps are unchanged. A Song PR render is an ordinary M3 estimate and
+confirmation.
+
+### Voice notes: storage and backup
+
+A voice note is recorded in the browser and saved only on Save (at most 120 s and 4 MiB). The original upload is stored
+content-addressed and read-only under `<data>/voice/`; a 64 kbps mono MP3 rendition is the only thing served. The backup treats
+`voice/` as a media root: the upload is backed up as an artifact and the MP3 as a rendition, hardlinked or copied like other media.
+If the MP3 encoder is missing, saving answers 503 `UNAVAILABLE` for `voice` and stored notes keep playing. There is no physical delete of a voice note through the API, so the directory only grows; watch it with the backup size.
+
+### After the first deploy
+
+Rewind (backward seek) listening events are stored only from this version on; earlier ones were dropped, so the heat strip of old
+listening has no rewind marks.
+
+## Migrations 0013 to 0016
+
+Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):
+
+| Migration | Milestone | What it does |
+|---|---|---|
+| `0013_close_loop` | M5 | additive: `patches`, `patch_comments`, `callbacks`, `callback_verdicts`, `voice_notes`, comment voice and origin columns, section-duel columns, `jobs.patch_id` (frozen by its own trigger) |
+| `0014_transforms` | T1 | additive: `transforms` (state machine, no deletes), `transform_inputs`, `transform_id` on tracks and mutations, engine `dsp` shape triggers |
+| `0015_engines` | E2 | rebuilds `jobs` (foreign keys off for the rebuild, generated DDL), adds `engine_rtf` and the append-only `engine_adoption_log` with its view |
+| `0016_billing_backend` | E2 | adds the backend column (default `runpod-serverless`) to billing windows, buckets, the worker meter and the ledger |
+
+Before deploying this set to a production database, run the migrations on a **copy** (`VACUUM INTO` a private path, never in the
+repo tree) and check: `PRAGMA foreign_key_check` is empty, row counts of the rebuilt and altered tables are equal before and
+after, `metamusic library verify` is clean, and the YuE2 path still generates. Delete the copy afterwards. Downgrading is a
+restore from a snapshot taken before the deploy; a restored database is always disarmed (see "Restore rule").
