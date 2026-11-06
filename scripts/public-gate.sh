@@ -192,6 +192,11 @@ png_ok() { # name file: allow-listed icon that really is a PNG
   case "$1" in web/public/icons/*.png) ;; *) return 1 ;; esac
   [ "$(head -c 8 "$2" | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ]
 }
+q15_ok() { # name file: the one committed HRTF table (operator-approved C222 exemption): exact path, 8-byte magic, at most 128 KiB
+  [ "$1" = internal/dsp/hrtf/table.q15 ] || return 1
+  [ "$(head -c 8 "$2")" = MMHRTF01 ] || return 1
+  [ "$(wc -c <"$2")" -le 131072 ] # at most 128 KiB (C222.4)
+}
 
 scan_blob() { # sha name
   local sha=$1 name=$2 label
@@ -200,7 +205,7 @@ scan_blob() { # sha name
     @*) cat -- "${sha#@}" >"$blobf" 2>/dev/null || return 0 ;;   # a working-tree file (range mode)
     *) git cat-file blob "$sha" >"$blobf" 2>/dev/null || return 0 ;;
   esac
-  if ! png_ok "$name" "$blobf"; then
+  if ! png_ok "$name" "$blobf" && ! q15_ok "$name" "$blobf"; then
     if bad_magic "$blobf"; then add_once "binary/archive/audio/db/pdf content in: $label"
     elif has_nul "$blobf"; then add_once "binary content (NUL bytes) in: $label"; fi
   fi
