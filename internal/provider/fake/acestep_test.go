@@ -444,6 +444,21 @@ func TestFakeACEStep_BackendOutputValidates(t *testing.T) {
 	}
 }
 
+// TestFakeACEStep_BadLRCMarker: fake:bad_lrc makes a take that asks for LRC deliver a lyrics.lrc without time stamps (the app drops it).
+func TestFakeACEStep_BadLRCMarker(t *testing.T) {
+	t.Parallel()
+	b, up, adv := newACE(t, fake.Options{})
+	ts, _ := aceSpec("job-bl", 1, aceReq(map[string]any{"lrc": true, "caption": "synthwave fake:bad_lrc"}), nil)
+	ref := mustSubmit(t, b, ts)
+	adv(time.Minute)
+	if st := mustPoll(t, b, ref); st.State != provider.Completed {
+		t.Fatalf("state %v (%s)", st.State, st.ErrorText)
+	}
+	if lrc := string(up.body("lyrics.lrc")); strings.Contains(lrc, "[00:") || lrc == "" {
+		t.Errorf("lyrics.lrc = %q", lrc)
+	}
+}
+
 func TestFake_InitFailReportsUnhealthy(t *testing.T) {
 	t.Parallel()
 	b, _, adv := newACE(t, fake.Options{})
