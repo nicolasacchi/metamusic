@@ -14,7 +14,8 @@ web/src/lib/components/Library*	m1-library
 web/src/lib/components/TrackTable.svelte	m1-library
 web/src/lib/components/Pager.svelte	m1-library
 web/src/lib/libraryQuery.ts	m1-library
-web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout
+web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout e2-repaint e2-reference e2-yue2-clean
+web/src/lib/components/TrackEngineActions.svelte	e2-repaint e2-reference e2-yue2-clean e2-layout
 web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
 web/src/lib/components/Waveform.svelte	m1-player
@@ -72,11 +73,11 @@ web/src/lib/components/Job*	m3-jobs
 web/src/lib/jobState.ts	m3-jobs
 web/src/routes/Batch.svelte	m3-batch
 web/src/lib/components/BatchCard.svelte	m3-batch
-web/src/routes/HumanGenerate.svelte	m3-compose m3-variant
+web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout
 web/src/lib/components/Generate*	m3-compose m3-variant
 web/src/lib/components/ModeForm.svelte	m3-compose
-web/src/lib/components/Estimate*	m3-compose
-web/src/lib/genIntent.ts	m3-compose m3-variant
+web/src/lib/components/Estimate*	m3-compose e2-engine-picker
+web/src/lib/genIntent.ts	m3-compose m3-variant e2-engine-picker e2-repaint e2-reference
 web/src/lib/components/ConfirmSpend.svelte	m3-approval
 web/src/routes/HumanSpend.svelte	m3-spend
 web/src/routes/HumanTokens.svelte	m3-spend m3-approval
@@ -85,9 +86,9 @@ web/src/lib/components/Spend*	m3-spend
 web/src/lib/components/TokenForm.svelte	m3-spend m3-approval
 web/src/lib/spendCaps.ts	m3-spend
 web/src/lib/money.ts	m3-spend
-web/src/routes/Lineage.svelte	m3-lineage
-web/src/lib/components/Lineage*	m3-lineage
-web/src/lib/lineageTree.ts	m3-lineage
+web/src/routes/Lineage.svelte	m3-lineage e2-lineage
+web/src/lib/components/Lineage*	m3-lineage e2-lineage
+web/src/lib/lineageTree.ts	m3-lineage e2-lineage
 web/src/lib/components/LyricsPanel.svelte	m3-songwriting
 web/src/lib/components/LintPanel.svelte	m3-songwriting
 web/src/lib/components/Provenance*	m1-track
@@ -274,15 +275,19 @@ internal/dsp/*	t1-transforms t1-hifi
 # BEGIN E2-I1 (e2-* specs). Same constraint as the T1 block: the map cannot name a spec that does not exist yet (verify-selftest fails on a
 # line whose spec file is missing). W-INT (E2a) and W1b (E2b/E2c) own web/e2e/e2-*.spec.ts and uncomment the lines in the PR that adds the
 # spec files, keeping these exact patterns (internal/engine/* is already mapped to core above and shadows any narrower engine line). A changed e2-*.spec.ts already runs itself; unmapped web/src paths fall back to @core.
-#web/src/routes/Engines.svelte	e2-engine-picker e2-trial
-#web/src/lib/components/Engine*	e2-engine-picker e2-init-failure
-#web/src/lib/components/RangeSelect.svelte	e2-repaint e2-extend
-#web/src/lib/components/Reference*	e2-reference
+web/src/routes/Engines.svelte	e2-engines e2-layout
+web/src/lib/engineMatrix*	e2-engines
+web/src/lib/components/EngineMatrix.svelte	e2-engines
+web/src/lib/components/Engine*	e2-engine-picker e2-engines
+web/src/lib/engines.ts	e2-engine-picker e2-engines e2-yue2-clean
+web/src/lib/components/RangeSelect.svelte	e2-repaint e2-reference e2-layout
+web/src/lib/rangeSelect*	e2-repaint
+web/src/lib/components/Reference*	e2-reference
 #web/src/lib/components/Stem*	e2-stems
 #web/src/lib/components/Trial*	e2-trial
 #web/src/routes/Suite*.svelte	e2-suite
-#web/src/lib/engineIntent.ts	e2-engine-picker e2-repaint e2-reference
-#internal/engineadopt/*	e2-engine-picker e2-trial
+web/src/lib/engineIntent.ts	e2-engine-picker e2-repaint e2-reference
+internal/engineadopt/*	e2-engine-picker e2-engines
 #internal/enginetrial/*	e2-trial
 #internal/suites/*	e2-suite
 # END E2-I1
