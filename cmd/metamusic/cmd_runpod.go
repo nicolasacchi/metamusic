@@ -47,7 +47,7 @@ const runpodUsage = `usage: metamusic runpod <command>
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
   canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
-                                              (E2a); --max-usd is required
+                                              (E2a) or extend|complete|extract|base-long|lrc (E2b); --max-usd is required
          [--source-track ID] [--pools P[,P]] [--max-s 480|600] [--init-fail-confirm] [--measured-out FILE]
   canary --engine acestep15 --all --dry-run [--part a|b] [--price-usd-hour N]
                                               prints the worst case and spends nothing
