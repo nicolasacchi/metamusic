@@ -328,8 +328,24 @@ func TestD5_MeasureCPU(t *testing.T) {
 	bin := childBinary(t)
 	const rate, secs = 48000, 30
 	n := rate * secs
-	child := &transform.ExecChild{Self: bin}
+	var peakKiB int64
+	child := &transform.ExecChild{Self: bin, RSSPoll: 20 * time.Millisecond, ReadRSS: func(pid int) (int64, bool) {
+		b, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+		if err != nil {
+			return 0, false
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			if rest, ok := strings.CutPrefix(line, "VmHWM:"); ok {
+				var kib int64
+				_, _ = fmt.Sscanf(strings.TrimSpace(rest), "%d", &kib)
+				peakKiB = max(peakKiB, kib)
+				return 0, true // never trips the guard: this is a measurement
+			}
+		}
+		return 0, false
+	}}
 	for _, c := range measured30 {
+		peakKiB = 0
 		dir := t.TempDir()
 		var ins []map[string]any
 		for i, bpm := range []float64{92, 128} {
@@ -372,8 +388,8 @@ func TestD5_MeasureCPU(t *testing.T) {
 		}
 		b, _ := os.ReadFile(filepath.Join(dir, "report.json"))
 		_ = json.Unmarshal(b, &rep)
-		t.Logf("MEASURE child kind=%s in_s=%d out_s=%.1f cpu_ms=%d wall_ms=%d units=%d ns_per_unit=%.3f", c.kind, secs*len(ins),
-			float64(rep.Frames)/rate, res.CPU.Milliseconds(), wall.Milliseconds(), rep.Units, float64(res.CPU.Nanoseconds())/float64(rep.Units))
+		t.Logf("MEASURE child kind=%s in_s=%d out_s=%.1f cpu_ms=%d wall_ms=%d units=%d ns_per_unit=%.3f peak_rss_mib=%d", c.kind, secs*len(ins),
+			float64(rep.Frames)/rate, res.CPU.Milliseconds(), wall.Milliseconds(), rep.Units, float64(res.CPU.Nanoseconds())/float64(rep.Units), peakKiB>>10)
 	}
 }
 
