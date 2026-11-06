@@ -68,8 +68,16 @@ def test_dockerfile_acestep_base_revision_matches_the_go_pin() -> None:
 def test_dockerfile_acestep_apt_pinned() -> None:
     """apt installs exactly the recorded set, without recommends, lists removed, on a digest-pinned base."""
     installs = re.findall(r"apt-get install -y --no-install-recommends ([^\\\n]+)", DOCKERFILE)
-    assert [i.split() for i in installs] == [["git", "ca-certificates", "curl"], ["libsndfile1", "ffmpeg"]]
+    assert [i.split() for i in installs] == [["git", "ca-certificates", "curl"], ["libsndfile1"]]
     assert DOCKERFILE.count("rm -rf /var/lib/apt/lists/*") == 2
+
+
+def test_dockerfile_acestep_size_trims_run_before_the_import_check() -> None:
+    build = next(s for s in STAGES if s.startswith("python:3.11-slim") and " AS build" in s.split("\n")[0])
+    trim = build.index("-name tests -prune -exec rm -rf")
+    assert "torch/include" in build[trim:trim + 200]
+    assert trim < build.index("assert not bad") < build.index("gen_notices.py")
+    assert "ffmpeg" not in "\n".join(l for l in DOCKERFILE.splitlines() if "apt-get install" in l)
 
 
 def test_dockerfile_acestep_builder_stage_not_in_runtime() -> None:
