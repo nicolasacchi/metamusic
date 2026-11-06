@@ -108,4 +108,24 @@ chk "ci.yml apt steps use scripts/apt-install.sh and no bare apt-get update; pla
   echo "ok:   apt-install: no-download first, update+install fallback, 3 bounded attempts"
 ) || fail=1
 # END apt steps never hang a job
+# BEGIN E2-I1 image path filters (scripts/worker-image-changed.sh): ACE inputs rebuild the ACE image, ACE-only files skip the yue2 one
+wic() { ( cd "$tmp/wic" && "$root/scripts/worker-image-changed.sh" "$1" "$base" ); }
+mkdir -p "$tmp/wic" && ( cd "$tmp/wic" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m base ) && base=$(git -C "$tmp/wic" rev-parse HEAD)
+touch_commit() { ( cd "$tmp/wic" && git reset -q --hard "$base" && mkdir -p "$(dirname "$1")" && echo x >"$1" && git add -A && git -c user.name=t -c user.email=t@t commit -q -m c ); }
+for f in worker/Dockerfile.acestep worker/Dockerfile.acestep.dockerignore worker/NOTICE.acestep worker/licenses/qwen.txt worker/tools/fetch_x.py worker/src/mmworker/engines/acestep.py worker/third_party_allow.txt worker/contract/ACESTEP_COMMIT; do
+  touch_commit "$f"; chk "ACE image rebuilds for $f" '[ "$(wic acestep15)" = true ]'
+done
+for f in worker/Dockerfile worker/NOTICE worker/contract/YUE2_COMMIT worker/tests/test_handler.py README.md; do
+  touch_commit "$f"; chk "ACE image ignores $f" '[ "$(wic acestep15)" = false ]'
+done
+for f in worker/Dockerfile.acestep worker/Dockerfile.acestep.dockerignore worker/NOTICE.acestep worker/licenses/qwen.txt worker/third_party_allow.txt worker/contract/ACESTEP_COMMIT worker/contract/test_acestep_contract.py worker/src/mmworker/engines/acestep.py worker/tests/test_acestep_x.py README.md; do
+  touch_commit "$f"; chk "yue2 image skipped for ACE-only $f" '[ "$(wic yue2)" = false ]'
+done
+for f in worker/Dockerfile worker/Dockerfile.dockerignore worker/NOTICE worker/pyproject.toml worker/uv.lock worker/tools/fetch_vae.py worker/src/mmworker/handler.py worker/src/mmworker/engines/yue2.py worker/contract/YUE2_COMMIT worker/tests/test_handler.py .github/workflows/worker-image.yml; do
+  touch_commit "$f"; chk "yue2 image rebuilds for $f" '[ "$(wic yue2)" = true ]'
+done
+( cd "$tmp/wic" && git reset -q --hard "$base" && mkdir -p worker && echo x >worker/Dockerfile.acestep && echo x >worker/src_other && git add -A && git -c user.name=t -c user.email=t@t commit -q -m c )
+chk "a mixed ACE + non-ACE change rebuilds yue2; an unknown base rebuilds both" '[ "$(wic yue2)" = true ] && [ "$(cd "$tmp/wic" && "$root/scripts/worker-image-changed.sh" yue2 deadbeef)" = true ] && [ "$(cd "$tmp/wic" && "$root/scripts/worker-image-changed.sh" acestep15 "")" = true ]'
+chk "worker-image.yml gates the yue2 job and publish on the decision and uses the script for both engines" 'grep -q "worker-image-changed.sh yue2" "$wf/worker-image.yml" && grep -q "worker-image-changed.sh acestep15" "$wf/worker-image.yml" && grep -q "needs.build-smoke.outputs.build" "$wf/worker-image.yml"'
+# END E2-I1
 exit $fail
