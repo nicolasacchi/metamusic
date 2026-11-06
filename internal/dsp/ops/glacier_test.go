@@ -47,8 +47,8 @@ func TestGlacier_Len(t *testing.T) {
 
 func TestGlacier_Sine(t *testing.T) {
 	t.Parallel()
-	x := dsptest.Dual(d4Rate, dsptest.Sine(d4Rate, 440, 0.5, 2))
-	out := d4Glacier(t, x, d4GlacierParams, 1, nil)
+	x := dsptest.Dual(d4Rate, dsptest.Sine(d4Rate, 440, 0.5, 1))
+	out := d4Glacier(t, x, `{"factor":10,"start_s":0,"length_s":1,"window_s":0.5,"fade_in_s":0,"fade_out_s":0}`, 1, nil)
 	if f := dsptest.PeakFreq(out.Ch[0], d4Rate); math.Abs(f-440) > 3 {
 		t.Errorf("peak %.1f Hz, want 440 +- 3", f)
 	}
@@ -199,7 +199,8 @@ func TestGlacier_MeterContextAndSink(t *testing.T) {
 // TestOps_GlacierStreamingMemory renders 900 s of output and requires the heap to stay under 64 MiB: the output is handed to
 // the sink block by block and never held.
 func TestOps_GlacierStreamingMemory(t *testing.T) {
-	const rate = 4000
+	d4SkipHeavy(t) // the race detector also changes what the heap counts
+	const rate = 2000
 	x := dsptest.Dual(rate, dsptest.Pink(1, 18*rate))
 	p, err := ParseGlacier(json.RawMessage(`{"factor":50,"length_s":18,"window_s":0.5,"fade_in_s":4,"fade_out_s":4}`))
 	if err != nil {

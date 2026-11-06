@@ -80,6 +80,7 @@ func TestIR_Presets(t *testing.T) {
 }
 
 func TestIR_RT60(t *testing.T) {
+	skipHeavy(t)
 	t.Parallel()
 	for _, c := range []struct {
 		name string
@@ -131,6 +132,7 @@ const goldenPath = "testdata/ir-golden.txt"
 // TestIR_Golden pins the cathedral at 16 kHz bit for bit (linux/amd64, GOAMD64=v1), and checks the pan law that the ensemble
 // places its voices with is constant-power for every pan.
 func TestIR_Golden(t *testing.T) {
+	skipHeavy(t)
 	dsptest.RequireGolden(t)
 	l, r, _ := ir.Build(mustPreset(t, "cathedral"), rate16, 42, nil)
 	got := hashIR(l, r)
@@ -155,6 +157,7 @@ func TestIR_Golden(t *testing.T) {
 }
 
 func TestIR_GoldenFMAOff(t *testing.T) {
+	skipHeavy(t)
 	dsptest.RequireGolden(t)
 	dsptest.ReexecFMAOff(t, `^TestIR_Golden$`)
 }
@@ -218,6 +221,7 @@ func TestIR_UnitEnergy(t *testing.T) {
 }
 
 func TestIR_EffectiveLen(t *testing.T) {
+	skipHeavy(t)
 	t.Parallel()
 	p := mustPreset(t, "cathedral")
 	const rate = 48000

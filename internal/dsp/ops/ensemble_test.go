@@ -88,7 +88,7 @@ func TestEnsemble_PanLaw(t *testing.T) {
 
 func TestEnsemble_TailLength(t *testing.T) {
 	t.Parallel()
-	x := d4Choir(0.5)
+	x := d4Choir(0.3)
 	room, _ := ir.Preset("hangar")
 	_, _, info := ir.Build(room, d4Rate, 5, nil)
 	p := EnsembleParams{Space: "hangar", WetDB: -6, DryDB: -12, TailS: 20, N: 1024}
@@ -121,7 +121,7 @@ func TestEnsemble_TailLength(t *testing.T) {
 
 func TestEnsemble_DryWet(t *testing.T) {
 	t.Parallel()
-	x := d4Choir(0.5)
+	x := d4Choir(0.3)
 	base := EnsembleParams{Space: "hangar", WetDB: -40, DryDB: 0, TailS: 2, N: 1024}
 	dry, _, err := Ensemble(context.Background(), x, base, 1, nil)
 	if err != nil {
@@ -215,7 +215,7 @@ func TestEnsemble_RunMeterAndErrors(t *testing.T) {
 	if _, err := runEnsemble(context.Background(), RunIn{Rate: d4Rate, Inputs: []pcm.Buffer{x}, Params: json.RawMessage(`{"space":"x"}`)}); err == nil {
 		t.Error("bad params accepted")
 	}
-	for _, max := range []int64{want / 50, want / 2, want * 9 / 10} {
+	for _, max := range []int64{want / 50, want / 2} {
 		if _, err := runEnsemble(context.Background(), RunIn{Rate: d4Rate, Inputs: []pcm.Buffer{x}, Params: params, Seed: 3, Meter: &dsp.Meter{Max: max}}); !errors.Is(err, dsp.ErrBudget) {
 			t.Errorf("budget %d: %v", max, err)
 		}

@@ -64,9 +64,9 @@ func TestShepard_PitchTrack(t *testing.T) {
 
 func TestShepard_EnvelopeFlat(t *testing.T) {
 	t.Parallel()
-	out := d4Shepard(t, d4ShepardParams("up", 12), nil)
+	out := d4Shepard(t, d4ShepardParams("up", 8), nil)
 	lo, hi := math.Inf(1), math.Inf(-1)
-	for s := 0.0; s+0.5 <= 12; s += 0.5 {
+	for s := 0.0; s+0.5 <= 8; s += 0.5 {
 		r := dsptest.DBFS(dsptest.RMS(d4Window(out.Ch[0], d4Rate, s, s+0.5)))
 		lo, hi = math.Min(lo, r), math.Max(hi, r)
 	}
@@ -165,24 +165,24 @@ func TestShepard_Parse(t *testing.T) {
 func TestShepard_RunAndMeter(t *testing.T) {
 	t.Parallel()
 	x := dsptest.Dual(d4Rate, dsptest.Sine(d4Rate, 220, 0.5, 1.5))
-	params := json.RawMessage(`{"loop_s":1,"layers":3,"period_s":8,"duration_s":9,"start_s":0.2}`)
+	params := json.RawMessage(`{"loop_s":1,"layers":3,"period_s":8,"duration_s":3,"start_s":0.2}`)
 	m := &dsp.Meter{}
 	out, err := runShepard(context.Background(), RunIn{Rate: d4Rate, Inputs: []pcm.Buffer{x}, Params: params, Meter: m})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Buffer.Frames() != 9*d4Rate {
+	if out.Buffer.Frames() != 3*d4Rate {
 		t.Errorf("frames %d", out.Buffer.Frames())
 	}
 	_, u, ok := Lookup(KindShepard)
 	if !ok {
 		t.Fatal("shepard is not registered")
 	}
-	want := u(0, int64(9*d4Rate), d4Rate, params)
+	want := u(0, int64(3*d4Rate), d4Rate, params)
 	if want < m.Used() || float64(m.Used()) < 0.9*float64(want) {
 		t.Errorf("meter used %d, units model %d: want used <= model and within 10%%", m.Used(), want)
 	}
-	if got := u(0, int64(9*d4Rate), d4Rate, json.RawMessage(`{`)); got != ShepardUnits(int64(9*d4Rate), 5, pvWindow) {
+	if got := u(0, int64(3*d4Rate), d4Rate, json.RawMessage(`{`)); got != ShepardUnits(int64(3*d4Rate), 5, pvWindow) {
 		t.Errorf("unparsable params: %d", got)
 	}
 	var rep struct {

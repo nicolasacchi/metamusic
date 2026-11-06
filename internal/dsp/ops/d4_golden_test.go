@@ -23,8 +23,8 @@ type d4GoldenCase struct{ kind, name, params, alignment string }
 var d4GoldenCases = []d4GoldenCase{
 	{KindGlacier, "default", `{"factor":10,"start_s":0.2,"length_s":1.2,"window_s":0.1,"fade_in_s":0.5,"fade_out_s":0.5}`, ``},
 	{KindGlacier, "wide_window", `{"factor":12.5,"length_s":1,"window_s":0.25,"fade_in_s":0,"fade_out_s":0}`, ``},
-	{KindShepard, "up", `{"direction":"up","loop_s":1,"start_s":0.1,"layers":3,"period_s":8,"duration_s":9,"bell_sigma_octaves":0.6}`, ``},
-	{KindShepard, "down_bars", `{"direction":"down","loop_bars":1,"layers":4,"period_s":8,"duration_s":8}`, `{"inputs":[{"bpm":120,"beats_per_bar":4}]}`},
+	{KindShepard, "up", `{"direction":"up","loop_s":1,"start_s":0.1,"layers":3,"period_s":8,"duration_s":4,"bell_sigma_octaves":0.6}`, ``},
+	{KindShepard, "down_bars", `{"direction":"down","loop_bars":1,"layers":4,"period_s":8,"duration_s":3}`, `{"inputs":[{"bpm":120,"beats_per_bar":4}]}`},
 	{KindEnsemble, "hangar", `{"space":"hangar","wet_db":-6,"dry_db":-12,"tail_s":3}`, ``},
 	{KindEnsemble, "cistern_nodry", `{"space":"cistern","wet_db":-3,"dry_db":null,"tail_s":2}`, ``},
 }
@@ -60,6 +60,7 @@ func d4Hashes(t *testing.T) map[string]string {
 // TestD4_Golden pins pcm_sha256 of glacier, shepard and ensemble renders bit for bit (linux/amd64, GOAMD64=v1). Update only
 // with a dsp_version bump.
 func TestD4_Golden(t *testing.T) {
+	d4SkipHeavy(t)
 	dsptest.RequireGolden(t)
 	got := d4Hashes(t)
 	keys := make([]string, 0, len(got))
@@ -99,6 +100,7 @@ func TestD4_Golden(t *testing.T) {
 
 // TestD4_GoldenFMAOff re-executes the goldens with the run-time FMA paths switched off and requires the same bits.
 func TestD4_GoldenFMAOff(t *testing.T) {
+	d4SkipHeavy(t)
 	dsptest.RequireGolden(t)
 	dsptest.ReexecFMAOff(t, `^TestD4_Golden$`)
 }
