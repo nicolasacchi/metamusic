@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lineageRows, type LineageNodeLike } from "./lineageTree";
+import { lineageRows, nodeBadges, referenceEdges, type LineageNodeLike } from "./lineageTree";
 
 const n = (id: string, parent: string | null, generation: number, kids = 0): LineageNodeLike => ({ id, parent_id: parent, generation, children_count: kids });
 
@@ -46,5 +46,27 @@ describe("lineageRows", () => {
   });
   test("empty", () => {
     expect(lineageRows([])).toEqual([]);
+  });
+});
+
+describe("E2 badges and reference edges", () => {
+  test("yue2 and absent engine have no badge", () => {
+    expect(nodeBadges({ id: "a", title: "A" })).toEqual([]);
+    expect(nodeBadges({ id: "a", title: "A", engine: "yue2" })).toEqual([]);
+  });
+  test("engine, cross engine and stems", () => {
+    const b = nodeBadges({ id: "a", title: "A", engine: "acestep15", cross_engine: true, stems: 1 });
+    expect(b.map((x) => [x.kind, x.text])).toEqual([["engine", "ACE-Step"], ["cross", "cross engine"], ["stems", "1 stem"]]);
+  });
+  test("reference edge from recipe.ref, inTree flag", () => {
+    const nodes = [
+      { id: "r", title: "Ref take" },
+      { id: "c", title: "Child", reference: { track_id: "r", from_s: 10.04, to_s: 30 } },
+      { id: "d", title: "Other", reference: { track_id: "gone", from_s: 0, to_s: 20 } },
+    ];
+    expect(referenceEdges(nodes)).toEqual([
+      { fromId: "r", toId: "c", inTree: true, label: "Ref take 10–30 s" },
+      { fromId: "gone", toId: "d", inTree: false, label: "reference take 0–20 s" },
+    ]);
   });
 });

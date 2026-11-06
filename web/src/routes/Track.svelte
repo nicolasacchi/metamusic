@@ -36,7 +36,8 @@
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
   import TransformProvenance from "../lib/components/TransformProvenance.svelte";
   import TransformPanel from "../lib/components/TransformPanel.svelte";
-  import type { Viewer } from "../lib/genIntent";
+  import TrackEngineActions from "../lib/components/TrackEngineActions.svelte"; // E2-W1b
+  import { canGenerate, type Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
 
   // `song` and `is_pick` are library read amendments (D-L1-21, C98) that the generated type learns at integration.
@@ -311,6 +312,19 @@
         {/if}
         {#if track.recipe_known && !track.lossy}
           <TransformPanel trackId={id} hasScore={track.score !== null} />
+        {/if}
+        <!-- E2-W1b: engine actions (Repaint, Reference, A/B for a repaint child) -->
+        {#if canGenerate(me, track)}
+          <TrackEngineActions
+            trackId={id}
+            {duration}
+            {peaks}
+            {bits}
+            parentId={track.lineage.parent_track_id}
+            acestep={track.recipe.acestep ?? null}
+            playFrom={(s) => play(s)}
+            go={(to) => (navigate ?? defaultNavigate)(to)}
+          />
         {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <EarsPanel trackId={id} />
