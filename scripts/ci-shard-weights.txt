@@ -51,6 +51,7 @@
 ./internal/callbacks 18
 ./internal/library 16
 ./internal/songview 16
+./internal/dsp/align 16
 ./internal/analysis/spectro 15
 ./internal/board 15
 ./internal/features 12
