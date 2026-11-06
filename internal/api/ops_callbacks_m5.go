@@ -11,7 +11,7 @@ import (
 )
 
 // registerCallbacksM5 registers the three Callback Listening operations (C255, C260). Frozen by M5-F2; lane M5-C1 fills the
-// handlers (and adds the ids to implementedCallbacksM5 in ops_callbacks_m5_test.go).
+// handlers.
 func registerCallbacksM5(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_callbacks", Method: "GET", Path: "/api/callbacks",

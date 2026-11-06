@@ -9,10 +9,6 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// implementedAttentionM5 lists the M5 operations whose 501 stub lane M5-A1 has replaced (ids from m5Ops in ops_m5_test.go). The lane
-// adds its ids here, drops the matching 501 parity cases and covers the behaviour in its own tests; it owns this file alone.
-var implementedAttentionM5 = map[string]bool{"get_listen_heat": true}
-
 func heatEvent(n int, track, session, kind string, from, to int) map[string]any {
 	e := listenEvent(100+n, track, kind)
 	e["session_id"] = session

@@ -21,7 +21,7 @@ import (
 //   - section shapes: T5 and T6 have lyrics-only sections (an import), T1 a plan-timed take, T2 plan plus manual rows, T3 measured
 //     plus plan, and a three-generation known-recipe lineage G0 -> G1 -> G2 whose comments sit on the grandparent;
 //   - comments on G0: timestamped open fixes (one in a chorus, one in a verse), a note, a keep, a hidden fix and a resolved fix;
-//   - listening: a few human segments, a replayed span (no rewind seek, see below) and a skip on G0, and one Subsonic scrobble.
+//   - listening: a few human segments, a replayed span (a forward seek only; the rewinds live in the acceptance tests) and a skip on G0, and one Subsonic scrobble.
 //
 // G0 is plan-timed (verse 1, chorus 1, verse 2, chorus 2, outro over 120 s); G1 has manual sections that differ from the plan;
 // G2 is lyrics-only, so a spot on G2 maps proportionally.
@@ -189,8 +189,8 @@ func addM5(tb testing.TB, st *store.Store, now time.Time, info M5Info) M5Info {
 	listen(2, "m5session-a1", "segment", ms(0), ms(60000), "web", "human", FixtureHuman)
 	listen(3, "m5session-b1", "start", nil, nil, "web", "human", FixtureHuman)
 	listen(4, "m5session-b1", "segment", ms(0), ms(30000), "web", "human", FixtureHuman)
-	// no backward seek row: the listen-event validator and the table CHECK both require to_ms >= from_ms, so a rewind is
-	// never stored (the client emits one, the server rejects it as bad_range); only the replayed segment shows it
+	// no backward seek row here: the fixture's goldens predate the rewind storage (a backward seek is stored with its positions
+	// swapped and detail 'rewind', see listening.Unnormalise); the acceptance tests post real rewinds
 	listen(5, "m5session-b1", "seek", ms(30000), ms(33000), "web", "human", FixtureHuman)
 	listen(6, "m5session-b1", "segment", ms(10000), ms(40000), "web", "human", FixtureHuman)
 	listen(7, "m5session-c1", "start", nil, nil, "web", "human", FixtureHuman)
