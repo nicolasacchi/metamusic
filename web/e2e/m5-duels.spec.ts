@@ -92,15 +92,20 @@ test("a Smart round locked to the chorus is blind: no title, id, slot or window 
 
   const open = await apiJSON<WindowedDuel>(request, "GET", `/api/duels/${duelId}`);
   expect(open.revealed).toBe(true);
+  // each window starts up to 2 s before its own chorus (a pre-roll) and holds the chorus start; both are equal in length
+  const lengths: number[] = [];
   for (const [slot, take] of [[open.slots.a, sa], [open.slots.b, sb]] as const) {
     const detail = timed.find((t) => t.id === take.id);
     const chorus = detail?.sections.find((s) => s.kind === "chorus");
     const w = slot.window;
     if (!detail || !chorus || !w) throw new Error(`revealed slot of ${take.title} has no window`);
-    expect(w.from_s).toBeGreaterThanOrEqual((chorus.start_s ?? 0) - 0.05);
-    expect(w.to_s).toBeLessThanOrEqual((chorus.end_s ?? 0) + 0.05);
-    expect(w.to_s).toBeGreaterThan(w.from_s);
+    const start = chorus.start_s ?? 0;
+    expect(w.from_s).toBeLessThanOrEqual(start + 0.05);
+    expect(w.from_s).toBeGreaterThanOrEqual(start - 2 - 0.05);
+    expect(w.to_s).toBeGreaterThan(start);
+    lengths.push(w.to_s - w.from_s);
   }
+  expect(Math.abs((lengths[0] ?? 0) - (lengths[1] ?? 1))).toBeLessThanOrEqual(0.05);
   expect(watch.problems()).toEqual([]);
 });
 

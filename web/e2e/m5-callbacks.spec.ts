@@ -15,11 +15,11 @@ const loop = (request: APIRequestContext): Promise<ClosedLoop> => (made ??= clos
 
 const waitingText = (n: number) => (n === 1 ? "1 callback waiting" : `${n} callbacks waiting`);
 
-/** The two callbacks of a comment (one per child), the first and the second by creation. */
-async function pair(request: APIRequestContext, commentId: string): Promise<[CallbackOut, CallbackOut]> {
+/** The callbacks of a comment for the first and the second child, in that order (the list itself puts pending ones first, so it cannot be indexed). */
+async function pair(request: APIRequestContext, l: ClosedLoop, commentId: string): Promise<[CallbackOut, CallbackOut]> {
   const cbs = await callbacksOf(request, `comment_id=${commentId}`);
-  const [a, b] = [cbs[0], cbs[1]];
-  if (!a || !b) throw new Error(`comment ${commentId} has ${cbs.length} callbacks, wanted two`);
+  const [a, b] = [cbs.find((c) => c.child.id === l.children[0]), cbs.find((c) => c.child.id === l.children[1])];
+  if (!a || !b) throw new Error(`comment ${commentId} has callbacks for ${cbs.length} children, wanted the first two`);
   return [a, b];
 }
 
@@ -77,7 +77,7 @@ test("a rendered Song PR puts its callbacks on the Judge page and in the list, p
 test("a fix card: the comment, the spot, hearing the new take, Not yet puts the comment back to open", async ({ page, request }) => {
   const watch = watchM5(page);
   const l = await loop(request);
-  const [first] = await pair(request, l.fixA.id);
+  const [first] = await pair(request, l, l.fixA.id);
   expect((await commentById(request, l.base.id, l.fixA.id)).state).toBe("addressed"); // the first child moved it
   const before = await pendingTotal(request);
 
@@ -116,7 +116,7 @@ test("a fix card: the comment, the spot, hearing the new take, Not yet puts the 
 test("Fixed on the other child resolves the comment, and the Track page stops offering it", async ({ page, request }) => {
   const watch = watchM5(page);
   const l = await loop(request);
-  const [, second] = await pair(request, l.fixA.id);
+  const [, second] = await pair(request, l, l.fixA.id);
 
   await openCard(page, second);
   await answer(page, "fixed").click();
@@ -139,7 +139,7 @@ test("Fixed on the other child resolves the comment, and the Track page stops of
 test("Worse regresses a comment and the sibling rule is order free: a Fixed on the other child resolves it", async ({ page, request }) => {
   const watch = watchM5(page);
   const l = await loop(request);
-  const [first, second] = await pair(request, l.fixB.id);
+  const [first, second] = await pair(request, l, l.fixB.id);
 
   await openCard(page, first);
   await answer(page, "worse").click();
@@ -163,7 +163,7 @@ test("Worse regresses a comment and the sibling rule is order free: a Fixed on t
 test("a keep card asks if it is still there: Lost writes a fix note on the new take, Kept changes nothing", async ({ page, request }) => {
   const watch = watchM5(page);
   const l = await loop(request);
-  const [first, second] = await pair(request, l.keep.id);
+  const [first, second] = await pair(request, l, l.keep.id);
   expect(first.kind).toBe("keep");
 
   await openCard(page, first);

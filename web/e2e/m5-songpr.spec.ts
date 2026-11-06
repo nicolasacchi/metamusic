@@ -54,7 +54,8 @@ test("propose from the Track panel as the human, read the patch page, Render thr
   await page.getByTestId("song-pr-rationale").fill("Tighten the second line of the verse");
   await page.getByTestId("song-pr-title").fill("Tighter verse");
   await expect(page.getByTestId("song-pr-problem")).toContainText("Change at least one line");
-  await page.getByTestId("song-pr-add-section").selectOption(String(verse.idx));
+  // picking a comment that sits in a section opens that section's lines by itself; any other section is added by hand
+  if ((await page.locator(`[data-testid="song-pr-section"][data-idx="${verse.idx}"]`).count()) === 0) await page.getByTestId("song-pr-add-section").selectOption(String(verse.idx));
   const lines = page.locator(`[data-testid="song-pr-section"][data-idx="${verse.idx}"]`).getByTestId("song-pr-line");
   await expect(lines).toHaveCount(verse.lines.length);
   const after = "la la la la la";

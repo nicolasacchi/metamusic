@@ -48,7 +48,8 @@ const recorder = (page: Page) => page.getByTestId("voice-recorder");
 /** Records about a second of the tone and stops; leaves the recorder in its recorded state. */
 async function recordSecond(page: Page): Promise<void> {
   await page.getByTestId("voice-record").click();
-  await expect(recorder(page)).toHaveAttribute("data-state", "recording");
+  // the first AudioContext of a cold Firefox can take several seconds
+  await expect(recorder(page)).toHaveAttribute("data-state", "recording", { timeout: 30_000 });
   await expect(page.getByTestId("voice-timer")).toContainText("of 2:00");
   await page.waitForTimeout(1200);
   await page.getByTestId("voice-stop").click();

@@ -44,7 +44,7 @@ test("the Track page fits 360 px with the Song PR form open, the heat strip and 
   await page.getByTestId("song-pr-rationale").fill(`${LONG} ${LONG}`);
   const verse = loop.base.sections.find((s) => s.lines.length > 0);
   if (!verse) throw new Error("no section with lines");
-  await page.getByTestId("song-pr-add-section").selectOption(String(verse.idx));
+  if ((await page.getByTestId("song-pr-section").count()) === 0) await page.getByTestId("song-pr-add-section").selectOption(String(verse.idx));
   await page.getByTestId("song-pr-line").first().fill(`${LONG} ${LONG}`);
   await expectFits(page, "Track with the Song PR form open");
   expect(await smallTargetsIn(page, '[data-testid="song-pr-panel"]')).toEqual([]);

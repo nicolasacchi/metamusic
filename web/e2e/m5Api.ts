@@ -186,6 +186,9 @@ export async function overflowX(page: Page): Promise<{ scroll: number; client: n
       const cs = getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || cs.position === "fixed") continue;
       if (el.closest("[inert], [hidden], dialog:not([open]), svg, canvas, audio")) continue;
+      // the content of a closed <details> keeps a box (content-visibility) but is not on screen
+      const closed = el.closest("details:not([open])");
+      if (closed && !el.closest("summary")) continue;
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
       if (r.right > client + 1) offenders.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? el.className}] right=${Math.round(r.right)}`);
