@@ -46,7 +46,13 @@ func chaosRig(t *testing.T, tools mediatool.Tools, child func(o *transform.Optio
 	return r
 }
 
-const chaosGlacier = `{"factor":10,"start_s":0,"length_s":3,"window_s":0.5,"fade_in_s":0.5,"fade_out_s":0.5}`
+const chaosGlacier = `{"factor":20,"start_s":0,"length_s":3,"window_s":0.5,"fade_in_s":0.5,"fade_out_s":0.5}`
+
+// chaosChild is the real child with an unthrottled progress relay: a fast machine finishes the whole render in a second or two,
+// and a throttled relay would deliver nothing between the first and the last report.
+func chaosChild(bin string) *transform.ExecChild {
+	return &transform.ExecChild{Self: bin, Throttle: time.Millisecond}
+}
 
 // queueChaos queues a small glacier of A; tag makes its spec unique.
 func queueChaos(t *testing.T, r *rig, tag string) string {
@@ -130,7 +136,7 @@ var chaosPoints = func() []int {
 	if os.Getenv("MM_T1_CHAOS_FULL") == "1" { // the weekly run: ten points
 		return []int{0, 100, 200, 300, 400, 500, 600, 700, 800, 900}
 	}
-	return []int{0, 500, 900} // the PR subset
+	return []int{0, 400, 800} // the PR subset
 }()
 
 // TestChaos_KillChildAtProgress: the render child dies at ten points (three in the PR subset, ten with MM_T1_CHAOS_FULL=1) of its progress, by SIGKILL from outside (what the kernel's
@@ -154,7 +160,7 @@ func TestChaos_KillChildAtProgress(t *testing.T) {
 			t.Run(fmt.Sprintf("p=%d", at), func(t *testing.T) {
 				var w *interrupter
 				r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
-					w = &interrupter{inner: &transform.ExecChild{Self: bin}, at: at, n: 1, hit: killChild}
+					w = &interrupter{inner: chaosChild(bin), at: at, n: 1, hit: killChild}
 					return w
 				})
 				before := r.masterFiles()
@@ -192,7 +198,7 @@ func TestChaos_KillChildAtProgress(t *testing.T) {
 				defer stop()
 				var w *interrupter
 				r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
-					w = &interrupter{inner: &transform.ExecChild{Self: bin}, at: at, n: 1, hit: func(string) bool { stop(); return true }}
+					w = &interrupter{inner: chaosChild(bin), at: at, n: 1, hit: func(string) bool { stop(); return true }}
 					return w
 				})
 				before := r.masterFiles()
@@ -229,7 +235,7 @@ func TestChaos_KillChildAtProgress(t *testing.T) {
 		defer stop()
 		var w *interrupter
 		r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
-			w = &interrupter{inner: &transform.ExecChild{Self: bin}, at: 300, n: 2, hit: func(string) bool { stop(); return true }}
+			w = &interrupter{inner: chaosChild(bin), at: 100, n: 2, hit: func(string) bool { stop(); return true }}
 			return w
 		})
 		before := r.masterFiles()
@@ -269,7 +275,7 @@ func TestChaos_ServerRestartMidRender(t *testing.T) {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
-		return &interrupter{inner: &transform.ExecChild{Self: bin}, at: 400, n: 1, hit: func(string) bool { stop(); return true }}
+		return &interrupter{inner: chaosChild(bin), at: 100, n: 1, hit: func(string) bool { stop(); return true }}
 	})
 	before := r.masterFiles()
 	id := queueChaos(t, r, "restart")
@@ -426,7 +432,7 @@ func TestChaos_ParentRowTampered(t *testing.T) {
 	bin := childBinary(t)
 	var calls atomic.Int32
 	r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
-		return &interrupter{inner: &transform.ExecChild{Self: bin}, at: 1 << 20, n: 0, hit: func(string) bool { calls.Add(1); return true }}
+		return &interrupter{inner: chaosChild(bin), at: 1 << 20, n: 0, hit: func(string) bool { calls.Add(1); return true }}
 	})
 	before := r.masterFiles()
 	id := queueChaos(t, r, "tamper")
