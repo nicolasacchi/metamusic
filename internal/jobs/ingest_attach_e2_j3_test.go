@@ -1,16 +1,20 @@
 package jobs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/synth"
+	"github.com/nicolasacchi/metamusic/internal/upload"
 )
 
 // The attach ingest (E2b, C166): a finished extract job attaches its stem to the source take, a text2music take keeps a valid
@@ -370,4 +374,156 @@ func deref(s *string) string {
 		return "<nil>"
 	}
 	return *s
+}
+
+// TestIngest_StemArtifact_OrphanFileSkipped: a file left at the stem's name by a crashed attach (no row) is never replaced; the
+// stem takes the next number.
+func TestIngest_StemArtifact_OrphanFileSkipped(t *testing.T) {
+	s := newStemFixture(t)
+	orphan := filepath.Join(s.dataDir, "takes", s.parent, "stem-drums.flac")
+	if err := os.WriteFile(orphan, []byte("left by a crash"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	job := s.seedStem("drums")
+	s.runACE(job, s.longFLAC(10, 61), nil)
+	s.wantState(job, StateCompleted)
+	if n := s.count(`SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name = 'stem-drums-2.flac'`, s.parent); n != 1 {
+		t.Errorf("stem-drums-2.flac missing; artifacts: %s", s.str(`SELECT group_concat(name) FROM artifacts WHERE track_id = ? AND name LIKE 'stem-%'`, s.parent))
+	}
+	if raw, err := os.ReadFile(orphan); err != nil || string(raw) != "left by a crash" {
+		t.Errorf("the orphan was touched: %q %v", raw, err)
+	}
+}
+
+// TestIngest_StemArtifact_CommitFailureCleansUp: when the attach transaction fails after the file is linked, the link goes away,
+// no row is left and the failure is INGEST_FAILED DB_INSERT.
+func TestIngest_StemArtifact_CommitFailureCleansUp(t *testing.T) {
+	s := newStemFixture(t)
+	job := s.seedStem("fx")
+	jr, ar, files, out := s.captureACE(job, s.longFLAC(10, 62))
+	s.exec(`CREATE TRIGGER j3_boom BEFORE UPDATE OF env_id ON jobs BEGIN SELECT RAISE(ABORT, 'boom'); END`)
+	_, err := s.bridge.IngestTake(WithLeaseOwner(t.Context(), "runner-1"), jr, ar, files, out)
+	var ing *IngestFailedError
+	if !errors.As(err, &ing) || ing.Code != "DB_INSERT" {
+		t.Fatalf("err = %v, want DB_INSERT", err)
+	}
+	if n := s.count(`SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name LIKE 'stem-%'`, s.parent); n != 0 {
+		t.Errorf("%d stem rows after a failed attach", n)
+	}
+	if left, _ := filepath.Glob(filepath.Join(s.dataDir, "takes", s.parent, "stem-*")); len(left) != 0 {
+		t.Errorf("stem files left: %v", left)
+	}
+	if left, _ := filepath.Glob(filepath.Join(s.dataDir, "incoming", "attach-*")); len(left) != 0 {
+		t.Errorf("work files left: %v", left)
+	}
+}
+
+// TestIngest_StemArtifact_UploadChanged: an upload whose bytes changed on disk after it was received is refused SOURCE_CHANGED.
+func TestIngest_StemArtifact_UploadChanged(t *testing.T) {
+	s := newStemFixture(t)
+	job := s.seedStem("synth")
+	jr, ar, files, out := s.captureACE(job, s.longFLAC(10, 63))
+	for _, f := range files {
+		if f.Artifact == "audio.flac" {
+			p := filepath.Join(s.dataDir, f.Path)
+			if err := os.Chmod(p, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("changed after receipt"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	_, err := s.bridge.IngestTake(WithLeaseOwner(t.Context(), "runner-1"), jr, ar, files, out)
+	var ing *IngestFailedError
+	if !errors.As(err, &ing) || ing.Code != "SOURCE_CHANGED" {
+		t.Fatalf("err = %v, want SOURCE_CHANGED", err)
+	}
+	// a received file that is gone is an unreadable lrc
+	if got := s.bridge.lrcProblem(upload.Received{Path: "incoming/uploads/nope"}); got != "unreadable" {
+		t.Errorf("missing lrc = %q", got)
+	}
+}
+
+// TestIngest_StemArtifact_WrongRate: a stem that is not 48 kHz is refused INVALID_AUDIO.
+func TestIngest_StemArtifact_WrongRate(t *testing.T) {
+	s := newStemFixture(t)
+	src := filepath.Join(t.TempDir(), "a.flac")
+	if err := os.WriteFile(src, s.longFLAC(10, 64), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(t.TempDir(), "b.flac")
+	if _, err := mediatool.Run(t.Context(), s.tools.FFmpeg, []string{"-nostdin", "-v", "error", "-i", src, "-ar", "44100", dst},
+		mediatool.RunOpts{Timeout: time.Minute, MaxStdout: 1 << 20}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := s.seedStem("brass")
+	s.runACE(job, raw, nil)
+	s.wantState(job, StateFailed)
+	if got := s.str(`SELECT json_extract(detail_json, '$.ingest_code') FROM job_events WHERE job_id = ? AND event = 'failed' ORDER BY id DESC LIMIT 1`, job); got != "INVALID_AUDIO" {
+		t.Errorf("ingest_code %q", got)
+	}
+}
+
+// TestIngest_StemArtifact_BadRecipeAndLease: a stem job whose stored request no longer parses is refused STEM_REQUEST; a runner
+// that lost its lease attaches nothing.
+func TestIngest_StemArtifact_BadRecipeAndLease(t *testing.T) {
+	s := newStemFixture(t)
+	job := s.seedStem("woodwinds")
+	jr, ar, files, out := s.captureACE(job, s.longFLAC(10, 65))
+	_, err := s.bridge.IngestTake(WithLeaseOwner(t.Context(), "someone-else"), jr, ar, files, out)
+	if err == nil {
+		t.Fatal("a runner without the lease attached a stem")
+	}
+	if n := s.count(`SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name LIKE 'stem-%'`, s.parent); n != 0 {
+		t.Errorf("%d stems attached without the lease", n)
+	}
+
+	s.exec(`DROP TRIGGER IF EXISTS recipes_immutable`)
+	s.exec(`UPDATE recipes SET request_json = '{"id":"' || request_id || '","seed":' || seed || ',"task":"extract"}' WHERE id = (SELECT recipe_id FROM jobs WHERE id = ?)`, job)
+	_, err = s.bridge.IngestTake(WithLeaseOwner(t.Context(), "runner-1"), jr, ar, files, out)
+	var ing *IngestFailedError
+	if !errors.As(err, &ing) || ing.Code != codeStemRequest {
+		t.Fatalf("err = %v, want %s", err, codeStemRequest)
+	}
+	// nothing to finish for a job without an attached event
+	if done, err := s.run.completeAttached(t.Context(), job); done || err != nil {
+		t.Errorf("completeAttached = %v, %v", done, err)
+	}
+}
+
+// TestIngest_StemArtifact_WorkFileProblems: an upload that vanished, and a work path that is taken, fail INGEST_FAILED without
+// attaching anything.
+func TestIngest_StemArtifact_WorkFileProblems(t *testing.T) {
+	s := newStemFixture(t)
+	job := s.seedStem("keyboard")
+	jr, ar, files, out := s.captureACE(job, s.longFLAC(10, 66))
+	taken := filepath.Join(s.dataDir, "incoming", "attach-"+jr.ID)
+	if err := os.MkdirAll(filepath.Join(taken, "x"), 0o755); err != nil { // a non-empty directory cannot be removed or replaced
+		t.Fatal(err)
+	}
+	var ing *IngestFailedError
+	if _, err := s.bridge.IngestTake(WithLeaseOwner(t.Context(), "runner-1"), jr, ar, files, out); !errors.As(err, &ing) || ing.Code != "IO" {
+		t.Fatalf("taken work path: %v", err)
+	}
+	if err := os.RemoveAll(taken); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f.Artifact == "audio.flac" {
+			if err := os.Remove(filepath.Join(s.dataDir, f.Path)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := s.bridge.IngestTake(WithLeaseOwner(t.Context(), "runner-1"), jr, ar, files, out); !errors.As(err, &ing) || ing.Code != "SOURCE_CHANGED" {
+		t.Fatalf("vanished upload: %v", err)
+	}
+	if n := s.count(`SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name LIKE 'stem-%'`, s.parent); n != 0 {
+		t.Errorf("%d stems attached", n)
+	}
 }
