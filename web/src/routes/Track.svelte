@@ -37,6 +37,8 @@
   import TransformProvenance from "../lib/components/TransformProvenance.svelte";
   import TransformPanel from "../lib/components/TransformPanel.svelte";
   import TrackEngineActions from "../lib/components/TrackEngineActions.svelte"; // E2-W1b
+  import TrackStems from "../lib/components/TrackStems.svelte"; // E2-W5
+  import TrackLrc from "../lib/components/TrackLrc.svelte"; // E2-W5
   import { canGenerate, type Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
 
@@ -325,6 +327,13 @@
             playFrom={(s) => play(s)}
             go={(to) => (navigate ?? defaultNavigate)(to)}
           />
+        {/if}
+        <!-- E2-W5: stems (play/download) and the synced lyrics; both render nothing while the fields are empty -->
+        {#if (track.stems?.length ?? 0) > 0}
+          <TrackStems trackId={id} stems={track.stems ?? []} />
+        {/if}
+        {#if track.lrc}
+          <TrackLrc trackId={id} has={true} current={isCurrent ? player.state.current : null} onseek={seek} />
         {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
         <EarsPanel trackId={id} />
