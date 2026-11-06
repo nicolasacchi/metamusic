@@ -90,4 +90,8 @@ chk "worker-contract.sh: yue2 default, acestep15 by argument or ENGINE, unknown 
 chk "the Makefile has worker-acestep and contract-acestep through the loop, outside make check" 'grep -qF "uv run pytest tests --cov=mmworker.engines.acestep" "$root/Makefile" && grep -qF "\$(LOOP) worker -- " "$root/Makefile" && grep -qF "\$(LOOP) contract -- scripts/worker-contract.sh acestep15" "$root/Makefile" && ! awk "/^_check:/{f=1;next} /^[a-z.]/{f=0} f" "$root/Makefile" | grep -q acestep'
 chk "coverage.thresholds and shard weights carry E2-I1 blocks and keep the T1-I1 ones" 'for f in coverage.thresholds scripts/ci-shard-weights.txt scripts/e2e-map.txt; do grep -q "BEGIN E2-I1" "$root/$f" && grep -q "END E2-I1" "$root/$f" && grep -q "BEGIN T1-I1" "$root/$f" && grep -q "END T1-I1" "$root/$f" || exit 1; done'
 # END E2-I1
+# BEGIN E2-I1 image build cache is a registry cache, not the 10 GB Actions cache (buildkit blobs evicted go/apt/playwright)
+chk "no workflow uses the type=gha buildx cache" '! grep -rq "type=gha" "$wf"'
+chk "image builds read ghcr :buildcache and only the publish jobs write it" 'w="$wf/worker-image.yml"; [ "$(grep -c "cache-from: type=registry,ref=.*:buildcache" "$w")" = 4 ] && [ "$(grep -c "cache-to: type=registry" "$w")" = 2 ] && for j in publish acestep-publish; do awk "/^  $j:/{f=1;next} /^  [a-z]/{f=0} f" "$w" | grep "cache-to: type=registry" >/dev/null || exit 1; done'
+# END E2-I1
 exit $fail
