@@ -436,7 +436,8 @@ func init() {
 	for _, k := range []KindSpec{
 		{Kind: KindMorph, Validate: validateMorph, Units: unitsMorph, Title: titleMorph, Capabilities: capsMorph, MemFactor: 3, Warnings: warnPair},
 		{Kind: KindShepard, Validate: validateShepard, Units: unitsShepard, Title: titleShepard, Capabilities: capsShepard, MemFactor: 1, Warnings: warnShepard},
-		{Kind: KindGlacier, Validate: validateGlacier, Units: unitsGlacier, Title: titleGlacier, Capabilities: capsGlacier, MemFactor: 0},
+		// glacier MemFactor 1 (was 0): safety.Finish holds the whole output, out_frames x 16 B (measured by D4/H1; revisit if D5 streams). T1-B2b
+		{Kind: KindGlacier, Validate: validateGlacier, Units: unitsGlacier, Title: titleGlacier, Capabilities: capsGlacier, MemFactor: 1},
 		{Kind: KindPolytempo, Validate: validatePolytempo, Units: unitsPolytempo, Title: titlePolytempo, Capabilities: capsPolytempo, MemFactor: 3, Warnings: warnPair},
 		{Kind: KindEnsemble, Validate: validateEnsemble, Units: unitsEnsemble, Title: titleEnsemble, Capabilities: capsEnsemble, MemFactor: 3, Warnings: warnEnsemble},
 	} {
