@@ -14,7 +14,7 @@ web/src/lib/components/Library*	m1-library
 web/src/lib/components/TrackTable.svelte	m1-library
 web/src/lib/components/Pager.svelte	m1-library
 web/src/lib/libraryQuery.ts	m1-library
-web/src/routes/Track.svelte	m1-track t1-transforms
+web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout
 web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
 web/src/lib/components/Waveform.svelte	m1-player
@@ -52,13 +52,13 @@ web/src/lib/components/StepUpBanner.svelte	ux-secure
 web/src/routes/HumanConfirm.svelte	m2a-human
 web/src/lib/components/PairingPanel.svelte	m2a-human
 web/src/lib/humanView.ts	m2a-human
-web/src/lib/components/Comment*	m2a-comments
+web/src/lib/components/Comment*	m2a-comments m5-voice m5-voice-save
 web/src/lib/comments.ts	m2a-comments
 web/src/lib/jump.ts	m2a-comments
 web/src/lib/components/VerdictBar.svelte	m2a-judge
 web/src/lib/components/StarRating.svelte	m2a-judge
 web/src/lib/components/StatusSelect.svelte	m2a-judge
-web/src/routes/Judge.svelte	ux-judge
+web/src/routes/Judge.svelte	ux-judge m5-callbacks m5-layout
 web/src/lib/components/JudgeCard.svelte	ux-judge
 web/src/lib/judgeQueue.ts	ux-judge
 web/src/lib/judgeCard.svelte.ts	ux-judge
@@ -151,7 +151,7 @@ internal/ladder/*	m2b-duels
 internal/ears/*	m2b-ears
 internal/spend/*	m3-spend m3-approval
 internal/jobs/*	m3-jobs m3-batch
-internal/generation/*	m3-compose m3-variant
+internal/generation/*	m3-compose m3-variant m5-songpr
 internal/provider/*	m3-compose
 internal/songwriting/*	m3-songwriting
 internal/lineage/*	m3-lineage
@@ -160,8 +160,8 @@ internal/export/*	m2a-export
 internal/backup/*	m2a-backup
 internal/audit/*	m2a-audit
 internal/drafts/*	m2a-drafts
-internal/judgments/*	m2a-judge
-internal/listening/*	m2a-listen
+internal/judgments/*	m2a-judge m5-callbacks
+internal/listening/*	m2a-listen m5-heat
 internal/playlists/*	m2a-playlists
 internal/importer/*	m1-import
 internal/upload/*	m1-import m1-backlog
@@ -235,6 +235,32 @@ internal/sequence/*	l2-records l3-sequence
 internal/nextactions/*	l3-next l1-song
 internal/atlas/*	l3-atlas
 web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
+# M5 (INT-W): the m5-* specs. Song PR -> m5-songpr (+ m5-layout at 360 px); heat -> m5-heat; callbacks -> m5-callbacks; the Smart round
+# and section duels -> m5-duels; the recorder -> m5-voice; Receipts -> m5-receipts. Lines for files that an earlier line already
+# matches (Track.svelte, Judge.svelte, Comment*, routes/Duel*, internal/duels|generation|judgments|listening) carry the m5 specs there:
+# the first matching line wins.
+web/src/routes/Patch.svelte	m5-songpr m5-layout
+web/src/lib/components/SongPrPanel.svelte	m5-songpr m5-layout
+web/src/lib/components/PatchView.svelte	m5-songpr m5-layout
+web/src/lib/songPr*	m5-songpr
+web/src/lib/components/HeatStrip.svelte	m5-heat m5-layout
+web/src/lib/heat*	m5-heat
+web/src/routes/Callbacks.svelte	m5-callbacks m5-layout
+web/src/lib/components/Callback*	m5-callbacks m5-layout
+web/src/lib/callback*	m5-callbacks
+web/src/lib/components/SmartRound.svelte	m5-duels
+web/src/lib/smartRound.ts	m5-duels
+web/src/lib/pairSuggestApi.ts	m5-duels
+web/src/lib/components/VoiceRecorder.svelte	m5-voice m5-voice-save m5-layout
+web/src/lib/voice*	m5-voice m5-voice-save
+web/src/routes/Receipts.svelte	m5-receipts
+web/src/lib/components/ReceiptsTable.svelte	m5-receipts
+web/src/lib/receipts.ts	m5-receipts
+internal/songpr/*	m5-songpr m5-layout
+internal/callbacks/*	m5-callbacks m5-songpr
+internal/attention/*	m5-heat
+internal/anchor/*	m5-heat m5-callbacks
+internal/voice/*	m5-voice m5-voice-save
 # BEGIN T1-I1 (t1-* specs). The map cannot name a spec that does not exist yet: scripts/verify-selftest.sh fails on a line whose spec
 # file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
 # live since T1-W3 added the spec files (t1-hifi joins the Go lines: the hi-fi kinds are DSP). A
