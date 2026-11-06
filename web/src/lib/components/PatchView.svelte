@@ -145,9 +145,13 @@
     min-width: 0;
     max-width: 100%;
   }
+  header {
+    min-width: 0;
+  }
   h2,
   h3 {
     margin: 0 0 var(--sp-2);
+    overflow-wrap: anywhere;
   }
   h3 {
     font-size: var(--fs-md);
