@@ -244,7 +244,7 @@ func TestAcceptance_T1_VerifyCLI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	bin := filepath.Join(fmt.Sprintf(t1ChildDirFmt, os.Getpid()), "metamusic")
+	bin := t1ChildBin()
 	run := func(args ...string) (string, int) {
 		cmd := exec.Command(bin, args...) // #nosec G204 -- the binary this test built
 		cmd.Env = []string{"MM_AUTH=local", "MM_DATA_DIR=" + tr.DataDir, "MM_SECRETS_DIR=" + sec, "MM_ADDR=127.0.0.1:0", "PATH=" + os.Getenv("PATH"),
