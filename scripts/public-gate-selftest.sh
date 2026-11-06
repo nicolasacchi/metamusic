@@ -178,6 +178,25 @@ mkdir -p hrtf; echo x > hrtf/table.q15; echo x > hrtf/NOTICE; git add -f hrtf/ta
 expect "staged table.q15 and NOTICE allowed" 0 --staged
 reset
 
+# operator-approved C222 exemption: the binary HRTF table passes only at its path, with its magic, within 128 KiB
+mk_table() { { printf 'MMHRTF01'; head -c "$1" /dev/zero; } > "$2"; }
+mkdir -p internal/dsp/hrtf
+mk_table 100000 internal/dsp/hrtf/table.q15; git add -f internal/dsp/hrtf/table.q15
+expect "real-shaped table at its path allowed" 0 --staged
+reset
+mkdir -p other; mk_table 100000 other/table.q15; git add -f other/table.q15
+expect "table magic at another path blocked" 1 --staged
+contains "table at another path reason" "binary content (NUL bytes) in: other/table.q15"
+reset
+mkdir -p internal/dsp/hrtf; head -c 100000 /dev/zero > internal/dsp/hrtf/table.q15; git add -f internal/dsp/hrtf/table.q15
+expect "table path without magic blocked" 1 --staged
+contains "table without magic reason" "binary content (NUL bytes) in: internal/dsp/hrtf/table.q15"
+reset
+mkdir -p internal/dsp/hrtf; mk_table 140000 internal/dsp/hrtf/table.q15; git add -f internal/dsp/hrtf/table.q15
+expect "table over 128 KiB blocked" 1 --staged
+contains "oversize table reason" "binary content (NUL bytes) in: internal/dsp/hrtf/table.q15"
+reset
+
 # invalid private regex must block (not silently disable the check)
 echo "hello" > notes.txt; git add notes.txt
 PUBLIC_GATE_PATTERNS=$'(unclosed' expect "invalid regex blocked" 1 --staged
