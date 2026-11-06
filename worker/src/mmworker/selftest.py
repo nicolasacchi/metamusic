@@ -61,7 +61,7 @@ class _SinkHandler(BaseHTTPRequestHandler):
 
 
 def _acestep_job(base: str) -> tuple[dict[str, Any], Any]:
-    """A text2music job against FakeAceStep (no torch, no GPU): the same handler path as a render."""
+    """A text2music job with an LRC pass against FakeAceStep (no torch, no GPU): the same handler path as a render."""
     from .engines import acestep  # noqa: PLC0415 - only when selected (the yue2 image never imports it)
 
     weights = {acestep.REPO_MAIN: "c" * 40}
@@ -69,7 +69,7 @@ def _acestep_job(base: str) -> tuple[dict[str, Any], Any]:
     raw = {
         "contract": "mm.worker/1", "take_id": "selftest-take", "attempt_id": "selftest-attempt", "engine": ACESTEP,
         "request": {"id": "selftest", "task": "text2music", "caption": "pop", "lyrics": "[Verse]\nla la",
-                    "instrumental": False, "vocal_language": "en", "seed": 1, "thinking": False,
+                    "instrumental": False, "vocal_language": "en", "seed": 1, "thinking": False, "lrc": True,
                     "engine_params_version": acestep.params_file()["current"], "inference_steps": 8,
                     "duration_ds": 100},
         "timeout_s": 120, "upload_budget_s": 60, "deadline_unix": int(time.time()) + 600,
@@ -94,7 +94,7 @@ def run(engine: str | None = None) -> bool:
             out = process(take, pipe, Uploader(), time.time, start=StartClient(take.start_url),
                           job_id="selftest-job")
             return (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0
-                    and {"audio.flac", "request.json", "result.json", "mm-result.json"} <= set(sink.puts)
+                    and {"audio.flac", "lyrics.lrc", "mm-result.json"} <= set(sink.puts)
                     and json.loads(sink.puts["mm-result.json"])["env"]["engine"] == ACESTEP)
         uploads = {n: {"url": f"{base}/{n}", "max_bytes": MAX_BYTES[n]} for n in ARTIFACTS}
         raw = {
