@@ -36,7 +36,6 @@ const (
 
 // The M5 lanes that replace a stub (details.task of a 501).
 const (
-	taskS1 = "M5-S1" // propose_patch, get_patch, list_patches; item mode song_pr
 	taskC1 = "M5-C1" // list_callbacks, get_callback, submit_callback_verdict
 	taskA1 = "M5-A1" // get_listen_heat
 	taskV1 = "M5-V1" // create_voice_note

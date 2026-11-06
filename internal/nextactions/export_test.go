@@ -10,8 +10,8 @@ func SetRules(rs []Rule) (restore func()) {
 	return func() { Rules = old }
 }
 
-// RuleSets returns the rules of lanes NA1, NA2 and NA3 as the registry concatenates them.
-func RuleSets() [][]Rule { return [][]Rule{rulesA, rulesB, rulesC} }
+// RuleSets returns the rules of lanes NA1, NA2, NA3 and M5-C1 as the registry concatenates them.
+func RuleSets() [][]Rule { return [][]Rule{rulesA, rulesB, rulesC, rulesD} }
 
 // SetStatementHook makes the service call f with every SQL statement the engine and the rules issue (not LiveIDs, which is the
 // muses package's one statement).

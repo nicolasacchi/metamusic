@@ -59,7 +59,7 @@ export interface PartnerTake {
 }
 /** "Same lyrics, other styles": search_tracks {lyrics_of}, minus the Take itself. */
 export async function sameLyricsTakes(api: Api, trackId: string): Promise<TRes<PartnerTake[]>> {
-  const r = await call(() => api.GET("/api/tracks", { params: { query: { lyrics_of: trackId, limit: 50 } as never } }));
+  const r = await call(() => api.GET("/api/tracks", { params: { query: { lyrics_of: trackId, limit: 50 } } }));
   if (!r.ok) return r;
   return { ok: true, status: r.status, value: r.value.items.filter((t) => t.id !== trackId).map((t) => ({ id: t.id, title: t.title })) };
 }

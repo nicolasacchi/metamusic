@@ -5,13 +5,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from .contract import ARTIFACTS, MAX_BYTES, parse_input
+from .contract import ACESTEP, ARTIFACTS, MAX_BYTES, artifacts_for, parse_input
 from .handler import process
 from .pipeline import FakePipeline
 from .start import StartClient
@@ -59,13 +60,42 @@ class _SinkHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-def run() -> bool:
+def _acestep_job(base: str) -> tuple[dict[str, Any], Any]:
+    """A text2music job with an LRC pass against FakeAceStep (no torch, no GPU): the same handler path as a render."""
+    from .engines import acestep  # noqa: PLC0415 - only when selected (the yue2 image never imports it)
+
+    weights = {acestep.REPO_MAIN: "c" * 40}
+    uploads = {n: {"url": f"{base}/{n}", "max_bytes": m} for n, m in artifacts_for(ACESTEP)}
+    raw = {
+        "contract": "mm.worker/1", "take_id": "selftest-take", "attempt_id": "selftest-attempt", "engine": ACESTEP,
+        "request": {"id": "selftest", "task": "text2music", "caption": "pop", "lyrics": "[Verse]\nla la",
+                    "instrumental": False, "vocal_language": "en", "seed": 1, "thinking": False, "lrc": True,
+                    "engine_params_version": acestep.params_file()["current"], "inference_steps": 8,
+                    "duration_ds": 100},
+        "timeout_s": 120, "upload_budget_s": 60, "deadline_unix": int(time.time()) + 600,
+        "start": {"url": f"{base}/start"}, "uploads": uploads, "expect": {"weights": weights},
+    }
+    adapter = acestep.Adapter(acestep.FakeAceStep(("turbo",), max_audio_s=1.0), weights=weights,
+                              classes=frozenset({"turbo"}))
+    return raw, adapter
+
+
+def run(engine: str | None = None) -> bool:
+    engine = engine or os.environ.get("MM_ENGINE") or os.environ.get("ENGINE") or "yue2"
     sink = _Sink()
     port = sink.server_address[1]
     t = threading.Thread(target=sink.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
     try:
         base = f"http://127.0.0.1:{port}"
+        if engine == ACESTEP:
+            raw, pipe = _acestep_job(base)
+            take = parse_input(raw)
+            out = process(take, pipe, Uploader(), time.time, start=StartClient(take.start_url),
+                          job_id="selftest-job")
+            return (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0
+                    and {"audio.flac", "lyrics.lrc", "mm-result.json"} <= set(sink.puts)
+                    and json.loads(sink.puts["mm-result.json"])["env"]["engine"] == ACESTEP)
         uploads = {n: {"url": f"{base}/{n}", "max_bytes": MAX_BYTES[n]} for n in ARTIFACTS}
         raw = {
             "contract": "mm.worker/1", "take_id": "selftest-take", "attempt_id": "selftest-attempt",

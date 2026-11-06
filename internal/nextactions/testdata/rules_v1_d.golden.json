@@ -1,0 +1,34 @@
+[
+  {
+    "code": "callback_waiting",
+    "priority": 85,
+    "audience": "human",
+    "min_scope": "read",
+    "hint": true,
+    "text": "2 callback(s) wait on \"Synthetic Take\": listen and answer"
+  },
+  {
+    "code": "regressed_comment",
+    "priority": 72,
+    "audience": "both",
+    "min_scope": "read",
+    "hint": true,
+    "text": "\"Synthetic Take\": 1 comment(s) regressed — see what got worse before rendering again"
+  },
+  {
+    "code": "open_fix_unaddressed",
+    "priority": 58,
+    "audience": "agent",
+    "min_scope": "read",
+    "hint": true,
+    "text": "\"Synthetic Take\" has 3 open fix comment(s) no patch addresses — read the context and propose a Song PR (propose_patch)"
+  },
+  {
+    "code": "patch_ready_to_render",
+    "priority": 52,
+    "audience": "agent",
+    "min_scope": "generate",
+    "hint": true,
+    "text": "\"Synthetic Take\" has 1 patch(es) never rendered — estimate the newest (the estimate is free)"
+  }
+]

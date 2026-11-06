@@ -33,6 +33,7 @@
   import PromptButtons from "../lib/components/PromptButtons.svelte";
   import GenerateButton from "../lib/components/GenerateButton.svelte";
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
+  import TransformProvenance from "../lib/components/TransformProvenance.svelte";
   import TransformPanel from "../lib/components/TransformPanel.svelte";
   import type { Viewer } from "../lib/genIntent";
   import { fetchViewer } from "../lib/viewer";
@@ -224,6 +225,9 @@
     {#if !track.recipe_known || track.lossy}
       <p class="badges" data-testid="track-badges"><TrackBadges recipeKnown={track.recipe_known} lossy={track.lossy} /></p>
     {/if}
+    {#if track.origin === "transform"}
+      <p class="badges"><span class="chip" data-testid="origin-chip">origin: transform</span></p>
+    {/if}
     <p class="meta muted">
       {fmt(track.duration_s)} · recorded {track.recorded_at.slice(0, 10)} · {track.status} · seed {track.recipe.seed}
       {#if track.bpm_declared} · {track.bpm_declared} BPM{/if}
@@ -297,6 +301,9 @@
           <ContextButton trackId={id} />
           <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
         </section>
+        {#if track.transform}
+          <TransformProvenance transform={track.transform} />
+        {/if}
         {#if track.recipe_known && !track.lossy}
           <TransformPanel trackId={id} hasScore={track.score !== null} />
         {/if}
