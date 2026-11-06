@@ -558,6 +558,7 @@ func (tr *t1Rig) writerOK(c *servertest.Client, method, path string, body any) a
 // TestAcceptance_T1_Glacier50x: a glacier of an 18 s excerpt at x50 (900 s, the output cap) is accepted and renders within its
 // budget.
 func TestAcceptance_T1_Glacier50x(t *testing.T) {
+	weeklyOnly(t, "75 s of CPU in a CI shard; the limit check is covered by the estimate tests and the real-child glacier by TestAcceptance_T1_RealChild")
 	tr := newT1Rig(t)
 	v := tr.RunDone(glacierBody(tr.Info.Tx["A"], 50, 18))
 	id := v["id"].(string)

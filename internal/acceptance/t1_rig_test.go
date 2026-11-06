@@ -38,6 +38,14 @@ var (
 	t1BuildErr  error
 )
 
+// weeklyOnly skips a test of the weekly tier (MM_T1_WEEKLY=1): too slow for a PR shard, run by the weekly workflow.
+func weeklyOnly(t *testing.T, why string) {
+	t.Helper()
+	if os.Getenv("MM_T1_WEEKLY") != "1" {
+		t.Skip("weekly tier (MM_T1_WEEKLY=1): " + why)
+	}
+}
+
 // t1ChildBin is the metamusic binary t1BuildChild builds for this test process.
 func t1ChildBin() string { return filepath.Join(fmt.Sprintf(t1ChildDirFmt, os.Getpid()), "metamusic") }
 

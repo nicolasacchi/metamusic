@@ -1,3 +1,4 @@
+// matrix: chrome-only because the refusal sentence is the same text in every layout; the sheet and 44 px rules are t1-transforms's
 // The daily CPU allowance of the human transform pool is spent: the server answers 429 TRANSFORM_QUOTA_EXCEEDED and the panel
 // explains it (the generic client drops the body of a 429, so the page rebuilds the sentence from the estimate). This spec file
 // runs against a pool of 0 s (SPEC_ENV in server.ts); no transform of it ever renders.

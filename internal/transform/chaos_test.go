@@ -132,6 +132,15 @@ func (w *interrupter) Run(ctx context.Context, j transform.ChildJob, progress tr
 	})
 }
 
+// weeklyOnly skips a test of the weekly tier: too slow for a PR shard (the go shards run close to their timeout), run with
+// MM_T1_WEEKLY=1 (or MM_T1_CHAOS_FULL=1, the weekly chaos switch) in the weekly workflow.
+func weeklyOnly(t *testing.T, why string) {
+	t.Helper()
+	if os.Getenv("MM_T1_WEEKLY") != "1" && os.Getenv("MM_T1_CHAOS_FULL") != "1" {
+		t.Skip("weekly tier (MM_T1_WEEKLY=1): " + why)
+	}
+}
+
 var chaosPoints = func() []int {
 	if os.Getenv("MM_T1_CHAOS_FULL") == "1" { // the weekly run: ten points
 		return []int{0, 100, 200, 300, 400, 500, 600, 700, 800, 900}
@@ -570,6 +579,7 @@ func TestChaos_LeaseExpiry(t *testing.T) {
 	if testing.Short() {
 		t.Skip("chaos suite: real tools")
 	}
+	weeklyOnly(t, "the PR chaos subset is the kill, restart and hang tests (the lease logic is covered by the fake-child runner tests)")
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	tools := testtools.Tools()
 	bin := childBinary(t)
