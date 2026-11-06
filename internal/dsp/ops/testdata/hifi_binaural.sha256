@@ -1,0 +1,4 @@
+# pcm_sha256 of the binaural operator on a fixed synthetic input (C224.1). linux/amd64, GOAMD64=v1.
+hrtf_studio_none 043fb326521ecc2b95c67151d2b524766b220ea7e89f9bed0146b9bed0ca58f2
+hrtf_wide_studio 736dfb1c54c883d4889dbb1b7e58a552395e65f2f2f878e4929c9d88a90820dd
+parametric_studio_hall c8f91dae1d6075638ac187c1cc95f9cc9f23692e63bad1d7aaecabece2d59763
