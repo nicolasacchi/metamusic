@@ -132,3 +132,20 @@ describe("Track page mounts", () => {
     expect(page(trackLossy)).not.toContain('data-testid="heat-strip"');
   });
 });
+
+describe("Track page voice recorder (M5-W1b)", () => {
+  const page = (t: typeof trackKnown) => render(Track, { props: { id: t.id, initial: t } } as never).body;
+  test("the recorder sits in the Comments card of a take, pinned to nothing until it plays", () => {
+    const h = page(trackKnown);
+    expect(h).toContain('data-testid="voice-recorder"');
+    expect(h).toContain(`data-track="${trackKnown.id}"`);
+    expect(h.indexOf('data-testid="comment-composer"')).toBeLessThan(h.indexOf('data-testid="voice-recorder"'));
+    expect(h).toMatch(/data-testid="voice-recorder"[^>]*data-at=""/);
+  });
+  test("it starts idle: no recording, nothing saved or sent on mount", () => {
+    const h = page(trackKnown);
+    expect(h).toMatch(/data-testid="voice-recorder"[^>]*data-state="(idle|unsupported)"/);
+    expect(h).not.toContain("voice-saved");
+    expect(h).not.toContain("voice-save\"");
+  });
+});
