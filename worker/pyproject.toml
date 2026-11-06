@@ -3,7 +3,7 @@ name = "metamusic-worker"
 version = "0.1.0"
 description = "RunPod serverless worker for metamusic (mm.worker/1 contract)"
 readme = "README.md"
-requires-python = "==3.12.*"
+requires-python = ">=3.11,<3.13"
 # Runtime deps: runpod only. There is deliberately NO yue2 extra: uv locks every extra, which would pull
 # yue2 and torch into uv.lock. The Dockerfile and the contract job install yue2-infer explicitly.
 dependencies = ["runpod==1.12.0"]

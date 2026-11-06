@@ -41,10 +41,14 @@ func (s *Service) OpenAttempt(ctx context.Context, tx *sql.Tx, job JobRef, attem
 	}
 	sort.Strings(names)
 	now := store.FormatTime(s.o.Clock.Now())
+	engine := job.Engine
+	if engine == "" {
+		engine = provider.EngineYuE2
+	}
 	for _, name := range names {
-		limit, ok := provider.ArtifactMaxBytes(name)
+		limit, ok := provider.ArtifactMaxBytesFor(engine, name)
 		if !ok {
-			return fmt.Errorf("upload: %q is not an allowlisted artifact", name)
+			return fmt.Errorf("upload: %q is not an allowlisted artifact of engine %q", name, engine)
 		}
 		if artifacts[name] < 1 || artifacts[name] > limit {
 			return fmt.Errorf("upload: max_bytes for %q out of range", name)

@@ -75,6 +75,7 @@ func registerMedia(a huma.API, d Deps) {
 			}
 			b.ExpiresAt = exp.UTC().Format(time.RFC3339)
 			b.Cover = d.coverLinks(ctx, in.ID, ttl, bucket)
+			// E2b (E2-G3) fills Stems and LRC from library.Service.Stems and the lyrics.lrc artifact
 			b.MP3 = MP3Link{URL: ml.URL, ContentType: m.MP3.ContentType, Bytes: m.MP3.Bytes, SHA256: m.MP3.SHA256, BitrateKbps: m.MP3.BitrateKbps}
 			return out, nil
 		})

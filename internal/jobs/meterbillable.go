@@ -57,8 +57,8 @@ func (r *Reconciler) meterIdleS(ctx context.Context, ep *provider.EndpointConfig
 		return min(*ep.IdleTimeoutS, MaxIdleTimeoutS)
 	}
 	var idle int
-	err := r.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(MAX(idle_s), 0) FROM batches WHERE state = 'active' OR finished_at >= ?`,
-		store.FormatTime(r.o.Clock.Now().Add(-time.Hour))).Scan(&idle)
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(MAX(idle_s), 0) FROM batches WHERE (state = 'active' OR finished_at >= ?) AND (? = '' OR backend = ?)`,
+		store.FormatTime(r.o.Clock.Now().Add(-time.Hour)), r.scope(), r.scope()).Scan(&idle)
 	if err != nil || idle <= 0 {
 		return MaxIdleTimeoutS
 	}

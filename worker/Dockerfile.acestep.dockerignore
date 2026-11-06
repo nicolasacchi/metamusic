@@ -1,0 +1,19 @@
+# Applies to `docker build -f worker/Dockerfile.acestep worker/` (BuildKit reads <Dockerfile name>.dockerignore).
+# The image gets the package, the licence texts and the build tools only: no tests, no contract job, no caches,
+# no virtualenv, no lock for dev deps, no Dockerfiles.
+.venv
+.venv-contract
+.pytest_cache
+.coverage
+.coverage.*
+**/__pycache__
+**/*.pyc
+tests
+contract
+uv.lock
+Dockerfile
+Dockerfile.dockerignore
+Dockerfile.acestep
+Dockerfile.acestep.dockerignore
+**/*.env
+**/runpod*.env

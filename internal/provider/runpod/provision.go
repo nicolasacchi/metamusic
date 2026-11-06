@@ -19,6 +19,17 @@ type ProvisionOptions struct {
 	Image      string // name@sha256:<digest>; empty keeps an existing endpoint's image
 	MaxWorkers int    // 0 = inactive (the default); --activate passes 1 or 2
 	DryRun     bool
+	// Profile selects the engine's endpoint (C155.1); nil is the yue2 endpoint built from Desired and Weights,
+	// exactly as before E2. A non-yue2 endpoint is only ever CREATED inactive (workers.max 0): activating it
+	// is a separate, later provision run (E2-X2 / X4 order), never part of the create.
+	Profile *EngineProfile
+}
+
+func (o ProvisionOptions) profile() EngineProfile {
+	if o.Profile != nil {
+		return *o.Profile
+	}
+	return yue2ProfileWith(o.Desired, o.Weights)
 }
 
 // ProvisionResult is what provision did or would do. The serialised form never carries the endpoint id:
@@ -56,11 +67,12 @@ func Provision(ctx context.Context, c *Client, o ProvisionOptions) (ProvisionRes
 	if err != nil {
 		return ProvisionResult{}, fmt.Errorf("reading the GPU catalog: %w", err)
 	}
-	want, err := DesiredSpec(o.Desired, o.Weights, o.Image, o.MaxWorkers, catalog)
+	prof := o.profile()
+	want, err := DesiredSpecFor(o.Desired, prof, o.Image, o.MaxWorkers, catalog)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	res := ProvisionResult{Name: want.Name, WorkersMax: want.Workers.Max, ConsoleSteps: consoleSteps(o, want)}
+	res := ProvisionResult{Name: want.Name, WorkersMax: want.Workers.Max, ConsoleSteps: consoleSteps(o, prof, want)}
 	eps, err := c.ListEndpoints(ctx, KeyAdmin)
 	if err != nil {
 		return res, fmt.Errorf("listing endpoints: %w", err)
@@ -75,6 +87,12 @@ func Provision(ctx context.Context, c *Client, o ProvisionOptions) (ProvisionRes
 	case len(found) > 1:
 		return res, fmt.Errorf("runpod: provision: %d endpoints are named %q; remove the duplicates in the console", len(found), want.Name)
 	case len(found) == 0:
+		if prof.Engine != "" && prof.Engine != "yue2" && want.Workers.Max != 0 {
+			// the second engine's endpoint never starts active (E2 plan, X2): create it at 0, activate afterwards
+			want.Workers.Max = 0
+			res.WorkersMax = 0
+			res.Warnings = append(res.Warnings, fmt.Sprintf("the endpoint %q is created inactive (workers.max 0); run provision --activate once it is verified", want.Name))
+		}
 		return res, c.create(ctx, &res, want, o)
 	}
 	ep := found[0]
@@ -130,15 +148,22 @@ func (c *Client) create(ctx context.Context, res *ProvisionResult, want Endpoint
 	return nil
 }
 
-// consoleSteps are the settings RunPod's API snapshot has no field for. They name the endpoint by its
-// name only.
-func consoleSteps(o ProvisionOptions, want EndpointSpec) []string {
+// consoleSteps are the settings RunPod's API snapshot has no field for: one step per cached model reference
+// (the binary never shells out to runpodctl, whose --model-reference goes through GraphQL, D-E2-41). They name
+// the endpoint by its name only.
+func consoleSteps(o ProvisionOptions, prof EngineProfile, want EndpointSpec) []string {
 	d, err := parseSpec(snapshotJSON)
 	if err == nil && d.hasCachedModelField() {
 		return nil
 	}
-	steps := []string{fmt.Sprintf("In the RunPod console open the endpoint %q, Model settings, and set the cached model to %s at revision %s.",
-		want.Name, yue2.WeightsRepo3B, o.Weights[yue2.WeightsRepo3B])}
+	var steps []string
+	for _, m := range prof.ModelRefs {
+		steps = append(steps, fmt.Sprintf("In the RunPod console open the endpoint %q, Model settings, and set the cached model to %s at revision %s.",
+			want.Name, m.Repo(), m.Revision))
+	}
+	if prof.Engine != "" && prof.Engine != "yue2" {
+		return steps
+	}
 	switch o.Desired.VAESource {
 	case "", "image":
 		// the VAE is baked into the worker image: nothing to do in the console for it

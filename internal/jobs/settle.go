@@ -209,9 +209,24 @@ func (r *Runner) trip(ctx context.Context, tx *sql.Tx, f store.LeaseFence, backe
 
 // tripProvider opens a trip in its own transaction.
 func (r *Runner) tripProvider(ctx context.Context, reason string, details map[string]any) error {
+	return r.tripProviderOn(ctx, r.o.Backend.Name(), reason, details)
+}
+
+// tripProviderOn opens a trip of the named backend only (C151.2): a refused key or a stuck worker on one endpoint never
+// stops another.
+func (r *Runner) tripProviderOn(ctx context.Context, backend, reason string, details map[string]any) error {
 	return r.tx(ctx, func(tx *sql.Tx) error {
-		return r.trip(ctx, tx, r.fence(), r.o.Backend.Name(), reason, details)
+		return r.trip(ctx, tx, r.fence(), backend, reason, details)
 	})
+}
+
+// backendName is the provider_state key of an attempt's backend: its own name, or the runner's backend when the attempt
+// carries none (M3 rows).
+func (r *Runner) backendName(name string) string {
+	if name != "" && r.o.Backends != nil {
+		return name
+	}
+	return r.o.Backend.Name()
 }
 
 // settledSince is a small helper for tests and the batch summary: Σ settle rows of a batch.

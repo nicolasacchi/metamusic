@@ -1,0 +1,19 @@
+acestep15 canary, part b: worst case at the ILLUSTRATIVE price, not a quote 690000 micro-USD/h (cold start 300 s, idle 20 s, kill slack 15 s, max runtime 900 s)
+placeholder RTFs (unsourced seeds), pools AMPERE_24,ADA_24; no first-pull term (not billed)
+case extend     max   259903 micro-USD (0.259903), --max-usd at least 0.519806
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  plus10         40 s turbo timeout  114 s reserve   24725 + overhead   61334 =   86059
+  plus90        120 s turbo timeout  133 s reserve   28367 + overhead   61334 =   89701
+case complete   max   182469 micro-USD (0.182469), --max-usd at least 0.364938
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  complete       30 s base  timeout  178 s reserve   36992 + overhead   61334 =   98326
+case extract    max   182469 micro-USD (0.182469), --max-usd at least 0.364938
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  extract        30 s base  timeout  178 s reserve   36992 + overhead   61334 =   98326
+case base-long  max   367236 micro-USD (0.367236), --max-usd at least 0.734472
+  source-long   480 s turbo timeout  212 s reserve   43509 + overhead   61334 =  104843
+  base-long     480 s base  timeout 1034 s reserve  201059 + overhead   61334 =  262393
+case lrc        max   186686 micro-USD (0.186686), --max-usd at least 0.373372
+  plain          30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  lrc            30 s turbo timeout  200 s reserve   41209 + overhead   61334 =  102543
+WORST CASE part b: 1178763 micro-USD (1.178763) reserved, not expected spend; approve it, then pass it as --max-usd per case

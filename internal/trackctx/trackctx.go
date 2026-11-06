@@ -454,6 +454,7 @@ type Builder struct {
 	curation  CurationReader // L2 (C130.4): nil => no curation section
 	sw        TargetSource
 	nextact   NextActionReader // L3 (C139.4): nil => no Muse-aware next actions
+	engines   EngineAdvisor    // E2 (C160): nil => /context is byte-identical to the yue2-only behaviour
 }
 
 // TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).

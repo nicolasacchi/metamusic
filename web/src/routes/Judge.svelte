@@ -34,6 +34,7 @@
   import { player } from "../lib/player.svelte";
   import { dismissToast, pushToast } from "../lib/toast.svelte";
   import JudgeCard from "../lib/components/JudgeCard.svelte";
+  import CallbacksWaiting from "../lib/components/CallbacksWaiting.svelte";
 
   type Track = components["schemas"]["TrackSummary"];
 
@@ -305,6 +306,7 @@
 <svelte:window {onkeydown} />
 
 <section class="judge" data-testid="judge">
+  <CallbacksWaiting />
   <div class="head">
     <p class="progress" data-testid="judge-progress" role="status">{label}{#if st.takes.length > 0 && !done} · {positionLabel(st, hasMore)}{/if}</p>
     <button type="button" class="blind" aria-pressed={blind} data-testid="judge-blind" onclick={() => (blind = !blind)}>Blind</button>

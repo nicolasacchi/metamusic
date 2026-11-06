@@ -1,0 +1,22 @@
+{
+ "schema": "mm.acestep-layout/1",
+ "pinned_commit_file": "worker/contract/ACESTEP_COMMIT",
+ "note": "checkpoints/ tree handed to ACE-Step. main_links are symlinks to directories of the main bundle snapshot; each DiT dir is a real directory (files symlinked, pinned code copied in) because initialize_service overwrites its .py files.",
+ "main_links": ["vae", "Qwen3-Embedding-0.6B", "acestep-5Hz-lm-1.7B"],
+ "dits": {
+  "turbo": {"dir": "acestep-v15-turbo", "repo": "main", "src": "acestep-v15-turbo", "variant": "turbo",
+            "files": ["config.json", "model.safetensors", "silence_latent.pt"]},
+  "base": {"dir": "acestep-v15-base", "repo": "base", "src": "", "variant": "base",
+           "files": ["config.json", "model.safetensors", "silence_latent.pt"]}
+ },
+ "manifests": {
+  "main": [
+   "vae/config.json", "vae/diffusion_pytorch_model.safetensors",
+   "Qwen3-Embedding-0.6B/config.json", "Qwen3-Embedding-0.6B/model.safetensors", "Qwen3-Embedding-0.6B/tokenizer.json",
+   "acestep-v15-turbo/config.json", "acestep-v15-turbo/model.safetensors", "acestep-v15-turbo/silence_latent.pt",
+   "acestep-5Hz-lm-1.7B/config.json", "acestep-5Hz-lm-1.7B/model.safetensors", "acestep-5Hz-lm-1.7B/tokenizer.json",
+   "acestep-5Hz-lm-1.7B/added_tokens.json"
+  ],
+  "base": ["config.json", "model.safetensors", "silence_latent.pt"]
+ }
+}

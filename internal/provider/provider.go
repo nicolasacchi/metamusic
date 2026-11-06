@@ -26,6 +26,11 @@ type Backend interface {
 	RevertDrift(ctx context.Context, d []Drift) error                      // ErrNotPermitted likewise
 	Billing(ctx context.Context, from, to time.Time) ([]BillBucket, error) // hourly; ErrNotPermitted when unreadable
 	Capabilities() Capabilities                                            // from key presence and key-capabilities.json
+
+	// E2 (C151.1): what the Set routes and the per-backend runner, reconciler and quote read.
+	ColdStartS() int           // yue2: MM_COLD_START_S; acestep15: MM_ACESTEP_COLD_START_S; fake: the fake model's
+	Engine() string            // "yue2" | "acestep15"
+	MaxRuntime() time.Duration // the endpoint timeout and the cap of this backend's takes' timeout_s
 }
 
 var (
@@ -41,6 +46,15 @@ var (
 const (
 	BackendFake   = "fake"
 	BackendRunPod = "runpod-serverless"
+	// BackendRunPodACEStep and BackendFakeACEStep are the ACE-Step 1.5 backends of E2 (one endpoint per engine, D-E2-1).
+	BackendRunPodACEStep = "runpod-serverless-acestep"
+	BackendFakeACEStep   = "fake-acestep"
+)
+
+// Engine names (the engine packages own the same strings).
+const (
+	EngineYuE2    = "yue2"
+	EngineACEStep = "acestep15"
 )
 
 // Quote is the provider's current price and endpoint configuration.
@@ -134,6 +148,22 @@ type TakeSpec struct {
 	Expect                   WorkerExpect            // pinned weight revisions
 	Deadline                 time.Time               // = window_ends_at
 	MinAudioS                int                     // forced minimum render length in seconds, 0 = none (X4)
+	// Inputs are the fetchable source and reference audio of an edit (C153.1; keys InputSrcAudio and InputReferenceAudio).
+	// URLs are minted at submit and never persisted, logged or returned. nil for yue2, which serialises byte-identically.
+	Inputs map[string]InputRef
+}
+
+// Input keys of TakeSpec.Inputs and of the ACE-Step worker input.
+const (
+	InputSrcAudio       = "src_audio"
+	InputReferenceAudio = "reference_audio"
+)
+
+// InputRef is one fetchable input: a signed media URL, the digest the worker verifies before use and the byte count.
+type InputRef struct {
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256"`
+	Bytes  int64  `json:"bytes"`
 }
 
 // Ref identifies a provider job. ID never leaves the server (API, events, logs).
