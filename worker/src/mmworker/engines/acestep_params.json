@@ -1,0 +1,16 @@
+{"schema":"mm.engine-params/1","current":"ace1","audited":true,
+ "versions":{"ace1":{
+  "acestep_commit":"dce621408bee8c31b4fcf4811682eb9359e1bc94",
+  "dit":{"shift":3.0,"use_adg":false,
+   "cfg_interval_start":0.0,"cfg_interval_end":1.0,
+   "timesteps":null,"chunk_mask_mode":{"default":"auto","repaint":"explicit"},"batch_size":1,
+   "infer_method":"ode","sampler_mode":"euler","velocity_norm_threshold":0.0,"velocity_ema_factor":0.0,
+   "dcw_enabled":{"turbo":true,"base":false},"dcw_mode":"double","dcw_scaler":0.05,"dcw_high_scaler":0.02,"dcw_wavelet":"haar",
+   "enable_normalization":true,"normalization_db":-1.0,"fade_in_duration":0.0,"fade_out_duration":0.0,
+   "latent_shift":0.0,"latent_rescale":1.0},
+  "lm":{"backend":"vllm","model":"acestep-5Hz-lm-1.7B","temperature":0.85,
+   "top_p":0.9,"top_k":0,
+   "cfg_scale":2.0,"negative_prompt":"NO USER INPUT","use_cot_metas":true,
+   "use_cot_caption":true,"use_cot_language":true,
+   "constrained_decoding":true,"gpu_memory_utilization":{"upstream_default":"adaptive: derived from free VRAM and model size at LM init (acestep/llm_inference.py get_gpu_memory_utilization), not a caller parameter"}},
+  "classes":{"turbo":{"steps":8},"base":{"steps":50,"guidance_milli":7000}}}}}

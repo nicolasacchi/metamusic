@@ -38,7 +38,7 @@ func NewReconcilers(set *provider.Set, base ReconcilerOptions, gate map[string]p
 			o.GateCfg = cfg
 		}
 		if len(names) > 1 {
-			o.Scoped, o.DefaultBackend, o.Peer = true, def, n != def
+			o.Scoped, o.Peer = true, n != def
 		}
 		if n != def {
 			o.ColdStartS, o.MaxRuntime = b.ColdStartS(), b.MaxRuntime()

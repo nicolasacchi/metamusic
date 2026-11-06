@@ -76,7 +76,7 @@ func patchIn(p *Patch) *lineage.Patch {
 func itemIn(it ItemIn) generation.Item {
 	g := generation.Item{Mode: it.Mode, ParentTrackID: it.ParentTrackID, ParentTrackIDs: it.ParentTrackIDs, DraftIDs: it.DraftIDs,
 		Recipe: []byte(it.Recipe), Patch: patchIn(it.Patch), TemplateMode: it.TemplateMode, NSeeds: it.NSeeds, Seeds: it.Seeds, Title: it.Title,
-		Engine: it.Engine}
+		Engine: it.Engine, PatchID: it.PatchID}
 	if e := it.Edit; e != nil {
 		g.Edit = &generation.Edit{FromS: e.FromS, ToS: e.ToS, ExtendS: e.ExtendS, Tracks: e.Tracks}
 	}
@@ -271,9 +271,6 @@ func registerGenerationM3(a huma.API, d Deps) {
 			}
 			items := make([]generation.Item, len(in.Body.Items))
 			for i, it := range in.Body.Items {
-				if err := songPRPending(it.Mode, it.PatchID); err != nil {
-					return nil, err
-				}
 				items[i] = itemIn(it)
 			}
 			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID})
@@ -319,10 +316,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 				return nil, unavailable("generation")
 			}
 			p := auth.FromContext(ctx)
-			if err := songPRPending(in.Body.Mode, in.Body.PatchID); err != nil {
-				return nil, err
-			}
-			it := ItemIn{Mode: in.Body.Mode, ParentTrackID: &in.ID, NSeeds: in.Body.NSeeds, Seeds: in.Body.Seeds, Patch: in.Body.Patch, Title: in.Body.Title}
+			it := ItemIn{Mode: in.Body.Mode, ParentTrackID: &in.ID, NSeeds: in.Body.NSeeds, Seeds: in.Body.Seeds, Patch: in.Body.Patch, Title: in.Body.Title, PatchID: in.Body.PatchID}
 			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Items: []generation.Item{itemIn(it)}, Via: estimateVia(p)})
 			if err != nil {
 				return nil, genErr(err)

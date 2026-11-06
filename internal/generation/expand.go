@@ -74,6 +74,11 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		RequestID: id, Seed: sp.seed, Params: paramsDoc{Mode: b.mode, SeedPolicy: sp.policy, NSeeds: nSeeds, Via: b.via},
 		Patch: patchDoc(b.patch), Warnings: []Issue{},
 	}
+	if b.song != nil {
+		pid := b.song.ID
+		t.PatchID, t.Params.PatchID = &pid, &pid
+		t.AddressesCommentIDs = append([]string(nil), b.song.CommentIDs...)
+	}
 	if reuse != "" {
 		t.ReuseRecipeID = &reuse
 	}
@@ -117,6 +122,9 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		return err
 	}
 	t.Warnings = append(t.Warnings, w...)
+	if b.song != nil {
+		t.Warnings = append(t.Warnings, p.patchWarnings(b.song.ID)...)
+	}
 	if secs, err := p.eng.ExpectedAudioSeconds(json.RawMessage(parsed.Canonical)); err != nil {
 		if len(engErrs) == 0 {
 			return fmt.Errorf("generation: expected audio of %s: %w", id, err)

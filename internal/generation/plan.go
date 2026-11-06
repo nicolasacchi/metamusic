@@ -24,7 +24,7 @@ const terminalJobStates = `('completed','failed','cancelled','expired')`
 
 func isVariant(mode string) bool {
 	switch mode {
-	case lineage.ModeNewSeed, lineage.ModeSameSeedEdit, lineage.ModeLyricEdit, lineage.ModeStyleEdit:
+	case lineage.ModeNewSeed, lineage.ModeSameSeedEdit, lineage.ModeLyricEdit, lineage.ModeStyleEdit, lineage.ModeSongPR:
 		return true
 	}
 	return isE2Mode(mode) // the E2 modes derive from a parent take as well (titles, create_variant shape)
@@ -78,7 +78,8 @@ func validateItem(i int, it Item, eng engine.Engine) error {
 			return err
 		}
 	case isVariant(it.Mode):
-		if !hasParent {
+		// a song_pr item may leave the parent out: the stored patch names its base (resolvePatches fills it in)
+		if !hasParent && it.Mode != lineage.ModeSongPR {
 			return invalidItem(i, "parent_track_id", "required")
 		}
 		errs = append(errs, notAllowed("parent_track_ids", len(it.ParentTrackIDs) > 0), notAllowed("draft_ids", len(it.DraftIDs) > 0),
@@ -108,6 +109,19 @@ func validateItem(i int, it Item, eng engine.Engine) error {
 		if e != nil {
 			return e
 		}
+	}
+	if it.Mode == lineage.ModeSongPR {
+		if it.PatchID == nil || *it.PatchID == "" {
+			return invalidItem(i, "patch_id", "required")
+		}
+		if it.NSeeds > MaxSongPRSeeds {
+			return invalidItem(i, "n_seeds", "song_pr_at_most_4")
+		}
+		if len(it.Seeds) > MaxSongPRSeeds {
+			return invalidItem(i, "seeds", "song_pr_at_most_4")
+		}
+	} else if it.PatchID != nil {
+		return invalidItem(i, "patch_id", "not_allowed_for_"+it.Mode)
 	}
 	if err := uniqueStrings(i, "draft_ids", it.DraftIDs); err != nil {
 		return err
@@ -328,6 +342,9 @@ type planner struct {
 	reused   map[string]bool // draft recipes already claimed by a take of this estimate
 	err      error           // the first failed lookup inside a callback
 
+	patches  map[string]PatchRow // song_pr: the stored patches of the items (resolvePatches)
+	inFlight map[string][]string // song_pr: patch id -> comments another unfinished patch also addresses
+
 	refs map[string]library.TrackRef // media facts of source and reference tracks (inputs.go)
 	e2   map[int]*takeE2             // per take index: the engine facts the estimate reports (expand_e2.go)
 }
@@ -411,7 +428,8 @@ type base struct {
 	patch  *lineage.Patch
 	via    *string
 	label  string
-	ace    *aceCtx // the ACE-Step facts of an E2 base (expand_e2.go); nil for yue2
+	ace    *aceCtx   // the ACE-Step facts of an E2 base (expand_e2.go); nil for yue2
+	song   *PatchRow // song_pr: the stored Song PR this base renders
 }
 
 // codec is the engine's recipe codec (C163); an engine without one cannot be planned.
@@ -508,7 +526,19 @@ func (p *planner) expandVariant(i int, it Item, mode, parentID string, via *stri
 		return fmt.Errorf("generation: parent recipe of %s: %w", parentID, err)
 	}
 	spec, _ := lineage.SpecFor(mode, p.engName)
-	return p.expandAny(base{item: i, it: it, mode: mode, spec: spec, rec: rec, parent: &t, patch: it.Patch, via: via})
+	b := base{item: i, it: it, mode: mode, spec: spec, rec: rec, parent: &t, patch: it.Patch, via: via}
+	if mode == lineage.ModeSongPR {
+		row, ok := p.patches[*it.PatchID]
+		if !ok {
+			return fmt.Errorf("generation: song_pr item %d: patch %s was not resolved", i, *it.PatchID)
+		}
+		// the stored patch is the item's patch, its operator the take's, the ledger names the mode and the patch (C253.4)
+		b.song, b.spec.Operator = &row, row.Operator
+		b.patch = &lineage.Patch{Style: row.Style, Lyrics: row.Lyrics}
+		sp := lineage.ModeSongPR
+		b.via = &sp
+	}
+	return p.expandAny(b)
 }
 
 func (p *planner) expandDraft(i int, it Item, d draftInfo) error {

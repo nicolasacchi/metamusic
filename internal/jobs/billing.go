@@ -25,9 +25,7 @@ const (
 // hold (C76.5).
 func (r *Reconciler) reconcileBilling(ctx context.Context) error {
 	now := r.o.Clock.Now()
-	if r.o.Peer || r.o.Backend.Capabilities().Billing != "hour" {
-		// a peer backend has no billing windows of its own (billing_windows has no backend column): its batches are
-		// released by the residual hold, scoped to its backend
+	if r.o.Backend.Capabilities().Billing != "hour" {
 		return r.holdRelease(ctx, now)
 	}
 	fetchFailed := false
@@ -93,9 +91,9 @@ func (r *Reconciler) fetchBuckets(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	var lastEnd, oldest sql.NullString
-	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT (SELECT MAX(window_end) FROM billing_windows),
+	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT (SELECT MAX(window_end) FROM billing_windows WHERE (? = '' OR backend = ?)),
 		(SELECT MIN(created_at) FROM batches WHERE reconciled_at IS NULL AND state IN ('active','finished') AND (? = '' OR backend = ?))`,
-		r.scope(), r.scope()).Scan(&lastEnd, &oldest); err != nil {
+		r.scope(), r.scope(), r.scope(), r.scope()).Scan(&lastEnd, &oldest); err != nil {
 		return err
 	}
 	var from time.Time
@@ -127,8 +125,8 @@ func (r *Reconciler) fetchBuckets(ctx context.Context, now time.Time) error {
 				continue // misaligned or in-progress: never read
 			}
 			var total, compute, disk int64
-			err := tx.QueryRowContext(ctx, `SELECT total_micro_usd, compute_micro_usd, disk_micro_usd FROM billing_buckets WHERE bucket_start = ? ORDER BY fetched_at DESC LIMIT 1`,
-				store.FormatTime(b.Start)).Scan(&total, &compute, &disk)
+			err := tx.QueryRowContext(ctx, `SELECT total_micro_usd, compute_micro_usd, disk_micro_usd FROM billing_buckets WHERE bucket_start = ? AND (? = '' OR backend = ?) ORDER BY fetched_at DESC LIMIT 1`,
+				store.FormatTime(b.Start), r.scope(), r.scope()).Scan(&total, &compute, &disk)
 			if err == nil && total == int64(b.Total) && compute == int64(b.Compute) && disk == int64(b.Disk) {
 				continue
 			}
@@ -136,9 +134,9 @@ func (r *Reconciler) fetchBuckets(ctx context.Context, now time.Time) error {
 				return err
 			}
 			//nolint:gosec // G202: the fixed C69 predicate, values are bound
-			if _, err := tx.ExecContext(ctx, `INSERT INTO billing_buckets(bucket_start, fetched_at, total_micro_usd, compute_micro_usd, disk_micro_usd)
-				SELECT ?, ?, ?, ?, ? WHERE `+f.Where()+` ON CONFLICT DO NOTHING`,
-				append([]any{store.FormatTime(b.Start), ts, int64(b.Total), int64(b.Compute), int64(b.Disk)}, f.Args()...)...); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO billing_buckets(bucket_start, fetched_at, total_micro_usd, compute_micro_usd, disk_micro_usd, backend)
+				SELECT ?, ?, ?, ?, ?, ? WHERE `+f.Where()+` ON CONFLICT DO NOTHING`,
+				append([]any{store.FormatTime(b.Start), ts, int64(b.Total), int64(b.Compute), int64(b.Disk), r.o.Backend.Name()}, f.Args()...)...); err != nil {
 				return err
 			}
 		}
@@ -154,9 +152,9 @@ type bucketSum struct {
 // latestBuckets sums the latest observation of every bucket starting in [from, to).
 func (r *Reconciler) latestBuckets(ctx context.Context, x Querier, from, to time.Time) (bucketSum, []bucketRow, error) {
 	rows, err := x.QueryContext(ctx, `SELECT b.bucket_start, b.total_micro_usd, b.compute_micro_usd, b.disk_micro_usd FROM billing_buckets b
-		WHERE b.bucket_start >= ? AND b.bucket_start < ?
-		  AND b.fetched_at = (SELECT MAX(x.fetched_at) FROM billing_buckets x WHERE x.bucket_start = b.bucket_start) ORDER BY b.bucket_start`,
-		store.FormatTime(from), store.FormatTime(to))
+		WHERE b.bucket_start >= ? AND b.bucket_start < ? AND (? = '' OR b.backend = ?)
+		  AND b.fetched_at = (SELECT MAX(x.fetched_at) FROM billing_buckets x WHERE x.bucket_start = b.bucket_start AND x.backend = b.backend) ORDER BY b.bucket_start`,
+		store.FormatTime(from), store.FormatTime(to), r.scope(), r.scope())
 	if err != nil {
 		return bucketSum{}, nil, err
 	}
@@ -185,8 +183,8 @@ type bucketRow struct {
 // lateAdjustments corrects windows reconciled within the last 72 h whose buckets changed afterwards (C76.5
 // step 3): a `late_adjust` bill row for the difference, and a trip when compute now exceeds the reserve.
 func (r *Reconciler) lateAdjustments(ctx context.Context, now time.Time) error {
-	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT window_start, window_end, provisional_micro_usd, reserved_micro_usd FROM billing_windows WHERE window_end > ? ORDER BY window_start`,
-		store.FormatTime(now.Add(-billingLookback)))
+	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT window_start, window_end, provisional_micro_usd, reserved_micro_usd FROM billing_windows WHERE window_end > ? AND (? = '' OR backend = ?) ORDER BY window_start`,
+		store.FormatTime(now.Add(-billingLookback)), r.scope(), r.scope())
 	if err != nil {
 		return err
 	}
@@ -212,7 +210,7 @@ func (r *Reconciler) lateAdjustments(ctx context.Context, now time.Time) error {
 			return err
 		}
 		var bills int64
-		if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE kind = 'bill' AND window_start = ?`, w.start).Scan(&bills); err != nil {
+		if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE kind = 'bill' AND window_start = ? AND (? = '' OR backend = ?)`, w.start, r.scope(), r.scope()).Scan(&bills); err != nil {
 			return err
 		}
 		delta := int64(sum.total) - (w.provisional + bills)
@@ -221,7 +219,7 @@ func (r *Reconciler) lateAdjustments(ctx context.Context, now time.Time) error {
 			err := r.o.Spend.RunTx(ctx, func(tx *sql.Tx) error {
 				f := r.o.Runner.fence()
 				if err := r.o.Runner.ledgerAppend(ctx, tx, f, spend.Entry{Kind: spend.KindBill, MicroUSD: money.MicroUSD(delta), WindowStart: &ws,
-					PrincipalID: spend.BillingPrincipal, Reason: "late_adjust"}); err != nil {
+					PrincipalID: spend.BillingPrincipal, Reason: "late_adjust", Backend: r.o.Backend.Name()}); err != nil {
 					return err
 				}
 				return r.auditTx(ctx, tx, f, "reconciler:late_adjust", map[string]any{"window_start": ws, "delta_micro_usd": delta}, money.MicroUSD(abs64(delta)))
@@ -339,7 +337,7 @@ func (r *Reconciler) closeWindow(ctx context.Context, now time.Time) (bool, erro
 		return false, err
 	}
 	var lastEnd sql.NullString
-	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MAX(window_end) FROM billing_windows`).Scan(&lastEnd); err != nil {
+	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MAX(window_end) FROM billing_windows WHERE (? = '' OR backend = ?)`, r.scope(), r.scope()).Scan(&lastEnd); err != nil {
 		return false, err
 	}
 	start := floorHour(batches[0].created)
@@ -412,12 +410,12 @@ func (r *Reconciler) closeWindow(ctx context.Context, now time.Time) (bool, erro
 		f := r.o.Runner.fence()
 		//nolint:gosec // G202: the fixed C69 predicate, values are bound
 		if _, err := tx.ExecContext(ctx, `INSERT INTO billing_windows(window_start, window_end, granularity, buckets, billed_micro_usd, billed_compute_micro_usd,
-			provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at) SELECT ?, ?, 'hour', ?, ?, ?, ?, ?, ?, ?, ? WHERE `+f.Where(),
-			append([]any{ws, store.FormatTime(end), hours, billed, int64(sum.compute), provisional, reserved, len(in), verdict, store.FormatTime(now)}, f.Args()...)...); err != nil {
+			provisional_micro_usd, reserved_micro_usd, batches, verdict, fetched_at, backend) SELECT ?, ?, 'hour', ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE `+f.Where(),
+			append([]any{ws, store.FormatTime(end), hours, billed, int64(sum.compute), provisional, reserved, len(in), verdict, store.FormatTime(now), r.o.Backend.Name()}, f.Args()...)...); err != nil {
 			return fmt.Errorf("jobs: billing window: %w", err)
 		}
 		if err := r.o.Runner.ledgerAppend(ctx, tx, f, spend.Entry{Kind: spend.KindBill, MicroUSD: money.MicroUSD(billed - provisional), WindowStart: &ws,
-			PrincipalID: spend.BillingPrincipal, Reason: "reconcile"}); err != nil {
+			PrincipalID: spend.BillingPrincipal, Reason: "reconcile", Backend: r.o.Backend.Name()}); err != nil {
 			return err
 		}
 		for _, b := range in {
@@ -493,7 +491,7 @@ func (r *Reconciler) stalled(ctx context.Context, now time.Time) error {
 	}
 	base := mustT(oldest.String)
 	var closed sql.NullString
-	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MAX(fetched_at) FROM billing_windows`).Scan(&closed); err != nil {
+	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT MAX(fetched_at) FROM billing_windows WHERE (? = '' OR backend = ?)`, r.scope(), r.scope()).Scan(&closed); err != nil {
 		return err
 	}
 	if closed.Valid {
