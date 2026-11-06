@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { EngineList } from "./engines";
-import { actionLimits, actionReason, isRepaintChild } from "./trackEngineActions";
+import { actionLimits, actionReason, extendLimits, extendProblem, isRepaintChild } from "./trackEngineActions";
 
 const ace = (over: Record<string, unknown> = {}, caps: Record<string, unknown> = {}) =>
   ({
@@ -25,5 +25,22 @@ describe("trackEngineActions", () => {
     expect(isRepaintChild(null, "repaint")).toBe(true);
     expect(isRepaintChild("repaint", undefined)).toBe(true);
     expect(isRepaintChild(null, "extend")).toBe(false);
+  });
+  test("E2b actions need the task in caps", () => {
+    const l = ace({}, { tasks: ["extend", "stems"], extend_min_s: 3, extend_max_s: 90, max_seconds: 240 });
+    expect(actionReason(l, "extend")).toBe("");
+    expect(actionReason(l, "stems")).toBe("");
+    expect(actionReason(l, "complete")).toContain("complete");
+    expect(actionReason(ace(), "extend")).toContain("extend");
+  });
+  test("extend limits respect the effective cap", () => {
+    const l = ace({}, { extend_min_s: 3, extend_max_s: 90, max_seconds: 120 });
+    expect(extendLimits(l, 60)).toEqual({ min: 3, max: 60 });
+    expect(extendLimits(l, 10)).toEqual({ min: 3, max: 90 });
+    expect(extendLimits(null, 10)).toEqual({ min: 0, max: 0 });
+    expect(extendProblem(30, { min: 3, max: 60 })).toBe("");
+    expect(extendProblem(61, { min: 3, max: 60 })).toContain("between 3 and 60");
+    expect(extendProblem(0, { min: 3, max: 60 })).toContain("Enter");
+    expect(extendProblem(5, extendLimits(l, 119.5))).toContain("longest");
   });
 });
