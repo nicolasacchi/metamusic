@@ -49,11 +49,6 @@ internal/atlas          93
 # BEGIN T1-I1 (T1 packages). INT-B set both to measured - 1, rounded down, from the CI coverage job on the merged T1 branch (run
 # 42251326395: dsp/... 94.8, transform 89.3); the 90 % figures of the plan are aims, not gates. internal/score/... (T1b) is NOT listed:
 # the gate refuses a pattern that matches no package, so its floor is added by the lane that creates the package.
-internal/dsp/... and internal/transform are still F1 stubs (measured on the stubs: dsp/... 72.9, transform 84.8). A
-# measured - 1 floor on stub bodies would redden every D/B lane the moment real code lands, so these two floors sit below the stub
-# figures and above nothing the lanes can plausibly undershoot; they also make the gate prove the patterns match a package. INT-B
-# raised both to measured - 1 on the merged branch (INT-B, CI run 42251326395: dsp/... 94.8, transform 89.3, rounded down; the 90 % figures of the plan are aims, not gates). internal/score/... (T1b) is
-# NOT listed: the gate refuses a pattern that matches no package, so its floor is added by the lane that creates the package.
 internal/dsp/...        93
 internal/transform      88
 # END T1-I1
