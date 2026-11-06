@@ -7,8 +7,9 @@ import "encoding/json"
 // units already include SafetyUnits.
 var selfFinishing = map[string]bool{KindMaster: true, KindWiden: true, "binaural": true}
 
-// ownFades are the kinds whose render brings its own fade-in and fade-out: safety skips its 10 ms fades for them (D-T1-14.3).
-var ownFades = map[string]bool{KindGlacier: true}
+// ownFades are the kinds whose render brings its own edges: safety skips its 10 ms fades for them (D-T1-14.3). Glacier fades; a
+// shepard is a seamless loop, and a fade at both ends would notch every wrap.
+var ownFades = map[string]bool{KindGlacier: true, KindShepard: true}
 
 // SelfFinishing reports whether the kind runs safety.Finish itself.
 func SelfFinishing(kind string) bool { return selfFinishing[kind] }

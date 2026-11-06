@@ -187,6 +187,7 @@ func (p ShepardParams) gains(tau float64, dst []float64) []float64 {
 // group of voices, one synthesis per frame and voice, and one unit per sample for the tiled loop and for each layer summed. A layer at zero gain is skipped, so the real use can be a little
 // lower. Safety is not included.
 func ShepardUnits(outLen int64, layers, n int) int64 {
+	outLen += int64(n) // the loop is rendered one window past the end (see Shepard)
 	frames := pvFrames(int(outLen), n/4)
 	groups := int64(ceilDiv(layers, voiceGroup(int(outLen), layers)))
 	pv := 2 * frames * (groups*(dsp.Units.FFT(n)+int64(10*n)) + int64(layers)*(dsp.Units.FFT(n)+int64(20*n)))
@@ -225,11 +226,14 @@ func Shepard(ctx context.Context, x pcm.Buffer, p ShepardParams, m *dsp.Meter) (
 	group := voiceGroup(outLen, p.Layers)
 	out := pcm.Buffer{Rate: rate}
 	for c := 0; c < 2; c++ {
-		cycle, err := tile(MakeLoop(x.Ch[c], start, loopLen, xfade), outLen, m)
+		// The loop is tiled one window past the end: the vocoder's overlap-add thins out over the last window of its input, and
+		// a seamless loop must not carry that notch (B5-2). The extra tail is cut again below; the gains are periodic, so the
+		// tail continues the glide.
+		cycle, err := tile(MakeLoop(x.Ch[c], start, loopLen, xfade), outLen+n, m)
 		if err != nil {
 			return pcm.Buffer{}, err
 		}
-		acc := make([]float64, outLen)
+		acc := make([]float64, outLen+n)
 		for j0 := 0; j0 < p.Layers; j0 += group {
 			if err := ctx.Err(); err != nil {
 				return pcm.Buffer{}, err
@@ -259,7 +263,7 @@ func Shepard(ctx context.Context, x pcm.Buffer, p ShepardParams, m *dsp.Meter) (
 				}
 			}
 		}
-		out.Ch[c] = acc
+		out.Ch[c] = acc[:outLen:outLen]
 	}
 	return out, nil
 }

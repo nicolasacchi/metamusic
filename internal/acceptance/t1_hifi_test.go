@@ -49,9 +49,6 @@ func TestAcceptance_T1_HiFi_LoudnessMatched(t *testing.T) {
 	for kind, body := range hifiBodies(tr) {
 		t.Run(kind, func(t *testing.T) {
 			tr.T = t
-			if kind == "master" {
-				knownBug(t, "B5-3", "master's default target is -12 LUFS, not the parent's: estimate.go rawFloat reads the resolved \"target_lufs\": null as 0, which clamps to -12")
-			}
 			id := tr.RunDone(body)["id"].(string)
 			if got := tr.MeasureLUFS(tr.MasterPath(id)); math.Abs(got-parent) > 1.5 {
 				t.Errorf("%s measures %.2f LUFS, parent %.2f", kind, got, parent)

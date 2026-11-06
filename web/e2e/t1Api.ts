@@ -72,10 +72,6 @@ export function watchT1(page: Page): { problems: () => string[] } {
   page.on("pageerror", (e) => found.push(`pageerror: ${e.message}`));
   page.on("console", (m) => {
     if (m.type() !== "error") return;
-    // A failed fetch is logged by the browser with the resource's URL as the location. Only transform URLs count: the Take
-    // page also asks for the listen heat, a stub (501 until M5-W1 lands) that is not this lane's to judge.
-    const where = m.location().url;
-    if (m.text().startsWith("Failed to load resource") && where && !new URL(where).pathname.startsWith("/api/transforms")) return;
     found.push(`console: ${m.text()}`);
   });
   page.on("response", (r) => {

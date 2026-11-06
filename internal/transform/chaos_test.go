@@ -132,6 +132,15 @@ func (w *interrupter) Run(ctx context.Context, j transform.ChildJob, progress tr
 	})
 }
 
+// weeklyOnly skips a test of the weekly tier: too slow for a PR shard (the go shards run close to their timeout), run with
+// MM_T1_WEEKLY=1 (or MM_T1_CHAOS_FULL=1, the weekly chaos switch) in the weekly workflow.
+func weeklyOnly(t *testing.T, why string) {
+	t.Helper()
+	if os.Getenv("MM_T1_WEEKLY") != "1" && os.Getenv("MM_T1_CHAOS_FULL") != "1" {
+		t.Skip("weekly tier (MM_T1_WEEKLY=1): " + why)
+	}
+}
+
 var chaosPoints = func() []int {
 	if os.Getenv("MM_T1_CHAOS_FULL") == "1" { // the weekly run: ten points
 		return []int{0, 100, 200, 300, 400, 500, 600, 700, 800, 900}
@@ -141,9 +150,8 @@ var chaosPoints = func() []int {
 
 // TestChaos_KillChildAtProgress: the render child dies at ten points (three in the PR subset, ten with MM_T1_CHAOS_FULL=1) of its progress, by SIGKILL from outside (what the kernel's
 // OOM killer does) and by the runner stopping (the server shutting down). Contract:
-//   - SIGKILL from outside is indistinguishable from an OOM kill, so the supervisor reports it as a memory kill: the row fails
-//     TRANSFORM_MEMORY_EXCEEDED at once and is not retried (the plan's C216.5 says "queued, completed on the retry"; this is the
-//     shipped behaviour, recorded here);
+//   - SIGKILL from outside is an interruption (only the supervisor's own RSS guard gives TRANSFORM_MEMORY_EXCEEDED): the row goes
+//     back to queued at once and the retry completes; a second one fails it INTERRUPTED;
 //   - a stopping runner kills the child and puts the row back to queued; the retry completes; two interruptions fail it INTERRUPTED;
 //   - in every case no Take, work dir, take directory or stray master survives an unfinished attempt.
 func TestChaos_KillChildAtProgress(t *testing.T) {
@@ -173,21 +181,37 @@ func TestChaos_KillChildAtProgress(t *testing.T) {
 					t.Skipf("the render finished before reaching %d permille", at) // a short render may not report this point
 				}
 				killed++
-				if row.State != "failed" || row.ErrCode != transform.ErrMemoryExceeded {
-					t.Fatalf("row after an external SIGKILL = %+v, want failed TRANSFORM_MEMORY_EXCEEDED", row)
-				}
-				if !row.CPU.Valid {
-					t.Error("a terminal row must record cpu_ms (the quota reservation is released by it)")
+				if row.State != "queued" || row.Attempts != 1 || row.ErrCode != "" {
+					t.Fatalf("row after an external SIGKILL = %+v, want queued after 1 attempt", row)
 				}
 				r.noTrace(id, before)
-				if r.runOne() {
-					t.Error("the runner found something to retry")
+				if !r.runOne() || r.row(id).State != "done" {
+					t.Fatalf("the retry did not finish: %+v", r.row(id))
 				}
 			})
 		}
 		if killed < (len(chaosPoints)+1)/2 {
 			t.Errorf("only %d of %d points were reached: the test is vacuous", killed, len(chaosPoints))
 		}
+	})
+
+	t.Run("sigkill_twice", func(t *testing.T) {
+		var w *interrupter
+		r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
+			w = &interrupter{inner: chaosChild(bin), at: 100, n: 2, hit: killChild}
+			return w
+		})
+		before := r.masterFiles()
+		id := queueChaos(t, r, "sigkill2")
+		r.runOne()
+		if w.fired.Load() != 1 || r.row(id).State != "queued" {
+			t.Fatalf("first kill: fired %d, row %+v", w.fired.Load(), r.row(id))
+		}
+		r.runOne()
+		if row := r.row(id); w.fired.Load() != 2 || row.State != "failed" || row.ErrCode != transform.ErrInterrupted || !row.CPU.Valid {
+			t.Fatalf("after two kills: fired %d, row %+v, want failed INTERRUPTED with cpu_ms recorded", w.fired.Load(), row)
+		}
+		r.noTrace(id, before)
 	})
 
 	t.Run("runner_stop", func(t *testing.T) {
@@ -417,7 +441,7 @@ func assertNoPaths(t *testing.T, r *rig, text string) {
 		}
 	}
 	if strings.Contains(text, "incoming/") {
-		knownBugCh(t, "B5-5", "the error text of a failed encode keeps the data-relative work path ("+text+"): the data root is masked but incoming/<id>/out.flac is shown")
+		t.Errorf("error text %q shows the data-dir layout", text)
 	}
 }
 
@@ -555,6 +579,7 @@ func TestChaos_LeaseExpiry(t *testing.T) {
 	if testing.Short() {
 		t.Skip("chaos suite: real tools")
 	}
+	weeklyOnly(t, "the PR chaos subset is the kill, restart and hang tests (the lease logic is covered by the fake-child runner tests)")
 	testtools.Require(t, "ffmpeg", "flac", "metaflac")
 	tools := testtools.Tools()
 	bin := childBinary(t)
@@ -667,7 +692,7 @@ func TestChaos_OrphanMasterCrashWindow(t *testing.T) {
 	ents, _ := os.ReadDir(filepath.Join(r.dir, "audio", "masters"))
 	for _, e := range ents {
 		if !owned[e.Name()] {
-			knownBugCh(t, "B5-4", "a crash between the freeze and the journal write leaves an unreferenced master that neither Recover nor Sweep removes ("+e.Name()+"); the retry's master is a second file")
+			t.Errorf("master %s belongs to no track: the crash window left a second master", e.Name())
 		}
 	}
 }
@@ -688,15 +713,6 @@ func (w windowIngest) Ingest(ctx context.Context, req ingest.Request) (ingest.Re
 		_ = os.Mkdir(filepath.Join(w.root, "incoming", "transform-"+req.TrackID, "claimed.json"), 0o700)
 	}
 	return res, err
-}
-
-// knownBugCh is knownBug for this package: the test fails only with MM_T1_KNOWN_BUGS=1.
-func knownBugCh(t *testing.T, id, what string) {
-	t.Helper()
-	if os.Getenv("MM_T1_KNOWN_BUGS") != "1" {
-		t.Skipf("known product bug %s: %s (MM_T1_KNOWN_BUGS=1 runs this test and it fails)", id, what)
-	}
-	t.Errorf("product bug %s: %s", id, what)
 }
 
 // TestAcceptance_T1_LoudnessUnsafeRefused (the bug alarm, media tier): a child whose audio ends up far louder than its own

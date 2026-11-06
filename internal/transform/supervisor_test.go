@@ -49,6 +49,10 @@ func TestHelperChild(t *testing.T) {
 	case "exit13":
 		fmt.Fprint(os.Stderr, strings.Repeat("noise\n", 2000)+"final words\n")
 		os.Exit(13)
+	case "selfkill": // a signal from outside the supervisor, as the kernel's OOM killer sends it
+		_ = syscall.Kill(os.Getpid(), syscall.SIGKILL)
+		time.Sleep(10 * time.Second)
+		os.Exit(0)
 	case "hang", "grandchild":
 		if mode == "grandchild" {
 			c := exec.Command(os.Getenv("MM_TEST_SLEEP"), "60") // the child has no PATH
@@ -248,6 +252,16 @@ func TestSupervisor_RSSGuard(t *testing.T) {
 	defer mu.Unlock()
 	if calls < 3 {
 		t.Errorf("the guard fired on an under-limit reading (calls %d)", calls)
+	}
+}
+
+// TestSupervisor_ExternalSignal: a child killed by a signal the supervisor did not send is an interruption (ErrChildSignaled),
+// never the memory verdict, which only its own RSS guard gives.
+func TestSupervisor_ExternalSignal(t *testing.T) {
+	s := newSuper(t, "selfkill")
+	_, err := s.run(context.Background(), 100, 30*time.Second, nil)
+	if !errors.Is(err, transform.ErrChildSignaled) || errors.Is(err, transform.ErrChildMemory) {
+		t.Fatalf("err = %v, want the external-signal sentinel", err)
 	}
 }
 

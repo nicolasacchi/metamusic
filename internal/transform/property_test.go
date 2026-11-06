@@ -30,8 +30,8 @@ import (
 
 func propertyTimelines() []int {
 	n := 12
-	if raceOn() { // the detector makes the DSP loops 5-10x slower; the weekly run (no -race for dsp) keeps the full count
-		n = 3
+	if raceOn() { // the detector makes the DSP loops 5-10x slower (150 s for 3 timelines in a CI shard); the weekly run (no -race) keeps the full count
+		n = 1
 	}
 	if v, err := strconv.Atoi(os.Getenv("MM_PROPERTY_TIMELINES")); err == nil && v > 0 {
 		n = v

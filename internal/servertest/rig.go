@@ -128,6 +128,9 @@ type Options struct {
 	// either builds the worker over the rig's own upload and media handlers. Both need ACEStep.
 	FakeACE       *fake.Options
 	FakeACEWorker *fake.SimWorkerOptions
+	// T1 injects the transform service's test seams (child runner, media, ingest, resampler, fault points). The zero value is the
+	// production wiring: the render child is the exec supervisor over os.Executable.
+	T1 app.T1Options
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -439,6 +442,7 @@ func New(tb testing.TB, o Options) *Rig {
 		Rand:     o.Rand,
 		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
 		L3:       app.L3Options{RealFeatures: o.RealFeatures},
+		T1:       o.T1,
 		// M4a: no real waiting after a failed Subsonic authentication; the OIDC verifier uses a plain client (loopback).
 		M4a: app.M4aOptions{SubsonicSleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() }},
 	}
