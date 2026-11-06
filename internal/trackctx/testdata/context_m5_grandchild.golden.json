@@ -1,0 +1,226 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000d51003",
+    "title": "Synthetic Lineage G2",
+    "status": "draft",
+    "stars": null,
+    "critic_stars": null,
+    "critic_verdict": null,
+    "tags": [],
+    "duration_s": 120,
+    "recipe_known": true,
+    "lossy": false,
+    "recorded_at": "2026-10-06T08:00:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000d51003"
+  },
+  "song": null,
+  "muse": null,
+  "sounds": null,
+  "recipe": {
+    "engine": "yue2",
+    "known": true,
+    "hash": "f49e481df136c687df5b4b98cf357549122da213a452ed94ea820f70e76f7097",
+    "request": {
+      "id": "m5_g2",
+      "style": "folk, bright, female vocal, italian, 95bpm",
+      "lyrics": "[Verse 1]\nfixture line a1\nfixture line a2\nfixture line a3\nfixture line a4\n[Chorus]\nfixture hook b1\nfixture hook b2\nfixture hook b3\nfixture hook b4\n[Verse 2]\nfixture line c1\nfixture line c2\nfixture line c3\nfixture line c4\n[Chorus]\nfixture hook b1\nfixture hook b2\nfixture hook b3\nfixture hook b4\n[Outro]\nfixture tail d1",
+      "cot": "full",
+      "seed": 8502,
+      "abc_present": false,
+      "cfg_scale": null
+    }
+  },
+  "provenance": {
+    "origin": "import",
+    "import_rule": "slug",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost": null,
+    "env": null,
+    "job_id": null
+  },
+  "score": null,
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000d51001",
+        "title": "Synthetic Lineage G0"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d51002",
+        "title": "Synthetic Lineage G1"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d51003",
+        "title": "Synthetic Lineage G2"
+      }
+    ],
+    "operator": "inferred_sibling",
+    "inferred": true,
+    "rule": "same_request_id",
+    "rationale": null,
+    "children": [],
+    "siblings": 2
+  },
+  "judgments": {
+    "comments": [
+      {
+        "id": "01900000-0000-7000-8000-000000d53003",
+        "at_second": 110,
+        "section": "outro",
+        "section_confidence": 0.8,
+        "kind": "note",
+        "state": "open",
+        "by": "human",
+        "body": "nice outro",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 110,
+          "basis": "proportional",
+          "confidence": 0.3,
+          "label": null
+        },
+        "lyric_lines": [
+          "fixture tail d1"
+        ]
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d53002",
+        "at_second": 12,
+        "section": "verse 1",
+        "section_confidence": 0.8,
+        "kind": "fix",
+        "state": "open",
+        "by": "human",
+        "body": "second line of the verse is rushed",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 12,
+          "basis": "proportional",
+          "confidence": 0.3,
+          "label": null
+        },
+        "lyric_lines": [
+          "fixture line a1",
+          "fixture line a2",
+          "fixture line a3",
+          "fixture line a4"
+        ]
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d53001",
+        "at_second": 40,
+        "section": "chorus 1",
+        "section_confidence": 0.8,
+        "kind": "fix",
+        "state": "open",
+        "by": "human",
+        "body": "the chorus lands late",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 40,
+          "basis": "proportional",
+          "confidence": 0.3,
+          "label": null
+        },
+        "lyric_lines": [
+          "fixture hook b1",
+          "fixture hook b2",
+          "fixture hook b3",
+          "fixture hook b4"
+        ]
+      }
+    ],
+    "comments_total": 0,
+    "open_fix": 0,
+    "ancestor_open_fix": 2,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -14,
+    "true_peak_db": -3,
+    "lra_lu": 5,
+    "bandwidth_hz": 16000,
+    "sections": [
+      {
+        "label": "verse 1",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      },
+      {
+        "label": "chorus 1",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      },
+      {
+        "label": "verse 2",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      },
+      {
+        "label": "chorus 2",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      },
+      {
+        "label": "outro",
+        "start": null,
+        "end": null,
+        "source": "lyrics",
+        "confidence": null
+      }
+    ],
+    "timed": false,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "silence, clipping and token loops (Tier A not run yet)",
+      "section times unknown (no aligned score)"
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
+  },
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
+  },
+  "_links": {
+    "stream": {
+      "mp3": null,
+      "flac": "https://mm.example.com/media/79ad6266ae4bc4c89ba166c00f0bbcd085aef0242a3f3215f3ece0bdeee203d4.flac?exp=1791288900\u0026sig=A2lNu_y2cDhM8s5pFEU3rbf5ApjNbom0WqLnETGe0mw",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "spectrogram": null,
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000d51003/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000d51003"
+  },
+  "next_actions": [
+    "ask the human to rate this take (rate_track)",
+    "section times need a score: refer to sections by lyrics, not by time",
+    "try a new-seed variant: estimate_variant mode=new_seed n_seeds=3 (the estimate is free; spending needs create_variant)",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 4339,
+    "limit": 24000,
+    "truncated": []
+  }
+}

@@ -99,6 +99,16 @@ func (o *omap) Set(k string, v any) {
 // Get returns the value under k (nil when absent).
 func (o *omap) Get(k string) any { return o.vals[k] }
 
+// Del removes k and reports whether it was present.
+func (o *omap) Del(k string) bool {
+	if _, ok := o.vals[k]; !ok {
+		return false
+	}
+	delete(o.vals, k)
+	o.keys = slices.DeleteFunc(o.keys, func(x string) bool { return x == k })
+	return true
+}
+
 // MarshalJSON writes the keys in insertion order.
 func (o *omap) MarshalJSON() ([]byte, error) {
 	if o == nil {
@@ -142,9 +152,9 @@ var order = map[string][]string{
 	"score":       {"source", "bars", "meter", "q", "seconds_per_bar", "aligned", "abc", "abc_truncated"},
 	"transform":   {"kind", "transform_id", "spec_hash", "title", "params", "inputs", "alignment", "safety"},
 	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
-	"judgments":   {"comments", "comments_total", "open_fix", "ladder"},
+	"judgments":   {"comments", "comments_total", "open_fix", "ancestor_open_fix", "ladder"},
 	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence", "key", "energy"},
-	"listening":   {"plays", "completion_rate", "last_played_at"},
+	"listening":   {"plays", "completion_rate", "last_played_at", "hotspots"},
 	"_links":      {"stream", "spectrogram", "comments", "track"},
 	"songwriting": {"min_duration_s", "target_min_duration_s", "target_max_duration_s", "guidance"},
 }
@@ -290,6 +300,13 @@ func shrink(m map[string]any, key string, n int) bool {
 	return false
 }
 
+// delKey removes key from m and reports whether it was there.
+func delKey(m map[string]any, key string) bool {
+	_, ok := m[key]
+	delete(m, key)
+	return ok
+}
+
 func request(b *Bundle) (set func(string, any) bool, get func(string) any) {
 	switch r := b.Recipe["request"].(type) {
 	case *omap:
@@ -341,6 +358,11 @@ func Fit(b *Bundle, limit int, include []string) (chars int, truncated []string)
 			b.Muse["brief"] = string([]rune(s)[:briefKeep])
 			return true
 		})
+	}
+	// C254: the close-the-loop fields go before the comments themselves
+	try("listening.hotspots", func() bool { return b.Listening != nil && delKey(b.Listening, "hotspots") })
+	for _, k := range []struct{ name, key string }{{"comments.lyric_lines", "lyric_lines"}, {"comments.in_flight_patch_ids", "in_flight_patch_ids"}, {"comments.spot", "spot"}} {
+		try(k.name, func() bool { return b.Judgments != nil && stripCommentKey(b.Judgments["comments"], k.key) })
 	}
 	if !has(include, "comments") && b.Judgments != nil {
 		for _, n := range []int{defaultComments, 5, 0} {
@@ -455,6 +477,7 @@ type Builder struct {
 	sw        TargetSource
 	nextact   NextActionReader // L3 (C139.4): nil => no Muse-aware next actions
 	engines   EngineAdvisor    // E2 (C160): nil => /context is byte-identical to the yue2-only behaviour
+	cl        CloseLoopReader  // M5 (C254): nil => no ancestor comments, spots, in-flight patches or hotspots
 }
 
 // TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).
@@ -584,14 +607,14 @@ func (b *Builder) collect(ctx context.Context, trackID string, f judgments.Comme
 	return out, total, nil
 }
 
-func (b *Builder) comments(ctx context.Context, trackID string, include []string) (items []any, openFix int, err error) {
+func (b *Builder) comments(ctx context.Context, trackID string, include []string) (items []any, raw []judgments.Comment, openFix int, err error) {
 	want := defaultComments
 	if has(include, "comments") {
 		want = includeComments
 	}
 	fixes, openFix, err := b.collect(ctx, trackID, judgments.CommentFilter{State: []string{"open"}, Kind: []string{"fix"}}, want, nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 	// the open-fix total counts them all, not just the listed ones
 	if len(fixes) == 0 {
@@ -602,17 +625,19 @@ func (b *Builder) comments(ctx context.Context, trackID string, include []string
 	for _, c := range fixes {
 		skip[c.ID] = true
 		items = append(items, commentOmap(c))
+		raw = append(raw, c)
 	}
 	if rest := want - len(fixes); rest > 0 {
 		more, _, err := b.collect(ctx, trackID, judgments.CommentFilter{}, rest, skip)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		for _, c := range more {
 			items = append(items, commentOmap(c))
+			raw = append(raw, c)
 		}
 	}
-	return items, openFix, nil
+	return items, raw, openFix, nil
 }
 
 // family returns the root family of a track keyed by id.
@@ -730,6 +755,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 
 	// lineage
 	pathItems := []any{newOmap("id", d.ID, "title", d.Title)}
+	var ancestorIDs []string
 	children := []any{}
 	var childIDs []string
 	if len(d.Lineage.Siblings) > 0 || d.Lineage.ParentTrackID != nil {
@@ -755,6 +781,7 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		seen := map[string]bool{}
 		for cur := d.Lineage.ParentTrackID; cur != nil && !seen[*cur]; {
 			seen[*cur] = true
+			ancestorIDs = append(ancestorIDs, *cur) // nearest first (C254)
 			s, ok := fam[*cur]
 			if !ok {
 				break
@@ -795,12 +822,24 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 
 	// judgments
 	comments, openFix := []any{}, 0
+	var cl closeLoop
 	if b.j != nil {
-		if comments, openFix, err = b.comments(ctx, d.ID, include); err != nil {
+		var raw []judgments.Comment
+		if comments, raw, openFix, err = b.comments(ctx, d.ID, include); err != nil {
+			return Bundle{}, err
+		}
+		want := defaultComments
+		if has(include, "comments") {
+			want = includeComments
+		}
+		if comments, cl, err = b.closeLoopComments(ctx, d.ID, d.Recipe.Lyrics, d.RecipeKnown, ancestorIDs, comments, raw, want); err != nil {
 			return Bundle{}, err
 		}
 	}
 	out.Judgments = map[string]any{"comments": comments, "comments_total": d.Comments, "open_fix": openFix, "ladder": own}
+	if cl.active {
+		out.Judgments["ancestor_open_fix"] = cl.ancestorOpenFix
+	}
 
 	// perception (Ears computes it; the sections keep M2a's start/end keys)
 	if b.per != nil {
@@ -832,6 +871,13 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		}
 	}
 	out.Listening = map[string]any{"plays": st.Plays, "completion_rate": st.CompletionRate, "last_played_at": st.LastPlayedAt}
+	hot, err := b.hotspotsSection(ctx, d.ID)
+	if err != nil {
+		return Bundle{}, err
+	}
+	if hot != nil {
+		out.Listening["hotspots"] = hot
+	}
 
 	// links
 	links := map[string]any{"stream": nil, "spectrogram": nil, "comments": "/api/tracks/" + d.ID + "/comments", "track": "/api/tracks/" + d.ID}

@@ -1,0 +1,227 @@
+{
+  "format": "mm.context/1",
+  "track": {
+    "id": "01900000-0000-7000-8000-000000d51002",
+    "title": "Synthetic Lineage G1",
+    "status": "draft",
+    "stars": null,
+    "critic_stars": null,
+    "critic_verdict": null,
+    "tags": [],
+    "duration_s": 120,
+    "recipe_known": true,
+    "lossy": false,
+    "recorded_at": "2026-10-06T07:00:00Z",
+    "url": "https://mm.example.com/tracks/01900000-0000-7000-8000-000000d51002"
+  },
+  "song": null,
+  "muse": null,
+  "sounds": null,
+  "recipe": {
+    "engine": "yue2",
+    "known": true,
+    "hash": "edbc80217537b4586e25ad28601f7b1c66ba3f9c687baa2c31539eb803aacd94",
+    "request": {
+      "id": "m5_g1",
+      "style": "folk, warm, female vocal, italian, 92bpm",
+      "lyrics": "[Verse 1]\nfixture line a1\nfixture line a2\nfixture line a3\nfixture line a4\n[Chorus]\nfixture hook b1\nfixture hook b2\nfixture hook b3\nfixture hook b4\n[Verse 2]\nfixture line c1\nfixture line c2\nfixture line c3\nfixture line c4\n[Chorus]\nfixture hook b1\nfixture hook b2\nfixture hook b3\nfixture hook b4\n[Outro]\nfixture tail d1",
+      "cot": "full",
+      "seed": 8501,
+      "abc_present": false,
+      "cfg_scale": null
+    }
+  },
+  "provenance": {
+    "origin": "import",
+    "import_rule": "slug",
+    "truncated": {
+      "abc": null,
+      "semantic": null
+    },
+    "cost": null,
+    "env": null,
+    "job_id": null
+  },
+  "score": null,
+  "lineage": {
+    "path": [
+      {
+        "id": "01900000-0000-7000-8000-000000d51001",
+        "title": "Synthetic Lineage G0"
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d51002",
+        "title": "Synthetic Lineage G1"
+      }
+    ],
+    "operator": "inferred_sibling",
+    "inferred": true,
+    "rule": "same_request_id",
+    "rationale": null,
+    "children": [
+      {
+        "id": "01900000-0000-7000-8000-000000d51003",
+        "title": "Synthetic Lineage G2",
+        "stars": null,
+        "ladder": null
+      }
+    ],
+    "siblings": 2
+  },
+  "judgments": {
+    "comments": [
+      {
+        "id": "01900000-0000-7000-8000-000000d53003",
+        "at_second": 110,
+        "section": "outro",
+        "section_confidence": 0.8,
+        "kind": "note",
+        "state": "open",
+        "by": "human",
+        "body": "nice outro",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 114.667,
+          "basis": "section",
+          "confidence": 0.8,
+          "label": "outro"
+        },
+        "lyric_lines": [
+          "fixture tail d1"
+        ]
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d53002",
+        "at_second": 12,
+        "section": "verse 1",
+        "section_confidence": 0.8,
+        "kind": "fix",
+        "state": "open",
+        "by": "human",
+        "body": "second line of the verse is rushed",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 16.8,
+          "basis": "section",
+          "confidence": 0.8,
+          "label": "verse 1"
+        },
+        "lyric_lines": [
+          "fixture line a1",
+          "fixture line a2",
+          "fixture line a3",
+          "fixture line a4"
+        ]
+      },
+      {
+        "id": "01900000-0000-7000-8000-000000d53001",
+        "at_second": 40,
+        "section": "chorus 1",
+        "section_confidence": 0.8,
+        "kind": "fix",
+        "state": "open",
+        "by": "human",
+        "body": "the chorus lands late",
+        "relation": "ancestor",
+        "spot": {
+          "at_s": 47,
+          "basis": "section",
+          "confidence": 0.8,
+          "label": "chorus 1"
+        },
+        "lyric_lines": [
+          "fixture hook b1",
+          "fixture hook b2",
+          "fixture hook b3",
+          "fixture hook b4"
+        ]
+      }
+    ],
+    "comments_total": 0,
+    "open_fix": 0,
+    "ancestor_open_fix": 2,
+    "ladder": null
+  },
+  "perception": {
+    "tier": "0",
+    "lufs_i": -14,
+    "true_peak_db": -3,
+    "lra_lu": 5,
+    "bandwidth_hz": 16000,
+    "sections": [
+      {
+        "label": "verse 1",
+        "start": 4,
+        "end": 36,
+        "source": "manual",
+        "confidence": 0.9
+      },
+      {
+        "label": "chorus 1",
+        "start": 36,
+        "end": 58,
+        "source": "manual",
+        "confidence": 0.9
+      },
+      {
+        "label": "verse 2",
+        "start": 58,
+        "end": 86,
+        "source": "manual",
+        "confidence": 0.9
+      },
+      {
+        "label": "chorus 2",
+        "start": 86,
+        "end": 112,
+        "source": "manual",
+        "confidence": 0.9
+      },
+      {
+        "label": "outro",
+        "start": 112,
+        "end": 120,
+        "source": "manual",
+        "confidence": 0.9
+      }
+    ],
+    "timed": true,
+    "flags": [],
+    "blind_spots": [
+      "timbre",
+      "emotional delivery",
+      "mix balance beyond loudness",
+      "hook catchiness",
+      "diction and intelligibility",
+      "melody and harmony adherence to the score",
+      "silence, clipping and token loops (Tier A not run yet)"
+    ],
+    "tempo_bpm": null,
+    "tempo_confidence": null
+  },
+  "listening": {
+    "plays": 0,
+    "completion_rate": null,
+    "last_played_at": null
+  },
+  "_links": {
+    "stream": {
+      "mp3": null,
+      "flac": "https://mm.example.com/media/0859cbd87aef6dd7595e6a0d0bfbbb7d762b6694a2952281a3e3108b577a3917.flac?exp=1791288900\u0026sig=4P5BOZSYMk2-DGbyDE361JukaHE1eLCtPcWAd1KyVGw",
+      "expires_at": "2026-10-06T12:15:00Z"
+    },
+    "spectrogram": null,
+    "comments": "/api/tracks/01900000-0000-7000-8000-000000d51002/comments",
+    "track": "/api/tracks/01900000-0000-7000-8000-000000d51002"
+  },
+  "next_actions": [
+    "ask the human to rate this take (rate_track)",
+    "try a new-seed variant: estimate_variant mode=new_seed n_seeds=3 (the estimate is free; spending needs create_variant)",
+    "record your critique as a comment (add_comment) — you cannot hear: see perception.blind_spots"
+  ],
+  "_budget": {
+    "chars": 4230,
+    "limit": 24000,
+    "truncated": []
+  }
+}

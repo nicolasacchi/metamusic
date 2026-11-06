@@ -37,14 +37,5 @@ const (
 // The M5 lanes that replace a stub (details.task of a 501).
 const (
 	taskC1 = "M5-C1" // list_callbacks, get_callback, submit_callback_verdict
-	taskA1 = "M5-A1" // get_listen_heat
 	taskV1 = "M5-V1" // create_voice_note
-
-	// notImplementedCode is the code of every stub answer.
-	notImplementedCode = "NOT_IMPLEMENTED"
 )
-
-// notImplemented is the 501 a frozen M5 operation answers until its lane lands; details.task names the lane.
-func notImplemented(task string) error {
-	return Err(501, notImplementedCode, "this operation is not implemented yet", map[string]any{"task": task})
-}
