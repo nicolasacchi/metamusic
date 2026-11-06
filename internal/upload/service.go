@@ -94,8 +94,9 @@ func (s *Service) inFlight(id string) bool {
 	return busy
 }
 
-// JobRef names the job an attempt belongs to.
-type JobRef struct{ JobID, BatchID string }
+// JobRef names the job an attempt belongs to. Engine selects the artifact allowlist its uploads are held to
+// (provider.ArtifactsFor); empty means the first engine, yue2, so every pre-E2 caller is unchanged.
+type JobRef struct{ JobID, BatchID, Engine string }
 
 // Received is one verified upload of an attempt; Path is relative to the data root.
 type Received struct {

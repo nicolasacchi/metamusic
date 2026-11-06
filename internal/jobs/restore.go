@@ -24,7 +24,7 @@ type RestoreGate struct {
 // ArmGate reads the restore state of backend through x.
 func ArmGate(ctx context.Context, x Querier, backend string) (RestoreGate, error) {
 	var restored, maxEnd sql.NullString
-	err := x.QueryRowContext(ctx, `SELECT (SELECT restored_at FROM provider_state WHERE backend = ?), (SELECT MAX(window_end) FROM billing_windows)`, backend).Scan(&restored, &maxEnd)
+	err := x.QueryRowContext(ctx, `SELECT (SELECT restored_at FROM provider_state WHERE backend = ?), (SELECT MAX(window_end) FROM billing_windows WHERE backend = ?)`, backend, backend).Scan(&restored, &maxEnd)
 	if err != nil {
 		return RestoreGate{}, err
 	}

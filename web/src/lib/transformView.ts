@@ -260,3 +260,30 @@ export function explainRateLimit(r: Refusal, e: Pick<TransformEstimate, "quota" 
   }
   return r;
 }
+
+// ---- lineage and provenance ----------------------------------------------------------------------------------
+
+export interface AlsoFromLike {
+  role: string;
+  track_id: string;
+}
+export interface AlsoFromRow {
+  trackId: string;
+  /** The Take's title when it is in the loaded tree, else a short id. */
+  label: string;
+  /** "B", "Source", "Score"... */
+  role: string;
+  /** False when the Take is not in the loaded tree (the link still works). */
+  inTree: boolean;
+}
+/** The secondary (dotted) edges of a lineage node: further inputs of a transform, never tree edges. */
+export function alsoFromRows(also: readonly AlsoFromLike[] | undefined, titles: ReadonlyMap<string, string>): AlsoFromRow[] {
+  return (also ?? []).map((a) => {
+    const t = titles.get(a.track_id);
+    return { trackId: a.track_id, label: t || a.track_id.slice(0, 8), role: roleLabel(a.role), inTree: t !== undefined };
+  });
+}
+/** The engine chip of a transform node: `dsp · glacier`. */
+export const engineChip = (t: { kind: string } | null | undefined): string => (t ? `dsp · ${kindLabel(t.kind)}` : "");
+/** First 8 hex of a spec hash, for display. */
+export const specHashShort = (h: string): string => h.slice(0, 8);

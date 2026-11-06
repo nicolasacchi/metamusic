@@ -1,0 +1,35 @@
+{
+  "name": "mm-yue2",
+  "type": "QUEUE",
+  "scaling": {
+    "type": "QUEUE_DELAY",
+    "queueDelay": 240
+  },
+  "workers": {
+    "min": 0,
+    "max": 0,
+    "idleTimeout": 20
+  },
+  "gpu": {
+    "count": 1,
+    "pools": [
+      "AMPERE_24",
+      "ADA_24"
+    ],
+    "excludedTypes": [
+      "gpu-l4"
+    ],
+    "minCudaVersion": "12.8"
+  },
+  "flashboot": "FLASHBOOT",
+  "timeout": 900000,
+  "image": "ghcr.io/example/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "env": {
+    "HF_HUB_OFFLINE": "1",
+    "MM_YUE2_3B_DIR": "/runpod-volume/huggingface-cache/hub",
+    "MM_YUE2_3B_REVISION": "8f24312f187763b9854adeec87e437e2b03bbff1",
+    "MM_YUE2_VAE_DIR": "/opt/mm/hf-cache/hub",
+    "MM_YUE2_VAE_REVISION": "152733a19ad43aa67e367f9b5503ef8075bb5126",
+    "MODE": "serverless"
+  }
+}

@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
@@ -52,12 +53,21 @@ type SimWorkerOptions struct {
 	// Weights, when set, are the revisions this worker "loaded"; a different expect.weights is answered
 	// WEIGHTS_MISMATCH. Nil means the worker loaded exactly what the input expects.
 	Weights map[string]string
+	// Fetcher serves the inputs of an ACE-Step edit (the in-process media route). Nil skips the fetch and the digest
+	// check (unit tests that do not exercise inputs).
+	Fetcher InputFetcher
+	// AudioScale, when positive, caps the seconds of audio an ACE-Step render really synthesises while the accounted
+	// length stays the request's. Zero reads MM_FAKE_AUDIO_SCALE (tests only; unset or invalid means no cap).
+	AudioScale float64
 }
 
 // SimWorker simulates the worker handler of C83.2: it validates the input, announces itself through the
 // start URL, renders the exact artifact contract with internal/synth, uploads every artifact with a
 // Content-Digest (mm-result.json last) and returns the C73.5 output.
-type SimWorker struct{ o SimWorkerOptions }
+type SimWorker struct {
+	o     SimWorkerOptions
+	synth atomic.Int64 // milliseconds of audio rendered by ACE-Step takes
+}
 
 // NewSimWorker builds the simulated worker.
 func NewSimWorker(o SimWorkerOptions) *SimWorker {
@@ -99,6 +109,7 @@ type Session struct {
 	virtual bool
 	elapsed time.Duration
 	closed  bool
+	ace     bool // the input's engine is acestep15 (C153.4)
 }
 
 type requestFields struct {
@@ -147,7 +158,11 @@ func (w *SimWorker) Begin(ctx context.Context, rawInput []byte, ref string, virt
 	if s.req.Cot == "" {
 		s.req.Cot = "full"
 	}
+	s.ace = in.Engine == provider.EngineACEStep
 	s.mk = parseMarkers(s.req.Style)
+	if s.ace {
+		s.mk = parseMarkers(styleOf(in.Request)) // an ACE-Step request carries the markers in its caption
+	}
 	if !s.mk.noStart {
 		switch s.announce(ctx) {
 		case announceClosed:
@@ -156,6 +171,12 @@ func (w *SimWorker) Begin(ctx context.Context, rawInput []byte, ref string, virt
 		case announceFailed:
 			r := s.errorResult(s.ids(), "START_FAILED", "the start call kept failing", false)
 			r.Elapsed = s.elapsed
+			return s, &r
+		}
+	}
+	if s.ace {
+		if code, msg := s.fetchInputs(ctx); code != "" { // C153.3 step 1b: before the weights check
+			r := s.fail(code, msg, true)
 			return s, &r
 		}
 	}
@@ -274,7 +295,7 @@ func (s *Session) baseOutput() provider.Output {
 		Artifacts: map[string]provider.ArtifactDigest{},
 		Timings:   map[string]*json.Number{},
 		Env: provider.OutputEnv{Engine: s.in.Engine, PkgVersion: "0.1.6", CodeCommit: workerBuild, Weights: weights,
-			Decoder: "m-a-p/YuE2-Vae", GPUName: "NVIDIA RTX A5000 (simulated)", CUDA: "12.8", Torch: "2.10.0", WorkerBuild: workerBuild, Python: "3.12.12"},
+			Decoder: s.decoder(), GPUName: "NVIDIA RTX A5000 (simulated)", CUDA: "12.8", Torch: "2.10.0", WorkerBuild: workerBuild, Python: "3.12.12"},
 	}
 }
 
@@ -355,12 +376,18 @@ func (s *Session) Finish(ctx context.Context) Result {
 	if s.mk.failWorkerError {
 		return s.fail("PIPELINE_ERROR", "simulated pipeline failure", true)
 	}
-	arts, audioSecs, err := s.render(ctx)
+	render := s.render
+	if s.ace {
+		render = s.renderACE
+	}
+	arts, audioSecs, err := render(ctx)
 	if err != nil {
 		return s.fail("PIPELINE_ERROR", "render failed: "+err.Error(), true)
 	}
 	out := s.baseOutput()
-	out.Truncated = map[string]bool{"abc": s.mk.truncAbc, "semantic": s.mk.truncSem}
+	if !s.ace { // ACE-Step output carries truncated: null
+		out.Truncated = map[string]bool{"abc": s.mk.truncAbc, "semantic": s.mk.truncSem}
+	}
 	secs := json.Number(strconv.FormatFloat(audioSecs, 'f', -1, 64))
 	out.AudioSeconds = &secs
 	gen := s.w.o.RenderDuration.Seconds()
@@ -571,9 +598,33 @@ func (u HTTPUploader) Put(ctx context.Context, target string, body []byte, diges
 	return u.do(ctx, http.MethodPut, target, body, http.Header{"Content-Type": {"application/octet-stream"}, "Content-Digest": {digest}})
 }
 
+// Get implements InputFetcher.
+func (u HTTPUploader) Get(ctx context.Context, target string) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return 0, nil, errors.New("fake: bad request URL")
+	}
+	resp, err := u.client().Do(req)
+	if err != nil {
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err // the URL carries the capability signature
+		}
+		return 0, nil, fmt.Errorf("fake: GET: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFetchBytes))
+	if err != nil {
+		return 0, nil, errors.New("fake: GET: read failed")
+	}
+	return resp.StatusCode, body, nil
+}
+
 // HandlerUploader invokes the upload and start http.Handlers directly, without sockets (the property
 // suite).
-type HandlerUploader struct{ UploadHandler, StartHandler http.Handler }
+//
+// FetchHandler, when set, serves the ACE-Step input fetches (the media route); without it Get answers 404.
+type HandlerUploader struct{ UploadHandler, StartHandler, FetchHandler http.Handler }
 
 type statusRecorder struct {
 	h    http.Header
@@ -616,4 +667,32 @@ func (h HandlerUploader) Start(ctx context.Context, target string, body []byte) 
 // Put implements Uploader.
 func (h HandlerUploader) Put(ctx context.Context, target string, body []byte, digest string) (int, error) {
 	return h.serve(ctx, h.UploadHandler, http.MethodPut, target, body, http.Header{"Content-Type": {"application/octet-stream"}, "Content-Digest": {digest}})
+}
+
+type bodyRecorder struct {
+	statusRecorder
+	buf bytes.Buffer
+}
+
+func (r *bodyRecorder) Write(b []byte) (int, error) {
+	r.WriteHeader(http.StatusOK)
+	return r.buf.Write(b)
+}
+
+// Get implements InputFetcher.
+func (h HandlerUploader) Get(ctx context.Context, target string) (int, []byte, error) {
+	if h.FetchHandler == nil {
+		return http.StatusNotFound, nil, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return 0, nil, errors.New("fake: bad request URL")
+	}
+	req.RequestURI = req.URL.RequestURI()
+	rec := &bodyRecorder{statusRecorder: statusRecorder{h: http.Header{}}}
+	h.FetchHandler.ServeHTTP(rec, req)
+	if rec.code == 0 {
+		rec.code = http.StatusOK
+	}
+	return rec.code, rec.buf.Bytes(), nil
 }

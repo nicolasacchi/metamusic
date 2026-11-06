@@ -1,0 +1,9 @@
+# float64 bit patterns (hex) of the master preset sections at 48 kHz: B0 B1 B2 A1 A2. linux/amd64, GOAMD64=v1.
+neutral.0 3fefed10cc24b72a bfffed10cc24b72a 3fefed10cc24b72a bfffed0b321906d4 3fefda2ccc60ceff
+warm.0 3fefed10cc24b72a bfffed10cc24b72a 3fefed10cc24b72a bfffed0b321906d4 3fefda2ccc60ceff
+warm.1 3ff004dac0405a28 bfff23d791f14977 3fee46e4a2034c3b bfff2406c8e48a40 3fee503bb49d7ef8
+warm.2 3fedada3b1acdcc6 bff5f2f45eb15f43 3fe0cab081aefd34 bff7fc8abd260787 3fe28b80f0452a82
+bright.0 3fefed10cc24b72a bfffed10cc24b72a 3fefed10cc24b72a bfffed0b321906d4 3fefda2ccc60ceff
+bright.1 3feff64d70b88374 bfff1a96e327bd0e 3fee470bfdcc5331 bfff1a67ba8365be 3fee3db7bfcd8545
+bright.2 3ff1406db81f0f72 bff9dcea1064f4a5 3fe3fee62ed141a8 bff7aa85f9cc95f9 3fe21af971dea334
+punch.0 3fefe948b3c0d71d bfffe948b3c0d71d 3fefe948b3c0d71d bfffe940a3ae6f44 3fefd2a187a67dec
