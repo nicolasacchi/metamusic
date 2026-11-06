@@ -446,3 +446,50 @@ func TestDspRun_Imports(t *testing.T) {
 		}
 	}
 }
+
+// TestDspRun_ScratchIsCleanedUp: the finishing stage's spool files live inside the work dir under fixed-pattern names and are
+// gone when the run ends, whether it succeeded or not; nothing else is left but the files of the protocol.
+func TestDspRun_ScratchIsCleanedUp(t *testing.T) {
+	t.Parallel()
+	skipHeavyDsp(t)
+	l, r := music(8, 2)
+	names := func(dir string) []string {
+		es, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, e := range es {
+			out = append(out, e.Name())
+		}
+		sort.Strings(out)
+		return out
+	}
+	dir := jobDir(t, map[string]any{"params": glacierParams}, [2][]float64{l, r})
+	if res := runChild(context.Background(), t, dir); res.code != 0 {
+		t.Fatalf("exit %d: %s", res.code, res.stderr)
+	}
+	if got, want := names(dir), []string{"in-0.f32", "job.json", "out.pcm24", "report.json"}; !slices.Equal(got, want) {
+		t.Errorf("work dir after a run: %v, want %v", got, want)
+	}
+	// a failure after the spools exist (a silent source is found in the first pass; a budget in the render) leaves none either
+	silent := make([]float64, 2*dspRate)
+	dir = jobDir(t, map[string]any{"params": glacierParams}, [2][]float64{silent, silent})
+	if res := runChild(context.Background(), t, dir); res.code != 12 {
+		t.Fatalf("exit %d: %s", res.code, res.stderr)
+	}
+	if got, want := names(dir), []string{"in-0.f32", "job.json"}; !slices.Equal(got, want) {
+		t.Errorf("work dir after a failed run: %v, want %v", got, want)
+	}
+	// a scratch name that is already taken is refused (O_EXCL), not overwritten: exit 13
+	dir = jobDir(t, map[string]any{"params": glacierParams}, [2][]float64{l, r})
+	if err := os.WriteFile(filepath.Join(dir, "spool-1.bin"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if res := runChild(context.Background(), t, dir); res.code != 13 {
+		t.Errorf("taken scratch name: exit %d: %s", res.code, res.stderr)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "spool-1.bin")); string(b) != "x" {
+		t.Error("a file in the work dir was overwritten")
+	}
+}

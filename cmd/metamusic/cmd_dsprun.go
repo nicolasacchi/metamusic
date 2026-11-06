@@ -137,29 +137,26 @@ func dspRun(ctx context.Context, dir string, progress io.Writer) error {
 	if job.RefLUFS != nil {
 		j.RefLUFS = *job.RefLUFS
 	}
-	out, rep, err := ops.Run(ctx, j)
-	if err != nil {
-		return mapRunError(err)
-	}
+	j.Scratch = &rootScratch{root: root}
 	f, err := root.OpenFile(dspOutFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("the output cannot be created")
 	}
 	bw := bufio.NewWriterSize(f, 1<<20)
-	sum, werr := pcm.WritePCM24(bw, out)
-	if werr == nil {
-		werr = bw.Flush()
+	rep, rerr := ops.RunTo(ctx, j, bw)
+	if rerr == nil {
+		rerr = bw.Flush()
 	}
-	if werr == nil {
-		werr = f.Sync()
+	if rerr == nil {
+		rerr = f.Sync()
 	}
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
+	if cerr := f.Close(); rerr == nil {
+		rerr = cerr
 	}
-	if werr != nil {
-		return fmt.Errorf("the output cannot be written")
+	if rerr != nil {
+		_ = root.Remove(dspOutFile) // a render that fails leaves no output behind
+		return mapRunError(rerr)
 	}
-	rep.PCMSHA256 = sum
 	raw, err := json.Marshal(rep)
 	if err != nil {
 		return fmt.Errorf("the report cannot be encoded")
@@ -169,6 +166,56 @@ func dspRun(ctx context.Context, dir string, progress io.Writer) error {
 	}
 	emit(1000, "finishing")
 	return nil
+}
+
+// rootScratch is the scratch storage of the finishing stage: spool files with fixed-pattern names inside the work dir, opened
+// through the same os.Root as everything else. The work dir is the supervisor's to remove, so a crash leaks nothing.
+type rootScratch struct {
+	root *os.Root
+	n    int
+}
+
+type rootSpool struct {
+	root *os.Root
+	name string
+	w    *os.File
+}
+
+func (s *rootScratch) NewSpool() (safety.Spool, error) {
+	s.n++
+	name := fmt.Sprintf("spool-%d.bin", s.n)
+	w, err := s.root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("a scratch file cannot be created")
+	}
+	return &rootSpool{root: s.root, name: name, w: w}, nil
+}
+
+func (p *rootSpool) Write(b []byte) (int, error) { return p.w.Write(b) }
+
+func (p *rootSpool) Open() (io.ReadCloser, error) {
+	if p.w != nil { // the first read ends the writing
+		if err := p.w.Close(); err != nil {
+			return nil, err
+		}
+		p.w = nil
+	}
+	f, err := p.root.Open(p.name)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{bufio.NewReaderSize(f, 1<<20), f}, nil
+}
+
+func (p *rootSpool) Close() error {
+	if p.w != nil {
+		_ = p.w.Close()
+		p.w = nil
+	}
+	return p.root.Remove(p.name)
 }
 
 // mapRunError turns an operator or dispatcher error into the child's exit code.
