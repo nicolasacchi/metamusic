@@ -27,15 +27,6 @@ type InputMinter interface {
 	MintInputs(ctx context.Context, request json.RawMessage, expires time.Time) (map[string]provider.InputRef, error)
 }
 
-// NewReconcilers builds one Reconciler per backend of set (D-E2-39): each owns its sweep cadence, initSince, unhealthySince,
-// restart counters, trips and billing source, all keyed by its backend. base carries the shared fields; gate holds each
-// backend's GateConfig. The runner lease and fencing stay global.
-//
-// STUB(E2-J1)
-func NewReconcilers(set *provider.Set, base ReconcilerOptions, gate map[string]provider.GateConfig) ([]*Reconciler, error) {
-	return nil, ErrE2NotImplemented
-}
-
 // ProviderStatuses is get_provider_status over every backend: the default backend's M3 object, one object per backend and
 // the global worker bound (C151.3, C151.5).
 type ProviderStatuses struct {
@@ -48,13 +39,6 @@ type ProviderStatuses struct {
 type GlobalBoundView struct {
 	GMicroPerHour, XMicro money.MicroUSD
 	Backends              []string // the backends with live workers.max > 0
-}
-
-// UseBackends wires the per-backend sweep snapshots and capabilities next to the Gates of ProviderOptions.
-//
-// STUB(E2-J1)
-func (a *ProviderAdmin) UseBackends(gates *provider.GateSet, sweeps map[string]func() SweepSnapshot, caps map[string]func() provider.Capabilities) {
-	panic("STUB(E2-J1): ProviderAdmin.UseBackends")
 }
 
 // StatusAll reads every backend's status and the global bound.

@@ -24,6 +24,9 @@ type PreflightOptions struct {
 	NewID     func() string
 	// Free reports the bytes available under dir; nil => the file system's (statfs).
 	Free func(dir string) (uint64, error)
+	// CheckMedia adds the media-route check an engine with fetchable inputs needs (C153.3): the worker GETs the signed
+	// /media/ links of an edit's source and reference audio through the public URL. Off keeps the M3 preflight exactly.
+	CheckMedia bool
 }
 
 // NewPreflight returns the Runner's Preflight func: free disk under DataDir must cover every open upload
@@ -48,8 +51,39 @@ func NewPreflight(o PreflightOptions) func(ctx context.Context, inFlightMaxBytes
 		if free < need {
 			return &PreflightError{Check: "disk", Err: fmt.Errorf("%d bytes free, %d needed", free, need)}
 		}
-		return checkRoute(ctx, o)
+		if err := checkRoute(ctx, o); err != nil {
+			return err
+		}
+		if o.CheckMedia {
+			return checkMediaRoute(ctx, o)
+		}
+		return nil
 	}
+}
+
+// unsignedMediaPath is a well-formed media path no signature can match: the route answers it 403 MEDIA_LINK_INVALID before
+// it looks at storage, so the probe proves the route reaches this process without touching a file.
+const unsignedMediaPath = "/media/0000000000000000000000000000000000000000000000000000000000000000.flac"
+
+// checkMediaRoute GETs an unsigned media link through the public URL and expects the 403 problem of an invalid link.
+func checkMediaRoute(ctx context.Context, o PreflightOptions) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(o.PublicURL, "/")+unsignedMediaPath, http.NoBody)
+	if err != nil {
+		return &PreflightError{Check: "media", Err: errors.New("invalid public URL")}
+	}
+	resp, err := o.HTTP.Do(req)
+	if err != nil {
+		return &PreflightError{Check: "media", Err: errors.New(redact.Error(err))}
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+	var p struct {
+		Code string `json:"code"`
+	}
+	if resp.StatusCode != http.StatusForbidden || json.Unmarshal(body, &p) != nil || p.Code != "MEDIA_LINK_INVALID" {
+		return &PreflightError{Check: "media", Err: fmt.Errorf("media route answered %d, not the expected 403 problem", resp.StatusCode)}
+	}
+	return nil
 }
 
 // checkRoute PUTs nothing to a random upload id through the public URL. The upload handler answers a link

@@ -40,6 +40,11 @@ type ProviderOptions struct {
 type ProviderAdmin struct {
 	o  ProviderOptions
 	mu sync.RWMutex
+
+	// E2 (C151.3): the per-backend gates, sweep snapshots and capabilities (UseBackends); nil in an M3 process.
+	gates  *provider.GateSet
+	sweeps map[string]func() SweepSnapshot
+	caps   map[string]func() provider.Capabilities
 }
 
 // NewProviderAdmin builds the service.
@@ -62,6 +67,46 @@ func (a *ProviderAdmin) UseCapabilities(f func() provider.Capabilities) {
 	a.mu.Lock()
 	a.o.Capabilities = f
 	a.mu.Unlock()
+}
+
+// UseBackends wires the per-backend gates, sweep snapshots and capabilities next to the default ones of ProviderOptions
+// (C151.3): Update then changes the backend UpdateIn names, and statusFor reads that backend's own state. Maps are keyed by
+// backend name; a backend without an entry shows no worker data.
+func (a *ProviderAdmin) UseBackends(gates *provider.GateSet, sweeps map[string]func() SweepSnapshot, caps map[string]func() provider.Capabilities) {
+	a.mu.Lock()
+	a.gates, a.sweeps, a.caps = gates, sweeps, caps
+	a.mu.Unlock()
+}
+
+// resolve returns the gate, sweep and capabilities of the named backend ("" = the default backend, as in M3). An unknown
+// backend is provider.ErrNoBackend.
+func (a *ProviderAdmin) resolve(backend string) (*provider.Gate, func() SweepSnapshot, func() provider.Capabilities, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if backend == "" || (a.o.Gate != nil && a.o.Gate.Config().BackendName() == backend) {
+		sweep, caps := a.o.Sweep, a.o.Capabilities
+		if f, ok := a.sweeps[backend]; ok && backend != "" {
+			sweep = f
+		}
+		if f, ok := a.caps[backend]; ok && backend != "" {
+			caps = f
+		}
+		return a.o.Gate, sweep, caps, nil
+	}
+	g, ok := a.gates.For(backend)
+	if !ok {
+		return nil, nil, nil, provider.ErrNoBackend
+	}
+	return g, a.sweeps[backend], a.caps[backend], nil
+}
+
+// statusFor is Status for one backend ("" = the default); OP's StatusFor and StatusAll are built on it.
+func (a *ProviderAdmin) statusFor(ctx context.Context, backend string) (ProviderStatus, error) {
+	g, sweep, caps, err := a.resolve(backend)
+	if err != nil {
+		return ProviderStatus{}, err
+	}
+	return a.statusOf(ctx, g, sweep, caps)
 }
 
 // TripInfo is one provider trip.
@@ -148,15 +193,23 @@ func (a *ProviderAdmin) Status(ctx context.Context, viewer auth.Principal) (Prov
 	if a.o.Store == nil || a.o.Gate == nil {
 		return ProviderStatus{}, errors.ErrUnsupported
 	}
-	st, err := a.o.Gate.State(ctx)
-	if err != nil {
-		return ProviderStatus{}, err
-	}
 	a.mu.RLock()
 	sweep, caps := a.o.Sweep, a.o.Capabilities
 	a.mu.RUnlock()
-	out := ProviderStatus{State: st, QuoteObservedAt: st.QuoteAt, ColdStartS: a.o.Gate.Config().ColdStartS, KillSlackS: a.o.KillSlackS,
-		MaxRuntimeS: int(a.o.Gate.Config().MaxRuntime / time.Second), TTLS: int(a.o.TTL / time.Second), PriceMarginPPM: a.o.PriceMarginPPM,
+	return a.statusOf(ctx, a.o.Gate, sweep, caps)
+}
+
+// statusOf reads the status of the backend behind gate.
+func (a *ProviderAdmin) statusOf(ctx context.Context, gate *provider.Gate, sweep func() SweepSnapshot, caps func() provider.Capabilities) (ProviderStatus, error) {
+	if a.o.Store == nil || gate == nil {
+		return ProviderStatus{}, errors.ErrUnsupported
+	}
+	st, err := gate.State(ctx)
+	if err != nil {
+		return ProviderStatus{}, err
+	}
+	out := ProviderStatus{State: st, QuoteObservedAt: st.QuoteAt, ColdStartS: gate.Config().ColdStartS, KillSlackS: a.o.KillSlackS,
+		MaxRuntimeS: int(gate.Config().MaxRuntime / time.Second), TTLS: int(a.o.TTL / time.Second), PriceMarginPPM: a.o.PriceMarginPPM,
 		Capability: provider.Capabilities{Billing: "none"}}
 	if caps != nil {
 		out.Capability = caps()
@@ -333,7 +386,11 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 	if in.Armed == nil && !in.ResetTrip {
 		return ProviderStatus{}, ErrNothingToChange
 	}
-	st, err := a.o.Gate.State(ctx)
+	gate, _, _, err := a.resolve(in.Backend)
+	if err != nil {
+		return ProviderStatus{}, err
+	}
+	st, err := gate.State(ctx)
 	if err != nil {
 		return ProviderStatus{}, err
 	}
@@ -382,6 +439,9 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 	})
 	if err != nil {
 		return ProviderStatus{}, err
+	}
+	if in.Backend != "" {
+		return a.statusFor(ctx, in.Backend)
 	}
 	return a.Status(ctx, p)
 }

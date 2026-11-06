@@ -89,10 +89,17 @@ const (
 	FaultAfterReserveCommit = "after_reserve_commit"
 )
 
-// Runner executes the job state machine.
+// Runner executes the job state machine. The mutable state lives in rstate so that the per-backend views of a multi-backend
+// process (claim.go) share it: a view is a Runner whose options name one backend of the Set.
 type Runner struct {
+	*rstate
 	o RunnerOptions
+	// scoped marks a view of a multi-backend runner: its gate also refuses a quote observed for another backend.
+	scoped bool
+}
 
+// rstate is the runner state shared by every view (one lease, one ingest pool, one poll/cancel clock).
+type rstate struct {
 	mu         sync.Mutex
 	held       bool
 	leaseUntil time.Time
@@ -131,10 +138,23 @@ func NewRunner(o RunnerOptions) *Runner {
 	if o.NewID == nil {
 		o.NewID = newUUID
 	}
-	return &Runner{
-		o: o, wakeCh: make(chan struct{}, 1), pool: newPool(o.IngestWorkers),
+	if o.Backends != nil && o.Backend == nil {
+		o.Backend = o.Backends.Default()
+	}
+	return &Runner{o: o, rstate: &rstate{
+		wakeCh: make(chan struct{}, 1), pool: newPool(o.IngestWorkers),
 		lastPoll: map[string]time.Time{}, holdPoll: map[string]time.Time{}, lastCancel: map[string]time.Time{}, cancelWarned: map[string]bool{},
 		seenResult: map[string]bool{}, promoted: map[string]bool{}, idleWarned: map[string]bool{}, preflightMsg: map[string]time.Time{},
+	}}
+}
+
+// UseSet puts the runner over a backend Set (C151.2): a tick then claims for every backend of the set that is armed, untripped,
+// quoted and preflighted, and polls/cancels each attempt on the backend it was submitted to. gates holds each backend's
+// GateConfig (cold start and runtime for the quote check); expects the pinned weights per engine. Call it before Run.
+func (r *Runner) UseSet(set *provider.Set, gates *provider.GateSet, expects map[string]provider.WorkerExpect) {
+	r.o.Backends, r.o.Gates, r.o.Expects = set, gates, expects
+	if set != nil && r.o.Backend == nil {
+		r.o.Backend = set.Default()
 	}
 }
 
