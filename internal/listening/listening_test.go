@@ -253,3 +253,31 @@ func TestListening_SourceSubsonic(t *testing.T) {
 		t.Fatal("unknown source accepted")
 	}
 }
+
+// TestListen_RewindStored: a backward seek (the client's rewind) is accepted and stored normalised with the rewind detail,
+// a backward segment is still rejected, and Unnormalise restores what the client sent.
+func TestListen_RewindStored(t *testing.T) {
+	t.Parallel()
+	s, st := newSvc(t)
+	track := lt.TrackLuna
+	rew, seg := ev(1, "seek"), ev(2, "segment")
+	rew.TrackID, seg.TrackID = track, track
+	rew.FromMS, rew.ToMS = i64(9000), i64(2000)
+	seg.FromMS, seg.ToMS = i64(9000), i64(2000)
+	acc, _, rej, err := s.Log(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}, "web", []listening.Event{rew, seg})
+	if err != nil || acc != 1 || len(rej) != 1 || rej[0].ID != seg.ID || rej[0].Code != "bad_range" {
+		t.Fatalf("accepted %d rejected %v err %v", acc, rej, err)
+	}
+	var from, to int64
+	var detail string
+	if err := st.R.QueryRow(`SELECT from_ms, to_ms, detail FROM listen_events WHERE id = ?`, rew.ID).Scan(&from, &to, &detail); err != nil {
+		t.Fatal(err)
+	}
+	if from != 2000 || to != 9000 || detail != listening.RewindDetail {
+		t.Errorf("stored %d %d %q", from, to, detail)
+	}
+	got := listening.Unnormalise(listening.Event{Kind: "seek", FromMS: &from, ToMS: &to, Detail: &detail})
+	if *got.FromMS != 9000 || *got.ToMS != 2000 || got.Detail != nil {
+		t.Errorf("unnormalised %d %d %v", *got.FromMS, *got.ToMS, got.Detail)
+	}
+}

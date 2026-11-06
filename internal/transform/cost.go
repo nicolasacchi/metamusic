@@ -5,7 +5,6 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/nicolasacchi/metamusic/internal/dsp/align"
 	"github.com/nicolasacchi/metamusic/internal/dsp/ir"
 	"github.com/nicolasacchi/metamusic/internal/dsp/ops"
 )
@@ -31,14 +30,8 @@ type CostConstants struct {
 // SafetyUnitsPerFrame is 700, measured by lane H1 (ops.SafetyUnits; was 30 in the plan). T1-B2b.
 var DefaultCosts = CostConstants{NSPerUnitMilli: 1200, DecodeMSPerS: 3, EncodeMSPerS: 10, IngestMSPerS: 30, ToolMSPerS: 40, SafetyUnitsPerFrame: ops.SafetyUnits(1)}
 
-// The phase-vocoder geometry the unit model assumes. PROVISIONAL(T1-X0 step 5 / lane D2): D2 may choose another window; the
-// model then moves with it. A frame advances by pvWindow/pvHopDiv samples.
-const (
-	pvWindow = 4096
-	pvHopDiv = 4
-	// maxUnits keeps 13 x units x NSPerUnitMilli inside int64.
-	maxUnits = int64(1) << 50
-)
+// maxUnits keeps 13 x units x NSPerUnitMilli inside int64.
+const maxUnits = int64(1) << 50
 
 // CPUPlan is the answer of the CPU model for one transform.
 type CPUPlan struct {
@@ -106,41 +99,18 @@ func nextPow2(n int64) int64 {
 	return int64(1) << bits.Len64(uint64(n-1))
 }
 
-// fftUnits is FFT(n) = 5 n log2 n.
-func fftUnits(n int64) int64 { return 5 * n * log2Ceil(n) }
-
-// pvFrames is the number of phase-vocoder frames over n output samples.
-func pvFrames(n int64) int64 { return ceilDiv(n, pvWindow/pvHopDiv) + 1 }
-
 func safetyUnits(outFrames int64) int64 { return DefaultCosts.SafetyUnitsPerFrame * outFrames }
 
-// pvUnits is one processed signal: frames x channels x (3 FFT(N) + 40 N) (the morph/polytempo per-signal cost).
-func pvSignalUnits(frames int64, ch int) int64 {
-	return pvFrames(frames) * int64(ch) * (3*fftUnits(pvWindow) + 40*pvWindow)
-}
-
-// unitsMorph: the three processed signals of the transition (A stretch, B stretch, B shift) cost PV units; the verbatim head
-// and tail are copies. UnitsIn.OutFrames is the whole output; the transition length comes from the resolved parameters.
-func unitsMorph(in UnitsIn) int64 {
-	m := paramsMap(in.Resolved)
-	trans := rampFrames(m, in.Rate)
-	return 3*pvSignalUnits(trans, in.Channels) + safetyUnits(in.OutFrames)
-}
-
-// unitsPolytempo: B is stretched over the whole overlap; A is a copy; plus a mix of 10 units per frame and channel.
-func unitsPolytempo(in UnitsIn) int64 {
-	return pvSignalUnits(in.OutFrames, in.Channels) + 10*in.OutFrames*int64(in.Channels) + safetyUnits(in.OutFrames)
-}
-
-// unitsGlacier is D4's GlacierUnits (the operator's own price of C209.1) plus safety.
-func unitsGlacier(in UnitsIn) int64 {
-	return ops.GlacierUnits(in.OutFrames, in.Rate, paramFloat(paramsMap(in.Resolved), "window_s", 0.5)) + safetyUnits(in.OutFrames)
-}
-
-// unitsShepard: F x ch x ((1 + layers) FFT(N) + layers x 40 N).
-func unitsShepard(in UnitsIn) int64 {
-	layers := int64(paramInt(paramsMap(in.Resolved), "layers", 5))
-	return pvFrames(in.OutFrames)*int64(in.Channels)*((1+layers)*fftUnits(pvWindow)+layers*40*pvWindow) + safetyUnits(in.OutFrames)
+// opsUnits is the work-unit model of a whole render of kind: D5's ops.Units (the operator's registered model plus safety for
+// the kinds that do not finish themselves), so the estimate and the work meter agree by construction (T1-B2c; the plan's own
+// formulas were replaced by the operators' prices). A kind ops does not register costs safety alone.
+func opsUnits(kind Kind) func(UnitsIn) int64 {
+	return func(in UnitsIn) int64 {
+		if u, ok := ops.Units(string(kind), in.InFrames, in.OutFrames, in.Rate, in.Resolved); ok {
+			return u
+		}
+		return safetyUnits(in.OutFrames)
+	}
 }
 
 // ensembleTailFrames is the room tail the estimate assumes: D4's upper bound of the generated tail (ir.TailBound: pre-delay,
@@ -154,25 +124,6 @@ func ensembleTailFrames(m map[string]json.RawMessage, rate int) int64 {
 	return int64(min(ir.TailBound(room, rate), int(math.Round(paramFloat(m, "tail_s", 20)*float64(rate)))))
 }
 
-// unitsEnsemble is D4's EnsembleUnits (voices, room, convolution) plus safety.
-func unitsEnsemble(in UnitsIn) int64 {
-	m := paramsMap(in.Resolved)
-	return ops.EnsembleUnits(in.InFrames, in.Rate, ops.EnsembleParams{Space: paramString(m, "space"), TailS: paramFloat(m, "tail_s", 20)}) + safetyUnits(in.OutFrames)
-}
-
-// rampFrames is the length in frames of the morph transition: ramp.Total() of C204.6 for the resolved bars, tempos and
-// beats per bar.
-func rampFrames(m map[string]json.RawMessage, rate int) int64 {
-	bars := paramInt(m, "bars", 8)
-	bpb := paramInt(m, "beats_per_bar", 4)
-	t0 := paramFloat(m, "bpm_a", 0)
-	t1 := paramFloat(m, "bpm_b", 0)
-	if t0 <= 0 || t1 <= 0 {
-		return 0
-	}
-	return int64(math.Ceil(align.Ramp{T0: t0, T1: t1, Beats: float64(bars * bpb)}.Total() * float64(rate)))
-}
-
 // planCPU turns the unit model of a kind into the CPU plan of one transform.
 func planCPU(c CostConstants, spec KindSpec, u UnitsIn, inMS int64, maxCPUS int) CPUPlan {
 	units := spec.Units(u)
@@ -180,6 +131,43 @@ func planCPU(c CostConstants, spec KindSpec, u UnitsIn, inMS int64, maxCPUS int)
 	exp := c.ExpectedMS(units, inMS, outMS, spec.Kind == KindScoreRender)
 	return CPUPlan{
 		Units: units, ExpectedMS: exp, MaxMS: BudgetMS(exp, maxCPUS),
-		MemMB: MemoryMB(u.InFrames, u.OutFrames, spec.MemFactor), OutBytes: OutBytesEst(u.OutFrames),
+		MemMB: kindMemoryMB(spec, u), OutBytes: OutBytesEst(u.OutFrames),
 	}
+}
+
+// The streamed finish keeps scratch in the work dir (D5, measured): glacier 16 (raw spool) + 8 (detector) + 16 (limited
+// signal) = 40 bytes a frame, every other kind 24, and out.pcm24 adds 6. T1-B2c.
+const (
+	scratchBytesGlacier = 40
+	scratchBytesOther   = 24
+	pcm24Bytes          = 6
+)
+
+// DiskBytesNeeded is the free space a render of outFrames frames needs under DataDir: the child's scratch and out.pcm24, then the
+// FLAC encode and the ingested copy (twice out_bytes_est). It replaces the plan's 3 x out_bytes_est (about 11.7 bytes a frame,
+// which a 600 s glacier passed and then ran out of disk).
+func DiskBytesNeeded(kind Kind, outFrames int64) int64 {
+	scratch := int64(scratchBytesOther)
+	if kind == KindGlacier {
+		scratch = scratchBytesGlacier
+	}
+	return (scratch+pcm24Bytes)*outFrames + 2*OutBytesEst(outFrames)
+}
+
+// shepardBankMB is D4's bound on the voice signals one phase-vocoder bank call keeps alive (ops: 384 MiB), which dominates a
+// long shepard. Measured by D5: the default shepard (120 s out, 5 layers) peaks at 780 MiB resident.
+const shepardBankMB = 384
+
+// kindMemoryMB is mem_mb_est (C209.4) with the per-kind corrections measured by D5 (T1-B2c): glacier streams through
+// safety.FinishStream, so it holds the input and a window (124 MiB peak for 600 s of output), not its output; shepard adds the
+// voice-group buffers of the bank on top of the generic model (estimate 840 MiB against 780 measured for the default).
+func kindMemoryMB(spec KindSpec, u UnitsIn) int64 {
+	switch spec.Kind {
+	case KindGlacier:
+		n := nextPow2(int64(math.Round(paramFloat(paramsMap(u.Resolved), "window_s", 0.5) * float64(u.Rate))))
+		return MemoryMB(u.InFrames+8*n, 0, 0)
+	case KindShepard:
+		return MemoryMB(u.InFrames, u.OutFrames, spec.MemFactor) + shepardBankMB
+	}
+	return MemoryMB(u.InFrames, u.OutFrames, spec.MemFactor)
 }
