@@ -185,7 +185,8 @@ export async function overflowX(page: Page): Promise<{ scroll: number; client: n
     for (const el of document.body.querySelectorAll<HTMLElement>("*")) {
       const cs = getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || cs.position === "fixed") continue;
-      if (el.closest("[inert], [hidden], dialog:not([open]), svg, canvas, audio")) continue;
+      // the app shell (tab bar, top nav) is not the page under test; a real overflow still shows in `scroll`
+      if (el.closest("[inert], [hidden], dialog:not([open]), svg, canvas, audio, nav")) continue;
       // the content of a closed <details> keeps a box (content-visibility) but is not on screen
       const closed = el.closest("details:not([open])");
       if (closed && !el.closest("summary")) continue;

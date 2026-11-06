@@ -166,7 +166,7 @@ test("an agent can propose through the same operation; the panel shows the patch
       agent,
       "POST",
       "/api/patches",
-      { base_track_id: base.id, addresses_comment_ids: [fix.id], rationale: "e2e agent: shorten it", ops: [replaceLine(0, 0, "la la")] },
+      { base_track_id: base.id, addresses_comment_ids: [fix.id], rationale: "e2e agent: shorten it", ops: [replaceLine(0, 0, "la la la la")] },
       true,
     );
     expect(made.author.kind).toBe("agent");
