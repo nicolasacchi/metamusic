@@ -2,7 +2,11 @@
   // Stems of a take (E2-W5): play and download each stem through the signed media links. Renders nothing for a take without stems.
   import { api } from "../../api/client";
   import type { components } from "../../api/schema";
+  import { fetchClip } from "../../api/media";
+  import { getAudioContext } from "../audioContext";
+  import type { Lease } from "../audioFocus";
   import { player } from "../player.svelte";
+  import { onDestroy } from "svelte";
 
   type StemLink = components["schemas"]["StemLink"];
   interface Props {
@@ -13,7 +17,14 @@
 
   let links = $state<StemLink[]>([]);
   let error = $state("");
-  let audios = $state<Record<string, HTMLAudioElement | undefined>>({});
+  // Stems play through Web Audio on the shared context, never a second audio element (one element app-wide, iOS).
+  // Starting one borrows the output from the take player (audio focus) and stops any other stem.
+  let playing = $state<string | null>(null);
+  let loading = $state<string | null>(null);
+  const buffers: Record<string, AudioBuffer | undefined> = {};
+  let source: AudioBufferSourceNode | null = null;
+  let lease: Lease | null = null;
+  let token = 0;
 
   $effect(() => {
     const id = trackId;
@@ -34,10 +45,72 @@
 
   const label = (n: string) => n.replaceAll("_", " ");
 
-  // One thing at a time: starting a stem pauses the take player and the other stems.
-  function onplay(name: string) {
-    if (player.state.playing) player.toggle();
-    for (const [k, a] of Object.entries(audios)) if (k !== name) a?.pause();
+  function stop() {
+    token++;
+    const src = source;
+    source = null;
+    if (src) {
+      src.onended = null;
+      try {
+        src.stop();
+      } catch {
+        // already stopped
+      }
+      src.disconnect();
+    }
+    playing = null;
+    loading = null;
+    lease?.release();
+    lease = null;
+  }
+  onDestroy(stop);
+  $effect(() => {
+    void trackId;
+    for (const k of Object.keys(buffers)) delete buffers[k];
+    return stop;
+  });
+
+  async function toggle(l: StemLink) {
+    if (playing === l.name || loading === l.name) {
+      stop();
+      return;
+    }
+    stop();
+    const my = token;
+    let ctx: AudioContext;
+    try {
+      ctx = getAudioContext();
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Playback is not available here.";
+      return;
+    }
+    void ctx.resume().catch(() => {}); // inside the click, before any await (iOS)
+    lease = player.acquireFocus("stems", { handlers: { play: () => void toggle(l), pause: () => stop(), playing: () => playing !== null }, onEnd: () => void ctx.suspend().catch(() => {}) });
+    loading = l.name;
+    error = "";
+    try {
+      let buf = buffers[l.name];
+      if (!buf) {
+        buf = await ctx.decodeAudioData(await fetchClip(l.url));
+        buffers[l.name] = buf;
+      }
+      if (my !== token) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.onended = () => {
+        if (my === token) stop();
+      };
+      src.start();
+      source = src;
+      playing = l.name;
+      loading = null;
+      lease?.changed();
+    } catch (e) {
+      if (my !== token) return;
+      stop();
+      error = e instanceof Error ? e.message : "Could not play the stem.";
+    }
   }
 </script>
 
@@ -49,7 +122,9 @@
       {#each links as s (s.name)}
         <li data-testid="stem-{s.name}">
           <span class="name">{label(s.name)}</span>
-          <audio controls preload="none" src={s.url} bind:this={audios[s.name]} onplay={() => onplay(s.name)}></audio>
+          <button type="button" class="play" aria-pressed={playing === s.name} onclick={() => void toggle(s)} data-testid="stem-play-{s.name}">
+            {playing === s.name ? "Stop" : loading === s.name ? "Loading…" : "Play"}
+          </button>
           <a class="dl" href={s.url} download data-testid="stem-download-{s.name}">Download</a>
         </li>
       {/each}
@@ -82,14 +157,14 @@
     padding: 0.2rem 0;
   }
   .name {
-    flex: 1 1 100%;
     text-transform: capitalize;
   }
-  audio {
-    flex: 1 1 12rem;
-    min-width: 0;
-    max-width: 100%;
+  .name {
+    flex: 1 1 8rem;
+  }
+  .play {
     min-height: 44px;
+    min-width: 44px;
   }
   .dl {
     display: inline-flex;
