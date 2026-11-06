@@ -1,7 +1,8 @@
-// matrix: @firefox because the recorder picks its container per engine (WebM/Opus on Chrome, Ogg or WebM on Firefox) and the server must decode both
-// M5 INT-W: the voice recorder under the comment composer. The microphone is a synthetic tone: the page's getUserMedia is
-// replaced by an oscillator stream (no hardware, no audio file in the repo), the browser's own MediaRecorder records it, and the
-// bytes are a real recording the real server decodes. The save is only reachable from the recorded state through the Save button.
+// matrix: @firefox because MediaRecorder and getUserMedia are engine APIs the recorder feature-checks; its states and uploads run on Chrome and Firefox (the real recording is Chrome's, m5-voice-save)
+// M5 INT-W: the voice recorder under the comment composer. MediaRecorder and the microphone are stubbed in the page: a fake
+// recorder hands over a synthetic blob (2 KiB of one byte value, no audio) when stopped, and a fake stream counts the stops of its
+// tracks. What is asserted is the recorder's own contract: nothing is requested until Save, the microphone is released on stop,
+// Save sends the recording once with its pin and kind, and the 501/503 answers read as "not available".
 import { expect, test, type Page } from "./fixtures";
 import { audioTime, trackByTitle } from "./helpers";
 import { comments, watchM5 } from "./m5Api";
@@ -14,61 +15,102 @@ declare global {
   }
 }
 
-/** A tone instead of a microphone: getUserMedia answers with the stream of an oscillator, and counts opens and stops. */
-async function fakeMic(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+const BLOB_BYTES = 2048;
+
+/** A stub recorder and microphone: getUserMedia answers with a fake stream, MediaRecorder hands over BLOB_BYTES of 7 on stop. */
+async function fakeRecorder(page: Page): Promise<void> {
+  await page.addInitScript((size) => {
     window.__mic = { opened: 0, stopped: 0 };
-    const md = navigator.mediaDevices;
-    md.getUserMedia = async () => {
-      const ctx = new AudioContext();
-      await ctx.resume();
-      const osc = ctx.createOscillator();
-      osc.frequency.value = 440;
-      const dest = ctx.createMediaStreamDestination();
-      osc.connect(dest);
-      osc.start();
-      window.__mic.opened++;
-      const stream = dest.stream;
-      for (const t of stream.getTracks()) {
-        const stop = t.stop.bind(t);
-        t.stop = () => {
-          window.__mic.stopped++;
-          osc.stop();
-          void ctx.close();
-          stop();
-        };
-      }
-      return stream;
+    const track = {
+      stop: () => {
+        window.__mic.stopped++;
+      },
     };
-  });
+    const stream = { getTracks: () => [track] };
+    navigator.mediaDevices.getUserMedia = async () => {
+      window.__mic.opened++;
+      return stream as unknown as MediaStream;
+    };
+    class FakeRecorder {
+      static isTypeSupported(): boolean {
+        return true;
+      }
+      state = "inactive";
+      mimeType: string;
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      constructor(_stream: unknown, opts?: { mimeType?: string }) {
+        this.mimeType = opts?.mimeType ?? "audio/webm;codecs=opus";
+      }
+      start(): void {
+        this.state = "recording";
+      }
+      stop(): void {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob([new Uint8Array(size).fill(7)], { type: this.mimeType }) });
+        this.onstop?.();
+      }
+    }
+    Object.defineProperty(window, "MediaRecorder", { value: FakeRecorder, configurable: true, writable: true });
+  }, BLOB_BYTES);
 }
 
 const recorder = (page: Page) => page.getByTestId("voice-recorder");
 
-/** Records about a second of the tone and stops; leaves the recorder in its recorded state. */
+/** Records about a second and stops; leaves the recorder in its recorded state. */
 async function recordSecond(page: Page): Promise<void> {
   await page.getByTestId("voice-record").click();
-  // the first AudioContext of a cold Firefox can take several seconds
-  await expect(recorder(page)).toHaveAttribute("data-state", "recording", { timeout: 30_000 });
+  await expect(recorder(page)).toHaveAttribute("data-state", "recording");
   await expect(page.getByTestId("voice-timer")).toContainText("of 2:00");
   await page.waitForTimeout(1200);
   await page.getByTestId("voice-stop").click();
   await expect(recorder(page)).toHaveAttribute("data-state", "recorded");
 }
 
-/** Counts the uploads the page sends. */
-function countUploads(page: Page): { n: () => number } {
-  let n = 0;
-  page.on("request", (r) => {
-    if (r.method() === "POST" && new URL(r.url()).pathname.endsWith("/voice-notes")) n++;
+interface Upload {
+  audio_base64: string;
+  at_second?: number | null;
+  kind?: string;
+  key: string;
+}
+
+/** Answers the upload with a created comment and keeps what the page sent. */
+async function acceptUploads(page: Page, trackId: string): Promise<Upload[]> {
+  const sent: Upload[] = [];
+  await page.route("**/voice-notes", async (route) => {
+    const body = route.request().postDataJSON() as Omit<Upload, "key">;
+    sent.push({ ...body, key: route.request().headers()["idempotency-key"] ?? "" });
+    const now = new Date().toISOString();
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: `00000000-0000-7000-8000-${String(sent.length).padStart(12, "0")}`,
+        track_id: trackId,
+        body: "[voice note 0:01]",
+        at_second: body.at_second ?? null,
+        link: "",
+        url: "",
+        section: null,
+        kind: body.kind ?? "note",
+        state: "open",
+        source: "web",
+        author: { kind: "human", id: "human:e2e", name: "e2e" },
+        created_at: now,
+        updated_at: now,
+        edited_at: null,
+        state_changed_at: null,
+        hidden: false,
+      }),
+    });
   });
-  return { n: () => n };
+  return sent;
 }
 
 test("the recorder mounts idle under the composer and sends nothing by itself", async ({ page, request }) => {
   const watch = watchM5(page);
-  await fakeMic(page);
-  const uploads = countUploads(page);
+  await fakeRecorder(page);
+  const sent = await acceptUploads(page, "none");
   const t = await trackByTitle(request, "Syn song 03");
   await page.goto(`/tracks/${t.id}`);
   const rec = recorder(page);
@@ -82,26 +124,26 @@ test("the recorder mounts idle under the composer and sends nothing by itself", 
   const recBox = await rec.boundingBox();
   expect(recBox?.y ?? 0).toBeGreaterThan((composerBox?.y ?? 0) + (composerBox?.height ?? 0) - 1);
   expect(await page.evaluate(() => window.__mic.opened)).toBe(0); // no microphone until the user presses Record
-  expect(uploads.n()).toBe(0);
+  expect(sent).toHaveLength(0);
 
   // reference takes take comments too, so they get the recorder
   const ref = await trackByTitle(request, "Syn ref a");
   await page.goto(`/tracks/${ref.id}`);
   await expect(recorder(page)).toHaveAttribute("data-state", "idle");
-  expect(uploads.n()).toBe(0);
+  expect(sent).toHaveLength(0);
   expect(watch.problems()).toEqual([]);
 });
 
 test("record, stop (the microphone is released), discard: nothing is uploaded", async ({ page, request }) => {
   const watch = watchM5(page);
-  await fakeMic(page);
-  const uploads = countUploads(page);
+  await fakeRecorder(page);
   const t = await trackByTitle(request, "Syn song 03");
+  const sent = await acceptUploads(page, t.id);
   const before = (await comments(request, t.id)).length;
   await page.goto(`/tracks/${t.id}`);
   await recordSecond(page);
   expect(await page.evaluate(() => window.__mic.opened)).toBe(1);
-  expect(await page.evaluate(() => window.__mic.stopped)).toBeGreaterThanOrEqual(1); // released on stop, not on leaving the page
+  expect(await page.evaluate(() => window.__mic.stopped)).toBe(1); // released on stop, not on leaving the page
   await expect(page.getByTestId("voice-recorded")).toContainText(/Recorded 0:0[0-9]/);
   await expect(page.getByTestId("voice-save")).toBeVisible();
   await expect(page.getByTestId("voice-kind")).toHaveValue("note");
@@ -109,43 +151,40 @@ test("record, stop (the microphone is released), discard: nothing is uploaded", 
   await expect(recorder(page)).toHaveAttribute("data-state", "idle");
   await page.reload(); // leaving the page with a recording unsaved sends nothing either
   await expect(recorder(page)).toHaveAttribute("data-state", "idle");
-  expect(uploads.n()).toBe(0);
+  expect(sent).toHaveLength(0);
   expect((await comments(request, t.id)).length).toBe(before);
   expect(watch.problems()).toEqual([]);
 });
 
-test("Save uploads the recording once, and the voice note appears in the comments", async ({ page, request }) => {
+test("Save sends the recording once, with its kind and a key, and reloads the comments", async ({ page, request }) => {
   const watch = watchM5(page);
-  await fakeMic(page);
-  const uploads = countUploads(page);
+  await fakeRecorder(page);
   const t = await trackByTitle(request, "Syn song 03");
-  const before = (await comments(request, t.id)).filter((c) => c.voice).length;
+  const sent = await acceptUploads(page, t.id);
   await page.goto(`/tracks/${t.id}`);
   await recordSecond(page);
-  expect(uploads.n()).toBe(0); // stopping is not saving
-  const saved = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname.endsWith("/voice-notes"));
+  expect(sent).toHaveLength(0); // stopping is not saving
+  const listed = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/tracks/${t.id}/comments` && r.request().method() === "GET");
+  await page.getByTestId("voice-kind").selectOption("keep");
   await page.getByTestId("voice-save").click();
-  const resp = await saved;
-  expect(resp.ok(), `create_voice_note answered ${resp.status()}: ${await resp.text()}`).toBe(true);
   await expect(page.getByTestId("voice-saved")).toBeVisible();
   await expect(recorder(page)).toHaveAttribute("data-state", "saved");
   await expect(page.getByTestId("voice-record")).toHaveText("Record another");
-  expect(uploads.n()).toBe(1);
-
-  const voiced = (await comments(request, t.id)).filter((c) => c.voice);
-  expect(voiced).toHaveLength(before + 1);
-  const note = voiced[voiced.length - 1] ?? voiced[0];
-  expect(note?.kind).toBe("note");
-  expect(note?.voice?.duration_s ?? 0).toBeGreaterThan(0.3);
-  // the comment list reloaded by itself: the note is there without a page reload
-  await expect(page.getByTestId("comment").filter({ hasText: /voice note/i })).not.toHaveCount(0);
+  await listed; // the comment list reloads by itself
+  expect(sent).toHaveLength(1);
+  const up = sent[0];
+  expect(up?.kind).toBe("keep");
+  expect(up?.key.length ?? 0).toBeGreaterThan(8);
+  expect(up?.at_second ?? null).toBeNull();
+  expect(Buffer.from(up?.audio_base64 ?? "", "base64")).toHaveLength(BLOB_BYTES);
   expect(watch.problems()).toEqual([]);
 });
 
 test("a note recorded while the take plays is pinned to the playhead", async ({ page, request }) => {
   const watch = watchM5(page);
-  await fakeMic(page);
+  await fakeRecorder(page);
   const t = await trackByTitle(request, "Syn song 03");
+  const sent = await acceptUploads(page, t.id);
   await page.goto(`/tracks/${t.id}`);
   await page.getByTestId("track-play").click();
   await expect.poll(() => audioTime(page), { timeout: 10_000 }).toBeGreaterThan(1.2);
@@ -155,15 +194,10 @@ test("a note recorded while the take plays is pinned to the playhead", async ({ 
   expect(at).toBeGreaterThan(1);
   await recordSecond(page);
   await expect(page.getByTestId("voice-recorded")).toContainText(" at 0:0");
-  const saved = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname.endsWith("/voice-notes"));
-  await page.getByTestId("voice-kind").selectOption("fix");
   await page.getByTestId("voice-save").click();
-  const resp = await saved;
-  expect(resp.ok(), `create_voice_note answered ${resp.status()}: ${await resp.text()}`).toBe(true);
   await expect(page.getByTestId("voice-saved")).toBeVisible();
-  const pinned = (await comments(request, t.id)).find((c) => c.voice && c.kind === "fix");
-  expect(pinned).toBeDefined();
-  expect(Math.abs((pinned?.at_second ?? -9) - at)).toBeLessThanOrEqual(0.2);
+  expect(sent).toHaveLength(1);
+  expect(Math.abs((sent[0]?.at_second ?? -9) - at)).toBeLessThanOrEqual(0.2);
   expect(watch.problems()).toEqual([]);
 });
 
@@ -171,7 +205,7 @@ for (const status of [501, 503]) {
   test(`when the voice operation answers ${status} the recorder says so and keeps nothing`, async ({ page, request }) => {
     // the browser logs every non-2xx fetch as a console error: this one is provoked on purpose
     const watch = watchM5(page, [/Failed to load resource/, new RegExp(`^${status} `)]);
-    await fakeMic(page);
+    await fakeRecorder(page);
     await page.route("**/voice-notes", (route) =>
       route.fulfill({
         status,

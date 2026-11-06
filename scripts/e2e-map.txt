@@ -14,7 +14,7 @@ web/src/lib/components/Library*	m1-library
 web/src/lib/components/TrackTable.svelte	m1-library
 web/src/lib/components/Pager.svelte	m1-library
 web/src/lib/libraryQuery.ts	m1-library
-web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-layout
+web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout
 web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
 web/src/lib/components/Waveform.svelte	m1-player
@@ -52,7 +52,7 @@ web/src/lib/components/StepUpBanner.svelte	ux-secure
 web/src/routes/HumanConfirm.svelte	m2a-human
 web/src/lib/components/PairingPanel.svelte	m2a-human
 web/src/lib/humanView.ts	m2a-human
-web/src/lib/components/Comment*	m2a-comments m5-voice
+web/src/lib/components/Comment*	m2a-comments m5-voice m5-voice-save
 web/src/lib/comments.ts	m2a-comments
 web/src/lib/jump.ts	m2a-comments
 web/src/lib/components/VerdictBar.svelte	m2a-judge
@@ -251,8 +251,8 @@ web/src/lib/callback*	m5-callbacks
 web/src/lib/components/SmartRound.svelte	m5-duels
 web/src/lib/smartRound.ts	m5-duels
 web/src/lib/pairSuggestApi.ts	m5-duels
-web/src/lib/components/VoiceRecorder.svelte	m5-voice m5-layout
-web/src/lib/voice*	m5-voice
+web/src/lib/components/VoiceRecorder.svelte	m5-voice m5-voice-save m5-layout
+web/src/lib/voice*	m5-voice m5-voice-save
 web/src/routes/Receipts.svelte	m5-receipts
 web/src/lib/components/ReceiptsTable.svelte	m5-receipts
 web/src/lib/receipts.ts	m5-receipts
@@ -260,7 +260,7 @@ internal/songpr/*	m5-songpr m5-layout
 internal/callbacks/*	m5-callbacks m5-songpr
 internal/attention/*	m5-heat
 internal/anchor/*	m5-heat m5-callbacks
-internal/voice/*	m5-voice
+internal/voice/*	m5-voice m5-voice-save
 # BEGIN T1-I1 (t1-* specs). The map cannot name a spec that does not exist yet: scripts/verify-selftest.sh fails on a line whose spec
 # file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
 # live since T1-W3 added the spec files (t1-hifi joins the Go lines: the hi-fi kinds are DSP). A

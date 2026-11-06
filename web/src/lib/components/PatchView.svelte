@@ -38,6 +38,8 @@
 
   const renders = $derived(patch.state === "ready" ? renderCount(patch.value.renders) : 0);
   const atLimit = $derived(renders >= PATCH_BOUNDS.maxRenders);
+  // The server sends style: null for a lyrics-only patch (songpr.Diff), although the generated type says object.
+  const st = $derived(patch.state === "ready" ? (patch.value.diff.style as (typeof patch.value.diff)["style"] | null) : null);
 
   function render() {
     startGeneration(sessionStorage, renderIntent(id, seeds) as GenerationIntent, navigate);
@@ -93,13 +95,13 @@
           <p class="after"><span aria-hidden="true">+</span><span class="sr">After: </span>{l.after}</p>
         </div>
       {/each}
-      {#if p.diff.style.before !== p.diff.style.after}
+      {#if st && st.before !== st.after}
         <div class="change" data-testid="patch-style">
-          <p class="before"><span aria-hidden="true">−</span><span class="sr">Before: </span>{p.diff.style.before}</p>
-          <p class="after"><span aria-hidden="true">+</span><span class="sr">After: </span>{p.diff.style.after}</p>
+          <p class="before"><span aria-hidden="true">−</span><span class="sr">Before: </span>{st.before}</p>
+          <p class="after"><span aria-hidden="true">+</span><span class="sr">After: </span>{st.after}</p>
           <p class="muted meta">
-            {#each p.diff.style.added ?? [] as t (t)}<span class="badge add">+ {t}</span> {/each}
-            {#each p.diff.style.removed ?? [] as t (t)}<span class="badge del">− {t}</span> {/each}
+            {#each st.added ?? [] as t (t)}<span class="badge add">+ {t}</span> {/each}
+            {#each st.removed ?? [] as t (t)}<span class="badge del">− {t}</span> {/each}
           </p>
         </div>
       {/if}
