@@ -171,6 +171,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	}
 
 	// 5. what can drift since the estimate
+	if err = s.recheckPatches(ctx, tx, p, est); err != nil { // song_pr comments and render budget, agent backlog (C253.4, C255.5)
+		return Created{}, err
+	}
 	if err = s.revalidate(ctx, tx, est); err != nil {
 		return Created{}, err
 	}
@@ -366,7 +369,10 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 		if jobState == "queued" {
 			queuedAt = ts
 		}
-		var parent, draft any
+		var parent, draft, patch any
+		if t.PatchID != nil {
+			patch = *t.PatchID
+		}
 		if t.ParentTrackID != nil {
 			parent = *t.ParentTrackID
 		}
@@ -374,10 +380,10 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 			draft = *t.DraftID
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO jobs(id, batch_id, take_index, kind, engine, backend, recipe_id, source_track_id, draft_id, operator, mutation_json, title,
-			expected_audio_s, expected_s, timeout_s, expected_micro_usd, reserved_micro_usd, state, next_attempt_at, queued_at, created_at, updated_at)
-			VALUES (?,?,?,'generate',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			expected_audio_s, expected_s, timeout_s, expected_micro_usd, reserved_micro_usd, state, next_attempt_at, queued_at, created_at, updated_at, patch_id)
+			VALUES (?,?,?,'generate',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			jobID, batchID, t.TakeIndex, e.Engine, e.Backend, recipeIDs[i], parent, draft, t.Operator, string(mut), t.Title,
-			t.ExpectedAudioS, t.ExpectedS, t.TimeoutS, t.ExpectedMicroUSD, t.TakeMicroUSD, jobState, ts, queuedAt, ts, ts); err != nil {
+			t.ExpectedAudioS, t.ExpectedS, t.TimeoutS, t.ExpectedMicroUSD, t.TakeMicroUSD, jobState, ts, queuedAt, ts, ts, patch); err != nil {
 			return fmt.Errorf("generation: insert job: %w", err)
 		}
 		bid, jid := batchID, jobID

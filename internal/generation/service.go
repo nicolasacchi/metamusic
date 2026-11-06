@@ -100,6 +100,7 @@ type Item struct {
 	Edit        *Edit
 	Reference   *Reference
 	EnginePatch *EnginePatch
+	PatchID     *string // song_pr: the stored Song PR to render (C253.4)
 }
 
 // EstimateIn is an estimate request; Engine "" means the default engine.

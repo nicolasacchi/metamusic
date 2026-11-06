@@ -9,6 +9,11 @@ import (
 const (
 	MaxItems = 20
 	MaxTakes = 50
+	// PatchMaxRenders and MaxSongPRSeeds mirror songpr.PatchMaxRenders and songpr.MaxSeeds (generation never imports songpr;
+	// TestSongPR_LimitsMirrorConstants in the songpr package pins the equality): non-cancelled batches one Song PR may be
+	// rendered in, and takes of one song_pr item.
+	PatchMaxRenders = 3
+	MaxSongPRSeeds  = 4
 	// TokenTTL is how long an estimate's confirmation token lives (C72.2).
 	TokenTTL = 10 * time.Minute
 )
@@ -42,6 +47,10 @@ type planTake struct {
 	Params        paramsDoc       `json:"params"`
 	Patch         json.RawMessage `json:"patch"` // null or the patch document
 
+	// song_pr takes (C253.4): the Song PR rendered and the comments it addresses; absent for every other mode
+	PatchID             *string  `json:"patch_id,omitempty"`
+	AddressesCommentIDs []string `json:"addresses_comment_ids,omitempty"`
+
 	ExpectedAudioS   int     `json:"expected_audio_s"` // never below MinAudioS
 	MinAudioS        int     `json:"min_audio_s"`      // forced minimum render length (worker min_tokens); 0 = none
 	ExpectedS        int     `json:"expected_s"`
@@ -64,9 +73,10 @@ type paramsDoc struct {
 	NSeeds     int     `json:"n_seeds"`
 	Via        *string `json:"via"`
 	// E2: absent (omitted) for every yue2 take, so M3's stored documents are unchanged.
-	TrialID     string `json:"trial_id,omitempty"`     // options.trial_id of the estimate (C158.2)
-	CrossEngine bool   `json:"cross_engine,omitempty"` // D-E2-25: the parent was rendered by the other engine
-	Stem        string `json:"stem,omitempty"`         // extract_stems: the stem name of this job
+	TrialID     string  `json:"trial_id,omitempty"`     // options.trial_id of the estimate (C158.2)
+	CrossEngine bool    `json:"cross_engine,omitempty"` // D-E2-25: the parent was rendered by the other engine
+	Stem        string  `json:"stem,omitempty"`         // extract_stems: the stem name of this job
+	PatchID     *string `json:"patch_id,omitempty"`     // song_pr: the Song PR (C253.4)
 }
 
 // quoteDoc is estimates.quote_json: the frozen inputs of the quote.
