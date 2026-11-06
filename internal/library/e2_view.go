@@ -11,7 +11,7 @@ import (
 )
 
 // E2 views (C148.3, C157.1, C166). The shapes are frozen by the contract freeze (E2-F2). The readers below are complete: a
-// take without stems or lrc answers an empty list and null. Stem artifacts are written by E2b's ingest (lane E2-G3/J3).
+// take without stems or lrc answers an empty list and null. Stem artifacts are written by E2b's attach ingest (jobs/ingest_attach.go).
 
 // EngineACEStep is recipes.engine of an ACE-Step 1.5 recipe.
 const EngineACEStep = "acestep15"
@@ -110,17 +110,26 @@ func (s *Service) Stems(ctx context.Context, trackID string) ([]StemInfo, error)
 	return out, rows.Err()
 }
 
+// LRC returns the lyrics.lrc artifact of a take, nil when it has none.
+func (s *Service) LRC(ctx context.Context, trackID string) (*LRCInfo, error) {
+	var l LRCInfo
+	switch err := s.st.R.QueryRowContext(ctx, `SELECT sha256, bytes FROM artifacts WHERE track_id = ? AND name = 'lyrics.lrc'`, trackID).Scan(&l.SHA256, &l.Bytes); {
+	case err == nil:
+		return &l, nil
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("library: lrc: %w", err)
+	}
+}
+
 func (s *Service) e2Extras(ctx context.Context, d *TrackDetail) error {
 	var err error
 	if d.Stems, err = s.Stems(ctx, d.ID); err != nil {
 		return err
 	}
-	var l LRCInfo
-	switch err := s.st.R.QueryRowContext(ctx, `SELECT sha256, bytes FROM artifacts WHERE track_id = ? AND name = 'lyrics.lrc'`, d.ID).Scan(&l.SHA256, &l.Bytes); {
-	case err == nil:
-		d.LRC = &l
-	case !errors.Is(err, sql.ErrNoRows):
-		return fmt.Errorf("library: lrc: %w", err)
+	if d.LRC, err = s.LRC(ctx, d.ID); err != nil {
+		return err
 	}
 	if d.Recipe.Engine != EngineACEStep {
 		return nil

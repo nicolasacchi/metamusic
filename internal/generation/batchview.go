@@ -104,7 +104,9 @@ func loadCreated(ctx context.Context, q lineage.Querier, batchID string) (Create
 	}
 	rows, err := q.QueryContext(ctx, `SELECT j.id, j.take_index, j.state, j.outcome, j.error_code, j.title, r.request_id, r.seed, j.operator, j.source_track_id, j.draft_id,
 		j.track_id, j.created_at, j.updated_at, j.expected_micro_usd,
-		(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.job_id = j.id AND l.kind = 'settle' AND l.reason IN ('execution','execution_unknown'))
+		(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.job_id = j.id AND l.kind = 'settle' AND l.reason IN ('execution','execution_unknown')),
+		CASE WHEN j.engine <> 'yue2' THEN json_extract(r.request_json, '$.task') END,
+		CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END
 		FROM jobs j JOIN recipes r ON r.id = j.recipe_id WHERE j.batch_id = ? ORDER BY j.take_index`, batchID)
 	if err != nil {
 		return c, fmt.Errorf("generation: batch jobs: %w", err)
@@ -112,15 +114,23 @@ func loadCreated(ctx context.Context, q lineage.Querier, batchID string) (Create
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		j := JobView{BatchID: batchID}
-		var outcome, ecode, parent, draft, track sql.NullString
+		var outcome, ecode, parent, draft, track, task, stem sql.NullString
 		var cre, upd string
 		var exp int64
 		var settled sql.NullInt64
-		if err := rows.Scan(&j.ID, &j.TakeIndex, &j.State, &outcome, &ecode, &j.Title, &j.RequestID, &j.Seed, &j.Operator, &parent, &draft, &track, &cre, &upd, &exp, &settled); err != nil {
+		if err := rows.Scan(&j.ID, &j.TakeIndex, &j.State, &outcome, &ecode, &j.Title, &j.RequestID, &j.Seed, &j.Operator, &parent, &draft, &track, &cre, &upd, &exp, &settled, &task, &stem); err != nil {
 			return c, err
 		}
 		j.Outcome, j.ErrorCode, j.ParentTrackID, j.DraftID, j.TrackID = nullPtr(outcome), nullPtr(ecode), nullPtr(parent), nullPtr(draft), nullPtr(track)
 		j.CreatedAt, j.UpdatedAt, j.Expected = parseT(cre), parseT(upd), money.MicroUSD(exp)
+		j.Task, j.Stem = task.String, stem.String
+		switch j.Task {
+		case "":
+		case "complete", "extract":
+			j.TaskClass = "base"
+		default:
+			j.TaskClass = "turbo"
+		}
 		j.Basis = "estimate"
 		if settled.Valid {
 			d, basis := lineage.DisplayCost(exp, int64(c.Takes), settled, overhead, c.Reconciled)

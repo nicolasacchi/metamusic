@@ -9412,6 +9412,13 @@
               "null"
             ]
           },
+          "extra": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "object"
+          },
           "queue_delay_ms": {
             "format": "int64",
             "type": [

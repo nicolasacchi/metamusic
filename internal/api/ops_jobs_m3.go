@@ -76,14 +76,14 @@ func jobsJobCost(c jobs.JobCostInfo) JobCost {
 func jobsSummary(j jobs.Job) JobSummary {
 	return JobSummary{ID: j.ID, BatchID: j.BatchID, TakeIndex: j.TakeIndex, State: j.State, Outcome: j.Outcome, ErrorCode: j.ErrorCode, Title: j.Title,
 		RequestID: j.RequestID, Seed: j.Seed, Operator: j.Operator, ParentTrackID: j.ParentTrackID, DraftID: j.DraftID, TrackID: j.TrackID,
-		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost)}
+		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost), Task: j.Task, Stem: j.Stem}
 }
 
 func jobsFull(j jobs.Job) Job {
 	out := Job{JobSummary: jobsSummary(j), Engine: j.Engine, Backend: j.Backend, Mode: j.Mode, Attempts: j.Attempts, Resubmits: j.Resubmits,
 		StartedAt: tsPtr(j.StartedAt), FinishedAt: tsPtr(j.FinishedAt), DeadlineAt: tsPtr(j.DeadlineAt), TimeoutS: j.TimeoutS, ExpectedAudioS: j.ExpectedAudioS,
 		AudioS: j.AudioS, Env: j.Env, CancelRequestedAt: tsPtr(j.CancelReqAt), ErrorMessage: j.ErrorMessage,
-		Timings:   JobTimings{QueueDelayMS: j.Timings.QueueDelayMS, ExecutionMS: j.Timings.ExecutionMS, ColdStartS: j.Timings.ColdStartS},
+		Timings:   JobTimings{QueueDelayMS: j.Timings.QueueDelayMS, ExecutionMS: j.Timings.ExecutionMS, ColdStartS: j.Timings.ColdStartS, Extra: j.Timings.Extra},
 		Artifacts: []JobArtifact{}, Events: []JobEvent{}}
 	if j.TruncatedABC != nil && j.TruncSem != nil {
 		t := JobTruncatedOrNull{ABC: *j.TruncatedABC, Semantic: *j.TruncSem}

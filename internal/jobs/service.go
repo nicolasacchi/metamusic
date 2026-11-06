@@ -128,6 +128,8 @@ type Job struct {
 	Timings                  JobTimings
 	ErrorMessage             *string
 	Events                   []JobEventRow
+	// Task and Stem are the engine-native task of a non-yue2 job and, for an extract job, its stem name (E2, C166); nil for yue2.
+	Task, Stem *string
 }
 
 // JobArtifact is one received file of the job.
@@ -141,6 +143,9 @@ type JobArtifact struct {
 // JobTimings are the measured durations.
 type JobTimings struct {
 	QueueDelayMS, ExecutionMS, ColdStartS *int64
+	// Extra carries the worker's numeric timing keys of an engine that reports them (E2 P0b): peak_vram_mb_<component>,
+	// vram_resident_mb, lm_gpu_memory_utilization_milli, lm_s, dit_s, decode_s. nil for yue2 and for jobs without them.
+	Extra map[string]float64
 }
 
 // JobEventRow is one entry of the job's event log.
@@ -232,6 +237,12 @@ func ErrorMessage(code string) string {
 		return "The worker disappeared before it finished."
 	case CodeDeadline:
 		return "The take did not finish within its time limit."
+	case CodeInputFailed:
+		return "The worker could not fetch the source audio."
+	case CodeInputMismatch:
+		return "The source audio the worker fetched did not match the library's copy."
+	case CodeTaskUnavailable:
+		return "This worker cannot render that task."
 	case CodeArtifactMissing:
 		return "The worker did not deliver every file."
 	case CodeArtifactMismatch:
@@ -305,7 +316,9 @@ func in(col string, vals []string, args *[]any) string {
 
 const jobSelect = `SELECT j.id, j.batch_id, j.take_index, j.state, j.title, j.outcome, j.error_code, j.track_id, j.created_at, j.updated_at,
 	r.request_id, r.seed, j.operator, j.source_track_id, j.draft_id, j.expected_micro_usd, j.mutation_json, j.engine, j.backend, j.attempts, j.resubmits,
-	j.started_at, j.finished_at, j.state_deadline_at, j.cancel_requested_at, j.timeout_s, j.expected_audio_s, j.audio_s, j.truncated_abc, j.truncated_semantic, j.env_id
+	j.started_at, j.finished_at, j.state_deadline_at, j.cancel_requested_at, j.timeout_s, j.expected_audio_s, j.audio_s, j.truncated_abc, j.truncated_semantic, j.env_id,
+	CASE WHEN j.engine <> 'yue2' THEN json_extract(r.request_json, '$.task') END,
+	CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END
 	FROM jobs j JOIN recipes r ON r.id = j.recipe_id`
 
 type jobScan struct {
@@ -316,7 +329,7 @@ type jobScan struct {
 
 func scanJobRead(sc interface{ Scan(...any) error }) (jobScan, error) {
 	var s jobScan
-	var outcome, errc, track, src, draft, started, finished, deadline, cancelAt, env sql.NullString
+	var outcome, errc, track, src, draft, started, finished, deadline, cancelAt, env, task, stem sql.NullString
 	var created, updated string
 	var expected int64
 	var audio sql.NullFloat64
@@ -324,7 +337,7 @@ func scanJobRead(sc interface{ Scan(...any) error }) (jobScan, error) {
 	j := &s.j
 	if err := sc.Scan(&j.ID, &j.BatchID, &j.TakeIndex, &j.State, &j.Title, &outcome, &errc, &track, &created, &updated,
 		&j.RequestID, &j.Seed, &j.Operator, &src, &draft, &expected, &s.mutJSON, &j.Engine, &j.Backend, &j.Attempts, &j.Resubmits,
-		&started, &finished, &deadline, &cancelAt, &j.TimeoutS, &j.ExpectedAudioS, &audio, &tabc, &tsem, &env); err != nil {
+		&started, &finished, &deadline, &cancelAt, &j.TimeoutS, &j.ExpectedAudioS, &audio, &tabc, &tsem, &env, &task, &stem); err != nil {
 		return s, err
 	}
 	str := func(n sql.NullString) *string {
@@ -335,6 +348,7 @@ func scanJobRead(sc interface{ Scan(...any) error }) (jobScan, error) {
 		return &v
 	}
 	j.Outcome, j.ErrorCode, j.TrackID, j.ParentTrackID, j.DraftID = str(outcome), str(errc), str(track), str(src), str(draft)
+	j.Task, j.Stem = str(task), str(stem)
 	j.CreatedAt, j.UpdatedAt = mustT(created), mustT(updated)
 	j.StartedAt, j.FinishedAt, j.DeadlineAt, j.CancelReqAt = parseT(started), parseT(finished), parseT(deadline), parseT(cancelAt)
 	j.Cost.Expected = money.MicroUSD(expected)
@@ -475,6 +489,9 @@ func (s *Service) fullJob(ctx context.Context, id string) (Job, error) {
 	if err := s.fillTimings(ctx, &j); err != nil {
 		return j, err
 	}
+	if err := s.fillTimingsExtra(ctx, &j); err != nil {
+		return j, err
+	}
 	rows, err := x.QueryContext(ctx, `SELECT at, from_state, to_state, event, code FROM (SELECT id, at, from_state, to_state, event, code FROM job_events WHERE job_id = ? ORDER BY id DESC LIMIT 50) ORDER BY id`, id)
 	if err != nil {
 		return j, err
@@ -551,6 +568,23 @@ func (s *Service) fillTimings(ctx context.Context, j *Job) error {
 			v := int64(d / time.Second)
 			j.Timings.ColdStartS = &v
 		}
+	}
+	return nil
+}
+
+// fillTimingsExtra reads the worker's numeric timing keys that the runner kept on the job's ingested event (workerTimings).
+func (s *Service) fillTimingsExtra(ctx context.Context, j *Job) error {
+	var raw sql.NullString
+	err := s.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.timings') FROM job_events WHERE job_id = ? AND event = 'ingested' ORDER BY id DESC LIMIT 1`, j.ID).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !raw.Valid) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var m map[string]float64
+	if json.Unmarshal([]byte(raw.String), &m) == nil && len(m) > 0 {
+		j.Timings.Extra = m
 	}
 	return nil
 }

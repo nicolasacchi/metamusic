@@ -457,13 +457,45 @@ func (r *Runner) completeCommitted(ctx context.Context, jobID string) (bool, err
 	var dur float64
 	err := r.o.Store.R.QueryRowContext(ctx, `SELECT id, truncated_abc, truncated_semantic, duration_s FROM tracks WHERE job_id = ?`, jobID).Scan(&track, &abc, &sem, &dur)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return r.completeAttached(ctx, jobID)
 	}
 	if err != nil {
 		return false, err
 	}
 	n := json.Number(strconv.FormatFloat(dur, 'f', -1, 64))
 	out := provider.Output{AudioSeconds: &n, Truncated: map[string]bool{"abc": abc.Int64 == 1, "semantic": sem.Int64 == 1}}
+	err = r.tx(ctx, func(tx *sql.Tx) error {
+		f := r.fence()
+		cur, err := loadJob(ctx, tx, jobID)
+		if err != nil {
+			return err
+		}
+		if cur.State != StateIngesting {
+			return nil
+		}
+		return r.completeJob(ctx, tx, f, &cur, track, out)
+	})
+	return true, skipStale(err)
+}
+
+// completeAttached finishes a stem job whose attach transaction committed before the process stopped (the attached event is
+// written in it): the job completes with its source take, like a committed take does.
+func (r *Runner) completeAttached(ctx context.Context, jobID string) (bool, error) {
+	var track string
+	var audio sql.NullFloat64
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.track_id'), json_extract(detail_json, '$.audio_s') FROM job_events
+		WHERE job_id = ? AND event = 'attached' ORDER BY id DESC LIMIT 1`, jobID).Scan(&track, &audio)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var out provider.Output
+	if audio.Valid && audio.Float64 > 0 {
+		n := json.Number(strconv.FormatFloat(audio.Float64, 'f', -1, 64))
+		out.AudioSeconds = &n
+	}
 	err = r.tx(ctx, func(tx *sql.Tx) error {
 		f := r.fence()
 		cur, err := loadJob(ctx, tx, jobID)
@@ -524,8 +556,16 @@ func (r *Runner) concludeIngests(ctx context.Context) error {
 // completeJob is row 20: the take transaction committed, the job completes with the take's facts.
 func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence, j *jobRec, trackID string, out provider.Output) error {
 	var env sql.NullString
-	if err := tx.QueryRowContext(ctx, `SELECT env_id FROM tracks WHERE id = ?`, trackID).Scan(&env); err != nil {
-		return fmt.Errorf("jobs: read ingested track: %w", err)
+	// an attached stem (E2b, C166) completes the job with its source take; the job row already holds the worker's env
+	// (the attach transaction set it), the take's env is not the job's
+	var attached int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_events WHERE job_id = ? AND event = 'attached'`, j.ID).Scan(&attached); err != nil {
+		return fmt.Errorf("jobs: read attached event: %w", err)
+	}
+	if attached == 0 {
+		if err := tx.QueryRowContext(ctx, `SELECT env_id FROM tracks WHERE id = ?`, trackID).Scan(&env); err != nil {
+			return fmt.Errorf("jobs: read ingested track: %w", err)
+		}
 	}
 	outcome := "clean"
 	if out.Truncated["abc"] || out.Truncated["semantic"] {
@@ -543,6 +583,11 @@ func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence
 		if v, err := out.AudioSeconds.Float64(); err == nil && v > 0 {
 			sets = append(sets, set("audio_s", v))
 			d["audio_s"] = v
+		}
+	}
+	if j.Engine != provider.EngineYuE2 {
+		if t := workerTimings(out); len(t) > 0 {
+			d["timings"] = t // read back by the job view as timings.extra
 		}
 	}
 	return r.moveJob(ctx, tx, f, j, StateCompleted, Event{Name: EvIngested, Detail: d}, sets...)
