@@ -178,8 +178,8 @@ loop:
 	if waitErr != nil && !errors.As(waitErr, &ee) && !errors.Is(waitErr, exec.ErrWaitDelay) {
 		return res, fmt.Errorf("transform: child wait: %w", waitErr)
 	}
-	if res.ExitCode < 0 { // killed by a signal we did not send (the OOM killer)
-		return res, ErrChildMemory
+	if res.ExitCode < 0 { // killed by a signal we did not send (the OOM killer, a stray kill): an interruption, not a verdict
+		return res, ErrChildSignaled
 	}
 	return res, nil
 }

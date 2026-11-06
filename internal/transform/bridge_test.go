@@ -459,3 +459,23 @@ func TestBridge_OrphanRemovedBeforeRetry(t *testing.T) {
 		t.Fatalf("row = %+v", r.row(id))
 	}
 }
+
+// TestBridge_ExternalSignalRequeues: a child killed by a signal the supervisor did not send is an interruption: the row goes back
+// to queued at once (attempt 1) and fails INTERRUPTED after the second one.
+func TestBridge_ExternalSignalRequeues(t *testing.T) {
+	r := newRig(t, false)
+	r.child.Err = transform.ErrChildSignaled
+	id := r.queue(qspec{})
+	if !r.runOne() {
+		t.Fatal("nothing claimed")
+	}
+	if row := r.row(id); row.State != "queued" || row.Attempts != 1 || row.Owner != "" {
+		t.Fatalf("after the first signal: %+v, want queued after 1 attempt", row)
+	}
+	if !r.runOne() {
+		t.Fatal("the retry was not claimed")
+	}
+	if row := r.row(id); row.State != "failed" || row.ErrCode != transform.ErrInterrupted || !row.CPU.Valid || row.Attempts != 2 {
+		t.Fatalf("after the second signal: %+v, want failed INTERRUPTED", row)
+	}
+}

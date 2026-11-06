@@ -459,6 +459,10 @@ func (s *Service) render(ctx context.Context, row tRow, st *staged, acct *cpuAcc
 		return fail(ErrTimeout, "the render passed its wall deadline and was stopped")
 	case errors.Is(err, ErrChildMemory):
 		return fail(ErrMemoryExceeded, "the render passed its memory guard and was stopped")
+	case errors.Is(err, ErrChildSignaled):
+		f := fail(ErrInterrupted, "the render child was stopped from outside")
+		f.requeue = true
+		return f
 	case err != nil:
 		if ctx.Err() != nil {
 			return fail(ErrInterrupted, "interrupted")

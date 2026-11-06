@@ -231,6 +231,7 @@ type runFailure struct {
 	code, msg string
 	crash     bool // an injected fault: end the attempt with no cleanup and no row write, as a dead process would
 	lost      bool // the row is no longer ours: write nothing
+	requeue   bool // an interruption from outside (a signal): back to the queue, or INTERRUPTED once MaxAttempts is spent
 }
 
 func (f *runFailure) Error() string { return f.code + ": " + f.msg }
@@ -303,10 +304,33 @@ func (s *Service) process(ctx context.Context, row tRow) {
 		s.finishTerminal(fin, row, StateCancelled, ErrCancelledByUser, "cancelled by the user", acct.ms())
 	case ctx.Err() != nil:
 		s.removeWork(row.ID) // shutdown: the row stays running and Recover re-queues it after the lease
+	case fail.requeue && row.Attempts < MaxAttempts:
+		s.removeWork(row.ID)
+		s.requeue(fin, row)
+	case fail.requeue:
+		s.removeWork(row.ID)
+		s.finishTerminal(fin, row, StateFailed, ErrInterrupted, "the render was interrupted twice and is not retried", acct.ms())
 	default:
 		s.removeWork(row.ID)
 		s.finishTerminal(fin, row, StateFailed, fail.code, s.clean(fail.msg), acct.ms())
 	}
+}
+
+// requeue puts a running row we own back to queued (the claim already counted the attempt), as Recover does for an expired lease
+// but at once: the render was interrupted from outside while this runner is alive.
+func (s *Service) requeue(ctx context.Context, row tRow) {
+	res, err := s.o.Store.W.ExecContext(ctx, `UPDATE transforms SET state = 'queued', owner = NULL, lease_expires_at = NULL, phase = NULL,
+		progress_permille = 0 WHERE id = ? AND state = 'running' AND owner = ?`, row.ID, s.owner())
+	if err != nil {
+		s.log().Error("transform requeue", "transform_id", row.ID, "err", redact.Error(err))
+		return
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		s.log().Warn("transform requeue: lease lost", "transform_id", row.ID)
+		return
+	}
+	s.changed(row.ID)
+	s.Kick()
 }
 
 // finishTerminal moves a running row we own to failed or cancelled and writes the audit row in the same transaction.

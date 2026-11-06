@@ -141,9 +141,8 @@ var chaosPoints = func() []int {
 
 // TestChaos_KillChildAtProgress: the render child dies at ten points (three in the PR subset, ten with MM_T1_CHAOS_FULL=1) of its progress, by SIGKILL from outside (what the kernel's
 // OOM killer does) and by the runner stopping (the server shutting down). Contract:
-//   - SIGKILL from outside is indistinguishable from an OOM kill, so the supervisor reports it as a memory kill: the row fails
-//     TRANSFORM_MEMORY_EXCEEDED at once and is not retried (the plan's C216.5 says "queued, completed on the retry"; this is the
-//     shipped behaviour, recorded here);
+//   - SIGKILL from outside is an interruption (only the supervisor's own RSS guard gives TRANSFORM_MEMORY_EXCEEDED): the row goes
+//     back to queued at once and the retry completes; a second one fails it INTERRUPTED;
 //   - a stopping runner kills the child and puts the row back to queued; the retry completes; two interruptions fail it INTERRUPTED;
 //   - in every case no Take, work dir, take directory or stray master survives an unfinished attempt.
 func TestChaos_KillChildAtProgress(t *testing.T) {
@@ -173,21 +172,37 @@ func TestChaos_KillChildAtProgress(t *testing.T) {
 					t.Skipf("the render finished before reaching %d permille", at) // a short render may not report this point
 				}
 				killed++
-				if row.State != "failed" || row.ErrCode != transform.ErrMemoryExceeded {
-					t.Fatalf("row after an external SIGKILL = %+v, want failed TRANSFORM_MEMORY_EXCEEDED", row)
-				}
-				if !row.CPU.Valid {
-					t.Error("a terminal row must record cpu_ms (the quota reservation is released by it)")
+				if row.State != "queued" || row.Attempts != 1 || row.ErrCode != "" {
+					t.Fatalf("row after an external SIGKILL = %+v, want queued after 1 attempt", row)
 				}
 				r.noTrace(id, before)
-				if r.runOne() {
-					t.Error("the runner found something to retry")
+				if !r.runOne() || r.row(id).State != "done" {
+					t.Fatalf("the retry did not finish: %+v", r.row(id))
 				}
 			})
 		}
 		if killed < (len(chaosPoints)+1)/2 {
 			t.Errorf("only %d of %d points were reached: the test is vacuous", killed, len(chaosPoints))
 		}
+	})
+
+	t.Run("sigkill_twice", func(t *testing.T) {
+		var w *interrupter
+		r := chaosRig(t, tools, func(*transform.Options) transform.ChildRunner {
+			w = &interrupter{inner: chaosChild(bin), at: 100, n: 2, hit: killChild}
+			return w
+		})
+		before := r.masterFiles()
+		id := queueChaos(t, r, "sigkill2")
+		r.runOne()
+		if w.fired.Load() != 1 || r.row(id).State != "queued" {
+			t.Fatalf("first kill: fired %d, row %+v", w.fired.Load(), r.row(id))
+		}
+		r.runOne()
+		if row := r.row(id); w.fired.Load() != 2 || row.State != "failed" || row.ErrCode != transform.ErrInterrupted || !row.CPU.Valid {
+			t.Fatalf("after two kills: fired %d, row %+v, want failed INTERRUPTED with cpu_ms recorded", w.fired.Load(), row)
+		}
+		r.noTrace(id, before)
 	})
 
 	t.Run("runner_stop", func(t *testing.T) {

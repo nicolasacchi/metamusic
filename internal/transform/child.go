@@ -52,10 +52,13 @@ type ChildResult struct {
 var (
 	ErrChildDeadline = errors.New("transform: child wall deadline")
 	ErrChildMemory   = errors.New("transform: child memory guard")
+	// ErrChildSignaled: the child died of a signal the supervisor did not send (the kernel's OOM killer, an operator's kill).
+	// That is an interruption, not a verdict on the job: the row goes back to the queue (C216.5).
+	ErrChildSignaled = errors.New("transform: child killed by a signal")
 )
 
 // ChildRunner runs the render child. It returns a nil error for any normal exit (the code is in the result), ErrChildDeadline
-// or ErrChildMemory when the supervisor killed the run, and the context's error when ctx ended (the child is dead by then).
+// or ErrChildMemory when the supervisor's own guard killed the run, ErrChildSignaled when a signal from outside did, and the context's error when ctx ended (the child is dead by then).
 // CPU is filled whenever the process was reaped, also after a kill.
 type ChildRunner interface {
 	Run(ctx context.Context, j ChildJob, progress ChildProgress) (ChildResult, error)
