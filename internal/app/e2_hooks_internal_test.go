@@ -28,6 +28,7 @@ func TestHandlerTransport_RoutesMediaToTheMediaHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		_ = resp.Body.Close()
 		if got := resp.Header.Get("X-Served-By"); got != c.want {
 			t.Errorf("%s: served by %q, want %q", c.name, got, c.want)
 		}
