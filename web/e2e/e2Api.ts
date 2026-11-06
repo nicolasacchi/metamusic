@@ -121,7 +121,7 @@ export async function acePort(request: APIRequestContext, yue2Parent: string): P
 /** An ACE-Step reference render following [from, to] of `track` (the default window when omitted). */
 export async function aceReference(request: APIRequestContext, track: string, from?: number, to?: number): Promise<string> {
   const ref = { track_id: track, ...(from !== undefined && to !== undefined ? { from_s: from, to_s: to } : {}) };
-  const c = await runCompleted(request, () => ({ engine: ACE, items: [{ mode: "reference", reference: ref }] }));
+  const c = await runCompleted(request, () => ({ engine: ACE, items: [{ mode: "reference", parent_track_id: track, reference: ref }] }));
   const id = first(c.jobs).track_id;
   if (!id) throw new Error("the reference job has no track");
   return id;

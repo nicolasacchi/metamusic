@@ -64,9 +64,9 @@ test("an explicit window is used as selected and must fit the engine's limit", a
   expect(watch.problems()).toEqual([]);
 });
 
-test("the reference render is a take of its own that names the take it followed", async ({ request }) => {
+test("the reference render is a child of the take it followed and names the window", async ({ request }) => {
   const child = await aceReference(request, source, 10, 30);
   const tr = await apiJSON<{ lineage: { parent_track_id: string | null }; recipe: { acestep: { reference: { track_id: string; from_s: number; to_s: number } } } }>(request, "GET", `/api/tracks/${child}`);
   expect(tr.recipe.acestep.reference).toMatchObject({ track_id: source, from_s: 10, to_s: 30 });
-  expect(tr.lineage.parent_track_id).toBeNull();
+  expect(tr.lineage.parent_track_id).toBe(source);
 });

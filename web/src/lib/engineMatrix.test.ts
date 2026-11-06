@@ -40,6 +40,7 @@ describe("engineMatrix", () => {
   });
   test("adoption and backend text", () => {
     expect(adoptionText(eng("a"))).toBe("Adopted (seed)");
+    expect(adoptionText(eng("a", {}, { adoption: { state: "none", via: null, changed_by: null, changed_at: null, reason: null, trial_id: null }, adopt_hint: "metamusic engines adopt x" }))).toBe("Not adopted");
     expect(backendText(eng("a"))).toBe("No backend");
     const b = { name: "b", enabled: true, armed: true, tripped: true, trip_reason: "init_fail", disabled_reason: null, cold_start_s: 40, max_runtime_s: 600 };
     expect(backendText(eng("a", {}, { backend: b }))).toBe("Tripped (init_fail)");

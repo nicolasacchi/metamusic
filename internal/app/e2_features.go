@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
-	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
+	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 )
 
 // e2eAllFeatures is a features file with every ACE-Step capability proved. It exists for the Playwright server only: the
@@ -19,7 +19,7 @@ const e2eAllFeatures = `{"schema":"mm.engine-features/2","engine":"acestep15","v
 
 // applyE2EFeatures swaps the all-capabilities features file into the registered ACE-Step engine of an e2e server
 // (MM_E2E=1, MM_E2E_ACESTEP_FEATURES=all). Anywhere else it does nothing.
-func applyE2EFeatures(cfg config.Config, reg engine.Registry, getenv func(string) string) error {
+func applyE2EFeatures(cfg config.Config, reg registry.Registry, getenv func(string) string) error {
 	if !cfg.E2E || !cfg.ACEStep || getenv("MM_E2E_ACESTEP_FEATURES") != "all" {
 		return nil
 	}

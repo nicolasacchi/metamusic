@@ -58,7 +58,8 @@ export function adoptionText(e: EngineView): string {
   const a = e.adoption;
   if (a.state === "adopted") return `Adopted${a.via ? ` (${a.via})` : ""}`;
   if (a.state === "not_adopted") return "Not adopted";
-  return "Not applicable";
+  // no log row yet: an engine with an adopt hint has simply not been adopted; one without needs no adoption
+  return e.adopt_hint ? "Not adopted" : "Not applicable";
 }
 
 /** One line for an engine's backend. */
