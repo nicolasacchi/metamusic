@@ -400,6 +400,7 @@ type batchSpec struct {
 	operator   string // default reroll_seed
 	mutation   string // jobs.mutation_json, default {}
 	rationale  string // batches.rationale
+	engine     string // default yue2 (E2: acestep15)
 }
 
 type seeded struct {
@@ -432,6 +433,9 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 	if sp.backend == "" {
 		sp.backend = "fake"
 	}
+	if sp.engine == "" {
+		sp.engine = "yue2"
+	}
 	if sp.recipe == "" {
 		sp.recipe = testRecipe
 	}
@@ -456,16 +460,16 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 	r.exec(`INSERT INTO estimates(id,principal_id,principal_kind,engine,backend,items_json,recipe_hashes,n_takes,quote_json,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,workers_max,idle_s,
 		requires_approval,approval_reasons,token_hash,created_at,expires_at,consumed_at,consumed_batch_id)
-		VALUES(?,?,?,'yue2',?,'[]','[]',?,'{}',10,?,0,?,690000,?,20,0,'[]',?,?,?,?,?)`,
-		est, sp.principal, kind, sp.backend, sp.jobs, sp.ceiling, sp.ceiling, sp.workersMax, "hash-"+est, ts, exp, ts, s.Batch)
+		VALUES(?,?,?,?,?,'[]','[]',?,'{}',10,?,0,?,690000,?,20,0,'[]',?,?,?,?,?)`,
+		est, sp.principal, kind, sp.engine, sp.backend, sp.jobs, sp.ceiling, sp.ceiling, sp.workersMax, "hash-"+est, ts, exp, ts, s.Batch)
 	state := sp.state
 	if state == "rejected" || state == "expired" {
 		state = "awaiting_confirmation"
 	}
 	r.exec(`INSERT INTO batches(id,estimate_id,principal_id,principal_kind,principal_name,via,engine,backend,n_takes,rationale,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,attempt_overhead_s,kill_slack_s,
-		workers_max,idle_s,state,created_at) VALUES(?,?,?,?,?,'api','yue2',?,?,?,10,?,0,?,690000,200,15,?,20,?,?)`,
-		s.Batch, est, sp.principal, kind, "n", sp.backend, sp.jobs, rationale, sp.ceiling, sp.ceiling, sp.workersMax, state, ts)
+		workers_max,idle_s,state,created_at) VALUES(?,?,?,?,?,'api',?,?,?,?,10,?,0,?,690000,200,15,?,20,?,?)`,
+		s.Batch, est, sp.principal, kind, "n", sp.engine, sp.backend, sp.jobs, rationale, sp.ceiling, sp.ceiling, sp.workersMax, state, ts)
 	if state == "awaiting_confirmation" {
 		r.exec(`INSERT INTO approvals(batch_id,state,reasons,created_at,expires_at) VALUES(?,'pending','["takes_over_limit"]',?,?)`, s.Batch, ts, exp)
 	} else {
@@ -488,8 +492,8 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 		}
 		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,source_track_id,draft_id,operator,mutation_json,title,expected_audio_s,expected_s,
 			timeout_s,expected_micro_usd,reserved_micro_usd,state,next_attempt_at,queued_at,created_at,updated_at)
-			VALUES(?,?,?,'generate','yue2',?,?,?,?,?,?,'T',216,96,?,10,?,?,?,?,?,?)`,
-			id, s.Batch, i, sp.backend, sp.recipe, src, draft, sp.operator, sp.mutation, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts)
+			VALUES(?,?,?,'generate',?,?,?,?,?,?,?,'T',216,96,?,10,?,?,?,?,?,?)`,
+			id, s.Batch, i, sp.engine, sp.backend, sp.recipe, src, draft, sp.operator, sp.mutation, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts)
 		bid, jid, p := s.Batch, id, sp.principal
 		if err := r.sp.RunTx(r.t.Context(), func(tx *sql.Tx) error {
 			return r.sp.Ledger().Append(r.t.Context(), tx, spend.Entry{Kind: spend.KindReserve, MicroUSD: take, BatchID: &bid, JobID: &jid, PrincipalID: p, Reason: "take"})
