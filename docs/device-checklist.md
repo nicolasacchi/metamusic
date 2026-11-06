@@ -97,5 +97,24 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-T1-2 start a Glacier render and close the sheet: the progress bar, the phase and Cancel stay on the Transform card; Cancel ends it as Cancelled and no take appears; the mini player keeps playing the whole time
 - [ ] DC-T1-3 a Morph on two takes of the same lyrics: the partner picker lists the other style, the estimate shows the tempo and key source chips, and the "auto (guess)" downbeat toggle is reachable; after Done, "A/B with source" opens the duel
 - [ ] DC-T1-4 /transforms under More on the phone: the CPU meter, state chips and Cancel on a live row fit the width; a refused Render (queue full or allowance used) explains itself with when it resets
+- [ ] DC-T1-5 headphones: a Master, a Widen and a Binaural take each play at sensible loudness with no clipping; the binaural take is not played through any spatial or crossfeed setting, and it sounds placed (and flat on speakers, as expected)
+
+## M5
+
+- [ ] DC-M5-1 record a voice note on the phone (iPhone Safari/installed PWA and Android Chrome): the recorder asks for the microphone once, records up to 120 s, plays back before Save, and Save adds a comment at the playhead second that plays from the comment list; a denied microphone shows a clear message instead of a dead button
+- [ ] DC-M5-2 answer a callback by ear on the phone: the Judge "callbacks waiting" card plays both takes at the same musical spot, the fixed / not yet / worse answer registers with one hand, and the comment moves to resolved or regressed
+- [ ] DC-M5-3 the Song PR panel, the patch page and the heat strip on a 360 px wide screen: no horizontal scrolling, targets are at least 44 px, and the heat strip does not move the judge controls
+
+## E2
+
+- [ ] DC-E2-1 touch range selection on Track (iPhone and Android): dragging the handles, the 44 px handle targets and the numeric fields all set the repaint range; the page scrolls normally outside the selector; the range plays and pauses at its end
+- [ ] DC-E2-2 stem players at 360 px: the stems panel lists the stems of an extracted take, each plays on the shared audio context while the main player pauses, no second audio element fights for the lock screen, and nothing scrolls sideways
+- [ ] DC-E2-3 the synced lyrics (LRC) list at 360 px: the active line follows playback, tapping a line seeks, and the list is readable in portrait and landscape
+- [ ] DC-E2-4 the engine picker and the estimate card on a phone: choosing ACE-Step, the task class, the range and the reference window are readable and operable one-handed; "not yet verified" capabilities are shown as disabled with their reason
+- [ ] DC-E2-5 a repaint A/B with its parent at the repaint range plays in sync on iOS and Android (as DC-M2b-1)
+
+## Voice recorder (iOS)
+
+- [ ] DC-VOICE-1 iOS: the recorder works in Safari and in the installed PWA (MP4 container, `mp4a`), the first-use permission prompt appears once, the recording survives a short lock-screen interruption or reports it, and Save works on cellular
 
 ## Notes

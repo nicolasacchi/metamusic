@@ -149,3 +149,17 @@ describe("Track page voice recorder (M5-W1b)", () => {
     expect(h).not.toContain("voice-save\"");
   });
 });
+
+describe("SongPrPanel own fix comments", () => {
+  test("a regressed fix is offered while the Comments panel shows only its open comments", () => {
+    const h = html(SongPrPanel, {
+      trackId: "t1",
+      comments: [fix("open1")],
+      initialFixes: [fix("reg1", { state: "regressed", body: "lost its punch" }), fix("open1")],
+      initial: { state: "ready", value: { items: [], total: 0, next_cursor: null } },
+    });
+    expect((h.match(/data-testid="song-pr-fix"/g) ?? []).length).toBe(2);
+    expect(h).toContain("lost its punch");
+    expect(h).toContain("regressed");
+  });
+});
