@@ -1,0 +1,5 @@
+# pcm_sha256 of the widen operator on a fixed synthetic input (C224.1). linux/amd64, GOAMD64=v1.
+default e37d4f239ccca192b83cb36650e5c63fa410832b4caee4fecee287e65d5009d6
+wide2 f3f7b75f7e63728c0cd5ea18afedd54ad133f77aa1984a3c00d92d4cbf657699
+bass250 f5d8e7e37e6d64f0d65f82ccc25e2162ed32d380d546e7f0abf3adf39ad4c957
+mono_decorrelate dd132d4a927fd0e89bdd6819b06bb13b2cc1f2c8208c30938e559480223d34e1
