@@ -83,9 +83,21 @@ case "$cmd" in
       if [ -z "$tdir" ]; then cat; return; fi
       tee "$tdir/$1.jsonl" | jq -rRj '(try fromjson catch {Action:"output",Output:(.+"\n")}) | select(.Action=="output" or .Action=="build-output") | .Output'
     }
+    # BEGIN T1-I1 dsp/score without -race: internal/dsp/... and internal/score/... are single-goroutine pure packages (D-T1-3e):
+    # the race detector finds nothing there and only slows the bit-exact goldens. They run in plain mode (coverage and shuffle
+    # stay on, so the coverage job still sees them); the nightly (MM_FULL_RACE=1) keeps them under -race. Mirrors NORACE_RE in the Makefile.
+    noracere='^\./internal/(dsp|score)(/|$)'
+    # the covdata of -race runs is counter mode atomic and covdata refuses to merge another mode, so the plain runs say it too
+    flags_nr=(-covermode=atomic)
+    for f in "${flags[@]}"; do case "$f" in -race | -gcflags=modernc.org/...=-race=false) ;; -covermode=*) ;; *) flags_nr+=("$f") ;; esac; done
+    wholenr=()
+    # END T1-I1 dsp/score without -race
     for u in "${plan[@]}"; do
       read -r pkg part <<<"$u"
-      if [ -z "$part" ]; then whole+=("$pkg"); continue; fi
+      if [ -z "$part" ]; then
+        if [ "${MM_FULL_RACE:-0}" != 1 ] && [[ "$pkg" =~ $noracere ]]; then wholenr+=("$pkg"); else whole+=("$pkg"); fi
+        continue
+      fi
       names=$(tests_in_shard "$pkg" "${part%/*}" "${part#*/}" | paste -sd'|')
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
@@ -96,6 +108,10 @@ case "$cmd" in
     if [ "${#whole[@]}" -gt 0 ]; then
       echo "== ${#whole[@]} whole packages"
       go test "${flags[@]}" "${whole[@]}" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-whole" || fail=1
+    fi
+    if [ "${#wholenr[@]}" -gt 0 ]; then
+      echo "== ${#wholenr[@]} dsp/score packages (no -race)"
+      go test "${flags_nr[@]}" "${wholenr[@]}" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-norace" || fail=1
     fi
     for p in "${pids[@]}"; do wait "$p" || fail=1; done
     exit $fail

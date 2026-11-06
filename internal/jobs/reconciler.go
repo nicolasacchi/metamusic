@@ -43,6 +43,11 @@ type ReconcilerOptions struct {
 	MaxRuntime               time.Duration
 	PriceMarginPPM           int64
 	GateCfg                  provider.GateConfig
+	// Scoped marks one reconciler of several (NewReconcilers, D-E2-39): every query that reads batches, attempts, worker
+	// lifetimes, billing windows or buckets is restricted to this backend, quotes are stamped with its name and notifications
+	// name it. Peer marks a reconciler that is not the default backend's: it leaves the backend-agnostic steps (adoption,
+	// approvals, upload sweep) to the default one.
+	Scoped, Peer bool
 	// Location is the process time zone: a billing window never crosses one of its month boundaries.
 	// nil means time.Local.
 	Location *time.Location
@@ -97,6 +102,7 @@ type Reconciler struct {
 	lastFetch      time.Time
 	meterObs       map[string]*meterObs // per worker key: last listing observation and billable seconds so far
 	billableSince  string               // cached settings meter.billable_since ("" until read)
+	peers          []*Reconciler        // the other backends' reconcilers; Run/Tick/Pass drive them (NewReconcilers)
 }
 
 // NewReconciler builds the reconciler.
@@ -134,8 +140,49 @@ func (r *Reconciler) Run(ctx context.Context) error {
 	return nil
 }
 
+// scope is the backend this reconciler's queries are restricted to ("" outside a multi-backend process).
+func (r *Reconciler) scope() string {
+	if r.o.Scoped {
+		return r.o.Backend.Name()
+	}
+	return ""
+}
+
+// fan runs f on r and on every peer concurrently and returns the first error, a lost lease first: one backend's failure
+// (an unreadable sweep, a refused key) stays in its own reconciler and never delays or fails another's pass (C151.2).
+func (r *Reconciler) fan(ctx context.Context, f func(*Reconciler, context.Context) error) error {
+	if len(r.peers) == 0 {
+		return f(r, ctx)
+	}
+	all := append([]*Reconciler{r}, r.peers...)
+	errs := make([]error, len(all))
+	var wg sync.WaitGroup
+	for i, rc := range all {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = f(rc, ctx)
+		}()
+	}
+	wg.Wait()
+	var first error
+	for _, err := range errs {
+		if errors.Is(err, store.ErrLeaseLost) {
+			return err
+		}
+		if err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
 // Tick does what is due now: a full pass every 60 s, otherwise a sweep every 10 s while generation is active.
 func (r *Reconciler) Tick(ctx context.Context) error {
+	return r.fan(ctx, (*Reconciler).tick)
+}
+
+func (r *Reconciler) tick(ctx context.Context) error {
 	now := r.o.Clock.Now()
 	r.mu.Lock()
 	lastPass, lastSweep := r.lastPassAt, r.lastSweepRn
@@ -156,18 +203,26 @@ func (r *Reconciler) Tick(ctx context.Context) error {
 // sweepActive: a batch is running, or finished less than idle_s + 60 s ago (C76).
 func (r *Reconciler) sweepActive(ctx context.Context, now time.Time) (bool, error) {
 	var n int
-	err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM batches WHERE state = 'active' OR (state = 'finished' AND finished_at >= ?)`,
-		store.FormatTime(now.Add(-activeTail))).Scan(&n)
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM batches WHERE (state = 'active' OR (state = 'finished' AND finished_at >= ?)) AND (? = '' OR backend = ?)`,
+		store.FormatTime(now.Add(-activeTail)), r.scope(), r.scope()).Scan(&n)
 	return n > 0, err
 }
 
 // Pass performs one reconciliation pass (tests drive it directly). It does nothing unless the runner
 // holds the lease; every write carries the lease predicate (D-M3-30).
 func (r *Reconciler) Pass(ctx context.Context) error {
+	return r.fan(ctx, (*Reconciler).pass)
+}
+
+func (r *Reconciler) pass(ctx context.Context) error {
 	if r.o.Runner == nil || !r.o.Runner.Holding() {
 		return nil
 	}
 	steps := []func(context.Context) error{r.adopt, r.expireApprovals, r.withdrawStuckApprovals, r.sweepUploads, r.refreshQuote, r.sweepStep, r.actOnTrips, r.reconcileBilling}
+	if r.o.Peer {
+		// adoption, approvals and the upload sweep are not about a backend: the default backend's reconciler does them once
+		steps = []func(context.Context) error{r.refreshQuote, r.sweepStep, r.actOnTrips, r.reconcileBilling}
+	}
 	var first error
 	for _, step := range steps {
 		if err := step(ctx); err != nil {
@@ -195,6 +250,9 @@ func (r *Reconciler) lastSweepAt() time.Time {
 func (r *Reconciler) notify(ctx context.Context, m notify.Message) {
 	if r.o.Notify == nil {
 		return
+	}
+	if r.o.Scoped {
+		m.Body += " (backend " + r.o.Backend.Name() + ")" // C151.3: the texts name the backend
 	}
 	if err := r.o.Notify.Notify(ctx, m); err != nil {
 		r.o.Log.Warn("notify", "title", m.Title)
@@ -300,6 +358,9 @@ func (r *Reconciler) refreshQuote(ctx context.Context) error {
 	}
 	now := r.o.Clock.Now()
 	q.ObservedAt = now
+	if r.o.Scoped {
+		q.Backend = r.o.Backend.Name() // each backend writes its own quote; a gate refuses a foreign one (SP, C151.1)
+	}
 	urls := make(map[string]string, len(q.Endpoint.RequestURLs))
 	for k, v := range q.Endpoint.RequestURLs {
 		urls[k] = redact.String(v)
@@ -326,8 +387,8 @@ func (r *Reconciler) refreshQuote(ctx context.Context) error {
 
 // ---- sweep ----
 
-const meterUpsertSQL = `INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last, image)
-	SELECT ?, ?, ?, ?, ?, ?, ? WHERE `
+const meterUpsertSQL = `INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last, image, backend)
+	SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE `
 
 const meterConflictSQL = ` ON CONFLICT(worker_key, started_at) DO UPDATE SET uptime_s = max(uptime_s, excluded.uptime_s),
 	last_seen_at = excluded.last_seen_at, status_last = excluded.status_last, image = COALESCE(excluded.image, image)`
@@ -401,7 +462,7 @@ func (r *Reconciler) recordWorkers(ctx context.Context, rep provider.SweepReport
 				if p.image != "" {
 					image = p.image
 				}
-				args := []any{p.key, store.FormatTime(p.obs.started), ts, ts, p.obs.billable, p.status, image}
+				args := []any{p.key, store.FormatTime(p.obs.started), ts, ts, p.obs.billable, p.status, image, r.o.Backend.Name()}
 				if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
 					return err
 				}
@@ -464,7 +525,9 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 	}
 	var evidence int
 	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_attempts a WHERE a.state IN ('pending','submitted','unknown')
-		AND (a.in_progress_seen = 1 OR a.announced_at IS NOT NULL OR EXISTS (SELECT 1 FROM uploads u WHERE u.attempt_id = a.id AND u.state IN ('received','consumed')))`).Scan(&evidence); err != nil {
+		AND (? = '' OR a.backend = ?)
+		AND (a.in_progress_seen = 1 OR a.announced_at IS NOT NULL OR EXISTS (SELECT 1 FROM uploads u WHERE u.attempt_id = a.id AND u.state IN ('received','consumed')))`,
+		r.scope(), r.scope()).Scan(&evidence); err != nil {
 		return err
 	}
 	if h := rep.Health; h != nil { // /health counts workers the listing can omit (X3 incident)
@@ -513,7 +576,8 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 // Queued or not yet observed, and that were submitted within window of now.
 func (r *Reconciler) queuedInWindow(ctx context.Context, now time.Time, window time.Duration) (int, error) {
 	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT submitted_at FROM job_attempts a WHERE a.state IN ('pending','submitted')
-		AND COALESCE(a.remote_status, '') IN ('', ?) AND a.in_progress_seen = 0 AND a.announced_at IS NULL`, string(provider.Queued))
+		AND COALESCE(a.remote_status, '') IN ('', ?) AND a.in_progress_seen = 0 AND a.announced_at IS NULL AND (? = '' OR a.backend = ?)`,
+		string(provider.Queued), r.scope(), r.scope())
 	if err != nil {
 		return 0, err
 	}
@@ -645,7 +709,7 @@ func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.Swe
 		ts := store.FormatTime(now)
 		for i, st := range statuses {
 			key := r.workerKeyOf(fmt.Sprintf("health:%d:%d", since.UnixNano(), i))
-			args := []any{key, store.FormatTime(since), ts, ts, uptime, st, nil}
+			args := []any{key, store.FormatTime(since), ts, ts, uptime, st, nil, r.o.Backend.Name()}
 			if _, err := tx.ExecContext(ctx, meterUpsertSQL+f.Where()+meterConflictSQL, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
 				return err
 			}
@@ -657,7 +721,8 @@ func (r *Reconciler) recordHealthLifetimes(ctx context.Context, rep provider.Swe
 // checkWorkersZero notifies once per finished batch when a worker is still up at finished_at + idle_s + 30 s
 // while no attempt is live (design layer 7).
 func (r *Reconciler) checkWorkersZero(ctx context.Context, rep provider.SweepReport, now time.Time) error {
-	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT id, idle_s, finished_at FROM batches WHERE state = 'finished' AND finished_at >= ?`, store.FormatTime(now.Add(-time.Hour)))
+	rows, err := r.o.Store.R.QueryContext(ctx, `SELECT id, idle_s, finished_at FROM batches WHERE state = 'finished' AND finished_at >= ? AND (? = '' OR backend = ?)`,
+		store.FormatTime(now.Add(-time.Hour)), r.scope(), r.scope())
 	if err != nil {
 		return err
 	}
@@ -697,7 +762,7 @@ func (r *Reconciler) checkWorkersZero(ctx context.Context, rep provider.SweepRep
 			continue
 		}
 		var attempts int
-		if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_attempts WHERE state IN ('pending','submitted','unknown')`).Scan(&attempts); err != nil {
+		if err := r.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_attempts WHERE state IN ('pending','submitted','unknown') AND (? = '' OR backend = ?)`, r.scope(), r.scope()).Scan(&attempts); err != nil {
 			return err
 		}
 		r.mu.Lock()

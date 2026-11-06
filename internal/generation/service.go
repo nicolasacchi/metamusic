@@ -56,7 +56,8 @@ type SongwritingSource interface {
 
 // Service owns the create path of generation.
 type Service struct {
-	o Options
+	o  Options
+	e2 e2Seams // set by UseEngines (seams_e2.go); the zero value keeps the M3 single-backend behaviour
 }
 
 // New builds the service.
@@ -92,12 +93,23 @@ type Item struct {
 	NSeeds         int
 	Seeds          []int64
 	Title          *string
+	// E2 (C149.2): Engine "" derives the engine from the mode (port and the edit modes are acestep15) or the parent, else the
+	// request's engine; Edit and Reference carry the modes' inputs, in seconds as the API sends them (rounded to 0.1 s by
+	// the planner).
+	Engine      string
+	Edit        *Edit
+	Reference   *Reference
+	EnginePatch *EnginePatch
+	PatchID     *string // song_pr: the stored Song PR to render (C253.4)
 }
 
 // EstimateIn is an estimate request; Engine "" means the default engine.
 type EstimateIn struct {
 	Engine string
-	Items  []Item
+	// E2: Backend pins the routed backend ("" = the engine's own, C151.3); TrialID is reserved for E2c (D-E2-15) and is
+	// refused with 422 INVALID_ITEM in E2a and E2b.
+	Backend, TrialID string
+	Items            []Item
 	// Via is "api" or "human_create" (the path the later create will use, C72.6).
 	Via string
 }
@@ -126,6 +138,12 @@ type TakePlan struct {
 	MinAudioS      int // forced minimum render length in seconds, 0 = none; ExpectedAudioS is never below it
 	TimeoutS       int
 	Max            money.MicroUSD
+	// E2 (C149.2): the engine and task class of the take, the task as the engine names it (repaint, extend, complete,
+	// extract, text2music; "" for yue2) and what the take edits or references, echoed in seconds.
+	Engine, Task, TaskClass string
+	Edit                    *PlannedEdit
+	Reference               *PlannedRef
+	CrossEngine             bool // D-E2-25: an edit of a parent rendered by the other engine
 }
 
 // PlannedItem groups the takes one item expanded to.
@@ -206,11 +224,13 @@ type JobView struct {
 	TakeIndex                                      int
 	Seed                                           int64
 	Outcome, ErrorCode                             *string
-	ParentTrackID, DraftID, TrackID                *string
-	CreatedAt, UpdatedAt                           time.Time
-	Expected                                       money.MicroUSD
-	Display                                        *money.MicroUSD
-	Basis                                          string
+	// E2: for ACE-Step takes, the task, its class and the stem name of an extract job (the engine and backend are on the job detail).
+	Task, TaskClass, Stem           string
+	ParentTrackID, DraftID, TrackID *string
+	CreatedAt, UpdatedAt            time.Time
+	Expected                        money.MicroUSD
+	Display                         *money.MicroUSD
+	Basis                           string
 }
 
 // ApprovalView is the approval row of a batch (C81 ApprovalStatus).

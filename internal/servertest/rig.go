@@ -114,6 +114,13 @@ type Options struct {
 	// without it the step is the no-op and Settle changes no feature row.
 	L3           bool
 	RealFeatures bool
+	// E2 (C162.2). E2 adds librarytest.FixtureE2's rows (golden playlist, ACE-Step takes, a draft Record) on top of L3 (it requires
+	// L3). ACEStep sets MM_ACESTEP=1 (the engine and `fake-acestep` are registered by the lanes that own them; until they land
+	// the flag only switches the config on and needs Backend "fake"). AdoptEngines appends an adopted row (via cli, reason "test rig")
+	// to engine_adoption_log for each named engine; tests that exercise the adoption gate never use it.
+	E2           bool
+	ACEStep      bool
+	AdoptEngines []string
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -266,6 +273,13 @@ func New(tb testing.TB, o Options) *Rig {
 		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
 		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
 	}
+	if o.ACEStep {
+		if o.Backend != "fake" && o.RunPod == nil {
+			tb.Fatal("servertest: ACEStep needs Backend fake (or RunPod)")
+		}
+		cfg.ACEStep, cfg.ACEStepColdStartS, cfg.ACEStepMaxRuntime = true, 300, 15*time.Minute
+		cfg.ACEStepTasks, cfg.ACEStepPools = []string{"turbo"}, []string{"AMPERE_24", "ADA_24"}
+	}
 	switch o.Backend {
 	case "", "none":
 		if o.RunPod != nil {
@@ -355,11 +369,24 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		librarytest.ApplyL2(tb, st, clock.Now())
 	}
+	var l3info librarytest.L3Info
 	if o.L3 {
 		if !o.L2 {
 			tb.Fatal("servertest: L3 requires L2")
 		}
-		librarytest.ApplyL3(tb, st, clock.Now())
+		l3info = librarytest.ApplyL3(tb, st, clock.Now())
+	}
+	if o.E2 {
+		if !o.L3 {
+			tb.Fatal("servertest: E2 requires L3")
+		}
+		librarytest.ApplyE2(tb, st, clock.Now(), l3info)
+	}
+	for _, e := range o.AdoptEngines {
+		if _, err := st.W.Exec(`INSERT INTO engine_adoption_log(engine,state,via,env_ids,changed_by,changed_at,reason) VALUES(?,'adopted','cli','[]','system:test',?,'test rig')`,
+			e, store.FormatTime(clock.Now())); err != nil {
+			tb.Fatal(err)
+		}
 	}
 	if o.Caps != nil {
 		c := o.Caps

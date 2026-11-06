@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 )
 
 // Provisioned constants (C77.6).
@@ -48,6 +48,9 @@ type DesiredConfig struct {
 	VAESource  string        // "image" (default) | "cached" | "volume:<absolute path>"
 	// TimeoutCase adds MM_WORKER_DEADLINE=provider for the canary's timeout case only.
 	TimeoutCase bool
+	// Features, when set, replaces the committed ACE-Step features.verified.json in the ACE-Step profile (the
+	// verified per-pool duration cap MM_ACESTEP_MAX_SECONDS derives from it). Tests and dry runs only.
+	Features *acestep.Features
 }
 
 // DefaultPools are the GPU pools of C77.6, in preference order.
@@ -63,12 +66,22 @@ func CheckImage(image string) error {
 
 // DesiredSpec is the complete create body of C77.6, every field pinned. weights maps the Hugging Face
 // repository to its pinned revision (yue2.Weights); image is name@sha256:<digest> (empty leaves the image
-// out, for diffs against an existing endpoint); maxWorkers is 0 (inactive), 1 or 2.
+// out, for diffs against an existing endpoint); maxWorkers is 0 (inactive), 1 or 2. It is the yue2 form of
+// DesiredSpecFor and is kept with main's signature (the E2 plan's profile argument is DesiredSpecFor).
 func DesiredSpec(c DesiredConfig, weights map[string]string, image string, maxWorkers int, catalog []GPUType) (EndpointSpec, error) {
+	return DesiredSpecFor(c, yue2ProfileWith(c, weights), image, maxWorkers, catalog)
+}
+
+// DesiredSpecFor is DesiredSpec for any engine profile (C155.1): the profile supplies the endpoint name, the
+// environment, the cold start and the runtime; c supplies the pools and the name override.
+func DesiredSpecFor(c DesiredConfig, p EngineProfile, image string, maxWorkers int, catalog []GPUType) (EndpointSpec, error) {
+	if c.Name == "" {
+		c.Name = p.EndpointName
+	}
 	if c.Name == "" {
 		c.Name = DefaultEndpointName
 	}
-	if c.ColdStartS <= 0 || c.MaxRuntime <= 0 {
+	if p.ColdStartS <= 0 || p.MaxRuntime <= 0 {
 		return EndpointSpec{}, errors.New("runpod: provision: cold start and max runtime must be positive")
 	}
 	if maxWorkers < 0 || maxWorkers > 2 {
@@ -83,29 +96,17 @@ func DesiredSpec(c DesiredConfig, weights map[string]string, image string, maxWo
 	if len(pools) == 0 {
 		pools = DefaultPools()
 	}
-	for _, p := range pools {
-		if !poolRe.MatchString(p) {
-			return EndpointSpec{}, fmt.Errorf("runpod: provision: invalid GPU pool %q", p)
+	for _, pl := range pools {
+		if !poolRe.MatchString(pl) {
+			return EndpointSpec{}, fmt.Errorf("runpod: provision: invalid GPU pool %q", pl)
 		}
 	}
-	vae, err := vaeDir(c.VAESource)
+	if p.err != nil {
+		return EndpointSpec{}, p.err
+	}
+	env, err := p.env(pools)
 	if err != nil {
 		return EndpointSpec{}, err
-	}
-	rev3, revVAE := weights[yue2.WeightsRepo3B], weights[yue2.WeightsRepoVAE]
-	if rev3 == "" || revVAE == "" {
-		return EndpointSpec{}, errors.New("runpod: provision: the weights revisions are not pinned")
-	}
-	env := map[string]string{
-		"MODE":              "serverless",
-		"HF_HUB_OFFLINE":    "1",
-		yue2.Env3BRevision:  rev3,
-		yue2.EnvVAERevision: revVAE,
-		"MM_YUE2_VAE_DIR":   vae,
-		yue2.Env3BDir:       CachedModelDir,
-	}
-	if c.TimeoutCase {
-		env["MM_WORKER_DEADLINE"] = "provider"
 	}
 	idle := provisionIdleS
 	excluded := []string{}
@@ -117,12 +118,12 @@ func DesiredSpec(c DesiredConfig, weights map[string]string, image string, maxWo
 	return EndpointSpec{
 		Name:    c.Name,
 		Type:    "QUEUE",
-		Scaling: ScalingSpec{Type: "QUEUE_DELAY", QueueDelay: c.ColdStartS + 60},
+		Scaling: ScalingSpec{Type: "QUEUE_DELAY", QueueDelay: p.ColdStartS + 60},
 		Workers: WorkersSpec{Min: 0, Max: maxWorkers, IdleTimeout: &idle},
 		GPU: GPUSpec{Count: 1, Pools: append([]string(nil), pools...), ExcludedTypes: excluded,
 			MinCudaVersion: provisionCUDA},
 		Flashboot: "FLASHBOOT",
-		Timeout:   c.MaxRuntime.Milliseconds(),
+		Timeout:   p.MaxRuntime.Milliseconds(),
 		Image:     image,
 		Env:       env,
 	}, nil

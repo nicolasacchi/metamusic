@@ -52,6 +52,10 @@ type uiState struct {
 	// L2: the Record, Crate and tape the script creates
 	record, crate, tape string
 	recordRev, crateRev int
+	// T1: the transform create_transform queued
+	transform string
+	// M5: the Song PR propose_patch made
+	patch string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -263,19 +267,14 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"create_transform": func(s *uiState) map[string]any {
 		return map[string]any{"kind": "glacier", "glacier": map[string]any{"source_id": s.mother}}
 	},
-	"get_transform":              func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+	"get_transform":              func(s *uiState) map[string]any { return map[string]any{"id": s.transform} },
 	"list_transforms":            func(*uiState) map[string]any { return map[string]any{"limit": 10} },
-	"wait_for_transform":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother, "timeout_s": 0} },
-	"cancel_transform":           func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
+	"wait_for_transform":         func(s *uiState) map[string]any { return map[string]any{"id": s.transform, "timeout_s": 0} },
+	"cancel_transform":           func(s *uiState) map[string]any { return map[string]any{"id": s.transform} },
 	"get_transform_capabilities": func(*uiState) map[string]any { return nil },
-}
 
-// t1PendingStub lists the transform operations whose handler still answers 501 (lane B4 has not landed): the script keeps
-// their entry, so the registry-derived set stays complete, but does not call them. B4 deletes this map when it implements
-// the operations.
-var t1PendingStub = map[string]bool{
-	"estimate_transform": true, "create_transform": true, "get_transform": true, "list_transforms": true,
-	"wait_for_transform": true, "cancel_transform": true, "get_transform_capabilities": true,
+	// E2 (C160): the engine matrix, a generic MCP operation with the /engines route
+	"list_engines": func(*uiState) map[string]any { return nil },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -324,6 +323,8 @@ var uiOrder = []string{
 	"suggest_sequence", "list_next_actions", "list_taxonomy_proposals", "get_song_atlas", "get_adherence",
 	// T1: transforms of a Take
 	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
+	// E2: the engine matrix
+	"list_engines",
 }
 
 // afterStep records the ids later steps need.
@@ -332,6 +333,8 @@ func (s *uiState) afterStep(op string, res any) {
 	switch op {
 	case "add_comment":
 		s.comment, _ = m["id"].(string)
+	case "propose_patch":
+		s.patch, _ = m["id"].(string)
 	case "create_playlist":
 		s.playlist, _ = m["id"].(string)
 	case "export_playlist_zip":
@@ -353,6 +356,8 @@ func (s *uiState) afterStep(op string, res any) {
 		if id, _ := m["id"].(string); id != "" {
 			s.muse = id
 		}
+	case "create_transform":
+		s.transform, _ = m["id"].(string)
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
@@ -460,7 +465,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			}
 			script = spendScript[id]
 		}
-		if t1PendingStub[id] {
+		if e2PendingStub[id] {
 			continue
 		}
 		if id == "export_record_tape" && st.record != "" {
@@ -524,10 +529,10 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	if len(gotOps) == len(want)-1 {
 		want = called // the audit row of the listing itself is written after the listing
 	}
-	// Spend and cancel operations write their audit row inside their own transaction (C80), with an id
+	// Spend, cancel and transform-create operations write their audit row inside their own transaction (C80), with an id
 	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
 	// compared without them; their presence is compared as a set.
-	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true}
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true}
 	split := func(ops []string) (rest, tx []string) {
 		for _, o := range ops {
 			if inTx[o] {

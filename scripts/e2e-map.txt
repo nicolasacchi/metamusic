@@ -235,3 +235,29 @@ internal/sequence/*	l2-records l3-sequence
 internal/nextactions/*	l3-next l1-song
 internal/atlas/*	l3-atlas
 web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
+# BEGIN T1-I1 (t1-* specs). The map cannot name a spec that does not exist yet: scripts/verify-selftest.sh fails on a line whose spec
+# file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
+# ready and commented out. W3 (or INT-W) uncomments them in the PR that adds the spec files, keeping these exact patterns. A
+# changed t1-*.spec.ts already runs itself (see the header), and unmapped web/src paths already fall back to @core.
+#web/src/routes/Transforms.svelte	t1-transforms
+#web/src/lib/components/Transform*	t1-transforms
+#web/src/lib/transform*.ts	t1-transforms
+#web/src/routes/Track.svelte is already mapped above (m1-track); W3 adds t1-transforms to that line
+#internal/transform/*	t1-transforms
+#internal/dsp/*	t1-transforms
+# END T1-I1
+# BEGIN E2-I1 (e2-* specs). Same constraint as the T1 block: the map cannot name a spec that does not exist yet (verify-selftest fails on a
+# line whose spec file is missing). W-INT (E2a) and W1b (E2b/E2c) own web/e2e/e2-*.spec.ts and uncomment the lines in the PR that adds the
+# spec files, keeping these exact patterns (internal/engine/* is already mapped to core above and shadows any narrower engine line). A changed e2-*.spec.ts already runs itself; unmapped web/src paths fall back to @core.
+#web/src/routes/Engines.svelte	e2-engine-picker e2-trial
+#web/src/lib/components/Engine*	e2-engine-picker e2-init-failure
+#web/src/lib/components/RangeSelect.svelte	e2-repaint e2-extend
+#web/src/lib/components/Reference*	e2-reference
+#web/src/lib/components/Stem*	e2-stems
+#web/src/lib/components/Trial*	e2-trial
+#web/src/routes/Suite*.svelte	e2-suite
+#web/src/lib/engineIntent.ts	e2-engine-picker e2-repaint e2-reference
+#internal/engineadopt/*	e2-engine-picker e2-trial
+#internal/enginetrial/*	e2-trial
+#internal/suites/*	e2-suite
+# END E2-I1

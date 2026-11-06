@@ -3,6 +3,17 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := check
 
 LOOP   := scripts/loop
+# BEGIN T1-I1 toolchain pin (D-T1-3d): the DSP goldens are bit-exact, and GOAMD64=v3 lets the compiler fuse a*b+c (FMA), which changes
+# Log1p, Sin, Cos and Atan2. v1 is Go's default; it is set explicitly (and overrides the caller's environment) so a stray
+# GOAMD64=v3 cannot reach any `go build`/`go test` started by make. CI and the Dockerfile pin it the same way.
+export GOAMD64 := v1
+# internal/dsp/... and internal/score/... are single-goroutine pure packages: the race detector has nothing to find there, so the fast loop
+# runs them without -race (CI shards do the same, scripts/ci-go-test.sh). `make test`, `make race` and `make cover` keep -race everywhere.
+# Recursive (=) so `go list` only runs for the recipes that expand it; internal/score exists only from T1b.
+NORACE_RE := /internal/(dsp|score)(/|$$)
+RACE_PKGS   = $(shell go list ./... | grep -Ev '$(NORACE_RE)')
+NORACE_PKGS = $(shell go list ./... | grep -E '$(NORACE_RE)')
+# END T1-I1 toolchain pin
 GOLINT = $(or $(wildcard bin/golangci-lint),golangci-lint)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -16,7 +27,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary
+.PHONY: build web openapi dsp test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary worker-acestep contract-acestep
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -26,6 +37,11 @@ web:
 
 openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
+
+# BEGIN T1-I1 make dsp: the DSP and score packages alone, short tier, no -race (the inner loop for the T1 DSP lanes).
+dsp:
+	$(LOOP) dsp -- env TMPDIR=$(TEST_TMPDIR) go test -short $(NORACE_PKGS)
+# END T1-I1 make dsp
 
 # Local full suites, three tiers with no overlap (scripts/go-suite.sh): `test` = -race, everything but the long tier and the
 # perf tests, then the perf tests in plain mode (their one mode: budgets are only real uninstrumented); `test-long` = -race,
@@ -73,7 +89,7 @@ _check:
 	@# after the Go output; both must pass.
 	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; scripts/web-check.sh >"$$log" 2>&1 & wp=$$!; \
 	rc=0; \
-	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short ./...; } || rc=1; \
+	{ go vet ./... && $(GOLINT) run ./... && TMPDIR=$(TEST_TMPDIR) GORACE=atexit_sleep_ms=0 GOGC=400 CGO_ENABLED=1 go test -race $(CHECK_GCFLAGS) -short $(RACE_PKGS) && TMPDIR=$(TEST_TMPDIR) go test -short $(NORACE_PKGS); } || rc=1; \
 	wait $$wp || rc=1; cat "$$log"; exit $$rc
 
 # Plain server binary, cached SPA/binary builds (scripts/e2e-cache.sh); writes no covdata.
@@ -122,6 +138,18 @@ worker:
 # Worker contract tests against the real yue2 (CPU torch), same steps as the worker-contract workflow.
 contract:
 	$(LOOP) contract -- scripts/worker-contract.sh
+
+# BEGIN E2-I1 ACE-Step worker targets (C162.1). Neither is part of `make check`. They reuse the worker/contract loop names so the metrics
+# schema and the loop allowlist stay untouched. contract-acestep installs ACE-Step (CPU torch, Python 3.11) and so belongs to CI; do not
+# run it on a developer machine.
+# worker-acestep: the whole worker unit suite (models.py/inputs.py are exercised by their own PW1 tests) with a 90 % coverage gate on the engine, models and inputs modules.
+worker-acestep:
+	$(LOOP) worker -- sh -c 'cd worker && uv run pytest tests --cov=mmworker.engines.acestep --cov=mmworker.models --cov=mmworker.inputs --cov-fail-under=90'
+
+# Worker contract tests against the pinned ACE-Step commit (CPU torch), the ENGINE argument of scripts/worker-contract.sh.
+contract-acestep:
+	$(LOOP) contract -- scripts/worker-contract.sh acestep15
+# END E2-I1
 
 # PRINT-ONLY: the canary spends real money and is typed by the operator (M3-X3, after explicit approval).
 # This target never runs it; it prints the documented command.

@@ -252,7 +252,7 @@
     <div class="wave" bind:clientWidth={width}>
       <Waveform {peaks} {duration} current={position} onseek={seek} {bits} height={96} label="Track waveform" {pins} onpin={(cid) => { const c = comments.find((x) => x.id === cid); if (c?.at_second != null) jumpTo(id, c.at_second); }} />
     </div>
-    <HeatStrip trackId={id} {duration} />
+    <HeatStrip trackId={id} {duration} enabled={track.recipe_known && !track.lossy} />
 
     {#if j}
       <div class="judge" data-testid="track-judge">
@@ -283,7 +283,10 @@
           <h2>Comments</h2>
           <CommentsPanel trackId={id} bind:comments />
         </section>
-        <SongPrPanel trackId={id} />
+        <!-- M5-W1: Song PR panel (one mount; the panel owns its fetches) -->
+        {#if track.recipe_known && !track.lossy}
+          <SongPrPanel trackId={id} {comments} sections={track.sections} baseStyle={track.recipe.style} canPropose={me?.kind === "human"} navigate={navigate ?? defaultNavigate} />
+        {/if}
         <section class="card" data-testid="track-curation">
           <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
         </section>

@@ -460,6 +460,10 @@ type KeysReport struct {
 	IdleBillingZero24h *bool                            `json:"idle_billing_zero_24h"`
 	SkewMS             *int64                           `json:"skew_ms"`
 	Recommendation     Recommendation                   `json:"recommendation"`
+	// E2 (C155.3): present only when RUNPOD_ACESTEP_ENDPOINT_ID is configured, so a yue2-only probe file is
+	// byte-identical to before.
+	ACEStepEndpointReachable *bool `json:"acestep_endpoint_reachable,omitempty"` // the job API answers health for the ACE-Step endpoint
+	ACEStepJobsKeyScoped     *bool `json:"acestep_jobs_key_scoped,omitempty"`    // the shared jobs key reaches it (else RUNPOD_ACESTEP_JOBS_KEY)
 }
 
 // Capabilities is key-capabilities.json.
@@ -633,6 +637,9 @@ func ProbeKeys(ctx context.Context, o ProbeOptions) (*KeysReport, error) {
 		if e := p.try(ctx, "read", "graphql_balance", err); e != nil {
 			return p.rep, e
 		}
+	}
+	if err := p.aceStep(ctx); err != nil {
+		return p.rep, err
 	}
 	if d, ok := p.c.Skew(); ok {
 		ms := d.Milliseconds()

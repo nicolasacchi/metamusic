@@ -91,6 +91,8 @@ type Entry struct {
 	MicroUSD                               money.MicroUSD
 	BatchID, JobID, AttemptID, WindowStart *string
 	PrincipalID, Reason                    string
+	// Backend names the backend a 'bill' row was reconciled for (migration 0016); "" is the column default, the yue2 backend.
+	Backend string
 }
 
 // Observer is a test hook called after every committed ledger transaction (C86.3).
@@ -191,6 +193,11 @@ func (l *Ledger) insertAll(ctx context.Context, tx *sql.Tx, lease *store.LeaseFe
 		q := `INSERT INTO ledger(at, kind, micro_usd, batch_id, job_id, attempt_id, window_start, principal_id, reason)
 			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?`
 		args := []any{at, e.Kind, int64(e.MicroUSD), str(e.BatchID), str(e.JobID), str(e.AttemptID), str(e.WindowStart), e.PrincipalID, e.Reason}
+		if e.Backend != "" {
+			q = `INSERT INTO ledger(at, kind, micro_usd, batch_id, job_id, attempt_id, window_start, principal_id, reason, backend)
+			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+			args = append(args, e.Backend)
+		}
 		if lease != nil {
 			q += ` WHERE ` + lease.Where() //nolint:gosec // G202: fixed C69 predicate, values are bound
 			args = append(args, lease.Args()...)

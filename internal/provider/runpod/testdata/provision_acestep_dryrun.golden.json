@@ -1,0 +1,38 @@
+{
+  "env": {
+    "ENGINE": "acestep15",
+    "HF_HUB_OFFLINE": "1",
+    "MM_ACESTEP_MAIN_REVISION": "\u003credacted\u003e",
+    "MM_ACESTEP_MAX_SECONDS": "480",
+    "MM_ACESTEP_MODELS_DIR": "/runpod-volume/huggingface-cache/hub",
+    "MM_ACESTEP_POOL_VRAM_GB": "24",
+    "MM_ACESTEP_TASKS": "turbo",
+    "MM_LOAD_DEADLINE_S": "420",
+    "MODE": "serverless"
+  },
+  "flashboot": "FLASHBOOT",
+  "gpu": {
+    "count": 1,
+    "excludedTypes": [
+      "gpu-l4"
+    ],
+    "minCudaVersion": "12.8",
+    "pools": [
+      "AMPERE_24",
+      "ADA_24"
+    ]
+  },
+  "image": "ghcr.io/example/worker@sha256:\u003credacted\u003e",
+  "name": "mm-acestep",
+  "scaling": {
+    "queueDelay": 360,
+    "type": "QUEUE_DELAY"
+  },
+  "timeout": 900000,
+  "type": "QUEUE",
+  "workers": {
+    "idleTimeout": 20,
+    "max": 0,
+    "min": 0
+  }
+}

@@ -900,6 +900,322 @@
         ],
         "type": "object"
       },
+      "BackendStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "type": "boolean"
+          },
+          "armed_changed_at": {
+            "type": "string"
+          },
+          "armed_changed_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Balance"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ProviderCapabilities"
+          },
+          "cold_start_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "disabled_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endpoint": {
+            "additionalProperties": false,
+            "properties": {
+              "drift": {
+                "items": {
+                  "$ref": "#/components/schemas/DriftView"
+                },
+                "type": "array"
+              },
+              "excluded_types": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "flashboot": {
+                "type": "string"
+              },
+              "gpu_pools": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "idle_timeout_s": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "image_digest_short": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "workers_max": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "workers_min": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "workers_min",
+              "workers_max",
+              "idle_timeout_s",
+              "gpu_pools",
+              "excluded_types",
+              "flashboot",
+              "image_digest_short",
+              "drift"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "engine": {
+            "type": "string"
+          },
+          "generation_enabled": {
+            "type": "boolean"
+          },
+          "kill_slack_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_reconcile_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_runtime_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "meter": {
+            "additionalProperties": false,
+            "properties": {
+              "billed_seconds_24h": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "lifetimes_24h": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "max_workers_seen_24h": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "lifetimes_24h",
+              "billed_seconds_24h",
+              "max_workers_seen_24h"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "price": {
+            "additionalProperties": false,
+            "properties": {
+              "observed_at": {
+                "type": "string"
+              },
+              "per_hour_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "per_hour_usd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "per_hour_micro_usd",
+              "per_hour_usd",
+              "observed_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "price_margin_ppm": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "quote_observed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restored_unreconciled": {
+            "type": "boolean"
+          },
+          "rtf": {
+            "items": {
+              "$ref": "#/components/schemas/RTFView"
+            },
+            "type": "array"
+          },
+          "skew_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "trip": {
+            "additionalProperties": false,
+            "properties": {
+              "actions": {
+                "description": "What the reconciler did",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reset_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tripped_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "tripped_at",
+              "reason",
+              "actions",
+              "reset_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "trips_recent": {
+            "description": "At most 5",
+            "items": {
+              "$ref": "#/components/schemas/TripView"
+            },
+            "type": "array"
+          },
+          "ttl_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workers": {
+            "additionalProperties": false,
+            "properties": {
+              "idle": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "initializing": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "initializing_since": {
+                "description": "RFC 3339 UTC; null unless a worker is initializing",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "observed_at": {
+                "type": "string"
+              },
+              "running": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "throttled": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "unhealthy": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "running",
+              "idle",
+              "initializing",
+              "throttled",
+              "unhealthy",
+              "observed_at",
+              "initializing_since"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "engine",
+          "backend",
+          "generation_enabled",
+          "disabled_reason",
+          "armed",
+          "armed_changed_by",
+          "armed_changed_at",
+          "trip",
+          "trips_recent",
+          "last_reconcile_at",
+          "workers",
+          "endpoint",
+          "capabilities",
+          "price",
+          "rtf",
+          "cold_start_s",
+          "kill_slack_s",
+          "max_runtime_s",
+          "ttl_s",
+          "price_margin_ppm",
+          "meter",
+          "quote_observed_at",
+          "skew_ms",
+          "restored_unreconciled",
+          "balance"
+        ],
+        "type": "object"
+      },
       "BacklogStats": {
         "additionalProperties": false,
         "properties": {
@@ -6201,6 +6517,45 @@
         },
         "type": "object"
       },
+      "EditIn": {
+        "additionalProperties": false,
+        "properties": {
+          "extend_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "tracks": {
+            "items": {
+              "enum": [
+                "backing_vocals",
+                "bass",
+                "brass",
+                "drums",
+                "fx",
+                "guitar",
+                "keyboard",
+                "percussion",
+                "strings",
+                "synth",
+                "vocals",
+                "woodwinds"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "EditRecordSlotsInBody": {
         "additionalProperties": false,
         "properties": {
@@ -6299,6 +6654,426 @@
           "mean_lufs",
           "bpm",
           "lufs"
+        ],
+        "type": "object"
+      },
+      "EngineAdoption": {
+        "additionalProperties": false,
+        "properties": {
+          "changed_at": {
+            "description": "RFC 3339 UTC",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "adopted",
+              "not_adopted",
+              "none"
+            ],
+            "type": "string"
+          },
+          "trial_id": {
+            "description": "The deciding trial (E2c); null for seed and cli rows",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "via": {
+            "enum": [
+              "seed",
+              "cli",
+              "trial"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "via",
+          "changed_by",
+          "changed_at",
+          "reason",
+          "trial_id"
+        ],
+        "type": "object"
+      },
+      "EngineBackend": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "type": "boolean"
+          },
+          "cold_start_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "disabled_reason": {
+            "description": "backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "description": "Generation can work at all (keys, quote, endpoint)",
+            "type": "boolean"
+          },
+          "max_runtime_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "fake, fake-acestep, runpod-serverless or runpod-serverless-acestep",
+            "type": "string"
+          },
+          "trip_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tripped": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "disabled_reason",
+          "armed",
+          "tripped",
+          "trip_reason",
+          "cold_start_s",
+          "max_runtime_s"
+        ],
+        "type": "object"
+      },
+      "EngineCaps": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "extend": {
+            "type": "boolean"
+          },
+          "extend_max_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "extend_min_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "description": "Accepts a key and scale",
+            "type": "boolean"
+          },
+          "lora": {
+            "type": "boolean"
+          },
+          "lrc": {
+            "type": "boolean"
+          },
+          "max_seconds": {
+            "description": "The effective cap: the minimum of the verified maximum over the endpoint's pools",
+            "format": "int64",
+            "type": "integer"
+          },
+          "min_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "plan_score": {
+            "type": "boolean"
+          },
+          "reference_audio": {
+            "type": "boolean"
+          },
+          "reference_max_s": {
+            "description": "Longest reference window, seconds",
+            "format": "int64",
+            "type": "integer"
+          },
+          "render_from_score": {
+            "type": "boolean"
+          },
+          "repaint_interval": {
+            "description": "Repaint a time range of a take",
+            "type": "boolean"
+          },
+          "repaint_max_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "repaint_min_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample_rate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stem_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stems": {
+            "type": "boolean"
+          },
+          "tasks": {
+            "description": "The generation modes the engine offers now, sorted",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tempo": {
+            "description": "Accepts bpm and time signature",
+            "type": "boolean"
+          },
+          "text2song": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text2song",
+          "plan_score",
+          "render_from_score",
+          "repaint_interval",
+          "extend",
+          "complete",
+          "stems",
+          "reference_audio",
+          "lrc",
+          "tempo",
+          "key",
+          "lora",
+          "min_seconds",
+          "max_seconds",
+          "sample_rate",
+          "repaint_min_s",
+          "repaint_max_s",
+          "extend_min_s",
+          "extend_max_s",
+          "reference_max_s",
+          "stem_names",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "EngineFeatures": {
+        "additionalProperties": false,
+        "properties": {
+          "models_mode": {
+            "enum": [
+              "bundle_only",
+              "bundle_cached_base_baked",
+              "two_cached"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pools": {
+            "items": {
+              "$ref": "#/components/schemas/EnginePool"
+            },
+            "type": "array"
+          },
+          "reference_reproducible": {
+            "type": "boolean"
+          },
+          "seed_reproducible": {
+            "type": "boolean"
+          },
+          "tasks": {
+            "description": "Engine tasks a canary proved",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unverified": {
+            "description": "Capabilities the engine supports but no canary proved yet (shown as not yet verified)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verified_at": {
+            "description": "1970-01-01 until a canary ran",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verified_at",
+          "tasks",
+          "unverified",
+          "reference_reproducible",
+          "seed_reproducible",
+          "models_mode",
+          "pools"
+        ],
+        "type": "object"
+      },
+      "EngineList": {
+        "additionalProperties": false,
+        "properties": {
+          "default_engine": {
+            "examples": [
+              "yue2"
+            ],
+            "type": "string"
+          },
+          "engines": {
+            "description": "yue2 first, then the other engines by name",
+            "items": {
+              "$ref": "#/components/schemas/EngineView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "engines",
+          "default_engine"
+        ],
+        "type": "object"
+      },
+      "EnginePool": {
+        "additionalProperties": false,
+        "properties": {
+          "max_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pool": {
+            "type": "string"
+          },
+          "verified": {
+            "description": "A passing canary names this maximum; false is the documented default",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pool",
+          "max_s",
+          "verified"
+        ],
+        "type": "object"
+      },
+      "EngineView": {
+        "additionalProperties": false,
+        "properties": {
+          "adopt_hint": {
+            "description": "How to adopt a not adopted engine (the CLI line, or the trial from E2c)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "adoption": {
+            "$ref": "#/components/schemas/EngineAdoption"
+          },
+          "backend": {
+            "$ref": "#/components/schemas/EngineBackend",
+            "description": "absent when no backend is configured for the engine"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/EngineCaps"
+          },
+          "enabled": {
+            "description": "Registered in this process (MM_ACESTEP for acestep15)",
+            "type": "boolean"
+          },
+          "features": {
+            "$ref": "#/components/schemas/EngineFeatures",
+            "description": "absent for an engine without a verified-features file (yue2)"
+          },
+          "label": {
+            "examples": [
+              "ACE-Step 1.5"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "yue2 or acestep15",
+            "type": "string"
+          },
+          "open_trial_id": {
+            "description": "The open engine trial (E2c); always null before",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selectable": {
+            "type": "boolean"
+          },
+          "task_classes": {
+            "description": "turbo and/or base: the model families the endpoint is provisioned for",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unavailable_reason": {
+            "description": "Why selectable is false; the first failing check in this order",
+            "enum": [
+              "not_enabled",
+              "not_adopted",
+              "backend_absent",
+              "backend_disabled",
+              "disarmed",
+              "tripped"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "warnings": {
+            "description": "Operator-facing reasons the engine is limited",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "enabled",
+          "adoption",
+          "caps",
+          "task_classes",
+          "warnings",
+          "selectable",
+          "unavailable_reason",
+          "adopt_hint",
+          "open_trial_id"
         ],
         "type": "object"
       },
@@ -6565,9 +7340,10 @@
         "additionalProperties": false,
         "properties": {
           "engine": {
-            "description": "Default yue2",
+            "description": "Default yue2; one engine per batch",
             "enum": [
-              "yue2"
+              "yue2",
+              "acestep15"
             ],
             "type": "string"
           },
@@ -6581,6 +7357,9 @@
               "array",
               "null"
             ]
+          },
+          "options": {
+            "$ref": "#/components/schemas/EstimateOptions"
           }
         },
         "required": [
@@ -6610,6 +7389,18 @@
           "mode",
           "takes"
         ],
+        "type": "object"
+      },
+      "EstimateOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "trial_id": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "EstimatePrice": {
@@ -6693,6 +7484,7 @@
         "additionalProperties": false,
         "properties": {
           "code": {
+            "description": "Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated",
             "type": "string"
           },
           "field": {
@@ -7518,6 +8310,40 @@
         ],
         "type": "object"
       },
+      "GlobalBound": {
+        "additionalProperties": false,
+        "properties": {
+          "backends": {
+            "description": "The backends with a live workers.max above zero",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "g_micro_per_hour": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "g_usd_per_hour": {
+            "type": "string"
+          },
+          "x_micro": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "x_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "g_micro_per_hour",
+          "g_usd_per_hour",
+          "x_micro",
+          "x_usd",
+          "backends"
+        ],
+        "type": "object"
+      },
       "GrantEffective": {
         "additionalProperties": false,
         "properties": {
@@ -7895,6 +8721,16 @@
             "minItems": 1,
             "type": "array"
           },
+          "edit": {
+            "$ref": "#/components/schemas/EditIn"
+          },
+          "engine": {
+            "enum": [
+              "yue2",
+              "acestep15"
+            ],
+            "type": "string"
+          },
           "mode": {
             "description": "How the take list is built; see the modes table",
             "enum": [
@@ -7905,7 +8741,13 @@
               "from_draft",
               "compose_new",
               "from_template",
-              "song_pr"
+              "song_pr",
+              "port",
+              "extend",
+              "repaint",
+              "reference",
+              "complete",
+              "stems"
             ],
             "type": "string"
           },
@@ -7939,6 +8781,9 @@
           "recipe": {
             "description": "compose_new: the song request, as sent",
             "type": "object"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/RefIn"
           },
           "seeds": {
             "description": "Explicit seeds (unique, 0..2^53-1); override n_seeds",
@@ -8205,9 +9050,21 @@
             ],
             "type": "string"
           },
+          "stem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "take_index": {
             "format": "int64",
             "type": "integer"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeout_s": {
             "format": "int64",
@@ -8282,7 +9139,9 @@
           "track_id",
           "created_at",
           "updated_at",
-          "cost"
+          "cost",
+          "task",
+          "stem"
         ],
         "type": "object"
       },
@@ -8484,9 +9343,21 @@
             ],
             "type": "string"
           },
+          "stem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "take_index": {
             "format": "int64",
             "type": "integer"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
@@ -8517,7 +9388,9 @@
           "track_id",
           "created_at",
           "updated_at",
-          "cost"
+          "cost",
+          "task",
+          "stem"
         ],
         "type": "object"
       },
@@ -8593,6 +9466,44 @@
           "comments",
           "open_fix",
           "tags"
+        ],
+        "type": "object"
+      },
+      "LRCInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "LRCLink": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "bytes",
+          "sha256"
         ],
         "type": "object"
       },
@@ -9099,6 +10010,12 @@
               "null"
             ]
           },
+          "cross_engine": {
+            "type": "boolean"
+          },
+          "engine": {
+            "type": "string"
+          },
           "generation": {
             "format": "int64",
             "type": "integer"
@@ -9148,6 +10065,9 @@
           "recipe_known": {
             "type": "boolean"
           },
+          "reference": {
+            "$ref": "#/components/schemas/LineageReference"
+          },
           "request_id": {
             "type": "string"
           },
@@ -9168,6 +10088,10 @@
           },
           "status": {
             "type": "string"
+          },
+          "stems": {
+            "format": "int64",
+            "type": "integer"
           },
           "title": {
             "type": "string"
@@ -9220,6 +10144,28 @@
           "children_count",
           "transform",
           "also_from"
+        ],
+        "type": "object"
+      },
+      "LineageReference": {
+        "additionalProperties": false,
+        "properties": {
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "from_s",
+          "to_s"
         ],
         "type": "object"
       },
@@ -10040,8 +10986,17 @@
             "description": "The master is an MP3; mp3 points at it",
             "type": "boolean"
           },
+          "lrc": {
+            "$ref": "#/components/schemas/LRCLink"
+          },
           "mp3": {
             "$ref": "#/components/schemas/MP3Link"
+          },
+          "stems": {
+            "items": {
+              "$ref": "#/components/schemas/StemLink"
+            },
+            "type": "array"
           },
           "track_id": {
             "type": "string"
@@ -11467,6 +12422,12 @@
               "null"
             ]
           },
+          "bpm": {
+            "format": "int64",
+            "maximum": 300,
+            "minimum": 30,
+            "type": "integer"
+          },
           "cfg_scale": {
             "description": "A number sets it, null removes it, absent keeps it",
             "type": [
@@ -11478,8 +12439,17 @@
             "enum": [
               "full",
               "melody",
-              "off"
+              "off",
+              "think"
             ],
+            "type": "string"
+          },
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "keyscale": {
+            "maxLength": 12,
             "type": "string"
           },
           "lyrics": {
@@ -11490,6 +12460,15 @@
           "style": {
             "maxLength": 4000,
             "minLength": 1,
+            "type": "string"
+          },
+          "timesignature": {
+            "enum": [
+              "2",
+              "3",
+              "4",
+              "6"
+            ],
             "type": "string"
           }
         },
@@ -13079,6 +14058,12 @@
           "backend": {
             "type": "string"
           },
+          "backends": {
+            "items": {
+              "$ref": "#/components/schemas/BackendStatus"
+            },
+            "type": "array"
+          },
           "balance": {
             "$ref": "#/components/schemas/Balance"
           },
@@ -13157,8 +14142,14 @@
               "null"
             ]
           },
+          "engine": {
+            "type": "string"
+          },
           "generation_enabled": {
             "type": "boolean"
+          },
+          "global_bound": {
+            "$ref": "#/components/schemas/GlobalBound"
           },
           "kill_slack_s": {
             "format": "int64",
@@ -13349,6 +14340,9 @@
           }
         },
         "required": [
+          "engine",
+          "backends",
+          "global_bound",
           "backend",
           "generation_enabled",
           "disabled_reason",
@@ -13544,6 +14538,72 @@
         },
         "type": "object"
       },
+      "RecipeACE": {
+        "additionalProperties": false,
+        "properties": {
+          "bpm": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "edit": {
+            "$ref": "#/components/schemas/RecipeEdit"
+          },
+          "keyscale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ref": {
+            "$ref": "#/components/schemas/RecipeRef"
+          },
+          "src": {
+            "$ref": "#/components/schemas/RecipeSrc"
+          },
+          "task": {
+            "enum": [
+              "text2music",
+              "repaint",
+              "extend",
+              "complete",
+              "extract"
+            ],
+            "type": "string"
+          },
+          "task_class": {
+            "enum": [
+              "turbo",
+              "base"
+            ],
+            "type": "string"
+          },
+          "timesignature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "task",
+          "task_class",
+          "bpm",
+          "keyscale",
+          "timesignature",
+          "duration_s"
+        ],
+        "type": "object"
+      },
       "RecipeDiff": {
         "additionalProperties": false,
         "properties": {
@@ -13572,9 +14632,51 @@
         ],
         "type": "object"
       },
+      "RecipeEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "extend_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "from_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "to_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tracks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "from_s",
+          "to_s",
+          "extend_s",
+          "tracks"
+        ],
+        "type": "object"
+      },
       "RecipeInfo": {
         "additionalProperties": false,
         "properties": {
+          "acestep": {
+            "$ref": "#/components/schemas/RecipeACE"
+          },
           "cot": {
             "type": "string"
           },
@@ -13615,6 +14717,53 @@
           "seed",
           "hash",
           "sources_count"
+        ],
+        "type": "object"
+      },
+      "RecipeRef": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_sha256": {
+            "type": "string"
+          },
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "clip_sha256",
+          "from_s",
+          "to_s"
+        ],
+        "type": "object"
+      },
+      "RecipeSrc": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "master_sha256": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "master_sha256",
+          "duration_s"
         ],
         "type": "object"
       },
@@ -14065,6 +15214,27 @@
           "items",
           "next_cursor",
           "total"
+        ],
+        "type": "object"
+      },
+      "RefIn": {
+        "additionalProperties": false,
+        "properties": {
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id"
         ],
         "type": "object"
       },
@@ -16589,6 +17759,56 @@
         ],
         "type": "object"
       },
+      "StemInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "type": "string"
+          },
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "artifact",
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "StemLink": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "bytes",
+          "sha256"
+        ],
+        "type": "object"
+      },
       "StorageStats": {
         "additionalProperties": false,
         "properties": {
@@ -16943,6 +18163,12 @@
           "commit": {
             "type": "string"
           },
+          "engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "schema_version": {
             "description": "SQLite migration level",
             "format": "int64",
@@ -16975,7 +18201,8 @@
           "started_at",
           "uptime_s",
           "audit_failures",
-          "startup_issues"
+          "startup_issues",
+          "engines"
         ],
         "type": "object"
       },
@@ -17184,6 +18411,52 @@
         ],
         "type": "object"
       },
+      "TakeEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "extend_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "from_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "stem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tracks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "from_s",
+          "to_s",
+          "extend_s",
+          "tracks",
+          "stem"
+        ],
+        "type": "object"
+      },
       "TakeLadder": {
         "additionalProperties": false,
         "properties": {
@@ -17210,11 +18483,20 @@
       "TakePlan": {
         "additionalProperties": false,
         "properties": {
+          "cross_engine": {
+            "type": "boolean"
+          },
           "draft_id": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "edit": {
+            "$ref": "#/components/schemas/TakeEdit"
+          },
+          "engine": {
+            "type": "string"
           },
           "expected_audio_s": {
             "format": "int64",
@@ -17236,6 +18518,9 @@
               "null"
             ]
           },
+          "reference": {
+            "$ref": "#/components/schemas/TakeReference"
+          },
           "request_id": {
             "type": "string"
           },
@@ -17246,6 +18531,22 @@
           "take_index": {
             "format": "int64",
             "type": "integer"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_class": {
+            "enum": [
+              "turbo",
+              "base"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeout_s": {
             "format": "int64",
@@ -17266,7 +18567,37 @@
           "expected_audio_s",
           "timeout_s",
           "max_micro_usd",
-          "max_usd"
+          "max_usd",
+          "engine",
+          "task",
+          "task_class",
+          "cross_engine"
+        ],
+        "type": "object"
+      },
+      "TakeReference": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_sha256": {
+            "type": "string"
+          },
+          "from_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "to_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "from_s",
+          "to_s",
+          "clip_sha256"
         ],
         "type": "object"
       },
@@ -18586,6 +19917,9 @@
             "description": "The master is an MP3; bits_per_sample is nominal and there is no lossless file",
             "type": "boolean"
           },
+          "lrc": {
+            "$ref": "#/components/schemas/LRCInfo"
+          },
           "open_comments": {
             "format": "int64",
             "type": "integer"
@@ -18717,6 +20051,12 @@
           },
           "status_set_by": {
             "type": "string"
+          },
+          "stems": {
+            "items": {
+              "$ref": "#/components/schemas/StemInfo"
+            },
+            "type": "array"
           },
           "style_terms": {
             "items": {
@@ -19150,6 +20490,9 @@
             "format": "double",
             "type": "number"
           },
+          "engine": {
+            "type": "string"
+          },
           "has_score": {
             "type": "boolean"
           },
@@ -19316,6 +20659,7 @@
           "origin",
           "cost_display_micro_usd",
           "cost_display_usd",
+          "engine",
           "song_id",
           "is_pick",
           "song_title",
@@ -20543,6 +21887,9 @@
         "properties": {
           "armed": {
             "type": "boolean"
+          },
+          "backend": {
+            "type": "string"
           },
           "reason": {
             "maxLength": 500,
@@ -24073,6 +25420,42 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/duels",
+          "human_only": false
+        }
+      }
+    },
+    "/api/engines": {
+      "get": {
+        "description": "Each engine with its adoption state, backend (armed, tripped, cold start), effective capabilities (modes, limits, stem names), verified features and whether a generation of it can be estimated right now, and why not.",
+        "operationId": "list_engines",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List the render engines",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/engines",
           "human_only": false
         }
       }
@@ -28857,7 +30240,7 @@
     },
     "/api/tracks": {
       "get": {
-        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform) and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
+        "description": "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform), engine and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
         "operationId": "search_tracks",
         "parameters": [
           {
@@ -29113,6 +30496,22 @@
                   "import",
                   "job",
                   "transform"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "engine",
+            "schema": {
+              "items": {
+                "enum": [
+                  "yue2",
+                  "acestep15",
+                  "dsp"
                 ],
                 "type": "string"
               },

@@ -18,6 +18,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/ears"
+	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
@@ -75,6 +76,9 @@ type BridgeOptions struct {
 	Fault func(point string) error
 	// TakeHook is called inside the take transaction and after its commit (C255); nil keeps today's behaviour exactly.
 	TakeHook TakeHook
+	// Engines resolves a job's engine for the per-engine ingest bridge (C156): its required artifacts, its IngestPolicy
+	// and (for the RTF learning rule) its caps. nil serves yue2 only, exactly as before E2.
+	Engines engine.Registry
 }
 
 // FaultAfterIngest is the bridge's crash point between the pipeline and the take transaction.
@@ -131,16 +135,22 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 	for _, f := range files {
 		byName[f.Artifact] = f
 	}
-	if err := b.verify(job, byName, out); err != nil {
-		return "", err
-	}
 	req, err := b.loadRecipe(ctx, job)
 	if err != nil {
 		return "", err
 	}
-	trunc, err := b.truncationOf(byName, out)
+	eng, err := b.engineFor(req)
 	if err != nil {
 		return "", err
+	}
+	if err := b.verify(job, eng, byName, out); err != nil {
+		return "", err
+	}
+	var trunc [2]bool
+	if eng.reportsTruncation {
+		if trunc, err = b.truncationOf(byName, out); err != nil {
+			return "", err
+		}
 	}
 
 	// A fresh UUIDv7 per ingest attempt: M1's work dir and takes/<TrackID> must not exist yet.
@@ -209,12 +219,12 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 		return b.duplicate(job, existing)
 	}
 
-	take, err := b.newTake(ctx, job, att, out, trackID, title, slug, req, res, trunc, byName, now)
+	take, err := b.newTake(ctx, job, att, out, trackID, title, slug, req, eng, res, trunc, byName, now)
 	if err != nil {
 		_ = b.o.Pipeline.Discard(res)
 		return "", err
 	}
-	if err := b.commit(ctx, owner, job, att, out, take, byName); err != nil {
+	if err := b.commit(ctx, owner, job, att, out, eng, req, take, byName); err != nil {
 		_ = b.o.Pipeline.Discard(res)
 		if existing, ok, qerr := b.existingIdentity(ctx, res); qerr == nil && ok {
 			return b.duplicate(job, existing)
@@ -241,19 +251,56 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 	return trackID, nil
 }
 
-// verify checks the output against the uploads (C75.5): the required set, sha and size of every reported
-// artifact, and a truncation object of exactly two booleans.
-func (b *IngestBridge) verify(job JobRow, byName map[string]upload.Received, out provider.Output) error {
+// ingestEngine is what the bridge needs to know about the engine of the job it ingests.
+type ingestEngine struct {
+	name              string
+	eng               engine.Engine // nil only for yue2 on a bridge without a registry
+	reportsTruncation bool          // engine.IngestPolicy: the output carries truncated{abc,semantic}
+	learnsRTF         bool          // engine.IngestPolicy: the take teaches yue2's rtf_stats
+	required          []string      // the artifacts the take needs besides mm-result.json
+}
+
+// engineFor resolves the engine of a recipe. yue2 keeps its fixed required set, so a bridge without a registry is
+// byte-for-byte the M3 bridge; any other engine must be registered (the runner never claims a job of one that is not).
+func (b *IngestBridge) engineFor(req recipeInfo) (ingestEngine, error) {
+	name := req.engine // recipes.engine is NOT NULL
+	e, ok := b.o.Engines[name]
+	if name == provider.EngineYuE2 {
+		ie := ingestEngine{name: name, reportsTruncation: true, learnsRTF: true, required: requiredIngest}
+		if ok {
+			ie.eng = e
+		}
+		return ie, nil
+	}
+	if !ok {
+		return ingestEngine{}, fmt.Errorf("jobs: ingest: engine %q is not registered", name)
+	}
+	required, _ := e.Artifacts([]byte(req.requestJSON))
+	return ingestEngine{name: name, eng: e, reportsTruncation: engine.ReportsTruncation(e), learnsRTF: engine.LearnsRTF(e), required: required}, nil
+}
+
+// verify checks the output against the uploads (C75.5, C156): the engine's required set, sha and size of every reported
+// artifact, and the truncation shape its IngestPolicy asks for: an object of exactly two booleans for yue2, null for an
+// engine that reports no truncation.
+func (b *IngestBridge) verify(job JobRow, eng ingestEngine, byName map[string]upload.Received, out provider.Output) error {
 	if out.Contract != provider.Contract || out.Status != "ok" || out.TakeID != job.ID {
 		return violation("WORKER_CONTRACT", "output does not belong to this take")
 	}
 	if out.AudioSeconds == nil {
 		return violation("WORKER_CONTRACT", "audio_seconds missing")
 	}
-	if !validTruncated(out.Truncated) {
+	switch {
+	case eng.reportsTruncation && !validTruncated(out.Truncated):
 		return violation("WORKER_CONTRACT", "truncated is not an object of abc and semantic")
+	case !eng.reportsTruncation && out.Truncated != nil:
+		return violation("WORKER_CONTRACT", "truncated must be null for engine %s", eng.name)
+	case eng.name != provider.EngineYuE2 && out.Env.Engine != eng.name:
+		return violation("WORKER_CONTRACT", "output environment names another engine")
 	}
-	for _, name := range requiredIngest {
+	for _, name := range eng.required {
+		if name == provider.ResultArtifact {
+			continue // checked below; the worker's own output never lists itself
+		}
 		u, ok := byName[name]
 		if !ok {
 			return violation("ARTIFACT_MISSING", "required artifact %s was not received", name)
@@ -315,13 +362,16 @@ func (b *IngestBridge) truncationOf(byName map[string]upload.Received, out provi
 }
 
 type recipeInfo struct {
-	requestID string
-	seed      int64
+	requestID   string
+	seed        int64
+	engine      string
+	requestJSON string
 }
 
 func (b *IngestBridge) loadRecipe(ctx context.Context, job JobRow) (recipeInfo, error) {
 	var r recipeInfo
-	if err := b.o.Store.R.QueryRowContext(ctx, `SELECT request_id, seed FROM recipes WHERE id = ?`, job.RecipeID).Scan(&r.requestID, &r.seed); err != nil {
+	if err := b.o.Store.R.QueryRowContext(ctx, `SELECT request_id, seed, engine, request_json FROM recipes WHERE id = ?`, job.RecipeID).
+		Scan(&r.requestID, &r.seed, &r.engine, &r.requestJSON); err != nil {
 		return r, fmt.Errorf("jobs: recipe of job %s: %w", job.ID, err)
 	}
 	return r, nil
@@ -395,7 +445,7 @@ type mutationDoc struct {
 	PrincipalID string          `json:"principal_id"`
 }
 
-func (b *IngestBridge) newTake(ctx context.Context, job JobRow, att AttemptRow, out provider.Output, trackID, title, slug string, req recipeInfo,
+func (b *IngestBridge) newTake(ctx context.Context, job JobRow, att AttemptRow, out provider.Output, trackID, title, slug string, req recipeInfo, eng ingestEngine,
 	res ingest.Result, trunc [2]bool, byName map[string]upload.Received, now time.Time) (library.NewTake, error) {
 	var m mutationDoc
 	if err := json.Unmarshal([]byte(job.MutationJSON), &m); err != nil {
@@ -419,7 +469,6 @@ func (b *IngestBridge) newTake(ctx context.Context, job JobRow, att AttemptRow, 
 	if principal == "" {
 		principal = "system:job"
 	}
-	abc, sem := trunc[0], trunc[1]
 	nt := library.NewTake{
 		ID: trackID, Title: title, Slug: slug, RecipeID: job.RecipeID,
 		ParentTrackID: parent, RootTrackID: root, Generation: gen,
@@ -427,10 +476,16 @@ func (b *IngestBridge) newTake(ctx context.Context, job JobRow, att AttemptRow, 
 		TotalSamples: int64(si.TotalSamples), //nolint:gosec // FLAC totals are 36 bits
 		MasterPath:   res.MasterRelPath, MasterSHA256: res.MasterSHA256, MasterBytes: res.MasterBytes,
 		SourceSHA256: byName["audio.flac"].SHA256, FramesSHA256: res.FramesSHA256, AudioMD5: res.AudioMD5,
-		TruncatedABC: &abc, TruncatedSemantic: &sem,
 		ImportRule: "job", PrincipalID: principal, RecordedAt: now,
 		Loudness: res.Loudness, Spectrum: res.Spectrum, ToolVersion: res.ToolVersion, ReplayGainDB: res.ReplayGainDB,
 		Origin: "job", StatusSetBy: "system:job", JobID: job.ID, EnvID: envID,
+	}
+	if eng.reportsTruncation {
+		abc, sem := trunc[0], trunc[1]
+		nt.TruncatedABC, nt.TruncatedSemantic = &abc, &sem // otherwise NULL: unknown, as for an import without result.json
+	}
+	if eng.name != provider.EngineYuE2 {
+		nt.BPMDeclared = declaredBPM(req.requestJSON) // C164: the tempo is a request field, not a style term
 	}
 	for _, r := range []struct {
 		kind string
@@ -488,7 +543,7 @@ const draftFulfilSQL = `UPDATE recipe_drafts SET status = 'fulfilled', fulfilled
 
 // commit writes the take, its environment, the RTF sample, the draft fulfilment and the upload
 // consumption in one transaction under the lease predicate.
-func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att AttemptRow, out provider.Output, take library.NewTake, byName map[string]upload.Received) error {
+func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att AttemptRow, out provider.Output, eng ingestEngine, req recipeInfo, take library.NewTake, byName map[string]upload.Received) error {
 	return b.fencedTx(ctx, owner, job, func(tx *sql.Tx, f store.LeaseFence) error {
 		digest, err := imageDigestOf(ctx, tx, att.ImageDigest, att.WorkerKey, out.Env.WorkerBuild)
 		if err != nil {
@@ -507,14 +562,21 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 			return fmt.Errorf("jobs: env fingerprint: %w", err)
 		}
 		if b.o.Spend != nil && gpu != "" {
-			if e2e, ok := numberOf(out.Timings["e2e_seconds"]); ok && out.AudioSeconds != nil {
-				if audio, err := out.AudioSeconds.Float64(); err == nil && audio > 0 {
-					// the raw reported name: RecordRTF normalises it, so rows learned under it still match
-					var cot string
-					_ = tx.QueryRowContext(ctx, `SELECT cot FROM recipes WHERE id = ?`, job.RecipeID).Scan(&cot)
-					if err := b.o.Spend.RecordRTF(ctx, tx, out.Env.GPUName, int64(e2e*1000+0.5), int64(audio*1000+0.5), cot == "full"); err != nil {
-						return err
+			switch {
+			case eng.learnsRTF:
+				if e2e, ok := numberOf(out.Timings["e2e_seconds"]); ok && out.AudioSeconds != nil {
+					if audio, err := out.AudioSeconds.Float64(); err == nil && audio > 0 {
+						// the raw reported name: RecordRTF normalises it, so rows learned under it still match
+						var cot string
+						_ = tx.QueryRowContext(ctx, `SELECT cot FROM recipes WHERE id = ?`, job.RecipeID).Scan(&cot)
+						if err := b.o.Spend.RecordRTF(ctx, tx, out.Env.GPUName, int64(e2e*1000+0.5), int64(audio*1000+0.5), cot == "full"); err != nil {
+							return err
+						}
 					}
+				}
+			case eng.name != provider.EngineYuE2:
+				if err := b.recordEngineRTF(ctx, tx, job, eng, req, out); err != nil {
+					return err
 				}
 			}
 		}
@@ -528,6 +590,11 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 			}
 			if err := b.o.TakeHook.AfterTakeTx(ctx, tx, info); err != nil {
 				return fmt.Errorf("jobs: take hook: %w", err)
+			}
+		}
+		if eng.name != provider.EngineYuE2 {
+			if err := durationEvent(ctx, tx, f, job, att, req, take.DurationS); err != nil {
+				return err
 			}
 		}
 		if job.DraftID != nil {
