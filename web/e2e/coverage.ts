@@ -4,19 +4,11 @@ import { resolve } from "node:path";
 type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"?: { ui?: string } }>> };
 
 /**
- * UI operations whose pages are not built yet: the seven transform operations (T1-F1 registers them as stubs; lane W1 builds the
- * panel and /transforms, lanes W3 and INT-W add the specs and empty this list) and the M5 operations frozen by M5-F2, one line
+ * UI operations whose pages are not built yet: the M5 operations frozen by M5-F2, one line
  * per lane (M5-W1, M5-W2, M5-V1 delete their ids when their specs exercise them). src/lib/e2e-coverage.test.ts fails on an id
  * that is no longer a UI operation, so an entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  "estimate_transform",
-  "create_transform",
-  "get_transform",
-  "list_transforms",
-  "wait_for_transform",
-  "cancel_transform",
-  "get_transform_capabilities",
   "propose_patch", "get_patch", "list_patches", // M5-W1: Song PR panel and patch page
   "get_listen_heat", // M5-W1: heat strip
   "list_callbacks", "get_callback", "submit_callback_verdict", // M5-W2: Judge Callbacks
