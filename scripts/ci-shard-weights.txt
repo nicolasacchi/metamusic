@@ -46,6 +46,7 @@
 ./internal/httpserver 18
 ./internal/backup 18
 ./internal/records 18
+./internal/callbacks 18
 ./internal/library 16
 ./internal/songview 16
 ./internal/analysis/spectro 15
