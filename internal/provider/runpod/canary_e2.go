@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -199,36 +200,12 @@ type cProviderAll struct {
 	Backends []cBackend `json:"backends"`
 }
 
-// cTimings keeps the two timings the canary has always read and every other numeric one (worker-reported
-// measurements such as peak_vram_mb_<component>), for the P0b recorded outputs.
+// cTimings is the job view's timings object: the two timings the canary has always read and timings.extra, the worker's
+// numeric measurements (peak_vram_mb_<component>, lm_gpu_memory_utilization_milli, ...) for the P0b recorded outputs.
 type cTimings struct {
-	ExecutionMS *int64
-	ColdStartS  *int64
-	Extra       map[string]json.Number
-}
-
-func (t *cTimings) UnmarshalJSON(b []byte) error {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(b, &m); err != nil {
-		return err
-	}
-	t.Extra = map[string]json.Number{}
-	for k, raw := range m {
-		var n json.Number
-		if json.Unmarshal(raw, &n) != nil {
-			continue // null or not a number
-		}
-		v, err := n.Int64()
-		switch {
-		case k == "execution_ms" && err == nil:
-			t.ExecutionMS = &v
-		case k == "cold_start_s" && err == nil:
-			t.ColdStartS = &v
-		default:
-			t.Extra[k] = n
-		}
-	}
-	return nil
+	ExecutionMS *int64                 `json:"execution_ms"`
+	ColdStartS  *int64                 `json:"cold_start_s"`
+	Extra       map[string]json.Number `json:"extra"`
 }
 
 // readProvider reads /api/provider. For --engine acestep15 it returns the ACE-Step backend's entry of backends[]; the
@@ -469,14 +446,14 @@ func (c *canary) recordRender(job cJob, meas map[string]any) {
 	}
 }
 
-// recordP0b records the worker-reported P0b numbers when the job view carries them (timings keys
-// peak_vram_mb_<component> and lm_gpu_memory_utilization_milli); otherwise it records that they were not reported so
-// the proposed patch says the numbers still have to be read from the worker log.
+// recordP0b records the worker-reported P0b numbers from the job view's timings.extra (peak_vram_mb_<component> and
+// lm_gpu_memory_utilization_milli); a number the worker did not report is recorded as such so the proposed patch says it
+// still has to be read from the worker log.
 func (c *canary) recordP0b(job cJob, meas map[string]any) {
 	vram := map[string]int64{}
 	for k, v := range job.Timings.Extra {
 		if comp, ok := strings.CutPrefix(k, "peak_vram_mb_"); ok {
-			if n, err := v.Int64(); err == nil {
+			if n, ok := wholeOf(v); ok {
 				vram[comp] = n
 			}
 		}
@@ -484,15 +461,28 @@ func (c *canary) recordP0b(job cJob, meas map[string]any) {
 	if len(vram) > 0 {
 		meas["peak_vram_mb"] = vram
 	} else {
-		meas["peak_vram_mb"] = "not_reported_by_job_view"
+		meas["peak_vram_mb"] = notReportedByWorker
 	}
-	if v, ok := job.Timings.Extra["lm_gpu_memory_utilization_milli"]; ok {
-		if n, err := v.Int64(); err == nil {
-			meas["lm_gpu_memory_utilization_milli"] = n
-			return
-		}
+	if n, ok := wholeOf(job.Timings.Extra["lm_gpu_memory_utilization_milli"]); ok {
+		meas["lm_gpu_memory_utilization_milli"] = n
+		return
 	}
-	meas["lm_gpu_memory_utilization_milli"] = "not_reported_by_job_view"
+	meas["lm_gpu_memory_utilization_milli"] = notReportedByWorker
+}
+
+// notReportedByWorker is what a P0b measurement reads when timings.extra does not carry it.
+const notReportedByWorker = "not_reported_by_worker"
+
+// wholeOf reads a timing as a whole number (a fractional value is rounded; a MiB or per-mille figure needs no more).
+func wholeOf(n json.Number) (int64, bool) {
+	if n == "" {
+		return 0, false
+	}
+	f, err := n.Float64()
+	if err != nil || f < 0 {
+		return 0, false
+	}
+	return int64(math.Round(f)), true
 }
 
 // sameArtifact reports whether two stages produced the same audio.flac bytes.
