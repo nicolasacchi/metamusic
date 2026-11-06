@@ -124,6 +124,10 @@ type Options struct {
 	// M5 (C250). CallbackBacklogMax is MM_CALLBACK_BACKLOG_MAX; nil is the production default (6), a pointer to 0 switches the agent
 	// backlog gate off.
 	CallbackBacklogMax *int
+	// FakeACE and FakeACEWorker (E2-INT) tune the fake-acestep backend and its simulated worker (see app.M3Options); setting
+	// either builds the worker over the rig's own upload and media handlers. Both need ACEStep.
+	FakeACE       *fake.Options
+	FakeACEWorker *fake.SimWorkerOptions
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -454,6 +458,7 @@ func New(tb testing.TB, o Options) *Rig {
 	if o.Fake == nil {
 		ao.M3.Fake = &fake.Options{Speed: o.FakeSpeed}
 	}
+	ao.M3.FakeACE, ao.M3.FakeACEWorker = o.FakeACE, o.FakeACEWorker
 	if rp := o.RunPod; rp != nil {
 		ep := rp.EndpointID
 		if ep == "" {

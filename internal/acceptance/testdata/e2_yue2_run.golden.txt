@@ -1,0 +1,43 @@
+-- id,
+01900000-0000-7000-8000-000000009004|completed|reroll_seed|yue2|fake|180|356|38372|78220|clean|3|0|0|
+-- kind,
+reserve|78220|take|runpod-serverless|
+reserve|42167|attempt_overhead|runpod-serverless|
+settle|211|execution|runpod-serverless|
+settle|0|overhead|runpod-serverless|
+residual|120176|held|runpod-serverless|
+bill|4389|reconcile|fake|
+release|120176|reconciled|runpod-serverless|
+-- engine,
+yue2|syn-song-04-s1005|{"cot":"full","id":"syn-song-04-s1005","lyrics":"[Verse 1]\nmosa kovi visa\n[Chorus]\nmosa neko netu","seed":1005,"style":"synthetic pop, 120 bpm"}|
+-- operator,
+reroll_seed|{"job_id":"01900000-0000-7000-8000-000000009004","mode":"new_seed","n_seeds":1,"seed_policy":"auto","via":null}|e2 acceptance|
+-- event
+claim|
+submitted|
+start|
+upload|
+upload|
+upload|
+upload|
+upload|
+upload|
+upload|
+upload|
+upload|
+settled|
+running|
+completed_remote|
+verified|
+ingested|
+-- duration_s,
+3|0|0|120|
+-- gpu_class,
+A5000|440|0|
+RTX 3090|440|0|
+RTX 4090|330|0|
+RTX A5000 (simulated)|50|1|
+-- backend,
+fake|ok|4600|
+-- engine,
+yue2|0.1.6|{"m-a-p/YuE2-3B":"8f24312f187763b9854adeec87e437e2b03bbff1","m-a-p/YuE2-Vae":"152733a19ad43aa67e367f9b5503ef8075bb5126"}|m-a-p/YuE2-Vae|fake|
