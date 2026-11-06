@@ -1,0 +1,4 @@
+# sha256 of the little-endian bit patterns of analysis.OnsetEnvelope on the fixed signal of pinSignal (D-T1-20). linux/amd64, GOAMD64=v1.
+# A change here means a dsp_version bump (D-T1-3), not just a refresh.
+onset16k 1eb4a48d4684967f02f2878513d3b59af3b76f0c80ec15ebfc76c42042e35e9d
+onset48k a20f73570b02f2bc91a3b006bd3e97c05c8020d37664fb117d382d8645111be2

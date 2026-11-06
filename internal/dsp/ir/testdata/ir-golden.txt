@@ -1,0 +1,2 @@
+# sha256 of the little-endian bit patterns of L then R of the cathedral at 16 kHz, seed 42. linux/amd64, GOAMD64=v1.
+cathedral16k c9db6acd5b7cd3b81688da8d74afbabeed8edf272a0c0745fdfac05d80f653d8
