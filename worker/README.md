@@ -40,3 +40,13 @@ a Go test pins the equality) into `/opt/mm/hf-cache/hub`, every file checked aga
 blob id that Hugging Face lists for that revision; a mismatch fails the build. `MM_YUE2_VAE_DIR` selects the
 hub cache holding the VAE (`runpod provision --vae-source image|cached|volume:PATH`, default `image`);
 `cached` needs a second cached model, which RunPod does not offer. The worker runs with `HF_HUB_OFFLINE=1`.
+
+## ACE-Step image (engine 2)
+
+`Dockerfile.acestep` builds the second worker image (Python 3.11, torch 2.10 with CUDA 12.8; ACE-Step is pinned by
+`contract/ACESTEP_COMMIT` and installed from that commit). `ENGINE=acestep15` (`MM_ENGINE`) selects the adapter in
+`src/mmworker/engines/acestep.py`; the contract string stays `mm.worker/1` and a job carries an optional `engine` and `inputs`.
+The main model bundle is the endpoint's one cached model; the base DiT is baked into the image (sha256-verified at build time).
+Third-party notices are `NOTICE.acestep` (installed as `/opt/mm/THIRD_PARTY_NOTICES`) and `licenses/`. `make worker-acestep` runs the
+unit tests; `make contract-acestep` (CI) runs `contract/test_acestep_contract.py` against the pinned commit. Pinned engine parameters
+live in `acestep_params.json`, a byte copy of the Go `engine_params.json` (a test pins the equality).

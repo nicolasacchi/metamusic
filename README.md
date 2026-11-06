@@ -145,3 +145,11 @@ must never be committed; `make gate` (also run by the git hooks and CI) enforces
 Third-party data: the `binaural` transform embeds a derived head-related impulse response table
 (`internal/dsp/hrtf/table.q15`) built from the SADIE II database (University of York, Apache-2.0). Notice and credit:
 `internal/dsp/hrtf/NOTICE` and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Third-party engine and models (ACE-Step worker image, not part of the Go binary):
+
+| Component | Licence | Notes |
+|---|---|---|
+| SADIE II head-related impulse responses | Apache-2.0 | University of York; derived table in `internal/dsp/hrtf/`; credit in `internal/dsp/hrtf/NOTICE` |
+| ACE-Step 1.5 (code and model weights) | MIT | code MIT, weights MIT per the model cards; pinned commit in `worker/contract/ACESTEP_COMMIT`; notices in `worker/NOTICE.acestep` |
+| Qwen3 (text encoder and language-model base inside the ACE-Step bundle) | Apache-2.0 | Alibaba Cloud; licence text in `worker/licenses/`; credited in `worker/NOTICE.acestep` |
