@@ -21,7 +21,7 @@ import (
 // from the Services fields buildE2 already fills.
 func buildE2Ops(in e2Inputs, e *e2Services) {
 	if in.m3.Provider != nil {
-		in.m3.Provider.UseBound(jobs.BoundInputs{Spend: in.m3.Spend})
+		in.m3.Provider.UseBound(jobs.BoundInputs{Spend: in.m3.Spend, KillSlackS: in.cfg.KillSlackS, PriceMarginPPM: in.cfg.PriceMarginPPM})
 	}
 	if in.ctxb != nil {
 		in.ctxb.UseEngines(&engineAdvisor{st: in.st, engines: e.Engines, adoption: e.Adoption})

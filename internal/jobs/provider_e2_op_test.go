@@ -159,3 +159,24 @@ func TestUpdateProviderState_SingleBackendIgnoresBound(t *testing.T) {
 		t.Errorf("a one-backend process is M3: %v", err)
 	}
 }
+
+// The app builds the admin without KillSlackS and PriceMarginPPM: BoundInputs carries the configuration so X is not understated.
+func TestProviderAdmin_BoundUsesConfiguredSlackAndMargin(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	a := d.admin(provider.ModeFake, true, func(o *ProviderOptions) { o.KillSlackS, o.PriceMarginPPM = 0, 0 })
+	gates, err := provider.NewGateSet(provider.BackendFake, a.o.Gate,
+		provider.NewGate(d.st.R, provider.GateConfig{Mode: provider.ModeFake, Backend: aceName, Engine: provider.EngineACEStep, KeysLoaded: true, ColdStartS: 300, MaxRuntime: 15 * time.Minute}, d.clk.Now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.UseBackends(gates, nil, nil)
+	a.UseBound(BoundInputs{Spend: d.sp, KillSlackS: 15, PriceMarginPPM: 100000})
+	ss, err := a.StatusAll(t.Context(), humanP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Bound.GMicroPerHour != opGBoth || ss.Bound.XMicro != opXBoth {
+		t.Errorf("bound = %+v, want G %d X %d", ss.Bound, opGBoth, opXBoth)
+	}
+}

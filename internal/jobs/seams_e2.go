@@ -46,6 +46,10 @@ type GlobalBoundView struct {
 // usage, and the process configuration supplies the kill slack and price margin that statusFor does not carry per backend.
 type BoundInputs struct {
 	Spend *spend.Service
+	// KillSlackS and PriceMarginPPM are the process configuration; when set they replace the values the admin's own options
+	// carry (app.buildM3 leaves those zero), so the bound never understates X.
+	KillSlackS     int
+	PriceMarginPPM int64
 }
 
 // UseBound wires the cap comparison of Update. A single-backend process never asks (M3 behaviour); app.buildE2Ops wires it
@@ -89,7 +93,10 @@ func (a *ProviderAdmin) StatusAll(ctx context.Context, viewer auth.Principal) (P
 		st.Engine = engineOf(g)
 		out.Backends = append(out.Backends, st)
 	}
-	out.Bound = boundOf(out.Backends, "")
+	a.mu.RLock()
+	bi := a.bound
+	a.mu.RUnlock()
+	out.Bound = boundOf(out.Backends, "", bi)
 	return out, nil
 }
 
@@ -110,9 +117,15 @@ func (a *ProviderAdmin) StatusFor(ctx context.Context, viewer auth.Principal, ba
 
 // boundOf is spend.ComputeGlobalBound over the statuses. A backend that is not armed contributes nothing (its endpoint is
 // scaled to zero by the arming rules); arm names a backend to count as armed, for the check before arming it.
-func boundOf(sts []ProviderStatus, arm string) GlobalBoundView {
+func boundOf(sts []ProviderStatus, arm string, bi BoundInputs) GlobalBoundView {
 	in := make([]spend.BackendBound, 0, len(sts))
 	for _, s := range sts {
+		if bi.KillSlackS > 0 {
+			s.KillSlackS = bi.KillSlackS
+		}
+		if bi.PriceMarginPPM > 0 {
+			s.PriceMarginPPM = bi.PriceMarginPPM
+		}
 		workers := 0
 		if s.Endpoint != nil && (s.State.Armed || (arm != "" && s.State.Backend == arm)) {
 			workers = s.Endpoint.WorkersMax
@@ -128,7 +141,8 @@ func boundOf(sts []ProviderStatus, arm string) GlobalBoundView {
 // per-batch ceiling or the month's remaining headroom (C151.5, D-E2-30). A single-backend process is exactly M3 and skips it.
 func (a *ProviderAdmin) checkBound(ctx context.Context, backend string) error {
 	a.mu.RLock()
-	gates, sp := a.gates, a.bound.Spend
+	gates, bi := a.gates, a.bound
+	sp := bi.Spend
 	a.mu.RUnlock()
 	if len(gates.Names()) < 2 || sp == nil { // app wiring (e2_ops.go) always supplies spend; a bare admin has no caps to compare
 		return nil
@@ -141,7 +155,7 @@ func (a *ProviderAdmin) checkBound(ctx context.Context, backend string) error {
 		}
 		sts = append(sts, st)
 	}
-	b := boundOf(sts, backend)
+	b := boundOf(sts, backend, bi)
 	caps, err := sp.LoadCaps(ctx, a.o.Store.R)
 	if err != nil {
 		return err
