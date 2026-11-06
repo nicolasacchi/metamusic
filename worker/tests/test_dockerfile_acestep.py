@@ -31,6 +31,8 @@ def test_dockerfile_acestep_pins() -> None:
     assert '"torch==2.10.0+cu128"' in DOCKERFILE and "download.pytorch.org/whl/cu128" in DOCKERFILE
     assert re.search(r"^ARG FLASH_ATTN_SHA256=[0-9a-f]{64}$", DOCKERFILE, re.M)
     assert "sha256sum -c" in DOCKERFILE and "cp311" in DOCKERFILE
+    # uv checks the wheel's local version against the file name
+    assert "/tmp/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl" in DOCKERFILE
 
 
 def test_dockerfile_acestep_runtime_contract() -> None:
@@ -66,8 +68,16 @@ def test_dockerfile_acestep_base_revision_matches_the_go_pin() -> None:
 def test_dockerfile_acestep_apt_pinned() -> None:
     """apt installs exactly the recorded set, without recommends, lists removed, on a digest-pinned base."""
     installs = re.findall(r"apt-get install -y --no-install-recommends ([^\\\n]+)", DOCKERFILE)
-    assert [i.split() for i in installs] == [["git", "ca-certificates", "curl"], ["libsndfile1", "ffmpeg"]]
+    assert [i.split() for i in installs] == [["git", "ca-certificates", "curl"], ["libsndfile1"]]
     assert DOCKERFILE.count("rm -rf /var/lib/apt/lists/*") == 2
+
+
+def test_dockerfile_acestep_size_trims_run_before_the_import_check() -> None:
+    build = next(s for s in STAGES if s.startswith("python:3.11-slim") and " AS build" in s.split("\n")[0])
+    trim = build.index("-name tests -prune -exec rm -rf")
+    assert "torch/include" in build[trim:trim + 200]
+    assert trim < build.index("assert not bad") < build.index("gen_notices.py")
+    assert "ffmpeg" not in "\n".join(l for l in DOCKERFILE.splitlines() if "apt-get install" in l)
 
 
 def test_dockerfile_acestep_builder_stage_not_in_runtime() -> None:
@@ -93,9 +103,8 @@ def test_contract_requirements_match_the_dockerfile() -> None:
     block = re.search(r"RUN uv pip install \\\n((?:\s+\"[^\n]*\\\n)*\s+\"[^\n]*)", DOCKERFILE)
     assert block, "dependency block not found"
     image = re.findall(r'"([^"]+)"', block.group(1))
-    assert sorted(x for x in req if not x.startswith("torchaudio")) == sorted(
-        x for x in image if not x.startswith("runpod")), (req, image)
-    assert "torchaudio==2.10.0" in req and '"torchaudio==2.10.0+cu128"' in DOCKERFILE
+    assert sorted(req) == sorted(x for x in image if not x.startswith("runpod")), (req, image)
+    assert not any(r.startswith("torch") for r in req) and '"torchaudio==2.10.0+cu128"' in DOCKERFILE
 
 
 def test_dockerfile_acestep_dockerignore_applies() -> None:
@@ -210,9 +219,31 @@ def test_third_party_sniff_embedded_licence_text(tmp_path: Path) -> None:
     assert problems == [] and {r[0]: r[2] for r in rows} == {"texty": "MIT", "apachey": "Apache-2.0"}
 
 
+def test_third_party_nvidia_and_exceptions(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    make_dist(site, "nvidia-cublas-cu12", Classifier=["License :: Other/Proprietary License"])
+    make_dist(site, "cuda-bindings", **{"License-Expression": "LicenseRef-NVIDIA-SOFTWARE-LICENSE"})
+    make_dist(site, "llvmlite", **{"License-Expression": "BSD-2-Clause AND Apache-2.0 WITH LLVM-exception"})
+    make_dist(site, "regex", **{"License-Expression": "Apache-2.0 AND CNRI-Python"})
+    make_dist(site, "pytorch-wavelets", Classifier=["License :: Free To Use But Restricted"])
+    make_dist(site, "pillow", **{"License-Expression": "MIT-CMU"})
+    make_dist(site, "frozendict", **{"License-Expression": "LGPL-3.0-only"})
+    rows, problems = gen_notices.collect(dists(site), ALLOW)
+    assert problems == [], problems
+    lic = {n: l for n, _, l in rows}
+    assert lic["nvidia-cublas-cu12"] == lic["cuda-bindings"] == "LicenseRef-NVIDIA-Proprietary"
+    assert "accepted by name" in lic["pytorch-wavelets"]
+    # proprietary or restricted licences anywhere else still fail the build
+    other = tmp_path / "other"
+    make_dist(other, "somelib", Classifier=["License :: Other/Proprietary License"])
+    make_dist(other, "pytorch-wavelets2", Classifier=["License :: Free To Use But Restricted"])
+    _, problems = gen_notices.collect(dists(other), ALLOW)
+    assert sorted(p.split(":")[0] for p in problems) == ["pytorch-wavelets2", "somelib"]
+
+
 def test_allow_list_is_permissive_only() -> None:
     assert not any(re.search(r"GPL|SSPL|NC|Proprietary", a) and a != "LicenseRef-NVIDIA-Proprietary"
-                   and not a.startswith("LGPL-2.1") for a in ALLOW)
+                   and not a.startswith(("LGPL-2.1", "LGPL-3.0-only")) for a in ALLOW)
     assert "LicenseRef-NVIDIA-Proprietary" in ALLOW and "MIT" in ALLOW
 
 
