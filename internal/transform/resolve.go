@@ -322,6 +322,10 @@ func replaceHash(s string) string {
 
 // ---- per-kind resolution ----
 
+// maxTempoRatio is the largest tempo ratio (either way) the phase vocoder follows; C202.3 allows 40-240 (ratio 6), so the
+// request is refused here rather than failing in a child (T1-B2c, measured by D5).
+const maxTempoRatio = 4.0
+
 // maxChainHops bounds the primary-parent walk (C218.5).
 const maxChainHops = 16
 
@@ -535,6 +539,9 @@ func (s *Service) resolvePair(ctx context.Context, q queryer, kind Kind, m map[s
 		return err
 	}
 	out["bpm_a"], out["bpm_b"] = in[0].Align.BPM, in[1].Align.BPM
+	if ratio := in[1].Align.BPM / in[0].Align.BPM; ratio > maxTempoRatio || ratio < 1/maxTempoRatio { // the render would exit 10 (D5)
+		return rule("bpm_b", RuleTempoRatio)
+	}
 	a, b := &in[0], &in[1]
 	t0, t1 := a.Align.BPM, b.Align.BPM
 	barA, barB := float64(bpb)*60/t0, float64(bpb)*60/t1

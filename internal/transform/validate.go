@@ -20,6 +20,7 @@ const (
 	RuleType         = "type"            // wrong JSON type for the parameter
 	RuleATooShort    = "a_too_short"     // the transition would run past the end of A (C205.1)
 	RuleBTooShort    = "b_too_short"     // the tail would run past the end of B (C205.1)
+	RuleTempoRatio   = "tempo_ratio"     // |ln(bpm_b/bpm_a)| beyond the phase vocoder's [1/4, 4] (D5)
 	RuleStartTooLate = "start_after_end" // start_s lies at or after the end of the input
 )
 
@@ -434,12 +435,12 @@ func inputIDs(params json.RawMessage) []InputRef {
 
 func init() {
 	for _, k := range []KindSpec{
-		{Kind: KindMorph, Validate: validateMorph, Units: unitsMorph, Title: titleMorph, Capabilities: capsMorph, MemFactor: 3, Warnings: warnPair},
-		{Kind: KindShepard, Validate: validateShepard, Units: unitsShepard, Title: titleShepard, Capabilities: capsShepard, MemFactor: 1, Warnings: warnShepard},
-		// glacier MemFactor 1 (was 0): safety.Finish holds the whole output, out_frames x 16 B (measured by D4/H1; revisit if D5 streams). T1-B2b
-		{Kind: KindGlacier, Validate: validateGlacier, Units: unitsGlacier, Title: titleGlacier, Capabilities: capsGlacier, MemFactor: 1},
-		{Kind: KindPolytempo, Validate: validatePolytempo, Units: unitsPolytempo, Title: titlePolytempo, Capabilities: capsPolytempo, MemFactor: 3, Warnings: warnPair},
-		{Kind: KindEnsemble, Validate: validateEnsemble, Units: unitsEnsemble, Title: titleEnsemble, Capabilities: capsEnsemble, MemFactor: 3, Warnings: warnEnsemble},
+		{Kind: KindMorph, Validate: validateMorph, Units: opsUnits(KindMorph), Title: titleMorph, Capabilities: capsMorph, MemFactor: 3, Warnings: warnPair},
+		{Kind: KindShepard, Validate: validateShepard, Units: opsUnits(KindShepard), Title: titleShepard, Capabilities: capsShepard, MemFactor: 3, Warnings: warnShepard},
+		// glacier streams through safety.FinishStream (D5): kindMemoryMB counts input + window only, MemFactor is unused. T1-B2c
+		{Kind: KindGlacier, Validate: validateGlacier, Units: opsUnits(KindGlacier), Title: titleGlacier, Capabilities: capsGlacier, MemFactor: 0},
+		{Kind: KindPolytempo, Validate: validatePolytempo, Units: opsUnits(KindPolytempo), Title: titlePolytempo, Capabilities: capsPolytempo, MemFactor: 3, Warnings: warnPair},
+		{Kind: KindEnsemble, Validate: validateEnsemble, Units: opsUnits(KindEnsemble), Title: titleEnsemble, Capabilities: capsEnsemble, MemFactor: 3, Warnings: warnEnsemble},
 	} {
 		RegisterKind(k)
 	}

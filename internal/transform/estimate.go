@@ -335,7 +335,7 @@ func (s *Service) checkLimits(pl *plan) error {
 		return tooLarge("memory_mb", pl.CPU.MemMB, int64(cfg.TransformMaxMemMB))
 	}
 	if s.o.FreeBytes != nil && cfg.DataDir != "" {
-		need := 3 * pl.CPU.OutBytes
+		need := DiskBytesNeeded(pl.Spec.Kind, pl.OutFrames)
 		for _, dir := range []string{cfg.DataDir, filepath.Join(cfg.DataDir, "incoming")} {
 			free, err := s.o.FreeBytes(dir)
 			if err != nil {
