@@ -216,6 +216,9 @@ func (s *Service) comment(ctx context.Context, id string) (Comment, error) {
 	if err != nil {
 		return c, fmt.Errorf("judgments: comment: %w", err)
 	}
+	if err := s.attachVoice(ctx, &c); err != nil {
+		return c, err
+	}
 	return c, nil
 }
 
@@ -380,6 +383,9 @@ func (s *Service) Comments(ctx context.Context, trackID string, f CommentFilter)
 	for rows.Next() {
 		c, err := scanComment(rows)
 		if err != nil {
+			return page, err
+		}
+		if err := s.attachVoice(ctx, &c); err != nil {
 			return page, err
 		}
 		b, _ := json.Marshal(c)

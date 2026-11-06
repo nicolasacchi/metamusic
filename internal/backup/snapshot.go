@@ -67,7 +67,7 @@ type ManifestLink struct {
 }
 
 // mediaRoots are the only top-level places the database may point into.
-var mediaRoots = []string{"audio/masters/", "takes/", "derived/"}
+var mediaRoots = []string{"audio/masters/", "takes/", "derived/", "voice/"}
 
 func validMediaPath(p string) bool {
 	if !filepath.IsLocal(p) || strings.Contains(p, `\`) || path.Clean(p) != p {
@@ -336,6 +336,9 @@ func mediaOf(ctx context.Context, db *sql.DB) ([]mediaFile, map[string]int, erro
 		{"master", `SELECT master_path, master_sha256 FROM tracks`},
 		{"artifact", `SELECT path, sha256 FROM artifacts`},
 		{"rendition", `SELECT path, sha256 FROM renditions`},
+		// voice notes (C259): the frozen upload is an artifact, the MP3 playback rendition a rendition
+		{"artifact", `SELECT path, sha256 FROM voice_notes`},
+		{"rendition", `SELECT mp3_path, mp3_sha256 FROM voice_notes`},
 	} {
 		rows, err := db.QueryContext(ctx, q.sql)
 		if err != nil {
