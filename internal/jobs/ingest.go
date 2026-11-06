@@ -152,6 +152,9 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 			return "", err
 		}
 	}
+	if eng.name != provider.EngineYuE2 && job.Operator == lineage.OpExtractStems {
+		return b.attachStem(ctx, owner, job, att, files, out, eng, req, byName) // C166: no new take
+	}
 
 	// A fresh UUIDv7 per ingest attempt: M1's work dir and takes/<TrackID> must not exist yet.
 	trackID := b.o.NewID()
@@ -183,9 +186,15 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 		return "", &IngestFailedError{Code: ingest.CodeSourceChanged, Err: err}
 	}
 	var arts []ingest.ArtifactSrc
+	lrcDropped := ""
 	for _, name := range sortedKeys(byName) {
 		if name == "audio.flac" {
 			continue
+		}
+		if name == lrcArtifact && eng.name != provider.EngineYuE2 {
+			if lrcDropped = b.lrcProblem(byName[name]); lrcDropped != "" {
+				continue // an invalid LRC is dropped with an event, never fails the take (C166)
+			}
 		}
 		f, err := open(byName[name])
 		if err != nil {
@@ -224,7 +233,7 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 		_ = b.o.Pipeline.Discard(res)
 		return "", err
 	}
-	if err := b.commit(ctx, owner, job, att, out, eng, req, take, byName); err != nil {
+	if err := b.commit(ctx, owner, job, att, out, eng, req, take, byName, lrcDropped); err != nil {
 		_ = b.o.Pipeline.Discard(res)
 		if existing, ok, qerr := b.existingIdentity(ctx, res); qerr == nil && ok {
 			return b.duplicate(job, existing)
@@ -543,23 +552,11 @@ const draftFulfilSQL = `UPDATE recipe_drafts SET status = 'fulfilled', fulfilled
 
 // commit writes the take, its environment, the RTF sample, the draft fulfilment and the upload
 // consumption in one transaction under the lease predicate.
-func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att AttemptRow, out provider.Output, eng ingestEngine, req recipeInfo, take library.NewTake, byName map[string]upload.Received) error {
+func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att AttemptRow, out provider.Output, eng ingestEngine, req recipeInfo, take library.NewTake, byName map[string]upload.Received, lrcDropped string) error {
 	return b.fencedTx(ctx, owner, job, func(tx *sql.Tx, f store.LeaseFence) error {
-		digest, err := imageDigestOf(ctx, tx, att.ImageDigest, att.WorkerKey, out.Env.WorkerBuild)
+		gpu, err := b.putEnv(ctx, tx, f, job, att, out, take.EnvID)
 		if err != nil {
 			return err
-		}
-		gpu := GPUClass(out.Env.GPUName)
-		weights, _ := json.Marshal(out.Env.Weights)
-		if len(out.Env.Weights) == 0 {
-			weights = []byte(`{}`)
-		}
-		detail, _ := json.Marshal(map[string]string{"gpu_name": out.Env.GPUName, "cuda": out.Env.CUDA, "torch": out.Env.Torch,
-			"worker_build": out.Env.WorkerBuild, "python": out.Env.Python})
-		args := []any{take.EnvID, out.Env.Engine, out.Env.PkgVersion, out.Env.CodeCommit, string(weights), out.Env.Decoder, b.backendIn(ctx, tx, job.ID), gpu, digest,
-			string(detail), store.FormatTime(f.Now)}
-		if _, err := tx.ExecContext(ctx, envInsertSQL+f.Where()+` ON CONFLICT(env_id) DO NOTHING`, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
-			return fmt.Errorf("jobs: env fingerprint: %w", err)
 		}
 		if b.o.Spend != nil && gpu != "" {
 			switch {
@@ -597,6 +594,11 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 				return err
 			}
 		}
+		if lrcDropped != "" {
+			if err := insertEvent(ctx, tx, f, Event{JobID: job.ID, AttemptID: att.ID, Name: EvLRCDropped, Detail: map[string]any{"reason": lrcDropped}}); err != nil {
+				return fmt.Errorf("jobs: lrc event: %w", err)
+			}
+		}
 		if job.DraftID != nil {
 			if _, err := tx.ExecContext(ctx, draftFulfilSQL+f.And(), append([]any{take.ID, store.FormatTime(f.Now), *job.DraftID}, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
 				return fmt.Errorf("jobs: fulfil draft: %w", err)
@@ -608,6 +610,27 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 		}
 		return b.o.Uploads.Consume(ctx, tx, ids)
 	})
+}
+
+// putEnv writes the fingerprint row of the attempt's environment (once per env_id) and returns the GPU class it reports.
+func (b *IngestBridge) putEnv(ctx context.Context, tx *sql.Tx, f store.LeaseFence, job JobRow, att AttemptRow, out provider.Output, envID string) (gpu string, err error) {
+	digest, err := imageDigestOf(ctx, tx, att.ImageDigest, att.WorkerKey, out.Env.WorkerBuild)
+	if err != nil {
+		return "", err
+	}
+	gpu = GPUClass(out.Env.GPUName)
+	weights, _ := json.Marshal(out.Env.Weights)
+	if len(out.Env.Weights) == 0 {
+		weights = []byte(`{}`)
+	}
+	detail, _ := json.Marshal(map[string]string{"gpu_name": out.Env.GPUName, "cuda": out.Env.CUDA, "torch": out.Env.Torch,
+		"worker_build": out.Env.WorkerBuild, "python": out.Env.Python})
+	args := []any{envID, out.Env.Engine, out.Env.PkgVersion, out.Env.CodeCommit, string(weights), out.Env.Decoder, b.backendIn(ctx, tx, job.ID), gpu, digest,
+		string(detail), store.FormatTime(f.Now)}
+	if _, err := tx.ExecContext(ctx, envInsertSQL+f.Where()+` ON CONFLICT(env_id) DO NOTHING`, append(args, f.Args()...)...); err != nil { //nolint:gosec // G202: fixed C69 predicate
+		return "", fmt.Errorf("jobs: env fingerprint: %w", err)
+	}
+	return gpu, nil
 }
 
 func (b *IngestBridge) backendIn(ctx context.Context, x q, jobID string) string {

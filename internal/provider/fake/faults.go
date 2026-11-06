@@ -82,6 +82,7 @@ type markers struct {
 	runBetweenPolls    bool
 	noStart            bool
 	sameAudio          bool
+	badLRC             bool          // fake:bad_lrc: an ACE-Step take that asks for LRC delivers a lyrics.lrc with no time stamps
 	initFail           bool          // fake:init_fail: the worker cannot load and never accepts a job (C153.4)
 	slowLoad           bool          // fake:slow_load[=secs]: the cold start exceeds its allowance
 	slowLoadFor        time.Duration // 0 = the default overshoot
@@ -161,6 +162,8 @@ func parseMarkers(style string) markers {
 			m.noStart = true
 		case "same_audio":
 			m.sameAudio = true
+		case "bad_lrc":
+			m.badLRC = true
 		case "init_fail":
 			m.initFail = true
 		case "slow_load":

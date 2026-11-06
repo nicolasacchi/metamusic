@@ -157,7 +157,11 @@ func (s *Session) renderACE(ctx context.Context) ([]artifact, float64, error) {
 	})
 	arts := []artifact{{"request.json", append([]byte(nil), s.in.Request...)}, {"result.json", result}}
 	if req.LRC {
-		arts = append(arts, artifact{"lyrics.lrc", req.lrc()})
+		lrc := req.lrc()
+		if s.mk.badLRC {
+			lrc = []byte("these lyrics carry no time stamps\n") // the app must drop it with an event (C166)
+		}
+		arts = append(arts, artifact{"lyrics.lrc", lrc})
 	}
 	// The audio identity: the attempt's, mixed with the reference digest (a reference render's tone shifts
 	// deterministically) or replaced by the stem name (a stem is a distinct tone per name).
