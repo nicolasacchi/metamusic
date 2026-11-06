@@ -7,6 +7,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/trackctx"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -22,6 +23,7 @@ type e2Inputs struct {
 	st    *store.Store
 	m3    *m3Services
 	clips *clip.Service
+	ctxb  *trackctx.Builder
 	now   func() time.Time
 	newID func() string
 }

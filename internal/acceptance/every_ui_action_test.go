@@ -54,6 +54,8 @@ type uiState struct {
 	recordRev, crateRev int
 	// T1: the transform create_transform queued
 	transform string
+	// M5: the Song PR propose_patch made
+	patch string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -331,6 +333,8 @@ func (s *uiState) afterStep(op string, res any) {
 	switch op {
 	case "add_comment":
 		s.comment, _ = m["id"].(string)
+	case "propose_patch":
+		s.patch, _ = m["id"].(string)
 	case "create_playlist":
 		s.playlist, _ = m["id"].(string)
 	case "export_playlist_zip":
@@ -461,13 +465,11 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 			}
 			script = spendScript[id]
 		}
-		if e2PendingStub[id] {
-			continue
-		}
 		if id == "export_record_tape" && st.record != "" {
 			// only a published Record is exported (D-L2-19), and only the operator publishes (D-L2-4)
 			h.OK(t, "POST", "/human/api/records/"+st.record+"/publish", map[string]any{"revision": st.recordRev, "published": true})
 		}
+		seedM5Callback(t, r, st, id) // M5-C1: a callback exists before the scripted callback calls (a no-op for every other id)
 		args := script(st)
 		generic := op.Meta.MCP != "tool"
 		raw := rawTool(t, sess, id, args, generic)

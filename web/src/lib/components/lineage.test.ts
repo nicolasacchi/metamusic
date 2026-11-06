@@ -159,3 +159,23 @@ describe("TrackTable selection mode", () => {
     expect(h).toContain("recipe unknown");
   });
 });
+
+describe("T1 lineage: also_from, engine chip", () => {
+  const nodes = [
+    node("root", null, 0, { children_count: 1 }),
+    node("m", "root", 1, { operator: "morph", origin: "transform", transform: { kind: "morph", spec_hash: "0123456789abcdef", transform_id: "m" }, also_from: [{ role: "b", track_id: "other" }, { role: "source", track_id: "root" }] }),
+  ];
+  test("a transform node shows the dsp engine chip and a dotted also-from edge per extra input with its role", () => {
+    const h = html(LineageTree, { nodes, me: human });
+    expect(h).toContain("dsp · Morph");
+    expect((h.match(/data-testid="lineage-also-from"/g) ?? []).length).toBe(2);
+    expect(h).toContain('href="/tracks/other"');
+    expect(h).toContain(">Song root</a>");
+    expect(h).toMatch(/lineage-also-role[^>]*>B</);
+  });
+  test("a plain node has neither", () => {
+    const h = html(LineageTree, { nodes: [node("root", null, 0)], me: human });
+    expect(h).not.toContain("lineage-also-from");
+    expect(h).not.toContain("lineage-engine");
+  });
+});

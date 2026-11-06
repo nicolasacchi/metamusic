@@ -62,7 +62,7 @@ const (
 	maxDurationDS  = 10 * AbsoluteMaxS
 	segMinDS       = 10 * SegmentMinS
 	segMaxDS       = 10 * SegmentMaxS
-	refMinDS       = 200
+	refMinDS       = 20
 	refMaxDS       = 300
 )
 

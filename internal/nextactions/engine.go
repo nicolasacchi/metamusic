@@ -27,11 +27,19 @@ const (
 	scanMax = 2000
 )
 
+// SubjectTake is the subject kind of the take rules of M5-C1 (C257): the subject id is a take (track) id.
+const SubjectTake = "take"
+
+// takeCodes are the rules whose subject is a take (rules_d.go). ForTake evaluates them for the take itself, also when the take has
+// no Song.
+var takeCodes = map[string]bool{"callback_waiting": true, "regressed_comment": true, "open_fix_unaddressed": true, "patch_ready_to_render": true}
+
 // forTakeCodes are the rules ForTake evaluates: the ones whose subject is a take's Song, its Muse or a Record holding it (C139.4).
 // Codes of rules that NA2 and NA3 add are listed now, so the set does not move when they land.
 var forTakeCodes = map[string]bool{
 	"song_duel": true, "song_proposals_waiting": true, "song_tempo_mismatch": true, "song_no_muse": true,
 	"muse_partial_angles": true, "muse_unjudged": true, "muse_record_candidate": true, "record_undecided_slots": true, "record_empty_slot": true,
+	"callback_waiting": true, "regressed_comment": true, "open_fix_unaddressed": true, "patch_ready_to_render": true,
 }
 
 // txReader is the Reader every rule sees: one read-only transaction, plus the live-Muse parameter and the statement hook of the
@@ -42,6 +50,8 @@ type txReader struct {
 	// songs is a JSON array of the only Song ids the call is about (a take's Song, a filter on one Song), or "" for every Song. A
 	// rule about Songs restricts its statement through SongScope; a rule about Muses or Records ignores it.
 	songs string
+	// takes is the same for the take rules of M5-C1: a JSON array of the only take ids the call is about, or "" for every take.
+	takes string
 	hook  func(query string)
 }
 
@@ -68,6 +78,15 @@ func LiveMuses(q Reader) string {
 func SongScope(q Reader) string {
 	if r, ok := q.(*txReader); ok {
 		return r.songs
+	}
+	return ""
+}
+
+// TakeScope returns the JSON array of take ids a take-level rule restricts its statement to, and "" when the call is about every
+// take; a rule passes it twice, as `? = ” OR col IN (SELECT value FROM json_each(?))`.
+func TakeScope(q Reader) string {
+	if r, ok := q.(*txReader); ok {
+		return r.takes
 	}
 	return ""
 }
@@ -259,7 +278,7 @@ func (s *Service) List(ctx context.Context, viewer auth.Principal, f Filter) (Pa
 		return Page{}, invalid("min_priority", "min_priority must be between 0 and 100")
 	}
 	switch f.SubjectKind {
-	case "", SubjectMuse, SubjectSong, SubjectRecord, SubjectTaxonomy, SubjectLibrary:
+	case "", SubjectMuse, SubjectSong, SubjectRecord, SubjectTaxonomy, SubjectLibrary, SubjectTake:
 	default:
 		return Page{}, invalid("subject_kind", "unknown subject kind")
 	}
@@ -284,6 +303,9 @@ func (s *Service) List(ctx context.Context, viewer auth.Principal, f Filter) (Pa
 
 	if f.SubjectKind == SubjectSong && f.SubjectID != "" {
 		q.songs = jsonIDs([]string{f.SubjectID})
+	}
+	if f.SubjectKind == SubjectTake && f.SubjectID != "" {
+		q.takes = jsonIDs([]string{f.SubjectID})
 	}
 	filtered := f.SubjectKind != ""
 	lim := 4 * PerCode
@@ -361,8 +383,9 @@ func decodeCursor(c string) (*string, error) {
 	return &k, nil
 }
 
-// ForTake answers the /context assembly: the rendered actions about this take's Song, its Muse or the Records that hold its Song,
-// of priority at least ContextMuseMinPriority, best first, at most limit (C139.4). A take without a Song has none.
+// ForTake answers the /context assembly: the rendered actions about this take (the take rules of M5-C1), its Song, its Muse or the
+// Records that hold its Song, of priority at least ContextMuseMinPriority, best first, at most limit (C139.4, C257). A take without
+// a Song has only the rules about the take itself.
 func (s *Service) ForTake(ctx context.Context, viewer auth.Principal, trackID string, limit int) ([]Action, error) {
 	if limit <= 0 {
 		return []Action{}, nil
@@ -374,10 +397,8 @@ func (s *Service) ForTake(ctx context.Context, viewer auth.Principal, trackID st
 	var museID sql.NullString
 	err := s.st.R.QueryRowContext(ctx, `SELECT ts.song_id, s.muse_id FROM take_songs ts JOIN songs s ON s.id = ts.song_id
 		WHERE ts.track_id = ? AND s.retired_at IS NULL`, trackID).Scan(&songID, &museID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return []Action{}, nil
-	}
-	if err != nil {
+	hasSong := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("nextactions: song of take: %w", err)
 	}
 	q, done, err := s.begin(ctx, true, museID.String) // a Muse-less Song restricts to no Muse
@@ -385,28 +406,35 @@ func (s *Service) ForTake(ctx context.Context, viewer auth.Principal, trackID st
 		return nil, err
 	}
 	defer done()
-	q.songs = jsonIDs([]string{songID})
-	subjects := map[subjKey]bool{{SubjectSong, songID}: true}
-	if museID.Valid {
-		subjects[subjKey{SubjectMuse, museID.String}] = true
-	}
-	rows, err := q.QueryContext(ctx, `SELECT DISTINCT rs.record_id FROM record_slots rs JOIN records r ON r.id = rs.record_id
-		WHERE rs.song_id = ? AND rs.removed_at IS NULL AND r.hidden_at IS NULL`, songID)
-	if err != nil {
-		return nil, fmt.Errorf("nextactions: records of song: %w", err)
-	}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			_ = rows.Close()
+	q.takes = jsonIDs([]string{trackID})
+	subjects := map[subjKey]bool{{SubjectTake, trackID}: true}
+	only := func(r *Rule) bool { return forTakeCodes[r.Code] }
+	if hasSong {
+		q.songs = jsonIDs([]string{songID})
+		subjects[subjKey{SubjectSong, songID}] = true
+		if museID.Valid {
+			subjects[subjKey{SubjectMuse, museID.String}] = true
+		}
+		rows, err := q.QueryContext(ctx, `SELECT DISTINCT rs.record_id FROM record_slots rs JOIN records r ON r.id = rs.record_id
+			WHERE rs.song_id = ? AND rs.removed_at IS NULL AND r.hidden_at IS NULL`, songID)
+		if err != nil {
+			return nil, fmt.Errorf("nextactions: records of song: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			subjects[subjKey{SubjectRecord, id}] = true
+		}
+		if err := rows.Close(); err != nil {
 			return nil, err
 		}
-		subjects[subjKey{SubjectRecord, id}] = true
+	} else {
+		only = func(r *Rule) bool { return takeCodes[r.Code] }
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	rules := candidateRules(viewer, "", ContextMuseMinPriority, func(r *Rule) bool { return forTakeCodes[r.Code] })
+	rules := candidateRules(viewer, "", ContextMuseMinPriority, only)
 	fs, err := s.evaluate(ctx, q, rules, scanMax)
 	if err != nil {
 		return nil, err

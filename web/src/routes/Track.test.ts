@@ -82,3 +82,18 @@ describe("Track page curation entry points (L2)", () => {
     expect(h).toContain("Take Crates");
   });
 });
+
+describe("Track page (T1 W1b)", () => {
+  test("a transform output shows the origin chip and the Transform provenance", () => {
+    const t = { ...trackKnown, origin: "transform", transform: { kind: "glacier", spec_hash: "0123456789abcdef", transform_id: trackKnown.id } };
+    const h = page(t as unknown as typeof trackKnown);
+    expect(h).toContain('data-testid="origin-chip"');
+    expect(h).toContain("dsp · Glacier");
+    expect(h).toContain("01234567");
+  });
+  test("an ordinary take shows neither", () => {
+    const h = page(trackKnown);
+    expect(h).not.toContain('data-testid="origin-chip"');
+    expect(h).not.toContain('data-testid="transform-provenance"');
+  });
+});
