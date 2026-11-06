@@ -5,7 +5,7 @@
   import { onDestroy, untrack } from "svelte";
   import { api as defaultApi } from "../api/client";
   import TransformCard from "../lib/components/TransformCard.svelte";
-  import { cancelTransform, getCapabilities, listTransforms, type Capabilities, type ListQuery } from "../lib/transformApi";
+  import { cancelTransform, getCapabilities, getTransform, listTransforms, type Capabilities, type ListQuery } from "../lib/transformApi";
   import { isUnavailable, pollDelayMs, quotaMeter, refusalText, sortTransforms, kindLabel, type Refusal, type TransformView } from "../lib/transformView";
   import { KIND_ORDER } from "../lib/transformView";
 
@@ -75,8 +75,14 @@
     if (busy) return;
     busy = true;
     const r = await cancelTransform(client, id);
-    busy = false;
     if (!r.ok) error = refusalText(r);
+    else {
+      // show the row's own state at once (cancelling…, or already cancelled) instead of waiting for the next list poll
+      const g = await getTransform(client, id);
+      const row = g.ok ? g.value : r.value;
+      items = items.map((t) => (t.id === id ? row : t));
+    }
+    busy = false;
     await load();
   }
 </script>

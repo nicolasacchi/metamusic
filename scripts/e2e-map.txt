@@ -14,7 +14,7 @@ web/src/lib/components/Library*	m1-library
 web/src/lib/components/TrackTable.svelte	m1-library
 web/src/lib/components/Pager.svelte	m1-library
 web/src/lib/libraryQuery.ts	m1-library
-web/src/routes/Track.svelte	m1-track
+web/src/routes/Track.svelte	m1-track t1-transforms
 web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
 web/src/lib/components/Waveform.svelte	m1-player
@@ -237,14 +237,13 @@ internal/atlas/*	l3-atlas
 web/src/lib/components/TaxonomyTable.svelte	l1-sounds l3-proposals
 # BEGIN T1-I1 (t1-* specs). The map cannot name a spec that does not exist yet: scripts/verify-selftest.sh fails on a line whose spec
 # file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
-# ready and commented out. W3 (or INT-W) uncomments them in the PR that adds the spec files, keeping these exact patterns. A
+# live since T1-W3 added the spec files (t1-hifi joins the Go lines: the hi-fi kinds are DSP). A
 # changed t1-*.spec.ts already runs itself (see the header), and unmapped web/src paths already fall back to @core.
-#web/src/routes/Transforms.svelte	t1-transforms
-#web/src/lib/components/Transform*	t1-transforms
-#web/src/lib/transform*.ts	t1-transforms
-#web/src/routes/Track.svelte is already mapped above (m1-track); W3 adds t1-transforms to that line
-#internal/transform/*	t1-transforms
-#internal/dsp/*	t1-transforms
+web/src/routes/Transforms.svelte	t1-transforms
+web/src/lib/components/Transform*	t1-transforms
+web/src/lib/transform*.ts	t1-transforms
+internal/transform/*	t1-transforms t1-hifi
+internal/dsp/*	t1-transforms t1-hifi
 # END T1-I1
 # BEGIN E2-I1 (e2-* specs). Same constraint as the T1 block: the map cannot name a spec that does not exist yet (verify-selftest fails on a
 # line whose spec file is missing). W-INT (E2a) and W1b (E2b/E2c) own web/e2e/e2-*.spec.ts and uncomment the lines in the PR that adds the
