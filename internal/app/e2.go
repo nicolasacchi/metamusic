@@ -30,10 +30,10 @@ type e2Inputs struct {
 
 // e2Services is what buildE2 adds to Services.
 type e2Services struct {
-	// Engines is the registry generation and the runner use (yue2 only until E2-INT flips registry.Options.ACEStep).
+	// Engines is the registry generation, the runner and the ingest bridge use (yue2, plus acestep15 under MM_ACESTEP=1).
 	Engines registry.Registry
-	// Backends and Gates are the per-engine backend set and its gates: one entry (the M3 backend) until E2-PF/PR add the
-	// ACE-Step backends; empty for MM_BACKEND=none.
+	// Backends and Gates are the per-engine backend set and its gates: one entry (the M3 backend); the
+	// ACE-Step backend joins under MM_ACESTEP=1 (e2_hooks.go); empty for MM_BACKEND=none.
 	Backends *provider.Set
 	Gates    *provider.GateSet
 	// Adoption is the engine adoption record (D-E2-15).

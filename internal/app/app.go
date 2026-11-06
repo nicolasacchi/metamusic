@@ -268,6 +268,10 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	if media.Clips != nil {
 		resolvers = append(resolvers, media.Clips)
 	}
+	if cfg.ACEStep && media.Clips != nil {
+		// the worker GETs a reference clip by its content digest (the signed link names it), the clip cache is keyed otherwise
+		resolvers = append(resolvers, refClipResolver{st: st, clips: media.Clips})
+	}
 	covers := cover.New(data, lib, now)
 	downloads := tagged.New(data, lib, covers, now)
 	resolvers = append(resolvers, m4aResolvers(covers, downloads)...)
@@ -284,7 +288,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		pipe = ingest.New(data, abs, mediatool.Tools{FFmpeg: cfg.FFmpeg, FLAC: cfg.FLAC, Metaflac: cfg.Metaflac}, media.Analyzer, now)
 	}
 	late := &m5Late{}
-	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late)
+	mediaRoute := &lateHandler{} // the media handler, bound once s.Server exists (E2: the fake worker's fetcher, the media preflight)
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late, signer, media.Clips, mediaRoute)
 	if err != nil {
 		return nil, err
 	}
@@ -375,6 +380,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
 		StepUp: m4a.StepUp,
 	}
+	mediaRoute.set(s.Server.Media)
 	wireE2Hooks(s)
 	return s, nil
 }
