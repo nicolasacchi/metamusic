@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
@@ -20,7 +21,14 @@ const e2eAllFeatures = `{"schema":"mm.engine-features/2","engine":"acestep15","v
 // applyE2EFeatures swaps the all-capabilities features file into the registered ACE-Step engine of an e2e server
 // (MM_E2E=1, MM_E2E_ACESTEP_FEATURES=all). Anywhere else it does nothing.
 func applyE2EFeatures(cfg config.Config, reg registry.Registry, getenv func(string) string) error {
-	if !cfg.E2E || !cfg.ACEStep || getenv("MM_E2E_ACESTEP_FEATURES") != "all" {
+	if getenv("MM_E2E_ACESTEP_FEATURES") != "all" {
+		return nil
+	}
+	// refuse loudly: unverified tasks must never be offered against a real GPU backend (config check says the same)
+	if cfg.Backend != config.BackendFake {
+		return errors.New("app: MM_E2E_ACESTEP_FEATURES=all requires fake backends")
+	}
+	if !cfg.E2E || !cfg.ACEStep {
 		return nil
 	}
 	ae, ok := reg[acestep.Name].(acestep.Engine)
