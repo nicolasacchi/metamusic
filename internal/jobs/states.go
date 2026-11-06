@@ -57,6 +57,9 @@ const (
 	CodeWorkerError      = "WORKER_ERROR"
 	CodeWorkerLost       = "WORKER_LOST"
 	CodeDeadline         = "DEADLINE"
+	CodeInputFailed      = "INPUT_FAILED"     // the worker could not fetch an input audio file (E2)
+	CodeInputMismatch    = "INPUT_MISMATCH"   // a fetched input differs from its pinned length or digest (E2)
+	CodeTaskUnavailable  = "TASK_UNAVAILABLE" // this worker build or its loaded models cannot render the task (E2)
 	CodeProviderCanceled = "PROVIDER_CANCELLED"
 	CodeProviderTripped  = "PROVIDER_TRIPPED"
 	CodeArtifactMissing  = "ARTIFACT_MISSING"

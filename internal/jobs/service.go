@@ -235,6 +235,12 @@ func ErrorMessage(code string) string {
 		return "The worker disappeared before it finished."
 	case CodeDeadline:
 		return "The take did not finish within its time limit."
+	case CodeInputFailed:
+		return "The worker could not fetch the source audio."
+	case CodeInputMismatch:
+		return "The source audio the worker fetched did not match the library's copy."
+	case CodeTaskUnavailable:
+		return "This worker cannot render that task."
 	case CodeArtifactMissing:
 		return "The worker did not deliver every file."
 	case CodeArtifactMismatch:
