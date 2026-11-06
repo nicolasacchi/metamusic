@@ -1,7 +1,10 @@
 package mcpgen_test
 
-// m5AttentionCases are the parity cases of the M5 attention operations (lane M5-A1 owns this file alone). Until it lands each stub
-// answers the same 501 on every face; the lane replaces the cases with real ones and drops Status 501.
+import lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+
+// m5AttentionCases are the parity cases of the M5 attention operations (lane M5-A1 owns this file alone). The heat of a
+// take and the 404 of an unknown one answer the same on every face.
 var m5AttentionCases = []ParityCase{
-	{Op: "get_listen_heat", Args: fixedArgs(map[string]any{"id": "x"}), Status: 501},
+	{Op: "get_listen_heat", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "get_listen_heat", Variant: "unknown take", Args: fixedArgs(map[string]any{"id": "nope"}), Status: 404},
 }
