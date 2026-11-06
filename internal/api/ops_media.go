@@ -73,9 +73,32 @@ func registerMedia(a huma.API, d Deps) {
 				b.Flac = &FlacLinkOrNull{URL: fl.URL, ContentType: m.Flac.ContentType, Bytes: m.Flac.Bytes, SHA256: m.Flac.SHA256,
 					SampleRate: m.Flac.SampleRate, BitsPerSample: m.Flac.BitsPerSample}
 			}
+			// E2b (C157.1, C166): the stem artifacts and lyrics.lrc of the take, signed like the master. A stem name repeats when a take
+			// holds several renders of it; the entries follow get_track.stems index for index.
+			stems, err := d.Library.Stems(ctx, in.ID)
+			if err != nil {
+				return nil, libErr(err)
+			}
+			for _, st := range stems {
+				l := d.Signer.Sign(st.SHA256, "flac", ttl, bucket)
+				if l.Expires.Before(exp) {
+					exp = l.Expires
+				}
+				b.Stems = append(b.Stems, StemLink{Name: st.Name, URL: l.URL, Bytes: st.Bytes, SHA256: st.SHA256})
+			}
+			lrc, err := d.Library.LRC(ctx, in.ID)
+			if err != nil {
+				return nil, libErr(err)
+			}
+			if lrc != nil {
+				l := d.Signer.Sign(lrc.SHA256, "lrc", ttl, bucket)
+				if l.Expires.Before(exp) {
+					exp = l.Expires
+				}
+				b.LRC = &LRCLink{URL: l.URL, Bytes: lrc.Bytes, SHA256: lrc.SHA256}
+			}
 			b.ExpiresAt = exp.UTC().Format(time.RFC3339)
 			b.Cover = d.coverLinks(ctx, in.ID, ttl, bucket)
-			// E2b (E2-G3) fills Stems and LRC from library.Service.Stems and the lyrics.lrc artifact
 			b.MP3 = MP3Link{URL: ml.URL, ContentType: m.MP3.ContentType, Bytes: m.MP3.Bytes, SHA256: m.MP3.SHA256, BitrateKbps: m.MP3.BitrateKbps}
 			return out, nil
 		})
