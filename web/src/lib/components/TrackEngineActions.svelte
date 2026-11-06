@@ -9,10 +9,12 @@
   import { createDuel } from "../duelApi";
   import { abWindow } from "../abWindow";
   import { fetchEngines, type EngineList } from "../engines";
-  import { engineIntent, referenceIntent, startGeneration } from "../genIntent";
+  import { engineIntent, MAX_COMPLETE_TRACKS, MAX_STEM_TRACKS, referenceIntent, startGeneration } from "../genIntent";
+  import type { StemName } from "../modePanels";
   import { rangeProblem } from "../rangeSelect";
-  import { actionLimits, actionReason, isRepaintChild, type TrackAction } from "../trackEngineActions";
+  import { actionLimits, actionReason, extendLimits, extendProblem, isRepaintChild, type TrackAction } from "../trackEngineActions";
   import RangeSelect from "./RangeSelect.svelte";
+  import ModePanelStems from "./ModePanelStems.svelte";
 
   type Ace = components["schemas"]["RecipeACE"];
   interface Props {
@@ -37,6 +39,13 @@
   let windowEnd = $state<number | null>(null);
   let abBusy = $state(false);
   let error = $state("");
+  // E2-W5 (E2b): Extend, Complete and Extract stems.
+  let extendS = $state(30);
+  let names = $state<StemName[]>([]);
+  const isRange = $derived(open === "repaint" || open === "reference");
+  const extLim = $derived(extendLimits(list, duration));
+  const extProblem = $derived(open === "extend" ? extendProblem(extendS, extLim) : "");
+  const namesProblem = $derived((open === "complete" || open === "stems") && names.length === 0 ? "Pick at least one track name." : "");
 
   const reason = $derived(open && list ? actionReason(list, open) : note);
   const limits = $derived(open ? actionLimits(list, open) : { min: 0, max: 0 });
@@ -53,6 +62,7 @@
     from = null;
     to = null;
     note = "";
+    names = [];
     if (!list) {
       loading = true;
       const r = await fetchEngines();
@@ -80,8 +90,12 @@
   });
 
   function proceed() {
-    if (!open || reason || problem) return;
-    if (open === "repaint") {
+    if (!open || reason || problem || extProblem || namesProblem) return;
+    if (open === "extend") {
+      startGeneration(sessionStorage, { ...engineIntent("extend", trackId), edit: { extend_s: extendS } }, go);
+    } else if (open === "complete" || open === "stems") {
+      startGeneration(sessionStorage, { ...engineIntent(open, trackId), edit: { tracks: [...names] } }, go);
+    } else if (open === "repaint") {
       if (from === null || to === null) return;
       startGeneration(sessionStorage, { ...engineIntent("repaint", trackId), edit: { from_s: from, to_s: to } }, go);
     } else {
@@ -114,13 +128,32 @@
   <div class="row">
     <button type="button" aria-expanded={open === "repaint"} onclick={() => void choose("repaint")} data-testid="action-repaint">Repaint section…</button>
     <button type="button" aria-expanded={open === "reference"} onclick={() => void choose("reference")} data-testid="action-reference">Render with this as reference…</button>
+    <!-- E2-W5 -->
+    <button type="button" aria-expanded={open === "extend"} onclick={() => void choose("extend")} data-testid="action-extend">Extend…</button>
+    <button type="button" aria-expanded={open === "complete"} onclick={() => void choose("complete")} data-testid="action-complete">Complete…</button>
+    <button type="button" aria-expanded={open === "stems"} onclick={() => void choose("stems")} data-testid="action-stems">Extract stems…</button>
   </div>
   {#if open}
     {#if loading}
       <p class="muted">Loading…</p>
     {:else}
       {#if reason}<p class="muted" role="status" data-testid="action-reason">{reason}</p>{/if}
-      {#if !reason}
+      {#if !reason && open === "extend"}
+        <label class="ext">
+          <span>Add {extendS} s (the new total is about {Math.round(duration + extendS)} s)</span>
+          <input type="range" min={extLim.min} max={Math.max(extLim.min, extLim.max)} step="1" bind:value={extendS} data-testid="extend-slider" />
+          <input type="number" min={extLim.min} max={extLim.max} step="1" bind:value={extendS} aria-label="Seconds to add" data-testid="extend-s" />
+        </label>
+        <p class="muted">Extending again later is a new job with its own confirmation. The seam can be audible.</p>
+        {#if extProblem}<p class="muted" role="status" data-testid="extend-problem">{extProblem}</p>{/if}
+        <div class="row"><button type="button" onclick={proceed} disabled={extProblem !== ""} data-testid="action-continue">Continue to estimate</button></div>
+      {:else if !reason && (open === "complete" || open === "stems")}
+        <p class="muted">
+          {open === "complete" ? "Pick the tracks to add around this take (up to " + MAX_COMPLETE_TRACKS + ")." : "Pick the stems to extract. Each name is its own job (up to " + MAX_STEM_TRACKS + ")."}
+        </p>
+        <ModePanelStems bind:tracks={names} max={open === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS} />
+        <div class="row"><button type="button" onclick={proceed} disabled={namesProblem !== ""} data-testid="action-continue">Continue to estimate</button></div>
+      {:else if !reason && isRange}
         <p class="muted">
           {open === "repaint" ? "Select the part of the take to repaint." : "Select the part to follow, or leave it empty for the default (the last 20 s)."}
         </p>
@@ -175,6 +208,16 @@
   button {
     min-height: 44px;
     max-width: 100%;
+  }
+  .ext {
+    display: grid;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .ext input {
+    min-height: 44px;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   .ab {
     margin-top: 0.4rem;
