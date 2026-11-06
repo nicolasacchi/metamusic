@@ -121,6 +121,9 @@ type Options struct {
 	E2           bool
 	ACEStep      bool
 	AdoptEngines []string
+	// M5 (C250). CallbackBacklogMax is MM_CALLBACK_BACKLOG_MAX; nil is the production default (6), a pointer to 0 switches the agent
+	// backlog gate off.
+	CallbackBacklogMax *int
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -272,6 +275,11 @@ func New(tb testing.TB, o Options) *Rig {
 		// T1 defaults (C200): the transform service is built, its operations answer 501 until their lanes land
 		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
 		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
+		// M5 default (C250): the agent callback backlog gate is on, as config.Load leaves it
+		CallbackBacklogMax: 6,
+	}
+	if o.CallbackBacklogMax != nil {
+		cfg.CallbackBacklogMax = *o.CallbackBacklogMax
 	}
 	if o.ACEStep {
 		if o.Backend != "fake" && o.RunPod == nil {
