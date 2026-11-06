@@ -13,8 +13,10 @@
     trackId: string;
     /** Loaded comments, shared with the waveform pins. */
     comments?: Comment[];
+    /** Bump to reload the list (a voice note was saved elsewhere on the page). */
+    reloadKey?: number;
   }
-  let { trackId, comments = $bindable([]) }: Props = $props();
+  let { trackId, comments = $bindable([]), reloadKey = 0 }: Props = $props();
 
   let scope = $state<"open" | "all">("open");
   let kind = $state<"" | Kind>("");
@@ -67,6 +69,7 @@
     void scope;
     void kind;
     void order;
+    void reloadKey;
     void load(false);
   });
 

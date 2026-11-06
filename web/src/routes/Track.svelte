@@ -14,6 +14,7 @@
   import CommentsPanel from "../lib/components/CommentsPanel.svelte";
   import Waveform from "../lib/components/Waveform.svelte";
   import HeatStrip from "../lib/components/HeatStrip.svelte";
+  import VoiceRecorder from "../lib/components/VoiceRecorder.svelte";
   import SongPrPanel from "../lib/components/SongPrPanel.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
   import AddToCrate from "../lib/components/AddToCrate.svelte";
@@ -82,6 +83,8 @@
   let detail = $state<Level | null>(null);
   let width = $state(0);
   let comments = $state<components["schemas"]["Comment"][]>([]);
+  // M5-W1b: bumped when a voice note is saved, so the Comments panel reloads.
+  let commentsReload = $state(0);
   let tagNames = $state<string[]>([]);
   // One list_tags call per page visit.
   const suggestions = createTagSuggestions(api);
@@ -281,7 +284,9 @@
       <aside>
         <section class="card">
           <h2>Comments</h2>
-          <CommentsPanel trackId={id} bind:comments />
+          <CommentsPanel trackId={id} bind:comments reloadKey={commentsReload} />
+          <!-- M5-W1b: voice note recorder in the comment composer; nothing is sent until the user saves -->
+          <VoiceRecorder trackId={id} atSecond={isCurrent ? Math.round(position * 10) / 10 : null} onsaved={() => (commentsReload += 1)} />
         </section>
         <!-- M5-W1: Song PR panel (one mount; the panel owns its fetches) -->
         {#if track.recipe_known && !track.lossy}
