@@ -238,8 +238,8 @@ func TestChaos_InputFetchMismatch(t *testing.T) {
 		t.Errorf("%d tracks from a failed input check", n)
 	}
 	exec := e.r.sum(`SELECT COALESCE(SUM(micro_usd),0) FROM ledger WHERE job_id = ? AND kind = 'settle' AND reason = 'execution'`, job)
-	if max := int64(money.ForSeconds(60, propPrice)); exec > max {
-		t.Errorf("settled %d for a job that failed before rendering, want at most %d", exec, max)
+	if limit := int64(money.ForSeconds(60, propPrice)); exec > limit {
+		t.Errorf("settled %d for a job that failed before rendering, want at most %d", exec, limit)
 	}
 	if n := e.trips(aceBackendName); n != 0 {
 		t.Errorf("an input mismatch tripped the backend")
