@@ -106,25 +106,20 @@ func (s *Service) AfterTakeCommit(ctx context.Context, t jobs.TakeInfo) {
 	if t.PatchID == nil || !s.configured() || s.o.Notify == nil {
 		return
 	}
-	var others int
-	rows, err := s.o.Store.R.QueryContext(ctx, `SELECT state FROM jobs WHERE batch_id = ? AND id <> ?`, t.BatchID, t.JobID)
+	// A job has landed once it is terminal, or once its output is committed: the runner completes a job only after IngestTake
+	// returns, so two takes of a batch that ingest side by side both still read `ingesting` here and neither would notify. Among the
+	// committed takes only the last one to commit (the highest tracks.rowid; the writer is serialised) notifies.
+	var others, later int
+	err := s.o.Store.R.QueryRowContext(ctx, `SELECT
+		COALESCE(SUM(j.state NOT IN ('completed','failed','cancelled','expired') AND NOT EXISTS (SELECT 1 FROM tracks t WHERE t.job_id = j.id)
+			AND NOT EXISTS (SELECT 1 FROM job_events e WHERE e.job_id = j.id AND e.event = 'attached')), 0),
+		COALESCE(SUM((SELECT MAX(t.rowid) FROM tracks t WHERE t.job_id = j.id) > (SELECT MAX(t.rowid) FROM tracks t WHERE t.job_id = ?2)), 0)
+		FROM jobs j WHERE j.batch_id = ?1 AND j.id <> ?2`, t.BatchID, t.JobID).Scan(&others, &later)
 	if err != nil {
 		s.o.Log.Warn("callbacks: batch state", "err", redact.Error(err))
 		return
 	}
-	for rows.Next() {
-		var st string
-		if err := rows.Scan(&st); err != nil {
-			_ = rows.Close()
-			s.o.Log.Warn("callbacks: batch state", "err", redact.Error(err))
-			return
-		}
-		if !jobs.IsTerminal(st) {
-			others++
-		}
-	}
-	_ = rows.Close()
-	if rows.Err() != nil || others > 0 {
+	if others > 0 || later > 0 {
 		return // a later child of the batch notifies
 	}
 	var n int

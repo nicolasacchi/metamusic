@@ -527,3 +527,24 @@ func TestIngest_StemArtifact_WorkFileProblems(t *testing.T) {
 		t.Errorf("%d stems attached", n)
 	}
 }
+
+// TestTakeHook_StemAttachIsNotATake: a normal ACE-Step take calls the take hook once in its transaction and once after the commit;
+// an attached stem (no new take) calls neither, and its job still completes (so it counts as landed for the batch's last-job check).
+func TestTakeHook_StemAttachIsNotATake(t *testing.T) {
+	h := &recHook{}
+	b := newACERig(t, true, aceEngines("complete", "extract"), func(o *BridgeOptions) { o.TakeHook = h })
+	h.b = b
+	base := b.seedACE(b.aceRecipe(aceRequest(t, nil)))
+	b.runACE(base, b.longFLAC(10, 70), nil)
+	b.wantState(base, StateCompleted)
+	if len(h.tx) != 1 || len(h.commit) != 1 || h.commit[0].JobID != base {
+		t.Fatalf("take hook calls after a take: tx %d commit %d", len(h.tx), len(h.commit))
+	}
+	s := &stemFixture{bridgeRig: b, parent: b.str(`SELECT track_id FROM jobs WHERE id = ?`, base)}
+	job := s.seedStem("bass")
+	b.runACE(job, b.longFLAC(10, 71), nil)
+	b.wantState(job, StateCompleted)
+	if len(h.tx) != 1 || len(h.commit) != 1 {
+		t.Errorf("an attached stem called the take hook: tx %d commit %d", len(h.tx), len(h.commit))
+	}
+}

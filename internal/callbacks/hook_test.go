@@ -212,3 +212,40 @@ func TestAfterTakeCommit_Notifies(t *testing.T) {
 		t.Errorf("notifier called %d times", len(r.note.msgs))
 	}
 }
+
+// TestAfterTakeCommit_SiblingsLandingTogether: two takes of a batch commit before either job has completed (the runner completes a
+// job only after IngestTake returns), so both hooks see the other job still not terminal. Exactly one notification goes out, from
+// the take that committed last; before the second take commits, none.
+func TestAfterTakeCommit_SiblingsLandingTogether(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, nil)
+	g := r.info.Lineage
+	patch := r.stubPatch(g[0], r.comment("fix_chorus"), r.comment("fix_verse"))
+	a := r.stubJob(patch, g[1], "")
+	bJob := r.stubJobInBatch(patch, a, "queued")
+	b := a
+	b.JobID, b.TrackID = bJob, g[2]
+	var trig string
+	if err := r.st.R.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'tracks' AND sql LIKE '%frozen column%' AND sql LIKE '%job_id%'`).Scan(&trig); err != nil {
+		t.Fatal(err)
+	}
+	r.exec(`DROP TRIGGER ` + trig) // the fixture links a take to its job after the fact
+	r.exec(`UPDATE tracks SET job_id = ? WHERE id = ?`, a.JobID, a.TrackID)
+	if err := r.hook(a); err != nil {
+		t.Fatal(err)
+	}
+	r.svc.AfterTakeCommit(context.Background(), a)
+	if len(r.note.msgs) != 0 {
+		t.Fatalf("notified before the sibling's take committed: %+v", r.note.msgs)
+	}
+	r.exec(`UPDATE tracks SET job_id = ? WHERE id = ?`, b.JobID, b.TrackID)
+	if err := r.hook(b); err != nil {
+		t.Fatal(err)
+	}
+	// both jobs still read as running; each hook runs after both takes committed
+	r.svc.AfterTakeCommit(context.Background(), a)
+	r.svc.AfterTakeCommit(context.Background(), b)
+	if len(r.note.msgs) != 1 {
+		t.Fatalf("%d notifications, want exactly 1: %+v", len(r.note.msgs), r.note.msgs)
+	}
+}
