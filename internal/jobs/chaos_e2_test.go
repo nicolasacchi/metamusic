@@ -220,10 +220,10 @@ func TestChaos_InputFetchMismatch(t *testing.T) {
 	if got := e.r.state(job); got != StateFailed {
 		t.Fatalf("job %s (%v)", got, e.r.events(job))
 	}
-	// the worker's INPUT_MISMATCH arrives in the handler's wrapped form, which the classifier maps to WORKER_LOST (only DEADLINE
-	// has a code of its own); the pinned fact is that the job fails once and is not retried
-	if code := e.r.job(job).ErrorCode; code != CodeWorkerLost && code != CodeWorkerError {
-		t.Errorf("error code %q", code)
+	// the worker's INPUT_MISMATCH arrives in the handler's wrapped form; since E2-J3 the classifier gives it a code of its own
+	// (it ended WORKER_LOST before). The job fails once and is not retried.
+	if code := e.r.job(job).ErrorCode; code != CodeInputMismatch {
+		t.Errorf("error code %q, want %s", code, CodeInputMismatch)
 	}
 	if n := e.ace.Counters().Submit; n != 1 {
 		t.Errorf("submits %d, want 1", n)

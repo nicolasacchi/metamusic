@@ -76,7 +76,9 @@ import (
 // (the same Patch and Estimate), get_track +1 269 (recipe.acestep, stems, lrc), get_media_links +300 (stem and lrc links),
 // search_tracks +162 (engine filter), the job tools +66 each (task, stem), get_system_info +53 (engines). Docs and numeric
 // constraints of the new fields were left out of the tool schemas; describe_operation and the server validate them.
-const toolsCeilingBytes = 115327
+//
+// E2-J3 re-baselined 115327 -> 115405 (measured 115305, +78 over 115227): JobTimings.extra, an optional number map on the job tools.
+const toolsCeilingBytes = 115405
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

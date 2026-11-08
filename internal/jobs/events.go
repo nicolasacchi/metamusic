@@ -62,6 +62,8 @@ const (
 	EvBatchNoCapacity   = "batch_no_capacity"
 	EvPreflightFailed   = "preflight_failed"
 	EvDurationMismatch  = "duration_mismatch"
+	EvAttached          = "attached"    // E2b: a stem was attached to its source take as an artifact (C166)
+	EvLRCDropped        = "lrc_dropped" // E2b: a delivered lyrics.lrc failed validation and was not kept (C166)
 )
 
 // common detail keys every event may carry besides its own.
@@ -84,7 +86,7 @@ var eventDetailKeys = map[string][]string{
 	EvResultReceived:    {"artifact_count", "status"},
 	EvCompletedRemote:   {"execution_ms"},
 	EvVerified:          {"artifacts", "truncated_abc", "truncated_semantic"},
-	EvIngested:          {"track_id", "outcome", "audio_s"},
+	EvIngested:          {"track_id", "outcome", "audio_s", "timings"},
 	EvEars:              {"warnings"},
 	EvCancelRequested:   {"by"},
 	EvCancelSent:        {"count", "error"},
@@ -110,6 +112,8 @@ var eventDetailKeys = map[string][]string{
 	EvBatchNoCapacity:   {"failed_jobs"},
 	EvPreflightFailed:   {"check"},
 	EvDurationMismatch:  {"task", "expected_s", "audio_s"},
+	EvAttached:          {"track_id", "artifact", "audio_s"},
+	EvLRCDropped:        {},
 }
 
 // EventNames lists every event the runner may write.

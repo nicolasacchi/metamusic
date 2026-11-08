@@ -367,8 +367,10 @@ func (r *Runner) followTerminal(ctx context.Context, tx *sql.Tx, f store.LeaseFe
 			return r.conclude(ctx, tx, f, j, o.b)
 		}
 		code, text := terminalCode(o.st)
-		if code == CodeWorkerLost && o.st.State == provider.Failed && workerReportedDeadline(ctx, tx, a.ID) {
-			code = CodeDeadline
+		if code == CodeWorkerLost && o.st.State == provider.Failed {
+			if c := workerReportedCode(ctx, tx, a.ID); c != "" {
+				code = c
+			}
 		}
 		ev := Event{AttemptID: a.ID, Name: EvFailed, Code: code}
 		if o.st.State == provider.Cancelled {
@@ -411,10 +413,21 @@ func liveOthers(ctx context.Context, x q, jobID, skip string) ([]attRec, error) 
 	return queryAtts(ctx, x, `job_id = ? AND state IN ('pending','submitted','unknown') AND id <> ? ORDER BY n`, jobID, skip)
 }
 
+// workerJobCodes are the worker error codes that end a job with a code of their own instead of WORKER_ERROR or WORKER_LOST:
+// the generation deadline (C73, C75) and the three input and task codes of the ACE-Step worker (E2, PW1). They are
+// engine-neutral, so a yue2 worker reporting one gets the same code.
+var workerJobCodes = map[string]string{
+	"DEADLINE":         CodeDeadline,
+	"INPUT_FAILED":     CodeInputFailed,
+	"INPUT_MISMATCH":   CodeInputMismatch,
+	"TASK_UNAVAILABLE": CodeTaskUnavailable,
+}
+
 // terminalCode maps a terminal status of a starting or generating job to its error code. A worker whose
 // generation deadline passed ends with DEADLINE (C73, C75): the handler returns {"error": "DEADLINE: ...",
 // "mm": <output>}, which RunPod reports as FAILED with that error text, and the output's error.code says the
-// same; neither is a lost worker.
+// same; neither is a lost worker. The same holds for INPUT_FAILED, INPUT_MISMATCH and TASK_UNAVAILABLE, which used
+// to end as WORKER_LOST when only the error text or the wrapped handler return carried them.
 func terminalCode(st provider.RemoteStatus) (code, text string) {
 	switch st.State {
 	case provider.TimedOut:
@@ -423,9 +436,9 @@ func terminalCode(st provider.RemoteStatus) (code, text string) {
 		return CodeProviderCanceled, st.ErrorText
 	}
 	wc, isErr := workerErrorCode(st)
-	switch {
-	case wc == "DEADLINE":
-		return CodeDeadline, st.ErrorText
+	switch c, mapped := workerJobCodes[wc]; {
+	case mapped:
+		return c, st.ErrorText
 	case isErr:
 		return CodeWorkerError, st.ErrorText
 	}
@@ -459,14 +472,17 @@ func workerErrorCode(st provider.RemoteStatus) (code string, isErr bool) {
 	return "", false
 }
 
-// workerReportedDeadline reports whether the attempt's mm-result.json already said DEADLINE (the transfer
-// handler records worker_error on a WORKER_ERROR event): the provider's own terminal status then carries no
-// code of its own.
-func workerReportedDeadline(ctx context.Context, x q, attemptID string) bool {
-	var n int
-	err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_events WHERE attempt_id = ? AND event = 'status' AND code = ? AND json_extract(detail_json, '$.worker_error') = 'DEADLINE'`,
-		attemptID, CodeWorkerError).Scan(&n)
-	return err == nil && n > 0
+// workerReportedCode is the job code of the worker error that the attempt's mm-result.json already reported (the transfer
+// handler records worker_error on a WORKER_ERROR event), or "" when it reported none that has a code of its own: the
+// provider's terminal status then carries no code of its own.
+func workerReportedCode(ctx context.Context, x q, attemptID string) string {
+	var wc sql.NullString
+	err := x.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.worker_error') FROM job_events WHERE attempt_id = ? AND event = 'status' AND code = ?
+		AND json_extract(detail_json, '$.worker_error') IN ('DEADLINE','INPUT_FAILED','INPUT_MISMATCH','TASK_UNAVAILABLE') ORDER BY id LIMIT 1`, attemptID, CodeWorkerError).Scan(&wc)
+	if err != nil || !wc.Valid {
+		return ""
+	}
+	return workerJobCodes[wc.String]
 }
 
 // validOutput reports whether a status carries an ok worker output of the right contract.
