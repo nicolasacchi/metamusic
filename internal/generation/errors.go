@@ -49,3 +49,13 @@ func (s *Service) ready() error {
 	}
 	return nil
 }
+
+// ingestReady refuses spending while finished takes could not be stored (Options.IngestReady). Estimate, create and approval
+// call it; reject, reads and settlement do not, since none of them sends work to the provider.
+func (s *Service) ingestReady() error {
+	if s.o.IngestReady == nil || s.o.IngestReady() {
+		return nil
+	}
+	return perr(http.StatusServiceUnavailable, "UNAVAILABLE", "generation ingest is not available yet (the media tools are still starting); nothing was spent, retry shortly",
+		map[string]any{"component": "ingest"})
+}

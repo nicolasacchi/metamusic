@@ -47,6 +47,10 @@ type Options struct {
 	// M5 seams (C253.4, C255.5); both nil-safe, see seams_m5.go.
 	PatchSource PatchSource
 	BacklogGate BacklogGate
+	// IngestReady reports whether a finished take can be stored (the media tool probe has succeeded). While it returns
+	// false, estimate, create and approve answer 503 UNAVAILABLE {component: ingest}: no GPU money is spent on a result
+	// that would fail INGEST_FAILED. nil means always ready.
+	IngestReady func() bool
 }
 
 // SongwritingSource reads the songwriting duration targets (songwriting.Service satisfies it).

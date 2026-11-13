@@ -354,6 +354,9 @@ func (r *Runner) requiredArtifacts(ctx context.Context, x q, j *jobRec) ([]strin
 // dispatchIngest hands every `ingesting` job that is not in the pool to it. Step returns at once; the pool
 // runs IngestTake (up to 5 minutes for an MP3 encode) while the heartbeat keeps the lease.
 func (r *Runner) dispatchIngest(ctx context.Context) error {
+	if !r.ingestReady() {
+		return nil // finished takes keep their uploads and stay `ingesting` until the media tools are back
+	}
 	// a failed ingest waits for its attempts to end (error_code is set); it is not run again
 	js, err := queryJobs(ctx, r.o.Store.R, `state = 'ingesting' AND lease_owner = ? AND error_code IS NULL ORDER BY created_at, take_index`, r.o.Owner)
 	if err != nil {

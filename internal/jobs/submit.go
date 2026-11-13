@@ -110,6 +110,9 @@ type claimRefusal struct {
 func (c *claimRefusal) Error() string { return "jobs: claim refused: " + c.code }
 
 func (r *Runner) claimOne(ctx context.Context) (bool, error) {
+	if !r.ingestReady() {
+		return false, nil // a result that cannot be stored must not be paid for: queued jobs wait for the media tools
+	}
 	backend := r.o.Backend.Name()
 	g0, err := r.readGate(ctx, r.o.Store.R)
 	if err != nil || !g0.ok {

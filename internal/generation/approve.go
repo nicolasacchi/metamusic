@@ -97,6 +97,11 @@ func (s *Service) decide(ctx context.Context, p auth.Principal, batchID, to stri
 	if err := s.ready(); err != nil {
 		return Created{}, err
 	}
+	if to == "approved" {
+		if err := s.ingestReady(); err != nil {
+			return Created{}, err
+		}
+	}
 	tx, err := s.o.Store.W.BeginTx(ctx, nil)
 	if err != nil {
 		return Created{}, err

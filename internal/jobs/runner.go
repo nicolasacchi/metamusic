@@ -42,6 +42,10 @@ type RunnerOptions struct {
 	Expect                 provider.WorkerExpect
 	Log                    *slog.Logger
 	IngestWorkers          int // bounded pool for ingest + Ears; default 2
+	// IngestReady reports whether a finished take can be stored (the media tool probe has succeeded). While it returns false the
+	// runner submits no queued job to the provider and starts no ingest: queued jobs wait, finished takes stay `ingesting`.
+	// nil means always ready.
+	IngestReady func() bool
 	// Preflight checks disk and the public upload route before a claim (D-M3-33); nil in unit tests.
 	Preflight func(ctx context.Context, inFlightMaxBytes int64) error
 	// Fault injects a crash at a named point (C86.3); nil in production.
@@ -71,6 +75,8 @@ type RunnerOptions struct {
 	Expects  map[string]provider.WorkerExpect
 	Inputs   InputMinter
 }
+
+func (r *Runner) ingestReady() bool { return r.o.IngestReady == nil || r.o.IngestReady() }
 
 // TripFunc opens a provider trip for reason inside tx under the lease fence.
 type TripFunc func(ctx context.Context, tx *sql.Tx, f store.LeaseFence, backend, reason string, details map[string]any) error
