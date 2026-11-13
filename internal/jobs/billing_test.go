@@ -646,3 +646,41 @@ func TestBilling_FailedFetchDoesNotCloseWindow(t *testing.T) {
 		t.Errorf("after the fetch recovered: windows %d", r.windows())
 	}
 }
+
+// A calendar month with no batch of its own before the next one must not wedge the reconciler: the window that
+// ends at the month boundary holds no batch, yet it has to close (carrying the idle hours), or every later
+// batch waits behind it forever and its unused reserve keeps counting against the daily and monthly caps.
+func TestBilling_IdleMonthBoundaryDoesNotStallLaterBatches(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	oct := time.Date(2026, 10, 20, 10, 50, 0, 0, time.UTC)
+	nov := time.Date(2026, 11, 3, 13, 56, 0, 0, time.UTC)
+	var all []seeded
+	all = append(all, r.billBatch(oct, oct.Add(30*time.Minute), 20000, oct.Add(time.Hour)))
+	for i := range 4 { // four batches 25 s apart, as in production
+		c := nov.Add(time.Duration(i) * 25 * time.Second)
+		all = append(all, r.billBatch(c, c.Add(40*time.Minute), 20000, c.Add(time.Hour)))
+	}
+	r.hours(map[time.Time][2]money.MicroUSD{
+		time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC): {20000, 20000},
+		time.Date(2026, 11, 3, 13, 0, 0, 0, time.UTC):  {30000, 30000},
+		time.Date(2026, 11, 3, 14, 0, 0, 0, time.UTC):  {20000, 20000},
+	})
+	rec := r.recon()
+	for now := oct.Add(8 * time.Hour); now.Before(time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)); now = now.Add(24 * time.Hour) {
+		r.clk.Set(now)
+		r.mustPass(rec)
+	}
+	r.clk.Set(nov.Add(10 * 24 * time.Hour))
+	for range 3 {
+		r.mustPass(rec)
+	}
+	for i, s := range all {
+		if r.str(`SELECT reconciled_at FROM batches WHERE id = ?`, s.Batch) == "" || r.outstanding(s.Batch) != 0 {
+			t.Errorf("batch %d: reconciled %q, still holds %d", i, r.str(`SELECT reconciled_at FROM batches WHERE id = ?`, s.Batch), r.outstanding(s.Batch))
+		}
+	}
+	if r.tripCount() != 0 {
+		t.Errorf("tripped: %s", r.openTripReason())
+	}
+}
