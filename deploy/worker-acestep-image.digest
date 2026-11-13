@@ -1,1 +1,2 @@
-# placeholder: set by the E2 deploy PR to the published ACE-Step worker image digest (sha256:<64 hex>); never edited by CI
+# ghcr.io/nicolasacchi/metamusic-worker-acestep, published by worker-image.yml (acestep-publish) from main b3d789c on 2026-11-08; committed by hand, never edited by CI
+sha256:b8d26f7153afba2ffef1a9b20d147a125735e04b1e6613fd32582f0874c0b6ff
