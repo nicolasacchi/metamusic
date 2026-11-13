@@ -147,7 +147,8 @@ func TestUnitsBudget(t *testing.T) {
 	if unitsBudget(10, 600, 900) != 1 {
 		t.Error("a budget eaten by the tool shares must be 1, not unlimited or negative")
 	}
-	if wallDeadline(1000) != 60*time.Second || wallDeadline(100_000) != 300*time.Second {
+	// the hard cap is a backstop: a floor of 30 min, then 20 x the budget (a 232 s widen at nice +10 took 169 s of wall for 27 s of CPU)
+	if wallDeadline(1000) != WallFloor || wallDeadline(27_276) != WallFloor || wallDeadline(100_000) != 20*100*time.Second {
 		t.Errorf("deadlines %v %v", wallDeadline(1000), wallDeadline(100_000))
 	}
 }
@@ -158,5 +159,19 @@ func TestMajorMinor(t *testing.T) {
 		if got := majorMinor(in); got != want {
 			t.Errorf("majorMinor(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestProcCPUTicks: the stall check's CPU reading parses /proc/<pid>/stat and grows with the process's work.
+func TestProcCPUTicks(t *testing.T) {
+	if _, err := os.Stat("/proc/self/stat"); err != nil {
+		t.Skip("no /proc")
+	}
+	a, ok := procCPUTicks(os.Getpid())
+	if !ok || a < 0 {
+		t.Fatalf("ticks %d ok=%v", a, ok)
+	}
+	if _, ok := procCPUTicks(1 << 30); ok {
+		t.Error("a missing process read as alive")
 	}
 }

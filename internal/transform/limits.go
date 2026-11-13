@@ -15,10 +15,16 @@ const (
 	ProgressThrottle  = time.Second
 	CancelGrace       = 2 * time.Second
 	RSSPoll           = 500 * time.Millisecond
-	WallFactor        = 3 // wall deadline = WallFactor x budget, at least 60 s
-	MaxAttempts       = 2 // transforms.attempts CHECK
-	WorkSweepAge      = time.Hour
-	LeaseTTL          = 60 * time.Second
+	// WallFactor and WallFloor make the hard wall cap, max(WallFloor, WallFactor x budget): a backstop for a child that keeps
+	// showing signs of life without ever finishing. The CPU budget is enforced by the work meter and the CPU accounting; the wall
+	// time of a low-priority child on a loaded host is several times its CPU time, so the cap is no estimate of the render.
+	WallFactor = 20
+	WallFloor  = 30 * time.Minute
+	// StallWindow is how long a child may show no sign of life (no progress line and no CPU time) before it is called hung.
+	StallWindow  = 5 * time.Minute
+	MaxAttempts  = 2 // transforms.attempts CHECK
+	WorkSweepAge = time.Hour
+	LeaseTTL     = 60 * time.Second
 
 	DSPVersion        = "mm-dsp/1" // part of every spec: any algorithm change bumps it and therefore the hash (D-T1-3)
 	TargetLUFSDefault = -16.0      // the target when the primary parent has no measured loudness (D-T1-14)

@@ -452,11 +452,11 @@ func (s *Service) writeInterleaved(rel string, b pcm.Buffer) error {
 
 // render is step 3: the child, with progress written through the owner predicate, and the failure mapping of C210.6.
 func (s *Service) render(ctx context.Context, row tRow, st *staged, acct *cpuAcct, progress ChildProgress) *runFailure {
-	res, err := s.child().Run(ctx, ChildJob{Dir: st.abs, MemMB: row.MemMBEst, Deadline: wallDeadline(row.MaxCPUMS)}, progress)
+	res, err := s.child().Run(ctx, ChildJob{Dir: st.abs, MemMB: row.MemMBEst, Deadline: wallDeadline(row.MaxCPUMS), Stall: StallWindow}, progress)
 	acct.add(res.CPU)
 	switch {
 	case errors.Is(err, ErrChildDeadline):
-		return fail(ErrTimeout, "the render passed its wall deadline and was stopped")
+		return fail(ErrTimeout, "the render stopped making progress or passed its wall deadline and was stopped")
 	case errors.Is(err, ErrChildMemory):
 		return fail(ErrMemoryExceeded, "the render passed its memory guard and was stopped")
 	case errors.Is(err, ErrChildSignaled):
