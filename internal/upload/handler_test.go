@@ -215,6 +215,7 @@ func TestUploadHandler_Matrix(t *testing.T) {
 	t.Run("in progress", func(t *testing.T) {
 		t.Parallel()
 		r := newRig(t)
+		r.svc.lockWait = 30 * time.Millisecond
 		id, u := r.target("audio.flac")
 		pr, pw := io.Pipe()
 		first := make(chan *httptest.ResponseRecorder, 1)

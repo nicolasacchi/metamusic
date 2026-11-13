@@ -69,6 +69,44 @@ def test_upload_conflict_aborts(sink: Sink, data: Path) -> None:
     test_upload_aborts(sink, data, 409, "UPLOAD_CONFLICT")
 
 
+def problem(code: str, **hdrs: str) -> tuple[int, dict[str, str]]:
+    body = f'{{"code":"{code}","message":"m","details":{{}}}}'
+    return 409, {"_body": body, "Content-Type": "application/problem+json", **hdrs}
+
+
+def test_upload_in_progress_is_retried_with_retry_after(sink: Sink, data: Path) -> None:
+    # the lock of a dead first attempt is still held server-side: wait and retry, do not kill the take
+    sink.on("/a", problem("UPLOAD_IN_PROGRESS", **{"Retry-After": "2"}), problem("UPLOAD_IN_PROGRESS"), 201)
+    c = Clock()
+    Uploader(clock=c, sleep=c.sleep).put("a", data, target(sink), c.now + 3600)
+    assert len(sink.puts("/a")) == 3 and c.sleeps == [2.0, 2.0]
+
+
+def test_upload_in_progress_respects_deadline(sink: Sink, data: Path) -> None:
+    sink.on("/a", problem("UPLOAD_IN_PROGRESS", **{"Retry-After": "2"}))
+    c = Clock()
+    with pytest.raises(WorkerError) as e:
+        Uploader(clock=c, sleep=c.sleep).put("a", data, target(sink), c.now + 5)
+    assert e.value.code == "DEADLINE" and c.sleeps == [2.0, 2.0]
+
+
+@pytest.mark.parametrize("body", [problem("UPLOAD_CONFLICT"), problem("SOMETHING_ELSE"),
+                                  (409, {"_body": "not json"}), (409, {"_body": "[1]"}), (409, {"_body": "{\"code\":5}"})])
+def test_upload_other_409_stays_fatal(sink: Sink, data: Path, body: tuple[int, dict[str, str]]) -> None:
+    sink.on("/a", body, 201)
+    c = Clock()
+    with pytest.raises(WorkerError) as e:
+        Uploader(clock=c, sleep=c.sleep).put("a", data, target(sink), None)
+    assert e.value.code == "UPLOAD_CONFLICT" and len(sink.puts("/a")) == 1 and c.sleeps == []
+
+
+def test_upload_stalled_408_is_retried(sink: Sink, data: Path) -> None:
+    sink.on("/a", (408, {"_body": '{"code":"UPLOAD_STALLED"}', "Retry-After": "1"}), 201)
+    c = Clock()
+    Uploader(clock=c, sleep=c.sleep).put("a", data, target(sink), None)
+    assert c.sleeps == [1.0]
+
+
 def test_upload_closed_aborts(sink: Sink, data: Path) -> None:
     test_upload_aborts(sink, data, 410, "UPLOAD_CLOSED")
 

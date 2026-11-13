@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import http.client
+import json
 import socket
 import ssl
 import time
@@ -21,6 +22,8 @@ ATTEMPT_TIMEOUT_S = 60.0
 MAX_422 = 3
 _RETRY_STATUS = frozenset({408, 429})
 _CHUNK = 1 << 20
+_PROBLEM_MAX = 4096
+IN_PROGRESS = "UPLOAD_IN_PROGRESS"
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
@@ -33,6 +36,16 @@ def sha256_file(path: Path) -> tuple[str, int]:
     return h.hexdigest(), n
 
 
+def _problem_code(raw: bytes) -> str | None:
+    """The `code` of a problem+json body, or None when the body is not one."""
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return None
+    code = doc.get("code") if isinstance(doc, dict) else None
+    return code if isinstance(code, str) else None
+
+
 class Uploader:
     def __init__(self, *, clock: Callable[[], float] = time.time,
                  sleep: Callable[[float], None] = time.sleep, timeout: float = ATTEMPT_TIMEOUT_S) -> None:
@@ -40,7 +53,7 @@ class Uploader:
         self._sleep = sleep
         self._timeout = timeout
 
-    def _once(self, path: Path, target: Target, digest_b64: str, size: int) -> tuple[int, float | None]:
+    def _once(self, path: Path, target: Target, digest_b64: str, size: int) -> tuple[int, float | None, str | None]:
         u = urlsplit(target.url)
         if u.scheme == "https":
             conn: http.client.HTTPConnection = http.client.HTTPSConnection(
@@ -56,20 +69,20 @@ class Uploader:
                     "User-Agent": f"metamusic-worker/{__version__}",
                 })
                 resp = conn.getresponse()
-                resp.read()
+                raw = resp.read(_PROBLEM_MAX)
                 ra = resp.getheader("Retry-After")
                 try:
                     retry_after = float(ra) if ra is not None else None
                 except ValueError:
                     retry_after = None
-                return resp.status, retry_after
+                return resp.status, retry_after, _problem_code(raw) if resp.status == 409 else None
         finally:
             conn.close()
 
     def put(self, name: str, path: Path, target: Target, deadline: float | None,
             sha256: str | None = None) -> None:
-        """PUT path to target. Success on 200/201. Raises WorkerError (UPLOAD_FAILED, UPLOAD_CONFLICT,
-        UPLOAD_CLOSED, DEADLINE); messages carry no URL query."""
+        """PUT path to target. Success on 200/201. Retries network errors, 5xx, 408, 429 and 409
+        UPLOAD_IN_PROGRESS. Raises WorkerError (UPLOAD_FAILED, UPLOAD_CONFLICT, UPLOAD_CLOSED, DEADLINE); messages carry no URL query."""
         path = Path(path)
         if sha256 is None:
             sha256, size = sha256_file(path)
@@ -80,15 +93,19 @@ class Uploader:
         n422 = 0
         while True:
             retry_after: float | None = None
+            problem_code: str | None = None
             try:
-                status, retry_after = self._once(path, target, digest_b64, size)
+                status, retry_after, problem_code = self._once(path, target, digest_b64, size)
             except (OSError, http.client.HTTPException, socket.timeout, ssl.SSLError):
                 status = 0
             if status in (200, 201):
                 return
             if status == 403:
                 raise WorkerError("UPLOAD_FAILED", f"{name}: upload link refused (403)")
-            if status == 409:
+            # 409 UPLOAD_IN_PROGRESS: the server still holds the lock of an earlier, stalled PUT of this same
+            # artifact; it frees itself, so wait and retry. Any other 409 (UPLOAD_CONFLICT: a different body
+            # was already received) can never succeed.
+            if status == 409 and problem_code != IN_PROGRESS:
                 raise WorkerError("UPLOAD_CONFLICT", f"{name}: conflicting upload (409)")
             if status == 410:
                 raise WorkerError("UPLOAD_CLOSED", f"{name}: upload closed (410)")
@@ -96,7 +113,7 @@ class Uploader:
                 n422 += 1
                 if n422 >= MAX_422:
                     raise WorkerError("UPLOAD_FAILED", f"{name}: digest mismatch {n422} times")
-            elif not (status == 0 or status >= 500 or status in _RETRY_STATUS):
+            elif not (status == 0 or status >= 500 or status in _RETRY_STATUS or status == 409):
                 raise WorkerError("UPLOAD_FAILED", f"{name}: upload refused (status {status})")
             delay = BACKOFF[min(attempt, len(BACKOFF) - 1)]
             attempt += 1
