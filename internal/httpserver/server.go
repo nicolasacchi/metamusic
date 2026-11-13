@@ -190,6 +190,9 @@ type Options struct {
 	BaseContext context.Context
 	// Startup tracks the startup derivation steps serve retries in the background; nil => always ready.
 	Startup *startup.Health
+	// Degraded names the background-recovering pieces that are down right now (the media tools after a slow boot). /healthz lists
+	// them and reports status "degraded" but stays 200: the container is alive, only a retry loop can repair it. nil => none.
+	Degraded func() []string
 }
 
 func writeProblem(w http.ResponseWriter, status int, code, msg string) {
@@ -277,8 +280,12 @@ func New(o Options) (http.Handler, error) {
 			Ready         bool                `json:"ready"`
 			AuditFailures int64               `json:"audit_failures,omitempty"`
 			Startup       []startup.StepIssue `json:"startup_issues,omitempty"`
+			Degraded      []string            `json:"degraded,omitempty"`
 		}{Status: "ok", Ready: o.Startup.Ready(), AuditFailures: audit.Failures(), Startup: o.Startup.Issues()}
-		if !hb.Ready || hb.AuditFailures > 0 {
+		if o.Degraded != nil {
+			hb.Degraded = o.Degraded()
+		}
+		if !hb.Ready || hb.AuditFailures > 0 || len(hb.Degraded) > 0 {
 			hb.Status = "degraded"
 		}
 		raw, _ := json.Marshal(hb)
