@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -241,7 +242,8 @@ func TestNewServiceDefaults(t *testing.T) {
 		t.Errorf("defaults %+v", s.o)
 	}
 	s.wake() // nil-safe
-	if s.inFlight("x") || !s.lock("x") || s.lock("x") {
+	s.lockWait = time.Millisecond
+	if s.inFlight("x") || !s.lock(context.Background(), "x") || s.lock(context.Background(), "x") {
 		t.Error("lock")
 	}
 	s.unlock("x")

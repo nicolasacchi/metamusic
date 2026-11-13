@@ -218,7 +218,7 @@ func (s *Service) serveUpload(w http.ResponseWriter, r *http.Request) {
 	if s.beforeLock != nil {
 		s.beforeLock()
 	}
-	if !s.lock(id) {
+	if !s.lock(r.Context(), id) {
 		w.Header().Set("Retry-After", "2")
 		fail(w, http.StatusConflict, "UPLOAD_IN_PROGRESS", "another upload of this artifact is in progress", nil)
 		return
