@@ -69,6 +69,14 @@ func New(data *os.Root, dataDir string, tools mediatool.Tools, an WindowAnalyzer
 // ToolVersion is the analyzer's version token ("ffmpeg <token>"); it is part of every clip key.
 func (s *Service) ToolVersion() string { return s.an.ToolVersion() }
 
+// unavailable is the 503 a render path answers while Options.Unavailable reports the tools missing.
+func (s *Service) unavailable() error {
+	if s.opts.Unavailable == nil || s.opts.Unavailable() == nil {
+		return nil
+	}
+	return problem.E(503, "UNAVAILABLE", "clips are not available", map[string]any{"component": "clips"})
+}
+
 func internalErr(msg string) error { return problem.E(500, "INTERNAL", msg, nil) }
 
 func (s *Service) validate(sp Spec) error {
@@ -133,6 +141,9 @@ func (s *Service) workMaster(sp Spec) (rel, abs, name string, err error) {
 
 // Measure measures the loudness of the window of sp.
 func (s *Service) Measure(ctx context.Context, sp Spec) (Measure, error) {
+	if err := s.unavailable(); err != nil {
+		return Measure{}, err
+	}
 	if err := s.validate(sp); err != nil {
 		return Measure{}, err
 	}
@@ -162,6 +173,9 @@ func (s *Service) Measure(ctx context.Context, sp Spec) (Measure, error) {
 // detached from the caller (D-M2b-1): a cancelled caller returns its context
 // error while the render continues and fills the cache for the others.
 func (s *Service) Ensure(ctx context.Context, sp Spec) (Object, error) {
+	if err := s.unavailable(); err != nil {
+		return Object{}, err
+	}
 	if err := s.validate(sp); err != nil {
 		return Object{}, err
 	}

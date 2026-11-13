@@ -193,6 +193,8 @@ type Services struct {
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
 	ClipsMissing, TierAMissing error
+	// Media carries the background ffmpeg probe (StartProbe) and the degraded report (Degraded).
+	Media *Media
 }
 
 // Build constructs the services over st and data. Every store and service
@@ -289,7 +291,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 	late := &m5Late{}
 	mediaRoute := &lateHandler{} // the media handler, bound once s.Server exists (E2: the fake worker's fetcher, the media preflight)
-	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late, signer, media.Clips, mediaRoute)
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late, signer, media.Clips, mediaRoute, media.IngestReady())
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +312,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		return nil, err
 	}
 	l3 := buildL3(l3Inputs{st: st, now: now, muses: l1.Muses, songview: l1.SongView, sounds: l1.Sounds, prov: l1.Provenance, ctxb: ctxb, o: o.L3})
-	t1 := buildT1(t1Inputs{cfg: cfg, st: st, lib: lib, data: data, ears: media.Ears, pipe: pipe, now: now, newID: newID, o: o.T1})
+	t1 := buildT1(t1Inputs{ready: media.IngestReady(), cfg: cfg, st: st, lib: lib, data: data, ears: media.Ears, pipe: pipe, now: now, newID: newID, o: o.T1})
 	e2, err := buildE2(e2Inputs{cfg: cfg, st: st, m3: m3, clips: media.Clips, ctxb: ctxb, now: now, newID: newID})
 	if err != nil {
 		return nil, err
@@ -346,6 +348,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 
 		ClipsMissing: media.ClipsMissing,
 		TierAMissing: media.TierAMissing,
+		Media:        media,
 	}
 	s.Deps = api.Deps{
 		Store: st, Tokens: tokens, Cfg: cfg, Version: o.Version, Commit: o.Commit, Started: now(),
@@ -381,6 +384,10 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		StepUp: m4a.StepUp,
 	}
 	mediaRoute.set(s.Server.Media)
+	s.Server.Degraded = media.Degraded
+	if media.Lazy != nil {
+		media.Lazy.OnReady(wake.call) // a held queue is picked up the moment the probe recovers
+	}
 	wireE2Hooks(s)
 	return s, nil
 }

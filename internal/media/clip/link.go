@@ -23,6 +23,9 @@ func (s *Service) Link(ctx context.Context, p auth.Principal, trackID string, q 
 		// not wired (the CLI, bare stub rigs): the API reports errors.ErrUnsupported as 501
 		return Link{}, errors.ErrUnsupported
 	}
+	if err := s.unavailable(); err != nil {
+		return Link{}, err
+	}
 	refs, err := s.lib.TrackRefs(ctx, []string{trackID})
 	if err != nil {
 		return Link{}, err

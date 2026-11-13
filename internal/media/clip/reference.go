@@ -113,6 +113,9 @@ func (s *Service) refObject(key string, sp RefSpec, size int64) Object {
 // Reference renders (or finds) the reference clip. The returned RefObject's SHA256 is the clip_sha256 pinned in the recipe.
 // A silent window is refused (CLIP_REFERENCE_SILENT) because ACE-Step drops a silent reference without an error.
 func (s *Service) Reference(ctx context.Context, sp RefSpec) (RefObject, error) {
+	if err := s.unavailable(); err != nil {
+		return RefObject{}, err
+	}
 	if err := s.validateRef(sp); err != nil {
 		return RefObject{}, err
 	}
