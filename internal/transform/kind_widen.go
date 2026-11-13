@@ -57,6 +57,6 @@ func capsWiden() KindCapabilities {
 }
 
 func init() {
-	// MemFactor 3 (the plan says 1): the render holds the mid, the side, the all-pass copy and the output at once.
-	RegisterKind(KindSpec{Kind: KindWiden, Validate: validateWiden, Units: unitsWiden, Title: titleWiden, Capabilities: capsWiden, MemFactor: 3, Warnings: warnAfterBinaural})
+	// MemFactor is unused: widen streams its render and its finish (ops.streamWiden), so kindMemoryMB counts the input and a window.
+	RegisterKind(KindSpec{Kind: KindWiden, Validate: validateWiden, Units: unitsWiden, Title: titleWiden, Capabilities: capsWiden, MemFactor: 0, Warnings: warnAfterBinaural})
 }

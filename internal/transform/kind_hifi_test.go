@@ -173,7 +173,7 @@ func TestCost_MonotonicHifi(t *testing.T) {
 			}
 			prev = u
 		}
-		if mem := ks.MemFactor; mem < 1 {
+		if mem := ks.MemFactor; mem != 0 { // streamed: kindMemoryMB counts the input and a window (TestCost_HifiStreamsItsFinish)
 			t.Errorf("%s memory factor %v", k, mem)
 		}
 	}

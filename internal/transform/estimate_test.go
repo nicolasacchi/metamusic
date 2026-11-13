@@ -350,8 +350,11 @@ func TestCost_B2cFromD5(t *testing.T) {
 	if got := DiskBytesNeeded(KindGlacier, out); got < 50*out || got > 60*out {
 		t.Errorf("glacier disk %d = %.1f B/frame", got, float64(got)/float64(out))
 	}
-	if got := DiskBytesNeeded(KindMorph, out); got < 36*out || got > 40*out {
+	if got := DiskBytesNeeded(KindMorph, out); got < 50*out || got > 60*out { // morph streams its output into the raw spool too
 		t.Errorf("morph disk %.1f B/frame", float64(got)/float64(out))
+	}
+	if got := DiskBytesNeeded(KindPolytempo, out); got < 36*out || got > 40*out {
+		t.Errorf("polytempo disk %.1f B/frame", float64(got)/float64(out))
 	}
 	if old := 3 * OutBytesEst(out); DiskBytesNeeded(KindGlacier, out) < 4*old {
 		t.Error("disk need not raised above the old 3 x out_bytes_est")

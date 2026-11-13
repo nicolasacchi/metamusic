@@ -435,12 +435,12 @@ func inputIDs(params json.RawMessage) []InputRef {
 
 func init() {
 	for _, k := range []KindSpec{
-		{Kind: KindMorph, Validate: validateMorph, Units: opsUnits(KindMorph), Title: titleMorph, Capabilities: capsMorph, MemFactor: 3, Warnings: warnPair},
+		{Kind: KindMorph, Validate: validateMorph, Units: opsUnits(KindMorph), Title: titleMorph, Capabilities: capsMorph, MemFactor: 0, Warnings: warnPair}, // streamed: kindMemoryMB counts the inputs and the transition
 		{Kind: KindShepard, Validate: validateShepard, Units: opsUnits(KindShepard), Title: titleShepard, Capabilities: capsShepard, MemFactor: 3, Warnings: warnShepard},
 		// glacier streams through safety.FinishStream (D5): kindMemoryMB counts input + window only, MemFactor is unused. T1-B2c
 		{Kind: KindGlacier, Validate: validateGlacier, Units: opsUnits(KindGlacier), Title: titleGlacier, Capabilities: capsGlacier, MemFactor: 0},
 		{Kind: KindPolytempo, Validate: validatePolytempo, Units: opsUnits(KindPolytempo), Title: titlePolytempo, Capabilities: capsPolytempo, MemFactor: 3, Warnings: warnPair},
-		{Kind: KindEnsemble, Validate: validateEnsemble, Units: opsUnits(KindEnsemble), Title: titleEnsemble, Capabilities: capsEnsemble, MemFactor: 3, Warnings: warnEnsemble},
+		{Kind: KindEnsemble, Validate: validateEnsemble, Units: opsUnits(KindEnsemble), Title: titleEnsemble, Capabilities: capsEnsemble, MemFactor: 0, Warnings: warnEnsemble}, // streamed: see kindMemoryMB
 	} {
 		RegisterKind(k)
 	}

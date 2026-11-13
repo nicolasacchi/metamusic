@@ -136,20 +136,30 @@ func planCPU(c CostConstants, spec KindSpec, u UnitsIn, inMS int64, maxCPUS int)
 }
 
 // The streamed finish keeps scratch in the work dir (D5, measured): glacier 16 (raw spool) + 8 (detector) + 16 (limited
-// signal) = 40 bytes a frame, every other kind 24, and out.pcm24 adds 6. T1-B2c.
+// signal) = 40 bytes a frame, every other kind 24, and out.pcm24 adds 6. T1-B2c. The kinds that render into a raw spool before
+// the finish (glacier, and since the streamed finish of master, widen, binaural, ensemble and morph) are the 40.
 const (
-	scratchBytesGlacier = 40
+	scratchBytesSpooled = 40
 	scratchBytesOther   = 24
 	pcm24Bytes          = 6
 )
+
+// spooledRender are the kinds whose render goes to a scratch spool before the streamed finish instead of being held.
+func spooledRender(kind Kind) bool {
+	switch kind {
+	case KindGlacier, KindMaster, KindWiden, KindBinaural, KindEnsemble, KindMorph:
+		return true
+	}
+	return false
+}
 
 // DiskBytesNeeded is the free space a render of outFrames frames needs under DataDir: the child's scratch and out.pcm24, then the
 // FLAC encode and the ingested copy (twice out_bytes_est). It replaces the plan's 3 x out_bytes_est (about 11.7 bytes a frame,
 // which a 600 s glacier passed and then ran out of disk).
 func DiskBytesNeeded(kind Kind, outFrames int64) int64 {
 	scratch := int64(scratchBytesOther)
-	if kind == KindGlacier {
-		scratch = scratchBytesGlacier
+	if spooledRender(kind) {
+		scratch = scratchBytesSpooled
 	}
 	return (scratch+pcm24Bytes)*outFrames + 2*OutBytesEst(outFrames)
 }
@@ -158,9 +168,33 @@ func DiskBytesNeeded(kind Kind, outFrames int64) int64 {
 // long shepard. Measured by D5: the default shepard (120 s out, 5 layers) peaks at 780 MiB resident.
 const shepardBankMB = 384
 
+// The streamed kinds hold the input and bounded windows, never the output (the render goes block by block into a scratch spool and
+// safety.FinishStream reads it from there). Measured on 300 s of 48 kHz stereo by the child with GOMEMLIMIT at 1.25 x the estimate:
+// master, widen and binaural stay at the limit with a live heap of the input plus a few MiB.
+const (
+	// hifiWindowMB covers the blocks of the render chain and of the finish, the segment sums of the correlation guard and the
+	// loudness steps of a signal of 600 s.
+	hifiWindowMB = 32
+	// roomBytesPerFrame is what a room response of one frame costs a convolution stream: the response, its partition spectra and the
+	// delay line of the two ears (about 80 bytes), with the generator's working space.
+	roomBytesPerFrame = 100
+	// transitionBytesPerFrame is what a frame of a morph's transition costs: the source segments, their stretched signals, the
+	// shifted one, the mix and the vocoder's own buffers of the channel in work, and the finished mix of the other.
+	transitionBytesPerFrame = 100
+)
+
+func mb(bytes int64) int64 { return ceilDiv(bytes, 1<<20) }
+
+// bankBytesFor is the voice signals one bank call of a signal of n samples keeps alive: ops.voiceGroup of them, at most the budget.
+func bankBytesFor(n int64, voices int) int64 {
+	group := max(1, min(int64(voices), (shepardBankMB<<20)/(8*max(n, 1))))
+	return group * 8 * n
+}
+
 // kindMemoryMB is mem_mb_est (C209.4) with the per-kind corrections measured by D5 (T1-B2c): glacier streams through
 // safety.FinishStream, so it holds the input and a window (124 MiB peak for 600 s of output), not its output; shepard adds the
-// voice-group buffers of the bank on top of the generic model (estimate 840 MiB against 780 measured for the default).
+// voice-group buffers of the bank on top of the generic model (estimate 840 MiB against 780 measured for the default). Master, widen,
+// binaural, ensemble and morph stream their render as well, so they hold the input and what their operator needs in flight.
 func kindMemoryMB(spec KindSpec, u UnitsIn) int64 {
 	switch spec.Kind {
 	case KindGlacier:
@@ -168,6 +202,32 @@ func kindMemoryMB(spec KindSpec, u UnitsIn) int64 {
 		return MemoryMB(u.InFrames+8*n, 0, 0)
 	case KindShepard:
 		return MemoryMB(u.InFrames, u.OutFrames, spec.MemFactor) + shepardBankMB
+	case KindMaster, KindWiden:
+		return MemoryMB(u.InFrames, 0, 0) + hifiWindowMB
+	case KindBinaural:
+		return MemoryMB(u.InFrames, 0, 0) + hifiWindowMB + mb(roomBytesPerFrame*binauralRoomFrames(paramsMap(u.Resolved), u.Rate))
+	case KindEnsemble:
+		// the input, one channel of the stack, the bank's window sum and its voice signals, and the room's convolution stream
+		m := paramsMap(u.Resolved)
+		room := roomBytesPerFrame * ensembleTailFrames(m, u.Rate)
+		return MemoryMB(u.InFrames, 0, 0) + mb(8*u.InFrames+8*u.InFrames+bankBytesFor(u.InFrames, len(ops.EnsembleVoices))+room)
+	case KindMorph:
+		m := paramsMap(u.Resolved)
+		trans := ops.MorphTransFrames(paramFloat(m, "bpm_a", 120), paramFloat(m, "bpm_b", 120), paramInt(m, "bars", 8), paramInt(m, "beats_per_bar", 4), u.Rate)
+		return MemoryMB(u.InFrames, 0, 0) + mb(transitionBytesPerFrame*trans)
 	}
 	return MemoryMB(u.InFrames, u.OutFrames, spec.MemFactor)
+}
+
+// binauralRoomFrames is the longest room response of the binaural params: D4's bound of the generated tail, 0 for no room.
+func binauralRoomFrames(m map[string]json.RawMessage, rate int) int64 {
+	name := paramString(m, "room")
+	if name == ops.RoomNone {
+		return 0
+	}
+	room, ok := ir.Room(name)
+	if !ok {
+		room, _ = ir.Room(ops.RoomHall)
+	}
+	return int64(ir.TailBound(room, rate))
 }
