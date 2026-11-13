@@ -283,16 +283,23 @@ func (r *Reconciler) unreconciled(ctx context.Context) ([]billBatch, error) {
 	return out, rows.Err()
 }
 
-// windowEnd picks the latest hour boundary B at which the window [start, B) is quiet (C76.5 step 4).
-func (r *Reconciler) windowEnd(ctx context.Context, now, start time.Time, batches []billBatch) (time.Time, bool, error) {
-	maxB := floorHour(now.Add(-r.o.BillingLag))
+// monthEnd is the first instant of the calendar month after start's (in the configured zone) and the first hour
+// boundary at or after it: the latest end a window starting at start may have (C76.5).
+func (r *Reconciler) monthEnd(start time.Time) (nm, monthCap time.Time) {
 	loc := r.o.Location
 	s := start.In(loc)
-	nm := time.Date(s.Year(), s.Month()+1, 1, 0, 0, 0, 0, loc).UTC()
-	monthCap := floorHour(nm)
+	nm = time.Date(s.Year(), s.Month()+1, 1, 0, 0, 0, 0, loc).UTC()
+	monthCap = floorHour(nm)
 	if monthCap.Before(nm) {
 		monthCap = monthCap.Add(time.Hour)
 	}
+	return nm, monthCap
+}
+
+// windowEnd picks the latest hour boundary B at which the window [start, B) is quiet (C76.5 step 4).
+func (r *Reconciler) windowEnd(ctx context.Context, now, start time.Time, batches []billBatch) (time.Time, bool, error) {
+	maxB := floorHour(now.Add(-r.o.BillingLag))
+	nm, monthCap := r.monthEnd(start)
 	for b := maxB; b.After(start); b = b.Add(-time.Hour) {
 		if nm.Before(b) {
 			// the window never crosses a calendar month; a bucket belongs to the month of its start
@@ -363,7 +370,13 @@ func (r *Reconciler) closeWindow(ctx context.Context, now time.Time) (bool, erro
 		}
 	}
 	if len(in) == 0 && len(carried) == 0 {
-		return false, nil
+		// Nothing to settle. Normally that means every open batch starts after the window: wait. But a window that
+		// ends at the month boundary closes anyway: with no batch in the month just ended (the last window ended
+		// before it) the boundary window is empty, and unless it is recorded the start never moves past it, so no
+		// later batch ever gets a window and its unused reserve is held for good.
+		if _, monthCap := r.monthEnd(start); !end.Equal(monthCap) {
+			return false, nil
+		}
 	}
 	sum, buckets, err := r.latestBuckets(ctx, r.o.Store.R, start, end)
 	if err != nil {
