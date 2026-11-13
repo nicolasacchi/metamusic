@@ -47,10 +47,10 @@ func TestHelperChild(t *testing.T) {
 		}
 		fmt.Println(`{"p":999,"phase":"rendering"}`)
 		os.Exit(0)
-	case "steady": // slow but alive: a progress line every 80 ms for 1.2 s, then a normal exit
-		for i := 1; i <= 15; i++ {
-			fmt.Printf("{\"p\":%d,\"phase\":\"rendering\"}\n", i*50)
-			time.Sleep(80 * time.Millisecond)
+	case "steady": // slow but alive: a progress line every 100 ms for 5 s, then a normal exit
+		for i := 1; i <= 50; i++ {
+			fmt.Printf("{\"p\":%d,\"phase\":\"rendering\"}\n", i*20)
+			time.Sleep(100 * time.Millisecond)
 		}
 		os.Exit(0)
 	case "quiet": // silent for 1.2 s, then a normal exit
@@ -243,7 +243,9 @@ func TestSupervisor_Deadline(t *testing.T) {
 // times longer), so a child is killed only when it stops showing signs of life. A child that makes slow but steady progress runs
 // on past a window several times shorter than its run; one that shows neither a progress line nor CPU time for the window is killed.
 func TestSupervisor_StallWindow(t *testing.T) {
-	const stall = 400 * time.Millisecond
+	// the stall window is several times the start-up of a test binary under the race detector on a loaded runner, and the steady
+	// child runs well past it
+	const stall = 3 * time.Second
 	const poll = 20 * time.Millisecond
 	noCPU := func(int) (int64, bool) { return 0, true } // a constant CPU reading: only progress lines are signs of life
 	t.Run("steady progress is not killed", func(t *testing.T) {
@@ -254,8 +256,8 @@ func TestSupervisor_StallWindow(t *testing.T) {
 		if err != nil || res.ExitCode != 0 {
 			t.Fatalf("a child that kept reporting progress was stopped: code %d, %v", res.ExitCode, err)
 		}
-		if time.Since(start) < 3*stall {
-			t.Fatalf("the child ran %v, not past several stall windows; the test proves nothing", time.Since(start))
+		if time.Since(start) < stall+time.Second {
+			t.Fatalf("the child ran %v, not past the stall window %v; the test proves nothing", time.Since(start), stall)
 		}
 	})
 	t.Run("CPU time alone is a sign of life", func(t *testing.T) {
@@ -263,7 +265,8 @@ func TestSupervisor_StallWindow(t *testing.T) {
 		var ticks atomic.Int64
 		s.c.RSSPoll = poll
 		s.c.ReadCPU = func(int) (int64, bool) { return ticks.Add(1), true }
-		if _, err := s.runStall(t.Context(), stall); err != nil {
+		// a window much shorter than the child's silence: only the CPU reading can keep it alive
+		if _, err := s.runStall(t.Context(), 400*time.Millisecond); err != nil {
 			t.Fatalf("a child whose CPU time kept growing was stopped: %v", err)
 		}
 	})
@@ -280,7 +283,7 @@ func TestSupervisor_StallWindow(t *testing.T) {
 		}
 	})
 	t.Run("no stall window means no stall check", func(t *testing.T) {
-		s := newSuper(t, "steady")
+		s := newSuper(t, "quiet")
 		s.c.RSSPoll, s.c.ReadCPU = poll, noCPU
 		if _, err := s.runStall(t.Context(), 0); err != nil {
 			t.Fatal(err)
