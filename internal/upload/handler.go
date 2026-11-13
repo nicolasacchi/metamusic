@@ -32,7 +32,23 @@ var (
 // extends it, so a slow but live upload of any size completes.
 const idleTimeout = 30 * time.Second
 
-// idleReader pushes the connection's read deadline forward before every body read.
+// hookWriter calls before (when set) ahead of every write to the part file; tests use it to stand in for a
+// disk that stalls the handler between two body reads.
+type hookWriter struct {
+	w      io.Writer
+	before func()
+}
+
+func (h hookWriter) Write(p []byte) (int, error) {
+	if h.before != nil {
+		h.before()
+	}
+	return h.w.Write(p)
+}
+
+// idleReader pushes the connection's read deadline forward right before every body read, so the clock only
+// runs while the server is waiting for the client: time the handler itself spends blocked (a slow or stalled
+// disk in write or fsync) never counts as client silence.
 type idleReader struct {
 	rc   *http.ResponseController
 	r    io.ReadCloser
@@ -275,7 +291,7 @@ func (s *Service) receive(w http.ResponseWriter, r *http.Request, row uploadRow,
 	}
 	h := sha256.New()
 	body := http.MaxBytesReader(w, idleReader{rc: http.NewResponseController(w), r: r.Body, idle: idle}, row.MaxBytes)
-	n, err := io.Copy(io.MultiWriter(f, h), body)
+	n, err := io.Copy(io.MultiWriter(hookWriter{f, s.beforeWrite}, h), body)
 	var tooBig *http.MaxBytesError
 	switch {
 	case errors.Is(err, os.ErrDeadlineExceeded):

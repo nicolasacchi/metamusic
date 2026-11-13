@@ -46,6 +46,9 @@ type Service struct {
 	// let another request finish in that window.
 	beforeLock func()
 
+	// beforeWrite runs before each write of body bytes to the part file (tests simulate a stalled disk).
+	beforeWrite func()
+
 	// idle overrides idleTimeout (tests); zero means the default.
 	idle time.Duration
 }
