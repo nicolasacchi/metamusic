@@ -896,3 +896,32 @@ func StreamTruePeakDBTP(ctx context.Context, src Source) (float64, error) {
 	}
 	return float64(2 * db10(mx)), nil
 }
+
+// StreamLUFS is LUFS of a source that is read block by block: the same arithmetic, so the same value, with memory of a block and
+// one square sum per 100 ms of signal.
+func StreamLUFS(ctx context.Context, src Source) (integrated float64, ok bool, err error) {
+	s := &streamer{ctx: ctx, n: src.Frames(), rate: src.Rate()}
+	rd, err := src.Open()
+	if err != nil {
+		return 0, false, err
+	}
+	k := newKMeter(s.rate, s.n)
+	if err := s.each(rd, func(l, r []float64) error { k.add(l, r); return nil }); err != nil {
+		return 0, false, err
+	}
+	integrated, ok = k.lufs()
+	return integrated, ok, nil
+}
+
+// LUFSMeter measures the loudness of a signal handed to it block by block (StreamLUFS for a signal that is produced, not read).
+// frames is the length of the whole signal, which the block grid of the measurement depends on.
+type LUFSMeter struct{ k *kMeter }
+
+// NewLUFSMeter starts a measurement of a signal of frames frames at rate.
+func NewLUFSMeter(rate, frames int) *LUFSMeter { return &LUFSMeter{k: newKMeter(rate, frames)} }
+
+// Add appends the next frames of the signal.
+func (m *LUFSMeter) Add(l, r []float64) { m.k.add(l, r) }
+
+// LUFS is the integrated loudness of what was added; ok is false when no block passes the gates.
+func (m *LUFSMeter) LUFS() (float64, bool) { return m.k.lufs() }

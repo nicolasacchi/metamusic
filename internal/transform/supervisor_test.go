@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -45,6 +46,15 @@ func TestHelperChild(t *testing.T) {
 			fmt.Print(line)
 		}
 		fmt.Println(`{"p":999,"phase":"rendering"}`)
+		os.Exit(0)
+	case "steady": // slow but alive: a progress line every 100 ms for 5 s, then a normal exit
+		for i := 1; i <= 50; i++ {
+			fmt.Printf("{\"p\":%d,\"phase\":\"rendering\"}\n", i*20)
+			time.Sleep(100 * time.Millisecond)
+		}
+		os.Exit(0)
+	case "quiet": // silent for 1.2 s, then a normal exit
+		time.Sleep(1200 * time.Millisecond)
 		os.Exit(0)
 	case "exit13":
 		fmt.Fprint(os.Stderr, strings.Repeat("noise\n", 2000)+"final words\n")
@@ -95,6 +105,10 @@ func newSuper(t *testing.T, mode string) *superRig {
 		Args:     func(string) []string { return []string{"-test.run=^TestHelperChild$"} },
 		ExtraEnv: extra,
 	}}
+}
+
+func (s *superRig) runStall(ctx context.Context, stall time.Duration) (transform.ChildResult, error) {
+	return s.c.Run(ctx, transform.ChildJob{Dir: s.dir, MemMB: 100, Deadline: time.Hour, Stall: stall}, nil)
 }
 
 func (s *superRig) run(ctx context.Context, memMB int, deadline time.Duration, progress transform.ChildProgress) (transform.ChildResult, error) {
@@ -223,6 +237,58 @@ func TestSupervisor_Deadline(t *testing.T) {
 		t.Fatalf("err = %v, want the deadline", err)
 	}
 	waitFor(t, "the grandchild to die", func() bool { return !processAlive(pid) })
+}
+
+// TestSupervisor_StallWindow: the wall time of a render is not its CPU time (a low-priority child on a loaded host takes several
+// times longer), so a child is killed only when it stops showing signs of life. A child that makes slow but steady progress runs
+// on past a window several times shorter than its run; one that shows neither a progress line nor CPU time for the window is killed.
+func TestSupervisor_StallWindow(t *testing.T) {
+	// the stall window is several times the start-up of a test binary under the race detector on a loaded runner, and the steady
+	// child runs well past it
+	const stall = 3 * time.Second
+	const poll = 20 * time.Millisecond
+	noCPU := func(int) (int64, bool) { return 0, true } // a constant CPU reading: only progress lines are signs of life
+	t.Run("steady progress is not killed", func(t *testing.T) {
+		s := newSuper(t, "steady")
+		s.c.RSSPoll, s.c.ReadCPU = poll, noCPU
+		start := time.Now()
+		res, err := s.runStall(t.Context(), stall)
+		if err != nil || res.ExitCode != 0 {
+			t.Fatalf("a child that kept reporting progress was stopped: code %d, %v", res.ExitCode, err)
+		}
+		if time.Since(start) < stall+time.Second {
+			t.Fatalf("the child ran %v, not past the stall window %v; the test proves nothing", time.Since(start), stall)
+		}
+	})
+	t.Run("CPU time alone is a sign of life", func(t *testing.T) {
+		s := newSuper(t, "quiet") // no progress line at all
+		var ticks atomic.Int64
+		s.c.RSSPoll = poll
+		s.c.ReadCPU = func(int) (int64, bool) { return ticks.Add(1), true }
+		// a window much shorter than the child's silence: only the CPU reading can keep it alive
+		if _, err := s.runStall(t.Context(), 400*time.Millisecond); err != nil {
+			t.Fatalf("a child whose CPU time kept growing was stopped: %v", err)
+		}
+	})
+	t.Run("a silent idle child is killed", func(t *testing.T) {
+		s := newSuper(t, "hang")
+		s.c.RSSPoll, s.c.ReadCPU = poll, noCPU
+		start := time.Now()
+		_, err := s.runStall(t.Context(), stall)
+		if !errors.Is(err, transform.ErrChildDeadline) {
+			t.Fatalf("err = %v, want the deadline", err)
+		}
+		if d := time.Since(start); d < stall || d > 30*time.Second {
+			t.Errorf("killed after %v, want about the stall window %v", d, stall)
+		}
+	})
+	t.Run("no stall window means no stall check", func(t *testing.T) {
+		s := newSuper(t, "quiet")
+		s.c.RSSPoll, s.c.ReadCPU = poll, noCPU
+		if _, err := s.runStall(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 // TestSupervisor_RSSGuard: a child above 1.5 x the memory estimate + 128 MiB is killed (fake /proc reader).

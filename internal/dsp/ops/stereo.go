@@ -95,27 +95,52 @@ var allpassDelays = [4]int{31, 47, 73, 111}
 // host.
 func AllpassDelaySamples(rate, tenthsMS int) int { return (tenthsMS*rate + 5000) / 10000 }
 
-// allpassChain runs x through the four cascaded Schroeder all-pass sections, H(z) = (-g + z^-d) / (1 - g z^-d) each.
-func allpassChain(x []float64, rate int, m *dsp.Meter) ([]float64, error) {
-	y := append([]float64(nil), x...)
-	for _, tenths := range allpassDelays {
-		d := max(AllpassDelaySamples(rate, tenths), 1)
-		if err := m.Add(int64(len(y)) * 4); err != nil {
-			return nil, err
+// allpassStream is the chain of four Schroeder all-pass sections as a stream: each section keeps the last d values of its w signal, so
+// the blocks of a signal give exactly the samples of the single pass.
+type allpassStream struct {
+	d    [len(allpassDelays)]int
+	w    [len(allpassDelays)][]float64 // ring of the last d values of w[n] = x[n] + g*w[n-d]
+	seen int                           // samples consumed so far
+}
+
+func newAllpassStream(rate int) *allpassStream {
+	a := &allpassStream{}
+	for k, tenths := range allpassDelays {
+		a.d[k] = max(AllpassDelaySamples(rate, tenths), 1)
+		a.w[k] = make([]float64, a.d[k])
+	}
+	return a
+}
+
+// process runs the next block of the signal through the chain in place.
+func (a *allpassStream) process(x []float64, m *dsp.Meter) error {
+	for k, d := range a.d {
+		if err := m.Add(int64(len(x)) * 4); err != nil {
+			return err
 		}
-		w := make([]float64, len(y)) // w[n] = x[n] + g*w[n-d]
-		out := make([]float64, len(y))
-		for n, v := range y {
+		ring := a.w[k]
+		for i, v := range x {
+			n := a.seen + i
+			slot := n % d
 			wn := v
 			var wd float64
 			if n >= d {
-				wn += float64(allpassGain * w[n-d])
-				wd = w[n-d]
+				wd = ring[slot] // w[n-d]
+				wn += float64(allpassGain * wd)
 			}
-			w[n] = wn
-			out[n] = wd - float64(allpassGain*wn)
+			ring[slot] = wn
+			x[i] = wd - float64(allpassGain*wn)
 		}
-		y = out
+	}
+	a.seen += len(x)
+	return nil
+}
+
+// allpassChain runs x through the four cascaded Schroeder all-pass sections, H(z) = (-g + z^-d) / (1 - g z^-d) each.
+func allpassChain(x []float64, rate int, m *dsp.Meter) ([]float64, error) {
+	y := append([]float64(nil), x...)
+	if err := newAllpassStream(rate).process(y, m); err != nil {
+		return nil, err
 	}
 	return y, nil
 }

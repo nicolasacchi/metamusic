@@ -31,11 +31,14 @@ const (
 func inFile(n int) string { return fmt.Sprintf("in-%d.f32", n) }
 
 // ChildJob is one child run: the absolute work dir (mode 0700, holds job.json and the decoded inputs), the memory estimate the
-// GOMEMLIMIT and the RSS guard derive from, and the wall deadline.
+// GOMEMLIMIT and the RSS guard derive from, the hard wall cap, and the stall window.
 type ChildJob struct {
 	Dir      string
 	MemMB    int
-	Deadline time.Duration
+	Deadline time.Duration // hard cap on the whole run; 0 means none
+	// Stall kills the child (ErrChildDeadline) when it shows no sign of life, a new progress line or CPU time, for this long; 0 means
+	// never. A slow child that keeps working is never stalled.
+	Stall time.Duration
 }
 
 // ChildProgress receives throttled progress: permille 0..1000 and the phase name.
@@ -153,8 +156,10 @@ func unitsBudget(maxCPUMS int64, inSeconds, outSeconds float64) int64 {
 	return int64(ms * 1e6 / nsPerUnit)
 }
 
-// wallDeadline is max(60 s, WallFactor x budget) (C200.4).
+// wallDeadline is the hard wall cap, max(WallFloor, WallFactor x budget). It is not the way a hung child is caught (that is
+// ChildJob.Stall) and not the CPU limit (the work meter and the CPU accounting): a child at nice +10 on a busy host legitimately
+// takes several times its CPU time.
 func wallDeadline(maxCPUMS int64) time.Duration {
 	d := time.Duration(WallFactor*maxCPUMS) * time.Millisecond
-	return max(d, 60*time.Second)
+	return max(d, WallFloor)
 }

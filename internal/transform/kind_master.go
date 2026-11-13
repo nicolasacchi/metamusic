@@ -99,5 +99,5 @@ func warnAfterBinaural(in WarnIn) []Warning {
 }
 
 func init() {
-	RegisterKind(KindSpec{Kind: KindMaster, Validate: validateMaster, Units: unitsMaster, Title: titleMaster, Capabilities: capsMaster, MemFactor: 1, Warnings: warnAfterBinaural})
+	RegisterKind(KindSpec{Kind: KindMaster, Validate: validateMaster, Units: unitsMaster, Title: titleMaster, Capabilities: capsMaster, MemFactor: 0, Warnings: warnAfterBinaural})
 }

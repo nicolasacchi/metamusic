@@ -113,6 +113,6 @@ func capsBinaural() KindCapabilities {
 }
 
 func init() {
-	// MemFactor 3: the input, the four ear signals and the output are alive together.
-	RegisterKind(KindSpec{Kind: KindBinaural, Validate: validateBinaural, Units: unitsBinaural, Title: titleBinaural, Capabilities: capsBinaural, MemFactor: 3, Warnings: warnBinaural})
+	// MemFactor is unused: binaural streams its convolutions and its finish, so kindMemoryMB counts the input, the room and a window.
+	RegisterKind(KindSpec{Kind: KindBinaural, Validate: validateBinaural, Units: unitsBinaural, Title: titleBinaural, Capabilities: capsBinaural, MemFactor: 0, Warnings: warnBinaural})
 }

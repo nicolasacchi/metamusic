@@ -5,18 +5,19 @@ import (
 	"encoding/json"
 
 	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
+	"github.com/nicolasacchi/metamusic/internal/dsp/safety"
 )
 
 // StreamFunc is a kind that can render block by block: it hands the output to sink in order and never holds it. The result is the
 // rate and length of the signal and the operator's own report. RunTo uses it, with a Scratch, to finish an output that does not
 // fit in memory (a glacier of 600 s is 28.8 million frames, about 3.4 GB through the in-memory path).
-type StreamFunc func(ctx context.Context, in RunIn, sink func(l, r []float64) error) (rate, frames int, report json.RawMessage, err error)
+type StreamFunc func(ctx context.Context, in RunIn, sc safety.Scratch, sink func(l, r []float64) error) (rate, frames int, report json.RawMessage, err error)
 
 // streamers are the kinds with a streaming render. It is a table, not a switch: the dispatcher asks it, like the registry, by name.
-var streamers = map[string]StreamFunc{KindGlacier: streamGlacier}
+var streamers = map[string]StreamFunc{KindGlacier: streamGlacier, KindEnsemble: streamEnsemble, KindMorph: streamMorph}
 
 // streamGlacier is runGlacier over the streaming entry Glacier: the same render and the same report, without the output buffer.
-func streamGlacier(ctx context.Context, in RunIn, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
+func streamGlacier(ctx context.Context, in RunIn, _ safety.Scratch, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
 	p, err := ParseGlacier(in.Params)
 	if err != nil {
 		return 0, 0, nil, err

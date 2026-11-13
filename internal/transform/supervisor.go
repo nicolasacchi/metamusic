@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -33,7 +34,10 @@ type ExecChild struct {
 	// After arms the wall deadline: it returns the channel that fires when d has passed and a stop func. Tests only (they fire it
 	// once the child is known to be running); nil means a real timer.
 	After func(d time.Duration) (<-chan time.Time, func())
-	// RSSPoll and Throttle default to the C200.4 constants.
+	// ReadCPU returns the child's user+system time in clock ticks; nil reads /proc/<pid>/stat. It is one of the two signs of life
+	// the stall window watches (the other is a progress line).
+	ReadCPU func(pid int) (ticks int64, ok bool)
+	// RSSPoll and Throttle default to the C200.4 constants. RSSPoll is also the cadence of the stall check.
 	RSSPoll, Throttle time.Duration
 }
 
@@ -110,9 +114,10 @@ func (c *ExecChild) Run(ctx context.Context, j ChildJob, progress ChildProgress)
 		throttle = ProgressThrottle
 	}
 	readerDone := make(chan struct{})
+	var lines atomic.Int64 // progress lines seen: a sign of life for the stall window
 	go func() {
 		defer close(readerDone)
-		relayProgress(pr, throttle, progress)
+		relayProgress(pr, throttle, progress, func() { lines.Add(1) })
 	}()
 	waited := make(chan error, 1)
 	go func() { waited <- cmd.Wait() }()
@@ -124,6 +129,10 @@ func (c *ExecChild) Run(ctx context.Context, j ChildJob, progress ChildProgress)
 	readRSS := c.ReadRSS
 	if readRSS == nil {
 		readRSS = procRSS
+	}
+	readCPU := c.ReadCPU
+	if readCPU == nil {
+		readCPU = procCPUTicks
 	}
 	limitKiB := int64(float64(j.MemMB)*1.5+rssSlackMiB) * 1024
 	var deadline <-chan time.Time
@@ -143,6 +152,7 @@ func (c *ExecChild) Run(ctx context.Context, j ChildJob, progress ChildProgress)
 
 	var cause error
 	var waitErr error
+	lastLines, lastCPU, lastAlive := lines.Load(), int64(-1), time.Now()
 loop:
 	for {
 		select {
@@ -155,6 +165,20 @@ loop:
 		case <-tick.C:
 			if kib, ok := readRSS(pid); ok && kib > limitKiB {
 				cause = ErrChildMemory
+			}
+			if j.Stall > 0 && cause == nil {
+				alive := false
+				if n := lines.Load(); n != lastLines {
+					lastLines, alive = n, true
+				}
+				if t, ok := readCPU(pid); ok && t != lastCPU {
+					lastCPU, alive = t, true
+				}
+				if alive {
+					lastAlive = time.Now()
+				} else if time.Since(lastAlive) > j.Stall {
+					cause = ErrChildDeadline
+				}
 			}
 		}
 		if cause != nil {
@@ -193,7 +217,7 @@ func killGroup(pid int) {
 
 // relayProgress parses the child's `{"p":412,"phase":"rendering"}` lines: at most 64 KiB are read, values are clamped to
 // 0..1000 and made monotone, and the callback fires no more often than throttle (the first line always passes).
-func relayProgress(r io.Reader, throttle time.Duration, progress ChildProgress) {
+func relayProgress(r io.Reader, throttle time.Duration, progress ChildProgress, alive func()) {
 	lr := &io.LimitedReader{R: r, N: maxProgressBytes}
 	sc := bufio.NewScanner(lr)
 	sc.Buffer(make([]byte, 0, 4096), 4096)
@@ -207,6 +231,7 @@ func relayProgress(r io.Reader, throttle time.Duration, progress ChildProgress) 
 		if json.Unmarshal(bytes.TrimSpace(sc.Bytes()), &line) != nil || line.P == nil {
 			continue
 		}
+		alive()
 		p := min(max(*line.P, 0), 1000)
 		best = max(best, p)
 		if progress == nil || (!last.IsZero() && time.Since(last) < throttle) {
@@ -216,6 +241,26 @@ func relayProgress(r io.Reader, throttle time.Duration, progress ChildProgress) 
 		progress(best, line.Phase)
 	}
 	_, _ = io.Copy(io.Discard, r) // keep draining so a chatty child never blocks on a full pipe
+}
+
+// procCPUTicks reads utime+stime (fields 14 and 15, in clock ticks) of a process from /proc.
+func procCPUTicks(pid int) (int64, bool) {
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0, false
+	}
+	// the command name is in parentheses and may hold spaces: the fields after the last ')' start at field 3 (state)
+	i := strings.LastIndex(string(b), ") ")
+	if i < 0 {
+		return 0, false
+	}
+	f := strings.Fields(string(b)[i+2:])
+	if len(f) < 13 {
+		return 0, false
+	}
+	u, err1 := strconv.ParseInt(f[11], 10, 64)
+	s, err2 := strconv.ParseInt(f[12], 10, 64)
+	return u + s, err1 == nil && err2 == nil
 }
 
 // procRSS reads VmRSS of a process from /proc.

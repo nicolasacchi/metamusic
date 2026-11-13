@@ -119,7 +119,7 @@ func TestBinauralKind_RegisteredWithOps(t *testing.T) {
 	if a, b := ks.Units(UnitsIn{InFrames: 44100 * 30, OutFrames: 44100 * 32, Channels: 2, Rate: 44100, Resolved: raw}), units(44100*30, 44100*32, 44100, raw); a != b {
 		t.Errorf("service units %d, operator units %d", a, b)
 	}
-	if ks.MemFactor != 3 || ks.Warnings == nil {
+	if ks.MemFactor != 0 || ks.Warnings == nil {
 		t.Errorf("registration %+v", ks)
 	}
 }
