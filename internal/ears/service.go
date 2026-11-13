@@ -79,6 +79,9 @@ func (s *Service) absData() (string, error) { return filepath.Abs(s.o.DataDir) }
 
 // missingTierA reports whether Tier A cannot run, and the capability error.
 func (s *Service) missingTierA() error {
+	if s.o.MissingFn != nil {
+		return s.o.MissingFn()
+	}
 	if s.o.Missing != nil {
 		return s.o.Missing
 	}

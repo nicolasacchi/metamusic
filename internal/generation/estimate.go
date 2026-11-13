@@ -87,6 +87,9 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err := s.ready(); err != nil {
 		return Estimate{}, err
 	}
+	if err := s.ingestReady(); err != nil {
+		return Estimate{}, err
+	}
 	name := in.Engine
 	if name == "" {
 		name = DefaultEngine

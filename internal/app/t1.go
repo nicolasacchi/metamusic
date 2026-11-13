@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/dsp"
 	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
@@ -41,6 +42,7 @@ type t1Inputs struct {
 	data  *os.Root
 	ears  *ears.Service
 	pipe  *ingest.Pipeline // the M1 freeze; nil without ffmpeg
+	ready func() bool      // nil => the media tools are always there; else the ffmpeg probe (a slow boot heals)
 	now   func() time.Time
 	newID func() string
 	o     T1Options
@@ -84,6 +86,10 @@ func buildT1(in t1Inputs) *transform.Service {
 	if in.ears != nil {
 		o.Ears = in.ears
 	}
+	if in.ready != nil {
+		// create answers 503 UNAVAILABLE {component: ffmpeg|flac} until the probe has succeeded
+		o.ToolStatus = func() transform.ToolStatus { r := in.ready(); return transform.ToolStatus{FFmpeg: r, FLAC: r} }
+	}
 	svc = transform.New(o)
 	return svc
 }
@@ -93,6 +99,21 @@ func buildT1(in t1Inputs) *transform.Service {
 func RunTransforms(ctx context.Context, svc *Services, running *sync.WaitGroup) {
 	t := svc.Transform
 	if t == nil {
+		return
+	}
+	if lz := mediaLazy(svc); lz != nil && !lz.Ready() {
+		// the boot probe failed and is being retried: start the runner the moment it succeeds
+		slog.Info("transform runner deferred", "reason", "the media pipeline is unavailable; it starts when the ffmpeg probe recovers")
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			select {
+			case <-lz.ReadyCh():
+				slog.Info("transform runner starting", "reason", "the media pipeline recovered")
+				t.Run(ctx)
+			case <-ctx.Done():
+			}
+		}()
 		return
 	}
 	if !t.Runnable() {
@@ -119,4 +140,11 @@ func resampleOr(r transform.Resampler) transform.Resampler {
 		}
 		return out, nil
 	}
+}
+
+func mediaLazy(svc *Services) *ffmpeg.Lazy {
+	if svc.Media == nil {
+		return nil
+	}
+	return svc.Media.Lazy
 }

@@ -217,7 +217,7 @@ type m3Services struct {
 // runner and reconciler. Nothing here calls a backend method.
 func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *store.Store, data *os.Root, lib *library.Service, notifier notify.Notifier,
 	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service, late *m5Late,
-	signer *mediaserve.Signer, clips *clip.Service, mediaH *lateHandler) (*m3Services, error) {
+	signer *mediaserve.Signer, clips *clip.Service, mediaH *lateHandler, ingestReady func() bool) (*m3Services, error) {
 	clk := o.Clock
 	if clk == nil {
 		clk = clockFromNow{now}
@@ -253,6 +253,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 		Songwriting: songwriting.New(st),                       // the minimum-render control (X4) reads songwriting.min_duration_s
 		PatchSource: &late.patches, BacklogGate: &late.backlog, // M5 seams (C253.4, C255.5)
+		IngestReady: ingestReady, // no paid batch while a finished take could not be stored
 	})
 	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
 	// the limits get_provider_status shows are the process's own (a zero kill slack or price margin was shown before)
@@ -271,6 +272,8 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		if ing == nil {
 			if pipe == nil {
 				log.Warn("generation ingest unavailable: ffmpeg tools missing; finished takes will fail INGEST_FAILED")
+			} else if ingestReady != nil && !ingestReady() {
+				log.Warn("generation ingest unavailable: ffmpeg probe pending; estimate, create and approve answer 503 and no job is submitted until it recovers")
 			}
 			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Pipeline: pipe, Library: lib, Ears: ears, Lineage: m.Lineage, Spend: m.Spend,
 				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook, Engines: engines})
@@ -293,7 +296,8 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 			Clock: clk, NewID: newID, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, Expect: provider.WorkerExpect{Weights: yue2.Weights}, Log: log,
 			Preflight: pre, MeterKey: sec.MeterKey(), // attempts record their worker_key (C76.6)
-			Inputs: inputs, // Expects["acestep15"] arrives with the backend set (rebaseOnSet)
+			IngestReady: ingestReady, // queued paid jobs are not submitted, finished ones not ingested, while ingest is down
+			Inputs:      inputs,      // Expects["acestep15"] arrives with the backend set (rebaseOnSet)
 		})
 		m.Reconciler = jobs.NewReconciler(jobs.ReconcilerOptions{
 			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID,

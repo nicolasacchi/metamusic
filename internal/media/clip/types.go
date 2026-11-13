@@ -60,6 +60,9 @@ type Options struct {
 	Now        func() time.Time                                       // nil => time.Now
 	Pinned     func(ctx context.Context) (map[string]struct{}, error) // keys never evicted; nil => none
 	Render     RenderFunc                                             // nil => the ffmpeg render
+	// Unavailable, when set, is asked before every render, measure and link: a non-nil answer (the ffmpeg probe is still
+	// pending after a slow boot) refuses with 503 UNAVAILABLE {component: clips}. nil => always available.
+	Unavailable func() error
 }
 
 // Query is the get_clip window and loudness request.

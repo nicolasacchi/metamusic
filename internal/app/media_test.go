@@ -8,15 +8,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
+	"github.com/nicolasacchi/metamusic/internal/analysis/ffmpeg"
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears/earstest"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -83,7 +86,7 @@ func TestNewMedia_ProbeFailureIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMedia: %v", err)
 	}
-	if m.Clips != nil || m.Ears == nil {
+	if m.Clips == nil || m.Ears == nil || m.Lazy == nil || m.Lazy.Ready() {
 		t.Errorf("services = clips %v ears %v", m.Clips, m.Ears)
 	}
 	for name, e := range map[string]error{"clips": m.ClipsMissing, "tier A": m.TierAMissing} {
@@ -188,5 +191,60 @@ func TestApp_MediaChainIncludesClips(t *testing.T) {
 		if w.Code != http.StatusNotFound {
 			t.Errorf("%s: %d %s, want 404", ext, w.Code, w.Body)
 		}
+	}
+}
+
+// A probe that fails at boot (a timeout on a loaded host) leaves clips, Tier A and the ingest pipeline pending; the background
+// retry enables all of them once ffmpeg answers, with no restart. Serial: it execs fake ffmpeg scripts.
+func TestNewMedia_SlowBootProbeHeals(t *testing.T) {
+	cfg, st, root, lib := mediaEnv(t)
+	all := []string{"ebur128", "atrim", "asetpts", "afade", "aresample", "volume", "ametadata", "asetnsamples", "astats", "silencedetect", "aformat", "showspectrumpic"}
+	good := fakeFFmpeg(t, all, []string{"libmp3lame", "flac", "png"})
+	cfg.FFmpeg = filepath.Join(t.TempDir(), "ffmpeg") // not there yet: the boot probe fails
+	m, err := app.NewMedia(context.Background(), cfg, st, root, lib, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Lazy == nil || m.Lazy.Ready() || m.IngestReady() == nil || m.IngestReady()() {
+		t.Fatalf("boot probe must leave the pipeline pending: %+v", m)
+	}
+	if got := m.Degraded(); len(got) != 1 || got[0] != "media_tools" {
+		t.Fatalf("degraded = %v", got)
+	}
+	if m.Clips == nil || m.Analyzer == nil {
+		t.Fatal("consumers must exist (refusing) so they can switch on later")
+	}
+	if _, err := m.Clips.Ensure(context.Background(), clip.Spec{}); err == nil || !strings.Contains(err.Error(), "UNAVAILABLE") {
+		t.Fatalf("clips while pending: %v", err)
+	}
+	woke := make(chan struct{})
+	m.Lazy.OnReady(func() { close(woke) })
+	m.Retry = ffmpeg.RetryOptions{Base: 5 * time.Millisecond, Max: 20 * time.Millisecond}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	m.StartProbe(ctx, &wg)
+	time.Sleep(60 * time.Millisecond) // several failed retries
+	if m.Lazy.Ready() {
+		t.Fatal("ready before ffmpeg exists")
+	}
+	data, err := os.ReadFile(good)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg.FFmpeg+".tmp", data, 0o755); err != nil { //nolint:gosec // test script
+		t.Fatal(err)
+	}
+	if err := os.Rename(cfg.FFmpeg+".tmp", cfg.FFmpeg); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-woke:
+	case <-time.After(10 * time.Second):
+		t.Fatal("probe never recovered")
+	}
+	cancel()
+	wg.Wait()
+	if !m.IngestReady()() || len(m.Degraded()) != 0 || m.Lazy.ClipsErr() != nil || m.Lazy.TierAErr() != nil {
+		t.Fatalf("not healed: ready=%v degraded=%v clips=%v tier=%v", m.IngestReady()(), m.Degraded(), m.Lazy.ClipsErr(), m.Lazy.TierAErr())
 	}
 }

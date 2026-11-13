@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -303,6 +304,9 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	// stopRunner stops claiming and waits for the ingest pool and the lease release (Runner.Run's own drain).
 	stopRunner := func() { stopRun(); running.Wait() }
 	defer stopRunner()
+	// A boot-time ffmpeg probe that failed (a timeout on a loaded host) is retried here in the background; clips, Tier A, generation
+	// ingest and the transform runner switch on when it succeeds. Until then paid generation is refused (503 UNAVAILABLE ingest).
+	svc.Media.StartProbe(runCtx, &running)
 	if svc.Runner != nil && svc.Reconciler != nil {
 		running.Add(2)
 		go func() { defer running.Done(); _ = svc.Runner.Run(runCtx) }()
@@ -502,9 +506,18 @@ func cmdHealthcheck(ctx context.Context, getenv func(string) string, s streams) 
 		return fmt.Errorf("unhealthy: %w", err)
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unhealthy: status %d", resp.StatusCode)
+	}
+	// Alive but a piece is recovering in the background: still exit 0 (a restart would not repair it), but say so, so that
+	// `docker inspect` shows it in the health log.
+	var hb struct {
+		Degraded []string `json:"degraded"`
+	}
+	if json.Unmarshal(body, &hb) == nil && len(hb.Degraded) > 0 {
+		fmt.Fprintf(s.out, "ok (degraded: %s)\n", strings.Join(hb.Degraded, ","))
+		return nil
 	}
 	fmt.Fprintln(s.out, "ok")
 	return nil

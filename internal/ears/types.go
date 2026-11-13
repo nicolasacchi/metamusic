@@ -33,12 +33,15 @@ type Judgments interface {
 
 // Options builds a Service.
 type Options struct {
-	Store     *store.Store
-	Library   *library.Service
-	Data      *os.Root
-	DataDir   string
-	Analyzer  TierA
-	Missing   error // non-nil (from ffmpeg.RequireTierA) => AnalyzeTrack/Backfill run nothing and report TOOL_MISSING once
+	Store    *store.Store
+	Library  *library.Service
+	Data     *os.Root
+	DataDir  string
+	Analyzer TierA
+	Missing  error // non-nil (from ffmpeg.RequireTierA) => AnalyzeTrack/Backfill run nothing and report TOOL_MISSING once
+	// MissingFn, when set, is asked on every call and wins over Missing: production passes the lazy ffmpeg probe's
+	// TierAErr so Tier A switches on when a slow-boot probe finally succeeds.
+	MissingFn func() error
 	Signer    *serve.Signer
 	Judgments Judgments
 	Now       func() time.Time

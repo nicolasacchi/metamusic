@@ -93,6 +93,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	if err = s.ready(); err != nil {
 		return Created{}, err
 	}
+	if err = s.ingestReady(); err != nil {
+		return Created{}, err
+	}
 	via := in.Via
 	if via != spend.ViaHumanCreate || p.Kind != auth.KindHuman {
 		via = spend.ViaAPI
