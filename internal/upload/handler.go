@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,8 +25,26 @@ var (
 	sigRE        = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 )
 
-// readDeadline bounds the body of one PUT (C74.2 step 7).
-const readDeadline = 10 * time.Minute
+// idleTimeout is how long a PUT body may go without a single byte before the request is abandoned. It is
+// the in-flight lock's lifetime for a dead client, so it stays well below the worker's 60 s per-attempt
+// timeout: the worker's retry then finds the lock free (a retry that landed on a lock held by its own dead
+// predecessor used to meet UPLOAD_IN_PROGRESS). It is a progress deadline, not a total one: every read
+// extends it, so a slow but live upload of any size completes.
+const idleTimeout = 30 * time.Second
+
+// idleReader pushes the connection's read deadline forward before every body read.
+type idleReader struct {
+	rc   *http.ResponseController
+	r    io.ReadCloser
+	idle time.Duration
+}
+
+func (i idleReader) Close() error { return i.r.Close() }
+
+func (i idleReader) Read(p []byte) (int, error) {
+	_ = i.rc.SetReadDeadline(time.Now().Add(i.idle)) // real time: a socket deadline; unsupported writers (tests) ignore it
+	return i.r.Read(p)
+}
 
 // recorder captures the status and the byte count of a response for the one log line per request.
 type recorder struct {
@@ -250,13 +269,20 @@ func (s *Service) receive(w http.ResponseWriter, r *http.Request, row uploadRow,
 			_ = root.Remove(part)
 		}
 	}()
-	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Now().Add(readDeadline)) // real time: a socket deadline
+	idle := s.idle
+	if idle <= 0 {
+		idle = idleTimeout
+	}
 	h := sha256.New()
-	body := http.MaxBytesReader(w, r.Body, row.MaxBytes)
+	body := http.MaxBytesReader(w, idleReader{rc: http.NewResponseController(w), r: r.Body, idle: idle}, row.MaxBytes)
 	n, err := io.Copy(io.MultiWriter(f, h), body)
 	var tooBig *http.MaxBytesError
 	switch {
+	case errors.Is(err, os.ErrDeadlineExceeded):
+		// the client went silent: give the lock back (deferred) and let it retry the same id
+		w.Header().Set("Retry-After", "1")
+		fail(w, http.StatusRequestTimeout, "UPLOAD_STALLED", "no body bytes arrived in time; retry the upload", nil)
+		return
 	case errors.As(err, &tooBig):
 		fail(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "upload exceeds max_bytes", map[string]any{"max_bytes": row.MaxBytes})
 		return

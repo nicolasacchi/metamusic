@@ -106,11 +106,14 @@ def sink() -> Iterator[Sink]:
                     status, hdrs = queue.pop(0)
                 else:
                     status, hdrs = queue[0]
+            hdrs = dict(hdrs)
+            payload = hdrs.pop("_body", "").encode()  # a problem+json body, when a test scripts one
             self.send_response(status)
             for k, v in hdrs.items():
                 self.send_header(k, v)
-            self.send_header("Content-Length", "0")
+            self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
+            self.wfile.write(payload)
 
         do_PUT = do_POST = _handle
 

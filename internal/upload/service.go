@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 	"uuid"
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
@@ -44,6 +45,9 @@ type Service struct {
 	// beforeLock runs between the first read of the upload row and the in-flight lock; tests use it to
 	// let another request finish in that window.
 	beforeLock func()
+
+	// idle overrides idleTimeout (tests); zero means the default.
+	idle time.Duration
 }
 
 // NewService builds the service.
