@@ -152,3 +152,37 @@ func TestFilt_DeterministicFMAOff(t *testing.T) {
 	dsptest.RequireGolden(t)
 	dsptest.ReexecFMAOff(t, `^TestFilt_Deterministic$`)
 }
+
+// TestStream_BlocksMatchCascade: a signal filtered in blocks of any size through a Stream is, bit for bit, the signal filtered whole by
+// Cascade.Process, and the meter is charged the same.
+func TestStream_BlocksMatchCascade(t *testing.T) {
+	t.Parallel()
+	c := Cascade{HighPass(rate, 30, Butterworth), LowShelf(rate, 250, -1, 0.7), HighShelf(rate, 2500, 1, 0.7)}
+	x := dsptest.Pink(3, 5000)
+	var mw dsp.Meter
+	want, err := c.Process(x, &mw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, block := range []int{1, 7, 997, 4096, 5000, 9999} {
+		var m dsp.Meter
+		s := NewStream(c)
+		got := append([]float64(nil), x...)
+		for lo := 0; lo < len(got); lo += block {
+			if err := s.Process(got[lo:min(lo+block, len(got))], &m); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := range want {
+			if math.Float64bits(got[i]) != math.Float64bits(want[i]) {
+				t.Fatalf("block %d: sample %d is %v, Cascade gives %v", block, i, got[i], want[i])
+			}
+		}
+		if m.Used() != mw.Used() {
+			t.Errorf("block %d: %d units, Cascade spends %d", block, m.Used(), mw.Used())
+		}
+	}
+	if err := NewStream(c).Process(make([]float64, 10), &dsp.Meter{Max: 1}); !errors.Is(err, dsp.ErrBudget) {
+		t.Errorf("the meter did not stop the stream: %v", err)
+	}
+}

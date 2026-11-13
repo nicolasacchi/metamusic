@@ -351,3 +351,36 @@ func TestStreamTruePeak_MatchesTruePeak(t *testing.T) {
 		t.Error("an unreadable source was accepted")
 	}
 }
+
+// TestStreamLUFS_MatchesLUFS: the loudness of a source read in blocks, and of a signal handed to a LUFSMeter in pieces of any size, is
+// the LUFS of the whole buffer, bit for bit (it is what lets master, widen and binaural measure their input and their output without
+// holding them).
+func TestStreamLUFS_MatchesLUFS(t *testing.T) {
+	for name, c := range parityCases() {
+		b := c.b
+		if len(b.Ch[0]) == 0 || len(b.Ch[0]) != len(b.Ch[1]) {
+			continue
+		}
+		want, wok := LUFS(b)
+		for _, n := range []int{1 << 15, 1000, 77} {
+			withBlock(t, n)
+			got, ok, err := StreamLUFS(context.Background(), BufferSource(b))
+			if err != nil || ok != wok || math.Float64bits(got) != math.Float64bits(want) {
+				t.Errorf("%s block %d: StreamLUFS = %v %v %v, LUFS = %v %v", name, n, got, ok, err, want, wok)
+			}
+			m := NewLUFSMeter(b.Rate, b.Frames())
+			for lo := 0; lo < b.Frames(); lo += n {
+				hi := min(lo+n, b.Frames())
+				m.Add(b.Ch[0][lo:hi], b.Ch[1][lo:hi])
+			}
+			if got, ok := m.LUFS(); ok != wok || math.Float64bits(got) != math.Float64bits(want) {
+				t.Errorf("%s piece %d: LUFSMeter = %v %v, LUFS = %v %v", name, n, got, ok, want, wok)
+			}
+		}
+	}
+	cctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := StreamLUFS(cctx, BufferSource(pinkAt(1, 1, -20))); !errors.Is(err, context.Canceled) {
+		t.Errorf("a cancelled context was not honoured: %v", err)
+	}
+}

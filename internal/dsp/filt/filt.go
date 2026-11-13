@@ -143,3 +143,34 @@ func LR4LowPass(rate int, f0 float64) Cascade {
 	q := LowPass(rate, f0, Butterworth)
 	return Cascade{q, q}
 }
+
+// Stream is a Cascade that filters a signal block by block: its sections keep their state between calls, so the blocks of a
+// signal give exactly the samples Cascade.Process gives for the whole of it, with the same sample-by-sample arithmetic.
+type Stream struct {
+	q  []Biquad
+	z1 []float64
+	z2 []float64
+}
+
+// NewStream starts a stream through the sections of c with zero state.
+func NewStream(c Cascade) *Stream {
+	return &Stream{q: c, z1: make([]float64, len(c)), z2: make([]float64, len(c))}
+}
+
+// Process filters the next block of the signal in place and spends five units per section and sample on m.
+func (s *Stream) Process(x []float64, m *dsp.Meter) error {
+	for k, q := range s.q {
+		if err := m.Add(int64(len(x)) * unitsPerSample); err != nil {
+			return err
+		}
+		z1, z2 := s.z1[k], s.z2[k]
+		for i, v := range x {
+			o := float64(q.B0*v) + z1
+			z1 = float64(q.B1*v) - float64(q.A1*o) + z2
+			z2 = float64(q.B2*v) - float64(q.A2*o)
+			x[i] = o
+		}
+		s.z1[k], s.z2[k] = z1, z2
+	}
+	return nil
+}

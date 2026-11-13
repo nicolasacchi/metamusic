@@ -1,6 +1,7 @@
 package dsp_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -65,5 +66,43 @@ func TestConvolveUP_Meter(t *testing.T) {
 	blocks := (len(x) + len(h) - 1 + 63) / 64
 	if want := int64(blocks) * dsp.Units.ConvBlock(4, 128); m.Used() != want {
 		t.Errorf("units %d, want %d", m.Used(), want)
+	}
+}
+
+// TestConvStream_BlocksMatchWhole: the blocks of the output of a stream fed the input piece by piece are the samples of ConvolveUP,
+// bit for bit, whatever the piece sizes (short or empty pieces are the zeros of the end of the signal), and each Push spends one
+// block's units.
+func TestConvStream_BlocksMatchWhole(t *testing.T) {
+	t.Parallel()
+	x, h := dsptest.Noise(5, 1500, 1), dsptest.Noise(6, 300, 1)
+	const block = 64
+	want := dsp.ConvolveUP(x, h, block, nil)
+	cs := dsp.NewConvStream(h, block)
+	if cs.Block() != block || cs.Parts() != (len(h)+block-1)/block {
+		t.Fatalf("block %d, parts %d", cs.Block(), cs.Parts())
+	}
+	var m dsp.Meter
+	var got []float64
+	for j := 0; len(got) < len(want); j++ {
+		var in []float64
+		if lo := j * block; lo < len(x) {
+			in = x[lo:min(lo+block, len(x))]
+		}
+		out, err := cs.Push(in, &m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, out...)
+	}
+	if m.Used() != int64(len(got)/block)*cs.BlockUnits() {
+		t.Errorf("units %d for %d blocks of %d", m.Used(), len(got)/block, cs.BlockUnits())
+	}
+	for i, v := range want {
+		if math.Float64bits(got[i]) != math.Float64bits(v) {
+			t.Fatalf("sample %d is %v, ConvolveUP gives %v", i, got[i], v)
+		}
+	}
+	if _, err := dsp.NewConvStream(h, block).Push(x[:block], &dsp.Meter{Max: 1}); !errors.Is(err, dsp.ErrBudget) {
+		t.Errorf("the meter did not stop the stream: %v", err)
 	}
 }
