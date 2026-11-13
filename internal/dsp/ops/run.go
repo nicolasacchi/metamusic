@@ -162,7 +162,7 @@ func Run(ctx context.Context, j Job) (pcm.Buffer, Report, error) {
 
 // RunTo is Run that writes the finished 24-bit stereo PCM to w instead of returning it, and fills Report.PCMSHA256 and Frames. With
 // Job.Scratch set the finishing stage is streamed (safety.FinishStream: bit for bit the same samples and report as Run, with memory
-// that does not grow with the output), and a kind with a streaming render (glacier) is rendered straight into a scratch spool
+// that does not grow with the output; master, widen and binaural stream their whole render and finish), and a kind with a streaming render (glacier) is rendered straight into a scratch spool
 // instead of a buffer, so a 600 s output needs no more memory than its window. Nothing is written to w until the render has
 // succeeded, except by the last stage's delivery, which only I/O errors or cancellation can still stop.
 func RunTo(ctx context.Context, j Job, w io.Writer) (Report, error) {
@@ -190,6 +190,14 @@ func RunTo(ctx context.Context, j Job, w io.Writer) (Report, error) {
 			return err
 		}
 	}
+	if stream := selfStreamers[j.Kind]; stream != nil {
+		// the kind finishes itself: its stream renders to scratch, finishes and delivers in one go
+		_, frames, own, err := stream(p.ctx, p.in, j.Scratch, deliver(j.Rate))
+		if err != nil {
+			return Report{}, err
+		}
+		return finishReport(j.Kind, own, p, frames, nil, 0, h)
+	}
 	var own json.RawMessage
 	var src safety.Source
 	var frames int
@@ -199,7 +207,7 @@ func RunTo(ctx context.Context, j Job, w io.Writer) (Report, error) {
 			return Report{}, err
 		}
 		defer func() { _ = raw.Close() }()
-		rate, n, rep, err := stream(p.ctx, p.in, func(l, r []float64) error { return safety.PutFrames(raw, l, r) })
+		rate, n, rep, err := stream(p.ctx, p.in, j.Scratch, func(l, r []float64) error { return safety.PutFrames(raw, l, r) })
 		if err != nil {
 			return Report{}, err
 		}

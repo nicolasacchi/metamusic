@@ -114,16 +114,85 @@ func Widen(b pcm.Buffer, p WidenParams, m *dsp.Meter) (pcm.Buffer, WidenInfo, er
 // widen is Widen with an optional fixed strength: when fixed is set the correlation guard is bypassed and the render runs at
 // that strength (the tests use it to examine the filters on signals the guard would refuse, such as a hard-panned sine).
 func widen(b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter) (pcm.Buffer, WidenInfo, error) {
+	out, sink := collect(b.Rate, b.Frames())
+	info, err := widenTo(context.Background(), b, p, fixed, m, sink)
+	if err != nil {
+		return pcm.Buffer{}, info, err
+	}
+	return *out, info, nil
+}
+
+// widenSignals are the three signals the widener mixes, computed block by block from the channels: the mid M = (L+R)/2, the side
+// HS = highpass((L-R)/2) and the all-pass copy of the mid HA = highpass(allpass(M)), the high-pass being the LR4 of bass_mono_hz.
+// Every filter keeps its state between blocks, so a render is the same in one block or many.
+type widenSignals struct {
+	p                 WidenParams
+	ap                *allpassStream
+	hpSide, hpAp      *filt.Stream
+	mid, side, apCopy []float64
+}
+
+func newWidenSignals(rate int, p WidenParams, block int) *widenSignals {
+	w := &widenSignals{p: p, mid: make([]float64, block), side: make([]float64, block), apCopy: make([]float64, block)}
+	if p.Decorrelate > 0 {
+		w.ap = newAllpassStream(rate)
+	}
+	if p.BassMonoHz > 0 {
+		w.hpSide = filt.NewStream(filt.LR4HighPass(rate, float64(p.BassMonoHz)))
+		if p.Decorrelate > 0 {
+			w.hpAp = filt.NewStream(filt.LR4HighPass(rate, float64(p.BassMonoHz)))
+		}
+	}
+	return w
+}
+
+// next computes the signals of the next frames l, r. m is charged the work of the render's first pass; the second pass, which
+// recomputes the same signals, passes nil (its extra work is not metered: the units of a render are those of the in-memory path).
+func (w *widenSignals) next(l, r []float64, m *dsp.Meter) (mid, side, ap []float64, err error) {
+	k := len(l)
+	mid, side, ap = w.mid[:k], w.side[:k], w.apCopy[:k]
+	if err := m.Add(int64(k) * 4); err != nil {
+		return nil, nil, nil, err
+	}
+	for i := range k {
+		mid[i] = (l[i] + r[i]) / 2
+		side[i] = (l[i] - r[i]) / 2
+	}
+	if w.ap != nil {
+		copy(ap, mid)
+		if err := w.ap.process(ap, m); err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		clear(ap)
+	}
+	if w.hpSide != nil {
+		if err := w.hpSide.Process(side, m); err != nil {
+			return nil, nil, nil, err
+		}
+		if w.hpAp != nil {
+			if err := w.hpAp.Process(ap, m); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+	}
+	return mid, side, ap, nil
+}
+
+// widenTo is widen over blocks: it hands the render to sink in order (the slices are only valid during the call). The input is read
+// three times, none of them holding more than a block of anything: the segment sums of the correlation guard, the sums of the
+// filtered signals, and the mix at the strength the guard chose.
+func widenTo(ctx context.Context, b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter, sink func(l, r []float64) error) (WidenInfo, error) {
 	var info WidenInfo
 	if err := p.check(); err != nil {
-		return pcm.Buffer{}, info, err
+		return info, err
 	}
 	n := b.Frames()
 	l, r := b.Ch[0], b.Ch[1]
 	seg := segLen(b.Rate)
 	inSeg, err := segmentSums5(l, r, seg, m)
 	if err != nil {
-		return pcm.Buffer{}, info, err
+		return info, err
 	}
 	var inAll sums5
 	for _, s := range inSeg {
@@ -133,13 +202,26 @@ func widen(b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter) (pcm.Buffe
 	keep := gate(inBlocks)
 	in := statsOf(inAll, inBlocks, keep)
 	info.RhoIn, info.RhoP10In, info.RhoOut, info.RhoP10Out, info.StrengthEffective = in.Rho, in.P10, in.Rho, in.P10, 0
-	pass := func() (pcm.Buffer, WidenInfo, error) {
-		info.PassThrough = true
-		return b.Clone(), info, nil
+	block := max(hifiBlock, 1)
+	bl, br := make([]float64, min(block, n)), make([]float64, min(block, n))
+	// pass hands the input itself to sink: the neutral and the guard's pass-through results
+	pass := func() (WidenInfo, error) {
+		for start := 0; start < n; start += block {
+			if err := ctx.Err(); err != nil {
+				return info, err
+			}
+			end := min(start+block, n)
+			copy(bl, l[start:end])
+			copy(br, r[start:end])
+			if err := sink(bl[:end-start], br[:end-start]); err != nil {
+				return info, err
+			}
+		}
+		return info, nil
 	}
 	if p.Width == 1 && p.Decorrelate == 0 && p.BassMonoHz == 0 {
 		info.Neutral, info.StrengthEffective = true, 1
-		return b.Clone(), info, nil
+		return pass()
 	}
 	mono := true
 	for i := range n {
@@ -150,6 +232,7 @@ func widen(b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter) (pcm.Buffe
 	}
 	if fixed == nil && mono && p.Decorrelate == 0 {
 		info.Warnings = append(info.Warnings, WarnWidenMonoSource)
+		info.PassThrough = true
 		return pass()
 	}
 	if fixed == nil && in.Rho < WidenGlobalRhoFloor {
@@ -158,59 +241,52 @@ func widen(b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter) (pcm.Buffe
 		} else {
 			info.Warnings = append(info.Warnings, WarnWidenAlreadyWide)
 		}
+		info.PassThrough = true
 		return pass()
 	}
 
-	if err := m.Add(int64(n) * 4); err != nil {
-		return pcm.Buffer{}, info, err
-	}
-	mid, side := make([]float64, n), make([]float64, n)
-	for i := range n {
-		mid[i] = (l[i] + r[i]) / 2
-		side[i] = (l[i] - r[i]) / 2
-	}
-	var ap []float64
-	if p.Decorrelate > 0 {
-		if ap, err = allpassChain(mid, b.Rate, m); err != nil {
-			return pcm.Buffer{}, info, err
+	// first pass: per-segment sums of the five signals, from which the stats of any strength follow in closed form
+	sig := newWidenSignals(b.Rate, p, min(block, n))
+	var segs []wsums
+	var cur wsums
+	gi := 0
+	for start := 0; start < n; start += block {
+		if err := ctx.Err(); err != nil {
+			return info, err
 		}
-	}
-	if p.BassMonoHz > 0 {
-		hp := filt.LR4HighPass(b.Rate, float64(p.BassMonoHz))
-		if side, err = hp.Process(side, m); err != nil {
-			return pcm.Buffer{}, info, err
+		end := min(start+block, n)
+		mid, side, ap, err := sig.next(l[start:end], r[start:end], m)
+		if err != nil {
+			return info, err
 		}
-		if ap != nil {
-			if ap, err = hp.Process(ap, m); err != nil {
-				return pcm.Buffer{}, info, err
+		if err := m.Add(int64(end-start) * 14); err != nil {
+			return info, err
+		}
+		for i := 0; i < end-start; {
+			// the frames left in the current segment
+			stop := min(end-start, i+(seg-gi%seg))
+			for ; i < stop; i++ {
+				a, s, c := mid[i], side[i], ap[i]
+				cur.n++
+				cur.m += a
+				cur.s += s
+				cur.a += c
+				cur.mm += float64(a * a)
+				cur.ms += float64(a * s)
+				cur.ma += float64(a * c)
+				cur.ss += float64(s * s)
+				cur.sa += float64(s * c)
+				cur.aa += float64(c * c)
+				gi++
+			}
+			if gi%seg == 0 {
+				segs = append(segs, cur)
+				cur = wsums{}
 			}
 		}
 	}
-	if ap == nil {
-		ap = make([]float64, n)
-	}
-
-	// per-segment sums of the five signals: the stats of any strength follow from them in closed form
-	if err := m.Add(int64(n) * 14); err != nil {
-		return pcm.Buffer{}, info, err
-	}
-	var segs []wsums
-	for start := 0; start < n; start += seg {
-		end := min(start+seg, n)
-		w := wsums{n: float64(end - start)}
-		for i := start; i < end; i++ {
-			a, s, c := mid[i], side[i], ap[i]
-			w.m += a
-			w.s += s
-			w.a += c
-			w.mm += float64(a * a)
-			w.ms += float64(a * s)
-			w.ma += float64(a * c)
-			w.ss += float64(s * s)
-			w.sa += float64(s * c)
-			w.aa += float64(c * c)
-		}
-		segs = append(segs, w)
+	if cur.n > 0 {
+		segs = append(segs, cur)
 	}
 	coef := func(s float64) (a, c float64) {
 		return 1 + float64(s*(p.Width-1)), float64(s * p.Decorrelate)
@@ -255,32 +331,57 @@ func widen(b pcm.Buffer, p WidenParams, fixed *float64, m *dsp.Meter) (pcm.Buffe
 		info.Warnings = append(info.Warnings, WarnWidenStrengthLow)
 		if s == 0 {
 			info.StrengthEffective = 0
+			info.PassThrough = true
 			return pass()
 		}
 	}
 	info.StrengthEffective, info.RhoOut, info.RhoP10Out = s, out.Rho, out.P10
 
+	// second pass: the same signals again, mixed at the strength s
 	if err := m.Add(int64(n) * 6); err != nil {
-		return pcm.Buffer{}, info, err
+		return info, err
 	}
 	a, c := coef(s)
-	res := pcm.Buffer{Rate: b.Rate, Ch: [2][]float64{make([]float64, n), make([]float64, n)}}
-	for i := range n {
-		s2 := float64(a*side[i]) + float64(c*ap[i])
-		res.Ch[0][i] = mid[i] + s2
-		res.Ch[1][i] = mid[i] - s2
+	sig = newWidenSignals(b.Rate, p, min(block, n))
+	for start := 0; start < n; start += block {
+		if err := ctx.Err(); err != nil {
+			return info, err
+		}
+		end := min(start+block, n)
+		mid, side, ap, err := sig.next(l[start:end], r[start:end], nil)
+		if err != nil {
+			return info, err
+		}
+		for i := range mid {
+			s2 := float64(a*side[i]) + float64(c*ap[i])
+			bl[i] = mid[i] + s2
+			br[i] = mid[i] - s2
+		}
+		if err := sink(bl[:end-start], br[:end-start]); err != nil {
+			return info, err
+		}
 	}
-	return res, info, nil
+	return info, nil
 }
 
 // monoLUFS is the integrated loudness of the mono fold-down (L+R)/2 played on both channels.
 func monoLUFS(b pcm.Buffer) (float64, bool) {
+	k := safety.NewLUFSMeter(b.Rate, b.Frames())
+	monoBlocks(b, func(mono []float64) { k.Add(mono, mono) })
+	return k.LUFS()
+}
+
+// monoBlocks hands the fold-down (L+R)/2 of b to fn a block at a time.
+func monoBlocks(b pcm.Buffer, fn func(mono []float64)) {
 	n := b.Frames()
-	mono := make([]float64, n)
-	for i := range n {
-		mono[i] = (b.Ch[0][i] + b.Ch[1][i]) / 2
+	mono := make([]float64, min(hifiBlock, n))
+	for start := 0; start < n; start += hifiBlock {
+		end := min(start+hifiBlock, n)
+		for i := start; i < end; i++ {
+			mono[i-start] = (b.Ch[0][i] + b.Ch[1][i]) / 2
+		}
+		fn(mono[:end-start])
 	}
-	return safety.LUFS(pcm.Buffer{Rate: b.Rate, Ch: [2][]float64{mono, mono}})
 }
 
 func runWiden(ctx context.Context, in RunIn) (RunOut, error) {
@@ -308,21 +409,74 @@ func runWiden(ctx context.Context, in RunIn) (RunOut, error) {
 	if err != nil {
 		return RunOut{}, err
 	}
+	outMono, outOK := monoLUFS(out)
+	raw, err := widenReport(info, rep, safety.TruePeakDBTP(b), parentMono, parentOK, outMono, outOK)
+	return RunOut{Buffer: out, Report: raw}, err
+}
+
+// streamWiden is runWiden with the render and the finish streamed (see streamMaster): the guard's measurement is a first pass over
+// the input, the render writes a scratch spool, and the finish and the mono fold-down of the result are measured on the blocks as
+// they are delivered. Same samples, same report.
+func streamWiden(ctx context.Context, in RunIn, sc safety.Scratch, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
+	b, err := requireStereo(in)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	p, err := ParseWiden(in.Params)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	m := in.Meter
+	if m != nil && m.Ctx == nil {
+		m.Ctx = ctx
+	}
+	if err := m.Add(SafetyUnits(int64(b.Frames()))); err != nil {
+		return 0, 0, nil, err
+	}
+	parentMono, parentOK := monoLUFS(b)
+	var info WidenInfo
+	outMeter := safety.NewLUFSMeter(b.Rate, b.Frames())
+	mono := make([]float64, 0, safety.StreamBlock)
+	rep, err := renderAndFinish(ctx, sc, b.Rate, safety.FinishIn{TargetLUFS: in.TargetLUFS, RefLUFS: in.RefLUFS}, sink,
+		func(w func(l, r []float64) error) (int, error) {
+			var err error
+			info, err = widenTo(ctx, b, p, nil, m, w)
+			return b.Frames(), err
+		}, func(l, r []float64) {
+			mono = mono[:0]
+			for i := range l {
+				mono = append(mono, (l[i]+r[i])/2)
+			}
+			outMeter.Add(mono, mono)
+		})
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	tpIn, err := safety.StreamTruePeakDBTP(ctx, safety.BufferSource(b))
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	outMono, outOK := outMeter.LUFS()
+	raw, err := widenReport(info, rep, tpIn, parentMono, parentOK, outMono, outOK)
+	return b.Rate, b.Frames(), raw, err
+}
+
+// widenReport is the operator's report: the safety object, the guard's numbers and the warnings of C220.
+func widenReport(info WidenInfo, rep safety.FinishReport, tpIn, parentMono float64, parentOK bool, outMono float64, outOK bool) (json.RawMessage, error) {
 	warnings := info.Warnings
 	delta := 0.0
-	if mo, ok := monoLUFS(out); ok && parentOK {
-		delta = mo - parentMono
+	if outOK && parentOK {
+		delta = outMono - parentMono
 		if delta < WidenMonoFoldQuieterLU {
 			warnings = append(warnings, WarnWidenMonoFoldQuiet)
 		}
 	}
-	hr := hifiReport{Safety: newSafetyDoc(rep, safety.TruePeakDBTP(b)), Hifi: map[string]any{"widen": map[string]any{
+	hr := hifiReport{Safety: newSafetyDoc(rep, tpIn), Hifi: map[string]any{"widen": map[string]any{
 		"strength_effective": info.StrengthEffective, "rho_in": info.RhoIn, "rho_out": info.RhoOut,
 		"rho_p10_out": info.RhoP10Out, "monofold_delta_lu": delta,
 	}}}
 	for _, w := range warnings {
 		hr.Warnings = append(hr.Warnings, hifiWarning{Code: w})
 	}
-	raw, err := hr.marshal()
-	return RunOut{Buffer: out, Report: raw}, err
+	return hr.marshal()
 }

@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 
 	"github.com/nicolasacchi/metamusic/internal/dsp"
@@ -258,18 +259,6 @@ func earResponses(p BinauralParams, rate int, m *dsp.Meter) (h [2][2][]float64, 
 	return h, from, nil
 }
 
-// add returns a + b over the longer of the two.
-func add(a, b []float64) []float64 {
-	if len(b) > len(a) {
-		a, b = b, a
-	}
-	out := append([]float64(nil), a...)
-	for i, v := range b {
-		out[i] += v
-	}
-	return out
-}
-
 // earBalanceDB is 10 log10(E_L / E_R) with a floor so a silent channel gives a large finite number.
 func earBalanceDB(b pcm.Buffer) float64 {
 	var el, er float64
@@ -277,6 +266,11 @@ func earBalanceDB(b pcm.Buffer) float64 {
 		el += float64(b.Ch[0][i] * b.Ch[0][i])
 		er += float64(b.Ch[1][i] * b.Ch[1][i])
 	}
+	return earBalanceFromSums(el, er)
+}
+
+// earBalanceFromSums is earBalanceDB of the energies of the two channels.
+func earBalanceFromSums(el, er float64) float64 {
 	const floor = 1e-30
 	return float64(10 * dsp.Log((el+floor)/(er+floor)) / math.Ln10)
 }
@@ -286,63 +280,141 @@ func earBalanceDB(b pcm.Buffer) float64 {
 // out = y + 10^(room_mix_db/20) * (y convolved with the room). The result is len(x) + the room tail frames long and has not
 // been through the safety stage.
 func Binaural(ctx context.Context, x pcm.Buffer, p BinauralParams, seed int64, m *dsp.Meter) (pcm.Buffer, BinauralInfo, error) {
+	out, sink := collect(x.Rate, x.Frames())
+	info, _, err := binauralTo(ctx, x, p, seed, m, sink)
+	if err != nil {
+		return pcm.Buffer{}, info, err
+	}
+	return *out, info, nil
+}
+
+// binauralTo is Binaural over blocks: the four convolutions of the ears, their sum, the convolution of each ear with the room and the
+// mix are one pass of block-wise convolutions (dsp.ConvStream, the arithmetic of ConvolveUP in pieces), so the memory is the
+// responses, the room and a few blocks, not four ear signals and the output. It returns the output length.
+func binauralTo(ctx context.Context, x pcm.Buffer, p BinauralParams, seed int64, m *dsp.Meter, sink func(l, r []float64) error) (BinauralInfo, int, error) {
 	info := BinauralInfo{LeftAz: p.LeftAz, RightAz: p.RightAz, Elevation: p.Elevation}
 	if err := p.check(); err != nil {
-		return pcm.Buffer{}, info, err
+		return info, 0, err
 	}
 	rate, n := x.Rate, x.Frames()
 	h, from, err := earResponses(p, rate, m)
 	if err != nil {
-		return pcm.Buffer{}, info, err
+		return info, 0, err
 	}
 	info.ResampledFrom = from
 	if p.Model == ModelHRTF {
 		i := hrtf.Default().Info()
 		info.HRTF = &i
 	}
-	var y [2][]float64
-	for ear := range y {
-		for sp := range 2 {
-			if err := ctx.Err(); err != nil {
-				return pcm.Buffer{}, info, err
-			}
-			c, err := dsp.ConvolveUPErr(x.Ch[sp], h[ear][sp], 0, m)
-			if err != nil {
-				return pcm.Buffer{}, info, err
-			}
-			y[ear] = add(y[ear], c)
-		}
-	}
-	if err := m.Add(binauralMixUnits * int64(n)); err != nil {
-		return pcm.Buffer{}, info, err
-	}
-	var wet [2][]float64
+	// the room and its tail first: the output length depends on it
+	var room [2][]float64
 	if p.hasRoom() {
-		room, _ := ir.Room(p.Room)
-		rl, rr, rinfo, err := ir.BuildErr(room, rate, seed, m)
+		rm, _ := ir.Room(p.Room)
+		rl, rr, rinfo, err := ir.BuildErr(rm, rate, seed, m)
 		if err != nil {
-			return pcm.Buffer{}, info, err
+			return info, 0, err
 		}
+		room = [2][]float64{rl, rr}
 		info.RoomRT60 = rinfo.RT60Measured
 		info.TailSamples = TailSamples(p, rate, rinfo.EffectiveLen)
-		for ear, r := range [2][]float64{rl, rr} {
-			if wet[ear], err = dsp.ConvolveUPErr(y[ear], r, 0, m); err != nil {
-				return pcm.Buffer{}, info, err
-			}
-		}
 	}
 	outLen := n + info.TailSamples
 	gain := dbToLin(float64(p.RoomMixDB))
-	out := pcm.Buffer{Rate: rate}
-	for ear := range out.Ch {
-		o := make([]float64, outLen) // the HRIR tail beyond outLen is dropped under Finish's final fade
-		copy(o, y[ear][:min(len(y[ear]), outLen)])
-		for i := 0; i < min(len(wet[ear]), outLen); i++ {
-			o[i] += float64(gain * wet[ear][i])
+	hLen := len(h[0][0])
+	for ear := range h {
+		for sp := range h[ear] {
+			if len(h[ear][sp]) != hLen || hLen == 0 {
+				return info, 0, errors.New("ops: binaural: the four responses differ in length")
+			}
 		}
-		out.Ch[ear] = o
 	}
-	return out, info, nil
+	var conv [2][2]*dsp.ConvStream // [ear][speaker]
+	for ear := range conv {
+		for sp := range 2 {
+			conv[ear][sp] = dsp.NewConvStream(h[ear][sp], 0)
+		}
+	}
+	bs := conv[0][0].Block()
+	yLen := n + hLen - 1 // the length of an ear signal
+	var wet [2]*dsp.ConvStream
+	wetLen := 0
+	if p.hasRoom() {
+		for ear := range wet {
+			wet[ear] = dsp.NewConvStream(room[ear], bs)
+		}
+		wetLen = yLen + len(room[0]) - 1
+	}
+	// blocks of the ear signals, of the room's convolution, and of the output that are computed; the rest of the model's units are
+	// charged without the work (the in-memory render ran every block, including those past the output)
+	yBlocks, wetBlocks, outBlocks := ceilDiv(yLen, bs), ceilDiv(wetLen, bs), ceilDiv(outLen, bs)
+	var o [2][]float64
+	for ear := range o {
+		o[ear] = make([]float64, bs)
+	}
+	var yb [2][]float64
+	for ear := range yb {
+		yb[ear] = make([]float64, bs)
+	}
+	for j := 0; j < outBlocks; j++ {
+		if err := ctx.Err(); err != nil {
+			return info, 0, err
+		}
+		cnt := min(bs, outLen-j*bs)
+		// the ear signals y of this block: the left and the right speaker through each ear's responses
+		yn := 0
+		if j < yBlocks {
+			yn = min(bs, yLen-j*bs)
+			for ear := range 2 {
+				var c [2][]float64
+				for sp := range 2 {
+					var in []float64
+					if lo := j * bs; lo < n {
+						in = x.Ch[sp][lo:min(lo+bs, n)]
+					}
+					if c[sp], err = conv[ear][sp].Push(in, m); err != nil {
+						return info, 0, err
+					}
+				}
+				for i := range yn {
+					yb[ear][i] = c[0][i] + c[1][i]
+				}
+			}
+		}
+		for ear := range 2 {
+			var w []float64
+			if p.hasRoom() && j < wetBlocks {
+				if w, err = wet[ear].Push(yb[ear][:yn], m); err != nil {
+					return info, 0, err
+				}
+			}
+			oo := o[ear][:cnt]
+			for i := range cnt {
+				v := 0.0
+				if i < yn {
+					v = yb[ear][i]
+				}
+				if w != nil && j*bs+i < wetLen {
+					v += float64(gain * w[i])
+				}
+				oo[i] = v
+			}
+		}
+		if err := sink(o[0][:cnt], o[1][:cnt]); err != nil {
+			return info, 0, err
+		}
+	}
+	// the convolutions the output does not need still cost what the model says (the in-memory render ran every block)
+	rest := 4 * int64(yBlocks-min(yBlocks, outBlocks)) * conv[0][0].BlockUnits()
+	if p.hasRoom() {
+		rest += 2 * int64(wetBlocks-min(wetBlocks, outBlocks)) * wet[0].BlockUnits()
+	}
+	if err := m.Add(rest); err != nil {
+		return info, 0, err
+	}
+	if err := m.Add(binauralMixUnits * int64(n)); err != nil {
+		return info, 0, err
+	}
+	return info, outLen, nil
 }
 
 func runBinaural(ctx context.Context, in RunIn) (RunOut, error) {
@@ -378,6 +450,66 @@ func runBinaural(ctx context.Context, in RunIn) (RunOut, error) {
 		return RunOut{}, err
 	}
 	info.EarBalanceInDB, info.EarBalanceOutDB = earBalanceDB(b), earBalanceDB(out)
+	raw, err := binauralReport(p, info, rep, tpIn, lufsIn)
+	return RunOut{Buffer: out, Report: raw}, err
+}
+
+// streamBinaural is runBinaural with the render and the finish streamed (see streamMaster). The ear balance of the result is
+// summed over the delivered blocks in order, which is the sum of earBalanceDB. Same samples, same report.
+func streamBinaural(ctx context.Context, in RunIn, sc safety.Scratch, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
+	b, err := requireStereo(in)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	p, err := ParseBinaural(in.Params)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	m := in.Meter
+	if m != nil && m.Ctx == nil {
+		m.Ctx = ctx
+	}
+	if b.Rate == 0 {
+		b.Rate = in.Rate
+	}
+	src := safety.BufferSource(b)
+	lufsIn, ok, err := safety.StreamLUFS(ctx, src)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if !ok {
+		return 0, 0, nil, safety.ErrSilent
+	}
+	tpIn, err := safety.StreamTruePeakDBTP(ctx, src)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	var info BinauralInfo
+	var frames int
+	var el, er float64
+	rep, err := renderAndFinish(ctx, sc, b.Rate, safety.FinishIn{TargetLUFS: in.TargetLUFS, RefLUFS: in.RefLUFS}, sink,
+		func(w func(l, r []float64) error) (int, error) {
+			var err error
+			if info, frames, err = binauralTo(ctx, b, p, in.Seed, m, w); err != nil {
+				return 0, err
+			}
+			return frames, m.Add(SafetyUnits(int64(frames)))
+		}, func(l, r []float64) {
+			for i := range l {
+				el += float64(l[i] * l[i])
+				er += float64(r[i] * r[i])
+			}
+		})
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	info.EarBalanceInDB, info.EarBalanceOutDB = earBalanceDB(b), earBalanceFromSums(el, er)
+	raw, err := binauralReport(p, info, rep, tpIn, lufsIn)
+	return b.Rate, frames, raw, err
+}
+
+// binauralReport is the operator's report: the safety object, the render's numbers and the warnings of C221.5.
+func binauralReport(p BinauralParams, info BinauralInfo, rep safety.FinishReport, tpIn, lufsIn float64) (json.RawMessage, error) {
 	delta := info.EarBalanceOutDB - info.EarBalanceInDB
 	bin := map[string]any{
 		"model": p.Model, "preset": p.Preset, "az_used": map[string]int{"left": p.LeftAz, "right": p.RightAz}, "el_used": p.Elevation,
@@ -407,5 +539,5 @@ func runBinaural(ctx context.Context, in RunIn) (RunOut, error) {
 		warn(WarnBinauralEarImbalance)
 	}
 	raw, err := hr.marshal()
-	return RunOut{Buffer: out, Report: raw}, err
+	return raw, err
 }

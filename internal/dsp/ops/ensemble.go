@@ -3,12 +3,14 @@ package ops
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"math"
 
 	"github.com/nicolasacchi/metamusic/internal/dsp"
 	"github.com/nicolasacchi/metamusic/internal/dsp/ir"
 	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
 	"github.com/nicolasacchi/metamusic/internal/dsp/pv"
+	"github.com/nicolasacchi/metamusic/internal/dsp/safety"
 )
 
 // KindEnsemble is the registry name of the ensemble (C205.5).
@@ -132,47 +134,59 @@ func maxDelay(rate int) int {
 // ensembleStack renders the voices of x into the stereo stack (length len(x) + the longest delay): every voice is a
 // pitch- and formant-shifted copy of each channel, delayed, gained and panned.
 func ensembleStack(ctx context.Context, x pcm.Buffer, p EnsembleParams, m *dsp.Meter) (pcm.Buffer, error) {
+	var stack pcm.Buffer
+	stack.Rate = x.Rate
+	for c := range 2 {
+		ch, err := ensembleStackChannel(ctx, x, p, m, c)
+		if err != nil {
+			return pcm.Buffer{}, err
+		}
+		stack.Ch[c] = ch
+	}
+	return stack, nil
+}
+
+// ensembleStackChannel renders channel c of the stack: the channels are independent, so the streamed render holds one at a time.
+func ensembleStackChannel(ctx context.Context, x pcm.Buffer, p EnsembleParams, m *dsp.Meter, c int) ([]float64, error) {
 	rate, n := x.Rate, p.frame()
 	size := x.Frames() + maxDelay(rate)
-	stack := pcm.Buffer{Rate: rate, Ch: [2][]float64{make([]float64, size), make([]float64, size)}}
+	stack := make([]float64, size)
 	group := voiceGroup(x.Frames(), len(EnsembleVoices))
-	for c := 0; c < 2; c++ {
-		for j0 := 0; j0 < len(EnsembleVoices); j0 += group {
-			if err := ctx.Err(); err != nil {
-				return pcm.Buffer{}, err
+	for j0 := 0; j0 < len(EnsembleVoices); j0 += group {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		j1 := min(j0+group, len(EnsembleVoices))
+		voices := make([]pv.Voice, 0, group)
+		for _, v := range EnsembleVoices[j0:j1] {
+			rho, phi := dsp.Exp(math.Ln2*v.Semitones/12), v.Formant
+			voices = append(voices, pv.Voice{
+				Rho:     func(int) float64 { return rho },
+				Formant: func(int) float64 { return phi },
+			})
+		}
+		ys, err := pv.ShiftBank(x.Ch[c], voices, pv.Params{N: n, Hs: n / 4, Lock: true, Rate: rate, Meter: m})
+		if err != nil {
+			return nil, err
+		}
+		for k, y := range ys {
+			v := EnsembleVoices[j0+k]
+			gl, gr := stackGains(v.Pan)
+			g := dbToLin(v.GainDB)
+			// channel c of the input enters the side of the stack it belongs to, scaled by that side's pan gain
+			side := gl
+			if c == 1 {
+				side = gr
 			}
-			j1 := min(j0+group, len(EnsembleVoices))
-			voices := make([]pv.Voice, 0, group)
-			for _, v := range EnsembleVoices[j0:j1] {
-				rho, phi := dsp.Exp(math.Ln2*v.Semitones/12), v.Formant
-				voices = append(voices, pv.Voice{
-					Rho:     func(int) float64 { return rho },
-					Formant: func(int) float64 { return phi },
-				})
-			}
-			ys, err := pv.ShiftBank(x.Ch[c], voices, pv.Params{N: n, Hs: n / 4, Lock: true, Rate: rate, Meter: m})
-			if err != nil {
-				return pcm.Buffer{}, err
-			}
-			for k, y := range ys {
-				v := EnsembleVoices[j0+k]
-				gl, gr := stackGains(v.Pan)
-				g := dbToLin(v.GainDB)
-				// channel c of the input enters the side of the stack it belongs to, scaled by that side's pan gain
-				side := gl
-				if c == 1 {
-					side = gr
+			d := delaySamples(v, rate)
+			dst := stack[d:]
+			a := float64(g * side)
+			if err := meterBlocks(m, len(y), unitsStackSample, func(lo, hi int) {
+				for i := lo; i < hi; i++ {
+					dst[i] += float64(a * y[i])
 				}
-				d := delaySamples(v, rate)
-				dst := stack.Ch[c][d:]
-				a := float64(g * side)
-				if err := meterBlocks(m, len(y), unitsStackSample, func(lo, hi int) {
-					for i := lo; i < hi; i++ {
-						dst[i] += float64(a * y[i])
-					}
-				}); err != nil {
-					return pcm.Buffer{}, err
-				}
+			}); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -195,61 +209,137 @@ func ensembleIR(p EnsembleParams, rate int, seed int64, m *dsp.Meter) (l, r []fl
 // Ensemble renders the choir of x in the generated room: output = dry * stack + wet * (stack convolved with the room), of
 // length len(x) + the room's tail (at least the longest voice delay). It returns the output and the tail length in frames.
 func Ensemble(ctx context.Context, x pcm.Buffer, p EnsembleParams, seed int64, m *dsp.Meter) (pcm.Buffer, int, error) {
-	if err := p.check(); err != nil {
+	out, sink := collect(x.Rate, x.Frames())
+	irLen, _, err := ensembleTo(ctx, x, p, seed, m, heapScratch{}, sink)
+	if err != nil {
 		return pcm.Buffer{}, 0, err
+	}
+	return *out, irLen, nil
+}
+
+// ensembleTo is Ensemble streamed: the channels are rendered one after the other (a stack channel, then its convolution with the
+// room block by block into a spool of that channel's output), and the two spools are merged into sink in order. The memory is the
+// input, one stack channel, the voice bank and the room's spectra, not the stack, the convolution result and the output of both
+// channels. It returns the length of the room's response and of the output.
+func ensembleTo(ctx context.Context, x pcm.Buffer, p EnsembleParams, seed int64, m *dsp.Meter, sc safety.Scratch, sink func(l, r []float64) error) (irLen, outLen int, err error) {
+	if err := p.check(); err != nil {
+		return 0, 0, err
 	}
 	rate := x.Rate
 	hl, hr, cut, err := ensembleIR(p, rate, seed, m)
 	if err != nil {
-		return pcm.Buffer{}, 0, err
+		return 0, 0, err
 	}
-	stack, err := ensembleStack(ctx, x, p, m)
-	if err != nil {
-		return pcm.Buffer{}, 0, err
-	}
-	outLen := x.Frames() + max(len(hl), maxDelay(rate))
+	outLen = x.Frames() + max(len(hl), maxDelay(rate))
 	dry, wet := 0.0, dbToLin(p.WetDB)
 	if !p.NoDry {
 		dry = dbToLin(p.DryDB)
 	}
-	out := pcm.Buffer{Rate: rate}
+	var chans [2]safety.Spool
 	for c, h := range [2][]float64{hl, hr} {
-		o := make([]float64, outLen)
-		sc := stack.Ch[c][:min(len(stack.Ch[c]), outLen)]
-		if err := meterBlocks(m, len(sc), unitsDrySample, func(lo, hi int) {
-			for i := lo; i < hi; i++ {
-				o[i] = float64(dry * sc[i])
-			}
-		}); err != nil {
-			return pcm.Buffer{}, 0, err
+		stack, err := ensembleStackChannel(ctx, x, p, m, c)
+		if err != nil {
+			return 0, 0, err
 		}
-		if len(h) > 0 {
-			if err := ctx.Err(); err != nil {
-				return pcm.Buffer{}, 0, err
-			}
-			y, err := dsp.ConvolveUPErr(stack.Ch[c], h, 0, m)
-			if err != nil {
-				return pcm.Buffer{}, 0, err
-			}
-			y = y[:min(len(y), outLen)]
-			if err := meterBlocks(m, len(y), unitsWetSample, func(lo, hi int) {
-				for i := lo; i < hi; i++ {
-					o[i] += float64(wet * y[i])
-				}
-			}); err != nil {
-				return pcm.Buffer{}, 0, err
-			}
+		if chans[c], err = sc.NewSpool(); err != nil {
+			return 0, 0, err
 		}
-		if cut {
-			// the response was cut where it was still audible: the last 50 ms of the output fade out
-			fade := min(roundHalfUp(ensembleFadeS*float64(rate)), outLen)
-			for i := 0; i < fade; i++ {
-				o[outLen-fade+i] = float64(o[outLen-fade+i] * (0.5 * (1 + math.Cos(math.Pi*(float64(i)+0.5)/float64(fade)))))
-			}
+		defer func() { _ = chans[c].Close() }()
+		if err := ensembleChannelOut(ctx, stack, h, dry, wet, cut, rate, outLen, m, func(o []float64) error { return putF64(chans[c], o) }); err != nil {
+			return 0, 0, err
 		}
-		out.Ch[c] = o
 	}
-	return out, len(hl), nil
+	var rd [2]io.ReadCloser
+	for c := range rd {
+		if rd[c], err = chans[c].Open(); err != nil {
+			return 0, 0, err
+		}
+		defer func() { _ = rd[c].Close() }()
+	}
+	block := max(hifiBlock, 1)
+	l, r := make([]float64, min(block, outLen)), make([]float64, min(block, outLen))
+	for lo := 0; lo < outLen; lo += block {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+		k := min(block, outLen-lo)
+		for c, dst := range [2][]float64{l[:k], r[:k]} {
+			if err := getF64(rd[c], dst); err != nil {
+				return 0, 0, err
+			}
+		}
+		if err := sink(l[:k], r[:k]); err != nil {
+			return 0, 0, err
+		}
+	}
+	return len(hl), outLen, nil
+}
+
+// ensembleChannelOut turns one channel of the stack into its output, block by block: dry * stack plus wet * (stack convolved with h),
+// the fade at the end when the response was cut. Every sample is computed as Ensemble always did; the convolution blocks the output
+// does not reach are charged without being computed.
+func ensembleChannelOut(ctx context.Context, stack, h []float64, dry, wet float64, cut bool, rate, outLen int, m *dsp.Meter, emit func(o []float64) error) error {
+	var cs *dsp.ConvStream
+	bs := dsp.DefaultConvBlock
+	dryLen := min(len(stack), outLen) // the stack that reaches the output
+	wetLen := 0                       // the samples of the wet signal that reach it: the convolution is len(stack)+len(h)-1 long
+	if len(h) > 0 {
+		cs = dsp.NewConvStream(h, 0)
+		bs = cs.Block()
+		wetLen = min(len(stack)+len(h)-1, outLen)
+	}
+	fade := min(roundHalfUp(ensembleFadeS*float64(rate)), outLen)
+	o := make([]float64, min(bs, outLen))
+	if err := m.Add(unitsDrySample * int64(dryLen)); err != nil {
+		return err
+	}
+	if err := m.Add(unitsWetSample * int64(wetLen)); err != nil {
+		return err
+	}
+	convBlocks := 0
+	if cs != nil {
+		convBlocks = ceilDiv(len(stack)+len(h)-1, bs)
+	}
+	for j := 0; j*bs < outLen; j++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		lo := j * bs
+		k := min(bs, outLen-lo)
+		var y []float64
+		if cs != nil {
+			var in []float64
+			if lo < len(stack) {
+				in = stack[lo:min(lo+bs, len(stack))]
+			}
+			var err error
+			if y, err = cs.Push(in, m); err != nil {
+				return err
+			}
+		}
+		for i := range k {
+			gi := lo + i
+			v := 0.0
+			if gi < dryLen {
+				v = float64(dry * stack[gi])
+			}
+			if gi < wetLen {
+				v += float64(wet * y[i])
+			}
+			if cut && gi >= outLen-fade {
+				f := gi - (outLen - fade)
+				v = float64(v * (0.5 * (1 + math.Cos(math.Pi*(float64(f)+0.5)/float64(fade)))))
+			}
+			o[i] = v
+		}
+		if err := emit(o[:k]); err != nil {
+			return err
+		}
+	}
+	if cs != nil {
+		return m.Add(int64(max(convBlocks-ceilDiv(outLen, bs), 0)) * cs.BlockUnits())
+	}
+	return nil
 }
 
 // EnsembleUnits is the work Ensemble adds to the meter, as an upper bound (the response is cut at -70 dB, which is only known
@@ -299,8 +389,32 @@ func runEnsemble(ctx context.Context, in RunIn) (RunOut, error) {
 	if err != nil {
 		return RunOut{}, err
 	}
+	return RunOut{Buffer: out, Report: ensembleReport(p, irLen, out.Frames())}, nil
+}
+
+func ensembleReport(p EnsembleParams, irLen, outFrames int) json.RawMessage {
 	rep, _ := json.Marshal(map[string]any{"ensemble": map[string]any{
-		"space": p.Space, "voices": len(EnsembleVoices), "ir_frames": irLen, "out_frames": out.Frames(),
+		"space": p.Space, "voices": len(EnsembleVoices), "ir_frames": irLen, "out_frames": outFrames,
 	}})
-	return RunOut{Buffer: out, Report: rep}, nil
+	return rep
+}
+
+// streamEnsemble is runEnsemble with the render streamed (ensembleTo).
+func streamEnsemble(ctx context.Context, in RunIn, sc safety.Scratch, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
+	p, err := ParseEnsemble(in.Params)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if len(in.Inputs) != 1 {
+		return 0, 0, nil, &ParamError{Field: "inputs", Rule: RuleInput}
+	}
+	x := in.Inputs[0]
+	if x.Rate == 0 {
+		x.Rate = in.Rate
+	}
+	irLen, outLen, err := ensembleTo(ctx, x, p, in.Seed, in.Meter, sc, sink)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return x.Rate, outLen, ensembleReport(p, irLen, outLen), nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/dsp/align"
 	"github.com/nicolasacchi/metamusic/internal/dsp/pcm"
 	"github.com/nicolasacchi/metamusic/internal/dsp/pv"
+	"github.com/nicolasacchi/metamusic/internal/dsp/safety"
 )
 
 // KindMorph is the beat- and key-aligned transition of two Takes (C205.1).
@@ -302,10 +303,28 @@ func pvErr(err error, field string) error {
 // stretched from T0 to T1 and B from T0 to its own tempo (shifted into A's key and gliding to its own pitch) under an
 // equal-power crossfade, then B verbatim to its end. The output has exactly tA + ramp.Total() + the tail of B samples.
 func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign, m *dsp.Meter) (pcm.Buffer, MorphInfo, error) {
+	var out *pcm.Buffer
+	var sink func(l, r []float64) error
+	info, err := morphTo(ctx, a, b, p, al, m, func(l, r []float64) error {
+		if out == nil {
+			out, sink = collect(a.Rate, a.Frames()+b.Frames())
+		}
+		return sink(l, r)
+	})
+	if err != nil || out == nil {
+		return pcm.Buffer{}, info, err
+	}
+	return *out, info, nil
+}
+
+// morphTo is Morph with the output handed to sink in order, block by block (the slices are only valid during the call): the verbatim
+// parts of A and B go from the inputs to the sink without a copy of the output, and only the transition, which is the part that is
+// processed, is held. The memory beyond the two inputs is that of the transition.
+func morphTo(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign, m *dsp.Meter, sink func(l, r []float64) error) (MorphInfo, error) {
 	var info MorphInfo
 	rate := a.Rate
 	if rate <= 0 || b.Rate != rate || a.Frames() == 0 || b.Frames() == 0 {
-		return pcm.Buffer{}, info, &ParamError{Field: "inputs", Rule: RuleChannel}
+		return info, &ParamError{Field: "inputs", Rule: RuleChannel}
 	}
 	n := p.frame()
 	hs := n / 4
@@ -319,11 +338,11 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 	}
 	ancA, err := anchorAt(monoF32(a), rate, al[0], nomA, "downbeat_a_s", m)
 	if err != nil {
-		return pcm.Buffer{}, info, err
+		return info, err
 	}
 	ancB, err := anchorAt(monoF32(b), rate, al[1], nomB, "downbeat_b_s", m)
 	if err != nil {
-		return pcm.Buffer{}, info, err
+		return info, err
 	}
 	info.Phase = [2]PhaseInfo{ancA.Info, ancB.Info}
 	info.Warnings = append(append(info.Warnings, ancA.Warnings...), ancB.Warnings...)
@@ -334,7 +353,7 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 	info.TA, info.TB, info.T0, info.T1, info.TotalS = ancA.T, ancB.T, t0, t1, total
 
 	if r := t1 / t0; !(r >= 1.0/RatioMax && r <= RatioMax) {
-		return pcm.Buffer{}, info, &ParamError{Field: "bpm_b", Rule: RuleTempoRatio}
+		return info, &ParamError{Field: "bpm_b", Rule: RuleTempoRatio}
 	}
 	tAs, tBs := max(roundHalfUp(ancA.T*float64(rate)), 0), max(roundHalfUp(ancB.T*float64(rate)), 0)
 	transLen := roundHalfUp(total * float64(rate))
@@ -342,10 +361,10 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 	srcB := roundHalfUp(60 * beats / t1 * float64(rate))
 	tailStart := tBs + srcB
 	if tAs+srcA > a.Frames() {
-		return pcm.Buffer{}, info, &ParamError{Field: "a_at", Rule: RuleATooShort}
+		return info, &ParamError{Field: "a_at", Rule: RuleATooShort}
 	}
 	if tailStart > b.Frames() {
-		return pcm.Buffer{}, info, &ParamError{Field: "b_at", Rule: RuleBTooShort}
+		return info, &ParamError{Field: "b_at", Rule: RuleBTooShort}
 	}
 	outLen := tAs + transLen + (b.Frames() - tailStart)
 	info.TransFrame, info.OutFrames = transLen, outLen
@@ -369,22 +388,22 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 	}
 	pvp := pv.Params{N: n, Hs: hs, Lock: true, Rate: rate, Meter: m}
 
-	out := pcm.Buffer{Rate: rate}
+	var trans [2][]float64
 	for c := 0; c < 2; c++ {
 		if err := ctx.Err(); err != nil {
-			return pcm.Buffer{}, info, err
+			return info, err
 		}
 		stA, err := pv.StretchErr(seg(a.Ch[c], tAs-n, tAs+srcA+n), alphaA, pvp)
 		if err != nil {
-			return pcm.Buffer{}, info, pvErr(err, "bpm_b")
+			return info, pvErr(err, "bpm_b")
 		}
 		stB, err := pv.StretchErr(seg(b.Ch[c], tBs-n, tailStart+n), alphaB, pvp)
 		if err != nil {
-			return pcm.Buffer{}, info, pvErr(err, "bpm_b")
+			return info, pvErr(err, "bpm_b")
 		}
 		if shifted {
 			if stB, err = pv.ShiftErr(stB, rho, pvp); err != nil {
-				return pcm.Buffer{}, info, pvErr(err, "semitones_b")
+				return info, pvErr(err, "semitones_b")
 			}
 		}
 		tr := make([]float64, transLen)
@@ -397,7 +416,7 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 			}
 		})
 		if err != nil {
-			return pcm.Buffer{}, info, err
+			return info, err
 		}
 		// the joins: 10 ms equal-power crossfades against the verbatim signals
 		xf := min(roundHalfUp(joinS*float64(rate)), transLen/2)
@@ -407,16 +426,27 @@ func Morph(ctx context.Context, a, b pcm.Buffer, p MorphParams, al [2]inputAlign
 			k := transLen - xf + i
 			tr[k] = float64(math.Cos(th)*tr[k]) + float64(math.Sin(th)*b.Ch[c][tailStart-xf+i])
 		}
-		o := make([]float64, 0, outLen)
-		o = append(o, a.Ch[c][:tAs]...)
-		o = append(o, tr...)
-		o = append(o, b.Ch[c][tailStart:]...)
 		if err := m.Add(int64(unitsCopySample * outLen)); err != nil {
-			return pcm.Buffer{}, info, err
+			return info, err
 		}
-		out.Ch[c] = o
+		trans[c] = tr
 	}
-	return out, info, nil
+	// A verbatim, the transition, B verbatim
+	block := max(hifiBlock, 1)
+	for _, part := range []struct {
+		l, r []float64
+	}{{a.Ch[0][:tAs], a.Ch[1][:tAs]}, {trans[0], trans[1]}, {b.Ch[0][tailStart:], b.Ch[1][tailStart:]}} {
+		for lo := 0; lo < len(part.l); lo += block {
+			if err := ctx.Err(); err != nil {
+				return info, err
+			}
+			hi := min(lo+block, len(part.l))
+			if err := sink(part.l[lo:hi], part.r[lo:hi]); err != nil {
+				return info, err
+			}
+		}
+	}
+	return info, nil
 }
 
 // pairReport is the report of morph and polytempo: the beat-phase entries, the warnings and the operator's own object.
@@ -444,29 +474,60 @@ func pairReport(kind string, phase [2]PhaseInfo, warns []Warning, own map[string
 var PairBlindSpots = []string{"tempo_drift", "rubato", "free_time_intro", "half_double_time", "swing", "tempo_change_in_window", "downbeat_heuristic"}
 
 func runMorph(ctx context.Context, in RunIn) (RunOut, error) {
-	p, al, err := ParseMorph(in.Params, in.Alignment)
+	p, al, a, b, err := morphJob(in)
 	if err != nil {
 		return RunOut{}, err
 	}
-	if len(in.Inputs) != 2 {
-		return RunOut{}, &ParamError{Field: "inputs", Rule: RuleInput}
+	out, info, err := Morph(ctx, a, b, p, al, in.Meter)
+	if err != nil {
+		return RunOut{}, err
 	}
-	a, b := in.Inputs[0], in.Inputs[1]
+	rep, err := morphReport(p, info)
+	return RunOut{Buffer: out, Report: rep}, err
+}
+
+// streamMorph is runMorph with the output streamed (morphTo): the inputs are held, the output is not.
+func streamMorph(ctx context.Context, in RunIn, _ safety.Scratch, sink func(l, r []float64) error) (int, int, json.RawMessage, error) {
+	p, al, a, b, err := morphJob(in)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	info, err := morphTo(ctx, a, b, p, al, in.Meter, sink)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	rep, err := morphReport(p, info)
+	return a.Rate, info.OutFrames, rep, err
+}
+
+// morphJob parses the params and takes the two inputs of a morph job.
+func morphJob(in RunIn) (p MorphParams, al [2]inputAlign, a, b pcm.Buffer, err error) {
+	if p, al, err = ParseMorph(in.Params, in.Alignment); err != nil {
+		return p, al, a, b, err
+	}
+	if len(in.Inputs) != 2 {
+		return p, al, a, b, &ParamError{Field: "inputs", Rule: RuleInput}
+	}
+	a, b = in.Inputs[0], in.Inputs[1]
 	if a.Rate == 0 {
 		a.Rate = in.Rate
 	}
 	if b.Rate == 0 {
 		b.Rate = in.Rate
 	}
-	out, info, err := Morph(ctx, a, b, p, al, in.Meter)
-	if err != nil {
-		return RunOut{}, err
-	}
-	rep, err := pairReport(KindMorph, info.Phase, info.Warnings, map[string]any{
+	return p, al, a, b, nil
+}
+
+func morphReport(p MorphParams, info MorphInfo) (json.RawMessage, error) {
+	return pairReport(KindMorph, info.Phase, info.Warnings, map[string]any{
 		"t_a_s": info.TA, "t_b_s": info.TB, "local_bpm_a": info.T0, "local_bpm_b": info.T1, "ramp_s": info.TotalS,
 		"semitones_b": p.SemitonesB, "out_frames": info.OutFrames,
 	})
-	return RunOut{Buffer: out, Report: rep}, err
+}
+
+// MorphTransFrames is the transition length in frames for the tempos and bars of the spec (the part of a morph that is processed).
+func MorphTransFrames(bpmA, bpmB float64, bars, bpb, rate int) int64 {
+	return morphTransFrames(bpmA, bpmB, bars, bpb, rate)
 }
 
 // morphTransFrames is the transition length in frames for the tempos and bars of the spec.
