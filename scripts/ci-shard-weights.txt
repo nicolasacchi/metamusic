@@ -8,7 +8,7 @@
 ./internal/jobs 433 2
 ./internal/analysis 394 2
 ./cmd/metamusic 299
-./internal/provenance 278
+./internal/provenance 278 2
 ./internal/mcpgen 250
 ./internal/library/librarytest 189
 ./internal/ladder 185
@@ -33,7 +33,7 @@
 ./internal/synth 44
 ./internal/records 43
 ./internal/sounds 43
-./internal/dsp/safety 42
+./internal/dsp/safety 42 2
 ./internal/archtest 41
 ./internal/duels 39
 ./internal/spend 37
@@ -122,8 +122,8 @@
 ./internal/startup 1
 ./internal/transform/transformtest 1
 # BEGIN T1-I1 weights (T1 packages), measured at INT-B from the CI run of the INT-B branch (replaces the provisional estimates). dsp/safety and
-# dsp/pcm (D1) keep their lines above. No package is split.
-./internal/dsp/ops 29
+# dsp/pcm (D1) keep their lines above. Only dsp/ops, dsp/safety (and provenance) are split, so that each part fits the 12 m per-package timeout under the nightly -race (dsp/ops alone takes 615 s there on 8 idle cores, 40 s without).
+./internal/dsp/ops 29 4
 ./internal/dsp/pv 2
 ./internal/dsp/ir 3
 ./internal/dsp/align 1

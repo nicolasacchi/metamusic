@@ -18,10 +18,10 @@ weights="$root/scripts/ci-shard-weights.txt"
 # A split package's parts are not equal: the tests pinned to part i in scripts/ci-heavy-tests.txt weigh what they weigh
 # (a single 180 s test makes its part >= 180), the rest of the package is spread evenly over the K parts.
 # The weights are wall seconds of the PR run, where internal/dsp and internal/score run without -race (noracere below). Under the
-# nightly's MM_FULL_RACE=1 they run instrumented, which costs about 8x on their numeric loops (measured: internal/dsp/safety 9 s plain,
-# 75 s with -race), so their weight is scaled by RACE_FACTOR when the plan is for the full-race run; otherwise the nightly's shards
+# nightly's MM_FULL_RACE=1 they run instrumented, which costs 8-15x on their numeric loops (measured: internal/dsp/safety 9 s plain,
+# 75 s with -race; internal/dsp/ops 40 s plain, 615 s with -race), so their weight is scaled by RACE_FACTOR when the plan is for the full-race run; otherwise the nightly's shards
 # were balanced as if those packages were cheap and the shards that drew them starved (every package hit the 12 m timeout).
-RACE_FACTOR=8
+RACE_FACTOR=12
 noracere='^[.]/internal/(dsp|score)(/|$)'
 units() {
   go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" -v hf="$root/scripts/ci-heavy-tests.txt" -v fr="${MM_FULL_RACE:-0}" -v nr="$noracere" -v rf="$RACE_FACTOR" '
@@ -113,7 +113,9 @@ case "$cmd" in
       [ -n "$names" ] || { echo "ci-go-test: $u has no tests" >&2; continue; }
       echo "== $pkg tests $part"
       tag=$(printf '%s' "${pkg#./}-${part/\//of}" | tr -c 'A-Za-z0-9_.-' '_')
-      { go test "${flags[@]}" -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-$tag" | sed "s|^|[$pkg $part] |"; } &
+      # a split dsp/score package keeps its plain (no -race) mode in the PR shards, like the whole ones above
+      if [ "${MM_FULL_RACE:-0}" != 1 ] && [[ "$pkg" =~ $noracere ]]; then pf=("${flags_nr[@]}"); else pf=("${flags[@]}"); fi
+      { go test "${pf[@]}" -run "^($names)\$" "$pkg" -args -test.gocoverdir="$cov" 2>&1 | emit "s$s-$tag" | sed "s|^|[$pkg $part] |"; } &
       pids+=($!)
     done
     if [ "${#whole[@]}" -gt 0 ]; then
