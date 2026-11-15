@@ -8,7 +8,7 @@
 ./internal/jobs 433 2
 ./internal/analysis 394 2
 ./cmd/metamusic 299
-./internal/provenance 278 2
+./internal/provenance 278 3
 ./internal/mcpgen 250
 ./internal/library/librarytest 189
 ./internal/ladder 185
