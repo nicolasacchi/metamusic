@@ -14,7 +14,16 @@ import (
 // and cleared, roots and children, drafts fulfilled, ratings, status changes, duel verdicts) with a Settle every few steps
 // and at the end. Picks and Sounds are enabled. The oracle: Verify is empty and a further Settle changes nothing. MM_PROPERTY_SEQS overrides the 60
 // sequences (the weekly job runs 300); -short runs 6 so make check stays fast.
-func TestProperty_ProvenanceInvariants(t *testing.T) {
+//
+// The seeds are two top-level tests, the lower and the upper half, so the CI shards can put them in different parts of the
+// package (scripts/ci-heavy-tests.txt): under the nightly's full -race the 60 sequences are about 10 CPU-minutes, more than one
+// 12 m package run has on a four-core runner.
+func TestProperty_ProvenanceInvariants(t *testing.T) { propertySeeds(t, false) }
+
+// TestProperty_ProvenanceInvariantsUpper is the upper half of the seeds of TestProperty_ProvenanceInvariants.
+func TestProperty_ProvenanceInvariantsUpper(t *testing.T) { propertySeeds(t, true) }
+
+func propertySeeds(t *testing.T, upper bool) {
 	t.Parallel()
 	seqs := 60
 	if testing.Short() {
@@ -23,7 +32,11 @@ func TestProperty_ProvenanceInvariants(t *testing.T) {
 	if v, err := strconv.Atoi(os.Getenv("MM_PROPERTY_SEQS")); err == nil && v > 0 {
 		seqs = v
 	}
-	for seed := range seqs {
+	lo, hi := 0, seqs/2
+	if upper {
+		lo, hi = seqs/2, seqs
+	}
+	for seed := lo; seed < hi; seed++ {
 		t.Run(fmt.Sprintf("seq%03d", seed), func(t *testing.T) {
 			t.Parallel()
 			runSequence(t, uint64(seed))

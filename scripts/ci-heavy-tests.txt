@@ -91,3 +91,6 @@
 ./internal/transform TestChaos_ServerRestartMidRender 64 0
 ./internal/transform TestChaos_DiskFullAtIngest 40 1
 ./internal/transform TestAcceptance_T1_RealChild 31 1
+./internal/provenance TestProperty_ProvenanceInvariants 120 1
+./internal/provenance TestProperty_ProvenanceInvariantsUpper 120 0
+./internal/provenance TestProperty_FeatureInvariants 120 2

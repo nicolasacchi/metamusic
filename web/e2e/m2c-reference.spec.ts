@@ -1,7 +1,7 @@
 // matrix: chrome-only because badges, filters and the MP3 fallback are data-driven and identical in Chromium emulations (real iOS playback is in the device checklist)
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from "./fixtures";
 import { SEED_LOSSY_TRACKS, SEED_REFERENCE_FLACS, SEED_TRACKS, SEED_UNKNOWN_TRACKS } from "./env";
-import { apiJSON, uniq } from "./helpers";
+import { apiJSON, openFilters, uniq } from "./helpers";
 
 // Runs on desktop Chrome and the Pixel 7 only (playwright.config.ts). The two projects run it concurrently on
 // one library: each project owns one reference FLAC for the judging steps and undoes what it changed.
@@ -37,6 +37,7 @@ test("library filter Recipe: unknown lists exactly the reference and lossy track
   const errors = watchConsole(page);
   await page.goto("/library");
   await expect(page.getByTestId("track-row")).toHaveCount(SEED_TRACKS);
+  await openFilters(page); // on a phone the form is behind "Filters (n)" (a no-op on desktop)
   await page.locator('select[name="recipe_known"]').selectOption("false");
   await expect(page).toHaveURL(/recipe_known=false/);
   const rows = page.getByTestId("track-row");
