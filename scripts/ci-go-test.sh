@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: scripts/ci-go-test.sh run <shard 1..N> <N> <covdata-dir>
 #        scripts/ci-go-test.sh plan <shard 1..N> <N>      print the shard's units ("<pkg>" or "<pkg> <i>/<K>")
+#        scripts/ci-go-test.sh units                       print "<weight> <unit>" for every unit (MM_FULL_RACE=1 applies the race factor)
 #        scripts/ci-go-test.sh tests <pkg> <i> <K>        print the top-level tests of <pkg> in test-shard i of K
 # CI runs the Go tests as N parallel shards (M3 debts): every package of `go list ./...` lands in exactly one
 # shard, except the few giants listed with "split K" in scripts/ci-shard-weights.txt, whose top-level tests are
@@ -16,11 +17,18 @@ weights="$root/scripts/ci-shard-weights.txt"
 # unit lines: "<weight> <pkg> <i>/<K>" for split packages, "<weight> <pkg>" otherwise (pkg is ./-relative).
 # A split package's parts are not equal: the tests pinned to part i in scripts/ci-heavy-tests.txt weigh what they weigh
 # (a single 180 s test makes its part >= 180), the rest of the package is spread evenly over the K parts.
+# The weights are wall seconds of the PR run, where internal/dsp and internal/score run without -race (noracere below). Under the
+# nightly's MM_FULL_RACE=1 they run instrumented, which costs about 8x on their numeric loops (measured: internal/dsp/safety 9 s plain,
+# 75 s with -race), so their weight is scaled by RACE_FACTOR when the plan is for the full-race run; otherwise the nightly's shards
+# were balanced as if those packages were cheap and the shards that drew them starved (every package hit the 12 m timeout).
+RACE_FACTOR=8
+noracere='^[.]/internal/(dsp|score)(/|$)'
 units() {
-  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" -v hf="$root/scripts/ci-heavy-tests.txt" '
+  go list ./... | sed "s|^$(go list -m)|.|" | awk -v wf="$weights" -v hf="$root/scripts/ci-heavy-tests.txt" -v fr="${MM_FULL_RACE:-0}" -v nr="$noracere" -v rf="$RACE_FACTOR" '
     BEGIN { while ((getline l < wf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); w[f[1]] = f[2]; k[f[1]] = (f[3] ? f[3] : 1) }
             while ((getline l < hf) > 0) { if (l ~ /^#/ || l ~ /^[[:space:]]*$/) continue; split(l, f, " "); if (f[1] in k && k[f[1]] > 1) { q = f[4] % k[f[1]]; pin[f[1], q] += f[3]; pt[f[1]] += f[3] } } }
     { p = $0; wt = (p in w) ? w[p] : 3; n = (p in k) ? k[p] : 1
+      if (fr == 1 && p ~ nr) wt *= rf
       if (n > 1) {
         sc = (pt[p] > 0.9 * wt) ? 0.9 * wt / pt[p] : 1; rest = wt - pt[p] * sc
         for (i = 0; i < n; i++) printf "%.3f %s %d/%d\n", rest / n + pin[p, i] * sc, p, i, n
@@ -57,6 +65,9 @@ if [ -d /dev/shm ] && [ -w /dev/shm ]; then export TMPDIR=/dev/shm; fi
 
 cmd=${1:?run|plan|tests}
 case "$cmd" in
+  units)
+    units | sort -k1,1nr -k2,2 -k3,3
+    ;;
   plan)
     s=${2:?shard}; n=${3:?count}
     plan_all "$n" | awk -v s="$s" '$1 == s { $1 = ""; sub(/^ /, ""); print }'
@@ -86,7 +97,7 @@ case "$cmd" in
     # BEGIN T1-I1 dsp/score without -race: internal/dsp/... and internal/score/... are single-goroutine pure packages (D-T1-3e):
     # the race detector finds nothing there and only slows the bit-exact goldens. They run in plain mode (coverage and shuffle
     # stay on, so the coverage job still sees them); the nightly (MM_FULL_RACE=1) keeps them under -race. Mirrors NORACE_RE in the Makefile.
-    noracere='^\./internal/(dsp|score)(/|$)'
+    # (noracere is defined above, next to RACE_FACTOR)
     # the covdata of -race runs is counter mode atomic and covdata refuses to merge another mode, so the plain runs say it too
     flags_nr=(-covermode=atomic)
     for f in "${flags[@]}"; do case "$f" in -race | -gcflags=modernc.org/...=-race=false) ;; -covermode=*) ;; *) flags_nr+=("$f") ;; esac; done
