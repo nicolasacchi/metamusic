@@ -143,9 +143,12 @@ test("with a stale step-up, Approve opens the confirmation in a new tab and the 
     await expect(page.getByTestId("batch-state")).toHaveText("awaiting confirmation");
     const before = (await state(page)).t;
 
+    page.on("console", (m) => console.log("UXS-PAGE", m.text().slice(0, 160)));
     const popup = context.waitForEvent("page");
     await page.getByTestId("approve").click();
     const second = await popup;
+    second.on("console", (m) => console.log("UXS-SECOND", m.text().slice(0, 160)));
+    await page.waitForTimeout(3000);
     expect(new URL(second.url()).pathname + new URL(second.url()).search).toBe("/auth/step-up?next=/auth/step-up/done");
     await expect(page.getByTestId("decided")).toBeVisible({ timeout: 20_000 }); // retried here, not reloaded
     await expect.poll(() => second.isClosed()).toBe(true); // the stand-in closes itself

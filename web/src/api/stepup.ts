@@ -75,7 +75,9 @@ export function createStepUp(deps: StepUpDeps) {
     // No live gesture (the SecureGate probe fires on mount): a window.open would be blocked and the fallback hop would
     // unload the player. Wait instead; the banner's button is a click that can open the tab.
     const tap = !deps.standalone() && deps.activated?.() === false;
+    console.log("SU-DIAG require", kind, "tap", tap, "standalone", deps.standalone());
     if (!tap && (deps.standalone() || !deps.open(urlFor(kind)))) {
+      console.log("SU-DIAG hop");
       hop(kind);
       return Promise.resolve(false);
     }
@@ -85,6 +87,7 @@ export function createStepUp(deps: StepUpDeps) {
       let off = () => {};
       let checking = false;
       const done = (ok: boolean) => {
+        console.log("SU-DIAG done", ok);
         off();
         pending = null;
         finish = null;
@@ -162,7 +165,9 @@ export function browserDeps(snapshot: () => void = () => {}): StepUpDeps {
       let ch: BroadcastChannel | null = null;
       try {
         ch = new BroadcastChannel(CHANNEL);
+        console.log("SU-DIAG listen created");
         ch.onmessage = (e: MessageEvent) => {
+          console.log("SU-DIAG message", JSON.stringify(e.data));
           if (isDoneMessage(e.data)) signal(false);
         };
       } catch {
