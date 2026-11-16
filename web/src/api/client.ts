@@ -78,7 +78,9 @@ export function createApi(opts: ApiOptions = {}) {
       request.headers.set("X-MM-Client", "spa");
       request.headers.set("X-Requested-With", "XMLHttpRequest");
       // /human/api bodies are small JSON; uploads elsewhere are never cloned.
-      if (request.body && (request.method === "PUT" || isHumanApi(request))) spare.set(request, request.clone());
+      // Not gated on request.body: Firefox reports null there for a Request built from a string body, which left no spare and
+      // made the post-step-up retry throw "Body has already been consumed". GET and HEAD carry no body to keep.
+      if (request.method !== "GET" && request.method !== "HEAD" && (request.method === "PUT" || isHumanApi(request))) spare.set(request, request.clone());
       return request;
     },
     async onResponse({ request, response }) {

@@ -139,6 +139,11 @@
 <style>
   .result {
     margin-top: 1.5rem;
+    min-width: 0;
+  }
+  /* the 64-character sha256 is one unbreakable word: on a 393 px phone it widened the page, so taps landed beside their targets */
+  .result p {
+    overflow-wrap: anywhere;
   }
   .card {
     border: 1px solid #3a322b;
