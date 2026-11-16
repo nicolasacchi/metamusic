@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -407,5 +408,41 @@ func TestProvision_VerifyModelsReadOnly(t *testing.T) {
 	}
 	if e.srv.Calls(runpodtest.OpPatchEndpoint)+e.srv.Calls(runpodtest.OpCreateEndpoint) != 0 {
 		t.Error("verify-models wrote")
+	}
+}
+
+// The base DiT is baked into the worker image, so the ACE-Step models dir must be the image hub, not RunPod's
+// cached-model mount (which only carries the main bundle); the worker falls back to the mount on its own.
+func TestACEStepModelsDirIsImageHub(t *testing.T) {
+	for _, tasks := range []string{"turbo", "turbo,base"} {
+		s, err := runpod.DesiredSpecFor(aceCfg(), runpod.ACEStepProfile(aceCfg(), tasks), testDigest, 0, testCatalog())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := s.Env["MM_ACESTEP_MODELS_DIR"]; got != runpod.ImageHubDir || got == runpod.CachedModelDir {
+			t.Errorf("tasks %q: MM_ACESTEP_MODELS_DIR = %q, want image hub %q", tasks, got, runpod.ImageHubDir)
+		}
+	}
+}
+
+// Drift guard: Dockerfile.acestep bakes the base DiT into, and defaults MM_ACESTEP_MODELS_DIR to, a hub dir; both
+// must equal the constant the provisioner sets, or the baked base resolves to nothing and workers exit 1.
+func TestDockerfileAceStepHubMatchesImageHubDir(t *testing.T) {
+	b, err := os.ReadFile("../../../worker/Dockerfile.acestep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, re := range map[string]*regexp.Regexp{
+		"bake target (hub = ... Path(...))": regexp.MustCompile(`(?m)\bhub\s*=.*Path\("([^"]+)"\)`),
+		"ENV MM_ACESTEP_MODELS_DIR default": regexp.MustCompile(`MM_ACESTEP_MODELS_DIR=(\S+)`),
+	} {
+		m := re.FindSubmatch(b)
+		if m == nil {
+			t.Errorf("%s: pattern %s not found in worker/Dockerfile.acestep", name, re)
+			continue
+		}
+		if got := string(m[1]); got != runpod.ImageHubDir {
+			t.Errorf("%s = %q, but the provisioner uses runpod.ImageHubDir = %q", name, got, runpod.ImageHubDir)
+		}
 	}
 }

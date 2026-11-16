@@ -114,7 +114,8 @@ func PoolVRAMGB(pool string) (int, bool) {
 }
 
 // ACEStepProfile is the ACE-Step 1.5 endpoint (C155.1, C147.3). tasks is the endpoint's task list ("turbo" or
-// "turbo,base"; the base DiT is then baked into the image, the one cached model stays the main bundle). An
+// "turbo,base"; the base DiT is then baked into the image hub, which MM_ACESTEP_MODELS_DIR points at, while the one
+// cached model, the main bundle, is found by the worker at CachedModelDir). An
 // invalid list makes DesiredSpecFor fail with ErrBadTasks.
 func ACEStepProfile(cfg DesiredConfig, tasks string) EngineProfile {
 	p := EngineProfile{Engine: acestep.Name, EndpointName: ACEStepEndpointName, ColdStartS: cfg.ColdStartS,
@@ -128,7 +129,9 @@ func ACEStepProfile(cfg DesiredConfig, tasks string) EngineProfile {
 	p.ModelRefs = []ModelRef{{URL: hubURL + acestep.WeightsRepoMain, Revision: acestep.Weights[acestep.WeightsRepoMain]}}
 	p.Env = acestep.WeightsEnv(norm)
 	p.Env["ENGINE"] = acestep.Name
-	p.Env["MM_ACESTEP_MODELS_DIR"] = CachedModelDir
+	// The base DiT is baked into the image hub; the main bundle (the one cached model) is found by the
+	// worker's built-in fallback to CachedModelDir, so the override root must be the image hub.
+	p.Env["MM_ACESTEP_MODELS_DIR"] = ImageHubDir
 	p.Env["MM_LOAD_DEADLINE_S"] = strconv.Itoa(defaultLoadDeadlineS)
 	if cfg.TimeoutCase {
 		p.Env["MM_WORKER_DEADLINE"] = "provider"

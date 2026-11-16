@@ -4,7 +4,7 @@
     "HF_HUB_OFFLINE": "1",
     "MM_ACESTEP_MAIN_REVISION": "\u003credacted\u003e",
     "MM_ACESTEP_MAX_SECONDS": "480",
-    "MM_ACESTEP_MODELS_DIR": "/runpod-volume/huggingface-cache/hub",
+    "MM_ACESTEP_MODELS_DIR": "/opt/mm/hf-cache/hub",
     "MM_ACESTEP_POOL_VRAM_GB": "24",
     "MM_ACESTEP_TASKS": "turbo",
     "MM_LOAD_DEADLINE_S": "420",

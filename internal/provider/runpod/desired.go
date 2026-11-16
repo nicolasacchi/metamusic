@@ -18,9 +18,12 @@ const (
 	// CachedModelDir is where RunPod mounts the endpoint's cached models. RunPod allows ONE cached model per
 	// endpoint (the 3B); a second cached model (the VAE, --vae-source cached) is not offered.
 	CachedModelDir = "/runpod-volume/huggingface-cache/hub"
-	// ImageVAEDir is the Hugging Face hub cache baked into the worker image (worker/Dockerfile), holding
+	// ImageHubDir is the Hugging Face hub cache baked into the worker images (worker/Dockerfile, Dockerfile.acestep),
+	// holding the YuE2 VAE and the ACE-Step base DiT, each at its pinned revision.
+	ImageHubDir = "/opt/mm/hf-cache/hub"
+	// ImageVAEDir is the same dir under its original name: it holds
 	// m-a-p/YuE2-Vae at the pinned revision. It is the default VAE source.
-	ImageVAEDir = "/opt/mm/hf-cache/hub"
+	ImageVAEDir = ImageHubDir
 	// excludedGPUName is the catalog name of the type left out of the pools (C77.6).
 	excludedGPUName = "L4"
 )
