@@ -215,7 +215,7 @@ func TestReconciler_MeterTripOnUnattributedTime(t *testing.T) {
 	r.exec(`UPDATE batches SET state = 'finished', finished_at = ? WHERE id = ?`, store.FormatTime(r.clk.Now().Add(time.Minute)), s.Batch)
 	// a lifetime far after the batch's activity window: nobody's, but it started after the oldest open batch
 	r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES('orphan', ?, ?, ?, 3600, 'RUNNING')`,
-		store.FormatTime(r.clk.Now().Add(time.Hour)), store.FormatTime(r.clk.Now()), store.FormatTime(r.clk.Now()))
+		store.FormatTime(r.clk.Now().Add(time.Hour)), store.FormatTime(r.clk.Now()), store.FormatTime(r.clk.Now().Add(2*time.Hour)))
 	r.advance(2 * time.Hour)
 	rec := r.recon()
 	over, detail, err := rec.meterOver(t.Context())
@@ -379,5 +379,32 @@ func TestMeter_ReusedWorkerKeyGenuineOverrunStillTrips(t *testing.T) {
 	}
 	if got := r.openTripReason(); got != TripMeterExceeds {
 		t.Fatalf("trip %q, want %q", got, TripMeterExceeds)
+	}
+}
+
+// A worker whose lifetime ended seconds after a batch was created (its own batches long reconciled) is not that
+// batch's time, however long the batch waits for approval before anything is reserved/submitted.
+func TestMeter_LifetimeOverlappingBatchCreationIsNotItsOverhead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		firstSeen time.Duration
+	}{
+		{"first seen long before", -2*time.Hour + 2*time.Second},
+		{"first seen after creation", 9 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, rec := meterRig(t)
+			s := r.seedBatch(batchSpec{})
+			r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES('late', ?, ?, ?, 6766, 'RUNNING')`,
+				store.FormatTime(t0.Add(-2*time.Hour)), store.FormatTime(t0.Add(tc.firstSeen)), store.FormatTime(t0.Add(9*time.Second)))
+			r.advance(8 * time.Hour) // approval and the first submission come much later
+			over, detail, err := rec.meterOver(t.Context())
+			t.Logf("batch %s: %v %v", s.Batch, over, detail)
+			if err != nil || over {
+				t.Fatalf("false meter trip: %v %v %v", over, detail, err)
+			}
+		})
 	}
 }
