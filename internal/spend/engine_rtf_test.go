@@ -76,8 +76,8 @@ func TestEngineRTFRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 6 {
-		t.Fatalf("%d rows, want 6 (5 seeds + the measured A5000 replacing its seed): %+v", len(rows), rows)
+	if len(rows) != 10 {
+		t.Fatalf("%d rows, want 10 (9 seeds + the measured A5000 replacing its seed): %+v", len(rows), rows)
 	}
 	var got EngineRTFRow
 	for _, x := range rows {
@@ -256,5 +256,26 @@ func TestRecordEngineRTF_RowCheckFailure(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("write into a missing table succeeded")
+	}
+}
+
+// The default ACE-Step pools (AMPERE_24, ADA_24) are served by every class RunPod's catalog lists for them, not only the two
+// the canary budget names: a live estimate on 2026-11-16 saw RTX 3090 and an RTX PRO 6000 Blackwell MIG 1g.24gb slice next to
+// A5000 and RTX 4090, and the missing seed cells answered 503 no_rtf before any canary could measure them. They carry the A5000
+// cell (the slowest seeded class of those pools), so the estimate equals the canary's dry run.
+func TestEngineRTF_SeedCoversDefaultPoolClasses(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := context.Background()
+	live := []string{"A5000", "RTX 3090", "RTX 4090", "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb"}
+	for _, class := range []string{"turbo", "base"} {
+		all, allLoad, ok, err := r.s.EngineRTF(ctx, r.st.R, "acestep15", class, live)
+		if err != nil || !ok {
+			t.Fatalf("%s: the default pools' classes must all be seeded: ok=%v err=%v", class, ok, err)
+		}
+		a5000, a5000Load, _, _ := r.s.EngineRTF(ctx, r.st.R, "acestep15", class, []string{"A5000", "RTX 4090"})
+		if all != a5000 || allLoad != a5000Load {
+			t.Errorf("%s: seeded classes raised the estimate above the canary's A5000/RTX 4090 basis: %d/%d vs %d/%d", class, all, allLoad, a5000, a5000Load)
+		}
 	}
 }

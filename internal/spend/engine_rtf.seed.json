@@ -6,11 +6,15 @@
       "turbo": {
         "RTX 4090": { "rtf_milli": 120, "load_s": 10 },
         "A5000": { "rtf_milli": 150, "load_s": 10 },
+        "RTX 3090": { "rtf_milli": 150, "load_s": 10 },
+        "PRO 6000 MIG 24GB": { "rtf_milli": 150, "load_s": 10 },
         "L4": { "rtf_milli": 300, "load_s": 10 }
       },
       "base": {
         "RTX 4090": { "rtf_milli": 900, "load_s": 20 },
         "A5000": { "rtf_milli": 1200, "load_s": 20 },
+        "RTX 3090": { "rtf_milli": 1200, "load_s": 20 },
+        "PRO 6000 MIG 24GB": { "rtf_milli": 1200, "load_s": 20 },
         "L4": { "rtf_milli": 2400, "load_s": 20 }
       }
     }
