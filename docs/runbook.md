@@ -424,7 +424,11 @@ metamusic engines reject acestep15 --reason "..."
 
 Each call appends one row to the append-only adoption log and one audit row (`cli:engines-adopt` or `cli:engines-reject`); history
 is never rewritten, and the latest row decides. A create for a non-adopted engine answers `ENGINE_NOT_ADOPTED` with this command
-as the hint. Adopt only after the canary passed and you listened to a take.
+as the hint. The canary is itself a set of generations, so it meets the same gate: adopt the engine right before the canary,
+with a reason that names the approved canary, and `reject` it if the canary fails. Generate with it for real only after the
+canary passed and you listened to a take. The estimate also needs an RTF for every GPU class the endpoint's pools can serve
+(`engine_rtf` row, else the committed seed in `internal/spend/engine_rtf.seed.json`); a class with neither answers
+`503 GENERATION_DISABLED` reason `no_rtf`.
 
 ### The ACE-Step canary
 
