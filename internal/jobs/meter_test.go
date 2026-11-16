@@ -310,3 +310,74 @@ func TestBillableMeterTotals(t *testing.T) {
 		})
 	}
 }
+
+// reusedKeyRig has a worker lifetime that was fully billed by a long-finished batch (one hour of RUNNING, stored
+// under (key, started)), then three days of silence, then the same worker record reappears for a new batch:
+// RunPod reuses warm hosts, so the same worker id returns (production incident, 2026-11-16).
+func reusedKeyRig(t *testing.T) (r *rig, rec *Reconciler, job string, created time.Time) {
+	t.Helper()
+	r, rec = meterRig(t)
+	created = t0.Add(-time.Hour)
+	key := workerKey(meterKey, "reused")
+	r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,3642,'RUNNING')`,
+		key, store.FormatTime(created), store.FormatTime(created.Add(26*time.Second)), store.FormatTime(created.Add(time.Hour+27*time.Second)))
+	r.advance(72 * time.Hour)
+	job = r.seedBatch(batchSpec{}).Jobs[0]
+	r.submitOne(job)
+	r.running(job, "reused")
+	return r, rec, job, created
+}
+
+// The stored total of an earlier lifetime of the same worker id is not time of the current batch.
+func TestMeter_ReusedWorkerKeyAfterGapStartsNewLifetime(t *testing.T) {
+	t.Parallel()
+	r, rec, _, created := reusedKeyRig(t)
+	key := workerKey(meterKey, "reused")
+	for range 6 {
+		r.sweep(worker("reused", "RUNNING", upt(int(r.clk.Now().Sub(created).Seconds())), created))
+		r.mustPass(rec)
+		r.advance(10 * time.Second)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM provider_trips`); n != 0 {
+		t.Fatalf("false trip (%s): seconds billed to an earlier batch were counted against this one", r.openTripReason())
+	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_meter WHERE worker_key = ?`, key); n != 2 {
+		t.Fatalf("lifetimes %d, want the old one plus a new one", n)
+	}
+	if n := r.count(`SELECT uptime_s FROM worker_meter WHERE worker_key = ? AND uptime_s = 3642`, key); n != 3642 {
+		t.Errorf("the old lifetime must stay untouched, got %d", n)
+	}
+	if n := r.count(`SELECT MAX(uptime_s) FROM worker_meter WHERE worker_key = ? AND uptime_s <> 3642`, key); n <= 0 || n > 60 {
+		t.Errorf("new lifetime billable seconds %d, want only what was observed since the reappearance", n)
+	}
+	m, err := loadMeter(t.Context(), r.st.R, r.clk.Now(), rec.lastSweepAt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.unattribL != 0 {
+		t.Errorf("unattributed %d s", m.unattribL)
+	}
+	for b, s := range m.overheadS {
+		if s > 60 {
+			t.Errorf("batch %s overhead %d s: old lifetime leaked in", b, s)
+		}
+	}
+	st, err := meterStats(t.Context(), r.st.R, r.clk.Now())
+	if err != nil || st.BilledSeconds > 60 {
+		t.Errorf("provider status billed %d s (%v): the old lifetime is not part of the last 24 hours", st.BilledSeconds, err)
+	}
+}
+
+// A reused worker that really runs unpaid for long still trips.
+func TestMeter_ReusedWorkerKeyGenuineOverrunStillTrips(t *testing.T) {
+	t.Parallel()
+	r, rec, _, created := reusedKeyRig(t)
+	for el := 0; el < 3600 && r.count(`SELECT COUNT(*) FROM provider_trips`) == 0; el += 30 {
+		r.sweep(worker("reused", "RUNNING", upt(int(r.clk.Now().Sub(created).Seconds())), created))
+		r.mustPass(rec)
+		r.advance(30 * time.Second)
+	}
+	if got := r.openTripReason(); got != TripMeterExceeds {
+		t.Fatalf("trip %q, want %q", got, TripMeterExceeds)
+	}
+}
