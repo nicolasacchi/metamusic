@@ -25,11 +25,22 @@ import (
 // wall-clock delta) and written as a running total with max() semantics, so a retried transaction cannot
 // double count and the monotonic trigger holds. A row exists only once the worker has been observed RUNNING,
 // and started_at/first_seen_at/last_seen_at then span billable observation. The schema is unchanged.
+//
+// A worker id is not a lifetime for ever (reuse incident, 2026-11-16): RunPod hands a warm host to a later batch
+// under the same id. A worker seen again RUNNING after more than idle_s + 60 s without billable seconds (absent
+// from the listing, or standing by) starts a NEW lifetime row, so the total stored under the old one, settled
+// by the batch that ran then, is neither carried into the current batch's attribution nor into its trip test.
+// The row key (worker_key, started_at) is kept: the new lifetime takes started_at = the reappearance, as the
+// legacy-row case already does. Seconds still add up across rows; none is counted twice.
 
 // settingMeterBillableSince is the settings key holding the instant from which worker_meter rows are
 // trusted: rows first seen earlier carry the listing's raw uptime (the pre-fix meaning) and are ignored by
 // the meter, the trip test and the provider status.
 const settingMeterBillableSince = "meter.billable_since"
+
+// meterLifetimeSlackS is added to the idle timeout to bound the gap after which a returning worker id starts a
+// new lifetime: the same idle_s + 60 s a batch waits before it reconciles (C76.6).
+const meterLifetimeSlackS = 60
 
 // meterObs is the last listing observation of one worker and the billable seconds accumulated for it.
 type meterObs struct {
@@ -40,7 +51,8 @@ type meterObs struct {
 	idleLeft  int64 // idle seconds still billable after the last RUNNING observation
 	started   time.Time
 	hasRow    bool
-	firstSeen bool // no previous observation in this process
+	lastBill  time.Time // last time seconds were credited to the lifetime (its row's last_seen_at)
+	firstSeen bool      // no previous observation in this process
 }
 
 type meterPlan struct {
@@ -88,16 +100,24 @@ func (r *Reconciler) planMeter(ctx context.Context, ws []provider.Worker, now ti
 		r.mu.Unlock()
 		o.firstSeen = prev == nil
 		if o.firstSeen {
-			var started string
+			var started, last string
 			var total int64
-			err := r.o.Store.R.QueryRowContext(ctx, `SELECT started_at, uptime_s FROM worker_meter WHERE worker_key = ? AND first_seen_at >= ? ORDER BY started_at DESC LIMIT 1`,
-				key, since).Scan(&started, &total)
+			err := r.o.Store.R.QueryRowContext(ctx, `SELECT started_at, uptime_s, last_seen_at FROM worker_meter WHERE worker_key = ? AND first_seen_at >= ? ORDER BY started_at DESC LIMIT 1`,
+				key, since).Scan(&started, &total, &last)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return nil, err
 			}
 			if err == nil {
-				o.started, o.billable, o.hasRow = mustT(started), total, true
+				o.started, o.billable, o.hasRow, o.lastBill = mustT(started), total, true, mustT(last)
 			}
+		}
+		// A worker id seen again after a gap longer than the billable idle tail (a reused warm host, or a standby
+		// record that woke up) is a new billing episode: the seconds stored under the old lifetime were settled
+		// by whichever batch ran then and must not be carried into this one. It gets a new lifetime (row). A worker
+		// observed RUNNING by the previous sweep was billable throughout, so that never splits.
+		if st == "RUNNING" && o.hasRow && (o.firstSeen || o.status != "RUNNING") && now.Sub(o.lastBill) > time.Duration(idleS+meterLifetimeSlackS)*time.Second {
+			o.hasRow, o.billable, o.started = false, 0, time.Time{}
+			o.idleLeft = 0
 		}
 		var d int64
 		switch {
@@ -148,6 +168,9 @@ func (r *Reconciler) planMeter(ctx context.Context, ws []provider.Worker, now ti
 			o.started, o.hasRow = started, true
 		}
 		p.write = o.hasRow && (st == "RUNNING" || d > 0)
+		if p.write {
+			o.lastBill = now
+		}
 		plan = append(plan, p)
 	}
 	return plan, nil

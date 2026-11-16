@@ -140,6 +140,12 @@ func loadMeterFor(ctx context.Context, x Querier, now, lastSweep time.Time, sc m
 		if f := mustT(fs); f.After(l.started) {
 			l.started = f
 		}
+		// billable seconds cannot overlap, so a lifetime that billed uptimeS seconds ending at last_seen began no
+		// later than that: a first_seen_at after the true start (a row recorded late) must not make a lifetime
+		// that ran before a batch existed look as if it began after the batch's creation
+		if b := l.lastSeen.Add(-time.Duration(l.uptimeS) * time.Second); b.Before(l.started) {
+			l.started = b
+		}
 		m.lifetimes = append(m.lifetimes, l)
 	}
 	if err := rows.Close(); err != nil {

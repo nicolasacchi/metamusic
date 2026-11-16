@@ -215,7 +215,7 @@ func TestReconciler_MeterTripOnUnattributedTime(t *testing.T) {
 	r.exec(`UPDATE batches SET state = 'finished', finished_at = ? WHERE id = ?`, store.FormatTime(r.clk.Now().Add(time.Minute)), s.Batch)
 	// a lifetime far after the batch's activity window: nobody's, but it started after the oldest open batch
 	r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES('orphan', ?, ?, ?, 3600, 'RUNNING')`,
-		store.FormatTime(r.clk.Now().Add(time.Hour)), store.FormatTime(r.clk.Now()), store.FormatTime(r.clk.Now()))
+		store.FormatTime(r.clk.Now().Add(time.Hour)), store.FormatTime(r.clk.Now()), store.FormatTime(r.clk.Now().Add(2*time.Hour)))
 	r.advance(2 * time.Hour)
 	rec := r.recon()
 	over, detail, err := rec.meterOver(t.Context())
@@ -306,6 +306,104 @@ func TestBillableMeterTotals(t *testing.T) {
 			n, secs, err := BillableMeterTotals(t.Context(), r.st.R)
 			if err != nil || n != c.want[0] || secs != c.want[1] {
 				t.Errorf("got %d %d %v, want %v", n, secs, err, c.want)
+			}
+		})
+	}
+}
+
+// reusedKeyRig has a worker lifetime that was fully billed by a long-finished batch (one hour of RUNNING, stored
+// under (key, started)), then three days of silence, then the same worker record reappears for a new batch:
+// RunPod reuses warm hosts, so the same worker id returns (production incident, 2026-11-16).
+func reusedKeyRig(t *testing.T) (r *rig, rec *Reconciler, job string, created time.Time) {
+	t.Helper()
+	r, rec = meterRig(t)
+	created = t0.Add(-time.Hour)
+	key := workerKey(meterKey, "reused")
+	r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES(?,?,?,?,3642,'RUNNING')`,
+		key, store.FormatTime(created), store.FormatTime(created.Add(26*time.Second)), store.FormatTime(created.Add(time.Hour+27*time.Second)))
+	r.advance(72 * time.Hour)
+	job = r.seedBatch(batchSpec{}).Jobs[0]
+	r.submitOne(job)
+	r.running(job, "reused")
+	return r, rec, job, created
+}
+
+// The stored total of an earlier lifetime of the same worker id is not time of the current batch.
+func TestMeter_ReusedWorkerKeyAfterGapStartsNewLifetime(t *testing.T) {
+	t.Parallel()
+	r, rec, _, created := reusedKeyRig(t)
+	key := workerKey(meterKey, "reused")
+	for range 6 {
+		r.sweep(worker("reused", "RUNNING", upt(int(r.clk.Now().Sub(created).Seconds())), created))
+		r.mustPass(rec)
+		r.advance(10 * time.Second)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM provider_trips`); n != 0 {
+		t.Fatalf("false trip (%s): seconds billed to an earlier batch were counted against this one", r.openTripReason())
+	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_meter WHERE worker_key = ?`, key); n != 2 {
+		t.Fatalf("lifetimes %d, want the old one plus a new one", n)
+	}
+	if n := r.count(`SELECT uptime_s FROM worker_meter WHERE worker_key = ? AND uptime_s = 3642`, key); n != 3642 {
+		t.Errorf("the old lifetime must stay untouched, got %d", n)
+	}
+	if n := r.count(`SELECT MAX(uptime_s) FROM worker_meter WHERE worker_key = ? AND uptime_s <> 3642`, key); n <= 0 || n > 60 {
+		t.Errorf("new lifetime billable seconds %d, want only what was observed since the reappearance", n)
+	}
+	m, err := loadMeter(t.Context(), r.st.R, r.clk.Now(), rec.lastSweepAt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.unattribL != 0 {
+		t.Errorf("unattributed %d s", m.unattribL)
+	}
+	for b, s := range m.overheadS {
+		if s > 60 {
+			t.Errorf("batch %s overhead %d s: old lifetime leaked in", b, s)
+		}
+	}
+	st, err := meterStats(t.Context(), r.st.R, r.clk.Now())
+	if err != nil || st.BilledSeconds > 60 {
+		t.Errorf("provider status billed %d s (%v): the old lifetime is not part of the last 24 hours", st.BilledSeconds, err)
+	}
+}
+
+// A reused worker that really runs unpaid for long still trips.
+func TestMeter_ReusedWorkerKeyGenuineOverrunStillTrips(t *testing.T) {
+	t.Parallel()
+	r, rec, _, created := reusedKeyRig(t)
+	for el := 0; el < 3600 && r.count(`SELECT COUNT(*) FROM provider_trips`) == 0; el += 30 {
+		r.sweep(worker("reused", "RUNNING", upt(int(r.clk.Now().Sub(created).Seconds())), created))
+		r.mustPass(rec)
+		r.advance(30 * time.Second)
+	}
+	if got := r.openTripReason(); got != TripMeterExceeds {
+		t.Fatalf("trip %q, want %q", got, TripMeterExceeds)
+	}
+}
+
+// A worker whose lifetime ended seconds after a batch was created (its own batches long reconciled) is not that
+// batch's time, however long the batch waits for approval before anything is reserved/submitted.
+func TestMeter_LifetimeOverlappingBatchCreationIsNotItsOverhead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		firstSeen time.Duration
+	}{
+		{"first seen long before", -2*time.Hour + 2*time.Second},
+		{"first seen after creation", 9 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, rec := meterRig(t)
+			s := r.seedBatch(batchSpec{})
+			r.exec(`INSERT INTO worker_meter(worker_key, started_at, first_seen_at, last_seen_at, uptime_s, status_last) VALUES('late', ?, ?, ?, 6766, 'RUNNING')`,
+				store.FormatTime(t0.Add(-2*time.Hour)), store.FormatTime(t0.Add(tc.firstSeen)), store.FormatTime(t0.Add(9*time.Second)))
+			r.advance(8 * time.Hour) // approval and the first submission come much later
+			over, detail, err := rec.meterOver(t.Context())
+			t.Logf("batch %s: %v %v", s.Batch, over, detail)
+			if err != nil || over {
+				t.Fatalf("false meter trip: %v %v %v", over, detail, err)
 			}
 		})
 	}

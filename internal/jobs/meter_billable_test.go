@@ -84,7 +84,7 @@ func (r *rig) meterRows() map[string]int {
 		if err := rows.Scan(&k, &u); err != nil {
 			r.t.Fatal(err)
 		}
-		out[k] = u
+		out[k] += u // a worker id that returned after a gap has one row per lifetime
 	}
 	return out
 }
@@ -175,8 +175,27 @@ func TestMeterBillable_RestartMidRunning(t *testing.T) {
 	if got := r.meterRows()[key]; got != 120 {
 		t.Errorf("then %d, want 120", got)
 	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_meter`); n != 2 {
+		t.Errorf("rows %d, want 2: a gap longer than idle + 60 s starts a new lifetime (seconds still add up)", n)
+	}
+}
+
+// A restart shorter than the billable idle tail keeps the lifetime.
+func TestMeterBillable_ShortRestartKeepsLifetime(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	rec := r.recon()
+	r.listWith(func(now time.Time) []provider.Worker {
+		return []provider.Worker{phased("w1", t0.Add(-time.Hour), t0, phase{"RUNNING", 24 * time.Hour})(now)}
+	})
+	r.drive(rec, 100*time.Second, 10*time.Second)
+	rec2 := r.recon()
+	r.advance(30 * time.Second)
+	r.mustPass(rec2)
+	r.advance(10 * time.Second)
+	r.mustPass(rec2)
 	if n := r.count(`SELECT COUNT(*) FROM worker_meter`); n != 1 {
-		t.Errorf("rows %d", n)
+		t.Errorf("rows %d, want 1", n)
 	}
 }
 
