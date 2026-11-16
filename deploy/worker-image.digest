@@ -1,1 +1,2 @@
-# placeholder: set by the M3-X2 PR to the published worker image digest (sha256:<64 hex>); never edited by CI
+# ghcr.io/nicolasacchi/metamusic-worker, published by worker-image.yml (publish) from main 43442f1 on 2026-11-14 (upload retry on UPLOAD_IN_PROGRESS); committed by hand, never edited by CI
+sha256:2424f6721fc229888527a7cf4dd652abc58a6b06e33119d169e5d7aa5d1be226
