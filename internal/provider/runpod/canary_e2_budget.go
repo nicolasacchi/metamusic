@@ -62,12 +62,14 @@ func (p BudgetParams) withDefaults() BudgetParams {
 // pins the equality): the real-time factor (milli) and fixed load seconds per class and GPU class until a canary
 // measures them.
 var placeholderRTF = map[string]map[string]struct{ RTFMilli, LoadS int }{
-	acestep.ClassTurbo: {"RTX 4090": {120, 10}, "A5000": {150, 10}, "L4": {300, 10}},
-	acestep.ClassBase:  {"RTX 4090": {900, 20}, "A5000": {1200, 20}, "L4": {2400, 20}},
+	acestep.ClassTurbo: {"RTX 4090": {120, 10}, "A5000": {150, 10}, "RTX 3090": {150, 10}, "PRO 6000 MIG 24GB": {150, 10}, "L4": {300, 10}},
+	acestep.ClassBase:  {"RTX 4090": {900, 20}, "A5000": {1200, 20}, "RTX 3090": {1200, 20}, "PRO 6000 MIG 24GB": {1200, 20}, "L4": {2400, 20}},
 }
 
-// poolClasses are the GPU classes of the pools the placeholders know. L4 is excluded from every pool (C155.1).
-var poolClasses = map[string][]string{"AMPERE_24": {"A5000"}, "ADA_24": {"RTX 4090"}}
+// poolClasses are the GPU classes of the pools the placeholders know. L4 is excluded from every pool (C155.1). The live
+// catalog also served an RTX PRO 6000 Blackwell MIG 1g.24gb slice for these pools (2026-11-16); its placeholder equals A5000,
+// so it cannot raise the maximum and needs no pool entry.
+var poolClasses = map[string][]string{"AMPERE_24": {"A5000", "RTX 3090"}, "ADA_24": {"RTX 4090"}}
 
 // classRTF is the maximum RTF and load over the pools' classes (the quote's rule); a pool with no placeholder counts
 // every class of the seed, the conservative choice.
