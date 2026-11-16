@@ -7,6 +7,9 @@ import { audioTime, trackByTitle } from "./helpers";
 import { comments, watchM5 } from "./m5Api";
 
 test.describe.configure({ mode: "serial", timeout: 120_000 });
+test.beforeEach(({ browserName }) => {
+  test.skip(browserName !== "chromium", "Firefox CI has no audio device for the AudioContext behind the recording (m5-voice covers the recorder's states there)");
+});
 
 declare global {
   interface Window {

@@ -105,7 +105,7 @@ test("the table lists the same Songs and its checkboxes drive the selection bar"
   await expect(page.getByTestId("atlas-select-bar")).toHaveCount(0);
 });
 
-test("rectangle-select on the canvas, then New Record from selection opens the Record's Sequence tab", async ({ page, request }) => {
+test("rectangle-select on the canvas, then New Record from selection opens the Record's Sequence tab", async ({ page, request, browserName }) => {
   const all = await songs(request);
   await page.goto("/atlas");
   await filterTo(page, tag);
@@ -118,6 +118,8 @@ test("rectangle-select on the canvas, then New Record from selection opens the R
   // touch layouts have a Select mode button and a finger drag draws the rectangle; with a mouse it is shift-drag
   const toggle = page.getByTestId("atlas-select-toggle");
   if ((await toggle.count()) > 0) {
+    // the finger drag is injected over the DevTools protocol (Input.dispatchTouchEvent): CDP sessions exist only in Chromium
+    test.skip(browserName !== "chromium", "browserContext.newCDPSession is Chromium-only");
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
     const lo = await at(canvas, Math.min(...us) - 0.03, Math.min(...vs) - 0.06);

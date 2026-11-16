@@ -4,13 +4,14 @@ import { ownTracks } from "./helpers";
 
 // Runs with the service worker allowed (the page is controlled after the first load); every project has its own server,
 // so the offline set is its own. Clipboard access is granted to the context.
-test.use({ serviceWorkers: "allow", permissions: ["clipboard-read", "clipboard-write"] });
+test.use({ serviceWorkers: "allow" });
 
 test.describe.configure({ mode: "serial" });
 
 const controlled = (page: Page) => page.evaluate(() => navigator.serviceWorker.controller !== null);
 
-test("the page is controlled by the worker after the first load", async ({ page, request }, info) => {
+test("the page is controlled by the worker after the first load", async ({ page, request, browserName }, info) => {
+  test.skip(browserName !== "chromium", "service workers never activate under Playwright's Firefox");
   const [t] = await ownTracks(request, info);
   await page.goto(`/tracks/${t.id}`);
   await expect.poll(() => controlled(page), { timeout: 15_000 }).toBe(true);
@@ -48,7 +49,9 @@ test("Download FLAC is an attachment", async ({ page, request }, info) => {
   expect((await dl).suggestedFilename()).toMatch(/\.flac$/);
 });
 
-test("Copy critique prompt puts the prompt on the clipboard", async ({ page, request }, info) => {
+test("Copy critique prompt puts the prompt on the clipboard", async ({ page, context, request, browserName }, info) => {
+  test.skip(browserName !== "chromium", "Playwright Firefox has no clipboard-read permission (newContext: Unknown permission)");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const [t] = await ownTracks(request, info);
   await page.goto(`/tracks/${t.id}`);
   await page.getByTestId("copy-critique-prompt").click();
@@ -58,7 +61,8 @@ test("Copy critique prompt puts the prompt on the clipboard", async ({ page, req
   expect(text).toContain(t.id);
 });
 
-test("Download for offline lists the track in /offline; Remove takes it away", async ({ page, request }, info) => {
+test("Download for offline lists the track in /offline; Remove takes it away", async ({ page, request, browserName }, info) => {
+  test.skip(browserName !== "chromium", "service workers never activate under Playwright's Firefox");
   const [t] = await ownTracks(request, info);
   await page.goto(`/tracks/${t.id}`);
   await page.getByTestId("offline-add").click();

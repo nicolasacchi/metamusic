@@ -7,6 +7,11 @@ import { allTracks, audioTime, apiJSON } from "./helpers";
 // the one that edits it puts it back.
 test.use({ serviceWorkers: "allow" });
 test.describe.configure({ mode: "serial" });
+// Every test here needs a controlling worker. Playwright's Firefox never activates one: the app's register() resolves but
+// getRegistrations() stays empty and navigator.serviceWorker.controller stays null (diagnosed in a nightly e2e-extra run).
+test.beforeEach(({ browserName }) => {
+  test.skip(browserName !== "chromium", "service workers never activate under Playwright's Firefox");
+});
 
 const CHUNK = 2 * 1024 * 1024;
 const CAP = 4 * 1024 * 1024;
