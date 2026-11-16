@@ -69,7 +69,15 @@ export function createApi(opts: ApiOptions = {}) {
   // Wait for the second-tab confirmation, then replay the request here (the page, and its audio, never unload).
   async function afterStepUp(request: Request, kind: Trigger): Promise<Response | undefined> {
     if (!(await flow.require(kind))) return undefined;
-    const r = await send(fresh(request));
+    console.log("SU-DIAG retrying", request.method, request.url, "spare", spare.has(request));
+    let r: Response;
+    try {
+      r = await send(fresh(request));
+    } catch (e) {
+      console.log("SU-DIAG retry threw", String(e));
+      throw e;
+    }
+    console.log("SU-DIAG retry status", r.status);
     if (r.status < 500) session.ok();
     return r;
   }
