@@ -450,6 +450,14 @@ the sum of the stage ceilings; the command refuses when the sum exceeds it.
    `timings.extra`) into `engine-canary-measured.json` for you to review and commit. A capability flag is merged into
    `features.verified.json` only for a case that passed; the rest stay off and the UI says "not yet verified".
 5. Exit codes: 0 pass, 1 fail, 2 usage, 3 refused (cost or disarmed), 4 aborted.
+6. The server refuses a capability that `features.verified.json` does not list (422 `ENGINE_CAPABILITY`), so the `reference`, `repaint`,
+   `extend`, `complete`, `extract` and `lrc` cases need the canary-only switch. For the canary window only, set
+   `MM_ACESTEP_CANARY_CAPS=reference,repaint` (names from that list; `complete`/`extract` also need `MM_ACESTEP_TASKS=turbo,base`)
+   in the server's env and redeploy env-only with `DEPLOY_SKIP_BUILD=1` (no image build). `config check` prints
+   `acestep canary caps: ...` and the server logs one WARN at startup.
+7. Only requests whose id starts `mm-canary-<YYYYMMDD>-` get the capability; everything else, `list_engines` and the SPA still show it
+   unverified. Each take that used one logs `canary_cap` and records `canary_caps` in the job's mutation. Right after the last case,
+   remove the variable and redeploy with `DEPLOY_SKIP_BUILD=1` again; then commit the proposed `features.verified.json`.
 
 ### Arming, disarming and deploying per backend
 

@@ -128,6 +128,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_ACESTEP_MAX_RUNTIME` | Timeout of the ACE-Step endpoint and cap of its takes' `timeout_s` (default `MM_JOB_MAX_RUNTIME`, 30s..45m). |
 | `MM_ACESTEP_TASKS` | Task classes the ACE-Step endpoint is provisioned for: `turbo` (default) or `turbo,base`. |
 | `MM_ACESTEP_POOLS` | RunPod pool ids the ACE-Step endpoint is provisioned on (default `AMPERE_24,ADA_24`; comma list of `[A-Z0-9_]{2,40}`). |
+| `MM_ACESTEP_CANARY_CAPS` | Comma list drawn from `reference,repaint,extend,complete,extract,lrc`: capabilities the real-GPU canary may exercise before `features.verified.json` lists them. Offered to canary batches only (request ids `mm-canary-<YYYYMMDD>-...`); every other request, and every read-only surface, still sees the verified set. `complete` and `extract` also need `MM_ACESTEP_TASKS=turbo,base`. Needs `MM_ACESTEP=1`. Set only for the canary window. Default off. |
 | `MM_E2E_ACESTEP_FEATURES` | Test servers only: `all` (with `MM_E2E=1`) offers every ACE-Step capability without a canary. Refused at config load unless `MM_BACKEND=fake`. |
 | `MM_OIDC_SCOPES` | Scopes advertised and required for connectors (default `openid metamusic`; must contain `metamusic`). |
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
 
@@ -116,5 +118,33 @@ func TestBuildM3_ProviderStatusShowsTheProcessLimits(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(s.Backends.Names(), ","), provider.BackendFake) || len(all.Backends) == 0 {
 		t.Fatalf("status all = %+v", all)
+	}
+}
+
+// TestE2Hooks_CanaryCapsLeaveTheRegistryVerifiedOnly: MM_ACESTEP_CANARY_CAPS never changes what the registry reports, so
+// list_engines and the engines view keep showing the switched capabilities as unverified.
+func TestE2Hooks_CanaryCapsLeaveTheRegistryVerifiedOnly(t *testing.T) {
+	e := newM3Env(t, func(c *config.Config) {
+		c.Backend = config.BackendFake
+		aceCfg(c)
+		c.ACEStepCanaryCaps = []string{"reference", "repaint", "lrc"}
+	})
+	s := e.build(t, app.Options{})
+	ae, ok := s.Engines["acestep15"].(acestep.Engine)
+	if !ok {
+		t.Fatal("acestep15 missing from the registry")
+	}
+	if !reflect.DeepEqual(ae.Verified, acestep.EmbeddedFeatures()) {
+		t.Errorf("registered features differ from the verified file: %+v", ae.Verified)
+	}
+	if c := ae.Caps(); c.ReferenceAudio || c.RepaintInterval || c.LRC {
+		t.Errorf("registered caps offer a switched capability: %+v", c)
+	}
+}
+
+// TestCanaryCapNamesMatchEngine pins config's vocabulary to the engine's.
+func TestCanaryCapNamesMatchEngine(t *testing.T) {
+	if !slices.Equal(config.ACEStepCanaryCapNames, acestep.CanaryCapNames()) {
+		t.Errorf("config %v, engine %v", config.ACEStepCanaryCapNames, acestep.CanaryCapNames())
 	}
 }

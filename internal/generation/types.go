@@ -62,6 +62,9 @@ type planTake struct {
 	InputBytes       int     `json:"input_bytes"`
 	Warnings         []Issue `json:"warnings"`
 
+	// CanaryCaps names the switched-on capabilities (MM_ACESTEP_CANARY_CAPS) this canary take uses; absent otherwise.
+	CanaryCaps []string `json:"canary_caps,omitempty"`
+
 	// Ref is the reference clip an E2 take pinned at estimate (C149.3): create renders it again and compares the digest.
 	Ref *frozenRef `json:"ref,omitempty"`
 }

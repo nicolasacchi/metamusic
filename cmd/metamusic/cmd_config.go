@@ -67,6 +67,9 @@ func configCheck(getenv func(string) string, s streams) error {
 	} else {
 		fmt.Fprintln(s.out, "acestep: disabled")
 	}
+	if len(cfg.ACEStepCanaryCaps) > 0 {
+		fmt.Fprintf(s.out, "acestep canary caps: %s (canary batches only)\n", strings.Join(cfg.ACEStepCanaryCaps, ","))
+	}
 	if cfg.NtfyURL != "" {
 		fmt.Fprintf(s.out, "ntfy: enabled (token %s)\n", map[bool]string{true: "set", false: "not set"}[sec.NtfyToken != ""])
 	} else {

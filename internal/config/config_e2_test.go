@@ -120,3 +120,39 @@ func TestConfig_ACESTEPTasksNormalised(t *testing.T) {
 		t.Errorf("%v (%v)", c.ACEStepTasks, err)
 	}
 }
+
+func TestConfig_ACEStepCanaryCaps(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		kv   []string
+		want []string
+		bad  string
+	}{
+		{"unset", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake"}, nil, ""},
+		{"empty", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", ""}, nil, ""},
+		{"one", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", "reference"}, []string{"reference"}, ""},
+		{"list with spaces and duplicates", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", "repaint, reference,repaint"}, []string{"repaint", "reference"}, ""},
+		{"all", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", "reference,repaint,extend,complete,extract,lrc"},
+			[]string{"reference", "repaint", "extend", "complete", "extract", "lrc"}, ""},
+		{"unknown", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", "reference,sorcery"}, nil, "MM_ACESTEP_CANARY_CAPS"},
+		{"text2music is not switchable", []string{"MM_ACESTEP", "1", "MM_BACKEND", "fake", "MM_ACESTEP_CANARY_CAPS", "text2music"}, nil, "MM_ACESTEP_CANARY_CAPS"},
+		{"needs MM_ACESTEP", []string{"MM_ACESTEP_CANARY_CAPS", "reference"}, nil, "MM_ACESTEP"},
+		{"needs MM_ACESTEP=1", []string{"MM_ACESTEP", "0", "MM_ACESTEP_CANARY_CAPS", "reference"}, nil, "MM_ACESTEP"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c, err := Load(e2env(tc.kv...))
+			switch {
+			case tc.bad != "":
+				if err == nil || !strings.Contains(err.Error(), tc.bad) || !strings.Contains(err.Error(), "MM_ACESTEP_CANARY_CAPS") {
+					t.Fatalf("error %v, want one naming MM_ACESTEP_CANARY_CAPS and %s", err, tc.bad)
+				}
+			case err != nil:
+				t.Fatal(err)
+			case !reflect.DeepEqual(c.ACEStepCanaryCaps, tc.want):
+				t.Errorf("caps %v, want %v", c.ACEStepCanaryCaps, tc.want)
+			}
+		})
+	}
+}

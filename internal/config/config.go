@@ -61,6 +61,7 @@ type Config struct {
 	ACEStepMaxRuntime time.Duration // MM_ACESTEP_MAX_RUNTIME, default MM_JOB_MAX_RUNTIME, 30s..45m
 	ACEStepTasks      []string      // MM_ACESTEP_TASKS: ["turbo"] (default) or ["turbo","base"]
 	ACEStepPools      []string      // MM_ACESTEP_POOLS, default AMPERE_24,ADA_24
+	ACEStepCanaryCaps []string      // MM_ACESTEP_CANARY_CAPS: capabilities offered to canary batches only (nil = off)
 
 	// M4a (C102).
 	OIDCIssuer  string       // MM_OIDC_ISSUER: "" ⇒ hosted connectors disabled

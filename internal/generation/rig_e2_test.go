@@ -193,6 +193,8 @@ type e2Cfg struct {
 	noAdopt      bool
 	noGates      bool
 	noRefClipper bool
+	canaryCaps   []string
+	canaryBase   bool
 	aceMode      string
 	aceKeys      bool
 }
@@ -205,10 +207,15 @@ func withACEGate(mode string, keys bool) e2Opt {
 }
 
 func withFeatures(f func(*acestep.Features)) e2Opt { return func(c *e2Cfg) { c.features = f } }
-func withACEMaxRuntime(d time.Duration) e2Opt      { return func(c *e2Cfg) { c.aceMax = d } }
-func withoutAdoption() e2Opt                       { return func(c *e2Cfg) { c.noAdopt = true } }
-func withoutGates() e2Opt                          { return func(c *e2Cfg) { c.noGates = true } }
-func withoutClipper() e2Opt                        { return func(c *e2Cfg) { c.noRefClipper = true } }
+
+// withCanaryCaps sets the canary-only capability switch (MM_ACESTEP_CANARY_CAPS) and whether the base task class is configured.
+func withCanaryCaps(base bool, caps ...string) e2Opt {
+	return func(c *e2Cfg) { c.canaryCaps, c.canaryBase = caps, base }
+}
+func withACEMaxRuntime(d time.Duration) e2Opt { return func(c *e2Cfg) { c.aceMax = d } }
+func withoutAdoption() e2Opt                  { return func(c *e2Cfg) { c.noAdopt = true } }
+func withoutGates() e2Opt                     { return func(c *e2Cfg) { c.noGates = true } }
+func withoutClipper() e2Opt                   { return func(c *e2Cfg) { c.noRefClipper = true } }
 
 // newRigE2 builds a rig over the E2 fixture. ACE-Step is adopted unless withoutAdoption.
 func newRigE2(t *testing.T, opts ...e2Opt) *rigE2 {
@@ -238,7 +245,7 @@ func newRigE2(t *testing.T, opts ...e2Opt) *rigE2 {
 	r.opts = generation.Options{
 		Store: st, Library: r.lib, Lineage: lin, Spend: r.sp, Engines: reg, Notify: r.notes, PublicURL: "http://mm.example.com",
 		Now: r.clk.Now, NewID: r.id, Wake: func() { r.wakes.Add(1) },
-		ColdStartS: 180, KillSlackS: 15, MaxRuntime: 15 * time.Minute,
+		ColdStartS: 180, KillSlackS: 15, MaxRuntime: 15 * time.Minute, ACEStepCanaryCaps: cfg.canaryCaps, ACEStepCanaryBase: cfg.canaryBase,
 	}
 	r.opts.Gate = r.gate(provider.ModeFake)
 	r.svc = generation.New(r.opts)

@@ -123,7 +123,8 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if !ok {
 		return Estimate{}, s.unknownEngine(name)
 	}
-	if _, ok := engine.CodecOf(eng); !ok { // an engine without a recipe codec cannot be planned at all (C163)
+	eng, canary := s.canaryEngine(ctx, s.o.Store.R, eng, in.Items) // MM_ACESTEP_CANARY_CAPS: canary batches only
+	if _, ok := engine.CodecOf(eng); !ok {                         // an engine without a recipe codec cannot be planned at all (C163)
 		return Estimate{}, perr(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "engine has no recipe codec", map[string]any{"field": "engine", "engine": name})
 	}
 	if err := s.admit(ctx, s.o.Store.R, name, in.TrialID); err != nil {
@@ -160,7 +161,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	}
 	pl := &planner{s: s, ctx: ctx, q: s.o.Store.R, eng: eng, backend: st.Backend, engName: name, ace: name != DefaultEngine, trial: in.TrialID,
 		ids: map[string]bool{}, planned: map[string][]int64{}, renders: map[string]int{}, tracks: map[string]trackInfo{}, drafts: map[string]draftInfo{},
-		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}, patches: patches}
+		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}, patches: patches, canary: canary}
 	if err := pl.loadInFlight(); err != nil {
 		return Estimate{}, err
 	}

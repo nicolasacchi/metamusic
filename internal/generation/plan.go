@@ -347,6 +347,8 @@ type planner struct {
 
 	refs map[string]library.TrackRef // media facts of source and reference tracks (inputs.go)
 	e2   map[int]*takeE2             // per take index: the engine facts the estimate reports (expand_e2.go)
+
+	canary *canarySwitch // non-nil: this batch is planned with MM_ACESTEP_CANARY_CAPS on (canary_caps.go)
 }
 
 type lintFailure struct {

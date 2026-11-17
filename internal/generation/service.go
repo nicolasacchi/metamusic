@@ -51,6 +51,10 @@ type Options struct {
 	// false, estimate, create and approve answer 503 UNAVAILABLE {component: ingest}: no GPU money is spent on a result
 	// that would fail INGEST_FAILED. nil means always ready.
 	IngestReady func() bool
+	// ACEStepCanaryCaps is MM_ACESTEP_CANARY_CAPS: capability names offered to canary batches only (canary.go); nil is off, and
+	// then nothing differs. ACEStepCanaryBase says MM_ACESTEP_TASKS has base, which complete and extract need.
+	ACEStepCanaryCaps []string
+	ACEStepCanaryBase bool
 }
 
 // SongwritingSource reads the songwriting duration targets (songwriting.Service satisfies it).
