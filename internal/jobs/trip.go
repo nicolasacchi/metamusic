@@ -224,6 +224,7 @@ func (r *Reconciler) act(ctx context.Context, t openTrip) (bool, error) {
 	// actions is never empty: either the endpoint was scaled to zero or the operator was asked to do it
 	r.notify(ctx, NoteProviderTripped(r.o.PublicURL, t.reason, strings.Join(actions, "; ")))
 	r.auditAfter(ctx, "reconciler:trip", map[string]any{"trip": t.id, "reason": t.reason, "actions": actions}, false)
+	r.o.Log.Warn("provider tripped", "backend", r.o.Backend.Name(), "trip", t.id, "reason", t.reason, "actions", actions)
 	return true, nil
 }
 

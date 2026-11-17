@@ -291,7 +291,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 	late := &m5Late{}
 	mediaRoute := &lateHandler{} // the media handler, bound once s.Server exists (E2: the fake worker's fetcher, the media preflight)
-	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late, signer, media.Clips, mediaRoute, media.IngestReady())
+	m3, err := buildM3(ctx, cfg, sec, st, data, lib, notifier, now, newID, o.Rand, o.M3, wake, pipe, media.Ears, late, signer, media.Clips, mediaRoute, media.IngestReady(), aud)
 	if err != nil {
 		return nil, err
 	}

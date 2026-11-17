@@ -705,3 +705,49 @@ func TestArmGate_CoverageIsPerBackend(t *testing.T) {
 		}
 	}
 }
+
+// A due full pass on the process's one driven reconciler runs each backend's pass exactly once: the default reconciler's
+// tick used to call the fanning Pass, so every peer also ran the pass its own tick started (two concurrent passes).
+func TestReconcilers_TickRunsEachBackendPassOnce(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	rs := d.reconcilers()
+	d.hold(d.run)
+	before, beforeACE := d.be.Calls().Sweep, d.ace.Calls().Sweep
+	if err := rs[0].Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.be.Calls().Sweep - before; got != 1 {
+		t.Errorf("default backend swept %d times in one tick, want 1", got)
+	}
+	if got := d.ace.Calls().Sweep - beforeACE; got != 1 {
+		t.Errorf("ACE backend swept %d times in one tick, want 1", got)
+	}
+}
+
+// One open trip on a peer backend yields one notification and one set of trip actions however it is reached.
+func TestReconcilers_TickPeerTripNotifiesOnce(t *testing.T) {
+	t.Parallel()
+	d := newDual(t, true)
+	d.exec(`INSERT INTO provider_trips(id, backend, tripped_at, reason, details_json, actions_json) VALUES('t1', ?, ?, 'crash_loop', '{}', '[]')`, aceName, store.FormatTime(t0))
+	rs := d.reconcilers()
+	d.hold(d.run)
+	if err := rs[0].Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, m := range d.notes.all() {
+		if strings.HasPrefix(m.Title, "Generation stopped") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("trip notifications %d, want 1 (notes %v)", n, d.noteTitles())
+	}
+	d.mu.Lock()
+	purges := d.aPrg
+	d.mu.Unlock()
+	if purges != 1 {
+		t.Errorf("ACE queue purged %d times, want 1", purges)
+	}
+}

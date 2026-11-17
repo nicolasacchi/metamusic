@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/ears"
@@ -218,7 +219,7 @@ type m3Services struct {
 // runner and reconciler. Nothing here calls a backend method.
 func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *store.Store, data *os.Root, lib *library.Service, notifier notify.Notifier,
 	now func() time.Time, newID func() string, rnd io.Reader, o M3Options, wake *wakeRef, pipe *ingest.Pipeline, ears *ears.Service, late *m5Late,
-	signer *mediaserve.Signer, clips *clip.Service, mediaH *lateHandler, ingestReady func() bool) (*m3Services, error) {
+	signer *mediaserve.Signer, clips *clip.Service, mediaH *lateHandler, ingestReady func() bool, aud *audit.Store) (*m3Services, error) {
 	clk := o.Clock
 	if clk == nil {
 		clk = clockFromNow{now}
@@ -303,14 +304,14 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		owner := instanceID(rnd)
 		m.Runner = jobs.NewRunner(jobs.RunnerOptions{
 			Store: st, Backend: bi.b, Engines: engines, Spend: m.Spend, Uploads: m.Uploads, Ingest: ing, Notify: notifier, Hub: m.Hub,
-			Clock: clk, NewID: newID, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
+			Clock: clk, NewID: newID, Audit: aud, Owner: owner, PublicURL: cfg.PublicURL, TTL: cfg.JobTTL, MaxRuntime: cfg.JobMaxRuntime,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, Expect: provider.WorkerExpect{Weights: yue2.Weights}, Log: log,
 			Preflight: pre, MeterKey: sec.MeterKey(), // attempts record their worker_key (C76.6)
 			IngestReady: ingestReady, // queued paid jobs are not submitted, finished ones not ingested, while ingest is down
 			Inputs:      inputs,      // Expects["acestep15"] arrives with the backend set (rebaseOnSet)
 		})
 		m.Reconciler = jobs.NewReconciler(jobs.ReconcilerOptions{
-			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID,
+			Store: st, Backend: bi.b, Spend: m.Spend, Uploads: m.Uploads, Notify: notifier, Runner: m.Runner, Clock: clk, NewID: newID, Audit: aud,
 			Owner: owner, Log: log, MeterKey: sec.MeterKey(), PublicURL: cfg.PublicURL, BillingLag: cfg.BillingLag, ResidualHold: cfg.ResidualHold,
 			ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
 			GateCfg: m.Gate.Config(),
