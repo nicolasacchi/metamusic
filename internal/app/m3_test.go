@@ -13,6 +13,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/providertest"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
@@ -340,5 +341,39 @@ func TestApp_RunPodBackendUsesTheCommittedKeyProbe(t *testing.T) {
 	}
 	if st.Capability.Billing != "hour" {
 		t.Errorf("get_provider_status capabilities.billing = %q, want \"hour\" (read key present, committed probe says billing_readable)", st.Capability.Billing)
+	}
+}
+
+// The composition root hands the audit store to the runner and the reconciler: before this their system rows
+// (reconciler:trip, runner:submit, ...) were silently skipped in production while every rig that built them by hand
+// passed its own store.
+func TestApp_ReconcilerWritesSystemAuditRows(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake })
+	s := e.build(t, app.Options{})
+	done := make(chan struct{})
+	go func() { defer close(done); _ = s.Runner.Run(ctx) }()
+	defer func() { cancel(); <-done }()
+	deadline := time.Now().Add(20 * time.Second)
+	for !s.Runner.Holding() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !s.Runner.Holding() {
+		t.Fatal("the runner never took the lease")
+	}
+	if err := s.Reconciler.Trip(ctx, jobs.TripCrashLoop, map[string]any{"test": true}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := e.st.R.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE principal_kind = 'system' AND op = 'reconciler:trip'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("reconciler:trip audit rows = %d, want 1", n)
+	}
+	if s.Reconciler.Options().Audit == nil {
+		t.Error("the reconciler was built without the audit store")
 	}
 }

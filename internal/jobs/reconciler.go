@@ -188,7 +188,7 @@ func (r *Reconciler) tick(ctx context.Context) error {
 	lastPass, lastSweep := r.lastPassAt, r.lastSweepRn
 	r.mu.Unlock()
 	if lastPass.IsZero() || now.Sub(lastPass) >= passEvery || now.Before(lastPass) {
-		return r.Pass(ctx)
+		return r.pass(ctx) // never the fanning Pass: Tick already runs tick on every backend's reconciler
 	}
 	if now.Sub(lastSweep) >= sweepActive {
 		active, err := r.sweepActive(ctx, now)
