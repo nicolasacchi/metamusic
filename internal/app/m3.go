@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -247,10 +248,19 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		return nil, err
 	}
 	m.Engines = engines
+	if len(cfg.ACEStepCanaryCaps) > 0 { // validated by config: needs MM_ACESTEP=1
+		l := o.Log
+		if l == nil {
+			l = slog.Default()
+		}
+		l.Warn("MM_ACESTEP_CANARY_CAPS is set: unverified ACE-Step capabilities are offered to canary batches (mm-canary-<YYYYMMDD>- request ids) only; unset it after the canary window",
+			"capabilities", strings.Join(cfg.ACEStepCanaryCaps, ","))
+	}
 	m.Generation = generation.New(generation.Options{
 		Store: st, Library: lib, Lineage: m.Lineage, Spend: m.Spend, Engines: engines, Gate: m.Gate, Notify: notifier,
 		PublicURL: cfg.PublicURL, Now: now, NewID: newID, Rand: rnd, Wake: wake.call,
 		ColdStartS: cfg.ColdStartS, KillSlackS: cfg.KillSlackS, MaxRuntime: cfg.JobMaxRuntime, PriceMarginPPM: cfg.PriceMarginPPM,
+		ACEStepCanaryCaps: cfg.ACEStepCanaryCaps, ACEStepCanaryBase: slices.Contains(cfg.ACEStepTasks, "base"),
 		Songwriting: songwriting.New(st),                       // the minimum-render control (X4) reads songwriting.min_duration_s
 		PatchSource: &late.patches, BacklogGate: &late.backlog, // M5 seams (C253.4, C255.5)
 		IngestReady: ingestReady, // no paid batch while a finished take could not be stored

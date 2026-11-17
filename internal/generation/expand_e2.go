@@ -675,6 +675,7 @@ func (p *planner) planTakeACE(b base, sp seedPlan, nSeeds int) error {
 			return err
 		}
 	}
+	t.CanaryCaps = p.canary.usedCaps(req)
 	t.Warnings = append(t.Warnings, ac.warns...)
 	t.Warnings = append(t.Warnings, engineIssues(parsed.Warnings, "warning")...)
 	t.Warnings = append(t.Warnings, p.refWarnings(ac)...)

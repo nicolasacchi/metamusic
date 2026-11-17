@@ -230,6 +230,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	if err = s.o.Spend.CommitTx(ctx, tx); err != nil {
 		return Created{}, err
 	}
+	for _, t := range est.Items {
+		logCanaryCaps(t.RequestID, t.CanaryCaps)
+	}
 	if s.o.Wake != nil {
 		s.o.Wake()
 	}
@@ -367,7 +370,11 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 	}
 	for i, t := range e.Items {
 		jobID := s.o.NewID()
-		mut, _ := json.Marshal(map[string]any{"operator": t.Operator, "params": t.Params, "recipe_patch": t.Patch, "rationale": rationale, "principal_id": p.Key(), "min_audio_s": t.MinAudioS})
+		doc := map[string]any{"operator": t.Operator, "params": t.Params, "recipe_patch": t.Patch, "rationale": rationale, "principal_id": p.Key(), "min_audio_s": t.MinAudioS}
+		if len(t.CanaryCaps) > 0 {
+			doc["canary_caps"] = t.CanaryCaps // which switched-on capability this canary take used (MM_ACESTEP_CANARY_CAPS)
+		}
+		mut, _ := json.Marshal(doc)
 		var queuedAt any
 		if jobState == "queued" {
 			queuedAt = ts

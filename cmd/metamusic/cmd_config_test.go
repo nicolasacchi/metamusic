@@ -68,6 +68,7 @@ func TestConfigCheck(t *testing.T) {
 		{name: "callback backlog default", code: 0, outHas: []string{"callback backlog: 6 per lineage root"}},
 		{name: "callback backlog off", extra: with("MM_CALLBACK_BACKLOG_MAX", "0", "MM_OIDC_CLIENTS", "metamusic-claude=Claude"), code: 0, outHas: []string{"callback backlog: gate off"}},
 		{name: "acestep off by default", code: 0, outHas: []string{"acestep: disabled"}},
+		{name: "acestep canary caps", extra: map[string]string{"MM_ACESTEP": "1", "MM_BACKEND": "fake", "MM_ACESTEP_CANARY_CAPS": "reference,repaint"}, code: 0, outHas: []string{"acestep canary caps: reference,repaint (canary batches only)"}},
 		{name: "acestep enabled", extra: map[string]string{"MM_ACESTEP": "1", "MM_BACKEND": "fake", "MM_ACESTEP_POOLS": "ADA_24"}, code: 0, outHas: []string{"acestep: enabled (tasks turbo, pools ADA_24, cold start 300s, max runtime 15m0s)"}},
 		{name: "e2e features swap on a runpod backend", extra: map[string]string{"MM_ACESTEP": "1", "MM_BACKEND": "runpod", "MM_PUBLIC_URL": "https://mm.example.com", "MM_E2E": "1", "MM_E2E_ACESTEP_FEATURES": "all"}, code: 1, errLines: []string{"config: MM_E2E_ACESTEP_FEATURES=all requires fake backends (MM_BACKEND=fake)"}},
 		{name: "e2e features swap on a fake backend", extra: map[string]string{"MM_ACESTEP": "1", "MM_BACKEND": "fake", "MM_E2E": "1", "MM_E2E_ACESTEP_FEATURES": "all"}, code: 0},

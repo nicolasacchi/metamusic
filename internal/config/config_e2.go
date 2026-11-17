@@ -65,5 +65,33 @@ func loadE2(c *Config, getenv func(string) string) error {
 		}
 		c.ACEStepPools = pools
 	}
+	return loadCanaryCaps(c, getenv)
+}
+
+// ACEStepCanaryCapNames is the vocabulary of MM_ACESTEP_CANARY_CAPS: the capability flags of features.verified.json that the
+// canary verifies (text2music is always on). TestCanaryCapNamesMatchEngine in internal/app pins it to the engine's list.
+var ACEStepCanaryCapNames = []string{"reference", "repaint", "extend", "complete", "extract", "lrc"}
+
+// loadCanaryCaps reads MM_ACESTEP_CANARY_CAPS (empty or unset: off). The switch exists so the real-GPU canary can exercise a
+// capability that is not verified yet; it is offered to canary batches only and needs MM_ACESTEP=1.
+func loadCanaryCaps(c *Config, getenv func(string) string) error {
+	v := getenv("MM_ACESTEP_CANARY_CAPS")
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	if !c.ACEStep {
+		return errors.New("config: MM_ACESTEP_CANARY_CAPS needs MM_ACESTEP=1")
+	}
+	var caps []string
+	for _, n := range strings.Split(v, ",") {
+		if n = strings.TrimSpace(n); n == "" || slices.Contains(caps, n) {
+			continue
+		}
+		if !slices.Contains(ACEStepCanaryCapNames, n) {
+			return fmt.Errorf("config: MM_ACESTEP_CANARY_CAPS entries must be among %s", strings.Join(ACEStepCanaryCapNames, ","))
+		}
+		caps = append(caps, n)
+	}
+	c.ACEStepCanaryCaps = caps
 	return nil
 }
