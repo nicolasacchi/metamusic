@@ -377,10 +377,11 @@ func (r *rig) tripCount() int { return r.count(`SELECT COUNT(*) FROM provider_tr
 
 // C76.3 cold start: a RUNNING worker with no job evidence is a container that is being created and started
 // (create + start + imports + SDK fitness checks can take minutes) while one of our attempts is submitted and
-// still queued remotely, within ColdStartS + 60 s of its submission.
+// still queued remotely, within 2*ColdStartS + 60 s of its submission (scaler queue delay plus the cold start).
 func TestReconciler_QueuedAttemptIsColdStartEvidence(t *testing.T) {
 	t.Parallel()
-	const window = (180 + 60) * time.Second
+	// scaler queue delay (ColdStartS + 60) plus the cold start itself (ColdStartS), at ColdStartS 180
+	const window = (180 + 60 + 180) * time.Second
 	// seed submits one attempt per job and sets the remote status of each ("" keeps it unobserved).
 	seed := func(r *rig, remote ...string) {
 		b := r.seedBatch(batchSpec{})
@@ -418,12 +419,13 @@ func TestReconciler_QueuedAttemptIsColdStartEvidence(t *testing.T) {
 		r := newRig(t)
 		seed(r, "Queued")
 		rec := r.recon()
+		r.advance(240 * time.Second) // the scaler queue delay: the worker appears now, not at submission
 		r.sweepHealth(healthRunning1, 1)
 		r.mustPass(rec)
-		r.advance(window - 5*time.Second)
+		r.advance(window - 240*time.Second - 5*time.Second)
 		r.mustPass(rec)
 		if n := r.tripCount(); n != 0 {
-			t.Fatal("tripped inside the window")
+			t.Fatalf("tripped inside the window: %q", r.openTripReason())
 		}
 		r.advance(10 * time.Second)
 		r.mustPass(rec)
@@ -434,10 +436,40 @@ func TestReconciler_QueuedAttemptIsColdStartEvidence(t *testing.T) {
 		if err := r.st.R.QueryRowContext(t.Context(), `SELECT details_json FROM provider_trips`).Scan(&d); err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`"running":1`, `"with_evidence":0`, `"cold_start_window_s":240`} {
+		for _, want := range []string{`"running":1`, `"with_evidence":0`, `"cold_start_window_s":420`} {
 			if !strings.Contains(d, want) {
 				t.Errorf("details %s lack %s", d, want)
 			}
+		}
+	})
+	// Production timeline (ColdStartS 300): the scaler starts the container only after the job waited
+	// ColdStartS+60 s, so the worker shows RUNNING at +380 s and needs its cold start after that.
+	t.Run("worker appearing after the scaler queue delay gets the cold start", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		seed(r, "Queued")
+		rec := r.recon(func(o *ReconcilerOptions) { o.ColdStartS = 300 })
+		r.advance(380 * time.Second)
+		r.sweepHealth(healthRunning1, 1)
+		r.mustPass(rec)
+		r.advance(120 * time.Second) // +500 s: two minutes after the worker appeared
+		r.mustPass(rec)
+		r.advance(150 * time.Second) // +650 s: still inside 2*ColdStartS+60
+		r.mustPass(rec)
+		if n := r.tripCount(); n != 0 {
+			t.Fatalf("tripped inside the queue delay + cold start window (%d)", n)
+		}
+		r.advance(20 * time.Second) // +670 s: window over, worker still without a job
+		r.mustPass(rec)
+		if got := r.openTripReason(); got != TripStuckRunning {
+			t.Fatalf("trip %q, want stuck_running after the window", got)
+		}
+		var d string
+		if err := r.st.R.QueryRowContext(t.Context(), `SELECT details_json FROM provider_trips`).Scan(&d); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(d, `"cold_start_window_s":660`) {
+			t.Errorf("details %s lack cold_start_window_s 660", d)
 		}
 	})
 	t.Run("a worker seen after the window still gets the 2 minute rule", func(t *testing.T) {
