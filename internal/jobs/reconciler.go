@@ -535,14 +535,18 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		evidence = max(evidence, h.InProgress)
 	}
 	// A RUNNING worker is also what RunPod calls one that is still creating and starting its container (create +
-	// start + imports + SDK fitness checks: minutes on a cold host). One of our attempts that is submitted and
-	// still queued remotely within ColdStartS + 60 s (the allowance behind the reservation's attempt_overhead
-	// and the endpoint scaler) justifies exactly one such worker, so it is counted per attempt. The 2 minute
-	// stuckAfter clock keeps running against the hard evidence only: when the window ends with the worker still
-	// without a job, the trip is immediate; with no live attempt, or a queue wait past the window, the plain
-	// 2 minute rule applies unchanged. Money stays bounded by this window, the scaler and attempt TTL, and the
-	// meter (RUNNING seconds) still trips meter_exceeds_reserved on an overrun.
-	window := time.Duration(r.o.ColdStartS+60) * time.Second
+	// start + imports + model load + SDK fitness checks: minutes on a cold host). One of our attempts that is
+	// submitted and still queued remotely within bootingWindow justifies exactly one such worker, so it is
+	// counted per attempt. The window has two terms because the endpoint uses the QUEUE_DELAY scaler with
+	// scalerValue = ColdStartS + 60: RunPod only starts a new worker's container after a job has waited that long
+	// in the queue, so on a real cold start the worker first shows RUNNING at the end of the queue delay and then
+	// needs the cold start itself (ColdStartS, the allowance the reservation's attempt_overhead already pays for)
+	// on top. A window of the queue delay alone would hand the worker only the bare stuckAfter to boot. The 2
+	// minute stuckAfter clock keeps running against the hard evidence only: when the window ends with the worker
+	// still without a job, the trip is immediate; with no live attempt, or a queue wait past the window, the
+	// plain 2 minute rule applies unchanged. Money stays bounded by this window, the scaler and attempt TTL, and
+	// the meter (RUNNING seconds) still trips meter_exceeds_reserved on an overrun.
+	window := r.bootingWindow()
 	booting, err := r.queuedInWindow(ctx, now, window)
 	if err != nil {
 		return err
@@ -570,6 +574,15 @@ func (r *Reconciler) checkTrips(ctx context.Context, rep provider.SweepReport, n
 		return r.Trip(ctx, TripMeterExceeds, detail)
 	}
 	return nil
+}
+
+// bootingWindow is how long after submission a still-queued attempt justifies one RUNNING worker without
+// evidence: the scaler's queue delay (ColdStartS + 60 s, enforced by QuoteCheck) before RunPod starts the
+// container, plus the cold start (ColdStartS) after it.
+func (r *Reconciler) bootingWindow() time.Duration {
+	scalerQueueDelay := time.Duration(r.o.ColdStartS+60) * time.Second
+	coldStart := time.Duration(r.o.ColdStartS) * time.Second
+	return scalerQueueDelay + coldStart
 }
 
 // queuedInWindow counts attempts that are pending/submitted without evidence of running, whose remote status is
