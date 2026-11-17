@@ -70,13 +70,23 @@ func TestCanary_E2b_Assertions(t *testing.T) {
 	}
 	// extract must name the stem; lrc must produce the file
 	s2 := newAceRest(t)
-	s2.tamper = func(item map[string]any, j map[string]any) {
+	s2.noStemIngest = true // the take never gets a stem-vocals.flac artifact
+	if rep := runACE(t, s2, runpod.CaseExtract); rep.Exit != runpod.ExitFail {
+		t.Errorf("extract without a stem on the take: %+v", rep)
+	}
+	s2b := newAceRest(t)
+	s2b.tamper = func(item map[string]any, j map[string]any) {
 		if item["mode"] == "stems" {
-			j["artifacts"] = []any{map[string]any{"name": "result.json", "bytes": 1, "sha256": "x", "verified": true}}
+			j["stem"] = "drums"
 		}
 	}
-	if rep := runACE(t, s2, runpod.CaseExtract); rep.Exit != runpod.ExitFail {
-		t.Errorf("extract without a stem: %+v", rep)
+	if rep := runACE(t, s2b, runpod.CaseExtract); rep.Exit != runpod.ExitFail {
+		t.Errorf("extract job naming another stem: %+v", rep)
+	}
+	// production shape: the job's artifacts are audio.flac and friends (no vocals name); the stem is on the take
+	rep0 := runACE(t, newAceRest(t), runpod.CaseExtract)
+	if rep0.Exit != runpod.ExitPass || rep0.Measured["extract_job_stem"] != "vocals" {
+		t.Errorf("extract in the production shape: %+v", rep0)
 	}
 	s3 := newAceRest(t)
 	s3.tamper = func(item map[string]any, j map[string]any) {
@@ -130,5 +140,36 @@ func TestCanary_WorstCaseDryRun_E2b_Golden(t *testing.T) {
 		if c.Case == runpod.CaseBaseLong && c.Takes[1].TimeoutS <= 900 {
 			t.Errorf("base-long priced with timeout %d s, expected above the default runtime", c.Takes[1].TimeoutS)
 		}
+	}
+}
+
+// the server fills timings.execution_ms a moment after the terminal state: the canary re-reads until it shows.
+func TestCanary_E2b_ExecutionMSReadLate(t *testing.T) {
+	t.Parallel()
+	s := newAceRest(t)
+	s.execLate = 2
+	rep := runACE(t, s, runpod.CaseLRC)
+	if rep.Exit != runpod.ExitPass {
+		t.Fatalf("rep %+v", rep)
+	}
+	if v, _ := rep.Measured["lrc_fixed_s"].(int64); v != 18 {
+		t.Errorf("lrc_fixed_s = %v after a late execution_ms", rep.Measured["lrc_fixed_s"])
+	}
+	rep = runACE(t, s, runpod.CaseComplete)
+	if rep.Proposed == nil || rep.Proposed.Features["models_mode"] == nil {
+		t.Fatalf("complete: %+v", rep)
+	}
+	if rep.Measured["complete.execution_ms_missing"] != nil {
+		t.Errorf("execution_ms reported missing: %v", rep.Measured)
+	}
+	// never arriving: the case goes on without it and says so
+	s2 := newAceRest(t)
+	s2.execNever = true
+	rep = runACE(t, s2, runpod.CaseLRC)
+	if rep.Exit != runpod.ExitPass || rep.Measured["plain.execution_ms_missing"] != true {
+		t.Errorf("a missing execution_ms must be recorded: %+v", rep.Measured)
+	}
+	if _, ok := rep.Measured["lrc_fixed_s"]; ok {
+		t.Error("lrc_fixed_s without execution_ms")
 	}
 }

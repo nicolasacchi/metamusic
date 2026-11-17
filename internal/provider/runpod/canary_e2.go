@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -86,6 +87,7 @@ type stageResult struct {
 	wallS    int64
 	sha      map[string]string // artifact name -> sha256 (never printed whole)
 	names    []string
+	stem     string // the job's stem field (an extract job), "" otherwise
 	bytes    map[string]int64
 	gpuClass string
 }
@@ -341,6 +343,7 @@ func (c *canary) aceSpec(def aceCaseDef, sg aceStage, st *aceState) (CanarySpec,
 
 // stageResult reads the stage that just ended from the canary's last job view.
 func (c *canary) stageResult(label string, wall time.Duration) *stageResult {
+	c.awaitExecutionMS()
 	j := c.lastJob
 	r := &stageResult{label: label, execMS: j.Timings.ExecutionMS, coldS: j.Timings.ColdStartS, wallS: int64(wall / time.Second),
 		sha: map[string]string{}, bytes: map[string]int64{}}
@@ -358,7 +361,46 @@ func (c *canary) stageResult(label string, wall time.Duration) *stageResult {
 	if j.Env != nil {
 		r.gpuClass = j.Env.GPUClass
 	}
+	if j.Stem != nil {
+		r.stem = *j.Stem
+	}
 	return r
+}
+
+// executionWait bounds the wait for timings.execution_ms after a job completes.
+const executionWait = 60 * time.Second
+
+// awaitExecutionMS re-reads a completed job until timings.execution_ms is set: the server fills it a moment after
+// the terminal state, so the job as first seen often carries null. Bounded; when it never arrives the stage goes on
+// without it and the measured map says so.
+func (c *canary) awaitExecutionMS() {
+	j := c.lastJob
+	if j.State != "completed" || j.Timings.ExecutionMS != nil || j.ID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), executionWait+30*time.Second)
+	defer cancel()
+	every := max(c.o.SweepEvery, 20*time.Millisecond)
+	deadline := c.o.Clock.Now().Add(executionWait)
+	for c.o.Clock.Now().Before(deadline) {
+		if c.sleep(ctx, every) != nil {
+			break
+		}
+		var re cJob
+		if err := c.do(ctx, http.MethodGet, "/api/jobs/"+url.PathEscape(j.ID), nil, nil, &re); err != nil {
+			break
+		}
+		if re.Timings.ExecutionMS != nil {
+			c.lastJob.Timings = re.Timings
+			if c.rep.Measured != nil {
+				c.rep.Measured["execution_ms"] = *re.Timings.ExecutionMS
+			}
+			return
+		}
+	}
+	if c.rep.Measured != nil {
+		c.rep.Measured["execution_ms_missing"] = true
+	}
 }
 
 func (c *canary) stageView(r *stageResult) CanaryStage {
@@ -530,18 +572,23 @@ func initFailDriver(ctx context.Context, c *canary, spec CanarySpec, prov cProvi
 	c.check("crash_loop_trip", reason == "crash_loop", "trip reason %q within %s", reason, window)
 	ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	live := -1
+	live, billed := -1, -1
 	for i := 0; i < 12; i++ {
-		if live = c.liveWorkers(ctx2); live == 0 {
+		live, billed = -1, -1
+		if p, err := c.status(ctx2); err == nil {
+			live, billed = p.live(), p.billed()
+		}
+		if billed == 0 {
 			break
 		}
 		if c.sleep(ctx2, every) != nil {
 			break
 		}
 	}
-	meas["workers_after"] = live
-	c.check("workers_zero", live == 0, "%d live workers after the cancel (-1: unreadable)", live)
-	c.logf("restore the endpoint now: `metamusic runpod provision --engine acestep15 --deactivate` (re-pins the revision), then `metamusic runpod reset-trip --engine acestep15 --reason ...`")
+	meas["workers_after"] = live // running + initializing + idle: information only
+	meas["workers_billed_after"] = billed
+	c.check("workers_zero", billed == 0, "%d billed (running or initializing) workers after the cancel, %d live including idle standby (-1: unreadable); idle standby workers are not billed, but the endpoint stays at workers.max until `provision --deactivate` when the trip took the manual path", billed, live)
+	c.logf("%d billed workers, %d live incl. idle standby: the trip may have taken the manual path (scoped keys cannot scale the endpoint), so the endpoint still needs `metamusic runpod provision --engine acestep15 --deactivate` (re-pins the revision), then `metamusic runpod reset-trip --engine acestep15 --reason ...`", billed, live)
 	for _, ck := range c.rep.Checks {
 		if !ck.OK {
 			return c.finish("fail", ExitFail, "check failed: %s (%s)", ck.Name, ck.Note)
