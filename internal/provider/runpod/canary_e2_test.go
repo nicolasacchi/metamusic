@@ -41,11 +41,20 @@ type aceRest struct {
 	workersMax   int
 	jobsFinished int
 	extraTimings map[string]any
+	// production behaviours: the server fills execution_ms a little after the terminal state; it ingests an
+	// extract job's audio as stem-<name>.flac on the source take; unbilled idle standby workers outlive a cancel
+	execLate     int // GET /api/jobs/{id} answers a null execution_ms this many times before the real one
+	execNever    bool
+	noStemIngest bool
+	idleAfter    int // idle standby workers shown once the init-fail job is cancelled
+	done         map[string]map[string]any
+	getJobs      int
+	stems        map[string][]string // track id -> stem names
 }
 
 func newAceRest(t *testing.T) *aceRest {
 	t.Helper()
-	s := &aceRest{jobs: map[string]map[string]any{}, tracks: map[string]float64{}, waits: map[string]int{}, ceiling: 100_000, runtimeS: 900, workersMax: 1}
+	s := &aceRest{jobs: map[string]map[string]any{}, tracks: map[string]float64{}, waits: map[string]int{}, done: map[string]map[string]any{}, stems: map[string][]string{}, ceiling: 100_000, runtimeS: 900, workersMax: 1}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(s.Close)
 	return s
@@ -55,7 +64,11 @@ func (s *aceRest) backend(engine string, running int) map[string]any {
 	p := baseProvider()
 	p["engine"] = engine
 	p["max_runtime_s"] = s.runtimeS
-	p["workers"] = map[string]any{"running": running, "idle": 0, "initializing": 0}
+	idle := 0
+	if engine == "acestep15" && s.trip != nil && len(s.jobs) > 0 && s.waits["cancelled"] > 0 {
+		idle = s.idleAfter
+	}
+	p["workers"] = map[string]any{"running": running, "idle": idle, "initializing": 0}
 	p["endpoint"] = map[string]any{"idle_timeout_s": 20, "workers_max": s.workersMax}
 	if engine == "acestep15" && s.trip != nil && len(s.jobs) > 0 {
 		p["trip"] = s.trip
@@ -125,8 +138,48 @@ func (s *aceRest) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		j := s.finish(s.jobs[id])
+		j["id"] = id
 		s.jobsFinished++
+		if s.execLate > 0 || s.execNever {
+			s.done[id] = j
+			early := map[string]any{}
+			for k, v := range j {
+				early[k] = v
+			}
+			t, _ := j["timings"].(map[string]any)
+			et := map[string]any{}
+			for k, v := range t {
+				et[k] = v
+			}
+			et["execution_ms"] = nil
+			early["timings"] = et
+			j = early
+		}
 		out(200, map[string]any{"job": j, "changed": true})
+	case r.Method == http.MethodGet && strings.HasPrefix(p, "/api/jobs/") && strings.Count(p, "/") == 3:
+		id := strings.TrimPrefix(p, "/api/jobs/")
+		j, ok := s.done[id]
+		if !ok {
+			out(404, map[string]any{"code": "NOT_FOUND", "message": "no job"})
+			return
+		}
+		s.getJobs++
+		if s.execNever || s.getJobs <= s.execLate {
+			late := map[string]any{}
+			for k, v := range j {
+				late[k] = v
+			}
+			late["timings"] = map[string]any{"execution_ms": nil, "cold_start_s": 60}
+			j = late
+		}
+		out(200, j)
+	case r.Method == http.MethodGet && strings.HasPrefix(p, "/api/tracks/") && strings.HasSuffix(p, "/media"):
+		id := strings.TrimSuffix(strings.TrimPrefix(p, "/api/tracks/"), "/media")
+		links := []any{}
+		for _, n := range s.stems[id] {
+			links = append(links, map[string]any{"name": n, "url": "/m/x", "bytes": 1000, "sha256": "x"})
+		}
+		out(200, map[string]any{"track_id": id, "stems": links})
 	case strings.HasPrefix(p, "/api/jobs/") && strings.HasSuffix(p, "/cancel"):
 		s.waits["cancelled"]++
 		out(200, jobView("cancelling", nil))
@@ -173,7 +226,12 @@ func (s *aceRest) finish(item map[string]any) map[string]any {
 	case "extend":
 		audio = s.tracks[item["parent_track_id"].(string)] + item["edit"].(map[string]any)["extend_s"].(float64)
 	case "stems":
-		names = []string{"stem-vocals.flac", "result.json"}
+		// the worker uploads audio.flac for every task; the server ingests it as stem-<name>.flac on the source take
+		names = []string{"audio.flac", "request.json", "result.json"}
+		if !s.noStemIngest {
+			parent, _ := item["parent_track_id"].(string)
+			s.stems[parent] = append(s.stems[parent], "vocals")
+		}
 	}
 	if item["mode"] != "stems" {
 		s.nTrack++
@@ -188,7 +246,11 @@ func (s *aceRest) finish(item map[string]any) map[string]any {
 	if lrc := slices.Contains(names, "lyrics.lrc"); lrc {
 		timings["execution_ms"] = 30_000
 	}
-	j := job("completed", map[string]any{"outcome": "clean", "track_id": track, "audio_s": audio, "expected_audio_s": int(audio),
+	var stem any
+	if item["mode"] == "stems" {
+		stem = "vocals"
+	}
+	j := job("completed", map[string]any{"outcome": "clean", "track_id": track, "stem": stem, "audio_s": audio, "expected_audio_s": int(audio),
 		"artifacts": arts(names...), "env": map[string]any{"gpu_class": "RTX A5000"}, "timings": timings})
 	if s.tamper != nil {
 		s.tamper(item, j)
@@ -460,6 +522,29 @@ func TestCanary_ACEStep_InitFailCase_Fake(t *testing.T) {
 	rep = runACE(t, s2, runpod.CaseInitFail, func(o *runpod.CanaryOptions) { o.InitFailConfirm = true })
 	if rep.Exit != runpod.ExitFail {
 		t.Fatalf("a different trip must not satisfy the case: %+v", rep)
+	}
+}
+
+// RunPod keeps idle standby workers (provisioned, container not started, not billed) at workers.max >= 1, and the
+// server's scoped keys cannot scale the endpoint to zero: workers_zero counts the billed workers only.
+func TestCanary_ACEStep_InitFail_IdleStandbyIsNotBilled(t *testing.T) {
+	t.Parallel()
+	s := newAceRest(t)
+	s.trip = map[string]any{"id": "t1", "reason": "crash_loop"}
+	s.idleAfter = 2
+	var logs strings.Builder
+	rep := runACE(t, s, runpod.CaseInitFail, func(o *runpod.CanaryOptions) {
+		o.InitFailConfirm = true
+		o.Log = &logs
+	})
+	if rep.Exit != runpod.ExitPass {
+		t.Fatalf("idle standby workers failed workers_zero: %+v", rep)
+	}
+	if rep.Measured["init-fail.workers_after"] != 2 || rep.Measured["init-fail.workers_billed_after"] != 0 {
+		t.Errorf("measured %+v", rep.Measured)
+	}
+	if !strings.Contains(logs.String(), "provision --engine acestep15 --deactivate") {
+		t.Errorf("the log must name provision --deactivate: %s", logs.String())
 	}
 }
 

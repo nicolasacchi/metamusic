@@ -270,6 +270,15 @@ func (p cProvider) live() int {
 	return p.Workers.Running + p.Workers.Initializing + p.Workers.Idle
 }
 
+// billed is the workers RunPod bills: running or initializing. An idle worker is a provisioned standby whose
+// container has not started; it is not billed, and RunPod keeps one at workers.max >= 1.
+func (p cProvider) billed() int {
+	if p.Workers == nil {
+		return 0
+	}
+	return p.Workers.Running + p.Workers.Initializing
+}
+
 type cEstimate struct {
 	ConfirmationToken     string `json:"confirmation_token"`
 	Takes                 int    `json:"takes"`
@@ -311,6 +320,7 @@ type cJob struct {
 		GPUClass string `json:"gpu_class"`
 	} `json:"env"`
 	Timings cTimings `json:"timings"`
+	Stem    *string  `json:"stem"` // an extract job's stem name, null otherwise
 }
 
 func (j cJob) terminal() bool {

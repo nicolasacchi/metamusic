@@ -1,8 +1,13 @@
 package runpod
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
 	"slices"
-	"strings"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 )
@@ -70,9 +75,22 @@ func aceCasesB() []aceCaseDef {
 				return []aceStage{sourceStage("source", srcAudioS), baseEdit("extract", "stems", []string{"vocals"}, srcAudioS, 5)}
 			},
 			finalize: func(c *canary, s *aceState, meas map[string]any) {
+				// the worker uploads audio.flac for every task; the server ingests an extract job's audio as the
+				// artifact stem-<name>.flac on the source take. Check it as a client sees it: the job's stem field
+				// and the source take's stems.
 				r := s.by["extract"]
-				found := r != nil && slices.ContainsFunc(r.names, func(n string) bool { return strings.Contains(n, "vocals") })
-				c.check("stem_artifact", found, "the job's artifacts name the vocals stem")
+				jobStem := ""
+				if r != nil {
+					jobStem = r.stem
+				}
+				stems, err := c.trackStems(s.src)
+				meas["extract_job_stem"], meas["extract_take_stems"] = jobStem, stems
+				found := jobStem == "vocals" && slices.Contains(stems, "vocals")
+				note := fmt.Sprintf("job stem %q, source take stems %v", jobStem, stems)
+				if err != nil {
+					note += fmt.Sprintf(" (take media unreadable: %v)", err)
+				}
+				c.check("stem_artifact", found, "%s", note)
 			},
 			proposal: func(o CanaryOptions, s *aceState, rep *CanaryReport, p *ProposedPatch) {
 				p.TasksAdd = append(p.TasksAdd, acestep.TaskExtract)
@@ -135,4 +153,26 @@ func poolsOrDefault(p []string) []string {
 func mustRTF(class string, pools []string) int {
 	rtf, _ := classRTF(class, poolsOrDefault(pools))
 	return rtf
+}
+
+// trackStems lists the stem names of a take as get_media_links shows them.
+func (c *canary) trackStems(trackID string) ([]string, error) {
+	if trackID == "" {
+		return nil, errors.New("no source track")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var m struct {
+		Stems []struct {
+			Name string `json:"name"`
+		} `json:"stems"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/tracks/"+url.PathEscape(trackID)+"/media", nil, nil, &m); err != nil {
+		return nil, err
+	}
+	names := []string{}
+	for _, st := range m.Stems {
+		names = append(names, st.Name)
+	}
+	return names, nil
 }
