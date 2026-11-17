@@ -10,8 +10,8 @@ import (
 )
 
 // e2eAllFeatures is a features file with every ACE-Step capability proved. It exists for the Playwright server only: the
-// committed features.verified.json proves text2music alone until the canary runs, so the Repaint and Reference actions of the
-// take page would stay off in an e2e run. It is read only when MM_E2E=1 and MM_E2E_ACESTEP_FEATURES=all (synthetic dates and
+// committed features.verified.json does not claim seed reproducibility (the E2-X4 canary measured it false), so the
+// same-seed actions of the take page would stay off in an e2e run. It is read only when MM_E2E=1 and MM_E2E_ACESTEP_FEATURES=all (synthetic dates and
 // commit).
 const e2eAllFeatures = `{"schema":"mm.engine-features/2","engine":"acestep15","verified_at":"2026-01-01","canary_commit":"e2e0000",
  "tasks":["text2music","repaint","extend","complete","extract"],"reference":true,"reference_reproducible":false,"seed_reproducible":true,

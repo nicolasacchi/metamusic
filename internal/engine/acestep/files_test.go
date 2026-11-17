@@ -14,17 +14,18 @@ func TestFeatures_FileSafe(t *testing.T) {
 		t.Fatalf("embedded file: %v", err)
 	}
 	f := EmbeddedFeatures()
-	if len(f.Tasks) != 1 || f.Tasks[0] != "text2music" || f.Reference || f.LRC || f.SeedReproducible {
-		t.Errorf("the committed file must start with text2music only: %+v", f)
+	// the E2-X4 canary result (2026-11-17): every passing case is on; reproducibility was measured false
+	if !slices.Equal(f.Tasks, allTasks) || !f.Reference || !f.LRC || f.LRCFixedS != 13 || f.ReferenceReproducible || f.SeedReproducible || f.CanaryCommit == "" {
+		t.Errorf("the committed file does not match the canary result: %+v", f)
 	}
 	for name, tc := range map[string]struct{ from, to string }{
 		"unknown key":         {`"engine":"acestep15"`, `"engine":"acestep15","extra":1`},
 		"schema":              {`mm.engine-features/2`, `mm.engine-features/1`},
 		"engine":              {`"engine":"acestep15"`, `"engine":"yue2"`},
-		"date":                {`1970-01-01`, `yesterday`},
-		"unknown task":        {`"tasks":["text2music"]`, `"tasks":["text2music","cover"]`},
-		"no text2music":       {`"tasks":["text2music"]`, `"tasks":["repaint"]`},
-		"task without canary": {`"tasks":["text2music"]`, `"tasks":["text2music","repaint"]`},
+		"date":                {`2026-11-17`, `yesterday`},
+		"unknown task":        {`"tasks":["text2music","repaint","extend","complete","extract"]`, `"tasks":["text2music","cover"]`},
+		"no text2music":       {`"tasks":["text2music","repaint","extend","complete","extract"]`, `"tasks":["repaint"]`},
+		"task without canary": {`"canary_commit":"00cf8db"`, `"canary_commit":""`},
 		"models mode":         {`bundle_cached_base_baked`, `nope`},
 		"default above 480":   {`"max_s_default":480`, `"max_s_default":481`},
 		"pool above 480":      {`"AMPERE_24":{"max_s":480}`, `"AMPERE_24":{"max_s":600}`},
@@ -33,7 +34,7 @@ func TestFeatures_FileSafe(t *testing.T) {
 		"repaint above 90":    {`"repaint":{"min_s":3,"max_s":90}`, `"repaint":{"min_s":3,"max_s":91}`},
 		"extend below 3":      {`"extend":{"min_s":3,"max_s":90}`, `"extend":{"min_s":2,"max_s":90}`},
 		"reference max":       {`"reference_max_s":30`, `"reference_max_s":31`},
-		"lrc fixed":           {`"lrc_fixed_s":60`, `"lrc_fixed_s":-1`},
+		"lrc fixed":           {`"lrc_fixed_s":13`, `"lrc_fixed_s":-1`},
 	} {
 		if _, err := ParseFeatures([]byte(strings.Replace(good, tc.from, tc.to, 1))); err == nil {
 			t.Errorf("%s: accepted", name)

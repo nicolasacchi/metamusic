@@ -22,7 +22,7 @@ func TestRegistry_ACEStepOnlyWhenEnabled(t *testing.T) {
 	if _, ok := e.(engine.MinAudioPlanner); ok {
 		t.Error("acestep15 must not plan a minimum audio length")
 	}
-	if c := e.Caps(); !c.Text2Song || c.RepaintInterval || c.Extend || c.Complete || c.Stems {
-		t.Errorf("registered caps must be the verified text2music-only set: %+v", c)
+	if c := e.Caps(); !c.Text2Song || !c.RepaintInterval || !c.Extend || !c.Complete || !c.Stems {
+		t.Errorf("registered caps must be the committed verified set (all tasks since E2-X4): %+v", c)
 	}
 }

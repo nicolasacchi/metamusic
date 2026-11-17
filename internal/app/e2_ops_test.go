@@ -57,7 +57,11 @@ func TestEngineAdvisor_Table(t *testing.T) {
 		got.Engine, got.Task, got.Cross, got.Block, got.Actions = adv.Engine, adv.Task, adv.CrossEngine, adv.BlockYue2Actions, adv.Actions
 		return
 	}
-	plain := &engineAdvisor{st: st, engines: registry.Default(registry.Options{ACEStep: true}), adoption: ad}
+	preCanary := registry.Default(registry.Options{ACEStep: true})
+	pf := acestep.EmbeddedFeatures()
+	pf.Tasks, pf.Reference, pf.LRC, pf.SeedReproducible = []string{"text2music"}, false, false, false
+	preCanary[acestep.Name] = acestep.Engine{Verified: pf}
+	plain := &engineAdvisor{st: st, engines: preCanary, adoption: ad}
 	full := &engineAdvisor{st: st, engines: verifiedACE(), adoption: ad}
 
 	// a yue2 take with a yue2 parent (or none) gets nothing: /context stays byte-identical

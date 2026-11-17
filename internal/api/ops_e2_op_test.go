@@ -11,6 +11,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/engine/registry"
 	"github.com/nicolasacchi/metamusic/internal/engineadopt"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -35,6 +36,7 @@ type enginesCfg struct {
 	mode        string // gate mode of the ACE backend: fake (default) or runpod without keys
 	armed, trip bool
 	adopted     bool
+	preCanary   bool // register the pre-canary features file (text2music only) instead of the committed one
 }
 
 func newEnginesRig(t *testing.T, c enginesCfg) *enginesRig {
@@ -85,7 +87,11 @@ func newEnginesRig(t *testing.T, c enginesCfg) *enginesRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := api.Deps{Engines: registry.Default(registry.Options{ACEStep: c.ace}), Backends: set, Gates: gs, Adoption: ad, Store: st}
+	engines := registry.Default(registry.Options{ACEStep: c.ace})
+	if c.ace && c.preCanary {
+		engines[acestep.Name] = acestep.Engine{Verified: preCanaryFeatures()}
+	}
+	d := api.Deps{Engines: engines, Backends: set, Gates: gs, Adoption: ad, Store: st}
 	return &enginesRig{rig: t1Rig(t, d), st: st, ad: ad}
 }
 
@@ -166,9 +172,39 @@ func TestListEngines_Selectable_Table(t *testing.T) {
 	}
 }
 
+// preCanaryFeatures is the features file as it was before E2-X4: text2music only, never verified.
+func preCanaryFeatures() acestep.Features {
+	f := acestep.EmbeddedFeatures()
+	f.VerifiedAt, f.CanaryCommit = "1970-01-01", ""
+	f.Tasks = []string{acestep.TaskText2Music}
+	f.Reference, f.LRC, f.SeedReproducible = false, false, false
+	return f
+}
+
+// TestListEngines_ACECommittedFeatures: the committed file (E2-X4 canary result) is what list_engines shows by default.
+func TestListEngines_ACECommittedFeatures(t *testing.T) {
+	t.Parallel()
+	r := newEnginesRig(t, enginesCfg{ace: true, aceBackend: "fake-acestep", adopted: true})
+	_, es, _ := r.list(t)
+	ace := es[1]
+	caps := ace["caps"].(map[string]any)
+	if caps["extend"] != true || caps["repaint_interval"] != true || caps["reference_audio"] != true || caps["lrc"] != true || caps["complete"] != true || caps["stems"] != true {
+		t.Errorf("caps = %v", caps)
+	}
+	f := ace["features"].(map[string]any)
+	if f["verified_at"] != "2026-11-17" || len(f["unverified"].([]any)) != 0 || f["seed_reproducible"] != false || f["reference_reproducible"] != false {
+		t.Errorf("features = %v", f)
+	}
+	for _, w := range ace["warnings"].([]any) {
+		if strings.Contains(opStr(w), "no canary") {
+			t.Errorf("warnings = %v", ace["warnings"])
+		}
+	}
+}
+
 func TestListEngines_ACEShape(t *testing.T) {
 	t.Parallel()
-	r := newEnginesRig(t, enginesCfg{ace: true, aceBackend: "fake-acestep", trip: true, adopted: true})
+	r := newEnginesRig(t, enginesCfg{ace: true, aceBackend: "fake-acestep", trip: true, adopted: true, preCanary: true})
 	_, es, raw := r.list(t)
 	ace := es[1]
 	b := ace["backend"].(map[string]any)

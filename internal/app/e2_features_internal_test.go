@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,9 +42,9 @@ func TestApplyE2EFeatures(t *testing.T) {
 			}
 			continue
 		}
-		caps := ae.Caps()
-		if got := caps.RepaintInterval && caps.ReferenceAudio && caps.Extend && caps.Complete && caps.Stems; got != c.want {
-			t.Errorf("%s: all capabilities on = %v, want %v", c.name, got, c.want)
+		// since E2-X4 the committed file verifies every task; the e2e file differs by seed reproducibility
+		if got := slices.Contains(ae.Caps().Tasks, acestep.ModeSameSeedEdit); got != c.want {
+			t.Errorf("%s: e2e features on = %v, want %v", c.name, got, c.want)
 		}
 	}
 }
@@ -61,7 +62,7 @@ func TestApplyE2EFeatures_RefusesNonFakeBackend(t *testing.T) {
 	if err := applyE2EFeatures(cfg, reg, env); err == nil || !strings.Contains(err.Error(), "requires fake backends") {
 		t.Fatalf("err = %v", err)
 	}
-	if reg[acestep.Name].(acestep.Engine).Caps().RepaintInterval {
+	if slices.Contains(reg[acestep.Name].(acestep.Engine).Caps().Tasks, acestep.ModeSameSeedEdit) {
 		t.Error("the registry was swapped despite the refusal")
 	}
 	// unset: nothing changes, whatever the backend

@@ -27,7 +27,7 @@ func TestIsCanaryID(t *testing.T) {
 
 func TestFeatures_WithCanary(t *testing.T) {
 	t.Parallel()
-	base := EmbeddedFeatures()
+	base := textOnlyFeatures()
 	if got := base.WithCanary(nil, true); !slices.Equal(Engine{Verified: got}.Caps().Tasks, Engine{Verified: base}.Caps().Tasks) {
 		t.Error("no names must change nothing")
 	}
@@ -59,7 +59,7 @@ func TestFeatures_WithCanary(t *testing.T) {
 
 func TestCanaryCapsUsed(t *testing.T) {
 	t.Parallel()
-	f := EmbeddedFeatures()
+	f := textOnlyFeatures()
 	on := []string{"reference", "repaint"}
 	if got := f.CanaryCapsUsed(Request{Task: TaskRepaint, Ref: &RefRef{}}, on); !slices.Equal(got, []string{"reference", "repaint"}) {
 		t.Errorf("got %v", got)

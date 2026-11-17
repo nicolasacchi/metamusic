@@ -21,8 +21,8 @@ export interface WorkerServer {
 
 /**
  * Extra server environment of a spec file. The e2-* specs run the second engine: MM_ACESTEP=1 over the fake ACE-Step backend,
- * and, except for the capability matrix spec (which reads the committed features file, text2music only), a features file with
- * every capability proved (MM_E2E_ACESTEP_FEATURES, honoured only by an MM_E2E server). Other specs run yue2 alone, as before.
+ * and, except for the capability matrix spec (which reads the committed features file, the E2-X4 canary result), a features
+ * file with every capability proved and seed reproducibility on (MM_E2E_ACESTEP_FEATURES, honoured only by an MM_E2E server). Other specs run yue2 alone, as before.
  */
 export function e2SpecEnv(file: string): Record<string, string> {
   const name = basename(file);

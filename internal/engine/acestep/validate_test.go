@@ -126,7 +126,7 @@ func TestValidate_Table(t *testing.T) {
 
 func TestCheck_Capabilities(t *testing.T) {
 	t.Parallel()
-	def := Engine{Verified: EmbeddedFeatures()}
+	def := Engine{Verified: textOnlyFeatures()}
 	for name, tc := range map[string]struct {
 		raw  []byte
 		want string

@@ -1,1 +1,1674 @@
-{"schema":"mm.engine-canary-measured/1","engine":"acestep15","cases":{}}
+{
+ "cases": {
+  "base-long": {
+   "checks": [
+    {
+     "name": "source-long:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source-long:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source-long:audio_length",
+     "note": "text2music: audio 480 s, expected 480.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source-long:settled_le_reserved",
+     "note": "settled 54259 reserved 296030 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "base-long:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "base-long:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "base-long:audio_length",
+     "note": "exact: audio 480 s, expected 480.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "base-long:settled_le_reserved",
+     "note": "settled 34285 reserved 560531 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "base-long:workers_stopped",
+     "note": "max live workers seen 4 in 71 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "base-long.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "base-long.audio_s": "480",
+    "base-long.bytes.audio.flac": 97252089,
+    "base-long.bytes.mm-result.json": 1280,
+    "base-long.bytes.request.json": 473,
+    "base-long.bytes.result.json": 1985,
+    "base-long.cold_start_s": 221,
+    "base-long.execution_ms": 83735,
+    "base-long.expected_audio_s": 480,
+    "base-long.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "base-long.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "base-long.max_workers_seen": 4,
+    "base-long.peak_vram_mb": {
+     "dit": 18438,
+     "encoder": 15806,
+     "vae": 16473
+    },
+    "base-long.reserved_micro_usd": 560531,
+    "base-long.rtf_milli": 174,
+    "base-long.settled_micro_usd": 34285,
+    "base-long.upload_bytes": 97255827,
+    "base-long.workers_samples": 71,
+    "source-long.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source-long.audio_s": "480",
+    "source-long.bytes.audio.flac": 99436923,
+    "source-long.bytes.mm-result.json": 1305,
+    "source-long.bytes.request.json": 288,
+    "source-long.bytes.result.json": 2190,
+    "source-long.cold_start_s": 89,
+    "source-long.execution_ms": 100516,
+    "source-long.expected_audio_s": 480,
+    "source-long.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source-long.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source-long.max_workers_seen": 3,
+    "source-long.peak_vram_mb": {
+     "dit": 19976,
+     "encoder": 19348,
+     "lm": 19791,
+     "vae": 19774
+    },
+    "source-long.reserved_micro_usd": 296030,
+    "source-long.rtf_milli": 209,
+    "source-long.settled_micro_usd": 54259,
+    "source-long.upload_bytes": 99440706,
+    "source-long.workers_samples": 44
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "480",
+     "cold_start_s": 89,
+     "execution_ms": 100516,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source-long",
+     "wall_s": 220
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "480",
+     "cold_start_s": 221,
+     "execution_ms": 83735,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "base-long",
+     "wall_s": 140
+    }
+   ]
+  },
+  "complete": {
+   "checks": [
+    {
+     "name": "source:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source:settled_le_reserved",
+     "note": "settled 9990 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "complete:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "complete:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "complete:audio_length",
+     "note": "exact: audio 30 s, expected 30.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "complete:settled_le_reserved",
+     "note": "settled 0 reserved 206771 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "complete:workers_stopped",
+     "note": "max live workers seen 4 in 43 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "complete.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "complete.audio_s": "30",
+    "complete.bytes.audio.flac": 5563494,
+    "complete.bytes.mm-result.json": 1276,
+    "complete.bytes.request.json": 473,
+    "complete.bytes.result.json": 1993,
+    "complete.cold_start_s": 161,
+    "complete.expected_audio_s": 30,
+    "complete.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "complete.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "complete.max_workers_seen": 4,
+    "complete.peak_vram_mb": {
+     "dit": 17945,
+     "encoder": 15805,
+     "vae": 16462
+    },
+    "complete.reserved_micro_usd": 206771,
+    "complete.settled_micro_usd": 0,
+    "complete.upload_bytes": 5567236,
+    "complete.workers_samples": 43,
+    "source.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source.audio_s": "30",
+    "source.bytes.audio.flac": 5097924,
+    "source.bytes.mm-result.json": 1300,
+    "source.bytes.request.json": 281,
+    "source.bytes.result.json": 2188,
+    "source.cold_start_s": 134,
+    "source.expected_audio_s": 30,
+    "source.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source.max_workers_seen": 3,
+    "source.peak_vram_mb": {
+     "dit": 19233,
+     "encoder": 19182,
+     "lm": 19396,
+     "vae": 19681
+    },
+    "source.reserved_micro_usd": 182613,
+    "source.settled_micro_usd": 9990,
+    "source.upload_bytes": 5101693,
+    "source.workers_samples": 32
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 134,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source",
+     "wall_s": 162
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 161,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "complete",
+     "wall_s": 61
+    }
+   ]
+  },
+  "extend": {
+   "checks": [
+    {
+     "name": "source:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source:settled_le_reserved",
+     "note": "settled 0 reserved 181795 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "plus10:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "plus10:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "plus10:audio_length",
+     "note": "exact: audio 40 s, expected 40.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "plus10:settled_le_reserved",
+     "note": "settled 4153 reserved 184661 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "plus90:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "plus90:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "plus90:audio_length",
+     "note": "exact: audio 120 s, expected 120.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "plus90:settled_le_reserved",
+     "note": "settled 6380 reserved 199401 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "plus90:workers_stopped",
+     "note": "max live workers seen 4 in 131 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "plus10.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "plus10.audio_s": "40",
+    "plus10.bytes.audio.flac": 7290500,
+    "plus10.bytes.mm-result.json": 1274,
+    "plus10.bytes.request.json": 436,
+    "plus10.bytes.result.json": 2003,
+    "plus10.cold_start_s": 192,
+    "plus10.expected_audio_s": 40,
+    "plus10.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "plus10.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "plus10.max_workers_seen": 3,
+    "plus10.peak_vram_mb": {
+     "dit": 17809,
+     "encoder": 15805,
+     "vae": 16302
+    },
+    "plus10.reserved_micro_usd": 184661,
+    "plus10.settled_micro_usd": 4153,
+    "plus10.upload_bytes": 7294213,
+    "plus10.workers_samples": 118,
+    "plus90.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "plus90.audio_s": "120",
+    "plus90.bytes.audio.flac": 22393987,
+    "plus90.bytes.mm-result.json": 1277,
+    "plus90.bytes.request.json": 438,
+    "plus90.bytes.result.json": 1999,
+    "plus90.cold_start_s": 214,
+    "plus90.expected_audio_s": 120,
+    "plus90.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "plus90.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "plus90.max_workers_seen": 4,
+    "plus90.peak_vram_mb": {
+     "dit": 18172,
+     "encoder": 15967,
+     "vae": 16302
+    },
+    "plus90.reserved_micro_usd": 199401,
+    "plus90.settled_micro_usd": 6380,
+    "plus90.upload_bytes": 22397701,
+    "plus90.workers_samples": 131,
+    "source.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source.audio_s": "30",
+    "source.bytes.audio.flac": 5452698,
+    "source.bytes.mm-result.json": 1300,
+    "source.bytes.request.json": 279,
+    "source.bytes.result.json": 2194,
+    "source.cold_start_s": 165,
+    "source.expected_audio_s": 30,
+    "source.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source.max_workers_seen": 3,
+    "source.peak_vram_mb": {
+     "dit": 19234,
+     "encoder": 19182,
+     "lm": 19409,
+     "vae": 19681
+    },
+    "source.reserved_micro_usd": 181795,
+    "source.settled_micro_usd": 0,
+    "source.upload_bytes": 5456471,
+    "source.workers_samples": 111
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 165,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source",
+     "wall_s": 550
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "40",
+     "cold_start_s": 192,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "plus10",
+     "wall_s": 30
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "120",
+     "cold_start_s": 214,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "plus90",
+     "wall_s": 70
+    }
+   ]
+  },
+  "extract": {
+   "checks": [
+    {
+     "name": "source:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source:settled_le_reserved",
+     "note": "settled 5428 reserved 185889 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "extract:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "extract:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "extract:settled_le_reserved",
+     "note": "settled 0 reserved 206771 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "extract:workers_stopped",
+     "note": "max live workers seen 4 in 26 status reads",
+     "ok": true
+    },
+    {
+     "name": "stem_artifact",
+     "note": "job stem \"vocals\", source take stems [vocals]",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "extract.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "extract.audio_s": "30",
+    "extract.bytes.audio.flac": 5450745,
+    "extract.bytes.mm-result.json": 1276,
+    "extract.bytes.request.json": 470,
+    "extract.bytes.result.json": 1988,
+    "extract.cold_start_s": 79,
+    "extract.execution_ms": 13458,
+    "extract.expected_audio_s": 30,
+    "extract.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "extract.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "extract.max_workers_seen": 4,
+    "extract.peak_vram_mb": {
+     "dit": 17945,
+     "encoder": 15805,
+     "vae": 16462
+    },
+    "extract.reserved_micro_usd": 206771,
+    "extract.settled_micro_usd": 0,
+    "extract.upload_bytes": 5454479,
+    "extract.workers_samples": 26,
+    "extract_job_stem": "vocals",
+    "extract_take_stems": [
+     "vocals"
+    ],
+    "source.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source.audio_s": "30",
+    "source.bytes.audio.flac": 5485993,
+    "source.bytes.mm-result.json": 1300,
+    "source.bytes.request.json": 285,
+    "source.bytes.result.json": 2194,
+    "source.cold_start_s": 45,
+    "source.execution_ms": 13255,
+    "source.expected_audio_s": 30,
+    "source.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source.max_workers_seen": 4,
+    "source.peak_vram_mb": {
+     "dit": 19233,
+     "encoder": 19182,
+     "lm": 19391,
+     "vae": 19681
+    },
+    "source.reserved_micro_usd": 185889,
+    "source.settled_micro_usd": 5428,
+    "source.upload_bytes": 5489772,
+    "source.workers_samples": 14
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 45,
+     "execution_ms": 13255,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source",
+     "wall_s": 70
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 79,
+     "execution_ms": 13458,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "extract",
+     "wall_s": 70
+    }
+   ]
+  },
+  "first-pull": {
+   "checks": [
+    {
+     "name": "completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "settled_le_reserved",
+     "note": "settled 0 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "workers_stopped",
+     "note": "max live workers seen 4 in 9 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "first-pull.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "first-pull.audio_s": "30",
+    "first-pull.bytes.audio.flac": 5001651,
+    "first-pull.bytes.mm-result.json": 1298,
+    "first-pull.bytes.request.json": 287,
+    "first-pull.bytes.result.json": 2198,
+    "first-pull.cold_start_s": 387,
+    "first-pull.expected_audio_s": 30,
+    "first-pull.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "first-pull.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "first-pull.max_workers_seen": 4,
+    "first-pull.peak_vram_mb": {
+     "dit": 15861,
+     "encoder": 15820,
+     "lm": 16013,
+     "vae": 16146
+    },
+    "first-pull.reserved_micro_usd": 182613,
+    "first-pull.settled_micro_usd": 0,
+    "first-pull.upload_bytes": 5005434,
+    "first-pull.workers_samples": 9,
+    "first_pull_wall_s": 60
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 387,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "first-pull",
+     "wall_s": 60
+    }
+   ]
+  },
+  "init-fail": {
+   "checks": [
+    {
+     "name": "crash_loop_trip",
+     "note": "trip reason \"crash_loop\" within 20m0s",
+     "ok": true
+    },
+    {
+     "name": "workers_zero",
+     "note": "0 billed (running or initializing) workers after the cancel, 2 live including idle standby (-1: unreadable); idle standby workers are not billed, but the endpoint stays at workers.max until `provision --deactivate` when the trip took the manual path",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "init-fail.seconds_to_trip": 430,
+    "init-fail.trip_reason": "crash_loop",
+    "init-fail.workers_after": 2,
+    "init-fail.workers_billed_after": 0
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "label": "init-fail",
+     "wall_s": 430
+    }
+   ]
+  },
+  "kill-switch": {
+   "checks": [
+    {
+     "name": "terminal",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "settled_le_reserved",
+     "note": "settled 9123 reserved 198172 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "workers_stopped",
+     "note": "max live workers seen 2 in 81 status reads",
+     "ok": true
+    },
+    {
+     "name": "kill_switch_flipped",
+     "note": "the endpoint was seen deactivated; the job ended completed",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "kill-switch.cold_start_s": 1181,
+    "kill-switch.kill_switch_outcome": "completed",
+    "kill-switch.max_workers_seen": 2,
+    "kill-switch.reserved_micro_usd": 198172,
+    "kill-switch.settled_micro_usd": 9123,
+    "kill-switch.workers_samples": 81
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "120",
+     "cold_start_s": 1181,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "kill-switch",
+     "wall_s": 401
+    }
+   ]
+  },
+  "lrc": {
+   "checks": [
+    {
+     "name": "plain:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "plain:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "plain:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "plain:settled_le_reserved",
+     "note": "settled 0 reserved 183023 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "lrc:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "lrc:artifacts_verified",
+     "note": "5 artifacts",
+     "ok": true
+    },
+    {
+     "name": "lrc:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "lrc:settled_le_reserved",
+     "note": "settled 0 reserved 222330 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "lrc:workers_stopped",
+     "note": "max live workers seen 4 in 18 status reads",
+     "ok": true
+    },
+    {
+     "name": "lrc_produced",
+     "note": "the lrc stage's artifacts name lyrics.lrc",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "lrc.artifact_names": [
+     "audio.flac",
+     "lyrics.lrc",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "lrc.audio_s": "30",
+    "lrc.bytes.audio.flac": 5333308,
+    "lrc.bytes.lyrics.lrc": 83,
+    "lrc.bytes.mm-result.json": 1416,
+    "lrc.bytes.request.json": 336,
+    "lrc.bytes.result.json": 2215,
+    "lrc.cold_start_s": 382,
+    "lrc.expected_audio_s": 30,
+    "lrc.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "lrc.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "lrc.max_workers_seen": 4,
+    "lrc.peak_vram_mb": {
+     "dit": 16183,
+     "encoder": 16141,
+     "lm": 16350,
+     "vae": 16468
+    },
+    "lrc.reserved_micro_usd": 222330,
+    "lrc.settled_micro_usd": 0,
+    "lrc.upload_bytes": 5337358,
+    "lrc.workers_samples": 18,
+    "lrc_produced": true,
+    "plain.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "plain.audio_s": "30",
+    "plain.bytes.audio.flac": 5907037,
+    "plain.bytes.mm-result.json": 1298,
+    "plain.bytes.request.json": 327,
+    "plain.bytes.result.json": 2198,
+    "plain.cold_start_s": 360,
+    "plain.expected_audio_s": 30,
+    "plain.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "plain.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "plain.max_workers_seen": 3,
+    "plain.peak_vram_mb": {
+     "dit": 16186,
+     "encoder": 16142,
+     "lm": 16381,
+     "vae": 16468
+    },
+    "plain.reserved_micro_usd": 183023,
+    "plain.settled_micro_usd": 0,
+    "plain.upload_bytes": 5910860,
+    "plain.workers_samples": 4
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 360,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "plain",
+     "wall_s": 20
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "lyrics.lrc",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 382,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "lrc",
+     "wall_s": 80
+    }
+   ]
+  },
+  "reference": {
+   "checks": [
+    {
+     "name": "source:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source:settled_le_reserved",
+     "note": "settled 0 reserved 181795 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "seed-a:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "seed-a:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "seed-a:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "seed-a:settled_le_reserved",
+     "note": "settled 0 reserved 181795 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "seed-b:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "seed-b:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "seed-b:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "seed-b:settled_le_reserved",
+     "note": "settled 4803 reserved 181795 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "ref-a:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "ref-a:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "ref-a:settled_le_reserved",
+     "note": "settled 0 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "ref-b:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "ref-b:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "ref-b:settled_le_reserved",
+     "note": "settled 0 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "ref-b:workers_stopped",
+     "note": "max live workers seen 4 in 36 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "ref-a.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "ref-a.audio_s": "30",
+    "ref-a.bytes.audio.flac": 5457129,
+    "ref-a.bytes.mm-result.json": 1316,
+    "ref-a.bytes.request.json": 454,
+    "ref-a.bytes.result.json": 2191,
+    "ref-a.cold_start_s": 339,
+    "ref-a.expected_audio_s": 30,
+    "ref-a.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "ref-a.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "ref-a.max_workers_seen": 3,
+    "ref-a.peak_vram_mb": {
+     "dit": 17930,
+     "encoder": 15812,
+     "lm": 16034,
+     "vae": 16306
+    },
+    "ref-a.reserved_micro_usd": 182613,
+    "ref-a.settled_micro_usd": 0,
+    "ref-a.upload_bytes": 5461090,
+    "ref-a.workers_samples": 24,
+    "ref-b.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "ref-b.audio_s": "30",
+    "ref-b.bytes.audio.flac": 5141396,
+    "ref-b.bytes.mm-result.json": 1315,
+    "ref-b.bytes.request.json": 456,
+    "ref-b.bytes.result.json": 2190,
+    "ref-b.cold_start_s": 367,
+    "ref-b.expected_audio_s": 30,
+    "ref-b.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "ref-b.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "ref-b.max_workers_seen": 4,
+    "ref-b.peak_vram_mb": {
+     "dit": 18091,
+     "encoder": 15974,
+     "lm": 16204,
+     "vae": 16307
+    },
+    "ref-b.reserved_micro_usd": 182613,
+    "ref-b.settled_micro_usd": 0,
+    "ref-b.upload_bytes": 5145357,
+    "ref-b.workers_samples": 36,
+    "reference_reproducible": false,
+    "seed-a.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "seed-a.audio_s": "30",
+    "seed-a.bytes.audio.flac": 4939823,
+    "seed-a.bytes.mm-result.json": 1298,
+    "seed-a.bytes.request.json": 285,
+    "seed-a.bytes.result.json": 2190,
+    "seed-a.cold_start_s": 293,
+    "seed-a.expected_audio_s": 30,
+    "seed-a.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "seed-a.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "seed-a.max_workers_seen": 3,
+    "seed-a.peak_vram_mb": {
+     "dit": 15858,
+     "encoder": 15817,
+     "lm": 16031,
+     "vae": 16144
+    },
+    "seed-a.reserved_micro_usd": 181795,
+    "seed-a.settled_micro_usd": 0,
+    "seed-a.upload_bytes": 4943596,
+    "seed-a.workers_samples": 11,
+    "seed-b.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "seed-b.audio_s": "30",
+    "seed-b.bytes.audio.flac": 5164596,
+    "seed-b.bytes.mm-result.json": 1296,
+    "seed-b.bytes.request.json": 285,
+    "seed-b.bytes.result.json": 2190,
+    "seed-b.cold_start_s": 315,
+    "seed-b.expected_audio_s": 30,
+    "seed-b.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "seed-b.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "seed-b.max_workers_seen": 3,
+    "seed-b.peak_vram_mb": {
+     "dit": 15858,
+     "encoder": 15818,
+     "lm": 16012,
+     "vae": 16144
+    },
+    "seed-b.reserved_micro_usd": 181795,
+    "seed-b.settled_micro_usd": 4803,
+    "seed-b.upload_bytes": 5168367,
+    "seed-b.workers_samples": 18,
+    "seed_reproducible": false,
+    "source.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source.audio_s": "30",
+    "source.bytes.audio.flac": 5553541,
+    "source.bytes.mm-result.json": 1298,
+    "source.bytes.request.json": 287,
+    "source.bytes.result.json": 2189,
+    "source.cold_start_s": 269,
+    "source.expected_audio_s": 30,
+    "source.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source.max_workers_seen": 3,
+    "source.peak_vram_mb": {
+     "dit": 19232,
+     "encoder": 19182,
+     "lm": 19384,
+     "vae": 19681
+    },
+    "source.reserved_micro_usd": 181795,
+    "source.settled_micro_usd": 0,
+    "source.upload_bytes": 5557315,
+    "source.workers_samples": 5
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 269,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source",
+     "wall_s": 20
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 293,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "seed-a",
+     "wall_s": 20
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 315,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "seed-b",
+     "wall_s": 30
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 339,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "ref-a",
+     "wall_s": 21
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 367,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "ref-b",
+     "wall_s": 60
+    }
+   ]
+  },
+  "repaint": {
+   "checks": [
+    {
+     "name": "source:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source:audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source:settled_le_reserved",
+     "note": "settled 0 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "range:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "range:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "range:audio_length",
+     "note": "exact: audio 30 s, expected 30.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "range:settled_le_reserved",
+     "note": "settled 0 reserved 182613 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "source-long:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "source-long:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "source-long:audio_length",
+     "note": "text2music: audio 120 s, expected 120.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "source-long:settled_le_reserved",
+     "note": "settled 9573 reserved 199401 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "boundary:completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "boundary:artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "boundary:audio_length",
+     "note": "exact: audio 120 s, expected 120.000 s (+-10 ms)",
+     "ok": true
+    },
+    {
+     "name": "boundary:settled_le_reserved",
+     "note": "settled 0 reserved 197763 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "boundary:workers_stopped",
+     "note": "max live workers seen 4 in 32 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "boundary.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "boundary.audio_s": "120",
+    "boundary.bytes.audio.flac": 23233706,
+    "boundary.bytes.mm-result.json": 1277,
+    "boundary.bytes.request.json": 471,
+    "boundary.bytes.result.json": 2000,
+    "boundary.cold_start_s": 520,
+    "boundary.expected_audio_s": 120,
+    "boundary.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "boundary.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "boundary.max_workers_seen": 4,
+    "boundary.peak_vram_mb": {
+     "dit": 18174,
+     "encoder": 15970,
+     "vae": 16303
+    },
+    "boundary.reserved_micro_usd": 197763,
+    "boundary.settled_micro_usd": 0,
+    "boundary.upload_bytes": 23237454,
+    "boundary.workers_samples": 32,
+    "outside_range_similarity": "not_computed",
+    "range.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "range.audio_s": "30",
+    "range.bytes.audio.flac": 5084872,
+    "range.bytes.mm-result.json": 1273,
+    "range.bytes.request.json": 465,
+    "range.bytes.result.json": 2001,
+    "range.cold_start_s": 464,
+    "range.expected_audio_s": 30,
+    "range.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "range.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "range.max_workers_seen": 3,
+    "range.peak_vram_mb": {
+     "dit": 18108,
+     "encoder": 15969,
+     "vae": 16301
+    },
+    "range.reserved_micro_usd": 182613,
+    "range.settled_micro_usd": 0,
+    "range.upload_bytes": 5088611,
+    "range.workers_samples": 11,
+    "source-long.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source-long.audio_s": "120",
+    "source-long.bytes.audio.flac": 23580575,
+    "source-long.bytes.mm-result.json": 1300,
+    "source-long.bytes.request.json": 286,
+    "source-long.bytes.result.json": 2196,
+    "source-long.cold_start_s": 485,
+    "source-long.expected_audio_s": 120,
+    "source-long.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source-long.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source-long.max_workers_seen": 3,
+    "source-long.peak_vram_mb": {
+     "dit": 16169,
+     "encoder": 16013,
+     "lm": 16187,
+     "vae": 16325
+    },
+    "source-long.reserved_micro_usd": 199401,
+    "source-long.settled_micro_usd": 9573,
+    "source-long.upload_bytes": 23584357,
+    "source-long.workers_samples": 21,
+    "source.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "source.audio_s": "30",
+    "source.bytes.audio.flac": 5052007,
+    "source.bytes.mm-result.json": 1299,
+    "source.bytes.request.json": 283,
+    "source.bytes.result.json": 2188,
+    "source.cold_start_s": 441,
+    "source.expected_audio_s": 30,
+    "source.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "source.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "source.max_workers_seen": 3,
+    "source.peak_vram_mb": {
+     "dit": 16020,
+     "encoder": 15980,
+     "lm": 16173,
+     "vae": 16306
+    },
+    "source.reserved_micro_usd": 182613,
+    "source.settled_micro_usd": 0,
+    "source.upload_bytes": 5055777,
+    "source.workers_samples": 5
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 441,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source",
+     "wall_s": 20
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 464,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "range",
+     "wall_s": 20
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "120",
+     "cold_start_s": 485,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "source-long",
+     "wall_s": 40
+    },
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "120",
+     "cold_start_s": 520,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "boundary",
+     "wall_s": 60
+    }
+   ]
+  },
+  "t2m": {
+   "checks": [
+    {
+     "name": "completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "audio_length",
+     "note": "text2music: audio 30 s, expected 30.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "settled_le_reserved",
+     "note": "settled 0 reserved 179747 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "workers_stopped",
+     "note": "max live workers seen 4 in 20 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "t2m.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "t2m.audio_s": "30",
+    "t2m.bytes.audio.flac": 5280758,
+    "t2m.bytes.mm-result.json": 1300,
+    "t2m.bytes.request.json": 278,
+    "t2m.bytes.result.json": 2191,
+    "t2m.cold_start_s": 47,
+    "t2m.expected_audio_s": 30,
+    "t2m.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "t2m.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "t2m.max_workers_seen": 4,
+    "t2m.peak_vram_mb": {
+     "dit": 19236,
+     "encoder": 19184,
+     "lm": 19413,
+     "vae": 19683
+    },
+    "t2m.reserved_micro_usd": 179747,
+    "t2m.settled_micro_usd": 0,
+    "t2m.upload_bytes": 5284527,
+    "t2m.workers_samples": 20
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "30",
+     "cold_start_s": 47,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "t2m",
+     "wall_s": 110
+    }
+   ]
+  },
+  "t2m-long": {
+   "checks": [
+    {
+     "name": "completed",
+     "note": "state completed",
+     "ok": true
+    },
+    {
+     "name": "artifacts_verified",
+     "note": "4 artifacts",
+     "ok": true
+    },
+    {
+     "name": "audio_length",
+     "note": "text2music: audio 480 s, expected 480.000 s (+-500 ms)",
+     "ok": true
+    },
+    {
+     "name": "settled_le_reserved",
+     "note": "settled 36147 reserved 271053 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "workers_stopped",
+     "note": "max live workers seen 4 in 26 status reads",
+     "ok": true
+    },
+    {
+     "name": "expected_audio_matches",
+     "note": "audio 480 s, expected_audio_s 480",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "t2m-long.artifact_names": [
+     "audio.flac",
+     "mm-result.json",
+     "request.json",
+     "result.json"
+    ],
+    "t2m-long.audio_s": "480",
+    "t2m-long.bytes.audio.flac": 98826702,
+    "t2m-long.bytes.mm-result.json": 1305,
+    "t2m-long.bytes.request.json": 284,
+    "t2m-long.bytes.result.json": 2194,
+    "t2m-long.cold_start_s": 185,
+    "t2m-long.execution_ms": 88282,
+    "t2m-long.expected_audio_s": 480,
+    "t2m-long.gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "t2m-long.lm_gpu_memory_utilization_milli": "not_reported_by_worker",
+    "t2m-long.max_workers_seen": 4,
+    "t2m-long.peak_vram_mb": {
+     "dit": 16602,
+     "encoder": 15983,
+     "lm": 16416,
+     "vae": 16238
+    },
+    "t2m-long.reserved_micro_usd": 271053,
+    "t2m-long.rtf_milli": 183,
+    "t2m-long.settled_micro_usd": 36147,
+    "t2m-long.upload_bytes": 98830485,
+    "t2m-long.workers_samples": 26
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "artifacts": [
+      "audio.flac",
+      "mm-result.json",
+      "request.json",
+      "result.json"
+     ],
+     "audio_s": "480",
+     "cold_start_s": 185,
+     "execution_ms": 88282,
+     "final_state": "completed",
+     "gpu_class": "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+     "label": "t2m-long",
+     "wall_s": 131
+    }
+   ]
+  },
+  "terminate": {
+   "checks": [
+    {
+     "name": "workers_at_cancel",
+     "note": "3 live workers at cancel (0 = unverified: no worker was seen before the cancel)",
+     "ok": true
+    },
+    {
+     "name": "cancelled",
+     "note": "state cancelled",
+     "ok": true
+    },
+    {
+     "name": "settled_le_reserved",
+     "note": "settled 67149 reserved 198172 micro-USD",
+     "ok": true
+    },
+    {
+     "name": "workers_stopped",
+     "note": "max live workers seen 3 in 5 status reads",
+     "ok": true
+    }
+   ],
+   "measured": {
+    "terminate.cancel_wait_s": 60,
+    "terminate.max_workers_seen": 3,
+    "terminate.reserved_micro_usd": 198172,
+    "terminate.settled_micro_usd": 67149,
+    "terminate.workers_after_cancel_wait": 3,
+    "terminate.workers_at_cancel": 3,
+    "terminate.workers_samples": 5
+   },
+   "outcome": "pass",
+   "recorded_on": "2026-11-17",
+   "stages": [
+    {
+     "final_state": "cancelled",
+     "label": "terminate",
+     "wall_s": 70
+    }
+   ]
+  }
+ },
+ "engine": "acestep15",
+ "schema": "mm.engine-canary-measured/1"
+}
