@@ -127,6 +127,7 @@ func TestAcceptance_E2_AdoptionGate(t *testing.T) {
 func TestAcceptance_E2_ListEnginesReportsCaps(t *testing.T) {
 	t.Parallel()
 	r := aceRig(t, archivetest.SyntheticArchive(t, "acceptance"), aceOpts{adopt: true})
+	preCanary(r)
 	agent, _ := r.Agent(t, auth.ScopeRead)
 	sess := r.MCP(t, auth.ScopeRead)
 	rest := agent.Do(t, "GET", "/api/engines", nil)
@@ -593,9 +594,30 @@ func assertNoSignedURLs(t *testing.T, r *servertest.Rig) {
 // TestAcceptance_E2_ExtendTake: extend appends N s to a take (ACE-Step or YuE2 parent). Until a canary proved it, the capability
 // refuses (ENGINE_CAPABILITY); then the child's length is source + N, the operator is extend, a YuE2 parent is recorded as
 // cross_engine, and the cost is provisional.
+// TestAcceptance_E2_ListEnginesShowsCommittedCanary: without any swap, the deployment shows what the E2-X4 canary verified.
+func TestAcceptance_E2_ListEnginesShowsCommittedCanary(t *testing.T) {
+	t.Parallel()
+	r := aceRig(t, archivetest.SyntheticArchive(t, "acceptance"), aceOpts{adopt: true})
+	agent, _ := r.Agent(t, auth.ScopeRead)
+	for _, e := range arr(obj(agent.OK(t, "GET", "/api/engines", nil))["engines"]) {
+		if obj(e)["name"] != "acestep15" {
+			continue
+		}
+		c := obj(obj(e)["caps"])
+		for _, on := range []string{"repaint_interval", "extend", "complete", "stems", "reference_audio", "lrc"} {
+			if c[on] != true {
+				t.Errorf("caps.%s = %v, the canary verified it", on, c[on])
+			}
+		}
+		return
+	}
+	t.Fatal("no acestep15 engine")
+}
+
 func TestAcceptance_E2_ExtendTake(t *testing.T) {
 	t.Parallel()
 	r := aceRig(t, archivetest.SyntheticArchive(t, "acceptance"), aceOpts{adopt: true, audioMax: 100, yueS: 40})
+	preCanary(r)
 	h := r.Human(t)
 	base := aceBase(t, r, "ext-base", 60, nil)
 	resp := h.Do(t, "POST", "/api/generations/estimate", editBody("extend", base, map[string]any{"extend_s": 30.0}, nil))
