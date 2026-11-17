@@ -591,6 +591,23 @@ func TestMeasured_CommittedFileValid(t *testing.T) {
 	}
 }
 
+// TestMeasured_CommittedFileHoldsTheCanary pins what the E2-X4 canary recorded: the passing cases, and no timeout.
+func TestMeasured_CommittedFileHoldsTheCanary(t *testing.T) {
+	t.Parallel()
+	var f runpod.MeasuredFile
+	if err := json.Unmarshal(runpod.EmbeddedMeasured, &f); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []string{"t2m", "t2m-long", "reference", "repaint", "terminate", "kill-switch", "init-fail", "first-pull", "extend", "complete", "extract", "lrc", "base-long"} {
+		if got := f.Cases[c]; got.Outcome != "pass" || got.RecordedOn != "2026-11-17" {
+			t.Errorf("case %s: %+v", c, got)
+		}
+	}
+	if _, ok := f.Cases["timeout"]; ok || len(f.Cases) != 13 {
+		t.Errorf("timeout was not run (D-E2-17b): %d cases", len(f.Cases))
+	}
+}
+
 func TestCanary_ProposedPatch_Golden(t *testing.T) {
 	t.Parallel()
 	var sb strings.Builder
@@ -611,7 +628,7 @@ func TestMeasured_MergeRedactedAndLatestWins(t *testing.T) {
 	t.Parallel()
 	s := newAceRest(t)
 	rep := runACE(t, s, runpod.CaseT2M)
-	raw, err := runpod.MergeMeasured(runpod.EmbeddedMeasured, rep, t0)
+	raw, err := runpod.MergeMeasured([]byte(`{"schema":"mm.engine-canary-measured/1","engine":"acestep15","cases":{}}`), rep, t0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,22 +3,22 @@ import { expect, test, type Page } from "./fixtures";
 import { openNav } from "./helpers";
 import { aceRow, adoptEngine, rejectEngine, watchE2 } from "./e2Api";
 
-// This spec's server runs the committed features file (text2music proved, nothing else: specEnv in fixtures.ts), so the matrix
-// shows what a fresh deployment shows: the capabilities nobody proved yet are "not yet verified". The tests run in order: the
+// This spec's server runs the committed features file (every task proved by the E2-X4 canary, 2026-11-17: specEnv in
+// fixtures.ts), so the matrix shows what the deployment shows. The "not yet verified" label is pinned by engineMatrix.test.ts.
+// The tests run in order: the
 // engine is not adopted first (a retry starts from the operator's rejection), then adopted.
 test.describe.configure({ mode: "serial", timeout: 90_000 });
 
 /** The ACE-Step cell (second column) of a matrix row. */
 const cellOf = (page: Page, row: string) => page.getByTestId(`matrix-row-${row}`).locator("td").nth(1);
 
-test("the matrix lists the capabilities per engine and labels what no canary proved as not yet verified", async ({ page, request, server }) => {
+test("the matrix lists the capabilities per engine, all verified by the canary", async ({ page, request, server }) => {
   if ((await aceRow(request)).adoption.state === "adopted") rejectEngine(server);
   const watch = watchE2(page);
 
-  // the exact strings of features.unverified that the matrix matches (aliases in lib/engineMatrix.ts)
   const row = await aceRow(request);
-  expect(row.features?.tasks).toEqual(["text2music"]);
-  expect(row.features?.unverified).toEqual(["complete", "extend", "extract", "lrc", "reference_audio", "repaint"]);
+  expect(row.features?.tasks).toEqual(["complete", "extend", "extract", "repaint", "text2music"]);
+  expect(row.features?.unverified).toEqual([]);
 
   await page.goto("/");
   await openNav(page, "Engines");
@@ -31,10 +31,10 @@ test("the matrix lists the capabilities per engine and labels what no canary pro
   await expect(cols.nth(1)).toContainText("ACE-Step");
 
   for (const k of ["text2song", "tempo", "key"]) await expect(cellOf(page, k)).toHaveAttribute("data-kind", "yes");
-  for (const k of ["reference", "repaint", "extend", "complete", "stems", "lrc"]) {
-    await expect(cellOf(page, k)).toHaveAttribute("data-kind", "unverified");
-    await expect(cellOf(page, k)).toHaveText("not yet verified");
-  }
+  for (const k of ["reference", "repaint", "extend", "complete", "stems", "lrc"]) await expect(cellOf(page, k)).toHaveAttribute("data-kind", "yes");
+  await expect(cellOf(page, "reference")).toHaveText("up to 30 s");
+  await expect(cellOf(page, "repaint")).toHaveText("3–90 s");
+  await expect(cellOf(page, "extend")).toHaveText("3–90 s");
   await expect(cellOf(page, "max_duration")).toHaveText("480 s");
 
   // adoption and backend state (the engine is registered with its fake backend, armed, and not adopted)
@@ -48,13 +48,13 @@ test("the matrix lists the capabilities per engine and labels what no canary pro
   expect(watch.problems()).toEqual([]);
 });
 
-test("adoption by the operator shows on the page; the capabilities stay unverified", async ({ page, request, server }) => {
+test("adoption by the operator shows on the page; the capabilities do not change", async ({ page, request, server }) => {
   adoptEngine(server);
   expect((await aceRow(request)).adoption.state).toBe("adopted");
   const watch = watchE2(page);
   await page.goto("/engines");
   await expect(page.getByTestId("matrix-adoption").locator("td").nth(1)).toContainText("Adopted (cli)");
   await expect(page.getByTestId("matrix-adoption").locator("td").nth(1)).not.toContainText("engines adopt");
-  await expect(cellOf(page, "repaint")).toHaveText("not yet verified");
+  await expect(cellOf(page, "repaint")).toHaveText("3–90 s");
   expect(watch.problems()).toEqual([]);
 });

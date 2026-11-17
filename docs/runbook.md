@@ -459,6 +459,14 @@ the sum of the stage ceilings; the command refuses when the sum exceeds it.
    unverified. Each take that used one logs `canary_cap` and records `canary_caps` in the job's mutation. Right after the last case,
    remove the variable and redeploy with `DEPLOY_SKIP_BUILD=1` again; then commit the proposed `features.verified.json`.
 
+**Status (2026-11-17):** E2-X4 ran against production and its result is committed: `t2m`, `t2m-long`, `reference`, `repaint`,
+`terminate`, `kill-switch`, `init-fail`, `first-pull`, `extend`, `complete`, `extract`, `lrc` and `base-long` passed; `timeout`
+was not run (with a lowered `MM_ACESTEP_MAX_RUNTIME` the estimate refuses any item whose unclamped timeout exceeds it, D-E2-17b,
+so the server never submits a job that can time out; a real test needs a deliberately slow worker mode, i.e. an image change).
+Every run landed on one GPU class (`PRO 6000 MIG 24GB`), so the pool `max_s` of 480 is verified on that class only.
+`reference_reproducible` and `seed_reproducible` were recorded as false. The base-class `engine_rtf` row is still to be written
+by the operator (`canary:<id>`); until it exists the estimate uses the base seed.
+
 ### Arming, disarming and deploying per backend
 
 `metamusic runpod status|arm|disarm|reset-trip` take `--engine yue2|acestep15` (default yue2). `arm` needs the endpoint name typed:

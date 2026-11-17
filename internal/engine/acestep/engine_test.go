@@ -29,9 +29,20 @@ func TestIngestPolicy_ACEStep(t *testing.T) {
 	}
 }
 
+// textOnlyFeatures is the pre-canary state of the file (text2music only): the baseline for tests of what an unverified
+// capability does. The committed file itself is pinned by TestFeatures_FileSafe.
+func textOnlyFeatures() Features {
+	f := EmbeddedFeatures()
+	f.Tasks = []string{TaskText2Music}
+	f.CanaryCommit = ""
+	f.Reference, f.LRC, f.SeedReproducible = false, false, false
+	f.LRCFixedS = 60
+	return f
+}
+
 func TestCaps_Default(t *testing.T) {
 	t.Parallel()
-	got, _ := json.Marshal(Engine{Verified: EmbeddedFeatures()}.Caps())
+	got, _ := json.Marshal(Engine{Verified: textOnlyFeatures()}.Caps())
 	want := `{"Text2Song":true,"PlanScore":false,"RenderFromScore":false,"RepaintInterval":false,"Stems":false,"ReferenceAudio":false,"LoRA":false,` +
 		`"Extend":false,"Complete":false,"LRC":false,"Tempo":true,"Key":true,"MinSeconds":10,"MaxSeconds":480,"SampleRate":48000,` +
 		`"RepaintMinS":0,"RepaintMaxS":0,"ExtendMinS":0,"ExtendMaxS":0,"ReferenceMaxS":0,"StemNames":null,` +
@@ -39,8 +50,8 @@ func TestCaps_Default(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("caps:\n%s\nwant\n%s", got, want)
 	}
-	if !reflect.DeepEqual(Engine{}.Caps(), Engine{Verified: EmbeddedFeatures()}.Caps()) {
-		t.Error("zero Engine must offer what the embedded file offers")
+	if !reflect.DeepEqual(Engine{}.Caps(), Engine{Verified: textOnlyFeatures()}.Caps()) {
+		t.Error("zero Engine must offer text2music only")
 	}
 }
 
@@ -87,8 +98,11 @@ func TestCaps_BaseClassNeedsBaseModels(t *testing.T) {
 
 func TestCaps_ExtendFollowsCanary(t *testing.T) {
 	t.Parallel()
-	if (Engine{Verified: EmbeddedFeatures()}).Caps().Extend {
-		t.Error("the committed file must not enable extend before X4")
+	if (Engine{Verified: textOnlyFeatures()}).Caps().Extend {
+		t.Error("a file without the extend task must not enable extend")
+	}
+	if c := (Engine{Verified: EmbeddedFeatures()}).Caps(); !c.Extend || c.ExtendMaxS != 90 {
+		t.Errorf("the committed file enables extend since E2-X4: %+v", c)
 	}
 }
 
@@ -190,7 +204,7 @@ func TestQuoteInputs(t *testing.T) {
 	t.Parallel()
 	r, _ := mustParse(t, req(obj{"lrc": true}))
 	q := QuoteInputOf(r)
-	if q.Class != ClassTurbo || q.AudioS != 180 || !q.LRC || q.ExtraLoadS(EmbeddedFeatures()) != 60 {
+	if q.Class != ClassTurbo || q.AudioS != 180 || !q.LRC || q.ExtraLoadS(textOnlyFeatures()) != 60 {
 		t.Errorf("%+v", q)
 	}
 	b, _ := mustParse(t, req(completeOver("bass")))

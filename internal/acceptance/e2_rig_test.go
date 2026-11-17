@@ -15,12 +15,22 @@ import (
 )
 
 // allOnFeatures is a verified-features file with every E2a and E2b capability on (what the canary cases X4a/X4b will have
-// proved): the acceptance tests swap it into the rig's registry so the E2b modes are reachable. The committed file offers
-// text2music only until the canary ran.
+// proved): the acceptance tests swap it into the rig's registry so the E2b modes are reachable. The committed file (E2-X4)
+// verifies the same tasks but not seed reproducibility.
 const allOnFeatures = `{"schema":"mm.engine-features/2","engine":"acestep15","verified_at":"2026-11-06","canary_commit":"abc1234",
  "tasks":["text2music","repaint","extend","complete","extract"],"reference":true,"reference_reproducible":false,"seed_reproducible":true,
  "lrc":true,"lrc_fixed_s":60,"models_mode":"bundle_cached_base_baked","max_s_default":480,
  "pools":{"AMPERE_24":{"max_s":480},"ADA_24":{"max_s":480}},"repaint":{"min_s":3,"max_s":90},"extend":{"min_s":3,"max_s":90},"reference_max_s":30}`
+
+// preCanary swaps the pre-canary features file (text2music only, as before E2-X4) into the rig's registry: the baseline for
+// tests of what an unverified capability does. The committed file now verifies every task. Call it before any traffic.
+func preCanary(r *servertest.Rig) {
+	f := acestep.EmbeddedFeatures()
+	f.VerifiedAt, f.CanaryCommit = "1970-01-01", ""
+	f.Tasks = []string{acestep.TaskText2Music}
+	f.Reference, f.LRC, f.SeedReproducible = false, false, false
+	r.Services.Engines[acestep.Name] = acestep.Engine{Verified: f}
+}
 
 type aceOpts struct {
 	adopt    bool // an adopted row for acestep15 before the services start (tests of the adoption gate leave it off)

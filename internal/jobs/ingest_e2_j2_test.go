@@ -31,6 +31,10 @@ const aceWeightRepo = "ACE-Step/Ace-Step1.5"
 func aceEngines(tasks ...string) engine.Registry {
 	reg := registry.Default(registry.Options{ACEStep: true})
 	f := acestep.EmbeddedFeatures()
+	// no tasks: the pre-canary file (text2music only), so "a task that is not enabled" stays testable now that the committed
+	// file (E2-X4) enables every task
+	f.Tasks, f.CanaryCommit = []string{"text2music"}, ""
+	f.Reference, f.LRC, f.SeedReproducible = false, false, false
 	if len(tasks) > 0 {
 		f.Tasks = append([]string{"text2music"}, tasks...)
 		f.CanaryCommit = "c0ffee"

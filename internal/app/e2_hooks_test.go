@@ -137,8 +137,8 @@ func TestE2Hooks_CanaryCapsLeaveTheRegistryVerifiedOnly(t *testing.T) {
 	if !reflect.DeepEqual(ae.Verified, acestep.EmbeddedFeatures()) {
 		t.Errorf("registered features differ from the verified file: %+v", ae.Verified)
 	}
-	if c := ae.Caps(); c.ReferenceAudio || c.RepaintInterval || c.LRC {
-		t.Errorf("registered caps offer a switched capability: %+v", c)
+	if !reflect.DeepEqual(ae.Caps(), acestep.Engine{Verified: acestep.EmbeddedFeatures()}.Caps()) {
+		t.Errorf("registered caps differ from what the verified file offers: %+v", ae.Caps())
 	}
 }
 
