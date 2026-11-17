@@ -377,7 +377,7 @@ func (r *rig) tripCount() int { return r.count(`SELECT COUNT(*) FROM provider_tr
 
 // C76.3 cold start: a RUNNING worker with no job evidence is a container that is being created and started
 // (create + start + imports + SDK fitness checks can take minutes) while one of our attempts is submitted and
-// still queued remotely, within ColdStartS + 60 s of its submission.
+// still queued remotely, within 2*ColdStartS + 60 s of its submission (scaler queue delay plus the cold start).
 func TestReconciler_QueuedAttemptIsColdStartEvidence(t *testing.T) {
 	t.Parallel()
 	// scaler queue delay (ColdStartS + 60) plus the cold start itself (ColdStartS), at ColdStartS 180
