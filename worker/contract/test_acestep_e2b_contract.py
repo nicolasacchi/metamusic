@@ -77,4 +77,6 @@ def test_lyric_timestamp_inputs_are_in_extra_outputs() -> None:
 
 def test_cover_skips_the_lm_upstream() -> None:
     src = inspect.getsource(upstream_inference.generate_music)
-    assert '"cover"' in src.split("skip_lm_tasks =", 1)[1].split("\n", 1)[0]
+    assert "skip_lm_tasks" in src, "upstream generate_music no longer defines skip_lm_tasks"
+    line = next(ln for ln in src.splitlines() if "skip_lm_tasks" in ln and "cover" in ln)
+    assert '"cover"' in line

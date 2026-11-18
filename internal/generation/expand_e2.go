@@ -538,7 +538,7 @@ func (p *planner) variantCtx(b base) (*aceCtx, error) {
 // decision); an optional reference is resolved and pinned like the reference mode's.
 func (p *planner) expandComposeACE(i int, it Item) error {
 	r, canonical, is := acestep.Parse(it.Recipe)
-	if r.Task != "" && r.Task != acestep.TaskText2Music && slices.Contains([]string{acestep.TaskRepaint, acestep.TaskExtend, acestep.TaskComplete, acestep.TaskExtract}, r.Task) {
+	if r.Task != "" && r.Task != acestep.TaskText2Music {
 		return invalidItem(i, "recipe", "task_not_text2music") // edits have their own modes; a new song is text2music
 	}
 	if acestep.HasErrors(is) {

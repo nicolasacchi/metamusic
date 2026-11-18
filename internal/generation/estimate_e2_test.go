@@ -253,6 +253,7 @@ func TestEstimate_E2_Table(t *testing.T) {
 		{name: "compose_new ace instrumental with lyrics", items: []generation.Item{composeACE(t, "ace-new-2", func(m map[string]any) { m["instrumental"] = true })}, err: &want{422, "INVALID_ITEM", map[string]any{"rule": "instrumental_lyrics"}}},
 		{name: "compose_new ace unknown key", items: []generation.Item{composeACE(t, "ace-new-3", func(m map[string]any) { m["abc"] = "X:1" })}, err: &want{422, "LINT_FAILED", nil}},
 		{name: "compose_new ace repaint task", items: []generation.Item{composeACE(t, "ace-new-4", func(m map[string]any) { m["task"] = "repaint" })}, err: &want{422, "INVALID_ITEM", map[string]any{"rule": "task_not_text2music"}}},
+		{name: "compose_new ace cover task", items: []generation.Item{composeACE(t, "ace-new-4c", func(m map[string]any) { m["task"] = "cover"; m["cover_strength_milli"] = 500 })}, err: &want{422, "INVALID_ITEM", map[string]any{"rule": "task_not_text2music"}}},
 		{name: "compose_new ace too long", items: []generation.Item{composeACE(t, "ace-new-5", func(m map[string]any) { m["duration_ds"] = 5000 })}, err: &want{422, "ENGINE_CAPABILITY", map[string]any{"capability": "max_seconds"}}},
 		{name: "compose_new ace stale parameters", items: []generation.Item{composeACE(t, "ace-new-6", func(m map[string]any) { m["engine_params_version"] = "ancient" })}, err: &want{422, "ENGINE_PARAMS_STALE", nil}},
 		{name: "compose_new ace id taken", items: []generation.Item{composeACE(t, "e2-ace-root", nil)}, takes: 1}, // keep-or-allocate: the taken id gets a seed suffix
