@@ -4500,6 +4500,11 @@ export interface components {
             extend_s?: number;
             /** Format: double */
             from_s?: number;
+            /**
+             * @description complete only: remix this stem of the parent, not its master
+             * @enum {string}
+             */
+            source_stem?: "backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds";
             /** Format: double */
             to_s?: number;
             tracks?: ("backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds")[];
@@ -4768,7 +4773,7 @@ export interface components {
             title?: string;
         };
         EstimateWarning: {
-            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated */
+            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem */
             code: string;
             field: string;
             message: string;
@@ -7723,6 +7728,7 @@ export interface components {
             extend_s: number | null;
             /** Format: double */
             from_s: number | null;
+            source_stem: string | null;
             stem: string | null;
             /** Format: double */
             to_s: number | null;

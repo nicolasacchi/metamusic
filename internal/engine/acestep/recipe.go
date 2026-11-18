@@ -37,6 +37,7 @@ type Patch struct {
 	RepaintFromDS, RepaintToDS *int
 	ExtendDS                   *int
 	Tracks                     []string
+	SourceStem                 string // complete: provenance only, the digest is already in Src
 }
 
 // RecipeOf converts a parse result into the engine-neutral recipe (C148.5): hash = sha256 of the canonical

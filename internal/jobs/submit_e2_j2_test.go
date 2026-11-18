@@ -47,8 +47,10 @@ func minterRig(t *testing.T) (*rig, *serve.Signer, InputMinterOptions) {
 	return r, sg, InputMinterOptions{Signer: sg, Store: r.st, Data: r.data, PublicURL: "https://mm.example.com/", Clock: r.clk}
 }
 
-func srcRequest(id, sha string) json.RawMessage {
-	return json.RawMessage(fmt.Sprintf(`{"id":"x","task":"repaint","src":{"track_id":%q,"master_sha256":%q,"duration_ds":1000}}`, id, sha))
+func srcRequest(id, sha string) json.RawMessage { return srcRequestTask("repaint", id, sha) }
+
+func srcRequestTask(task, id, sha string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"id":"x","task":%q,"src":{"track_id":%q,"master_sha256":%q,"duration_ds":1000}}`, task, id, sha))
 }
 
 // verifyLink parses an input URL and runs the media route's verifier over it.
@@ -426,5 +428,46 @@ func TestPreflight_MediaRoute(t *testing.T) {
 	var pe *PreflightError
 	if err := NewPreflight(PreflightOptions{DataDir: t.TempDir(), PublicURL: bad.URL, Free: free, CheckMedia: true})(t.Context(), 0); !errors.As(err, &pe) || pe.Check != "media" {
 		t.Errorf("on, broken: %v", err)
+	}
+}
+
+// A remix request pins a stem artifact of the source take in the digest slot of src: the minter signs the stem file, and
+// refuses a stem digest of another take or a master digest it does not hold.
+func TestInputMinter_StemSource(t *testing.T) {
+	r, sg, o := minterRig(t)
+	id, master, _ := masterOf(t, r)
+	other, _, _ := masterOf(t, r)
+	stemSHA := strings.Repeat("5", 64)
+	r.exec(`INSERT INTO artifacts(track_id, name, sha256, bytes, path, created_at) VALUES (?,?,?,?,?,?)`, id, "stem-vocals.flac", stemSHA, 4321, "takes/x/stem-vocals.flac", "2026-11-01T00:00:00Z")
+	m := NewInputMinter(o)
+	expires := r.clk.Now().Add(time.Hour)
+
+	got, err := m.MintInputs(t.Context(), srcRequestTask("complete", id, stemSHA), expires)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := got[provider.InputSrcAudio]
+	if src.SHA256 != stemSHA || src.Bytes != 4321 {
+		t.Errorf("src = %+v, want the stem digest and size", src)
+	}
+	verifyLink(t, sg, src.URL, stemSHA)
+
+	// the stem digest of another take is not a source of this one
+	if _, err := m.MintInputs(t.Context(), srcRequestTask("complete", other, stemSHA), expires); !errors.Is(err, ErrInputChanged) {
+		t.Errorf("stem of another take: err = %v, want ErrInputChanged", err)
+	}
+	// a non-stem artifact is not a source
+	r.exec(`INSERT INTO artifacts(track_id, name, sha256, bytes, path, created_at) VALUES (?,?,?,?,?,?)`, id, "lyrics.lrc", strings.Repeat("6", 64), 10, "takes/x/lyrics.lrc", "2026-11-01T00:00:00Z")
+	if _, err := m.MintInputs(t.Context(), srcRequestTask("complete", id, strings.Repeat("6", 64)), expires); !errors.Is(err, ErrInputChanged) {
+		t.Errorf("non-stem artifact: err = %v, want ErrInputChanged", err)
+	}
+	// a stem digest is only a source of complete
+	rep := srcRequest(id, stemSHA)
+	if _, err := m.MintInputs(t.Context(), rep, expires); !errors.Is(err, ErrInputChanged) {
+		t.Errorf("stem pinned by a repaint: err = %v, want ErrInputChanged", err)
+	}
+	// regression: the master still signs
+	if got, err := m.MintInputs(t.Context(), srcRequest(id, master), expires); err != nil || got[provider.InputSrcAudio].SHA256 != master {
+		t.Errorf("master: %v %v", got, err)
 	}
 }

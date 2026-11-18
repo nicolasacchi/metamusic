@@ -16,6 +16,8 @@ import (
 type Edit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string // complete 1..4, stems 1..6 names (one job per name)
+	// SourceStem (complete only) names an extracted stem of the parent take to use as the source audio instead of its master.
+	SourceStem string
 }
 
 // Reference is the reference input of a compose_new or reference item: a window of a take, default its last 20 s.
@@ -29,6 +31,7 @@ type PlannedEdit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string
 	Stem                string
+	SourceStem          string // complete: the stem of the parent used as the source
 }
 
 // PlannedRef echoes the pinned reference clip of a take.
@@ -52,6 +55,7 @@ const (
 	WarnParamsVersionChanged     = "params_version_changed"
 	WarnStemExists               = "stem_exists"
 	WarnABWindowTruncated        = "ab_window_truncated"
+	WarnStemSource               = "source_is_stem"
 )
 
 // QueryReader is the read side of a pool or transaction, spelled as an alias of an unnamed interface so that
