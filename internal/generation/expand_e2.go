@@ -121,6 +121,9 @@ func validateE2Shape(i int, it Item, hasParent bool) error {
 		if e != nil && e.SourceStem != "" && !slices.Contains(acestep.StemNames, e.SourceStem) {
 			return invalidItem(i, "edit.source_stem", "unknown_track_name")
 		}
+		if e != nil && e.SourceStem != "" && slices.Contains(e.Tracks, e.SourceStem) {
+			return invalidItem(i, "edit.tracks", "tracks_include_source_stem")
+		}
 		return validateTracks(i, it)
 	}
 	return nil

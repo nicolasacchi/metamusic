@@ -178,3 +178,13 @@ func TestExpandE2_CompleteSourceStem_Warnings(t *testing.T) {
 		t.Error("a full-mix complete must not carry source_is_stem")
 	}
 }
+
+func TestExpandE2_SourceStem_TracksOverlapRefused(t *testing.T) {
+	t.Parallel()
+	x := newRigE2(t)
+	_, err := x.estimate(agent, "", completeStem(x.info.Port, "vocals", "vocals", "drums"))
+	pe := wantProblem(t, err, 422, "INVALID_ITEM")
+	if pe.Details["rule"] != "tracks_include_source_stem" || pe.Details["field"] != "edit.tracks" {
+		t.Errorf("details = %v", pe.Details)
+	}
+}

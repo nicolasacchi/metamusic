@@ -47,8 +47,10 @@ func minterRig(t *testing.T) (*rig, *serve.Signer, InputMinterOptions) {
 	return r, sg, InputMinterOptions{Signer: sg, Store: r.st, Data: r.data, PublicURL: "https://mm.example.com/", Clock: r.clk}
 }
 
-func srcRequest(id, sha string) json.RawMessage {
-	return json.RawMessage(fmt.Sprintf(`{"id":"x","task":"repaint","src":{"track_id":%q,"master_sha256":%q,"duration_ds":1000}}`, id, sha))
+func srcRequest(id, sha string) json.RawMessage { return srcRequestTask("repaint", id, sha) }
+
+func srcRequestTask(task, id, sha string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"id":"x","task":%q,"src":{"track_id":%q,"master_sha256":%q,"duration_ds":1000}}`, task, id, sha))
 }
 
 // verifyLink parses an input URL and runs the media route's verifier over it.
@@ -440,7 +442,7 @@ func TestInputMinter_StemSource(t *testing.T) {
 	m := NewInputMinter(o)
 	expires := r.clk.Now().Add(time.Hour)
 
-	got, err := m.MintInputs(t.Context(), srcRequest(id, stemSHA), expires)
+	got, err := m.MintInputs(t.Context(), srcRequestTask("complete", id, stemSHA), expires)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,13 +453,18 @@ func TestInputMinter_StemSource(t *testing.T) {
 	verifyLink(t, sg, src.URL, stemSHA)
 
 	// the stem digest of another take is not a source of this one
-	if _, err := m.MintInputs(t.Context(), srcRequest(other, stemSHA), expires); !errors.Is(err, ErrInputChanged) {
+	if _, err := m.MintInputs(t.Context(), srcRequestTask("complete", other, stemSHA), expires); !errors.Is(err, ErrInputChanged) {
 		t.Errorf("stem of another take: err = %v, want ErrInputChanged", err)
 	}
 	// a non-stem artifact is not a source
 	r.exec(`INSERT INTO artifacts(track_id, name, sha256, bytes, path, created_at) VALUES (?,?,?,?,?,?)`, id, "lyrics.lrc", strings.Repeat("6", 64), 10, "takes/x/lyrics.lrc", "2026-11-01T00:00:00Z")
-	if _, err := m.MintInputs(t.Context(), srcRequest(id, strings.Repeat("6", 64)), expires); !errors.Is(err, ErrInputChanged) {
+	if _, err := m.MintInputs(t.Context(), srcRequestTask("complete", id, strings.Repeat("6", 64)), expires); !errors.Is(err, ErrInputChanged) {
 		t.Errorf("non-stem artifact: err = %v, want ErrInputChanged", err)
+	}
+	// a stem digest is only a source of complete
+	rep := srcRequest(id, stemSHA)
+	if _, err := m.MintInputs(t.Context(), rep, expires); !errors.Is(err, ErrInputChanged) {
+		t.Errorf("stem pinned by a repaint: err = %v, want ErrInputChanged", err)
 	}
 	// regression: the master still signs
 	if got, err := m.MintInputs(t.Context(), srcRequest(id, master), expires); err != nil || got[provider.InputSrcAudio].SHA256 != master {

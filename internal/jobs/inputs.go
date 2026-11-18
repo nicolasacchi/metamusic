@@ -31,7 +31,8 @@ type inputRefs struct {
 		TrackID      string `json:"track_id"`
 		MasterSHA256 string `json:"master_sha256"`
 	} `json:"src"`
-	Ref *struct {
+	Task string `json:"task"`
+	Ref  *struct {
 		TrackID    string `json:"track_id"`
 		ClipSHA256 string `json:"clip_sha256"`
 	} `json:"ref"`
@@ -105,6 +106,9 @@ func (m *signedInputs) MintInputs(ctx context.Context, request json.RawMessage, 
 		case sha != refs.Src.MasterSHA256:
 			// a remix pins a stem artifact of the same take in this slot (complete with source_stem); the track_id is in the
 			// WHERE, so a stem digest of another take never signs
+			if refs.Task != "complete" {
+				return nil, fmt.Errorf("%w: source track %s", ErrInputChanged, refs.Src.TrackID)
+			}
 			serr := m.o.Store.R.QueryRowContext(ctx, `SELECT sha256, bytes FROM artifacts WHERE track_id = ? AND sha256 = ? AND name GLOB 'stem-*.flac' LIMIT 1`,
 				refs.Src.TrackID, refs.Src.MasterSHA256).Scan(&sha, &bytes)
 			if errors.Is(serr, sql.ErrNoRows) {
