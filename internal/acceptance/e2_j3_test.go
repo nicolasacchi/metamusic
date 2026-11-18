@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/archivetest"
+	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
@@ -272,4 +273,67 @@ func TestAcceptance_E2_InputMismatchTerminalCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = os.Chmod(abs, 0o444)
+}
+
+// TestAcceptance_E2_RemixFromStem: the remix pipeline end to end on the fake. Without the stem the estimate is refused (nothing is
+// chained or spent); after a stems item attached the vocals stem, a complete item with edit.source_stem renders a new take whose
+// parent is the source take, whose request pins the stem digest (the signed input is the stem file: the fake verifies it) and whose
+// caption is the new style.
+func TestAcceptance_E2_RemixFromStem(t *testing.T) {
+	t.Parallel()
+	r := aceRig(t, archivetest.SyntheticArchive(t, "acceptance"), aceOpts{adopt: true, allOn: true, audioMax: 100})
+	h := r.Human(t)
+	base := aceBase(t, r, "rmx-base", 40, nil)
+	remix := func() map[string]any {
+		b := editBody("complete", base, map[string]any{"tracks": []string{"drums", "bass"}, "source_stem": "vocals"}, nil)
+		obj(arr(b["items"])[0])["patch"] = map[string]any{"style": "slow ambient, warm pads"}
+		return b
+	}
+
+	before := count(t, r, `SELECT COUNT(*) FROM estimates`)
+	resp := h.Do(t, "POST", "/api/generations/estimate", remix())
+	code, d := problemCode(t, resp)
+	if resp.Status != 422 || code != "INVALID_ITEM" || d["rule"] != "source_stem_missing" {
+		t.Fatalf("missing stem: %d %s", resp.Status, resp.Body)
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM estimates`); n != before {
+		t.Error("a refused remix wrote an estimate")
+	}
+
+	_, _, sj := aceRun(t, r, editBody("stems", base, map[string]any{"tracks": []string{"vocals"}}, nil), "rmx-stems")
+	if s, code := jobState(t, r, sj[0]); s != "completed" {
+		t.Fatalf("stems job %s (%s)", s, code)
+	}
+	var stemSHA string
+	if err := r.Store.R.QueryRow(`SELECT sha256 FROM artifacts WHERE track_id = ? AND name = 'stem-vocals.flac'`, base).Scan(&stemSHA); err != nil {
+		t.Fatal(err)
+	}
+
+	est, _, jobs := aceRun(t, r, remix(), "rmx-complete")
+	if !strings.Contains(string(mustJSON(t, est)), "source_is_stem") {
+		t.Error("the estimate did not warn source_is_stem")
+	}
+	if ed := obj(obj(arr(obj(arr(est["items"])[0])["takes"])[0])["edit"]); ed["source_stem"] != "vocals" {
+		t.Errorf("the estimate echo = %v, want source_stem vocals", ed)
+	}
+	if s, code := jobState(t, r, jobs[0]); s != "completed" {
+		t.Fatalf("remix job %s (%s)", s, code)
+	}
+	child := jobTrack(t, r, jobs[0])
+	var parent, req, op, patch string
+	if err := r.Store.R.QueryRow(`SELECT t.parent_track_id, rc.request_json, m.operator, m.recipe_patch_json FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id
+		JOIN mutations m ON m.child_track_id = t.id WHERE t.id = ?`, child).Scan(&parent, &req, &op, &patch); err != nil {
+		t.Fatal(err)
+	}
+	var rq acestep.Request
+	if err := json.Unmarshal([]byte(req), &rq); err != nil {
+		t.Fatal(err)
+	}
+	if parent != base || op != "complete_tracks" || rq.Task != "complete" || rq.Src == nil || rq.Src.TrackID != base || rq.Src.MasterSHA256 != stemSHA ||
+		rq.Caption != "slow ambient, warm pads" || !strings.Contains(patch, `"source_stem":"vocals"`) {
+		t.Errorf("remix: parent=%s op=%s src=%+v caption=%q patch=%s", parent, op, rq.Src, rq.Caption, patch)
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name LIKE 'stem-%'`, child); n != 0 {
+		t.Errorf("the remix take has %d stem artifacts", n)
+	}
 }

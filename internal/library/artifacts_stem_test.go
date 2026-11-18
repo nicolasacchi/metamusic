@@ -136,3 +136,50 @@ func TestResolve_StemAndLRC(t *testing.T) {
 		t.Errorf("a take without lrc: %+v %v", l, err)
 	}
 }
+
+func TestLatestStemArtifact(t *testing.T) {
+	t.Parallel()
+	_, st, info := e2Library(t)
+	ctx := context.Background()
+	add := func(track, name, sha string) {
+		t.Helper()
+		if _, err := st.W.Exec(`INSERT INTO artifacts(track_id, name, sha256, bytes, path, created_at) VALUES (?,?,?,?,?,?)`, track, name, sha, 7, "p/"+name, "2026-11-01T00:00:00Z"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	port, other := info.Port, info.Root
+	add(port, "stem-drums.flac", "d1")
+	add(port, "stem-drums-2.flac", "d2")
+	add(port, "stem-drums-10.flac", "d10")
+	add(port, "stem-backing_vocals.flac", "bv")
+	add(port, "stem-vocals-x.flac", "junk") // not a numbered name of vocals
+	add(other, "stem-bass.flac", "otherbass")
+	for _, c := range []struct {
+		track, name string
+		sha         string
+		ok          bool
+	}{
+		{port, "drums", "d10", true},               // numeric, not lexical, order
+		{port, "vocals", "stem-vocals.flac", true}, // the fixture's own stem
+		{port, "bass", "", false},                  // none
+		{port, "[a-z]*", "", false},                // GLOB metacharacters are inert
+		{port, "backing_vocals", "bv", true},
+		{other, "bass", "otherbass", true},
+		{info.Root, "drums", "", false}, // another take's stems are not visible
+	} {
+		a, ok, err := library.LatestStemArtifact(ctx, st.R, c.track, c.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok != c.ok {
+			t.Errorf("%s/%s: ok = %v, want %v", c.track, c.name, ok, c.ok)
+			continue
+		}
+		if ok && c.sha != "" && c.sha != "stem-vocals.flac" && a.SHA256 != c.sha {
+			t.Errorf("%s/%s: sha = %s, want %s", c.track, c.name, a.SHA256, c.sha)
+		}
+		if ok && c.sha == "stem-vocals.flac" && a.Name != c.sha {
+			t.Errorf("name = %s", a.Name)
+		}
+	}
+}

@@ -127,6 +127,7 @@ function validateEngineIntent(i: GenerationIntent): string | null {
     if (new Set(t).size !== t.length) return "Each track name can appear once.";
     const max = i.mode === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS;
     if (t.length > max) return `Pick at most ${max} track names.`;
+    if (e?.source_stem && i.mode !== "complete") return "Only complete can use a stem as its source.";
   }
   return null;
 }

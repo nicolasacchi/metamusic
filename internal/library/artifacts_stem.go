@@ -55,6 +55,50 @@ func NextStemArtifact(ctx context.Context, tx *sql.Tx, trackID, name string) (ar
 	return StemArtifactName(name, n), n, nil
 }
 
+// StemRow is one stem artifact of a take.
+type StemRow struct {
+	Name, SHA256 string
+	Bytes        int64
+}
+
+// StemReader is the read side of a pool or transaction.
+type StemReader interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// LatestStemArtifact returns the highest-numbered stem artifact called name of the take (stem-<name>.flac is number 1,
+// stem-<name>-<n>.flac is n); ok is false when the take has none. The name is matched exactly through StemName, so a GLOB
+// metacharacter in it finds nothing.
+func LatestStemArtifact(ctx context.Context, q StemReader, trackID, name string) (a StemRow, ok bool, err error) {
+	rows, err := q.QueryContext(ctx, `SELECT name, sha256, bytes FROM artifacts WHERE track_id = ? AND name GLOB 'stem-*.flac'`, trackID)
+	if err != nil {
+		return a, false, fmt.Errorf("library: stem artifacts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	best := 0
+	for rows.Next() {
+		var r StemRow
+		if err := rows.Scan(&r.Name, &r.SHA256, &r.Bytes); err != nil {
+			return StemRow{}, false, err
+		}
+		if base, isStem := StemName(r.Name); !isStem || base != name {
+			continue
+		}
+		k := 1
+		if r.Name != StemArtifactName(name, 1) {
+			v, cerr := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(r.Name, "stem-"+name+"-"), ".flac"))
+			if cerr != nil {
+				continue
+			}
+			k = v
+		}
+		if k > best {
+			best, a, ok = k, r, true
+		}
+	}
+	return a, ok, rows.Err()
+}
+
 // ErrNoSuchTrack is returned by AttachArtifact for a take that does not exist.
 var ErrNoSuchTrack = errors.New("library: no such track")
 

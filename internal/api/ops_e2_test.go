@@ -121,6 +121,9 @@ func TestSchema_E2Enums(t *testing.T) {
 	if got := enum(reflect.TypeFor[api.EditIn](), "Tracks"); !slices.Equal(got, acestep.StemNames) {
 		t.Errorf("EditIn.tracks enum %v, want the engine's stem names %v", got, acestep.StemNames)
 	}
+	if got := enum(reflect.TypeFor[api.EditIn](), "SourceStem"); !slices.Equal(got, acestep.StemNames) {
+		t.Errorf("EditIn.source_stem enum %v, want the engine's stem names %v", got, acestep.StemNames)
+	}
 	modes := enum(reflect.TypeFor[api.ItemIn](), "Mode")
 	for _, m := range []string{"port", "extend", "repaint", "reference", "complete", "stems"} {
 		if !slices.Contains(modes, m) {

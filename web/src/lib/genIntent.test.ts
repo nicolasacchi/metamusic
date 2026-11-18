@@ -180,3 +180,17 @@ describe("referenceIntent", () => {
     expect(intentToEstimate(referenceIntent("t1")).kind === "generation" && JSON.stringify(intentToEstimate(referenceIntent("t1")))).toContain('"reference":{"track_id":"t1"}');
   });
 });
+
+describe("complete from a stem", () => {
+  const remix: GenerationIntent = { mode: "complete", engine: "acestep15", parent_track_id: "t1", edit: { tracks: ["drums"], source_stem: "vocals" }, patch: { style: "slow ambient" } };
+  test("the estimate body passes edit.source_stem and the style through", () => {
+    expect(intentToEstimate(remix)).toEqual({
+      kind: "generation",
+      body: { items: [{ mode: "complete", parent_track_id: "t1", edit: { tracks: ["drums"], source_stem: "vocals" }, patch: { style: "slow ambient" } }], engine: "acestep15" },
+    });
+    expect(validateIntent(remix)).toBeNull();
+  });
+  test("only complete may name a stem source", () => {
+    expect(validateIntent({ ...remix, mode: "stems" })).toMatch(/Only complete/);
+  });
+});

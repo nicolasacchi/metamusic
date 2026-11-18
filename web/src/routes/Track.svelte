@@ -324,6 +324,7 @@
             {bits}
             parentId={track.lineage.parent_track_id}
             acestep={track.recipe.acestep ?? null}
+            stems={track.stems ?? []}
             playFrom={(s) => play(s)}
             go={(to) => (navigate ?? defaultNavigate)(to)}
           />

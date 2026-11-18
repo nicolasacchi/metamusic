@@ -99,6 +99,26 @@ func (p *planner) resolveSrc(mode, id string) (srcPin, error) {
 	return srcPin{Ref: acestep.SrcRef{TrackID: t.ID, MasterSHA256: t.MasterSHA256, DurationDS: d}, Track: t}, nil
 }
 
+// resolveStemSrc pins the source of a remix: the newest stem artifact of the parent take called name. The pin keeps the take as
+// track_id and its length, and carries the stem file's digest in the digest slot. The stem is an artifact, not a take, so an
+// absent one is refused (422 source_stem_missing) rather than extracted silently: the extract is a separate costed job.
+func (p *planner) resolveStemSrc(item int, mode, id, name string) (srcPin, error) {
+	pin, err := p.resolveSrc(mode, id)
+	if err != nil {
+		return srcPin{}, err
+	}
+	a, ok, err := library.LatestStemArtifact(p.ctx, p.q, id, name)
+	if err != nil {
+		return srcPin{}, err
+	}
+	if !ok {
+		return srcPin{}, perr(http.StatusUnprocessableEntity, "INVALID_ITEM",
+			"the parent take has no "+name+" stem; run a stems item for "+name+" first", map[string]any{"item": item, "field": "edit.source_stem", "rule": "source_stem_missing"})
+	}
+	pin.Ref.MasterSHA256 = a.SHA256
+	return pin, nil
+}
+
 // refPin is a resolved reference: the request pin, the window in milliseconds and what create needs to render the clip again.
 type refPin struct {
 	Ref   acestep.RefRef
