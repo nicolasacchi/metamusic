@@ -10,7 +10,7 @@
   import { abWindow } from "../abWindow";
   import { fetchEngines, type EngineList } from "../engines";
   import { engineIntent, MAX_COMPLETE_TRACKS, MAX_STEM_TRACKS, referenceIntent, startGeneration } from "../genIntent";
-  import type { StemName } from "../modePanels";
+  import { stemChoices, type StemName } from "../modePanels";
   import { rangeProblem } from "../rangeSelect";
   import { actionLimits, actionReason, extendLimits, extendProblem, isRepaintChild, type TrackAction } from "../trackEngineActions";
   import RangeSelect from "./RangeSelect.svelte";
@@ -24,11 +24,13 @@
     bits: number;
     parentId: string | null;
     acestep?: Ace | null;
+    /** The stems this take already has (remix sources). */
+    stems?: readonly { name: string }[];
     /** Start playback at a second (the page's player). */
     playFrom: (s: number) => void;
     go: (to: string) => void;
   }
-  let { trackId, duration, peaks, bits, parentId, acestep = null, playFrom, go }: Props = $props();
+  let { trackId, duration, peaks, bits, parentId, acestep = null, stems = [], playFrom, go }: Props = $props();
 
   let open = $state<TrackAction | null>(null);
   let list = $state<EngineList | null>(null);
@@ -42,6 +44,10 @@
   // E2-W5 (E2b): Extend, Complete and Extract stems.
   let extendS = $state(30);
   let names = $state<StemName[]>([]);
+  // Complete from a stem (remix): the vocals of this take stay, the arrangement is new in the given style.
+  let sourceStem = $state<StemName | "">("");
+  let remixStyle = $state("");
+  const sourceChoices = $derived(stemChoices(stems));
   const isRange = $derived(open === "repaint" || open === "reference");
   const extLim = $derived(extendLimits(list, duration));
   const extProblem = $derived(open === "extend" ? extendProblem(extendS, extLim) : "");
@@ -63,6 +69,8 @@
     to = null;
     note = "";
     names = [];
+    sourceStem = "";
+    remixStyle = "";
     if (!list) {
       loading = true;
       const r = await fetchEngines();
@@ -94,7 +102,10 @@
     if (open === "extend") {
       startGeneration(sessionStorage, { ...engineIntent("extend", trackId), edit: { extend_s: extendS } }, go);
     } else if (open === "complete" || open === "stems") {
-      startGeneration(sessionStorage, { ...engineIntent(open, trackId), edit: { tracks: [...names] } }, go);
+      const stem = open === "complete" && sourceStem !== "" ? sourceStem : undefined;
+      const edit = stem ? { tracks: [...names], source_stem: stem } : { tracks: [...names] };
+      const patch = stem && remixStyle.trim() ? { patch: { style: remixStyle.trim() } } : {};
+      startGeneration(sessionStorage, { ...engineIntent(open, trackId), edit, ...patch }, go);
     } else if (open === "repaint") {
       if (from === null || to === null) return;
       startGeneration(sessionStorage, { ...engineIntent("repaint", trackId), edit: { from_s: from, to_s: to } }, go);
@@ -152,6 +163,24 @@
           {open === "complete" ? "Pick the tracks to add around this take (up to " + MAX_COMPLETE_TRACKS + ")." : "Pick the stems to extract. Each name is its own job (up to " + MAX_STEM_TRACKS + ")."}
         </p>
         <ModePanelStems bind:tracks={names} max={open === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS} />
+        {#if open === "complete"}
+          <label class="ext">
+            <span>Source</span>
+            <select bind:value={sourceStem} data-testid="complete-source">
+              <option value="">Full mix</option>
+              {#each sourceChoices as n (n)}<option value={n}>{n.replaceAll("_", " ")} stem only</option>{/each}
+            </select>
+          </label>
+          {#if sourceChoices.length === 0}
+            <p class="muted" data-testid="complete-source-hint">To remix with the original vocals, extract the vocals stem first (Extract stems, a separate job).</p>
+          {:else if sourceStem !== ""}
+            <label class="ext">
+              <span>New style</span>
+              <textarea bind:value={remixStyle} rows="2" data-testid="complete-style"></textarea>
+            </label>
+            <p class="muted" data-testid="complete-source-note">The {sourceStem.replaceAll("_", " ")} is re-rendered by the model, so it will be similar, not identical. Extracting the stem was its own paid job; this one is another.</p>
+          {/if}
+        {/if}
         <div class="row"><button type="button" onclick={proceed} disabled={namesProblem !== ""} data-testid="action-continue">Continue to estimate</button></div>
       {:else if !reason && isRange}
         <p class="muted">

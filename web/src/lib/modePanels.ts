@@ -28,6 +28,8 @@ export interface PanelState {
   to: string;
   extend: string;
   tracks: StemName[];
+  /** complete only: the extracted stem used as the source; empty is the full mix. */
+  sourceStem: StemName | "";
   think: boolean;
   bpm: string;
   keyscale: string;
@@ -48,6 +50,7 @@ export function panelFromIntent(i: GenerationIntent): PanelState {
     to: n(i.mode === "reference" ? i.reference?.to_s : i.edit?.to_s),
     extend: n(i.edit?.extend_s),
     tracks: [...(i.edit?.tracks ?? [])],
+    sourceStem: i.edit?.source_stem ?? "",
     think: p.cot === "think",
     bpm: n(p.bpm),
     keyscale: p.keyscale ?? "",
@@ -70,6 +73,12 @@ function limitMessage(what: string, span: number, min: number, max: number): str
   return null;
 }
 const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** The stem names a take can be remixed from, in the canonical order (its StemLink / StemInfo names). */
+export function stemChoices(stems: readonly { name: string }[]): StemName[] {
+  const have = new Set(stems.map((s) => s.name));
+  return STEM_NAMES.filter((n) => have.has(n));
+}
 
 /** The patch of a port / reference panel: only the fields the user filled in. */
 function patchOf(st: PanelState): { patch: Patch } | { error: string } {
@@ -155,6 +164,11 @@ export function buildPanel(mode: EngineMode, base: GenerationIntent, st: PanelSt
       if (st.tracks.length === 0) return fail("Pick at least one track name.");
       if (st.tracks.length > max) return fail(`Pick at most ${max} track names.`);
       intent = { ...keep, edit: { tracks: [...st.tracks] } };
+      if (mode === "complete" && st.sourceStem) {
+        // remix: the stem of the take replaces its full mix as the source; the style is the new arrangement's
+        intent.edit = { tracks: [...st.tracks], source_stem: st.sourceStem };
+        if (st.style.trim()) intent.patch = { style: st.style.trim() };
+      }
       break;
     }
   }

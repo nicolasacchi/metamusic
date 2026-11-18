@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { EngineCaps } from "./engines";
 import type { GenerationIntent } from "./genIntent";
-import { buildPanel, panelFromIntent, parseSeconds, type PanelState } from "./modePanels";
+import { buildPanel, panelFromIntent, parseSeconds, stemChoices, type PanelState } from "./modePanels";
 
 const base = (over: Partial<GenerationIntent> = {}): GenerationIntent => ({ mode: "port", engine: "acestep15", parent_track_id: "t1", ...over });
 const st = (over: Partial<PanelState> = {}): PanelState => ({ ...panelFromIntent(base()), ...over });
@@ -36,6 +36,27 @@ describe("buildPanel exact intents", () => {
   test("complete caps the names at four", () => {
     const r = buildPanel("complete", base({ mode: "complete" }), st({ tracks: ["vocals", "drums", "bass", "synth", "fx"] }), null);
     expect(r).toEqual({ ok: false, error: "Pick at most 4 track names." });
+  });
+  test("complete from a stem sends edit.source_stem and the new style", () => {
+    const r = buildPanel("complete", base({ mode: "complete" }), st({ tracks: ["drums", "bass"], sourceStem: "vocals", style: " slow ambient " }), null);
+    expect(r).toEqual({
+      ok: true,
+      intent: { mode: "complete", engine: "acestep15", parent_track_id: "t1", n_seeds: 1, edit: { tracks: ["drums", "bass"], source_stem: "vocals" }, patch: { style: "slow ambient" } },
+    });
+  });
+  test("complete without a stem is today's intent unchanged", () => {
+    const r = buildPanel("complete", base({ mode: "complete" }), st({ tracks: ["drums"], style: "ignored without a stem" }), null);
+    expect(r).toEqual({ ok: true, intent: { mode: "complete", engine: "acestep15", parent_track_id: "t1", n_seeds: 1, edit: { tracks: ["drums"] } } });
+  });
+  test("a stem source is for complete only", () => {
+    const r = buildPanel("stems", base({ mode: "stems" }), st({ tracks: ["vocals"], sourceStem: "vocals" }), null);
+    expect(r.ok && r.intent.edit).toEqual({ tracks: ["vocals"] });
+  });
+  test("panelFromIntent restores the source stem; stemChoices offers only the take's stems in canonical order", () => {
+    expect(panelFromIntent(base({ mode: "complete", edit: { tracks: ["drums"], source_stem: "vocals" } })).sourceStem).toBe("vocals");
+    expect(panelFromIntent(base({ mode: "complete" })).sourceStem).toBe("");
+    expect(stemChoices([{ name: "vocals" }, { name: "bass" }, { name: "kazoo" }])).toEqual(["bass", "vocals"]);
+    expect(stemChoices([])).toEqual([]);
   });
   test("port sends only the filled patch fields", () => {
     const r = buildPanel("port", base(), st({ style: " warm pads ", bpm: "96", keyscale: "A minor", timesignature: "3", duration: "61.25", think: true, seedsText: "7, 9" }), null);

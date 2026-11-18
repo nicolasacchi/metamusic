@@ -6528,6 +6528,24 @@
             "format": "double",
             "type": "number"
           },
+          "source_stem": {
+            "description": "complete only: use this extracted stem of the parent take as the source instead of its master (run a stems item first)",
+            "enum": [
+              "backing_vocals",
+              "bass",
+              "brass",
+              "drums",
+              "fx",
+              "guitar",
+              "keyboard",
+              "percussion",
+              "strings",
+              "synth",
+              "vocals",
+              "woodwinds"
+            ],
+            "type": "string"
+          },
           "to_s": {
             "format": "double",
             "type": "number"
@@ -7484,7 +7502,7 @@
         "additionalProperties": false,
         "properties": {
           "code": {
-            "description": "Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated",
+            "description": "Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem",
             "type": "string"
           },
           "field": {
@@ -18443,6 +18461,12 @@
               "null"
             ]
           },
+          "source_stem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "stem": {
             "type": [
               "string",
@@ -18468,7 +18492,8 @@
           "to_s",
           "extend_s",
           "tracks",
-          "stem"
+          "stem",
+          "source_stem"
         ],
         "type": "object"
       },

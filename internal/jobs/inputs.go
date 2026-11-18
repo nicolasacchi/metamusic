@@ -103,7 +103,16 @@ func (m *signedInputs) MintInputs(ctx context.Context, request json.RawMessage, 
 		case err != nil:
 			return nil, fmt.Errorf("jobs: read source master: %w", err)
 		case sha != refs.Src.MasterSHA256:
-			return nil, fmt.Errorf("%w: source track %s", ErrInputChanged, refs.Src.TrackID)
+			// a remix pins a stem artifact of the same take in this slot (complete with source_stem); the track_id is in the
+			// WHERE, so a stem digest of another take never signs
+			serr := m.o.Store.R.QueryRowContext(ctx, `SELECT sha256, bytes FROM artifacts WHERE track_id = ? AND sha256 = ? AND name GLOB 'stem-*.flac' LIMIT 1`,
+				refs.Src.TrackID, refs.Src.MasterSHA256).Scan(&sha, &bytes)
+			if errors.Is(serr, sql.ErrNoRows) {
+				return nil, fmt.Errorf("%w: source track %s", ErrInputChanged, refs.Src.TrackID)
+			}
+			if serr != nil {
+				return nil, fmt.Errorf("jobs: read source stem: %w", serr)
+			}
 		}
 		ref, err := m.sign(sha, bytes, ttl)
 		if err != nil {
