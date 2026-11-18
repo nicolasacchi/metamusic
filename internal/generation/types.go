@@ -79,6 +79,7 @@ type paramsDoc struct {
 	TrialID     string  `json:"trial_id,omitempty"`     // options.trial_id of the estimate (C158.2)
 	CrossEngine bool    `json:"cross_engine,omitempty"` // D-E2-25: the parent was rendered by the other engine
 	Stem        string  `json:"stem,omitempty"`         // extract_stems: the stem name of this job
+	SourceStem  string  `json:"source_stem,omitempty"`  // complete: the stem of the parent used as the source audio
 	PatchID     *string `json:"patch_id,omitempty"`     // song_pr: the Song PR (C253.4)
 }
 

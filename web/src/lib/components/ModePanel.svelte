@@ -64,6 +64,10 @@
   {#if mode === "complete" || mode === "stems"}
     <ModePanelStems bind:tracks={st.tracks} max={mode === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS} />
     {#if mode === "stems"}<p class="muted">One job per name.</p>{/if}
+    {#if mode === "complete" && st.sourceStem}
+      <p class="muted" data-testid="complete-source-note">Source: the {st.sourceStem.replaceAll("_", " ")} stem of the take (remix).</p>
+      <label>New style <textarea bind:value={st.style} rows="2" data-testid="panel-style"></textarea></label>
+    {/if}
   {/if}
 
   {#if mode === "cover"}

@@ -2159,6 +2159,24 @@
                     "format": "double",
                     "type": "number"
                   },
+                  "source_stem": {
+                    "description": "complete only: remix this stem of the parent, not its master",
+                    "enum": [
+                      "backing_vocals",
+                      "bass",
+                      "brass",
+                      "drums",
+                      "fx",
+                      "guitar",
+                      "keyboard",
+                      "percussion",
+                      "strings",
+                      "synth",
+                      "vocals",
+                      "woodwinds"
+                    ],
+                    "type": "string"
+                  },
                   "strength": {
                     "format": "double",
                     "maximum": 1,
@@ -2567,6 +2585,12 @@
                           "format": "double",
                           "type": [
                             "number",
+                            "null"
+                          ]
+                        },
+                        "source_stem": {
+                          "type": [
+                            "string",
                             "null"
                           ]
                         },
@@ -3063,6 +3087,12 @@
                           "format": "double",
                           "type": [
                             "number",
+                            "null"
+                          ]
+                        },
+                        "source_stem": {
+                          "type": [
+                            "string",
                             "null"
                           ]
                         },

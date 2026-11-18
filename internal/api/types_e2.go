@@ -7,7 +7,7 @@ package api
 // ---- items (C149.2) ----
 
 // EditIn holds the inputs of the edit modes of an item: repaint (from_s, to_s), extend (extend_s), complete (tracks, 1..4), cover (strength) and
-// stems (tracks, 1..6 names, one job per name).
+// stems (tracks, 1..6 names, one job per name). complete may also name a source_stem (remix).
 type EditIn struct {
 	FromS   *float64 `json:"from_s,omitempty"`
 	ToS     *float64 `json:"to_s,omitempty"`
@@ -15,6 +15,9 @@ type EditIn struct {
 	Tracks  []string `json:"tracks,omitempty" nullable:"false" maxItems:"6" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds"`
 	// Strength is the cover strength 0..1 (0.001 resolution): 1 stays closest to the source, about 0.2 restyles most.
 	Strength *float64 `json:"strength,omitempty" minimum:"0" maximum:"1"`
+	// SourceStem makes a complete item a remix: the named stem of the parent (which must already exist) replaces the parent's
+	// master as the source audio.
+	SourceStem string `json:"source_stem,omitempty" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds" doc:"complete only: remix this stem of the parent, not its master"`
 }
 
 // RefIn is the reference input of a compose_new or reference item: a window of a take whose timbre the render follows. The
@@ -42,6 +45,8 @@ type TakeEdit struct {
 	Stem    *string  `json:"stem"`
 	// Strength is a cover take's strength 0..1; null for every other task.
 	Strength *float64 `json:"strength"`
+	// SourceStem echoes the stem of the parent a complete take uses as its source (null for the parent master).
+	SourceStem *string `json:"source_stem"`
 }
 
 // TakeReference echoes the pinned reference clip of a take.

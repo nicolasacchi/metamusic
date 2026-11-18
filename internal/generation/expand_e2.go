@@ -96,6 +96,7 @@ func validateE2Shape(i int, it Item, hasParent bool) error {
 		notAllowed("edit.from_s", hasRange && it.Mode != lineage.ModeRepaint),
 		notAllowed("edit.strength", has(func(e *Edit) bool { return e.Strength != nil }) && it.Mode != lineage.ModeCover),
 		notAllowed("edit.tracks", hasTracks && it.Mode != lineage.ModeComplete && it.Mode != lineage.ModeStems),
+		notAllowed("edit.source_stem", e != nil && e.SourceStem != "" && it.Mode != lineage.ModeComplete),
 	} {
 		if err != nil {
 			return err
@@ -126,6 +127,12 @@ func validateE2Shape(i int, it Item, hasParent bool) error {
 			return invalidItem(i, "edit.strength", "strength_range")
 		}
 	case lineage.ModeComplete, lineage.ModeStems:
+		if e != nil && e.SourceStem != "" && !slices.Contains(acestep.StemNames, e.SourceStem) {
+			return invalidItem(i, "edit.source_stem", "unknown_track_name")
+		}
+		if e != nil && e.SourceStem != "" && slices.Contains(e.Tracks, e.SourceStem) {
+			return invalidItem(i, "edit.tracks", "tracks_include_source_stem")
+		}
 		return validateTracks(i, it)
 	}
 	return nil
@@ -288,6 +295,9 @@ func aceDoc(pt *acestep.Patch) json.RawMessage {
 		if pt.CoverStrengthMilli != nil {
 			m["cover_strength_milli"] = *pt.CoverStrengthMilli
 		}
+		if pt.SourceStem != "" {
+			m["source_stem"] = pt.SourceStem
+		}
 	}
 	if len(m) == 0 {
 		return json.RawMessage("null")
@@ -425,7 +435,15 @@ func (p *planner) expandE2(i int, it Item) error {
 		ac.src, ac.edit = &src, &PlannedEdit{Strength: f64milli(milli)}
 		pt.Src, pt.CoverStrengthMilli = &src.Ref, &milli
 	case lineage.ModeComplete, lineage.ModeStems:
-		src, err := p.resolveSrc(mode, t.ID)
+		var src srcPin
+		var err error
+		if stem := it.Edit.SourceStem; mode == lineage.ModeComplete && stem != "" {
+			// remix: the stem of the parent is the source audio; its digest rides in the src pin (the worker reads only a
+			// 64-hex match and the length, so no worker change)
+			src, err = p.resolveStemSrc(i, mode, t.ID, stem)
+		} else {
+			src, err = p.resolveSrc(mode, t.ID)
+		}
 		if err != nil {
 			return err
 		}
@@ -434,6 +452,14 @@ func (p *planner) expandE2(i int, it Item) error {
 		if mode == lineage.ModeComplete {
 			pt.Tracks = slices.Clone(it.Edit.Tracks)
 			ac.edit = &PlannedEdit{Tracks: slices.Clone(it.Edit.Tracks)}
+			if stem := it.Edit.SourceStem; stem != "" {
+				pt.SourceStem, ac.edit.SourceStem = stem, stem
+				ac.warns = append(ac.warns, warnIssue(WarnStemSource, "edit.source_stem",
+					"the source is the extracted "+stem+" stem, a model extraction of the parent; the "+stem+" in the result is re-rendered by the model, not copied"))
+			}
+			if ac.cross {
+				ac.warns = append(ac.warns, warnIssue(WarnCrossEngineEdit, "parent_track_id", "the parent was rendered by YuE2; the edit uses its audio only and the seam is unvalidated"))
+			}
 			return p.expandACE(b)
 		}
 		return p.expandStems(b)
@@ -668,7 +694,7 @@ func (p *planner) planTakeACE(b base, sp seedPlan, nSeeds int) error {
 		TakeIndex: len(p.takes), ItemIndex: b.item, Mode: b.mode, Operator: b.spec.Operator,
 		RequestJSON: string(parsed.Canonical), RecipeHash: parsed.Hash, ContentHash: content, RenderHash: render,
 		RequestID: id, Seed: sp.seed, Warnings: []Issue{},
-		Params: paramsDoc{Mode: b.mode, SeedPolicy: sp.policy, NSeeds: nSeeds, Via: b.via, TrialID: p.trial, CrossEngine: ac.cross, Stem: ac.stem},
+		Params: paramsDoc{Mode: b.mode, SeedPolicy: sp.policy, NSeeds: nSeeds, Via: b.via, TrialID: p.trial, CrossEngine: ac.cross, Stem: ac.stem, SourceStem: sourceStemOf(ac.patch)},
 		Patch:  aceDoc(ac.patch),
 	}
 	if ac.ref != nil {
@@ -793,3 +819,10 @@ func (p *planner) inputBytesACE(req acestep.Request, canonical []byte) (int, err
 
 // f64milli is a strength in milli as the 0..1 value the API shows.
 func f64milli(m int) *float64 { v := float64(m) / 1000; return &v }
+
+func sourceStemOf(pt *acestep.Patch) string {
+	if pt == nil {
+		return ""
+	}
+	return pt.SourceStem
+}
