@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { EngineCaps } from "./engines";
 import type { GenerationIntent } from "./genIntent";
-import { buildPanel, panelFromIntent, parseSeconds, type PanelState } from "./modePanels";
+import { buildPanel, panelFromIntent, parseSeconds, parseStrength, type PanelState } from "./modePanels";
 
 const base = (over: Partial<GenerationIntent> = {}): GenerationIntent => ({ mode: "port", engine: "acestep15", parent_track_id: "t1", ...over });
 const st = (over: Partial<PanelState> = {}): PanelState => ({ ...panelFromIntent(base()), ...over });
@@ -32,6 +32,21 @@ describe("buildPanel exact intents", () => {
   test("stems [vocals, drums] gives edit {tracks}", () => {
     const r = buildPanel("stems", base({ mode: "stems" }), st({ tracks: ["vocals", "drums"] }), null);
     expect(r.ok && r.intent.edit).toEqual({ tracks: ["vocals", "drums"] });
+  });
+  test("cover gives patch {style, lyrics?} and edit {strength}", () => {
+    const b = base({ mode: "cover" });
+    expect(panelFromIntent(b).strength).toBe("0.5");
+    const r = buildPanel("cover", b, st({ style: " slow jazz trio ", strength: "0.2" }), null);
+    expect(r).toEqual({ ok: true, intent: { mode: "cover", engine: "acestep15", parent_track_id: "t1", n_seeds: 1, patch: { style: "slow jazz trio" }, edit: { strength: 0.2 } } });
+    const l = buildPanel("cover", b, st({ style: "x", lyrics: "la la", strength: "1", seedsText: "3, 4" }), null);
+    expect(l.ok && l.intent).toEqual({ mode: "cover", engine: "acestep15", parent_track_id: "t1", seeds: [3, 4], patch: { style: "x", lyrics: "la la" }, edit: { strength: 1 } });
+  });
+  test("cover needs a style and a strength in 0..1", () => {
+    expect(buildPanel("cover", base(), st({ style: "", strength: "0.5" }), null)).toEqual({ ok: false, error: "Describe the new style to restyle with." });
+    for (const s of ["", "1.5", "-0.1", "abc", "2"]) expect(buildPanel("cover", base(), st({ style: "x", strength: s }), null)).toEqual({ ok: false, error: "Strength must be a number from 0 to 1." });
+    expect(parseStrength("0.2504")).toBe(0.25);
+    expect(parseStrength("0")).toBe(0);
+    expect(parseStrength("1")).toBe(1);
   });
   test("complete caps the names at four", () => {
     const r = buildPanel("complete", base({ mode: "complete" }), st({ tracks: ["vocals", "drums", "bass", "synth", "fx"] }), null);

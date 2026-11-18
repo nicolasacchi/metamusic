@@ -2,6 +2,7 @@
   import type { EngineCaps } from "../engines";
   import { MAX_COMPLETE_TRACKS, MAX_STEM_TRACKS, type EngineMode, type GenerationIntent } from "../genIntent";
   import { buildPanel, MODE_TITLES, panelFromIntent, TIME_SIGNATURES } from "../modePanels";
+  import ModePanelCover from "./ModePanelCover.svelte";
   import ModePanelStems from "./ModePanelStems.svelte";
 
   interface Props {
@@ -63,6 +64,10 @@
   {#if mode === "complete" || mode === "stems"}
     <ModePanelStems bind:tracks={st.tracks} max={mode === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS} />
     {#if mode === "stems"}<p class="muted">One job per name.</p>{/if}
+  {/if}
+
+  {#if mode === "cover"}
+    <ModePanelCover bind:style={st.style} bind:lyrics={st.lyrics} bind:strength={st.strength} />
   {/if}
 
   {#if hasPatch}

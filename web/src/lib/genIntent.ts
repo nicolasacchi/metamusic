@@ -16,8 +16,8 @@ export type VariantMode = "new_seed" | "same_seed_edit" | "lyric_edit" | "style_
 const VARIANT_MODES: readonly string[] = ["new_seed", "same_seed_edit", "lyric_edit", "style_edit"];
 
 /** The ACE-Step modes (E2): each acts on a source take, or (reference) renders with a take's window as the reference. */
-export type EngineMode = "port" | "extend" | "repaint" | "reference" | "complete" | "stems";
-export const ENGINE_MODES: readonly EngineMode[] = ["port", "extend", "repaint", "reference", "complete", "stems"];
+export type EngineMode = "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover";
+export const ENGINE_MODES: readonly EngineMode[] = ["port", "extend", "repaint", "reference", "complete", "stems", "cover"];
 export type EngineName = "yue2" | "acestep15";
 export const ENGINE_NAMES: readonly string[] = ["yue2", "acestep15"];
 /** The one engine other than the default; engine modes imply it. */
@@ -121,6 +121,11 @@ function validateEngineIntent(i: GenerationIntent): string | null {
     if (!(e.from_s < e.to_s)) return "The range must end after it starts.";
   }
   if (i.mode === "extend" && !(e?.extend_s !== undefined && e.extend_s > 0)) return "Enter how many seconds to add.";
+  if (i.mode === "cover") {
+    if (!i.patch?.style?.trim()) return "Describe the new style to restyle with.";
+    const s = e?.strength;
+    if (s === undefined || !Number.isFinite(s) || s < 0 || s > 1) return "Strength must be between 0 and 1.";
+  }
   if (i.mode === "complete" || i.mode === "stems") {
     const t = e?.tracks ?? [];
     if (t.length === 0) return "Pick at least one track name.";

@@ -39,7 +39,9 @@ describe("engine picker choices", () => {
 describe("modes from caps", () => {
   test("the modes follow the flags", () => {
     expect(modesOffered(caps)).toEqual(["port", "repaint", "reference"]);
-    expect(modesOffered(null)).toHaveLength(6);
+    expect(modesOffered(null)).toHaveLength(7);
+    expect(modesOffered({ ...caps, cover: true })).toContain("cover");
+    expect(modeUnavailable("cover", caps)).toMatch(/cover/);
     expect(modeUnavailable("extend", caps)).toMatch(/extend/);
     expect(modeUnavailable("repaint", caps)).toBe("");
   });

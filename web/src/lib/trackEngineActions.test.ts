@@ -33,6 +33,10 @@ describe("trackEngineActions", () => {
     expect(actionReason(l, "complete")).toContain("complete");
     expect(actionReason(ace(), "extend")).toContain("extend");
   });
+  test("cover needs the mode in caps", () => {
+    expect(actionReason(ace({}, { tasks: ["cover"] }), "cover")).toBe("");
+    expect(actionReason(ace({}, { tasks: ["extend"] }), "cover")).toContain("restyling");
+  });
   test("extend limits respect the effective cap", () => {
     const l = ace({}, { extend_min_s: 3, extend_max_s: 90, max_seconds: 120 });
     expect(extendLimits(l, 60)).toEqual({ min: 3, max: 60 });

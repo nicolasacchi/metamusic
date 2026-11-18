@@ -442,7 +442,7 @@ the sum of the stage ceilings; the command refuses when the sum exceeds it.
    `metamusic runpod canary --engine acestep15 --max-usd N --case t2m` and then `t2m-long` (use `--max-s 480`; 600 only on a
    32/48 GB pool being verified), `reference`, `repaint`, `terminate`, `timeout`, `kill-switch` (needs `--kill-switch-confirm` and
    `provision --engine acestep15 --deactivate` while the job runs), `init-fail` and `first-pull`. E2b adds `extend`, `complete`,
-   `extract`, `base-long` and `lrc`. `--source-track ID` reuses a kept 30 s track for the edit cases.
+   `extract`, `base-long`, `lrc` and `cover` (a post-E2 follow-up, see below). `--source-track ID` reuses a kept 30 s track for the edit cases.
 3. `init-fail` needs the endpoint provisioned with `provision --engine acestep15 --activate --max 1 --init-fail`, then the canary
    with `--init-fail-confirm`; restore afterwards with a normal `provision --engine acestep15 --deactivate`.
 4. A passing run prints a proposed `features.verified.json` and RTF patch; the files are **not** touched. `--measured-out FILE`
@@ -452,12 +452,25 @@ the sum of the stage ceilings; the command refuses when the sum exceeds it.
 5. Exit codes: 0 pass, 1 fail, 2 usage, 3 refused (cost or disarmed), 4 aborted.
 6. The server refuses a capability that `features.verified.json` does not list (422 `ENGINE_CAPABILITY`), so the `reference`, `repaint`,
    `extend`, `complete`, `extract` and `lrc` cases need the canary-only switch. For the canary window only, set
-   `MM_ACESTEP_CANARY_CAPS=reference,repaint` (names from that list; `complete`/`extract` also need `MM_ACESTEP_TASKS=turbo,base`)
+   `MM_ACESTEP_CANARY_CAPS=reference,repaint` (names from that list, which also has `cover`; `complete`/`extract` also need `MM_ACESTEP_TASKS=turbo,base`)
    in the server's env and redeploy env-only with `DEPLOY_SKIP_BUILD=1` (no image build). `config check` prints
    `acestep canary caps: ...` and the server logs one WARN at startup.
 7. Only requests whose id starts `mm-canary-<YYYYMMDD>-` get the capability; everything else, `list_engines` and the SPA still show it
    unverified. Each take that used one logs `canary_cap` and records `canary_caps` in the job's mutation. Right after the last case,
    remove the variable and redeploy with `DEPLOY_SKIP_BUILD=1` again; then commit the proposed `features.verified.json`.
+
+**Cover (restyle).** The `cover` case verifies the audio-to-audio restyle of a whole take (docs/plans/2026-11-18-ace-cover.md). It
+needs a worker image that contains the cover handler: merge, let CI build the image, commit its digest in
+`deploy/worker-acestep-image.digest` and redeploy before running it. Run it with `MM_ACESTEP_CANARY_CAPS=cover` (turbo class: no
+`MM_ACESTEP_TASKS=turbo,base` needed) and `metamusic runpod canary --engine acestep15 --max-usd N --case cover`. It renders the
+case's own 30 s source, then restyles it at strength 0.5 and 1.0 (two renders after the source; the dry run prices them). The
+case passes when both jobs complete with verified artifacts and the exact source length (0.1 s); the report records whether the
+strength changed the audio (`cover_strength_moves_output`, informational). Then listen: the structure and melody of the source
+must survive at strength 1.0, and a lower strength must move toward the new caption; a cross-engine source (a YuE2 take) is the
+usual input and needs a listening review too. Only after that, flip the flag in a **separate PR**: add `"cover"` to `tasks` in
+`internal/engine/acestep/features.verified.json` with the canary commit (a test pins that the file does not list it until then),
+and write the turbo `engine_rtf` row only if you want it (cover never teaches the RTF). Restyling someone else's recording is the
+operator's call; the server only checks that the parent take has a master.
 
 **Status (2026-11-17):** E2-X4 ran against production and its result is committed: `t2m`, `t2m-long`, `reference`, `repaint`,
 `terminate`, `kill-switch`, `init-fail`, `first-pull`, `extend`, `complete`, `extract`, `lrc` and `base-long` passed; `timeout`
