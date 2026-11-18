@@ -16,6 +16,7 @@ import (
 type Edit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string // complete 1..4, stems 1..6 names (one job per name)
+	Strength            *float64 // cover: 0..1, how close the restyle stays to the source (stored as integer milli)
 }
 
 // Reference is the reference input of a compose_new or reference item: a window of a take, default its last 20 s.
@@ -29,6 +30,7 @@ type PlannedEdit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string
 	Stem                string
+	Strength            *float64 // cover
 }
 
 // PlannedRef echoes the pinned reference clip of a take.

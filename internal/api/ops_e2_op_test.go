@@ -188,11 +188,11 @@ func TestListEngines_ACECommittedFeatures(t *testing.T) {
 	_, es, _ := r.list(t)
 	ace := es[1]
 	caps := ace["caps"].(map[string]any)
-	if caps["extend"] != true || caps["repaint_interval"] != true || caps["reference_audio"] != true || caps["lrc"] != true || caps["complete"] != true || caps["stems"] != true {
+	if caps["extend"] != true || caps["repaint_interval"] != true || caps["reference_audio"] != true || caps["lrc"] != true || caps["complete"] != true || caps["stems"] != true || caps["cover"] != false {
 		t.Errorf("caps = %v", caps)
 	}
 	f := ace["features"].(map[string]any)
-	if f["verified_at"] != "2026-11-17" || len(f["unverified"].([]any)) != 0 || f["seed_reproducible"] != false || f["reference_reproducible"] != false {
+	if f["verified_at"] != "2026-11-17" || len(f["unverified"].([]any)) != 1 || f["unverified"].([]any)[0] != "cover" || f["seed_reproducible"] != false || f["reference_reproducible"] != false {
 		t.Errorf("features = %v", f)
 	}
 	for _, w := range ace["warnings"].([]any) {

@@ -39,7 +39,7 @@ const (
 
 // Task classes (D-E2-3).
 const (
-	ClassTurbo = "turbo" // text2music, repaint, extend
+	ClassTurbo = "turbo" // text2music, repaint, extend, cover
 	ClassBase  = "base"  // complete, extract
 )
 
@@ -50,9 +50,13 @@ const (
 	TaskExtend     = "extend"
 	TaskComplete   = "complete"
 	TaskExtract    = "extract"
+	// TaskCover restyles a whole source take from a new caption, keeping its structure and melody; the strength
+	// (cover_strength_milli, upstream audio_cover_strength x 1000) says how close the result stays to the source.
+	// Turbo class: upstream lists cover for the turbo DiT and skips the LM for it. Unverified until the canary passes.
+	TaskCover = "cover"
 )
 
-var allTasks = []string{TaskText2Music, TaskRepaint, TaskExtend, TaskComplete, TaskExtract}
+var allTasks = []string{TaskText2Music, TaskRepaint, TaskExtend, TaskComplete, TaskExtract, TaskCover}
 
 // Structural limits (C148.4).
 const (
@@ -91,6 +95,8 @@ type Request struct {
 	RepaintToDS   *int     `json:"repaint_to_ds,omitempty"`
 	ExtendDS      *int     `json:"extend_ds,omitempty"`
 	Tracks        []string `json:"tracks,omitempty"`
+	// CoverStrengthMilli is the cover task's source adherence, 0..1000 (no default: the caller states it).
+	CoverStrengthMilli *int `json:"cover_strength_milli,omitempty"`
 }
 
 // SrcRef pins the source audio of an edit by track and master digest.
@@ -383,6 +389,14 @@ func structuralTask(r Request) []engine.Issue {
 		add(issue("extend_forbidden", "extend_ds", "extend_ds is an extend field"))
 	}
 	is = append(is, structuralTracks(r)...)
+	switch {
+	case r.Task == TaskCover && r.CoverStrengthMilli == nil:
+		add(issue("strength_required", "cover_strength_milli", "cover needs cover_strength_milli"))
+	case r.Task == TaskCover && !rangeInt(*r.CoverStrengthMilli, 0, 1000):
+		add(issue("bad_strength", "cover_strength_milli", "cover_strength_milli must be 0..1000"))
+	case r.Task != TaskCover && r.CoverStrengthMilli != nil:
+		add(issue("strength_forbidden", "cover_strength_milli", "cover_strength_milli is a cover field"))
+	}
 	return is
 }
 

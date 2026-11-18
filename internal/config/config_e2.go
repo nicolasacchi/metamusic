@@ -70,7 +70,7 @@ func loadE2(c *Config, getenv func(string) string) error {
 
 // ACEStepCanaryCapNames is the vocabulary of MM_ACESTEP_CANARY_CAPS: the capability flags of features.verified.json that the
 // canary verifies (text2music is always on). TestCanaryCapNamesMatchEngine in internal/app pins it to the engine's list.
-var ACEStepCanaryCapNames = []string{"reference", "repaint", "extend", "complete", "extract", "lrc"}
+var ACEStepCanaryCapNames = []string{"reference", "repaint", "extend", "complete", "extract", "cover", "lrc"}
 
 // loadCanaryCaps reads MM_ACESTEP_CANARY_CAPS (empty or unset: off). The switch exists so the real-GPU canary can exercise a
 // capability that is not verified yet; it is offered to canary batches only and needs MM_ACESTEP=1.

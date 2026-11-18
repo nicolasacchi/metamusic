@@ -20,7 +20,7 @@ func TestValidate_Table(t *testing.T) {
 		{"dot id", req(obj{"id": "."}), "bad_id@id"},
 		{"missing id", req(obj{"id": nil}), "missing_id@id"},
 		{"missing task", req(obj{"task": nil}), "missing_task@task"},
-		{"task cover", req(obj{"task": "cover"}), "ENGINE_CAPABILITY@task"},
+		{"task lego", req(obj{"task": "lego"}), "ENGINE_CAPABILITY@task"},
 		{"task lego", req(obj{"task": "lego"}), "ENGINE_CAPABILITY@task"},
 		{"empty caption", req(obj{"caption": "  "}), "bad_caption@caption"},
 		{"long caption", req(obj{"caption": long}), "bad_caption@caption"},

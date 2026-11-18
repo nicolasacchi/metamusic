@@ -11,7 +11,7 @@ import (
 
 func TestCanary_E2bCaseOrder(t *testing.T) {
 	t.Parallel()
-	want := []runpod.CanaryCase{"extend", "complete", "extract", "base-long", "lrc"}
+	want := []runpod.CanaryCase{"extend", "complete", "extract", "base-long", "lrc", "cover"}
 	if got := runpod.ACEStepCanaryCases("b"); !slices.Equal(got, want) {
 		t.Fatalf("order %v", got)
 	}
@@ -30,6 +30,7 @@ func TestCanary_ScriptAgainstFake_E2b(t *testing.T) {
 		runpod.CaseExtract:  {"source", "extract"},
 		runpod.CaseBaseLong: {"source-long", "base-long"},
 		runpod.CaseLRC:      {"plain", "lrc"},
+		runpod.CaseCover:    {"source", "cover", "cover-full"},
 	}
 	for c, want := range stagesOf {
 		t.Run(string(c), func(t *testing.T) {
@@ -113,10 +114,44 @@ func TestCanary_E2b_Assertions(t *testing.T) {
 	}
 }
 
+func TestCanary_Cover(t *testing.T) {
+	t.Parallel()
+	s := newAceRest(t)
+	var items []map[string]any
+	s.tamper = func(item map[string]any, _ map[string]any) {
+		if item["mode"] == "cover" {
+			items = append(items, item)
+		}
+	}
+	rep := runACE(t, s, runpod.CaseCover)
+	if rep.Exit != runpod.ExitPass || !slices.Equal(rep.Proposed.TasksAdd, []string{"cover"}) {
+		t.Fatalf("rep %+v", rep)
+	}
+	if len(items) != 2 || items[0]["edit"].(map[string]any)["strength"] != 0.5 || items[1]["edit"].(map[string]any)["strength"] != 1.0 {
+		t.Errorf("items %v", items)
+	}
+	if st, _ := items[0]["patch"].(map[string]any)["style"].(string); st == "" || items[0]["parent_track_id"] == nil {
+		t.Errorf("a cover item names a style and a parent: %v", items[0])
+	}
+	if rep.Measured["cover_strength_moves_output"] != true {
+		t.Errorf("measured %v", rep.Measured)
+	}
+	// a cover that changes the length is a failure and proposes nothing
+	s2 := newAceRest(t)
+	s2.tamper = func(item map[string]any, j map[string]any) {
+		if item["mode"] == "cover" {
+			j["audio_s"] = 12.0
+		}
+	}
+	if rep := runACE(t, s2, runpod.CaseCover); rep.Exit != runpod.ExitFail || rep.Proposed != nil {
+		t.Errorf("cover with a wrong length: %+v", rep)
+	}
+}
+
 func TestCanary_ProposedPatch_E2b_Golden(t *testing.T) {
 	t.Parallel()
 	var sb strings.Builder
-	for _, c := range []runpod.CanaryCase{runpod.CaseExtend, runpod.CaseComplete, runpod.CaseExtract, runpod.CaseBaseLong, runpod.CaseLRC} {
+	for _, c := range []runpod.CanaryCase{runpod.CaseExtend, runpod.CaseComplete, runpod.CaseExtract, runpod.CaseBaseLong, runpod.CaseLRC, runpod.CaseCover} {
 		rep := runACE(t, newAceRest(t), c)
 		if rep.Exit != runpod.ExitPass {
 			t.Fatalf("%s: %+v", c, rep)

@@ -20,7 +20,7 @@ const EngineACEStep = "acestep15"
 // of the canonical request (instrumental, vocal language, thinking, steps, guidance, engine_params_version, lrc) is in the
 // take's request.json artifact; Recipe.Cot already says whether the planner ran.
 type RecipeACE struct {
-	Task          string      `json:"task" enum:"text2music,repaint,extend,complete,extract"`
+	Task          string      `json:"task" enum:"text2music,repaint,extend,complete,extract,cover"`
 	TaskClass     string      `json:"task_class" enum:"turbo,base"`
 	BPM           *int        `json:"bpm"`
 	KeyScale      *string     `json:"keyscale"`
@@ -52,6 +52,8 @@ type RecipeEdit struct {
 	ToS     *float64 `json:"to_s"`
 	ExtendS *float64 `json:"extend_s"`
 	Tracks  []string `json:"tracks" nullable:"false"`
+	// Strength is a cover recipe's strength 0..1 (omitted for every other task).
+	Strength *float64 `json:"strength,omitempty"`
 }
 
 // StemInfo is one stem artifact of a take (artifacts name stem-<name>[-<n>].flac).
@@ -172,6 +174,7 @@ func recipeACE(raw string) *RecipeACE {
 		RepaintToDS   *int     `json:"repaint_to_ds"`
 		ExtendDS      *int     `json:"extend_ds"`
 		Tracks        []string `json:"tracks"`
+		CoverStrength *int     `json:"cover_strength_milli"`
 	}
 	if json.Unmarshal([]byte(raw), &r) != nil {
 		return nil
@@ -196,8 +199,12 @@ func recipeACE(raw string) *RecipeACE {
 	if r.Ref != nil {
 		out.Ref = &RecipeRef{TrackID: r.Ref.TrackID, ClipSHA256: r.Ref.ClipSHA256, FromS: float64(r.Ref.FromDS) / 10, ToS: float64(r.Ref.ToDS) / 10}
 	}
-	if r.RepaintFromDS != nil || r.RepaintToDS != nil || r.ExtendDS != nil || len(r.Tracks) > 0 {
+	if r.RepaintFromDS != nil || r.RepaintToDS != nil || r.ExtendDS != nil || len(r.Tracks) > 0 || r.CoverStrength != nil {
 		e := &RecipeEdit{FromS: sec(r.RepaintFromDS), ToS: sec(r.RepaintToDS), ExtendS: sec(r.ExtendDS), Tracks: r.Tracks}
+		if r.CoverStrength != nil {
+			v := float64(*r.CoverStrength) / 1000
+			e.Strength = &v
+		}
 		if e.Tracks == nil {
 			e.Tracks = []string{}
 		}

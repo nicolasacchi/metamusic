@@ -507,7 +507,7 @@ var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "sa
 // E2Operators are the Operator Ledger operators of ACE-Step modes (C149.1): engine_port (port), extend, repaint,
 // reference_render (reference), complete_tracks (complete) and extract_stems (stems; E2b records it against the parent take
 // whose stem artifact the job attaches).
-var E2Operators = []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems"}
+var E2Operators = []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems", "cover_restyle"}
 
 // rootlessOperators may record an edge without a parent (a draft with no mother, a composed song, a score render).
 var rootlessOperators = []string{"from_draft", "compose_new", "score_render"}

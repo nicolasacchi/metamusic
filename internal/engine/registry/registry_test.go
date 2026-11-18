@@ -52,7 +52,7 @@ func TestCaps_Yue2Unchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	const want = `{"Text2Song":true,"PlanScore":true,"RenderFromScore":true,"RepaintInterval":false,"Stems":false,"ReferenceAudio":false,"LoRA":false,` +
-		`"Extend":false,"Complete":false,"LRC":false,"Tempo":false,"Key":false,"MinSeconds":30,"MaxSeconds":360,"SampleRate":48000,` +
+		`"Extend":false,"Complete":false,"Cover":false,"LRC":false,"Tempo":false,"Key":false,"MinSeconds":30,"MaxSeconds":360,"SampleRate":48000,` +
 		`"RepaintMinS":0,"RepaintMaxS":0,"ExtendMinS":0,"ExtendMaxS":0,"ReferenceMaxS":0,"StemNames":null,` +
 		`"Tasks":["compose_new","from_draft","from_template","lyric_edit","new_seed","same_seed_edit","style_edit"]}`
 	if string(got) != want {

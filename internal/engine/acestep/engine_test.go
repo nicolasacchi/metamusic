@@ -44,7 +44,7 @@ func TestCaps_Default(t *testing.T) {
 	t.Parallel()
 	got, _ := json.Marshal(Engine{Verified: textOnlyFeatures()}.Caps())
 	want := `{"Text2Song":true,"PlanScore":false,"RenderFromScore":false,"RepaintInterval":false,"Stems":false,"ReferenceAudio":false,"LoRA":false,` +
-		`"Extend":false,"Complete":false,"LRC":false,"Tempo":true,"Key":true,"MinSeconds":10,"MaxSeconds":480,"SampleRate":48000,` +
+		`"Extend":false,"Complete":false,"Cover":false,"LRC":false,"Tempo":true,"Key":true,"MinSeconds":10,"MaxSeconds":480,"SampleRate":48000,` +
 		`"RepaintMinS":0,"RepaintMaxS":0,"ExtendMinS":0,"ExtendMaxS":0,"ReferenceMaxS":0,"StemNames":null,` +
 		`"Tasks":["compose_new","from_template","lyric_edit","new_seed","port","style_edit"]}`
 	if string(got) != want {

@@ -36,6 +36,8 @@ func (f Features) WithCanary(names []string, baseTasks bool) Features {
 			if baseTasks {
 				out.Tasks = appendTask(out.Tasks, TaskComplete)
 			}
+		case "cover": // turbo class: no base-task gate
+			out.Tasks = appendTask(out.Tasks, TaskCover)
 		case "extract":
 			if baseTasks {
 				out.Tasks = appendTask(out.Tasks, TaskExtract)
@@ -68,6 +70,8 @@ func (f Features) CanaryCapsUsed(r Request, on []string) []string {
 			uses = r.Task == TaskExtend && !f.has(TaskExtend)
 		case "complete":
 			uses = r.Task == TaskComplete && !f.has(TaskComplete)
+		case "cover":
+			uses = r.Task == TaskCover && !f.has(TaskCover)
 		case "extract":
 			uses = r.Task == TaskExtract && !f.has(TaskExtract)
 		}
@@ -80,5 +84,5 @@ func (f Features) CanaryCapsUsed(r Request, on []string) []string {
 
 // CanaryCapNames is the vocabulary WithCanary understands; config.ACEStepCanaryCapNames mirrors it.
 func CanaryCapNames() []string {
-	return []string{"reference", "repaint", "extend", "complete", "extract", "lrc"}
+	return []string{"reference", "repaint", "extend", "complete", "extract", "cover", "lrc"}
 }

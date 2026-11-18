@@ -16,4 +16,8 @@ case base-long  max   367236 micro-USD (0.367236), --max-usd at least 0.734472
 case lrc        max   186686 micro-USD (0.186686), --max-usd at least 0.373372
   plain          30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
   lrc            30 s turbo timeout  200 s reserve   41209 + overhead   61334 =  102543
-WORST CASE part b: 1178763 micro-USD (1.178763) reserved, not expected spend; approve it, then pass it as --max-usd per case
+case cover      max   255495 micro-USD (0.255495), --max-usd at least 0.51099
+  source         30 s turbo timeout  104 s reserve   22809 + overhead   61334 =   84143
+  cover          30 s turbo timeout  112 s reserve   24342 + overhead   61334 =   85676
+  cover-full     30 s turbo timeout  112 s reserve   24342 + overhead   61334 =   85676
+WORST CASE part b: 1434258 micro-USD (1.434258) reserved, not expected spend; approve it, then pass it as --max-usd per case

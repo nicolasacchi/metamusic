@@ -357,6 +357,7 @@ func TestIngest_RecordsEngineRTF(t *testing.T) {
 	}{
 		{name: "text2music teaches turbo", over: nil, want: "turbo"},
 		{name: "repaint never teaches", tasks: []string{"repaint"}, over: map[string]any{"task": "repaint", "duration_ds": nil, "thinking": false, "src": srcOf(1000), "repaint_from_ds": 100, "repaint_to_ds": 300}},
+		{name: "cover never teaches", tasks: []string{"cover"}, over: map[string]any{"task": "cover", "duration_ds": nil, "thinking": false, "src": srcOf(1000), "cover_strength_milli": 500}},
 		{name: "extend never teaches", tasks: []string{"extend"}, over: map[string]any{"task": "extend", "duration_ds": nil, "thinking": false, "src": srcOf(2431), "extend_ds": 300}},
 		{name: "complete teaches base when enabled", tasks: []string{"complete"}, over: map[string]any{"task": "complete", "duration_ds": nil, "thinking": false, "lyrics": "", "instrumental": true, "src": srcOf(1000), "tracks": []string{"drums"}}, want: "base"},
 		{name: "extract teaches base when enabled", tasks: []string{"extract"}, over: map[string]any{"task": "extract", "duration_ds": nil, "thinking": false, "lyrics": "", "instrumental": true, "src": srcOf(1000), "tracks": []string{"vocals"}}, want: "base"},

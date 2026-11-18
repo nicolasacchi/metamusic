@@ -31,6 +31,7 @@ func TestModes_Table_E2(t *testing.T) {
 		{ModeReference, EngineYuE2, false, "", "", nil, EnginePresence{}},
 		{ModeComplete, EngineYuE2, false, "", "", nil, EnginePresence{}},
 		{ModeStems, EngineYuE2, false, "", "", nil, EnginePresence{}},
+		{ModeCover, EngineYuE2, false, "", "", nil, EnginePresence{}},
 		// patch rules of the new rows
 		{ModePort, EngineACEStep, true, "", "", &Patch{Style: sp("x"), Lyrics: sp("y")}, EnginePresence{BPM: true, KeyScale: true}},
 		{ModePort, EngineACEStep, true, "patch.duration_s", "duration_s_forbidden", nil, EnginePresence{DurationS: true}},
@@ -47,6 +48,10 @@ func TestModes_Table_E2(t *testing.T) {
 		{ModeReference, EngineACEStep, true, "patch.timesignature", "timesignature_forbidden", nil, EnginePresence{TimeSignature: true}},
 		{ModeComplete, EngineACEStep, true, "", "", &Patch{Style: sp("x")}, EnginePresence{}},
 		{ModeComplete, EngineACEStep, true, "patch.lyrics", "lyrics_forbidden", &Patch{Lyrics: sp("x")}, EnginePresence{}},
+		{ModeCover, EngineACEStep, true, "", "", &Patch{Style: sp("x")}, EnginePresence{}},
+		{ModeCover, EngineACEStep, true, "", "", &Patch{Style: sp("x"), Lyrics: sp("y")}, EnginePresence{}},
+		{ModeCover, EngineACEStep, true, "patch.style", "style_required", &Patch{}, EnginePresence{}},
+		{ModeCover, EngineACEStep, true, "patch.bpm", "bpm_forbidden", &Patch{Style: sp("x")}, bpm},
 		{ModeStems, EngineACEStep, true, "", "", nil, EnginePresence{}},
 		{ModeStems, EngineACEStep, true, "patch", "patch_forbidden", &Patch{Style: sp("x")}, EnginePresence{}},
 		{ModeStems, EngineACEStep, true, "patch", "patch_forbidden", nil, bpm},
@@ -104,6 +109,7 @@ func TestModes_E2Rows(t *testing.T) {
 		ModeRepaint:   {OpRepaint, "repaint", "repaint", "required", SeedsParentNew, "E2a"},
 		ModeReference: {OpReferenceRender, "text2music", "reference", "required", SeedsParentNew, "E2a"},
 		ModeComplete:  {OpCompleteTracks, "complete", "complete", "required", SeedsParentOnly, "E2b"},
+		ModeCover:     {OpCover, "cover", "cover", "required", SeedsParentNew, "E2b"},
 		ModeStems:     {OpExtractStems, "extract", "stems", "required", SeedsParentOnly, "E2b"},
 	}
 	for mode, w := range want {
@@ -134,7 +140,7 @@ func TestModes_E2Rows(t *testing.T) {
 			t.Errorf("M3 row %s has engines %v", m.Mode, m.Engines)
 		}
 	}
-	for _, op := range []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems"} {
+	for _, op := range []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems", "cover_restyle"} {
 		if !ValidOperator(op) {
 			t.Errorf("operator %q rejected", op)
 		}
@@ -198,6 +204,9 @@ func TestMutation_ReplayReproducesRender_E2(t *testing.T) {
 			return &acestep.Patch{Src: src, ExtendDS: ip(300)}
 		case ModeComplete:
 			return &acestep.Patch{Src: src, Tracks: []string{"vocals"}}
+		case ModeCover:
+			m := 500
+			return &acestep.Patch{Src: src, CoverStrengthMilli: &m}
 		case ModeStems:
 			return &acestep.Patch{Src: src, Tracks: []string{"drums"}}
 		case ModeReference:

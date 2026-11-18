@@ -58,7 +58,8 @@
             "repaint",
             "extend",
             "complete",
-            "extract"
+            "extract",
+            "cover"
           ]
         },
         "caption": {
@@ -217,6 +218,11 @@
               "woodwinds"
             ]
           }
+        },
+        "cover_strength_milli": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
         }
       },
       "allOf": [
@@ -271,6 +277,11 @@
                   "required": [
                     "guidance_milli"
                   ]
+                },
+                {
+                  "required": [
+                    "cover_strength_milli"
+                  ]
                 }
               ]
             }
@@ -322,6 +333,11 @@
                   "required": [
                     "guidance_milli"
                   ]
+                },
+                {
+                  "required": [
+                    "cover_strength_milli"
+                  ]
                 }
               ]
             }
@@ -366,6 +382,76 @@
                 {
                   "required": [
                     "repaint_to_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "tracks"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "guidance_milli"
+                  ]
+                },
+                {
+                  "required": [
+                    "cover_strength_milli"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "task": {
+                "const": "cover"
+              }
+            },
+            "required": [
+              "task"
+            ]
+          },
+          "then": {
+            "required": [
+              "src",
+              "cover_strength_milli"
+            ],
+            "properties": {
+              "inference_steps": {
+                "const": 8
+              },
+              "thinking": {
+                "const": false
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "duration_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_from_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "repaint_to_ds"
+                  ]
+                },
+                {
+                  "required": [
+                    "extend_ds"
                   ]
                 },
                 {
@@ -442,6 +528,11 @@
                 {
                   "required": [
                     "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "cover_strength_milli"
                   ]
                 }
               ]

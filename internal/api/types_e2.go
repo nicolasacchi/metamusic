@@ -6,13 +6,15 @@ package api
 
 // ---- items (C149.2) ----
 
-// EditIn holds the inputs of the edit modes of an item: repaint (from_s, to_s), extend (extend_s), complete (tracks, 1..4) and
+// EditIn holds the inputs of the edit modes of an item: repaint (from_s, to_s), extend (extend_s), complete (tracks, 1..4), cover (strength) and
 // stems (tracks, 1..6 names, one job per name).
 type EditIn struct {
 	FromS   *float64 `json:"from_s,omitempty"`
 	ToS     *float64 `json:"to_s,omitempty"`
 	ExtendS *float64 `json:"extend_s,omitempty"`
 	Tracks  []string `json:"tracks,omitempty" nullable:"false" maxItems:"6" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds"`
+	// Strength is the cover strength 0..1 (0.001 resolution): 1 stays closest to the source, about 0.2 restyles most.
+	Strength *float64 `json:"strength,omitempty" minimum:"0" maximum:"1"`
 }
 
 // RefIn is the reference input of a compose_new or reference item: a window of a take whose timbre the render follows. The
@@ -38,6 +40,8 @@ type TakeEdit struct {
 	ExtendS *float64 `json:"extend_s"`
 	Tracks  []string `json:"tracks" nullable:"false"`
 	Stem    *string  `json:"stem"`
+	// Strength is a cover take's strength 0..1; null for every other task.
+	Strength *float64 `json:"strength"`
 }
 
 // TakeReference echoes the pinned reference clip of a take.
@@ -59,6 +63,7 @@ type EngineCaps struct {
 	RepaintInterval bool     `json:"repaint_interval" doc:"Repaint a time range of a take"`
 	Extend          bool     `json:"extend"`
 	Complete        bool     `json:"complete"`
+	Cover           bool     `json:"cover"`
 	Stems           bool     `json:"stems"`
 	ReferenceAudio  bool     `json:"reference_audio"`
 	LRC             bool     `json:"lrc"`

@@ -34,7 +34,7 @@ const (
 )
 
 // featuresView shows the verified-features file; the capabilities the engine supports but no canary proved are listed as
-// unverified (text2music, repaint, extend, complete, extract, reference_audio and lrc).
+// unverified (text2music, repaint, extend, complete, extract, cover, reference_audio and lrc).
 func featuresView(f acestep.Features, pools []string) *EngineFeatures {
 	v := &EngineFeatures{VerifiedAt: f.VerifiedAt, Tasks: nonNil(slices.Sorted(slices.Values(f.Tasks))), Unverified: []string{},
 		ReferenceReproducible: f.ReferenceReproducible, SeedReproducible: f.SeedReproducible, Pools: []EnginePool{}}
@@ -42,7 +42,7 @@ func featuresView(f acestep.Features, pools []string) *EngineFeatures {
 		m := f.ModelsMode
 		v.ModelsMode = &m
 	}
-	for _, t := range []string{acestep.TaskText2Music, acestep.TaskRepaint, acestep.TaskExtend, acestep.TaskComplete, acestep.TaskExtract} {
+	for _, t := range []string{acestep.TaskText2Music, acestep.TaskRepaint, acestep.TaskExtend, acestep.TaskComplete, acestep.TaskExtract, acestep.TaskCover} {
 		if !slices.Contains(f.Tasks, t) {
 			v.Unverified = append(v.Unverified, t)
 		}
@@ -106,7 +106,7 @@ func (d Deps) engineViews(ctx context.Context) (EngineList, error) {
 		if registered {
 			c := eng.Caps() // the type is engine.Caps; api may not name it next to yue2 (import-graph rule of C70)
 			v.Caps = EngineCaps{Text2Song: c.Text2Song, PlanScore: c.PlanScore, RenderFromScore: c.RenderFromScore, RepaintInterval: c.RepaintInterval,
-				Extend: c.Extend, Complete: c.Complete, Stems: c.Stems, ReferenceAudio: c.ReferenceAudio, LRC: c.LRC, Tempo: c.Tempo, Key: c.Key, LoRA: c.LoRA,
+				Extend: c.Extend, Complete: c.Complete, Cover: c.Cover, Stems: c.Stems, ReferenceAudio: c.ReferenceAudio, LRC: c.LRC, Tempo: c.Tempo, Key: c.Key, LoRA: c.LoRA,
 				MinSeconds: c.MinSeconds, MaxSeconds: c.MaxSeconds, SampleRate: c.SampleRate, RepaintMinS: c.RepaintMinS, RepaintMaxS: c.RepaintMaxS,
 				ExtendMinS: c.ExtendMinS, ExtendMaxS: c.ExtendMaxS, ReferenceMaxS: c.ReferenceMaxS,
 				StemNames: nonNil(slices.Clone(c.StemNames)), Tasks: nonNil(slices.Clone(c.Tasks))}

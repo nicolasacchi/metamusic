@@ -27,7 +27,7 @@ func (q QuoteInput) ExtraLoadS(f Features) int {
 }
 
 // LearnsRTF reports whether a take of this task updates its class RTF: only a full-length render of an enabled
-// task of the class (turbo: text2music; base: complete and extract). repaint and extend read the turbo RTF.
+// task of the class (turbo: text2music; base: complete and extract). repaint, extend and cover read the turbo RTF.
 func LearnsRTF(task string) bool {
 	return task == TaskText2Music || task == TaskComplete || task == TaskExtract
 }

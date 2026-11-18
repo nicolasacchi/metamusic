@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/engine/acestep"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
@@ -122,10 +123,16 @@ func TestSchema_E2Enums(t *testing.T) {
 		t.Errorf("EditIn.tracks enum %v, want the engine's stem names %v", got, acestep.StemNames)
 	}
 	modes := enum(reflect.TypeFor[api.ItemIn](), "Mode")
-	for _, m := range []string{"port", "extend", "repaint", "reference", "complete", "stems"} {
+	for _, m := range []string{"port", "extend", "repaint", "reference", "complete", "stems", "cover"} {
 		if !slices.Contains(modes, m) {
 			t.Errorf("ItemIn.mode lacks %s", m)
 		}
+	}
+	if f, ok := reflect.TypeFor[api.EditIn]().FieldByName("Strength"); !ok || f.Tag.Get("minimum") != "0" || f.Tag.Get("maximum") != "1" {
+		t.Errorf("EditIn.strength must be a 0..1 number: %v", f.Tag)
+	}
+	if got := enum(reflect.TypeFor[library.RecipeACE](), "Task"); !slices.Contains(got, acestep.TaskCover) {
+		t.Errorf("RecipeACE.task enum %v lacks cover", got)
 	}
 	if got := enum(reflect.TypeFor[api.ItemIn](), "Engine"); !slices.Equal(got, []string{"yue2", "acestep15"}) {
 		t.Errorf("ItemIn.engine enum %v", got)

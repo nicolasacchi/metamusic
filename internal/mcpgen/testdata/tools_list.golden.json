@@ -2159,6 +2159,12 @@
                     "format": "double",
                     "type": "number"
                   },
+                  "strength": {
+                    "format": "double",
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
                   "to_s": {
                     "format": "double",
                     "type": "number"
@@ -2210,7 +2216,8 @@
                   "repaint",
                   "reference",
                   "complete",
-                  "stems"
+                  "stems",
+                  "cover"
                 ],
                 "type": "string"
               },
@@ -2566,6 +2573,13 @@
                         "stem": {
                           "type": [
                             "string",
+                            "null"
+                          ]
+                        },
+                        "strength": {
+                          "format": "double",
+                          "type": [
+                            "number",
                             "null"
                           ]
                         },
@@ -3055,6 +3069,13 @@
                         "stem": {
                           "type": [
                             "string",
+                            "null"
+                          ]
+                        },
+                        "strength": {
+                          "format": "double",
+                          "type": [
+                            "number",
                             "null"
                           ]
                         },
@@ -6480,6 +6501,10 @@
                         "null"
                       ]
                     },
+                    "strength": {
+                      "format": "double",
+                      "type": "number"
+                    },
                     "to_s": {
                       "format": "double",
                       "type": [
@@ -6542,7 +6567,8 @@
                     "repaint",
                     "extend",
                     "complete",
-                    "extract"
+                    "extract",
+                    "cover"
                   ],
                   "type": "string"
                 },

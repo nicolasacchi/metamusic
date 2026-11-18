@@ -38,7 +38,7 @@ func declaredBPM(request string) int {
 
 // recordEngineRTF teaches engine_rtf from a finished take, inside the take transaction (C156, C152). It implements the
 // learning rule: a take updates its class RTF only when it is a full-length render of an enabled task of that class (turbo:
-// text2music; base: complete and extract, as far as the engine's effective caps enable them). repaint and extend read the
+// text2music; base: complete and extract, as far as the engine's effective caps enable them). repaint, extend and cover read the
 // turbo RTF and never update it. The duration is net of load: generate_s + save_s - load_s, or e2e_seconds when the worker
 // reported no split. A take that cannot teach (no timing, no GPU name, unparsable request) teaches nothing, never fails.
 func (b *IngestBridge) recordEngineRTF(ctx context.Context, tx *sql.Tx, job JobRow, eng ingestEngine, req recipeInfo, out provider.Output) error {
@@ -85,7 +85,7 @@ func durationTolerance(task string) float64 {
 	switch task {
 	case acestep.TaskExtend:
 		return 0.5
-	case acestep.TaskRepaint, acestep.TaskComplete, acestep.TaskExtract:
+	case acestep.TaskRepaint, acestep.TaskComplete, acestep.TaskExtract, acestep.TaskCover:
 		return 0.1
 	}
 	return 1.5

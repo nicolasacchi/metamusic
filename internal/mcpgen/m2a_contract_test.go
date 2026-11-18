@@ -78,7 +78,8 @@ import (
 // constraints of the new fields were left out of the tool schemas; describe_operation and the server validate them.
 //
 // E2-J3 re-baselined 115327 -> 115405 (measured 115305, +78 over 115227): JobTimings.extra, an optional number map on the job tools.
-const toolsCeilingBytes = 115405
+// ACE-Step cover re-baselined 115405 -> 115629 (measured 115551, +78): EditIn.strength, TakeEdit.strength, EngineCaps.cover and the cover mode.
+const toolsCeilingBytes = 115629
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.
