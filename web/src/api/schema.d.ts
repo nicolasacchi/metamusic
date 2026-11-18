@@ -4506,6 +4506,8 @@ export interface components {
              */
             source_stem?: "backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds";
             /** Format: double */
+            strength?: number;
+            /** Format: double */
             to_s?: number;
             tracks?: ("backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds")[];
         };
@@ -4563,6 +4565,7 @@ export interface components {
         };
         EngineCaps: {
             complete: boolean;
+            cover: boolean;
             extend: boolean;
             /** Format: int64 */
             extend_max_s: number;
@@ -5105,7 +5108,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
@@ -6693,7 +6696,7 @@ export interface components {
             ref?: components["schemas"]["RecipeRef"];
             src?: components["schemas"]["RecipeSrc"];
             /** @enum {string} */
-            task: "text2music" | "repaint" | "extend" | "complete" | "extract";
+            task: "text2music" | "repaint" | "extend" | "complete" | "extract" | "cover";
             /** @enum {string} */
             task_class: "turbo" | "base";
             timesignature: string | null;
@@ -6710,6 +6713,8 @@ export interface components {
             extend_s: number | null;
             /** Format: double */
             from_s: number | null;
+            /** Format: double */
+            strength?: number;
             /** Format: double */
             to_s: number | null;
             tracks: string[];
@@ -7730,6 +7735,8 @@ export interface components {
             from_s: number | null;
             source_stem: string | null;
             stem: string | null;
+            /** Format: double */
+            strength: number | null;
             /** Format: double */
             to_s: number | null;
             tracks: string[];

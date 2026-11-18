@@ -89,6 +89,19 @@ func aceRows() []struct {
 		{"extend", edit("extend", map[string]any{"extend_ds": 300}), true},
 		{"complete", edit("complete", map[string]any{"tracks": []any{"drums", "bass"}, "inference_steps": 50, "guidance_milli": 7000}), true},
 		{"extract", edit("extract", map[string]any{"tracks": []any{"vocals"}, "inference_steps": 50, "guidance_milli": 7000}), true},
+		{"cover", edit("cover", map[string]any{"cover_strength_milli": 500}), true},
+		{"cover strength 0", edit("cover", map[string]any{"cover_strength_milli": 0}), true},
+		{"cover strength 1000", edit("cover", map[string]any{"cover_strength_milli": 1000}), true},
+		{"cover strength 1001", edit("cover", map[string]any{"cover_strength_milli": 1001}), false},
+		{"cover strength missing", edit("cover", nil), false},
+		{"cover with duration", edit("cover", map[string]any{"cover_strength_milli": 500, "duration_ds": 300}), false},
+		{"cover with a range", edit("cover", map[string]any{"cover_strength_milli": 500, "repaint_from_ds": 80, "repaint_to_ds": 200}), false},
+		{"cover with guidance", edit("cover", map[string]any{"cover_strength_milli": 500, "guidance_milli": 7000}), false},
+		{"cover with tracks", edit("cover", map[string]any{"cover_strength_milli": 500, "tracks": []any{"drums"}}), false},
+		{"cover with thinking", edit("cover", map[string]any{"cover_strength_milli": 500, "thinking": true}), false},
+		{"cover with base steps", edit("cover", map[string]any{"cover_strength_milli": 500, "inference_steps": 50}), false},
+		{"strength on repaint", edit("repaint", map[string]any{"repaint_from_ds": 80, "repaint_to_ds": 200, "cover_strength_milli": 500}), false},
+		{"strength on text2music", func(m map[string]any) { req(m)["cover_strength_milli"] = 500 }, false},
 		{"lrc flag and lrc upload", func(m map[string]any) {
 			req(m)["lrc"] = true
 			m["uploads"].(map[string]any)["lyrics.lrc"] = aceTarget("lyrics.lrc")
@@ -195,6 +208,7 @@ func TestSchemaGoWorker_CrossValidate(t *testing.T) {
 	reqs := map[string]map[string]any{
 		"text2music": {},
 		"repaint":    {"task": "repaint", "src": src, "repaint_from_ds": 80, "repaint_to_ds": 300, "thinking": false},
+		"cover":      {"task": "cover", "src": src, "cover_strength_milli": 500, "thinking": false},
 		"extend":     {"task": "extend", "src": src, "extend_ds": 300, "thinking": false},
 		"complete":   {"task": "complete", "src": src, "tracks": []any{"drums"}, "thinking": false, "inference_steps": 50, "guidance_milli": 7000},
 		"extract":    {"task": "extract", "src": src, "tracks": []any{"vocals"}, "thinking": false, "inference_steps": 50, "guidance_milli": 7000},

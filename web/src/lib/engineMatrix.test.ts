@@ -3,7 +3,7 @@ import { adoptionText, backendText, engineMatrix } from "./engineMatrix";
 import type { EngineList, EngineView } from "./engines";
 
 const caps = {
-  complete: false, extend: false, extend_max_s: 0, extend_min_s: 0, key: false, lora: false, lrc: false, max_seconds: 300, min_seconds: 30,
+  complete: false, cover: false, extend: false, extend_max_s: 0, extend_min_s: 0, key: false, lora: false, lrc: false, max_seconds: 300, min_seconds: 30,
   plan_score: false, reference_audio: false, reference_max_s: 0, render_from_score: false, repaint_interval: false, repaint_max_s: 0, repaint_min_s: 0,
   sample_rate: 48000, stem_names: [], stems: false, tasks: [], tempo: false, text2song: true,
 };
@@ -19,11 +19,17 @@ const list = (...e: EngineView[]) => ({ default_engine: "yue2", engines: e }) as
 describe("engineMatrix", () => {
   test("rows in order, one cell per engine", () => {
     const m = engineMatrix(list(eng("yue2"), eng("acestep15", { repaint_interval: true, repaint_min_s: 3, repaint_max_s: 60, reference_audio: true, reference_max_s: 30 })));
-    expect(m.map((r) => r.label)).toEqual(["Text2Song", "Tempo", "Key", "Reference", "Repaint", "Extend", "Complete", "Stems", "LRC", "Max duration"]);
+    expect(m.map((r) => r.label)).toEqual(["Text2Song", "Tempo", "Key", "Reference", "Repaint", "Extend", "Complete", "Cover (restyle)", "Stems", "LRC", "Max duration"]);
     const rep = m.find((r) => r.key === "repaint")!;
     expect(rep.cells.map((c) => c.kind)).toEqual(["no", "yes"]);
     expect(rep.cells[1]?.text).toBe("3–60 s");
     expect(m.find((r) => r.key === "reference")!.cells[1]?.text).toBe("up to 30 s");
+  });
+  test("cover is a row, unverified until the file lists it", () => {
+    const on = engineMatrix(list(eng("acestep15", { cover: true }))).find((r) => r.key === "cover")!;
+    expect(on.cells[0]).toEqual({ kind: "yes", text: "Yes" });
+    const e = eng("acestep15", {}, { features: { unverified: ["cover"], tasks: [], pools: [], models_mode: null, reference_reproducible: false, seed_reproducible: false, verified_at: "" } });
+    expect(engineMatrix(list(e)).find((r) => r.key === "cover")!.cells[0]).toEqual({ kind: "unverified", text: "not yet verified" });
   });
   test("unverified features are labelled", () => {
     const e = eng("acestep15", { extend: true }, { features: { unverified: ["extend"], tasks: [], pools: [], models_mode: null, reference_reproducible: false, seed_reproducible: false, verified_at: "" } });

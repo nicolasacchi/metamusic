@@ -113,7 +113,7 @@ type Patch struct {
 
 // ItemIn is the one input shape behind every create path; estimate_variant builds one item.
 type ItemIn struct {
-	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems" doc:"How the take list is built; see the modes table"`
+	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover" doc:"How the take list is built; see the modes table"`
 	ParentTrackID  *string    `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`
 	ParentTrackIDs []string   `json:"parent_track_ids,omitempty" nullable:"false" minItems:"2" maxItems:"50" doc:"from_template: the mothers"`
 	DraftIDs       []string   `json:"draft_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"from_draft: the drafts to render"`

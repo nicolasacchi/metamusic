@@ -15,7 +15,7 @@ func TestFeatures_FileSafe(t *testing.T) {
 	}
 	f := EmbeddedFeatures()
 	// the E2-X4 canary result (2026-11-17): every passing case is on; reproducibility was measured false
-	if !slices.Equal(f.Tasks, allTasks) || !f.Reference || !f.LRC || f.LRCFixedS != 13 || f.ReferenceReproducible || f.SeedReproducible || f.CanaryCommit == "" {
+	if !slices.Equal(f.Tasks, []string{TaskText2Music, TaskRepaint, TaskExtend, TaskComplete, TaskExtract}) || !f.Reference || !f.LRC || f.LRCFixedS != 13 || f.ReferenceReproducible || f.SeedReproducible || f.CanaryCommit == "" {
 		t.Errorf("the committed file does not match the canary result: %+v", f)
 	}
 	for name, tc := range map[string]struct{ from, to string }{
@@ -23,7 +23,7 @@ func TestFeatures_FileSafe(t *testing.T) {
 		"schema":              {`mm.engine-features/2`, `mm.engine-features/1`},
 		"engine":              {`"engine":"acestep15"`, `"engine":"yue2"`},
 		"date":                {`2026-11-17`, `yesterday`},
-		"unknown task":        {`"tasks":["text2music","repaint","extend","complete","extract"]`, `"tasks":["text2music","cover"]`},
+		"unknown task":        {`"tasks":["text2music","repaint","extend","complete","extract"]`, `"tasks":["text2music","lego"]`},
 		"no text2music":       {`"tasks":["text2music","repaint","extend","complete","extract"]`, `"tasks":["repaint"]`},
 		"task without canary": {`"canary_commit":"00cf8db"`, `"canary_commit":""`},
 		"models mode":         {`bundle_cached_base_baked`, `nope`},

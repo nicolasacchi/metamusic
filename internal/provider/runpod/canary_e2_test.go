@@ -221,7 +221,7 @@ func (s *aceRest) finish(item map[string]any) map[string]any {
 		if l, _ := r["lrc"].(bool); l {
 			names = append(names, "lyrics.lrc")
 		}
-	case "repaint", "reference", "complete":
+	case "repaint", "reference", "complete", "cover":
 		audio = s.tracks[item["parent_track_id"].(string)]
 	case "extend":
 		audio = s.tracks[item["parent_track_id"].(string)] + item["edit"].(map[string]any)["extend_s"].(float64)

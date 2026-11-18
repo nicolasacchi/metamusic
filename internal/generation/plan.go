@@ -489,7 +489,7 @@ func (p *planner) expandAll(items []Item) error {
 					return err
 				}
 			}
-		case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems:
+		case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems, lineage.ModeCover:
 			err = p.expandE2(i, it)
 		case lineage.ModeComposeNew:
 			err = p.expandCompose(i, it)

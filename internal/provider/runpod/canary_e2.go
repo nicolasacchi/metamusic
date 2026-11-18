@@ -114,6 +114,7 @@ var aceCases []aceCaseDef
 func init() {
 	aceCases = append(aceCases, aceCasesA()...)
 	aceCases = append(aceCases, aceCasesB()...)
+	aceCases = append(aceCases, aceCasesC()...)
 }
 
 func aceCaseByName(n CanaryCase) (aceCaseDef, bool) {

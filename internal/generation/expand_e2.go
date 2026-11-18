@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -22,7 +23,7 @@ import (
 // isE2Mode reports whether mode is one of the modes the E2 freeze added.
 func isE2Mode(mode string) bool {
 	switch mode {
-	case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems:
+	case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems, lineage.ModeCover:
 		return true
 	}
 	return false
@@ -93,6 +94,7 @@ func validateE2Shape(i int, it Item, hasParent bool) error {
 		notAllowed("edit", e != nil && (it.Mode == lineage.ModePort || it.Mode == lineage.ModeReference)),
 		notAllowed("edit.extend_s", hasExtend && it.Mode != lineage.ModeExtend),
 		notAllowed("edit.from_s", hasRange && it.Mode != lineage.ModeRepaint),
+		notAllowed("edit.strength", has(func(e *Edit) bool { return e.Strength != nil }) && it.Mode != lineage.ModeCover),
 		notAllowed("edit.tracks", hasTracks && it.Mode != lineage.ModeComplete && it.Mode != lineage.ModeStems),
 		notAllowed("edit.source_stem", e != nil && e.SourceStem != "" && it.Mode != lineage.ModeComplete),
 	} {
@@ -116,6 +118,13 @@ func validateE2Shape(i int, it Item, hasParent bool) error {
 	case lineage.ModeExtend:
 		if e == nil || e.ExtendS == nil {
 			return invalidItem(i, "edit.extend_s", "extend_required")
+		}
+	case lineage.ModeCover:
+		switch {
+		case e == nil || e.Strength == nil:
+			return invalidItem(i, "edit.strength", "strength_required")
+		case math.IsNaN(*e.Strength) || *e.Strength < 0 || *e.Strength > 1:
+			return invalidItem(i, "edit.strength", "strength_range")
 		}
 	case lineage.ModeComplete, lineage.ModeStems:
 		if e != nil && e.SourceStem != "" && !slices.Contains(acestep.StemNames, e.SourceStem) {
@@ -283,6 +292,9 @@ func aceDoc(pt *acestep.Patch) json.RawMessage {
 		if len(pt.Tracks) > 0 {
 			m["tracks"] = pt.Tracks
 		}
+		if pt.CoverStrengthMilli != nil {
+			m["cover_strength_milli"] = *pt.CoverStrengthMilli
+		}
 		if pt.SourceStem != "" {
 			m["source_stem"] = pt.SourceStem
 		}
@@ -414,6 +426,14 @@ func (p *planner) expandE2(i int, it Item) error {
 		ac.src, ac.edit = &src, &PlannedEdit{ExtendS: f64(ext)}
 		pt.Src, pt.ExtendDS = &src.Ref, &ext
 		ac.warns = append(ac.warns, warnIssue(WarnExtendSeamExperimental, "edit", "the seam between the source and the extension is unverified"))
+	case lineage.ModeCover:
+		src, err := p.resolveSrc(mode, t.ID)
+		if err != nil {
+			return err
+		}
+		milli := int(math.Round(*it.Edit.Strength * 1000))
+		ac.src, ac.edit = &src, &PlannedEdit{Strength: f64milli(milli)}
+		pt.Src, pt.CoverStrengthMilli = &src.Ref, &milli
 	case lineage.ModeComplete, lineage.ModeStems:
 		var src srcPin
 		var err error
@@ -544,7 +564,7 @@ func (p *planner) variantCtx(b base) (*aceCtx, error) {
 // decision); an optional reference is resolved and pinned like the reference mode's.
 func (p *planner) expandComposeACE(i int, it Item) error {
 	r, canonical, is := acestep.Parse(it.Recipe)
-	if r.Task != "" && r.Task != acestep.TaskText2Music && slices.Contains([]string{acestep.TaskRepaint, acestep.TaskExtend, acestep.TaskComplete, acestep.TaskExtract}, r.Task) {
+	if r.Task != "" && r.Task != acestep.TaskText2Music {
 		return invalidItem(i, "recipe", "task_not_text2music") // edits have their own modes; a new song is text2music
 	}
 	if acestep.HasErrors(is) {
@@ -796,6 +816,9 @@ func (p *planner) inputBytesACE(req acestep.Request, canonical []byte) (int, err
 	}
 	return len(b), nil
 }
+
+// f64milli is a strength in milli as the 0..1 value the API shows.
+func f64milli(m int) *float64 { v := float64(m) / 1000; return &v }
 
 func sourceStemOf(pt *acestep.Patch) string {
 	if pt == nil {

@@ -240,8 +240,8 @@ user. Agents use scoped personal access tokens (stored hashed). Human-only opera
   (turbo, or turbo and base) and a committed `features.verified.json` that only a passing canary case may turn on; the rest shows
   as "not yet verified" in `list_engines` and on the `/engines` page.
 - **Modes.** Beyond the yue2 modes: `port` (an existing song re-rendered by another engine), `repaint` (a time range),
-  `reference` (a 2 to 30 s clip as timbre and style reference, rendered to an exact 30 s FLAC and cached), `extend`, `complete`
-  and `stems`. Every change is a new Take through a job; a stem is the exception, an artifact of its source Take that creates no
+  `reference` (a 2 to 30 s clip as timbre and style reference, rendered to an exact 30 s FLAC and cached), `extend`, `complete`,
+  `stems` and `cover` (a whole-take restyle from a new caption, with a strength). Every change is a new Take through a job; a stem is the exception, an artifact of its source Take that creates no
   Take, Song or Pick. A `complete` item may name an extracted stem of its parent (`edit.source_stem`) as its source, which with a
   `patch.style` is a remix: new arrangement over the stem's vocals, a new Take whose parent is the source Take (the stem must exist
   already; nothing is chained). ACE-Step pins every output-affecting parameter in `engine_params.json`, tied to the pinned upstream commit.

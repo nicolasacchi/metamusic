@@ -153,7 +153,7 @@ var operators = map[string]bool{
 	OpInferredSibling: true, OpRerollSeed: true, OpSameSeedEdit: true, OpLyricEdit: true, OpStyleEdit: true,
 	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true,
 	// E2 (C149.1)
-	OpEnginePort: true, OpExtend: true, OpRepaint: true, OpReferenceRender: true, OpCompleteTracks: true, OpExtractStems: true,
+	OpEnginePort: true, OpExtend: true, OpRepaint: true, OpReferenceRender: true, OpCompleteTracks: true, OpExtractStems: true, OpCover: true,
 }
 
 // ValidOperator reports whether op is an Operator Ledger operator of a generation job or M1's inferred edge.
@@ -175,6 +175,7 @@ const (
 	ModeReference = "reference"
 	ModeComplete  = "complete"
 	ModeStems     = "stems"
+	ModeCover     = "cover"
 )
 
 // E2 operators written to the Operator Ledger.
@@ -185,6 +186,7 @@ const (
 	OpReferenceRender = "reference_render"
 	OpCompleteTracks  = "complete_tracks"
 	OpExtractStems    = "extract_stems"
+	OpCover           = "cover_restyle"
 )
 
 // Parts of the milestone: E2a modes are offered once the engine is adopted, E2b modes only when the verified file
@@ -210,6 +212,9 @@ var E2Modes = []ModeSpec{
 		Seeds: SeedsParentNew, Parent: "required", Engines: aceOnly, Task: "text2music", Capability: "reference", Part: PartE2a},
 	{Mode: ModeComplete, Operator: OpCompleteTracks, Patch: true, Style: Optional,
 		Seeds: SeedsParentOnly, Parent: "required", Engines: aceOnly, Task: "complete", Capability: "complete", Part: PartE2b},
+	// cover restyles the whole parent take (any engine) from a new caption; the caption is the point, so it is required.
+	{Mode: ModeCover, Operator: OpCover, Patch: true, Style: Required, Lyrics: Optional,
+		Seeds: SeedsParentNew, Parent: "required", Engines: aceOnly, Task: "cover", Capability: "cover", Part: PartE2b},
 	{Mode: ModeStems, Operator: OpExtractStems,
 		Seeds: SeedsParentOnly, Parent: "required", Engines: aceOnly, Task: "extract", Capability: "stems", Part: PartE2b},
 }

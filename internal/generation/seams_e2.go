@@ -16,6 +16,7 @@ import (
 type Edit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string // complete 1..4, stems 1..6 names (one job per name)
+	Strength            *float64 // cover: 0..1, how close the restyle stays to the source (stored as integer milli)
 	// SourceStem (complete only) names an extracted stem of the parent take to use as the source audio instead of its master.
 	SourceStem string
 }
@@ -31,7 +32,8 @@ type PlannedEdit struct {
 	FromS, ToS, ExtendS *float64
 	Tracks              []string
 	Stem                string
-	SourceStem          string // complete: the stem of the parent used as the source
+	Strength            *float64 // cover
+	SourceStem          string   // complete: the stem of the parent used as the source
 }
 
 // PlannedRef echoes the pinned reference clip of a take.

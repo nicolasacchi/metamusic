@@ -79,9 +79,9 @@ import (
 //
 // E2-J3 re-baselined 115327 -> 115405 (measured 115305, +78 over 115227): JobTimings.extra, an optional number map on the job tools.
 //
-// ace-stem-remix re-baselined 115405 -> 115622 (+217): the optional edit.source_stem string (remix) on the generation tools. Its 12-name
-// stem enum is required by TestSchema_E2Enums, so the growth is inherent; the doc is kept to one line.
-const toolsCeilingBytes = 115622
+// ace-cover + ace-stem-remix merge: re-baselined 115622 (main, source_stem +217) -> 115968 (measured 115868, +100 headroom). Cover
+// (+78 on its own branch: EditIn.strength, TakeEdit.strength, EngineCaps.cover, the cover mode) and edit.source_stem (remix) both ship.
+const toolsCeilingBytes = 115968
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

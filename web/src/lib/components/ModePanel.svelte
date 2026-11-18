@@ -2,6 +2,7 @@
   import type { EngineCaps } from "../engines";
   import { MAX_COMPLETE_TRACKS, MAX_STEM_TRACKS, type EngineMode, type GenerationIntent } from "../genIntent";
   import { buildPanel, MODE_TITLES, panelFromIntent, TIME_SIGNATURES } from "../modePanels";
+  import ModePanelCover from "./ModePanelCover.svelte";
   import ModePanelStems from "./ModePanelStems.svelte";
 
   interface Props {
@@ -67,6 +68,10 @@
       <p class="muted" data-testid="complete-source-note">Source: the {st.sourceStem.replaceAll("_", " ")} stem of the take (remix).</p>
       <label>New style <textarea bind:value={st.style} rows="2" data-testid="panel-style"></textarea></label>
     {/if}
+  {/if}
+
+  {#if mode === "cover"}
+    <ModePanelCover bind:style={st.style} bind:lyrics={st.lyrics} bind:strength={st.strength} />
   {/if}
 
   {#if hasPatch}

@@ -63,7 +63,7 @@ func TestParseInputRefs(t *testing.T) {
 
 func TestDurationTolerance(t *testing.T) {
 	t.Parallel()
-	for task, want := range map[string]float64{"text2music": 1.5, "": 1.5, "extend": 0.5, "repaint": 0.1, "complete": 0.1, "extract": 0.1} {
+	for task, want := range map[string]float64{"text2music": 1.5, "": 1.5, "extend": 0.5, "repaint": 0.1, "complete": 0.1, "extract": 0.1, "cover": 0.1} {
 		if got := durationTolerance(task); got != want {
 			t.Errorf("%q: %v, want %v", task, got, want)
 		}
@@ -157,6 +157,10 @@ func TestDurationEvent_Edges(t *testing.T) {
 	repaint := src("repaint", map[string]any{"repaint_from_ds": 100, "repaint_to_ds": 300})
 	if call(repaint, 100.05) != 0 || call(repaint, 100.2) != 1 {
 		t.Error("repaint keeps the source length within 0.1 s")
+	}
+	cover := src("cover", map[string]any{"cover_strength_milli": 500})
+	if call(cover, 100.05) != 0 || call(cover, 100.2) != 1 {
+		t.Error("cover keeps the source length within 0.1 s")
 	}
 	extend := src("extend", map[string]any{"extend_ds": 300})
 	if call(extend, 130.4) != 0 || call(extend, 130.6) != 1 {

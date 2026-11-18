@@ -25,6 +25,7 @@ const DEFS: Def[] = [
   { key: "repaint", label: "Repaint", aliases: ["repaint", "repaint_interval"], has: (e) => e.caps.repaint_interval, text: (e) => range(e.caps.repaint_min_s, e.caps.repaint_max_s) },
   { key: "extend", label: "Extend", aliases: ["extend"], has: (e) => e.caps.extend, text: (e) => range(e.caps.extend_min_s, e.caps.extend_max_s) },
   { key: "complete", label: "Complete", aliases: ["complete"], has: (e) => e.caps.complete },
+  { key: "cover", label: "Cover (restyle)", aliases: ["cover"], has: (e) => e.caps.cover },
   { key: "stems", label: "Stems", aliases: ["stems", "extract"], has: (e) => e.caps.stems, text: (e) => e.caps.stem_names.join(", ") },
   { key: "lrc", label: "LRC", aliases: ["lrc"], has: (e) => e.caps.lrc },
 ];

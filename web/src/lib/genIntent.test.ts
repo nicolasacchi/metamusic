@@ -164,6 +164,13 @@ describe("genIntent engine fields (E2)", () => {
     expect(validateIntent({ mode: "extend", parent_track_id: "t", edit: {} })).toMatch(/seconds/);
     expect(validateIntent({ mode: "stems", parent_track_id: "t", edit: { tracks: ["vocals", "drums"] } })).toBeNull();
     expect(validateIntent({ mode: "stems", parent_track_id: "t", edit: { tracks: ["vocals", "vocals"] } })).toMatch(/once/);
+    expect(validateIntent({ mode: "cover", engine: "acestep15", parent_track_id: "t", patch: { style: "x" }, edit: { strength: 0.5 } })).toBeNull();
+    expect(validateIntent({ mode: "cover", engine: "acestep15", parent_track_id: "t", edit: { strength: 0.5 } })).toMatch(/style/);
+    expect(validateIntent({ mode: "cover", engine: "acestep15", parent_track_id: "t", patch: { style: "x" }, edit: { strength: 1.5 } })).toMatch(/between 0 and 1/);
+    expect(intentToEstimate({ mode: "cover", engine: "acestep15", parent_track_id: "t", patch: { style: "x" }, edit: { strength: 0.5 } })).toEqual({
+      kind: "generation",
+      body: { items: [{ mode: "cover", parent_track_id: "t", patch: { style: "x" }, edit: { strength: 0.5 } }], engine: "acestep15" },
+    });
     expect(validateIntent({ mode: "complete", parent_track_id: "t", edit: { tracks: ["vocals", "drums", "bass", "synth", "fx"] } })).toMatch(/at most 4/);
     expect(validateIntent({ mode: "repaint", engine: "yue2", parent_track_id: "t", edit: { from_s: 1, to_s: 2 } })).toMatch(/ACE-Step/);
     expect(validateIntent({ mode: "reference" })).toMatch(/reference/);

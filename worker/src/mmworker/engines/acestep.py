@@ -5,13 +5,18 @@ Importing this module needs neither torch nor ACE-Step: the real ACE-Step API is
 
 Facts this module encodes (E2-P0a, pinned ACE-Step v0.1.8):
   * the adapter, not ACE-Step, supplies the instruction string of every task and enforces which DiT class may run
-    which task (turbo: text2music, repaint, extend; base: complete, extract);
+    which task (turbo: text2music, repaint, extend, cover; base: complete, extract);
   * `initialize_service` overwrites the `.py` files of `checkpoints/<dit>/`, so each DiT directory is a real
     directory: weights symlinked in, the pinned code's `.py` files copied in (nothing is written afterwards);
   * ACE-Step does not clamp the duration: MM_ACESTEP_MAX_SECONDS is the guard;
   * audio is encoded here from the float tensor as 24-bit FLAC (the upstream saver would write 16-bit);
   * a silent reference clip would be dropped silently upstream, a clip that is not exactly 30.000 s at 48 kHz would be
     re-sampled with the unseeded global RNG: both are refused before any render;
+  * `cover` (turbo, upstream task_type "cover") restyles a whole source: upstream skips the LM for it
+    (skip_lm_tasks), takes the length from src_audio (`duration` is not set) and reads audio_cover_strength (float
+    0..1; 1.0 stays closest to the source, about 0.2 is a style transfer). The request carries the integer
+    cover_strength_milli; audio_codes and cover_noise_strength are never passed (cover-nofsq is not used). That
+    turbo quantises the source into codes as intended is unproven until the canary renders it;
   * at v0.1.8 `complete` does not skip the LM, so every non-text2music task renders with thinking and all
     use_cot_* false.
 """
@@ -60,16 +65,18 @@ _LRC_LINE = re.compile(r"^\[\d{2,}:\d{2}\.\d{2,3}\]")
 _REV = re.compile(r"[0-9a-f]{40}")
 
 # task -> DiT class that renders it. `extend` is a repaint over silence appended to the source (turbo).
-TASK_CLASS = {"text2music": "turbo", "repaint": "turbo", "extend": "turbo", "complete": "base", "extract": "base"}
+TASK_CLASS = {"text2music": "turbo", "repaint": "turbo", "extend": "turbo", "cover": "turbo",
+              "complete": "base", "extract": "base"}
 # Tasks this build renders, and whether it runs the LRC alignment pass. E2-PW2 shipped text2music and repaint only.
 ENABLED_TASKS = frozenset(TASK_CLASS)
 LRC_ENABLED = True
 # task -> ACE-Step task_type
-UPSTREAM_TASK = {"text2music": "text2music", "repaint": "repaint", "extend": "repaint", "complete": "complete",
-                 "extract": "extract"}
+UPSTREAM_TASK = {"text2music": "text2music", "repaint": "repaint", "extend": "repaint", "cover": "cover",
+                 "complete": "complete", "extract": "extract"}
 INSTRUCTIONS = {  # acestep/constants.py TASK_INSTRUCTIONS at the pinned commit (the contract job compares them)
     "text2music": "Fill the audio semantic mask based on the given conditions:",
     "repaint": "Repaint the mask area based on the given conditions:",
+    "cover": "Generate audio semantic tokens based on the given conditions:",
     "extract": "Extract the {TRACK_NAME} track from the audio:",
     "complete": "Complete the input track with {TRACK_CLASSES}:",
 }
@@ -388,6 +395,7 @@ _TASK_KEYS = {  # (required extras, optional extras)
     "text2music": ({"duration_ds"}, {"ref"}),
     "repaint": ({"src", "repaint_from_ds", "repaint_to_ds"}, {"ref"}),
     "extend": ({"src", "extend_ds"}, set()),
+    "cover": ({"src", "cover_strength_milli"}, set()),
     "complete": ({"src", "tracks", "guidance_milli"}, set()),
     "extract": ({"src", "tracks", "guidance_milli"}, set()),
 }
@@ -516,6 +524,7 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
         raise ValueError("guidance_milli is a base-class parameter")
 
     src_s = pad_s = None
+    cover_milli = 0
     if "src" in request:
         src = _obj(request, "src", {"track_id": 0, "master_sha256": 0, "duration_ds": 0})
         src_s = _int(src, "duration_ds", 1, 6000) / 10
@@ -530,6 +539,9 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
         if not a < b <= int(src_s * 10):
             raise ValueError("the repaint range must be inside the source")
         start, end, seconds = a / 10, b / 10, src_s
+    elif task == "cover":
+        cover_milli = _int(request, "cover_strength_milli", 0, 1000)
+        seconds = src_s  # upstream takes the length from the source; duration is not passed
     elif task == "extend":
         pad_s = _int(request, "extend_ds", 30, 900) / 10
         start, end, seconds = src_s, src_s + pad_s, src_s + pad_s
@@ -555,6 +567,8 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
             gen[name] = request[k]
     if task == "text2music":
         gen["duration"] = seconds
+    elif task == "cover":
+        gen["audio_cover_strength"] = cover_milli / 1000
     elif task == "complete":
         gen["duration"] = src_s  # complete still reads `duration`; the source length is what it renders
     if start is not None:
@@ -562,6 +576,8 @@ def build_plan(request: Mapping[str, Any], classes: frozenset[str], max_seconds:
     config.update(use_random_seed=False, seeds=[request["seed"]], audio_format="flac")
     resolved.update(task_type=gen["task_type"], instruction=gen["instruction"], inference_steps=steps,
                     guidance_scale=gen["guidance_scale"], seed=request["seed"])
+    if task == "cover":
+        resolved["audio_cover_strength"] = gen["audio_cover_strength"]
     return Plan(task, cls, dict(request), gen, config, seconds, src_s, pad_s, ref, lrc, resolved)
 
 
@@ -570,6 +586,8 @@ def _instruction(task: str, tracks: Sequence[str]) -> str:
         return INSTRUCTIONS["extract"].format(TRACK_NAME=tracks[0].upper())
     if task == "complete":
         return INSTRUCTIONS["complete"].format(TRACK_CLASSES=" | ".join(t.upper() for t in tracks))
+    if task == "cover":
+        return INSTRUCTIONS["cover"]
     return INSTRUCTIONS["repaint" if task in ("repaint", "extend") else "text2music"]
 
 

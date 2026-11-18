@@ -6546,6 +6546,12 @@
             ],
             "type": "string"
           },
+          "strength": {
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
           "to_s": {
             "format": "double",
             "type": "number"
@@ -6791,6 +6797,9 @@
           "complete": {
             "type": "boolean"
           },
+          "cover": {
+            "type": "boolean"
+          },
           "extend": {
             "type": "boolean"
           },
@@ -6882,6 +6891,7 @@
           "repaint_interval",
           "extend",
           "complete",
+          "cover",
           "stems",
           "reference_audio",
           "lrc",
@@ -8765,7 +8775,8 @@
               "repaint",
               "reference",
               "complete",
-              "stems"
+              "stems",
+              "cover"
             ],
             "type": "string"
           },
@@ -14609,7 +14620,8 @@
               "repaint",
               "extend",
               "complete",
-              "extract"
+              "extract",
+              "cover"
             ],
             "type": "string"
           },
@@ -14681,6 +14693,10 @@
               "number",
               "null"
             ]
+          },
+          "strength": {
+            "format": "double",
+            "type": "number"
           },
           "to_s": {
             "format": "double",
@@ -18473,6 +18489,13 @@
               "null"
             ]
           },
+          "strength": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "to_s": {
             "format": "double",
             "type": [
@@ -18493,6 +18516,7 @@
           "extend_s",
           "tracks",
           "stem",
+          "strength",
           "source_stem"
         ],
         "type": "object"

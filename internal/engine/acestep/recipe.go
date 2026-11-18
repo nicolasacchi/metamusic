@@ -37,6 +37,7 @@ type Patch struct {
 	RepaintFromDS, RepaintToDS *int
 	ExtendDS                   *int
 	Tracks                     []string
+	CoverStrengthMilli         *int
 	SourceStem                 string // complete: provenance only, the digest is already in Src
 }
 
@@ -92,7 +93,7 @@ func (e Engine) ApplyMode(base engine.Recipe, p engine.ModeParams, patch any) (e
 
 func clone(r Request) Request {
 	o := r
-	for _, p := range []**int{&o.BPM, &o.GuidanceMilli, &o.RepaintFromDS, &o.RepaintToDS, &o.ExtendDS} {
+	for _, p := range []**int{&o.BPM, &o.GuidanceMilli, &o.RepaintFromDS, &o.RepaintToDS, &o.ExtendDS, &o.CoverStrengthMilli} {
 		if *p != nil {
 			v := **p
 			*p = &v
@@ -194,7 +195,7 @@ func applyMode(r *Request, mode string, p *Patch, base Request) error {
 		p = &Patch{}
 	}
 	clearEdit := func() {
-		r.Src, r.RepaintFromDS, r.RepaintToDS, r.ExtendDS, r.Tracks = nil, nil, nil, nil, nil
+		r.Src, r.RepaintFromDS, r.RepaintToDS, r.ExtendDS, r.Tracks, r.CoverStrengthMilli = nil, nil, nil, nil, nil, nil
 	}
 	switch mode {
 	case "", ModeNewSeed, ModeSameSeedEdit, ModeLyricEdit, ModeStyleEdit, ModePort, ModeComposeNew:
@@ -218,6 +219,14 @@ func applyMode(r *Request, mode string, p *Patch, base Request) error {
 		clearEdit()
 		r.Task, r.Thinking, r.DurationDS, r.Ref, r.LRC = TaskExtend, false, 0, nil, false
 		r.Src, r.ExtendDS = p.Src, p.ExtendDS
+	case ModeCover:
+		clearEdit()
+		r.Task, r.Thinking, r.DurationDS, r.Ref, r.LRC = TaskCover, false, 0, nil, false
+		r.Src = p.Src
+		if p.CoverStrengthMilli != nil {
+			v := *p.CoverStrengthMilli
+			r.CoverStrengthMilli = &v
+		}
 	case ModeComplete, ModeStems:
 		clearEdit()
 		r.Task, r.Thinking, r.DurationDS, r.Ref, r.LRC = TaskComplete, false, 0, nil, false
@@ -232,7 +241,7 @@ func applyMode(r *Request, mode string, p *Patch, base Request) error {
 		return fmt.Errorf("acestep: mode %q needs a source", mode)
 	}
 	if r.Task == TaskText2Music {
-		r.Src, r.RepaintFromDS, r.RepaintToDS, r.ExtendDS, r.Tracks = nil, nil, nil, nil, nil
+		r.Src, r.RepaintFromDS, r.RepaintToDS, r.ExtendDS, r.Tracks, r.CoverStrengthMilli = nil, nil, nil, nil, nil, nil
 	}
 	return nil
 }

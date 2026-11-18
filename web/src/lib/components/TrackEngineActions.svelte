@@ -101,6 +101,8 @@
     if (!open || reason || problem || extProblem || namesProblem) return;
     if (open === "extend") {
       startGeneration(sessionStorage, { ...engineIntent("extend", trackId), edit: { extend_s: extendS } }, go);
+    } else if (open === "cover") {
+      startGeneration(sessionStorage, engineIntent("cover", trackId), go); // the generate page asks for the style and strength
     } else if (open === "complete" || open === "stems") {
       const stem = open === "complete" && sourceStem !== "" ? sourceStem : undefined;
       const edit = stem ? { tracks: [...names], source_stem: stem } : { tracks: [...names] };
@@ -142,6 +144,7 @@
     <!-- E2-W5 -->
     <button type="button" aria-expanded={open === "extend"} onclick={() => void choose("extend")} data-testid="action-extend">Extend…</button>
     <button type="button" aria-expanded={open === "complete"} onclick={() => void choose("complete")} data-testid="action-complete">Complete…</button>
+    <button type="button" aria-expanded={open === "cover"} onclick={() => void choose("cover")} data-testid="action-cover">Restyle…</button>
     <button type="button" aria-expanded={open === "stems"} onclick={() => void choose("stems")} data-testid="action-stems">Extract stems…</button>
   </div>
   {#if open}
@@ -158,6 +161,9 @@
         <p class="muted">Extending again later is a new job with its own confirmation. The seam can be audible.</p>
         {#if extProblem}<p class="muted" role="status" data-testid="extend-problem">{extProblem}</p>{/if}
         <div class="row"><button type="button" onclick={proceed} disabled={extProblem !== ""} data-testid="action-continue">Continue to estimate</button></div>
+      {:else if !reason && open === "cover"}
+        <p class="muted">Restyle this whole take from a new description, keeping its structure and melody. You choose the style and strength next.</p>
+        <div class="row"><button type="button" onclick={proceed} data-testid="action-continue">Continue</button></div>
       {:else if !reason && (open === "complete" || open === "stems")}
         <p class="muted">
           {open === "complete" ? "Pick the tracks to add around this take (up to " + MAX_COMPLETE_TRACKS + ")." : "Pick the stems to extract. Each name is its own job (up to " + MAX_STEM_TRACKS + ")."}

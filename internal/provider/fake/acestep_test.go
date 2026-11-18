@@ -159,6 +159,8 @@ func TestSimWorker_AceStepContract(t *testing.T) {
 			map[string][]byte{"src_audio": srcBytes}, 60, false},
 		{"extend", aceReq(map[string]any{"task": "extend", "duration_ds": nil, "src": srcRef(2740), "extend_ds": 300}),
 			map[string][]byte{"src_audio": srcBytes}, 304, false},
+		{"cover", aceReq(map[string]any{"task": "cover", "duration_ds": nil, "src": srcRef(700), "cover_strength_milli": 500}),
+			map[string][]byte{"src_audio": srcBytes}, 70, false},
 		{"complete", aceReq(map[string]any{"task": "complete", "duration_ds": nil, "src": srcRef(900), "tracks": []string{"drums"}, "inference_steps": 50, "guidance_milli": 7000}),
 			map[string][]byte{"src_audio": srcBytes}, 90, false},
 		{"extract", aceReq(map[string]any{"task": "extract", "duration_ds": nil, "src": srcRef(900), "tracks": []string{"vocals"}, "inference_steps": 50, "guidance_milli": 7000}),
@@ -230,6 +232,29 @@ func TestSimWorker_ExtendLength(t *testing.T) {
 	}
 	if got, _ := res.Output.AudioSeconds.Float64(); got != 304 {
 		t.Errorf("274 s source + 30 s = %v s, want 304", got)
+	}
+}
+
+func TestFake_CoverStrengthShiftsTone(t *testing.T) {
+	t.Parallel()
+	audio := func(milli int) []byte {
+		ts, f := aceSpec("job-cov", 1, aceReq(map[string]any{"task": "cover", "duration_ds": nil, "src": srcRef(300), "cover_strength_milli": milli}),
+			map[string][]byte{"src_audio": srcBytes}) // same attempt id and seed throughout
+		res, up, _ := aceRun(t, ts, f, 0)
+		if res.Failed {
+			t.Fatal(res.ErrText)
+		}
+		if got, _ := res.Output.AudioSeconds.Float64(); got != 30 {
+			t.Errorf("cover length = %v, want the source's 30 s", got)
+		}
+		return up.body("audio.flac")
+	}
+	lo, hi := audio(200), audio(1000)
+	if string(lo) == string(hi) {
+		t.Error("a different strength must change the rendered audio")
+	}
+	if string(lo) != string(audio(200)) {
+		t.Error("the same strength must render the same audio")
 	}
 }
 

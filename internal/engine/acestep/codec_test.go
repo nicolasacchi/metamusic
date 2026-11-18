@@ -124,7 +124,7 @@ func TestApplyMode_Table(t *testing.T) {
 		}},
 		{"reference without ref", base, engine.ModeParams{Mode: ModeReference, Seed: 8}, &Patch{}, "needs a reference", nil},
 		{"variant of repaint refused", rep, engine.ModeParams{Mode: ModeNewSeed, Seed: 8}, nil, "needs a text2music base", nil},
-		{"unknown mode", base, engine.ModeParams{Mode: "cover", Seed: 8}, nil, "not an engine mode", nil},
+		{"unknown mode", base, engine.ModeParams{Mode: "lego", Seed: 8}, nil, "not an engine mode", nil},
 		{"wrong patch type", base, engine.ModeParams{Mode: ModeNewSeed, Seed: 8}, "x", "not a *acestep.Patch", nil},
 		{"unparsable base", engine.Recipe{Canonical: []byte(`{`)}, engine.ModeParams{Mode: ModeNewSeed}, nil, "does not parse", nil},
 	} {

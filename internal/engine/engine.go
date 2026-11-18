@@ -11,6 +11,7 @@ type Caps struct {
 	Text2Song, PlanScore, RenderFromScore, RepaintInterval, Stems, ReferenceAudio, LoRA bool // M3, unchanged
 	Extend                                                                              bool // continue a take past its end
 	Complete                                                                            bool // add named instrument tracks to a take
+	Cover                                                                               bool // restyle a whole take from a new caption (strength-controlled)
 	LRC                                                                                 bool // returns timestamped lyrics
 	Tempo, Key                                                                          bool // accepts bpm / keyscale (+ time signature with Tempo)
 	// MinSeconds, MaxSeconds and SampleRate bound a render; MinSeconds 0 means no stated minimum.

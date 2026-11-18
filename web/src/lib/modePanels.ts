@@ -12,6 +12,23 @@ export const STEM_NAMES: readonly StemName[] = ["backing_vocals", "bass", "brass
 export const TIME_SIGNATURES = ["2", "3", "4", "6"] as const;
 /** The server's longest span in seconds. */
 export const MAX_SECONDS = 600;
+/** The strength the cover panel preselects (the server has no default). */
+export const DEFAULT_STRENGTH = 0.5;
+/** Strength presets with what they do. */
+export const STRENGTH_HINTS: readonly { value: number; label: string }[] = [
+  { value: 0.2, label: "0.2 restyle most" },
+  { value: 0.5, label: "0.5 balanced" },
+  { value: 1, label: "1.0 stay closest" },
+];
+
+/** A strength from text: 0..1 rounded to 0.001; null when not a number in range. */
+export function parseStrength(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d(\.\d*)?$/.test(t)) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n > 1) return null;
+  return Math.round(n * 1000) / 1000;
+}
 
 /** Seconds from a text field: rounded half away from zero to 0.1 s (12.34 gives 12.3, 12.35 gives 12.4); null when not a number in 0..600. */
 export function parseSeconds(text: string): number | null {
@@ -37,6 +54,8 @@ export interface PanelState {
   duration: string;
   style: string;
   lyrics: string;
+  /** cover: the strength as text, 0..1 (1 stays closest to the source, about 0.2 restyles most). */
+  strength: string;
   nSeeds: string;
   seedsText: string;
 }
@@ -58,6 +77,7 @@ export function panelFromIntent(i: GenerationIntent): PanelState {
     duration: n(p.duration_s),
     style: p.style ?? "",
     lyrics: p.lyrics ?? "",
+    strength: n(i.edit?.strength ?? (i.mode === "cover" ? DEFAULT_STRENGTH : undefined)),
     nSeeds: String(i.n_seeds ?? 1),
     seedsText: i.seeds?.join(", ") ?? "",
   };
@@ -158,6 +178,14 @@ export function buildPanel(mode: EngineMode, base: GenerationIntent, st: PanelSt
       intent = { ...keep, edit: { extend_s: e } };
       break;
     }
+    case "cover": {
+      const style = st.style.trim();
+      if (!style) return fail("Describe the new style to restyle with.");
+      const s = parseStrength(st.strength);
+      if (s === null) return fail("Strength must be a number from 0 to 1.");
+      intent = { ...keep, patch: { style, ...(st.lyrics.trim() ? { lyrics: st.lyrics } : {}) }, edit: { strength: s } };
+      break;
+    }
     case "complete":
     case "stems": {
       const max = mode === "complete" ? MAX_COMPLETE_TRACKS : MAX_STEM_TRACKS;
@@ -184,4 +212,5 @@ export const MODE_TITLES: Record<EngineMode, string> = {
   reference: "Render with a reference",
   complete: "Complete with tracks",
   stems: "Extract stems",
+  cover: "Restyle the whole take",
 };

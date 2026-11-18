@@ -18,7 +18,7 @@ const (
 const (
 	ModeComposeNew, ModeNewSeed, ModeSameSeedEdit, ModeLyricEdit, ModeStyleEdit = "compose_new", "new_seed", "same_seed_edit", "lyric_edit", "style_edit"
 	ModeFromTemplate, ModePort, ModeRepaint, ModeReference, ModeExtend          = "from_template", "port", "repaint", "reference", "extend"
-	ModeComplete, ModeStems                                                     = "complete", "stems"
+	ModeComplete, ModeStems, ModeCover                                          = "complete", "stems", "cover"
 )
 
 // Engine adapts this package to engine.Engine. The zero value is valid: no verified features means
@@ -70,6 +70,10 @@ func (e Engine) Caps() engine.Caps {
 		c.Complete = true
 		tasks = append(tasks, ModeComplete)
 	}
+	if f.has(TaskCover) { // turbo class: no base models needed
+		c.Cover = true
+		tasks = append(tasks, ModeCover)
+	}
 	if f.has(TaskExtract) && f.baseModelsLoaded() {
 		c.Stems, c.StemNames = true, slices.Clone(StemNames)
 		tasks = append(tasks, ModeStems)
@@ -95,6 +99,8 @@ func Check(r Request, c engine.Caps) []engine.Issue {
 		add(capability("task", "extend"))
 	case r.Task == TaskComplete && !c.Complete:
 		add(capability("task", "complete"))
+	case r.Task == TaskCover && !c.Cover:
+		add(capability("task", "cover"))
 	case r.Task == TaskExtract && !c.Stems:
 		add(capability("task", "stems"))
 	}
@@ -153,7 +159,7 @@ func (e Engine) Validate(request json.RawMessage) []engine.Issue {
 }
 
 // ExpectedSeconds is the exact rendered length in whole seconds (C148.6): text2music ceil(duration/10),
-// repaint, complete and extract the source length, extend source plus extension. It is never clamped.
+// repaint, complete, cover and extract the source length, extend source plus extension. It is never clamped.
 func ExpectedSeconds(r Request) int {
 	ds := r.DurationDS
 	if r.Src != nil {

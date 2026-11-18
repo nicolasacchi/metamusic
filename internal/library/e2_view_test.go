@@ -2,6 +2,7 @@ package library
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,3 +46,18 @@ func TestRecipeACE(t *testing.T) {
 }
 
 func f(v float64) *float64 { return &v }
+
+func TestRecipeACE_Cover(t *testing.T) {
+	t.Parallel()
+	b, _ := json.Marshal(recipeACE(`{"task":"cover","caption":"x","src":{"track_id":"t","master_sha256":"` + strings.Repeat("a", 64) + `","duration_ds":1200},"cover_strength_milli":250,"inference_steps":8}`))
+	for _, want := range []string{`"task":"cover"`, `"task_class":"turbo"`, `"edit":{"from_s":null,"to_s":null,"extend_s":null,"tracks":[],"strength":0.25}`, `"duration_s":120`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("%s lacks %s", b, want)
+		}
+	}
+	// no strength key on a repaint view
+	b, _ = json.Marshal(recipeACE(`{"task":"repaint","repaint_from_ds":10,"repaint_to_ds":100,"src":{"track_id":"t","master_sha256":"` + strings.Repeat("a", 64) + `","duration_ds":1200}}`))
+	if strings.Contains(string(b), "strength") {
+		t.Errorf("repaint: %s", b)
+	}
+}

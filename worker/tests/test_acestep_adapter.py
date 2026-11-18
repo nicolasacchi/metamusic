@@ -44,6 +44,10 @@ def base_request(task: str = "text2music", **over: Any) -> dict[str, Any]:
         r.update(src=src, repaint_from_ds=20, repaint_to_ds=60)
     elif task == "extend":
         r.update(src=src, extend_ds=50)
+    elif task == "cover":
+        r.update(src=src, cover_strength_milli=500)
+        r.pop("thinking")
+        r["thinking"] = False
     elif task in ("complete", "extract"):
         r.update(src=src, tracks=["drums"] if task == "extract" else ["drums", "bass"], inference_steps=50,
                  guidance_milli=7000, thinking=False)
@@ -122,6 +126,85 @@ def test_acestep_repaint_params(tmp_path: Path) -> None:
     assert p["dcw_enabled"] is True and p["guidance_scale"] == 1.0 and p["inference_steps"] == 8
 
 
+def test_acestep_cover_params(tmp_path: Path) -> None:
+    ad, fake = adapter()
+    plan = ad.validate(base_request("cover", cover_strength_milli=250))
+    assert plan.cls == "turbo" and plan.seconds == 10.0 and plan.resolved["audio_cover_strength"] == 0.25
+    render(ad, base_request("cover", cover_strength_milli=250), tmp_path, inputs=src_input(tmp_path))
+    p = fake.params[0]
+    assert p["task_type"] == "cover"
+    assert p["instruction"] == "Generate audio semantic tokens based on the given conditions:"
+    assert p["audio_cover_strength"] == 0.25 and isinstance(p["audio_cover_strength"], float)
+    assert "duration" not in p and "repainting_start" not in p and "repainting_end" not in p
+    assert "audio_codes" not in p and "cover_noise_strength" not in p
+    assert Path(p["src_audio"]).suffix == ".flac"
+    assert p["thinking"] is False and not any(p[k] for k in ace.COT_KEYS)
+    assert p["guidance_scale"] == 1.0 and p["inference_steps"] == 8
+    assert p["lyrics"] == "[Verse]\nla la"
+
+
+def test_acestep_cover_instrumental_and_empty_lyrics() -> None:
+    ad, _ = adapter()
+    inst = ad.validate(base_request("cover", instrumental=True, lyrics=""))
+    assert inst.gen["lyrics"] == "[Instrumental]"
+    assert ad.validate(base_request("cover", lyrics="")).gen["lyrics"] == ""
+
+
+@pytest.mark.parametrize("milli", [0, 1000])
+def test_acestep_cover_strength_bounds_ok(milli: int) -> None:
+    ad, _ = adapter()
+    assert ad.validate(base_request("cover", cover_strength_milli=milli)).resolved["audio_cover_strength"] == milli / 1000
+
+
+@pytest.mark.parametrize("over", [
+    {"cover_strength_milli": -1}, {"cover_strength_milli": 1001}, {"cover_strength_milli": True},
+    {"cover_strength_milli": 0.5}, {"cover_strength_milli": "500"},
+    {"duration_ds": 100}, {"repaint_from_ds": 1}, {"extend_ds": 50}, {"tracks": ["drums"]}, {"guidance_milli": 7000},
+    {"thinking": True}, {"lrc": True}, {"ref": {"track_id": "t", "clip_sha256": "2" * 64, "from_ds": 0, "to_ds": 300}}, {"inference_steps": 50},
+])
+def test_acestep_cover_rejects(over: dict[str, Any]) -> None:
+    ad, fake = adapter()
+    with pytest.raises(ValueError):
+        ad.validate(base_request("cover", **over))
+    assert fake.calls == []
+
+
+def test_acestep_cover_needs_strength_and_src() -> None:
+    ad, _ = adapter()
+    for key in ("cover_strength_milli", "src"):
+        r = base_request("cover")
+        del r[key]
+        with pytest.raises(ValueError, match="missing"):
+            ad.validate(r)
+
+
+def test_acestep_strength_only_for_cover() -> None:
+    ad, _ = adapter()
+    with pytest.raises(ValueError, match="forbidden"):
+        ad.validate(base_request("repaint", cover_strength_milli=500))
+
+
+def test_acestep_cover_length_mismatch(tmp_path: Path) -> None:
+    ad, _ = adapter()
+    long = write_audio(tmp_path / "long", 20.0)
+    with pytest.raises(WorkerError) as e:
+        render(ad, base_request("cover"), tmp_path, inputs={"src_audio": long})
+    assert e.value.code == "INPUT_MISMATCH"
+
+
+def test_acestep_cover_over_cap() -> None:
+    ad, _ = adapter(max_seconds=5)
+    with pytest.raises(ValueError, match="cap"):
+        ad.validate(base_request("cover"))
+
+
+def test_acestep_cover_needs_turbo() -> None:
+    ad, _ = adapter(classes=("base",))
+    with pytest.raises(WorkerError) as e:
+        ad.validate(base_request("cover"))
+    assert e.value.code == "TASK_UNAVAILABLE"
+
+
 def test_acestep_batch_size_one(tmp_path: Path) -> None:
     ad, fake = adapter()
     for task, kw in (("text2music", {}), ("repaint", src_input(tmp_path))):
@@ -166,7 +249,7 @@ def test_acestep_turbo_tasks_unavailable_on_a_base_only_worker() -> None:
     assert e.value.code == "TASK_UNAVAILABLE"
 
 
-@pytest.mark.parametrize("task", ["cover", "lego", "cover-nofsq", "", None, 3])
+@pytest.mark.parametrize("task", ["lego", "cover-nofsq", "", None, 3])
 def test_acestep_refuses_other_tasks(task: Any) -> None:
     ad, fake = adapter()
     with pytest.raises(ValueError, match="unknown task"):

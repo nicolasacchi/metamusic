@@ -84,6 +84,7 @@ export function modesOffered(caps: EngineCaps | null): EngineMode[] {
     extend: caps.extend,
     complete: caps.complete,
     stems: caps.stems,
+    cover: caps.cover,
   };
   return ENGINE_MODES.filter((m) => flags[m]);
 }

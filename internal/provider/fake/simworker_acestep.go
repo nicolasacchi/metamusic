@@ -37,15 +37,16 @@ func (s *Session) decoder() string {
 
 // aceRequest holds the fields of an ACE-Step request the simulation reads.
 type aceRequest struct {
-	ID         string `json:"id"`
-	Task       string `json:"task"`
-	Lyrics     string `json:"lyrics"`
-	BPM        *int   `json:"bpm"`
-	DurationDS int    `json:"duration_ds"`
-	Seed       int64  `json:"seed"`
-	LRC        bool   `json:"lrc"`
-	ExtendDS   *int   `json:"extend_ds"`
-	Src        *struct {
+	ID                 string `json:"id"`
+	Task               string `json:"task"`
+	Lyrics             string `json:"lyrics"`
+	BPM                *int   `json:"bpm"`
+	DurationDS         int    `json:"duration_ds"`
+	Seed               int64  `json:"seed"`
+	LRC                bool   `json:"lrc"`
+	ExtendDS           *int   `json:"extend_ds"`
+	CoverStrengthMilli *int   `json:"cover_strength_milli"`
+	Src                *struct {
 		DurationDS int `json:"duration_ds"`
 	} `json:"src"`
 	Ref *struct {
@@ -98,15 +99,15 @@ func hash64(parts ...string) uint64 {
 	return binary.BigEndian.Uint64(sum[:8])
 }
 
-// accountedSeconds is the audio length the take reports: text2music duration_ds/10; repaint, complete and extract
-// the source length; extend the source plus extend_ds/10.
+// accountedSeconds is the audio length the take reports: text2music duration_ds/10; repaint, complete, cover and
+// extract the source length; extend the source plus extend_ds/10.
 func (r aceRequest) accountedSeconds() float64 {
 	src := 0
 	if r.Src != nil {
 		src = r.Src.DurationDS
 	}
 	switch r.Task {
-	case "repaint", "complete", "extract":
+	case "repaint", "complete", "extract", "cover":
 		return float64(src) / 10
 	case "extend":
 		ext := 0
@@ -172,6 +173,9 @@ func (s *Session) renderACE(ctx context.Context) ([]artifact, float64, error) {
 	if req.Task == "extract" && len(req.Tracks) > 0 {
 		id = hash64("stem", strings.Join(req.Tracks, ","))
 	}
+	if req.Task == "cover" && req.CoverStrengthMilli != nil { // the strength moves the output deterministically
+		id ^= hash64("cover", strconv.Itoa(*req.CoverStrengthMilli))
+	}
 	var audio []byte
 	if f := s.w.o.HeaderOnlyFLAC; f != nil {
 		audio = f(id, rendered)
@@ -182,7 +186,7 @@ func (s *Session) renderACE(ctx context.Context) ([]artifact, float64, error) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 		variant := 0
-		if !s.mk.sameAudio || req.Ref != nil || req.Task == "extract" {
+		if !s.mk.sameAudio || req.Ref != nil || req.Task == "extract" || req.Task == "cover" {
 			variant = int(id%1000) + 1
 		}
 		bpm := 120
