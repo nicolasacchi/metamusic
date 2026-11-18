@@ -18,12 +18,12 @@ func TestCov_Actor(t *testing.T) {
 		wantKind string
 		wantName string
 	}{
-		{"human", auth.Principal{Kind: auth.KindHuman, ID: "i", Name: "n"}, "human", "n"},
+		{"human", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "i", Name: "n"}, "human", "n"},
 		{"device falls back to id", auth.Principal{Kind: auth.KindDevice, ID: "dev"}, "human", "dev"},
 		{"agent", auth.Principal{Kind: auth.KindAgent, Name: "a"}, "agent", "a"},
 		{"anonymous falls back to kind", auth.Principal{Kind: auth.KindAnonymous}, "system", "anonymous"},
 		{"nothing at all", auth.Principal{}, "system", "unknown"},
-		{"long name is cut by runes", auth.Principal{Kind: auth.KindHuman, Name: long}, "human", strings.Repeat("é", 120)},
+		{"long name is cut by runes", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, Name: long}, "human", strings.Repeat("é", 120)},
 	} {
 		if got := actorKind(tc.p); got != tc.wantKind {
 			t.Errorf("%s: kind = %q, want %q", tc.name, got, tc.wantKind)

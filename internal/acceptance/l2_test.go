@@ -813,7 +813,7 @@ func l2RestoredServices(t *testing.T, dataDir string, now time.Time) *app.Servic
 	t.Cleanup(func() { _ = root.Close() })
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 		DataDir: dataDir, SecretsDir: filepath.Join(filepath.Dir(dataDir), "secrets"), BackupDir: filepath.Join(filepath.Dir(dataDir), "backup2"),
 		BackupAt: "off", RateScale: 1,
 	}
@@ -881,7 +881,7 @@ func TestRestore_RebuildsRecordChangelog(t *testing.T) {
 		t.Fatalf("restored changelog: %d rows (%v), want %d", len(rows.Items), err, beforeLog)
 	}
 	// a Pick event after the restore: a human rating for the older Take of S3
-	op := auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
+	op := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
 	stars := 4
 	b2 := l2Take(t, r, "B2")
 	if _, err := svc.Deps.Judgments.Rate(ctx, op, b2, &stars, nil); err != nil {

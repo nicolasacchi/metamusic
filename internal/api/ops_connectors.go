@@ -23,7 +23,7 @@ func notifyAdmin(ctx context.Context, d Deps, caller auth.Principal, title, verb
 		return
 	}
 	who := "operator"
-	if !caller.ActsAsHuman() {
+	if !caller.IsPerson() {
 		who = caller.Name
 	}
 	_ = d.Notify.Notify(context.WithoutCancel(ctx), notify.Message{Title: title, Body: who + " " + verb + " " + label, Priority: 3, Tags: []string{"key"}})
@@ -49,7 +49,7 @@ func connectorGrantView(ctx context.Context, d Deps, viewer auth.Principal, g co
 		ID: g.ID, ClientID: g.ClientID, Label: g.Label, Scopes: make([]string, 0, len(g.Scopes)),
 		CreatedAt: store.FormatTime(g.CreatedAt), UpdatedAt: store.FormatTime(g.UpdatedAt), UpdatedBy: grantKeyRef(ctx, d, viewer, g.UpdatedBy),
 	}
-	if viewer.ActsAsHuman() {
+	if viewer.IsPerson() && viewer.CanSeePrivate() {
 		u, hint := g.Username, g.Subject
 		if len(hint) > 8 {
 			hint = hint[:8]
@@ -164,7 +164,7 @@ func registerConnectorsM4a(a huma.API, d Deps) {
 			for _, g := range grants {
 				out.Items = append(out.Items, connectorGrantView(ctx, d, p, g, caps))
 			}
-			if !p.ActsAsHuman() {
+			if !p.IsPerson() {
 				notifyAdmin(ctx, d, p, "Connector grants listed", "listed", "connector grants")
 			}
 			return &connectorListOut{Body: out}, nil

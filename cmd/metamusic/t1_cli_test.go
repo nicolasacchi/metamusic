@@ -75,7 +75,7 @@ func t1DoneTransform(t *testing.T, env map[string]string) string {
 		t.Fatal(err)
 	}
 	defer closeAll()
-	p := auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "local"}
+	p := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "local"}
 	req := transform.Request{Kind: transform.KindGlacier, TargetLUFS: &t1Target, Members: map[transform.Kind]json.RawMessage{transform.KindGlacier: json.RawMessage(`{"source_id":"` + librarytest.TrackTwinA + `"}`)}}
 	res, err := svc.Transform.Create(ctx, p, req, nil)
 	if err != nil {
@@ -153,7 +153,7 @@ func TestCLI_Sweep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "local"}
+	p := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "local"}
 	res, err := svc.Transform.Create(ctx, p, transform.Request{Kind: transform.KindGlacier, TargetLUFS: &t1Target,
 		Members: map[transform.Kind]json.RawMessage{transform.KindGlacier: json.RawMessage(`{"source_id":"` + librarytest.TrackTwinA + `","factor":30}`)}}, nil)
 	if err != nil {

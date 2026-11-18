@@ -212,7 +212,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tr, ok := reqinfo.TransportFrom(ctx)
 	if !ok {
 		tr = reqinfo.REST
-		if reqinfo.IsSPARequest(r) && (p.Kind == auth.KindHuman || p.Kind == auth.KindDevice) {
+		if reqinfo.IsSPARequest(r) && p.IsPerson() {
 			tr = reqinfo.SPA
 		}
 	}
@@ -225,7 +225,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// transaction; a context.WithValue made there could never reach this function.
 	ctx, marks := idem.WithMarks(ctx)
 
-	audited := p.Kind == auth.KindAgent ||
+	audited := p.IsAgent() ||
 		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead))
 	create := matched && info.Meta.Idempotency == "create"
 
@@ -279,7 +279,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if g.Limiter != nil && p.Kind != auth.KindAnonymous {
 		classes := []ratelimit.Class{ratelimit.Human}
 		heavy := ratelimit.HumanHeavy
-		if p.Kind == auth.KindAgent {
+		if p.IsAgent() {
 			classes, heavy = []ratelimit.Class{ratelimit.Agent}, ratelimit.AgentHeavy
 		}
 		if matched && info.Meta.Rate == "heavy" {

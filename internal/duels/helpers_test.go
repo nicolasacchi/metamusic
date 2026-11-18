@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	human  = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Via: "proxy"}
+	human  = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Via: "proxy"}
 	device = auth.Principal{Kind: auth.KindDevice, ID: lt.DevicePaired, Name: "phone", Via: "device"}
 	agent  = auth.Principal{Kind: auth.KindAgent, ID: "fixture-agent", Name: "critic", Via: "token"}
 	agent2 = auth.Principal{Kind: auth.KindAgent, ID: "other-agent", Name: "critic2", Via: "token"}

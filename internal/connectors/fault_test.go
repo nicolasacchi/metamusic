@@ -3,6 +3,7 @@ package connectors_test
 import (
 	"context"
 	"errors"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"strings"
 	"testing"
 	"time"
@@ -153,7 +154,7 @@ func TestConnector_SideEffectFailuresDoNotRefuse(t *testing.T) {
 	t.Run("push", func(t *testing.T) {
 		t.Parallel()
 		r := newVRig(t, nil)
-		r2 := connectors.NewVerifier(connectors.VerifierOptions{OIDC: r.oidcVerifier(t), Store: r.cs, TrustedUsers: []string{vUser}, Notify: failNotifier{}, Now: r.clock,
+		r2 := connectors.NewVerifier(connectors.VerifierOptions{OIDC: r.oidcVerifier(t), Store: r.cs, Users: map[string]config.Role{vUser: config.RoleOwner}, Notify: failNotifier{}, Now: r.clock,
 			Logger: r.logger()})
 		if _, err := r2.VerifyConnector(ctx, r.token("test-claude", vUser)); err != nil {
 			t.Fatalf("a failing push refused the token: %v", err)
@@ -190,7 +191,7 @@ func TestConnector_SideEffectFailuresDoNotRefuse(t *testing.T) {
 		t.Parallel()
 		r := newVRig(t, nil)
 		ov := r.oidcVerifier(t)
-		v := connectors.NewVerifier(connectors.VerifierOptions{OIDC: ov, Store: r.cs, TrustedUsers: []string{vUser}, Now: r.clock, Logger: r.logger()})
+		v := connectors.NewVerifier(connectors.VerifierOptions{OIDC: ov, Store: r.cs, Users: map[string]config.Role{vUser: config.RoleOwner}, Now: r.clock, Logger: r.logger()})
 		p, err := v.VerifyConnector(ctx, r.token("test-claude", vUser))
 		if err != nil || p.Name != "test-claude" {
 			t.Fatalf("%+v %v", p, err)

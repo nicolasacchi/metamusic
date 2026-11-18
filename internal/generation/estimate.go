@@ -75,7 +75,7 @@ func (s *Service) quoteInputs(ctx context.Context, q lineage.Querier, st provide
 }
 
 func principalKind(p auth.Principal) string {
-	if p.Kind == auth.KindAgent {
+	if p.IsAgent() {
 		return "agent"
 	}
 	return "human"

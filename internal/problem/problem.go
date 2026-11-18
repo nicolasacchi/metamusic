@@ -23,3 +23,8 @@ func Write(w http.ResponseWriter, status int, code, msg string, details map[stri
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(Body{Code: code, Message: msg, Details: details})
 }
+
+// OwnerOnly is the refusal of a service guard (U1 C302.6) for a principal whose role is Editor or Listener.
+func OwnerOnly(what string) *Error {
+	return E(403, "OWNER_ONLY", what+" is restricted to the Owner", map[string]any{})
+}

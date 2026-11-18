@@ -17,7 +17,7 @@ func TestPrincipalHasAndContext(t *testing.T) {
 	}
 }
 
-func TestPrincipal_KeyAndActsAsHuman(t *testing.T) {
+func TestPrincipal_KeyAndIsPerson(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name  string
@@ -25,7 +25,7 @@ func TestPrincipal_KeyAndActsAsHuman(t *testing.T) {
 		key   string
 		human bool
 	}{
-		{"human", Principal{Kind: KindHuman, ID: "alice"}, "human:alice", true},
+		{"human", Principal{Kind: KindHuman, Role: RoleOwner, ID: "alice"}, "human:alice", true},
 		{"device", Principal{Kind: KindDevice, ID: "d1"}, "device:d1", true},
 		{"agent", Principal{Kind: KindAgent, ID: "t1"}, "agent:t1", false},
 		{"anonymous", Principal{Kind: KindAnonymous}, "", false},
@@ -35,8 +35,8 @@ func TestPrincipal_KeyAndActsAsHuman(t *testing.T) {
 		if got := tc.p.Key(); got != tc.key {
 			t.Errorf("%s: Key() = %q, want %q", tc.name, got, tc.key)
 		}
-		if got := tc.p.ActsAsHuman(); got != tc.human {
-			t.Errorf("%s: ActsAsHuman() = %v, want %v", tc.name, got, tc.human)
+		if got := tc.p.IsPerson(); got != tc.human {
+			t.Errorf("%s: IsPerson() = %v, want %v", tc.name, got, tc.human)
 		}
 	}
 	if CLI.Via != "cli" || CLI.Kind != KindSystem {
@@ -54,7 +54,7 @@ func TestSystemPrincipal(t *testing.T) {
 		if p.Key() != "system:"+name {
 			t.Errorf("Key = %q", p.Key())
 		}
-		if p.ActsAsHuman() {
+		if p.IsPerson() {
 			t.Errorf("System(%q) acts as human", name)
 		}
 		for _, sc := range allScopes {

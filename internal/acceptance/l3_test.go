@@ -495,7 +495,7 @@ func l3RestoredServices(t *testing.T, dataDir string, now time.Time) *app.Servic
 	t.Cleanup(func() { _ = root.Close() })
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 		DataDir: dataDir, SecretsDir: filepath.Join(filepath.Dir(dataDir), "secrets"), BackupDir: filepath.Join(filepath.Dir(dataDir), "backup2"),
 		BackupAt: "off", RateScale: 1,
 	}
@@ -611,7 +611,7 @@ func TestRestore_RebuildsFeatures(t *testing.T) {
 		t.Errorf("provenance.Verify after the rebuild: %v %v", an, err)
 	}
 	// a rating after the restore refreshes the Song's row through the queue
-	op := auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
+	op := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
 	stars := 5
 	b2 := l2Take(t, r, "B2")
 	if _, err := svc.Deps.Judgments.Rate(ctx, op, b2, &stars, nil); err != nil {
@@ -655,7 +655,7 @@ func TestL3Wiring_LiveInServe(t *testing.T) {
 		takes = append(takes, id)
 	}
 	_ = rows.Close()
-	op := auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
+	op := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
 	for _, id := range takes {
 		want, err := r.Services.NextActions.ForTake(t.Context(), op, id, 2)
 		if err != nil || len(want) == 0 {

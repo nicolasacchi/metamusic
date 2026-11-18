@@ -108,7 +108,7 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 			Resource: strings.TrimRight(in.cfg.PublicURL, "/") + "/mcp", Clients: labels}, httpc, in.now)
 		if err == nil { // NewVerifier only validates its inputs; config.Load already did
 			m.OIDC = v
-			m.ConnVerifier = connectors.NewVerifier(connectors.VerifierOptions{OIDC: v, Store: cs, TrustedUsers: in.cfg.TrustedUsers,
+			m.ConnVerifier = connectors.NewVerifier(connectors.VerifierOptions{OIDC: v, Store: cs, Users: in.cfg.Users,
 				Labels: labels, Audit: in.audit, Notify: in.notifier, Now: in.now})
 		}
 	}

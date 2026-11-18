@@ -119,9 +119,9 @@ func notFound(id string) error {
 // sourceOf maps a principal to its verdict source: the operator and paired devices are the human, agents are critics (D-M5-5).
 func sourceOf(p auth.Principal) (string, error) {
 	switch {
-	case p.ActsAsHuman():
+	case p.IsPerson() && p.IsOwnerSide():
 		return "human", nil
-	case p.Kind == auth.KindAgent:
+	case p.IsAgent():
 		return "critic", nil
 	}
 	return "", problem.E(403, "FORBIDDEN", "this principal cannot answer a callback", nil)

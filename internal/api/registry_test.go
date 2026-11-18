@@ -143,6 +143,7 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				MCP       string     `json:"mcp"`
 				UI        string     `json:"ui"`
 				HumanOnly bool       `json:"human_only"`
+				OwnerOnly bool       `json:"owner_only"`
 				// M3 (C80): the spend and alias rules read these.
 				Idempotency string `json:"idempotency"`
 				Rate        string `json:"rate"`
@@ -161,7 +162,7 @@ func TestEveryOpHasValidMeta(t *testing.T) {
 				t.Errorf("%s %s: x-mm missing", method, path)
 				continue
 			}
-			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly,
+			m := api.Meta{Scope: op.XMM.Scope, Cost: op.XMM.Cost, MCP: op.XMM.MCP, UI: op.XMM.UI, HumanOnly: op.XMM.HumanOnly, OwnerOnly: op.XMM.OwnerOnly,
 				Idempotency: op.XMM.Idempotency, Rate: op.XMM.Rate, AliasOf: op.XMM.AliasOf}
 			hop := huma.Operation{OperationID: op.OperationID, Method: strings.ToUpper(method), Path: path, Summary: op.Summary, Description: op.Description}
 			if err := api.ValidateMeta(hop, m); err != nil {
@@ -195,7 +196,7 @@ func TestWrapperEnforcement(t *testing.T) {
 
 	agentRead := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}
 	agentW := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeWrite}}
-	human := auth.Principal{Kind: auth.KindHuman, Scopes: []auth.Scope{auth.ScopeRead}}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, Scopes: []auth.Scope{auth.ScopeRead}}
 	cases := []struct {
 		name string
 		p    auth.Principal
@@ -310,7 +311,7 @@ func TestAuthorize_Exported(t *testing.T) {
 		{"agent ok", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}, read, ""},
 		{"agent missing scope", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeWrite}}, read, "FORBIDDEN_SCOPE"},
 		{"agent on human op", auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}, humanOnly, "HUMAN_ONLY"},
-		{"human on human op", auth.Principal{Kind: auth.KindHuman, Scopes: []auth.Scope{auth.ScopeRead}}, humanOnly, ""},
+		{"human on human op", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, Scopes: []auth.Scope{auth.ScopeRead}}, humanOnly, ""},
 		{"device on human op", auth.Principal{Kind: auth.KindDevice, Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, humanOnly, "HUMAN_ONLY"},
 		{"device read", auth.Principal{Kind: auth.KindDevice, Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, read, ""},
 	} {

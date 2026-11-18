@@ -16,7 +16,7 @@ const MaxOpenProposals = 20
 
 // Propose records an agent's proposal (C91.7).
 func (s *Service) Propose(ctx context.Context, p auth.Principal, songID, takeID, rationale string) (Proposal, error) {
-	if p.ActsAsHuman() || p.Kind != auth.KindAgent {
+	if !p.IsAgent() {
 		return Proposal{}, humanOnly("pin_pick")
 	}
 	if s.st == nil {
@@ -70,7 +70,7 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, songID, takeID,
 
 // Dismiss closes an open proposal as dismissed; humans only (C91.7).
 func (s *Service) Dismiss(ctx context.Context, p auth.Principal, proposalID string) (Proposal, error) {
-	if !p.ActsAsHuman() {
+	if !(p.IsPerson() && p.IsOwnerSide()) {
 		return Proposal{}, humanOnly("")
 	}
 	if s.st == nil {

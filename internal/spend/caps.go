@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -64,7 +65,7 @@ func (e *CapError) Details() map[string]any {
 // PrincipalDaily is the daily limit that applies to p: HumanDailyMicro for everyone but agents, the
 // token's own limit or AgentDailyMicro for agents.
 func PrincipalDaily(p auth.Principal, tok TokenLimits, c Caps) money.MicroUSD {
-	if p.Kind != auth.KindAgent {
+	if !p.IsAgent() {
 		return c.HumanDailyMicro
 	}
 	return agentDaily(tok, c)
@@ -228,6 +229,9 @@ func okTakes(v *int) bool            { return v == nil || (*v >= 0 && *v <= 100)
 // changed target (global and each token) with before and after. It never checks usage: lowering a cap
 // only affects new reserves (C72.3). The new global caps are returned.
 func (s *Service) SetCaps(ctx context.Context, tx *sql.Tx, by auth.Principal, patch CapsPatch) (Caps, []CapChange, error) {
+	if !by.IsOwnerSide() {
+		return Caps{}, nil, problem.OwnerOnly("changing the spend caps")
+	}
 	for _, v := range []*money.MicroUSD{patch.MonthlyMicro, patch.BatchMicro, patch.HumanDailyMicro, patch.AgentDailyMicro, patch.AutoApproveMicro} {
 		if !okMicro(v) {
 			return Caps{}, nil, ErrCapRange

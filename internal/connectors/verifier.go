@@ -8,11 +8,13 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/canonjson"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/redact"
@@ -21,14 +23,15 @@ import (
 
 // VerifierOptions are the collaborators of the connector verifier (C106).
 type VerifierOptions struct {
-	OIDC         *oidc.Verifier
-	Store        *Store
-	TrustedUsers []string
-	Labels       map[string]string // client_id -> label (C102)
-	Audit        *audit.Store
-	Notify       notify.Notifier
-	Now          func() time.Time
-	Logger       *slog.Logger // nil => slog.Default()
+	OIDC  *oidc.Verifier
+	Store *Store
+	// Users is the configured user map; a connector is an Owner delegate, so only the Owner may grant one (C301.4).
+	Users  map[string]config.Role
+	Labels map[string]string // client_id -> label (C102)
+	Audit  *audit.Store
+	Notify notify.Notifier
+	Now    func() time.Time
+	Logger *slog.Logger // nil => slog.Default()
 }
 
 // Verifier maps a verified OAuth access token to a connector principal; it implements auth.ConnectorVerifier.
@@ -86,9 +89,10 @@ func (v *Verifier) VerifyConnector(ctx context.Context, bearer string) (auth.Pri
 	switch {
 	case cl.User == "":
 		return auth.Principal{}, v.refuse(ctx, "user_claim_missing", auth.ErrConnectorForbidden)
-	case !slices.Contains(v.o.TrustedUsers, cl.User):
+	case v.o.Users[strings.ToLower(cl.User)] != config.RoleOwner:
 		return auth.Principal{}, v.refuse(ctx, "user_not_trusted", auth.ErrConnectorForbidden)
 	}
+	cl.User = strings.ToLower(cl.User)
 	// 3. the grant
 	label := v.o.Labels[cl.ClientID]
 	if label == "" {

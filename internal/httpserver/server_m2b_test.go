@@ -27,7 +27,7 @@ func TestServer_M2bOptionsReachDeps(t *testing.T) {
 		t.Cleanup(func() { _ = st.Close() })
 		key := []byte("0123456789abcdef0123456789abcdef")
 		o.Cfg = config.Config{Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-			TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"}}
+			TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner}}
 		o.Sec = config.Secrets{Key: key, EdgeSecret: edge}
 		o.Store = st
 		o.Tokens = auth.NewTokenStore(st, key, time.Now)

@@ -217,7 +217,7 @@ func TestContext_OwnComments_M5(t *testing.T) {
 	ctx := context.Background()
 	at := 12.0
 	if _, err := judgments.New(e.st, e.lib, e.now, func() string { return "01900000-0000-7000-8000-00000000f001" }).AddComment(ctx,
-		auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, "web", e.info.Lineage[1],
+		auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}, "web", e.info.Lineage[1],
 		judgments.NewComment{Body: "own remark", AtSecond: &at, Kind: "fix"}); err != nil {
 		t.Fatal(err)
 	}

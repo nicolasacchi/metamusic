@@ -147,7 +147,7 @@ func (s *Service) Export(ctx context.Context, p auth.Principal, recordID string,
 		r := float64(roundTenthsInt(t)) / tenthStep
 		target = &r
 	}
-	if in.AcceptWarnings && !p.ActsAsHuman() {
+	if in.AcceptWarnings && !(p.IsPerson() && p.IsOwnerSide()) {
 		return Tape{}, problem.E(403, "HUMAN_ONLY", "only the operator can accept review warnings",
 			map[string]any{"hint": "ask the operator to export this tape"})
 	}

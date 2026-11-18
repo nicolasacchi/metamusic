@@ -98,7 +98,7 @@ func (s *Service) resolvePatches(ctx context.Context, q lineage.Querier, items [
 // pending >= Limit. parents are the mother tracks of the planned takes; humans and a limit of 0 pass.
 func (s *Service) gateBacklog(ctx context.Context, q lineage.Querier, p auth.Principal, parents []string) error {
 	g := s.o.BacklogGate
-	if g == nil || p.Kind != auth.KindAgent {
+	if g == nil || !p.IsAgent() {
 		return nil
 	}
 	limit := g.Limit()

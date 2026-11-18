@@ -35,7 +35,7 @@ func newDevices(t *testing.T) (*DeviceStore, *fakeClock) {
 	return ds, clk
 }
 
-var human = Principal{Kind: KindHuman, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
+var human = Principal{Kind: KindHuman, Role: RoleOwner, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
 
 var (
 	codeRE   = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$`)
@@ -303,8 +303,8 @@ func TestDevice_ScopesReadWriteOnly(t *testing.T) {
 	if err != nil || len(p.Scopes) != 2 || !p.Has(ScopeRead) || !p.Has(ScopeWrite) || p.Has(ScopeGenerate) || p.Has(ScopeAdmin) {
 		t.Fatalf("%+v %v", p, err)
 	}
-	if !p.ActsAsHuman() {
-		t.Fatal("device must act as human")
+	if !p.IsPerson() {
+		t.Fatal("device must be a person")
 	}
 	// the schema refuses wider scopes
 	if _, err := ds.st.W.Exec(`UPDATE devices SET scopes='read,write,admin'`); err == nil {

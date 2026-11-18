@@ -129,7 +129,7 @@ func takeActions(t *testing.T, w *takeWorld, p auth.Principal, code string) []ne
 }
 
 var (
-	tHumanRead = auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	tHumanRead = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 	tAgentRead = auth.Principal{Kind: auth.KindAgent, ID: "a", Name: "a", Scopes: []auth.Scope{auth.ScopeRead}}
 	tAgentGen  = auth.Principal{Kind: auth.KindAgent, ID: "g", Name: "g", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeGenerate}}
 )

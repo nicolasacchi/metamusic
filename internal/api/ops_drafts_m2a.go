@@ -68,7 +68,7 @@ func registerDraftsM2a(a huma.API, d Deps) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
-			dd, err := d.Library.Draft(ctx, in.ID, auth.FromContext(ctx).ActsAsHuman())
+			dd, err := d.Library.Draft(ctx, in.ID, func() bool { p := auth.FromContext(ctx); return p.IsPerson() && p.CanSeePrivate() }())
 			if err != nil {
 				return nil, libErr(err)
 			}

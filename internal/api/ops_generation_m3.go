@@ -92,7 +92,7 @@ func itemIn(it ItemIn) generation.Item {
 // estimateVia is the path the later create will take: the operator's SPA confirms through the human path,
 // everyone else through /api/ (C72.6).
 func estimateVia(p auth.Principal) string {
-	if p.Kind == auth.KindHuman {
+	if p.IsOwner() {
 		return spend.ViaHumanCreate
 	}
 	return spend.ViaAPI

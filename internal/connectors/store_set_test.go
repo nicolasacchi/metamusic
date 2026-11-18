@@ -15,7 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-var humanOp = auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}}
+var humanOp = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}}
 
 func micro(v int64) *money.MicroUSD { m := money.MicroUSD(v); return &m }
 func intp(v int) *int               { return &v }

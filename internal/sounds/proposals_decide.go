@@ -59,7 +59,7 @@ func invalidDecision(msg, field string) error {
 // (note "proposal <id>") and the accepted state are written in one transaction, then every stale subject is recomputed
 // before the call returns.
 func (s *Service) Decide(ctx context.Context, p auth.Principal, id string, d Decision) (DecideResult, error) {
-	if !p.ActsAsHuman() {
+	if !(p.IsPerson() && p.IsOwnerSide()) {
 		return DecideResult{}, humanOnlyDecide()
 	}
 	if d.Decision != "accept" && d.Decision != "reject" {

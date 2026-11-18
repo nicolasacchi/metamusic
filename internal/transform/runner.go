@@ -415,7 +415,7 @@ func (s *Service) Cancel(ctx context.Context, p auth.Principal, id string) error
 		case err != nil:
 			return err
 		}
-		if p.Kind == auth.KindAgent && ownerID != p.Key() {
+		if p.IsAgent() && ownerID != p.Key() {
 			return problem.E(403, "FORBIDDEN", "an agent cancels only its own transforms", map[string]any{"owner": ownerName})
 		}
 		now := s.o.Now()

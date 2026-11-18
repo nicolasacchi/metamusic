@@ -116,7 +116,7 @@ func (s *Service) Log(ctx context.Context, p auth.Principal, src string, evs []E
 		return 0, 0, nil, fmt.Errorf("listening: unknown source %q", src)
 	}
 	kind := string(p.Kind)
-	if p.Kind != auth.KindHuman && p.Kind != auth.KindDevice {
+	if !p.IsPerson() {
 		kind = string(auth.KindAgent)
 	}
 	durs := map[string]*int64{}

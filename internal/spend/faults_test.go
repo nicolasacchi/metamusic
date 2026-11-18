@@ -43,7 +43,7 @@ func TestSpend_StorageFaults(t *testing.T) {
 	r.exec(`UPDATE batches SET state='finished', finished_at=? WHERE id=?`, store.FormatTime(t0), fin.Batch)
 	v := func(x int64) *money.MicroUSD { m := money.MicroUSD(x); return &m }
 	ms := int64(1000)
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h1"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1"}
 	one := 1
 
 	type fn struct {

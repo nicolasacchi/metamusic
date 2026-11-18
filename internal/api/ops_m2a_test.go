@@ -254,7 +254,7 @@ func TestRawRequest_KeepsTokens(t *testing.T) {
 
 func TestRefFor_Table(t *testing.T) {
 	t.Parallel()
-	humanP := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}
+	humanP := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
 	deviceP := auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone"}
 	agentP := auth.Principal{Kind: auth.KindAgent, ID: "t1", Name: "bot"}
 	tests := []struct {

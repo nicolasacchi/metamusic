@@ -109,7 +109,7 @@ func admits(viewer auth.Principal, filter, rule Audience) bool {
 	case AudienceHuman:
 		return rule == AudienceHuman || rule == AudienceBoth
 	}
-	if viewer.ActsAsHuman() {
+	if viewer.IsPerson() && viewer.IsOwnerSide() {
 		return rule == AudienceHuman || rule == AudienceBoth
 	}
 	return rule == AudienceAgent || rule == AudienceBoth
@@ -236,7 +236,7 @@ func (s *Service) render(ctx context.Context, q *txReader, viewer auth.Principal
 			records = append(records, *it.c.Subject.ID)
 		}
 	}
-	n := &names{songs: map[string]string{}, records: map[string]string{}, human: viewer.ActsAsHuman()}
+	n := &names{songs: map[string]string{}, records: map[string]string{}, human: viewer.IsPerson() && viewer.IsOwnerSide()}
 	if err := n.load(ctx, q, "songs", songs, n.songs); err != nil {
 		return nil, err
 	}

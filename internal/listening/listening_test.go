@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	human = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}
+	human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
 	agent = auth.Principal{Kind: auth.KindAgent, ID: "tok-1", Name: "bot"}
 	dev   = auth.Principal{Kind: auth.KindDevice, ID: "dev-1", Name: "Phone"}
 )
@@ -264,7 +264,7 @@ func TestListen_RewindStored(t *testing.T) {
 	rew.TrackID, seg.TrackID = track, track
 	rew.FromMS, rew.ToMS = i64(9000), i64(2000)
 	seg.FromMS, seg.ToMS = i64(9000), i64(2000)
-	acc, _, rej, err := s.Log(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}, "web", []listening.Event{rew, seg})
+	acc, _, rej, err := s.Log(context.Background(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}, "web", []listening.Event{rew, seg})
 	if err != nil || acc != 1 || len(rej) != 1 || rej[0].ID != seg.ID || rej[0].Code != "bad_range" {
 		t.Fatalf("accepted %d rejected %v err %v", acc, rej, err)
 	}

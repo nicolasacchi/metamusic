@@ -92,7 +92,7 @@ func registerSubsonicClientsM4a(a huma.API, d Deps) {
 			for i, c := range list {
 				out.Body.Items[i] = subsonicClient(viewer, c)
 			}
-			if viewer.Kind != auth.KindHuman {
+			if !viewer.IsOwner() {
 				pushSubsonic(ctx, d, "Subsonic clients listed", "listed", "Subsonic clients")
 			}
 			return out, nil

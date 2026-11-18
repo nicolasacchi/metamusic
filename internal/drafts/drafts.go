@@ -477,7 +477,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in NewDraft) (li
 		return library.DraftDetail{}, err
 	}
 	origin := "agent"
-	if p.ActsAsHuman() {
+	if p.IsPerson() {
 		origin = "editor"
 	}
 	id, label, parent := s.newID(), "", ""
@@ -507,7 +507,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in NewDraft) (li
 }
 
 func (s *Service) result(ctx context.Context, p auth.Principal, id string, carry []yue2.Issue) (library.DraftDetail, error) {
-	d, err := s.lib.Draft(ctx, id, p.ActsAsHuman())
+	d, err := s.lib.Draft(ctx, id, p.IsPerson() && p.CanSeePrivate())
 	if err != nil {
 		return d, err
 	}

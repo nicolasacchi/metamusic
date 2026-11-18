@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -103,7 +104,7 @@ func newVRig(t *testing.T, mutate func(*oidctest.Options)) *vrig {
 	r.ov = ov
 	r.cs = connectors.NewStore(st, r.clock, nil)
 	r.v = connectors.NewVerifier(connectors.VerifierOptions{
-		OIDC: ov, Store: r.cs, TrustedUsers: []string{vUser}, Labels: map[string]string{"test-claude": "Claude Test"},
+		OIDC: ov, Store: r.cs, Users: map[string]config.Role{vUser: config.RoleOwner}, Labels: map[string]string{"test-claude": "Claude Test"},
 		Audit: audit.NewStore(st, func() string { return uuid.NewV7().String() }), Notify: r.notify, Now: r.clock, Logger: slog.New(slog.NewJSONHandler(r.log, nil)),
 	})
 	return r
@@ -294,7 +295,7 @@ func TestConnector_ErrorMapping(t *testing.T) {
 	// keys unreachable: a verifier whose JWKS URL is dead answers ErrUnavailable
 	dead, _ := oidc.NewVerifier(oidc.Config{Issuer: r.p.URL, JWKSURL: "http://127.0.0.1:1/jwks.json", Resource: vResource,
 		Clients: map[string]string{"test-claude": "Claude Test"}}, &http.Client{Timeout: time.Second}, r.clock)
-	v := connectors.NewVerifier(connectors.VerifierOptions{OIDC: dead, Store: r.cs, TrustedUsers: []string{vUser}})
+	v := connectors.NewVerifier(connectors.VerifierOptions{OIDC: dead, Store: r.cs, Users: map[string]config.Role{vUser: config.RoleOwner}})
 	if _, err := v.VerifyConnector(ctx, r.token("test-claude", vUser)); !errors.Is(err, auth.ErrUnavailable) {
 		t.Errorf("unavailable: %v", err)
 	}
@@ -338,5 +339,27 @@ func TestConnector_TouchAtMostOncePerMinute(t *testing.T) {
 	}
 	if last() != store.FormatTime(r.clock()) {
 		t.Errorf("not touched after a minute: %q", last())
+	}
+}
+
+// TestConnector_OnlyTheOwnerMayGrant: a connector is an Owner delegate (U1 C301.4), so a configured Editor or Listener is
+// refused like an unknown user, and the Owner's name is matched case-insensitively.
+func TestConnector_OnlyTheOwnerMayGrant(t *testing.T) {
+	t.Parallel()
+	r := newVRig(t, nil)
+	v := connectors.NewVerifier(connectors.VerifierOptions{
+		OIDC: r.ov, Store: r.cs, Labels: map[string]string{"test-claude": "Claude Test"}, Now: r.clock, Logger: r.logger(),
+		Users: map[string]config.Role{vUser: config.RoleOwner, "bob": config.RoleEditor, "carol": config.RoleListener},
+	})
+	for _, u := range []string{"bob", "carol"} {
+		if _, err := v.VerifyConnector(context.Background(), r.token("test-claude", u)); !errors.Is(err, auth.ErrConnectorForbidden) {
+			t.Errorf("%s: err = %v", u, err)
+		}
+	}
+	if n := r.count(`SELECT COUNT(*) FROM connector_grants`); n != 0 {
+		t.Errorf("rows = %d", n)
+	}
+	if _, err := v.VerifyConnector(context.Background(), r.token("test-claude", strings.ToUpper(vUser))); err != nil {
+		t.Errorf("owner, upper case: %v", err)
 	}
 }

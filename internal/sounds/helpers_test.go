@@ -21,7 +21,7 @@ import (
 
 var (
 	agentP = auth.Principal{Kind: auth.KindAgent, ID: "tok-1", Name: "agent-one", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "token"}
-	humanP = auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
+	humanP = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "local"}
 )
 
 var (

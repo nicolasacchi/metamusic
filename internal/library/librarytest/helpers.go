@@ -34,5 +34,5 @@ func mustExec(tb testing.TB, st *store.Store, q string, a ...any) {
 }
 
 func principalCLI() auth.Principal {
-	return auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture"}
+	return auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture"}
 }

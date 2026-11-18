@@ -80,9 +80,9 @@ var ErrNoSource = errors.New("duels: principal cannot judge")
 // can select the source.
 func SourceFor(p auth.Principal) (string, error) {
 	switch {
-	case p.ActsAsHuman():
+	case p.IsPerson() && p.IsOwnerSide():
 		return "human", nil
-	case p.Kind == auth.KindAgent:
+	case p.IsAgent():
 		return "critic", nil
 	}
 	return "", ErrNoSource

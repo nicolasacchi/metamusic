@@ -13,7 +13,7 @@ import (
 
 // Pin pins or unpins (nil takeID) a take; humans and paired devices only (C91.6).
 func (s *Service) Pin(ctx context.Context, p auth.Principal, songID string, takeID, proposalID *string) (PinResult, error) {
-	if !p.ActsAsHuman() {
+	if !(p.IsPerson() && p.IsOwnerSide()) { // C302.6: humans and paired devices of the Owner side only
 		return PinResult{}, humanOnly("")
 	}
 	if s.st == nil {

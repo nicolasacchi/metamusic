@@ -28,7 +28,7 @@ func newM4aEnv(t *testing.T, spa fstest.MapFS, mutate func(*httpserver.Options))
 	t.Cleanup(func() { _ = st.Close() })
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "https://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 		OIDCIssuer: "https://auth.example.com", OIDCScopes: []string{"openid", "metamusic"},
 	}
 	key := []byte("0123456789abcdef0123456789abcdef")

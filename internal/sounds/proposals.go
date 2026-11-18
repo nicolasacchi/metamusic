@@ -81,7 +81,7 @@ func humanOnlyPropose() error {
 // nothing remaining is 422 NOTHING_TO_PROPOSE. An open proposal of the same principal with the same mapping set is
 // returned unchanged with Reused set. A human principal is refused: it maps terms directly.
 func (s *Service) Propose(ctx context.Context, p auth.Principal, rationale string, ms []Mapping) (Proposal, error) {
-	if p.ActsAsHuman() {
+	if p.IsPerson() {
 		return Proposal{}, humanOnlyPropose()
 	}
 	rationale = strings.TrimSpace(rationale)

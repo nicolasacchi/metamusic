@@ -146,7 +146,7 @@ func TestAtlas_AgentDefaultPage(t *testing.T) {
 	t.Cleanup(func() { st.Close() })
 	lt.FixtureL3Scale(t, st, lt.FixedNow, 450, 10)
 	rig := l3Rig(t, api.Deps{Atlas: atlas.New(st, func() time.Time { return lt.FixedNow })})
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead}, Via: "test"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead}, Via: "test"}
 	device := auth.Principal{Kind: auth.KindDevice, ID: "d", Name: "d", Scopes: []auth.Scope{auth.ScopeRead}, Via: "test"}
 	for _, c := range []struct {
 		name  string

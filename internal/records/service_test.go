@@ -21,7 +21,7 @@ import (
 
 // The principals of the C120.1 table.
 var (
-	human  = auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "local"}
+	human  = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "local"}
 	agent  = auth.Principal{Kind: auth.KindAgent, ID: "ag1", Name: "synthetic-agent", Via: "token"}
 	device = auth.Principal{Kind: auth.KindDevice, ID: "dev1", Name: "synthetic-phone", Via: "device"}
 )

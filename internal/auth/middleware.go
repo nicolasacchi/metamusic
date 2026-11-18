@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -155,10 +154,15 @@ func proxyPrincipal(r *http.Request, cfg config.Config, sec config.Secrets) (Pri
 		return Principal{}, false
 	}
 	user := r.Header.Values("Remote-User")
-	if len(user) != 1 || user[0] == "" || strings.Contains(user[0], ",") || !slices.Contains(cfg.TrustedUsers, user[0]) {
+	if len(user) != 1 || user[0] == "" || strings.Contains(user[0], ",") {
 		return Principal{}, false
 	}
-	return humanPrincipal(user[0], "proxy"), true
+	name := strings.ToLower(user[0]) // names are case-folded on both sides (D-U1-3)
+	role, ok := cfg.Users[name]
+	if !ok || !role.Valid() {
+		return Principal{}, false
+	}
+	return humanPrincipal(name, role, "proxy"), true
 }
 
 // Middleware resolves the request principal per the C3 table. devices may be

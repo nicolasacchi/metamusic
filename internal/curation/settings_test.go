@@ -14,7 +14,7 @@ import (
 func ptr[T any](v T) *T { return &v }
 
 var (
-	human  = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}}
+	human  = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}}
 	agent  = auth.Principal{Kind: auth.KindAgent, ID: "tok1", Name: "tok", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}}
 	device = auth.Principal{Kind: auth.KindDevice, ID: "dev1", Name: "phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 )

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	humanP = auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Via: "proxy"}
+	humanP = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Via: "proxy"}
 	agentP = auth.Principal{Kind: auth.KindAgent, ID: "a", Name: "a", Via: "token"}
 )
 

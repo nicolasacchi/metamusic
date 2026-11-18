@@ -340,7 +340,7 @@ func New(o Options) (http.Handler, error) {
 	if o.MCP != nil {
 		resource := strings.TrimRight(o.Cfg.PublicURL, "/") + "/.well-known/oauth-protected-resource/mcp"
 		mcp := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if auth.FromContext(r.Context()).Kind != auth.KindAgent {
+			if !auth.FromContext(r.Context()).IsAgent() {
 				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resource+`"`)
 				writeProblem(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
 				return

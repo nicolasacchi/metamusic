@@ -46,7 +46,7 @@ func TestPairAuditRetriesTransientFailure(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 	}
 	n := 0
 	newID := func() string { n++; return "id-" + string(rune('a'+n)) }
@@ -60,7 +60,7 @@ func TestPairAuditRetriesTransientFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	code, _, err := devs.CreatePairingCode(ctx, auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}, "Phone")
+	code, _, err := devs.CreatePairingCode(ctx, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}, "Phone")
 	if err != nil {
 		t.Fatal(err)
 	}

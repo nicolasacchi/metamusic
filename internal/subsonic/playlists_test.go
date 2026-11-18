@@ -141,7 +141,7 @@ func TestSubsonic_PlaylistsRetryOnConflict(t *testing.T) {
 			return
 		}
 		name := "edited over REST"
-		if _, err := x.plist.Update(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}, id,
+		if _, err := x.plist.Update(context.Background(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}, id,
 			playlists.PlaylistPatch{Revision: pl.Revision, Name: &name}); err != nil {
 			t.Error(err)
 		}

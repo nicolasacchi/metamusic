@@ -42,7 +42,7 @@ type env struct {
 }
 
 var (
-	human = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 	agent = auth.Principal{Kind: auth.KindAgent, ID: "ag1", Name: "ag", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 )
 

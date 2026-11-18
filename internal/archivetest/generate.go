@@ -104,7 +104,7 @@ func addGenerateDrafts(ctx context.Context, st *store.Store, data *os.Root) erro
 	}
 	lib := library.New(st, data, time.Now)
 	svc := drafts.New(st, lib, time.Now, nil)
-	p := auth.Principal{Kind: auth.KindHuman, ID: "generate-archive", Name: "generate-archive", Via: "test"}
+	p := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "generate-archive", Name: "generate-archive", Via: "test"}
 	for i, mother := range mothers {
 		m := mother
 		req := fmt.Sprintf(`{"id":"gen-draft-%d","style":"english, synth pop, 100 bpm","lyrics":"[Verse]\nla la\nla\nla\nla\n[Chorus]\nla\nla\nla\nla","cot":"full","seed":%d}`, i+1, 7100+i)

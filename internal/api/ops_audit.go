@@ -39,7 +39,7 @@ func registerAudit(a huma.API, d Deps) {
 			}
 			viewer := auth.FromContext(ctx)
 			// An agent may not address the operator by key (D-M2a-19): it filters human rows with principal_kind=human.
-			if !viewer.ActsAsHuman() && (in.PrincipalID == "human" || strings.HasPrefix(in.PrincipalID, "human:")) {
+			if !(viewer.IsPerson() && viewer.CanSeePrivate()) && (in.PrincipalID == "human" || strings.HasPrefix(in.PrincipalID, "human:")) {
 				return nil, Err(http.StatusUnprocessableEntity, "VALIDATION_FAILED", "principal_id cannot name the operator; use principal_kind=human",
 					map[string]any{"field": "principal_id"})
 			}

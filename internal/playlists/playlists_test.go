@@ -49,7 +49,7 @@ func newEnv(t *testing.T) *env {
 	return e
 }
 
-var human = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+var human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 
 func problem(t *testing.T, err error, status int, code string) {
 	t.Helper()

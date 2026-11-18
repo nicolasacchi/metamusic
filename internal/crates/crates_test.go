@@ -23,7 +23,7 @@ import (
 
 var (
 	agent = auth.Principal{Kind: auth.KindAgent, ID: "tok", Name: "tok", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "token"}
-	human = auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
+	human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
 )
 
 type world struct {

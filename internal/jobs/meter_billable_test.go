@@ -257,7 +257,7 @@ func TestMeterBillable_ProviderStatusMatches(t *testing.T) {
 		o.Sweep = rec.Snapshot
 		o.Capabilities = r.be.Capabilities
 	})
-	st, err := a.Status(t.Context(), auth.Principal{Kind: auth.KindHuman, ID: "h1", Name: "n"})
+	st, err := a.Status(t.Context(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1", Name: "n"})
 	if err != nil {
 		t.Fatal(err)
 	}

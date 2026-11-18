@@ -78,10 +78,10 @@ func cleanNote(field, s string, maxLen int) (string, error) {
 func (s *Service) stamp() string { return store.FormatTime(s.now()) }
 
 func actorKind(p auth.Principal) string {
-	switch p.Kind {
-	case auth.KindHuman, auth.KindDevice:
+	switch {
+	case p.IsPerson():
 		return "human"
-	case auth.KindAgent:
+	case p.IsAgent():
 		return "agent"
 	}
 	return "system"

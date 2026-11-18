@@ -63,7 +63,7 @@ func fixtureImage(t *testing.T) ([]byte, lt.M5Info) {
 }
 
 var (
-	human = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate}}
+	human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate}}
 	agent = auth.Principal{Kind: auth.KindAgent, ID: "fixture-token", Name: "fixture-agent", Via: "token", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate}}
 )
 

@@ -43,6 +43,18 @@ func configCheck(getenv func(string) string, s streams) error {
 	}
 	fmt.Fprintln(s.out, "config ok")
 	fmt.Fprintf(s.out, "auth: %s\n", cfg.AuthMode)
+	if len(cfg.Users) == 0 {
+		fmt.Fprintln(s.out, "users: none")
+	} else {
+		parts := make([]string, 0, len(cfg.Users))
+		for _, n := range config.UserNames(cfg.Users) { // names and roles only
+			parts = append(parts, n+":"+string(cfg.Users[n]))
+		}
+		fmt.Fprintf(s.out, "users: %s\n", strings.Join(parts, ","))
+	}
+	if cfg.TrustedUsersAlias {
+		fmt.Fprintln(s.out, "warning: MM_TRUSTED_USERS is deprecated; set MM_USERS=<name>:owner instead")
+	}
 	fmt.Fprintf(s.out, "backend: %s\n", cfg.Backend)
 	fmt.Fprintf(s.out, "runner: %s\n", enabled(cfg.Runner))
 	if cfg.OIDCIssuer != "" {

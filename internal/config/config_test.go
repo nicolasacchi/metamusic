@@ -51,7 +51,7 @@ func TestLoadOverridesAndLists(t *testing.T) {
 	c, err := Load(env(map[string]string{
 		"MM_AUTH": "proxy", "MM_ADDR": "0.0.0.0:9", "MM_PUBLIC_URL": "https://mm.example.com",
 		"MM_DATA_DIR": "/d", "MM_TRUSTED_PROXY": "10.0.0.0/8, 192.168.1.5 ,::1",
-		"MM_TRUSTED_USERS": "alice, bob,", "MM_E2E": "1",
+		"MM_USERS": "Alice:owner, bob:editor,", "MM_E2E": "1",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestLoadOverridesAndLists(t *testing.T) {
 	if diff := cmp.Diff(wantP, c.TrustedProxies, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {
 		t.Error(diff)
 	}
-	if diff := cmp.Diff([]string{"alice", "bob"}, c.TrustedUsers); diff != "" {
+	if diff := cmp.Diff(map[string]Role{"alice": RoleOwner, "bob": RoleEditor}, c.Users); diff != "" {
 		t.Error(diff)
 	}
 	if c.Addr != "0.0.0.0:9" || c.PublicURL != "https://mm.example.com" || c.DataDir != "/d" ||

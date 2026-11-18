@@ -174,7 +174,7 @@ func TestSubsonicAuth_Matrix(t *testing.T) {
 	}
 
 	// a revoked client: 40 with a token, 44 with its key
-	if _, err := r.creds.Revoke(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "alice"}, r.rw.ID); err != nil {
+	if _, err := r.creds.Revoke(context.Background(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice"}, r.rw.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := r.get("ping", tokenParams("rwclient", r.rwPW, "salt-rev-01"), "198.51.100.90").code(t); got != 40 {

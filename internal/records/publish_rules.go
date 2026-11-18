@@ -83,7 +83,7 @@ func (s *Service) ProposeWith(ctx context.Context, p auth.Principal, id string, 
 // principal (before any read), existence, revision (even for an already published Record), the no-op and legality rules,
 // then the content rule (a playable slot).
 func (s *Service) Publish(ctx context.Context, p auth.Principal, id string, revision int, published bool) (Record, error) {
-	if p.Kind != auth.KindHuman {
+	if !p.IsOwner() {
 		return Record{}, errHumanOnly("records are published by the operator")
 	}
 	var out Record

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"strings"
 	"sync"
 	"time"
@@ -377,6 +378,9 @@ func appendUnique(s []string, v string) []string {
 
 // Update arms/disarms and/or resets the open trip, writing the audit row in the same transaction.
 func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateIn) (ProviderStatus, error) {
+	if !p.IsOwnerSide() {
+		return ProviderStatus{}, problem.OwnerOnly("changing the provider state")
+	}
 	if a.o.Store == nil || a.o.Gate == nil {
 		return ProviderStatus{}, errors.ErrUnsupported
 	}

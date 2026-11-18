@@ -14,7 +14,7 @@ import (
 // store is looked at. An empty patch is 422 VALIDATION_FAILED; values that already hold are returned as they are, without a
 // write, so updated_at and updated_by keep naming the last real change. A real change writes all four keys in one transaction.
 func (s *Service) Set(ctx context.Context, p auth.Principal, patch SettingsPatch) (Settings, error) {
-	if p.Kind != auth.KindHuman {
+	if !p.IsOwner() {
 		return Settings{}, problem.E(403, "HUMAN_ONLY", "only the operator can change the curation settings", nil)
 	}
 	if patch.ExportMuseNames == nil && patch.SubsonicMuseNames == nil {

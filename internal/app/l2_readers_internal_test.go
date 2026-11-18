@@ -114,7 +114,7 @@ func scale(t *testing.T, nSongs int) (cst *store.Store, n *atomic.Int64, recordI
 		}
 	}
 	recs := records.New(st, fixedNow, func() string { return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xe00000+int(n.Add(1))) })
-	human := auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Via: "local"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Via: "local"}
 	rec, err := recs.Create(ctx, human, records.NewRecord{Title: "Synthetic Count Record", SongIDs: songIDs})
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestRecordView_NoN1(t *testing.T) {
 		lib := library.New(cst, nil, fixedNow)
 		svc := recordview.New(recordview.Options{Store: cst, Records: records.New(cst, fixedNow, nil), Muses: muses.New(cst, fixedNow, nil), Sessions: rd,
 			Sounds: rd, Songs: rd, Picks: rd, Ears: rd, Curation: curation.New(cst, fixedNow), Library: lib})
-		human := auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Via: "local"}
+		human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Via: "local"}
 		v, err := svc.Get(context.Background(), human, id, recordview.GetOptions{Include: recordview.Includes, ChangesLimit: 50})
 		if err != nil {
 			t.Fatal(err)
