@@ -55,7 +55,7 @@ IGNORED_PARAMS = {
     "flow_edit_morph": "cover-only overlay, off", "flow_edit_source_caption": "flow edit, off",
     "flow_edit_source_lyrics": "flow edit, off", "flow_edit_n_min": "flow edit, off",
     "flow_edit_n_max": "flow edit, off", "flow_edit_n_avg": "flow edit, off",
-    "audio_cover_strength": "cover-only; cover is not offered", "cover_noise_strength": "cover-only",
+    "cover_noise_strength": "cover-only and undocumented upstream: left at its default 0.0 (not exposed)",
 }
 IGNORED_CONFIG = {
     "allow_lm_batch": "batch_size is 1", "lm_batch_chunk_size": "batch_size is 1",
@@ -100,6 +100,7 @@ def _recorded_calls() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         {**base, "task": "text2music", "duration_ds": 300, "ref": ref, "bpm": 100, "keyscale": "C Major",
          "timesignature": "4"},
         {**base, "task": "repaint", "thinking": False, "src": src, "repaint_from_ds": 10, "repaint_to_ds": 50},
+        {**base, "task": "cover", "thinking": False, "src": src, "cover_strength_milli": 500},
     ]
     for r in reqs:
         p = ad.validate(r)
@@ -220,3 +221,18 @@ def test_instruction_default_and_codes_trap() -> None:
     d = {f.name: f.default for f in dataclasses.fields(upstream_inference.GenerationParams)}
     assert d["instruction"] == upstream_constants.TASK_INSTRUCTIONS["text2music"]
     assert d["audio_codes"] == ""
+
+
+def test_cover_is_a_turbo_task_with_the_pinned_instruction() -> None:
+    assert "cover" in upstream_constants.TASK_TYPES_TURBO and "cover" in upstream_constants.TASK_TYPES_BASE
+    assert ace.INSTRUCTIONS["cover"] == upstream_constants.TASK_INSTRUCTIONS["cover"]
+    assert ace._instruction("cover", []) == upstream_constants.TASK_INSTRUCTIONS["cover"]
+    assert ace.TASK_CLASS["cover"] == "turbo" and ace.UPSTREAM_TASK["cover"] == "cover"
+    assert "audio_cover_strength" in {f.name for f in dataclasses.fields(upstream_inference.GenerationParams)}
+
+
+def test_cover_passes_strength_and_never_codes_or_duration() -> None:
+    params, _ = _recorded_calls()
+    cover = next(p for p in params if p.get("task_type") == "cover")
+    assert cover["audio_cover_strength"] == 0.5
+    assert "duration" not in cover and "audio_codes" not in cover

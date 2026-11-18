@@ -98,6 +98,7 @@ def test_acestep_all_tasks_through_the_handler(sink: Sink, monkeypatch: pytest.M
     clip = write_audio(tmp_path / "clip", 30.0)
     cases = [
         ("repaint", {"src_audio": src}, {}),
+        ("cover", {"src_audio": src}, {}),
         ("text2music", {"reference_audio": clip}, {"ref": REF, "duration_ds": 100}),
         ("repaint", {"src_audio": src, "reference_audio": clip}, {"ref": REF}),
     ]

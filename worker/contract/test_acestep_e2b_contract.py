@@ -73,3 +73,8 @@ def test_lyric_timestamp_inputs_are_in_extra_outputs() -> None:
     lrc = inspect.signature(AceStepHandler.get_lyric_timestamp).parameters
     assert {"pred_latent", "encoder_hidden_states", "encoder_attention_mask", "context_latents", "lyric_token_ids",
             "total_duration_seconds", "vocal_language", "inference_steps", "seed"} <= set(lrc)
+
+
+def test_cover_skips_the_lm_upstream() -> None:
+    src = inspect.getsource(upstream_inference.generate_music)
+    assert '"cover"' in src.split("skip_lm_tasks =", 1)[1].split("\n", 1)[0]
