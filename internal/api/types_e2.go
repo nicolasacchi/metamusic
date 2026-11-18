@@ -15,7 +15,7 @@ type EditIn struct {
 	Tracks  []string `json:"tracks,omitempty" nullable:"false" maxItems:"6" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds"`
 	// SourceStem makes a complete item a remix: the named stem of the parent (which must already exist) replaces the parent's
 	// master as the source audio.
-	SourceStem string `json:"source_stem,omitempty" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds" doc:"complete only: use this extracted stem of the parent take as the source instead of its master (run a stems item first)"`
+	SourceStem string `json:"source_stem,omitempty" enum:"backing_vocals,bass,brass,drums,fx,guitar,keyboard,percussion,strings,synth,vocals,woodwinds" doc:"complete only: remix this stem of the parent, not its master"`
 }
 
 // RefIn is the reference input of a compose_new or reference item: a window of a take whose timbre the render follows. The

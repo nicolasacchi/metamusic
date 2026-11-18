@@ -6529,7 +6529,7 @@
             "type": "number"
           },
           "source_stem": {
-            "description": "complete only: use this extracted stem of the parent take as the source instead of its master (run a stems item first)",
+            "description": "complete only: remix this stem of the parent, not its master",
             "enum": [
               "backing_vocals",
               "bass",

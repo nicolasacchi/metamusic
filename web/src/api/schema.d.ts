@@ -4501,7 +4501,7 @@ export interface components {
             /** Format: double */
             from_s?: number;
             /**
-             * @description complete only: use this extracted stem of the parent take as the source instead of its master (run a stems item first)
+             * @description complete only: remix this stem of the parent, not its master
              * @enum {string}
              */
             source_stem?: "backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds";
