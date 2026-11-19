@@ -4,6 +4,7 @@
   import { idempotentAction } from "../../api/idem";
   import type { components } from "../../api/schema";
   import { createCountdown } from "../humanView";
+  import { actionError } from "../deviceView";
 
   type Pairing = components["schemas"]["PairingCodeOut"];
   interface Props {
@@ -48,7 +49,7 @@
         cd = createCountdown(Math.max(0, Date.parse(r.data.expires_at) - now), () => Date.now());
         name = "";
         oncreated?.();
-      } else error = r.error?.message ?? "Could not create a pairing code";
+      } else error = actionError(r.error, "Could not create a pairing code");
     } catch {
       error = "Could not create a pairing code";
     } finally {
