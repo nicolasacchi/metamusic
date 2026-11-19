@@ -22472,7 +22472,7 @@
             "type": "string"
           },
           "role": {
-            "description": "One of owner, editor, listener: the caller's role (a person, or a device or Subsonic client acting as its owner); null for agents and connector grants, which are Owner delegates",
+            "description": "One of owner, editor, listener: the caller's role; null for principals with no role: agents and connector grants (Owner delegates) and, until the device lane decides otherwise, an Owner's device",
             "type": [
               "string",
               "null"
@@ -22493,7 +22493,7 @@
             ]
           },
           "user": {
-            "description": "The lowercase username of the person (for a device, its owner); null for agents",
+            "description": "The lowercase username of the person; null for principals with no user (agents and, for now, devices)",
             "type": [
               "string",
               "null"

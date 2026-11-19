@@ -124,3 +124,16 @@ func TestGate_ListenRateClass(t *testing.T) {
 		t.Fatalf("browse: %d", w.Code)
 	}
 }
+
+// A refused call to a NoAudit op (missing scope, so 403) writes no row either; the exemption is per op, not per outcome.
+func TestGate_NoAuditOpRefusedWritesNoRows(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, rigOpts{limits: bigLimits(), extra: u1Ops})
+	w := r.do(req{p: agent("t1", auth.ScopeRead), method: "POST", path: "/api/t/events", body: `{}`})
+	if w.Code != 403 {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if n := len(r.rows()); n != 0 {
+		t.Fatalf("%d audit rows for a refused NoAudit call, want 0", n)
+	}
+}

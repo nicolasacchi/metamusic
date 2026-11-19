@@ -144,11 +144,11 @@ update_draft	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_provider_state	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
-update_record	write	E1_(published-record_rule,_C305;_plan_names_no_lane)	Y	OO	OO	SC	Y	Y	Y	OO	OO
+update_record	write	unassigned,_E1_proposed_(published-record_rule,_C305)	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_session	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_song	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_songwriting_settings	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
-update_track	write	E1_(final/discarded_field_rule,_C305_Q4;_plan_names_no_lane)	Y	OO	OO	SC	Y	Y	Y	OO	OO
+update_track	write	unassigned,_E1_proposed_(final/discarded_field_rule,_C305_Q4)	Y	OO	OO	SC	Y	Y	Y	OO	OO
 upload_batch_jsonl	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 wait_for_job	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 wait_for_transform	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC

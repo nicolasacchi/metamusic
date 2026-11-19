@@ -24,8 +24,8 @@ type whoamiOut struct {
 		Name   string   `json:"name" doc:"Username or token name"`
 		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
 		// Role and User are null for principals with no role (agents, connector grants).
-		Role       *string  `json:"role" nullable:"true" doc:"One of owner, editor, listener: the caller's role (a person, or a device or Subsonic client acting as its owner); null for agents and connector grants, which are Owner delegates"`
-		User       *string  `json:"user" nullable:"true" doc:"The lowercase username of the person (for a device, its owner); null for agents"`
+		Role       *string  `json:"role" nullable:"true" doc:"One of owner, editor, listener: the caller's role; null for principals with no role: agents and connector grants (Owner delegates) and, until the device lane decides otherwise, an Owner's device"`
+		User       *string  `json:"user" nullable:"true" doc:"The lowercase username of the person; null for principals with no user (agents and, for now, devices)"`
 		AllowedOps []string `json:"allowed_ops" nullable:"false" doc:"Operation ids the caller may invoke: exactly those for which the permission gate passes (role, owner-only, human-only and scope rules). The web app builds its Owner, Editor and Listener shells from this list"`
 		Via        string   `json:"via" doc:"How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)"`
 		// StepUpUntil is null when the second factor is the edge's alone (proxy mode without MM_STEPUP_OIDC_CLIENT) or the caller is not a human.
