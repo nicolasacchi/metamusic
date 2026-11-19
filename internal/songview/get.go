@@ -19,6 +19,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/sounds"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 func notFound(id string, pending bool) error {
@@ -48,7 +49,7 @@ func (s *Service) resolve(ctx context.Context, by, id string) (string, error) {
 		}
 		return "", notFound(id, s.keyQueued(ctx, "recipe_drafts", "draft", id))
 	case "track":
-		err := s.st.R.QueryRowContext(ctx, `SELECT song_id FROM take_songs WHERE track_id = ?`, id).Scan(&out)
+		err := s.st.R.QueryRowContext(ctx, `SELECT ts.song_id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.track_id = ?`+view.FromContext(ctx).NotDiscarded("t"), id).Scan(&out)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return "", err
 		}
@@ -237,6 +238,15 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 	if err != nil {
 		return err
 	}
+	if pick != nil && view.FromContext(ctx).HideDiscarded { // a Pick that points at a discarded take shows no take (C308.2)
+		hide := func(id **string) {
+			if *id != nil && s.takeHidden(ctx, **id) {
+				*id = nil
+			}
+		}
+		hide(&pick.TakeID)
+		hide(&pick.PinnedTakeID)
+	}
 	v.Pick = pick
 	// takes
 	trs, err := s.takeRows(ctx, row.ID)
@@ -331,7 +341,7 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 		var l LineageBlock
 		l.RootTrackID = *row.RootTrackID
 		var maxGen sql.NullInt64
-		if err := r.QueryRowContext(ctx, `SELECT MAX(generation), SUM(generation > 0) FROM tracks WHERE root_track_id = ?`, l.RootTrackID).Scan(&maxGen, &l.ChildrenTotal); err != nil {
+		if err := r.QueryRowContext(ctx, `SELECT MAX(generation), SUM(generation > 0) FROM tracks WHERE root_track_id = ?`+view.FromContext(ctx).NotDiscarded(""), l.RootTrackID).Scan(&maxGen, &l.ChildrenTotal); err != nil {
 			return err
 		}
 		l.Generations = int(maxGen.Int64) + 1
@@ -364,7 +374,7 @@ func (s *Service) takeRows(ctx context.Context, songID string) ([]takeRow, error
 		(SELECT json_extract(a.metrics_json, '$.bpm') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'tempo' ORDER BY a.created_at DESC, a.version DESC LIMIT 1)
 		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id JOIN recipes r ON r.id = t.recipe_id
 `+store.ViewerRatingJoin("hs", "t.id")+` LEFT JOIN critic_ratings ha ON ha.track_id = t.id
-		WHERE ts.song_id = ?`, auth.DisplayRater(auth.FromContext(ctx)), songID)
+		WHERE ts.song_id = ?`+view.FromContext(ctx).NotDiscarded("t"), auth.DisplayRater(auth.FromContext(ctx)), songID)
 	if err != nil {
 		return nil, fmt.Errorf("songview: takes: %w", err)
 	}
@@ -556,4 +566,11 @@ func (s *Service) sessionRefs(ctx context.Context, v *View, row songs.Song) erro
 		v.Sessions = append(v.Sessions, r)
 	}
 	return rows.Err()
+}
+
+// takeHidden reports whether the viewer of ctx may not see the take.
+func (s *Service) takeHidden(ctx context.Context, id string) bool {
+	var st string
+	err := s.st.R.QueryRowContext(ctx, `SELECT status FROM tracks WHERE id = ?`, id).Scan(&st)
+	return err == nil && st == "discarded"
 }

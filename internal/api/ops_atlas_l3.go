@@ -23,6 +23,11 @@ func registerAtlasL3(a huma.API, d Deps) {
 			if d.Atlas == nil {
 				return nil, unavailable("atlas")
 			}
+			set := songFiltersSet(in.SongFilterIn)
+			set["color_by"] = in.ColorBy == "muse" // the Muse overlay exposes Muse structure (C308.3)
+			if err := listenerFilterNotAllowed(ctx, set); err != nil {
+				return nil, err
+			}
 			f, err := songFilter(in.SongFilterIn)
 			if err != nil {
 				return nil, m2bErr(err, taskAT2)

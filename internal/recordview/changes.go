@@ -3,8 +3,11 @@ package recordview
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/records"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // changeViews splices the Take titles (read now, never stored) and the text into changelog rows.
@@ -49,6 +52,7 @@ func (s *Service) ChangeViews(ctx context.Context, cs []records.Change) ([]Chang
 			for id, r := range m {
 				titles[id] = r.Title
 			}
+			cs = hideUnseenTakes(ctx, cs, func(id string) bool { return has(m, id) })
 		}
 	}
 	return changeViews(cs, func(id string) string { return titles[id] }), nil
@@ -71,4 +75,24 @@ func (s *Service) pending(ctx context.Context, recordID string) (bool, error) {
 		return false, fmt.Errorf("recordview: pending: %w", err)
 	}
 	return p, nil
+}
+
+func has(m map[string]library.TrackRef, id string) bool { _, ok := m[id]; return ok }
+
+// hideUnseenTakes names no take the viewer may not see (TrackRefs left the discarded ones out): for a viewer that hides
+// discarded takes, a from/to take that known rejects is dropped from the row (C308.2). Others get cs back unchanged.
+func hideUnseenTakes(ctx context.Context, cs []records.Change, known func(id string) bool) []records.Change {
+	if !view.FromContext(ctx).HideDiscarded {
+		return cs
+	}
+	cs = slices.Clone(cs)
+	for i := range cs {
+		if cs[i].FromTakeID != nil && !known(*cs[i].FromTakeID) {
+			cs[i].FromTakeID = nil
+		}
+		if cs[i].ToTakeID != nil && !known(*cs[i].ToTakeID) {
+			cs[i].ToTakeID = nil
+		}
+	}
+	return cs
 }

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 var tagPattern = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N} &'+/._-]*$`)
@@ -133,11 +134,12 @@ func (s *Service) Tags(ctx context.Context, trackID string) (TrackTags, error) {
 
 // TagCounts lists every active tag with its track counts, most used first.
 func (s *Service) TagCounts(ctx context.Context) ([]TagCount, error) {
+	//nolint:gosec // G202: the fragment is a fixed string from view.Viewer
 	rows, err := s.st.R.QueryContext(ctx, `SELECT g.name, COUNT(DISTINCT tt.track_id),
 		COUNT(DISTINCT CASE WHEN tt.source='human' THEN tt.track_id END),
 		COUNT(DISTINCT CASE WHEN tt.source='agent' THEN tt.track_id END),
 		COUNT(DISTINCT CASE WHEN tt.source='inherited' THEN tt.track_id END)
-		FROM track_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.removed_at IS NULL
+		FROM track_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.removed_at IS NULL`+view.FromContext(ctx).NotDiscardedBy("tt.track_id")+`
 		GROUP BY g.id ORDER BY 2 DESC, g.name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("judgments: tag counts: %w", err)

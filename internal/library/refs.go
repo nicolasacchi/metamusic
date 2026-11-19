@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // TrackRef is the read model clip, duels, ears and trackctx share (C45).
@@ -49,7 +51,7 @@ func (s *Service) TrackRefs(ctx context.Context, ids []string) (map[string]Track
 		for i, id := range chunk {
 			args[i] = id
 		}
-		rows, err := s.st.R.QueryContext(ctx, trackRefSelect+` WHERE t.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ",")+`)`, args...)
+		rows, err := s.st.R.QueryContext(ctx, trackRefSelect+` WHERE t.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ",")+`)`+view.FromContext(ctx).NotDiscarded("t"), args...)
 		if err != nil {
 			return nil, fmt.Errorf("library: track refs: %w", err)
 		}
@@ -68,7 +70,8 @@ func (s *Service) TrackRefs(ctx context.Context, ids []string) (map[string]Track
 	return out, nil
 }
 
-// LineageTracks returns every track of the lineage rooted at rootID: the root first, then by
+// LineageTracks (unfiltered: its callers are the Owner-side duels and the tag numbering of a download, which must
+// not depend on who asks) returns every track of the lineage rooted at rootID: the root first, then by
 // recorded_at, id. ErrNotFound when rootID is not the root of any track.
 func (s *Service) LineageTracks(ctx context.Context, rootID string) ([]TrackRef, error) {
 	rows, err := s.st.R.QueryContext(ctx, trackRefSelect+` WHERE t.root_track_id = ? ORDER BY (t.id = t.root_track_id) DESC, t.recorded_at, t.id`, rootID)

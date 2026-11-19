@@ -22,3 +22,7 @@ func ftsQuery(q string) string {
 	}
 	return strings.Join(toks, " ")
 }
+
+// ftsListener restricts an ftsQuery expression to the columns a Listener may see (title and lyrics; style and the
+// request id are hidden, so matching them would be an oracle, C308.3b).
+func ftsListener(expr string) string { return "{title lyrics} : (" + expr + ")" }

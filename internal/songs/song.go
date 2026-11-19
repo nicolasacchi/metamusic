@@ -108,6 +108,8 @@ type ListFilter struct {
 	Rater           string
 	OwnerEvents     string
 	OwnerEventsArgs []any
+	// HideDiscarded (V1, C308.2): the viewer never sees a discarded take; set by WithViewer.
+	HideDiscarded bool
 }
 
 // Page is one page of Songs.

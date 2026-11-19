@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // errNoCounter is returned when a smart Crate is counted by a Service built without a Counter.
@@ -14,7 +16,11 @@ var errNoCounter = errors.New("crates: no counter wired")
 func (s *Service) count(ctx context.Context, c Crate) (int, error) {
 	if c.Kind == KindManual {
 		var n int
-		if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM crate_items WHERE crate_id = ? AND removed_at IS NULL`, c.ID).Scan(&n); err != nil {
+		q := `SELECT COUNT(*) FROM crate_items WHERE crate_id = ? AND removed_at IS NULL`
+		if c.Subject == SubjectTake { // a Listener's count never includes a discarded take (C308.2)
+			q += view.FromContext(ctx).NotDiscardedBy("track_id")
+		}
+		if err := s.st.R.QueryRowContext(ctx, q, c.ID).Scan(&n); err != nil { //nolint:gosec // G202: fixed fragments
 			return 0, fmt.Errorf("crates: count items: %w", err)
 		}
 		return n, nil

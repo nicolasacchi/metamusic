@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 const tapeCols = `id, record_id, record_revision, state, params_json, plan_json, contains_lossy, lossy_sources, total_samples, bytes, sha256,
@@ -35,6 +36,15 @@ func (s *Service) Get(ctx context.Context, id string) (Tape, error) {
 	if err != nil {
 		return Tape{}, err
 	}
+	if view.FromContext(ctx).HideDiscarded { // a tape that carries a discarded take is not there for this viewer (C308.2)
+		hidden, err := s.carriesDiscarded(ctx, t)
+		if err != nil {
+			return Tape{}, err
+		}
+		if hidden {
+			return Tape{}, errNotFound(id)
+		}
+	}
 	if t.State == StateReady && s.o.Signer != nil && path != "" && t.SHA256 != nil && t.Bytes != nil {
 		if s.fileExists(path) {
 			ttl, bucket := serve.TTLFor(auth.FromContext(ctx))
@@ -43,6 +53,29 @@ func (s *Service) Get(ctx context.Context, id string) (Tape, error) {
 		}
 	}
 	return t, nil
+}
+
+// carriesDiscarded reports whether any take the tape plan names is discarded now.
+func (s *Service) carriesDiscarded(ctx context.Context, t Tape) (bool, error) {
+	ids := make([]string, 0, len(t.Items)+len(t.Chapters))
+	for _, it := range t.Items {
+		ids = append(ids, it.TakeID)
+	}
+	for _, c := range t.Chapters {
+		ids = append(ids, c.TakeID)
+	}
+	if len(ids) == 0 {
+		return false, nil
+	}
+	if s.o.Store == nil { // fail closed: without a Store the check cannot run, so the tape is not served to this viewer
+		return false, fmt.Errorf("tape: discarded takes: no store")
+	}
+	arr, _ := json.Marshal(ids)
+	var n int
+	if err := s.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks WHERE status = 'discarded' AND id IN (SELECT value FROM json_each(?))`, string(arr)).Scan(&n); err != nil {
+		return false, fmt.Errorf("tape: discarded takes: %w", err)
+	}
+	return n > 0, nil
 }
 
 func (s *Service) fileExists(rel string) bool {

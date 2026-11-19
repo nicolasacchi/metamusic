@@ -21,6 +21,9 @@ func registerSongsL1(a huma.API, d Deps) {
 			if d.Songs == nil {
 				return nil, unavailable("songs")
 			}
+			if err := listenerFilterNotAllowed(ctx, songFiltersSet(in.SongFilterIn)); err != nil {
+				return nil, err
+			}
 			f, err := songFilter(in.SongFilterIn)
 			if err != nil {
 				return nil, m2bErr(err, "L1-B5")

@@ -22,6 +22,9 @@ func registerSoundsL1(a huma.API, d Deps) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")
 			}
+			if err := listenerFilterNotAllowed(ctx, songFiltersSet(in.SongFilterIn)); err != nil {
+				return nil, err
+			}
 			f, err := soundSearchFilter(in.SongFilterIn)
 			if err != nil {
 				return nil, m2bErr(err, "L1-B6")

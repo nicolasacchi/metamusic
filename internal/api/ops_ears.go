@@ -20,6 +20,9 @@ func registerEars(a huma.API, d Deps) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			do, err := d.Ears.Dossier(ctx, in.ID)
 			if err != nil {
 				return nil, m2bErr(err, "M2b-E3")
@@ -39,6 +42,9 @@ func registerEars(a huma.API, d Deps) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			v, err := d.Ears.Spectrogram(ctx, auth.FromContext(ctx), in.ID, in.Inline)
 			if err != nil {
 				return nil, m2bErr(err, "M2b-E3")
@@ -56,6 +62,9 @@ func registerEars(a huma.API, d Deps) {
 		func(ctx context.Context, in *compareIn) (*comparisonOut, error) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")
+			}
+			if err := d.visible(ctx, in.A, in.B); err != nil {
+				return nil, err
 			}
 			c, err := d.Ears.Compare(ctx, in.A, in.B)
 			if err != nil {

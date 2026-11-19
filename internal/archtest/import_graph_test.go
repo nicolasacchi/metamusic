@@ -218,12 +218,12 @@ func TestImportGraph_L1(t *testing.T) {
 	// may use, and the standard library / third parties).
 	allowed := map[string][]string{
 		"internal/muses":      {"store", "auth", "textfold", "redact", "problem"},
-		"internal/songs":      {"store", "auth", "muses", "textfold", "problem"},
+		"internal/songs":      {"store", "auth", "muses", "textfold", "problem", "view"},
 		"internal/sessions":   {"store", "auth", "problem"},
 		"internal/picks":      {"store", "auth", "ladder", "problem"},
 		"internal/sounds":     {"store", "auth", "songs", "engine/yue2", "textfold", "problem"},
 		"internal/provenance": {"store", "muses", "songs", "sessions", "picks", "sounds", "ladder", "problem"},
-		"internal/songview":   {"store", "auth", "muses", "songs", "sessions", "picks", "sounds", "ladder", "problem"},
+		"internal/songview":   {"store", "auth", "muses", "songs", "sessions", "picks", "sounds", "ladder", "problem", "view"},
 		"internal/board":      {"store", "auth", "muses", "songs", "sounds", "problem"},
 	}
 	for pkg, ok := range allowed {

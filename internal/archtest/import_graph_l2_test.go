@@ -35,12 +35,12 @@ var l2Rules = []rule{
 // outside the list needs a freeze fix, not a quiet edit.
 var l2Imports = map[string][]string{
 	"internal/curation":   {"store", "auth", "problem"},
-	"internal/records":    {"store", "auth", "problem", "sequence", "sequencer"},
+	"internal/records":    {"store", "auth", "problem", "sequence", "sequencer", "view"},
 	"internal/liner":      {},
-	"internal/crates":     {"store", "auth", "songs", "sounds", "library", "problem"},
-	"internal/tape":       {"store", "auth", "mediatool", "media/flacmeta", "media/serve", "media/cover", "liner", "textfold", "problem"},
+	"internal/crates":     {"store", "auth", "songs", "sounds", "library", "problem", "view"},
+	"internal/tape":       {"store", "auth", "mediatool", "media/flacmeta", "media/serve", "media/cover", "liner", "textfold", "problem", "view"},
 	"internal/albums":     {"store", "records", "textfold", "media/cover", "problem"},
-	"internal/recordview": {"store", "auth", "records", "muses", "songs", "sessions", "sounds", "picks", "ears", "curation", "liner", "tape", "media/cover", "media/flacmeta", "library", "problem"}, // flacmeta: tape.Snapshot.Tags is []flacmeta.Comment (L2-V2)
+	"internal/recordview": {"store", "auth", "records", "muses", "songs", "sessions", "sounds", "picks", "ears", "curation", "liner", "tape", "media/cover", "media/flacmeta", "library", "problem", "view"}, // flacmeta: tape.Snapshot.Tags is []flacmeta.Comment (L2-V2)
 }
 
 func TestImportGraph_L2(t *testing.T) {

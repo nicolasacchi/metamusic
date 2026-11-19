@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // TrackSummary is one row of the library list.
@@ -111,6 +112,7 @@ type SearchParams struct {
 	noSongs                    bool                               // set by the service: the schema has no Song tables, so L1 filters match nothing
 	noL2                       l2Gates                            // set by the service: which L2 tables the schema lacks (D-M3-35 pattern)
 	ownerEvents                func(alias string) (string, []any) // set by the service: the Owner-side listen-event filter (C306.7)
+	viewer                     view.Viewer                        // set by the service from the context's principal (C308)
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -215,6 +217,9 @@ func compileSearch(rater string, p SearchParams) (searchQuery, error) {
 		return q, invalid("sort", "unknown sort %q", p.Sort)
 	}
 	fts := ftsQuery(p.Q)
+	if fts != "" && p.viewer.Listener() {
+		fts = ftsListener(fts) // the title and lyrics columns only: style and request_id are hidden (C308.3b)
+	}
 	sort := p.Sort
 	if sort == "" || (sort == "relevance" && fts == "") {
 		sort = "recorded_desc"
@@ -240,6 +245,7 @@ func compileSearch(rater string, p SearchParams) (searchQuery, error) {
 	} else {
 		where += ` AND t.status <> 'discarded'` // D-M2a-18
 	}
+	where += p.viewer.NotDiscarded("t") // a viewer that hides discarded takes never gets one, whatever the status filter says (C308.2)
 	for _, term := range p.Style {
 		where += ` AND r.engine <> 'dsp' AND EXISTS (SELECT 1 FROM track_style_terms x WHERE x.track_id = t.id AND x.term = ?)`
 		*args = append(*args, normTerm(term))
@@ -378,6 +384,7 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 	}
 	p.noSongs = !has
 	p.ownerEvents = s.st.OwnerEventsSQL
+	p.viewer = view.FromContext(ctx)
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
 		return TrackPage{}, err
 	}
@@ -451,6 +458,7 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 	}
 	p.noSongs = !has
 	p.ownerEvents = s.st.OwnerEventsSQL
+	p.viewer = view.FromContext(ctx)
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
 		return nil, err
 	}
@@ -677,7 +685,9 @@ type Facets struct {
 // Facets returns the top 50 style terms, status counts and ranges.
 func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	f := Facets{StyleTerms: []TermCount{}, Statuses: []StatusCount{}, Tags: []TagFacet{}, Stars: []StarFacet{}}
-	rows, err := s.st.R.QueryContext(ctx, `SELECT term, COUNT(*) c FROM track_style_terms GROUP BY term ORDER BY c DESC, term ASC LIMIT 50`)
+	// a Listener's counts never include a discarded take (C308.2)
+	v := view.FromContext(ctx)
+	rows, err := s.st.R.QueryContext(ctx, `SELECT term, COUNT(*) c FROM track_style_terms WHERE 1=1`+v.NotDiscardedBy("track_id")+` GROUP BY term ORDER BY c DESC, term ASC LIMIT 50`) //nolint:gosec // G202: fixed fragment
 	if err != nil {
 		return f, err
 	}
@@ -692,7 +702,7 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if err := rows.Close(); err != nil {
 		return f, err
 	}
-	rows, err = s.st.R.QueryContext(ctx, `SELECT status, COUNT(*) FROM tracks GROUP BY status ORDER BY status`)
+	rows, err = s.st.R.QueryContext(ctx, `SELECT status, COUNT(*) FROM tracks WHERE 1=1`+v.NotDiscarded("")+` GROUP BY status ORDER BY status`) //nolint:gosec // G202: fixed fragment
 	if err != nil {
 		return f, err
 	}
@@ -709,15 +719,16 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	}
 	var dmin, dmax sql.NullFloat64
 	var rmin, rmax sql.NullString
-	if err := s.st.R.QueryRowContext(ctx, `SELECT MIN(duration_s), MAX(duration_s), MIN(recorded_at), MAX(recorded_at) FROM tracks`).Scan(&dmin, &dmax, &rmin, &rmax); err != nil {
+	if err := s.st.R.QueryRowContext(ctx, `SELECT MIN(duration_s), MAX(duration_s), MIN(recorded_at), MAX(recorded_at) FROM tracks WHERE 1=1`+v.NotDiscarded("")).Scan(&dmin, &dmax, &rmin, &rmax); err != nil {
 		return f, err
 	}
 	if dmin.Valid {
 		f.DurationS = Range{&dmin.Float64, &dmax.Float64}
 		f.RecordedAt = TimeRange{&rmin.String, &rmax.String}
 	}
+	//nolint:gosec // G202: the fragment is a fixed string from view.Viewer
 	rows, err = s.st.R.QueryContext(ctx, `SELECT g.name, COUNT(DISTINCT tt.track_id) c FROM track_tags tt JOIN tags g ON g.id = tt.tag_id
-		WHERE tt.removed_at IS NULL GROUP BY g.id ORDER BY c DESC, g.name ASC LIMIT 50`)
+		WHERE tt.removed_at IS NULL`+v.NotDiscardedBy("tt.track_id")+` GROUP BY g.id ORDER BY c DESC, g.name ASC LIMIT 50`)
 	if err != nil {
 		return f, err
 	}
@@ -732,7 +743,7 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if err := rows.Close(); err != nil {
 		return f, err
 	}
-	rows, err = s.st.R.QueryContext(ctx, `SELECT hs.stars, COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NOT NULL GROUP BY hs.stars ORDER BY hs.stars`, viewerRater(ctx)) //nolint:gosec // G202: the viewer join is a fixed fragment of store.ViewerRatingJoin; the rater is a bound argument
+	rows, err = s.st.R.QueryContext(ctx, `SELECT hs.stars, COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NOT NULL`+v.NotDiscarded("t")+` GROUP BY hs.stars ORDER BY hs.stars`, viewerRater(ctx)) //nolint:gosec // G202: the viewer join is a fixed fragment of store.ViewerRatingJoin; the rater is a bound argument
 	if err != nil {
 		return f, err
 	}
@@ -747,7 +758,7 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if err := rows.Close(); err != nil {
 		return f, err
 	}
-	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NULL`, viewerRater(ctx)).Scan(&f.Unrated); err != nil {
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NULL`+v.NotDiscarded("t"), viewerRater(ctx)).Scan(&f.Unrated); err != nil {
 		return f, err
 	}
 	return f, nil
@@ -955,6 +966,9 @@ func selectSections(bySource map[string][]SectionOut) (best string, rows []Secti
 
 // Track returns the full detail of one track.
 func (s *Service) Track(ctx context.Context, id string) (TrackDetail, error) {
+	if err := s.Visible(ctx, id); err != nil {
+		return TrackDetail{}, err
+	}
 	d := TrackDetail{Tags: []TagRef{}, Playlists: []PlaylistRef{}, Stems: []StemInfo{}}
 	d.Rating.TrackID = id
 	var (
@@ -1059,8 +1073,9 @@ func (s *Service) trackExtras(ctx context.Context, d *TrackDetail) error {
 		return err
 	}
 	d.Lineage.Siblings = []Sibling{}
+	//nolint:gosec // G202: the fragment is a fixed string from view.Viewer
 	rows, err := q.QueryContext(ctx, `SELECT t.id, t.title, r.seed, t.recorded_at FROM tracks t JOIN recipes r ON r.id = t.recipe_id
-		WHERE t.root_track_id = ? AND t.id <> ? ORDER BY t.recorded_at, t.id`, d.Lineage.RootTrackID, d.ID)
+		WHERE t.root_track_id = ? AND t.id <> ?`+view.FromContext(ctx).NotDiscarded("t")+` ORDER BY t.recorded_at, t.id`, d.Lineage.RootTrackID, d.ID)
 	if err != nil {
 		return err
 	}
@@ -1178,6 +1193,9 @@ func (s *Service) Peaks(ctx context.Context, id, level string) (PeaksLevel, erro
 	if !oneOf(level, "overview", "detail") {
 		return PeaksLevel{}, invalid("level", "must be overview or detail")
 	}
+	if err := s.Visible(ctx, id); err != nil {
+		return PeaksLevel{}, err
+	}
 	var path string
 	err := s.st.R.QueryRowContext(ctx, `SELECT r.path FROM renditions r WHERE r.track_id = ? AND r.kind = 'peaks'`, id).Scan(&path)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1244,6 +1262,9 @@ type MediaSet struct {
 // Media returns the media addresses of a track.
 func (s *Service) Media(ctx context.Context, trackID string) (MediaSet, error) {
 	m := MediaSet{TrackID: trackID}
+	if err := s.Visible(ctx, trackID); err != nil {
+		return m, err
+	}
 	var fl FlacMedia
 	var dur float64
 	var lossy int

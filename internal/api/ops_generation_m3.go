@@ -418,6 +418,9 @@ func registerGenerationM3(a huma.API, d Deps) {
 			if d.Lineage == nil {
 				return nil, unavailable("lineage")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			t, err := d.Lineage.Tree(ctx, in.ID, in.Limit)
 			if err != nil {
 				return nil, genErr(err)
