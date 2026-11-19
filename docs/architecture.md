@@ -26,8 +26,9 @@ Two modes, selected by `MM_AUTH` (unset means refuse to start):
 
 Rules: an `Authorization` header means bearer-only. `Remote-User` is honoured only on UI-class
 paths, from a trusted proxy peer, with a matching edge secret header, for a configured set of
-allow-listed users, each mapped to a role (see "Users and roles"). Agents use scoped personal access tokens (stored hashed). Human-only operations live under
-`/human/api/` and are refused for any non-human principal.
+allow-listed users, each mapped to a role (see "Users and roles"). Agents use scoped personal
+access tokens (stored hashed). Human-only operations live under `/human/api/` and are refused for
+any non-human principal.
 
 ## Users and roles (U1)
 

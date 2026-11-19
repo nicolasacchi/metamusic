@@ -246,13 +246,16 @@ Do this attended, one step at a time; never deploy a migration unattended.
 
 The rules example (`deploy/authelia-rules.example.yml`) keeps `^/human/` and `^/oauth/authorize` at
 `two_factor` for every user, and it must stay that way: the app does not weaken it per role. Make
-the rest of the host available to the group that holds the users.
+the rest of the host available to your users: the domain-wide `one_factor` rule in that file already
+covers every Authelia account, so add a group rule only if you want to limit the host to a group.
 
 - Owner and Editor: use two factors, always. An Editor can request spend.
 - Listener: one factor is enough for browsing, listening and rating. Pairing a phone and creating a
   Subsonic client live under `/human/`, so the edge then asks for two factors; a Listener who wants a
   device enrols a second factor first.
 - Hosted connectors stay Owner-only (`metamusic_owner` policy in `deploy/authelia-oidc.example.yml`).
+  That policy matches the literal subject `user:owner`; set it to the Authelia username of the user
+  that `MM_USERS` maps to `owner` (for example `user:alice`), or the Owner gets no connector access.
 
 ### Devices: ownership and revocation
 
