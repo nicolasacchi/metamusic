@@ -250,8 +250,8 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 	}); err != nil {
 		return nil, err
 	}
-	if err := each("ratings", `SELECT DISTINCT r.song_id FROM ratings g JOIN tracks t ON t.id = g.track_id JOIN song_roots r ON r.root_track_id = t.root_track_id
-		WHERE g.source = 'human' AND g.stars IS NOT NULL`, func(rs *sql.Rows) error {
+	if err := each("ratings", `SELECT DISTINCT r.song_id FROM owner_ratings g JOIN tracks t ON t.id = g.track_id JOIN song_roots r ON r.root_track_id = t.root_track_id
+		WHERE g.stars IS NOT NULL`, func(rs *sql.Rows) error {
 		var id string
 		err := rs.Scan(&id)
 		at(id).rated = true

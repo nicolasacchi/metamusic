@@ -319,7 +319,7 @@ func ptrStr(p *string) string {
 // eligible takes.
 func (s *Service) deriveInput(ctx context.Context, tx *sql.Tx, song string) (picks.Input, int, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT t.id, t.status, t.recorded_at, t.created_at, r.stars FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
-		LEFT JOIN ratings r ON r.track_id = t.id AND r.source = 'human' WHERE ts.song_id = ?`, song)
+		LEFT JOIN owner_ratings r ON r.track_id = t.id WHERE ts.song_id = ?`, song)
 	if err != nil {
 		return picks.Input{}, 0, fmt.Errorf("provenance: verify takes: %w", err)
 	}

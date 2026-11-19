@@ -366,6 +366,7 @@ func (s *Service) summaries(ctx context.Context, ids []string) (map[string]libra
 		}
 	}
 	arr, _ := json.Marshal(distinct)
+	//nolint:gosec // G202: the fragment is store.OwnerEventsSQL or store.ViewerRatingJoin, fixed text; values are bound arguments
 	rows, err := s.st.R.QueryContext(ctx, `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_at, t.created_at, r.request_id, r.seed, r.style, t.bpm_declared,
 		EXISTS(SELECT 1 FROM scores sc WHERE sc.track_id = t.id),
 		EXISTS(SELECT 1 FROM sections c WHERE c.track_id = t.id AND c.source = 'plan'),
@@ -379,9 +380,9 @@ func (s *Service) summaries(ctx context.Context, ids []string) (map[string]libra
 		(SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL),
 		(SELECT COUNT(*) FROM comments c WHERE c.track_id = t.id AND c.hidden_at IS NULL AND c.state = 'open')
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id
-		LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human'
-		LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'
-		WHERE t.id IN (SELECT value FROM json_each(?))`, string(arr))
+`+store.ViewerRatingJoin("hs", "t.id")+`
+		LEFT JOIN critic_ratings ha ON ha.track_id = t.id
+		WHERE t.id IN (SELECT value FROM json_each(?))`, auth.DisplayRater(auth.FromContext(ctx)), string(arr))
 	if err != nil {
 		return nil, fmt.Errorf("playlists: track summaries: %w", err)
 	}

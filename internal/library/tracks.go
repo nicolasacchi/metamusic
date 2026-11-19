@@ -16,6 +16,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // TrackSummary is one row of the library list.
@@ -98,17 +99,18 @@ type SearchParams struct {
 	LyricsOf                   string   // T1 (C211.4): Takes whose normalised lyrics equal this Take's
 	lyricsIDs                  []string // set by the service from LyricsOf
 	lyricsSet                  bool
-	Engine                     []string // E2 (C149): recipes.engine, OR (yue2, acestep15, dsp, unknown)
-	SongID                     string   // take belongs to this Song (L1, C98)
-	IsPick                     *bool    // take is (not) its Song's current Pick (L1, C98)
-	SessionID                  string   // take is in this Session by derived membership (L1, C98)
-	Unheard                    *bool    // L2 (C125.3): no human or device start event on the Take
-	InRecord                   *bool    // L2: the Take is the resolved Take of a live slot
-	Sounds                     []string // L2: facet:value pairs over take_sounds, OR inside a facet, AND across facets
-	CrateID                    string   // L2: membership of a manual Crate, or the expansion of a smart one
-	None                       bool     // L2: matches nothing (set by crates.ExpandTracks for an empty list intersection)
-	noSongs                    bool     // set by the service: the schema has no Song tables, so L1 filters match nothing
-	noL2                       l2Gates  // set by the service: which L2 tables the schema lacks (D-M3-35 pattern)
+	Engine                     []string                           // E2 (C149): recipes.engine, OR (yue2, acestep15, dsp, unknown)
+	SongID                     string                             // take belongs to this Song (L1, C98)
+	IsPick                     *bool                              // take is (not) its Song's current Pick (L1, C98)
+	SessionID                  string                             // take is in this Session by derived membership (L1, C98)
+	Unheard                    *bool                              // L2 (C125.3): no human or device start event on the Take
+	InRecord                   *bool                              // L2: the Take is the resolved Take of a live slot
+	Sounds                     []string                           // L2: facet:value pairs over take_sounds, OR inside a facet, AND across facets
+	CrateID                    string                             // L2: membership of a manual Crate, or the expansion of a smart one
+	None                       bool                               // L2: matches nothing (set by crates.ExpandTracks for an empty list intersection)
+	noSongs                    bool                               // set by the service: the schema has no Song tables, so L1 filters match nothing
+	noL2                       l2Gates                            // set by the service: which L2 tables the schema lacks (D-M3-35 pattern)
+	ownerEvents                func(alias string) (string, []any) // set by the service: the Owner-side listen-event filter (C306.7)
 	Sort                       string
 	Limit                      int
 	Cursor                     string
@@ -150,7 +152,9 @@ const summarySelect = `SELECT t.id, t.title, t.status, t.duration_s, t.recorded_
   (SELECT x.kind FROM transforms x WHERE x.id = t.transform_id), (SELECT x.spec_hash FROM transforms x WHERE x.id = t.transform_id)`
 
 // the human and agent rating rows of a track (primary-key lookups)
-const ratingJoins = ` LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'`
+// ratingJoins joins the viewer's own rating row (hs, one rater, bound by the caller as the first argument of the
+// statement, C307.2) and the critic's (ha).
+var ratingJoins = store.ViewerRatingJoin("hs", "t.id") + ` LEFT JOIN critic_ratings ha ON ha.track_id = t.id`
 
 // normTag lower-cases and space-collapses a tag name for filtering; the
 // judgments package owns the full NormalizeTag rule and stored names already
@@ -174,7 +178,7 @@ type searchQuery struct {
 
 // compileSearch validates p and builds its FROM/WHERE/ORDER BY. User text
 // never reaches FTS5 syntax.
-func compileSearch(p SearchParams) (searchQuery, error) {
+func compileSearch(rater string, p SearchParams) (searchQuery, error) {
 	var q searchQuery
 	off, err := decodeCursor(p.Cursor)
 	if err != nil {
@@ -222,6 +226,7 @@ func compileSearch(p SearchParams) (searchQuery, error) {
 
 	q.from = ` FROM tracks t JOIN recipes r ON r.id = t.recipe_id` + ratingJoins
 	args := &q.args
+	*args = append(*args, rater) // the viewer join's placeholder precedes every other argument
 	if fts != "" {
 		q.from += ` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`
 		*args = append(*args, fts)
@@ -372,13 +377,14 @@ func (s *Service) SearchTracks(ctx context.Context, p SearchParams) (TrackPage, 
 		return TrackPage{}, err
 	}
 	p.noSongs = !has
+	p.ownerEvents = s.st.OwnerEventsSQL
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
 		return TrackPage{}, err
 	}
 	if err := s.resolveLyricsOf(ctx, &p); err != nil {
 		return TrackPage{}, err
 	}
-	q, err := compileSearch(p)
+	q, err := compileSearch(viewerRater(ctx), p)
 	if err != nil {
 		return TrackPage{}, err
 	}
@@ -444,13 +450,14 @@ func (s *Service) MatchTrackIDs(ctx context.Context, p SearchParams) ([]string, 
 		return nil, err
 	}
 	p.noSongs = !has
+	p.ownerEvents = s.st.OwnerEventsSQL
 	if p.noL2, err = s.l2Gates(ctx); err != nil {
 		return nil, err
 	}
 	if err := s.resolveLyricsOf(ctx, &p); err != nil {
 		return nil, err
 	}
-	q, err := compileSearch(p)
+	q, err := compileSearch(viewerRater(ctx), p)
 	if err != nil {
 		return nil, err
 	}
@@ -725,7 +732,7 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if err := rows.Close(); err != nil {
 		return f, err
 	}
-	rows, err = s.st.R.QueryContext(ctx, `SELECT stars, COUNT(*) FROM ratings WHERE source = 'human' AND stars IS NOT NULL GROUP BY stars ORDER BY stars`)
+	rows, err = s.st.R.QueryContext(ctx, `SELECT hs.stars, COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NOT NULL GROUP BY hs.stars ORDER BY hs.stars`, viewerRater(ctx)) //nolint:gosec // G202: the viewer join is a fixed fragment of store.ViewerRatingJoin; the rater is a bound argument
 	if err != nil {
 		return f, err
 	}
@@ -740,8 +747,7 @@ func (s *Service) Facets(ctx context.Context) (Facets, error) {
 	if err := rows.Close(); err != nil {
 		return f, err
 	}
-	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t WHERE NOT EXISTS
-		(SELECT 1 FROM ratings r WHERE r.track_id = t.id AND r.source = 'human' AND r.stars IS NOT NULL)`).Scan(&f.Unrated); err != nil {
+	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t`+store.ViewerRatingJoin("hs", "t.id")+` WHERE hs.stars IS NULL`, viewerRater(ctx)).Scan(&f.Unrated); err != nil {
 		return f, err
 	}
 	return f, nil

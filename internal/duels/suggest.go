@@ -126,7 +126,7 @@ func (s *Service) suggestCandidates(ctx context.Context, scope, root string) (ma
 		refs = all
 	} else {
 		rows, err := s.o.Store.R.QueryContext(ctx, `SELECT t.id FROM tracks t WHERE t.status <> 'discarded' AND (
-			EXISTS (SELECT 1 FROM ratings r WHERE r.track_id = t.id AND r.source = 'human' AND r.stars IS NOT NULL)
+			EXISTS (SELECT 1 FROM owner_ratings r WHERE r.track_id = t.id AND r.stars IS NOT NULL)
 			OR EXISTS (SELECT 1 FROM duels d WHERE d.slot_a_track_id = t.id OR d.slot_b_track_id = t.id))
 			ORDER BY t.recorded_at DESC, t.id DESC LIMIT ?`, suggestGlobalTracks)
 		if err != nil {

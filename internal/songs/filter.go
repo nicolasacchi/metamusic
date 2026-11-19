@@ -1,12 +1,14 @@
 package songs
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"slices"
 	"sort"
 	"strings"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -204,11 +206,15 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		if *f.Unheard {
 			neg = "NOT "
 		}
-		add(neg + `EXISTS (SELECT 1 FROM take_songs ts JOIN listen_events le ON le.track_id = ts.track_id
-			WHERE ts.song_id = s.id AND le.kind = 'start' AND le.principal_kind IN ('human','device'))`)
+		ownerEv := f.OwnerEvents
+		if ownerEv == "" {
+			ownerEv = "0"
+		}
+		add(neg+`EXISTS (SELECT 1 FROM take_songs ts JOIN listen_events le ON le.track_id = ts.track_id
+			WHERE ts.song_id = s.id AND le.kind = 'start' AND `+ownerEv+`)`, f.OwnerEventsArgs...)
 	}
 	var cond []string
-	var args []any
+	var args, joinArgs []any // joinArgs precede args: the joins come before the WHERE in the statement
 	var joins string
 	if f.MinDurationS != nil {
 		cond, args = append(cond, "t.duration_s >= ?"), append(args, *f.MinDurationS)
@@ -217,7 +223,12 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		cond, args = append(cond, "t.duration_s <= ?"), append(args, *f.MaxDurationS)
 	}
 	if f.MinStars != nil || f.Unrated != nil {
-		joins += " LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human'"
+		joins += store.ViewerRatingJoin("hs", "t.id")
+		rater := f.Rater
+		if rater == "" {
+			rater = "owner"
+		}
+		joinArgs = append(joinArgs, rater)
 	}
 	if f.MinStars != nil {
 		cond, args = append(cond, "hs.stars >= ?"), append(args, *f.MinStars)
@@ -241,7 +252,7 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		cond, args = append(cond, "(r.engine <> 'unknown') = ?"), append(args, b2i(*f.RecipeKnown))
 	}
 	if len(cond) > 0 {
-		add(fmt.Sprintf(`EXISTS (SELECT 1 FROM tracks t%s WHERE t.id = %s AND %s)`, joins, subjectTake, strings.Join(cond, " AND ")), args...)
+		add(fmt.Sprintf(`EXISTS (SELECT 1 FROM tracks t%s WHERE t.id = %s AND %s)`, joins, subjectTake, strings.Join(cond, " AND ")), append(joinArgs, args...)...)
 	}
 	if f.InRecord != nil {
 		neg := "NOT "
@@ -258,4 +269,15 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 			UNION SELECT so.retired_into, m.hop + 1 FROM m JOIN songs so ON so.id = m.id WHERE so.retired_into IS NOT NULL AND m.hop < 16)
 			SELECT id FROM m)`, f.CrateID)
 	}
+}
+
+// WithViewer returns f with the viewer context of ctx's principal (see ListFilter.Rater): the star predicates read the
+// caller's own rating row and Unheard counts the Owner side's plays only. Every service that renders a filter calls it.
+func (f ListFilter) WithViewer(ctx context.Context, st *store.Store) ListFilter {
+	f.Rater = auth.DisplayRater(auth.FromContext(ctx))
+	if f.Rater == "" {
+		f.Rater = auth.NoRater
+	}
+	f.OwnerEvents, f.OwnerEventsArgs = st.OwnerEventsSQL("le")
+	return f
 }

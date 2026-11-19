@@ -80,7 +80,7 @@ func findRecordUndecided(ctx context.Context, q Reader, lim int) ([]Candidate, e
 // live slot of a non-hidden Record.
 func findMuseRecordCandidate(ctx context.Context, q Reader, lim int) ([]Candidate, error) {
 	return queryCandidates(ctx, q, museSongsMinCTE+`, y AS (SELECT muse_id, COUNT(*) AS n FROM x
-		WHERE EXISTS (SELECT 1 FROM ratings hs WHERE hs.track_id = `+subjectTakeSQL("x.song_id")+` AND hs.source = 'human' AND hs.stars >= ?)
+		WHERE EXISTS (SELECT 1 FROM owner_ratings hs WHERE hs.track_id = `+subjectTakeSQL("x.song_id")+` AND hs.stars >= ?)
 		  AND NOT EXISTS (SELECT 1 FROM record_slots rs JOIN records rc ON rc.id = rs.record_id
 		                   WHERE rs.song_id = x.song_id AND rs.removed_at IS NULL AND rc.hidden_at IS NULL)
 		GROUP BY muse_id HAVING COUNT(*) >= 3)

@@ -49,17 +49,19 @@ func (s *Service) Session(ctx context.Context, since time.Time, limit int) (Sess
 	}
 	until := s.now().UTC()
 	out := Session{Since: since.UTC(), Until: until, Tracks: []SessionTrack{}}
+	ownerEv, ownerArgs := s.st.OwnerEventsSQL("e") // the Owner side's listening only (C306.7)
+	//nolint:gosec // G202: the fragment is store.OwnerEventsSQL or store.ViewerRatingJoin, fixed text; values are bound arguments
 	rows, err := s.st.R.QueryContext(ctx, `SELECT e.track_id, t.title,
 		SUM(e.kind = 'start'), SUM(e.kind = 'complete'), SUM(e.kind = 'skip'),
 		COALESCE(SUM(CASE WHEN e.kind = 'segment' THEN e.to_ms - e.from_ms END), 0),
 		MAX(e.client_at),
-		(SELECT r.stars FROM ratings r WHERE r.track_id = e.track_id AND r.source = 'human'),
+		(SELECT r.stars FROM owner_ratings r WHERE r.track_id = e.track_id),
 		(SELECT COUNT(*) FROM comments c WHERE c.track_id = e.track_id AND c.hidden_at IS NULL AND c.state = 'open')
 		FROM listen_events e JOIN tracks t ON t.id = e.track_id
-		WHERE e.principal_kind IN ('human', 'device') AND e.client_at >= ?
+		WHERE `+ownerEv+` AND e.client_at >= ?
 		  AND e.kind IN ('start', 'segment', 'seek', 'complete', 'skip')
 		GROUP BY e.track_id ORDER BY MAX(e.client_at) DESC, e.track_id LIMIT ?`,
-		since.UTC().Format(time.RFC3339), limit)
+		append(ownerArgs, since.UTC().Format(time.RFC3339), limit)...)
 	if err != nil {
 		return Session{}, fmt.Errorf("listening: session: %w", err)
 	}

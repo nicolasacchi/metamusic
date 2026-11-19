@@ -134,7 +134,7 @@ func newServer(o Options) *server {
 		s.delay = time.Second
 	}
 	if o.Store != nil {
-		s.cat = &catalog{db: o.Store.R}
+		s.cat = &catalog{db: o.Store.R, ownerEvents: o.Store.OwnerEventsSQL}
 	}
 	s.rand = o.Rand
 	if s.rand == nil {
