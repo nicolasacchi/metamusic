@@ -109,14 +109,20 @@ export interface MeClient {
 
 /**
  * One whoami call. `offline` is true only when the request itself failed (network down, timeout): then and only then may
- * the caller use the stored whoami. Any HTTP answer without data (401, 403, 5xx) is "no answer", never a fallback, so a
+ * the caller use the stored whoami. Any HTTP answer without data (401, 403, 429, 5xx) is "no answer", never a fallback, so a
  * user who lost the session or a different user at the edge cannot be shown the previous user's shell.
  */
 export async function fetchWhoami(client: MeClient, signal?: AbortSignal): Promise<{ who: Whoami | null; offline: boolean }> {
   try {
     const r = await client.GET("/api/me", signal ? { signal } : {});
     return { who: r.data ?? null, offline: false };
-  } catch {
-    return { who: null, offline: true };
+  } catch (e) {
+    return { who: null, offline: !isHttpAnswer(e) };
   }
+}
+
+/** A thrown error that carries an HTTP answer (RateLimited on a 429, or anything with a `response`) is not a network failure. */
+function isHttpAnswer(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  return (e as { name?: unknown }).name === "RateLimited" || "response" in e;
 }

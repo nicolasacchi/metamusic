@@ -2,7 +2,7 @@
 // (the deadline moves), and read everywhere through `can(opId)`. It replaces the independent /api/me callers.
 import { api } from "../api/client";
 import { dropMediaCache, dropOfflineDb, dropOutboxDb } from "../api/browserState";
-import { applyUserState, canOp, fetchWhoami, identityOf, readLast, roleOf, writeLast, type KV, type Role, type Whoami } from "./me";
+import { applyUserState, canOp, fetchWhoami, identityOf, readLast, roleOf, writeLast, type KV, type MeClient, type Role, type Whoami } from "./me";
 
 export const me = $state<{
   loaded: boolean;
@@ -49,7 +49,7 @@ function storage(): KV | null {
   }
 }
 
-const BOOT_TIMEOUT_MS = 3000;
+export const BOOT_TIMEOUT_MS = 3000;
 
 let booting: Promise<boolean> | null = null;
 
@@ -57,11 +57,11 @@ let booting: Promise<boolean> | null = null;
  * Load whoami and reconcile browser state with the user; resolves false when there is no answer and no stored one
  * (the shell then offers a retry). Run before App is imported: modules read browser state when they load.
  */
-export function bootMe(): Promise<boolean> {
+export function bootMe(timeoutMs: number = BOOT_TIMEOUT_MS, client: MeClient = { GET: (p, i) => api.GET(p, i) }): Promise<boolean> {
   booting ??= (async () => {
     const kv = storage();
     // A short timeout: a hung connection must not leave a blank page; the stored whoami serves the offline start.
-    const got = await fetchWhoami({ GET: (p, i) => api.GET(p, i) }, AbortSignal.timeout(BOOT_TIMEOUT_MS));
+    const got = await fetchWhoami(client, AbortSignal.timeout(timeoutMs));
     let w = got.who;
     let stale = false;
     if (!w && got.offline && kv) {
