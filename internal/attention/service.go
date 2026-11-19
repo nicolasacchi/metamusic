@@ -58,9 +58,11 @@ func (s *Service) Timing(ctx context.Context, trackID string) (anchor.Timing, er
 }
 
 func (s *Service) events(ctx context.Context, trackID string) ([]listening.Event, error) {
+	ownerEv, ownerArgs := s.st.OwnerEventsSQL("") // heat and hotspots are the Owner side's listening only (C306.7)
+	//nolint:gosec // G202: the fragment is store.OwnerEventsSQL or store.ViewerRatingJoin, fixed text; values are bound arguments
 	rows, err := s.st.R.QueryContext(ctx, `SELECT id, session_id, kind, from_ms, to_ms, detail, client_at FROM listen_events
-		WHERE track_id = ? AND principal_kind IN ('human', 'device') AND kind IN ('start', 'segment', 'seek', 'complete', 'skip')
-		ORDER BY client_at, id`, trackID)
+		WHERE track_id = ? AND `+ownerEv+` AND kind IN ('start', 'segment', 'seek', 'complete', 'skip')
+		ORDER BY client_at, id`, append([]any{trackID}, ownerArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("attention: events: %w", err)
 	}

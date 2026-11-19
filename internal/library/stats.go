@@ -296,7 +296,7 @@ func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 
 	terms, err := r.QueryContext(ctx, `SELECT x.term, COUNT(DISTINCT t.id), COUNT(h.stars), AVG(h.stars) FROM track_style_terms x
 		JOIN tracks t ON t.id = x.track_id JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine NOT IN ('unknown', 'dsp')
-		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
+		LEFT JOIN owner_ratings h ON h.track_id = t.id AND h.stars IS NOT NULL
 		GROUP BY x.term ORDER BY COUNT(DISTINCT t.id) DESC, x.term LIMIT 30`)
 	if err != nil {
 		return fmt.Errorf("library: stats terms: %w", err)
@@ -315,7 +315,7 @@ func (s *Service) generationStats(ctx context.Context, st *Stats) error {
 		return err
 	}
 	seeds, err := r.QueryContext(ctx, `SELECT rc.seed, COUNT(t.id), COUNT(h.stars), AVG(h.stars) FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id AND rc.engine NOT IN ('unknown', 'dsp')
-		LEFT JOIN ratings h ON h.track_id = t.id AND h.source = 'human' AND h.stars IS NOT NULL
+		LEFT JOIN owner_ratings h ON h.track_id = t.id AND h.stars IS NOT NULL
 		GROUP BY rc.seed HAVING COUNT(t.id) >= 2 ORDER BY COUNT(t.id) DESC, rc.seed LIMIT 30`)
 	if err != nil {
 		return fmt.Errorf("library: stats seeds: %w", err)
@@ -345,11 +345,11 @@ func meanOf(n sql.NullFloat64) *float64 {
 // judgmentStats fills the M2a counters of Stats (C38).
 func (s *Service) judgmentStats(ctx context.Context, st *Stats) error {
 	r := s.st.R
-	if err := r.QueryRowContext(ctx, `SELECT COALESCE(SUM(source = 'human' AND stars IS NOT NULL), 0), COALESCE(SUM(source = 'agent' AND stars IS NOT NULL), 0) FROM ratings`).
+	if err := r.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM owner_ratings WHERE stars IS NOT NULL), (SELECT COUNT(*) FROM critic_ratings WHERE stars IS NOT NULL)`).
 		Scan(&st.Judgments.RatedHuman, &st.Judgments.RatedCritic); err != nil {
 		return fmt.Errorf("library: stats ratings: %w", err)
 	}
-	hist, err := s.countBy(ctx, `SELECT CAST(stars AS TEXT), COUNT(*) FROM ratings WHERE source = 'human' AND stars IS NOT NULL GROUP BY stars`)
+	hist, err := s.countBy(ctx, `SELECT CAST(stars AS TEXT), COUNT(*) FROM owner_ratings WHERE stars IS NOT NULL GROUP BY stars`)
 	if err != nil {
 		return err
 	}

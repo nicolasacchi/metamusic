@@ -46,7 +46,7 @@ func (s *Service) Facets(ctx context.Context, f songs.ListFilter) (FacetCounts, 
 			selected[k] = set
 		}
 	}
-	base := f
+	base := f.WithViewer(ctx, s.st)
 	base.Sounds = nil
 	where, args := songs.FilterSQL(base, "")
 	// one row per Song with its Sound rows folded into one text (unit/record separators cannot occur in a facet or a

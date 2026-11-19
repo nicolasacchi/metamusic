@@ -19,6 +19,7 @@ import (
 func fixtureRig(t *testing.T) (*servertest.Rig, *subsonictest.Client, subsonictest.PlaceholderSet) {
 	t.Helper()
 	r := servertest.New(t, servertest.Options{Fixture: true, M2c: true, M3: true, M4a: true, Files: true})
+	r.Store.SetOwner("fixture") // the fixture's plays are principal human:fixture; play counts are the Owner side's only
 	c := r.Subsonic(t, subsonictest.ClientOpts{Name: "Schema Client", Username: "schemaclient", Write: true})
 	c.Clock = r.Clock
 	ps := subsonictest.NewPlaceholders(t, r.Store)

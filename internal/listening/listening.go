@@ -180,12 +180,13 @@ func Unnormalise(e Event) Event {
 	return e
 }
 
-// Stats summarises human listening of one track: only human and device events count.
+// Stats summarises the Owner side's listening of one track: only the Owner's and the Owner's devices' events count.
 func (s *Service) Stats(ctx context.Context, trackID string) (Listening, error) {
 	var starts, completes int
 	var last sql.NullString
+	ownerEv, ownerArgs := s.st.OwnerEventsSQL("") // the Owner side's plays only (C306.7)
 	if err := s.st.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(kind = 'start'), 0), COALESCE(SUM(kind = 'complete'), 0), MAX(CASE WHEN kind = 'start' THEN client_at END)
-		FROM listen_events WHERE track_id = ? AND principal_kind IN ('human', 'device')`, trackID).Scan(&starts, &completes, &last); err != nil {
+		FROM listen_events WHERE track_id = ? AND `+ownerEv, append([]any{trackID}, ownerArgs...)...).Scan(&starts, &completes, &last); err != nil {
 		return Listening{}, fmt.Errorf("listening: stats: %w", err)
 	}
 	out := Listening{Plays: starts}
