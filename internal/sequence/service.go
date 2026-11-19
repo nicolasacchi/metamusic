@@ -36,6 +36,9 @@ type SuggestInput struct {
 	Strategy sequencer.Strategy
 	First    string
 	Last     string
+	// HideDiscarded is the viewer's rule (C308.2, set by the handler from view.Viewer): a Song whose takes are all discarded does
+	// not exist, and a slot whose resolved take is discarded names no take.
+	HideDiscarded bool
 }
 
 // StepView is a planned step with the Song and Take titles injected at read.

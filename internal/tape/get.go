@@ -45,7 +45,10 @@ func (s *Service) Get(ctx context.Context, id string) (Tape, error) {
 			return Tape{}, errNotFound(id)
 		}
 	}
-	if t.State == StateReady && s.o.Signer != nil && path != "" && t.SHA256 != nil && t.Bytes != nil {
+	// A tape built with the liner carries the liner text and Muse names in its tags, which a Listener never sees (C308.3): the
+	// file is not a link for such a viewer. A tape built without the liner is (title, date, genre and the lossy line only).
+	linerHidden := t.linerEmbedded && !view.FromContext(ctx).SeePrivate
+	if t.State == StateReady && s.o.Signer != nil && path != "" && t.SHA256 != nil && t.Bytes != nil && !linerHidden {
 		if s.fileExists(path) {
 			ttl, bucket := serve.TTLFor(auth.FromContext(ctx))
 			l := s.o.Signer.Sign(*t.SHA256, "flac", ttl, bucket)
@@ -108,6 +111,7 @@ func (s *Service) scan(r rowScanner) (Tape, string, string, error) {
 	if err := json.Unmarshal([]byte(params), &pd); err != nil {
 		return Tape{}, "", "", fmt.Errorf("tape: params of %s: %w", t.ID, err)
 	}
+	t.linerEmbedded = pd.IncludeLiner
 	var doc planDoc
 	if err := json.Unmarshal([]byte(plan), &doc); err != nil {
 		return Tape{}, "", "", fmt.Errorf("tape: plan of %s: %w", t.ID, err)

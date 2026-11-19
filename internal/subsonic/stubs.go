@@ -62,6 +62,9 @@ func (s *server) registerStubs() {
 				return nil
 			}
 		case kindRecord, kindAuto:
+			if c.museHidden(c.str("id")) {
+				return fail(errNotFound, "item not found")
+			}
 			if c.s.alb != nil {
 				if _, _, err := c.s.alb.Get(c.ctx, c.str("id")); err == nil {
 					return nil

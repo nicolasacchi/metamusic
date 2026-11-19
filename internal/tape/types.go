@@ -234,6 +234,10 @@ type Tape struct {
 	CreatedAt        string
 	StartedAt        *string
 	FinishedAt       *string
+
+	// linerEmbedded: the file was built with the liner, so its LINER_NOTES and DESCRIPTION tags carry the liner text and the
+	// Muse names (U1-INT-B). Get withholds the link of such a file from a viewer that cannot see private text.
+	linerEmbedded bool
 }
 
 // Brief is a tape's line in a Record view.

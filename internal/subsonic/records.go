@@ -14,6 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/tape"
 	"github.com/nicolasacchi/metamusic/internal/textfold"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // This file serves the Record albums of L2 (C126.7, D-L2-35): published, non-hidden Records with at least one listable
@@ -23,7 +24,13 @@ import (
 
 // albumKinds is the album-kind dispatch of the catalog: the kinds the server serves besides the lineage. The muse and unfiled
 // auto-albums (S2) ride the same loaders: their ids are the catalog's, their songs have Disc 1 and contiguous positions.
-func albumKinds() []albums.Kind {
+//
+// The Muse and Unfiled albums group Songs by Muse, which is Muse structure (and, with subsonic_muse_names, Muse text): a client
+// whose viewer may not see Muses (a Listener's) gets the Record albums only (U1-INT-B, C308.3).
+func (c *call) albumKinds() []albums.Kind {
+	if !view.FromContext(c.ctx).SeeMuse {
+		return []albums.Kind{albums.KindRecord}
+	}
 	return []albums.Kind{albums.KindRecord, albums.KindMuse, albums.KindUnfiled}
 }
 
@@ -72,7 +79,7 @@ func (c *call) recordAlbums(cat *catalog) ([]*recAlbum, error) {
 	if err != nil {
 		return nil, err
 	}
-	list, err := c.s.alb.ListWithSongs(c.ctx, albumKinds()...) // one pass: no read per album
+	list, err := c.s.alb.ListWithSongs(c.ctx, c.albumKinds()...) // one pass: no read per album
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +88,13 @@ func (c *call) recordAlbums(cat *catalog) ([]*recAlbum, error) {
 		items[i] = recItem{e.Album, e.Songs}
 	}
 	return c.buildRecs(cat, items, set)
+}
+
+// museHidden reports whether id names a Muse or Unfiled auto-album the principal may not see (no SeeMuse): every route
+// answers it exactly as an unknown id, so none is an existence oracle on Muse ids.
+func (c *call) museHidden(id string) bool {
+	kind, _ := parseID(id)
+	return kind == kindAuto && !view.FromContext(c.ctx).SeeMuse
 }
 
 // catalogAlbum loads one catalog album (rec-, mus- or unf) by its full id; an unknown, unpublished, hidden or (under the folder
@@ -92,6 +106,9 @@ func (c *call) catalogAlbum(cat *catalog, id string) (*recAlbum, error) {
 	set, err := c.statuses()
 	if err != nil {
 		return nil, err
+	}
+	if c.museHidden(id) {
+		return nil, fail(errNotFound, "album not found")
 	}
 	a, songs, err := c.s.alb.Get(c.ctx, id)
 	if errors.Is(err, albums.ErrNotFound) {
@@ -481,6 +498,9 @@ func (c *call) recordStamp(cat *catalog) (int64, error) {
 // unknown, unpublished or hidden one is error 70).
 func (c *call) albumCover(id string, size int) (serve.Object, error) {
 	if c.s.alb == nil {
+		return serve.Object{}, fail(errNotFound, "cover art not found")
+	}
+	if c.museHidden(id) {
 		return serve.Object{}, fail(errNotFound, "cover art not found")
 	}
 	a, _, err := c.s.alb.Get(c.ctx, id)
