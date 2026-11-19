@@ -47,7 +47,7 @@ var shapeRules = map[string]view.Rules{
 	"list_songs":     {Muse: []string{"items.muse_id"}, Private: []string{"items.draft_id", "items.queued_jobs", "items.open_proposals"}},
 	"search_sounds":  {Muse: []string{"songs.muse_id"}, Private: []string{"songs.draft_id", "songs.queued_jobs", "songs.open_proposals"}},
 	"get_song": {
-		Muse: []string{"muse", "song.muse_id"},
+		Muse: []string{"muse"},
 		Private: []string{
 			"draft", "sessions", "proposals", "events", "song.draft_id", "song.queued_jobs",
 			"takes.ladder", "pick.evidence", "pick.pinned_by", "pick.pinned_at", "pick.pinned_take_id", "pick.open_proposals",

@@ -18,7 +18,7 @@ import (
 
 type shapeSong struct {
 	ID    string    `json:"id"`
-	Song  shapeMuse `json:"song"`
+	Muse  shapeMuse `json:"muse"`
 	Seed  int64     `json:"seed"`
 	Cost  *string   `json:"cost_display_usd"`
 	Draft *string   `json:"draft"`
@@ -36,7 +36,7 @@ func shapeRig(t *testing.T) http.Handler {
 	a := humago.New(mux, HumaConfig())
 	muse, cost, draft := "m1", "0.5", "d1"
 	h := func(ctx context.Context, _ *struct{}) (*shapeOut, error) {
-		return &shapeOut{Body: shapeSong{ID: "s1", Song: shapeMuse{MuseID: &muse}, Seed: 9007199254740993, Cost: &cost, Draft: &draft}}, nil
+		return &shapeOut{Body: shapeSong{ID: "s1", Muse: shapeMuse{MuseID: &muse}, Seed: 9007199254740993, Cost: &cost, Draft: &draft}}, nil
 	}
 	op := func(id, path string) huma.Operation {
 		return huma.Operation{OperationID: id, Method: "GET", Path: path, Summary: id, Description: id}
@@ -69,13 +69,13 @@ func shapeGet(h http.Handler, role, path string) (int, string) {
 func TestShapeTransformer(t *testing.T) {
 	t.Parallel()
 	h := shapeRig(t)
-	const full = `{"id":"s1","song":{"muse_id":"m1"},"seed":9007199254740993,"cost_display_usd":"0.5","draft":"d1"}`
+	const full = `{"id":"s1","muse":{"muse_id":"m1"},"seed":9007199254740993,"cost_display_usd":"0.5","draft":"d1"}`
 	for _, role := range []string{"owner", "agent"} {
 		if code, body := shapeGet(h, role, "/api/t/song"); role == "owner" && (code != 200 || body != full) {
 			t.Errorf("%s: %d %s", role, code, body)
 		}
 	}
-	if code, body := shapeGet(h, "editor", "/api/t/song"); code != 200 || body != `{"draft":"d1","id":"s1","seed":9007199254740993,"song":{"muse_id":"m1"}}` {
+	if code, body := shapeGet(h, "editor", "/api/t/song"); code != 200 || body != `{"draft":"d1","id":"s1","muse":{"muse_id":"m1"},"seed":9007199254740993}` {
 		t.Errorf("editor: %d %s", code, body)
 	}
 	code, body := shapeGet(h, "listener", "/api/t/song")
