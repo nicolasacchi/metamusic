@@ -34,7 +34,14 @@ func redactJobSummary(v auth.Principal, owner string, j *JobSummary) {
 	j.Cost = nil
 }
 
-func redactJob(v auth.Principal, owner string, j *Job) { redactJobSummary(v, owner, &j.JobSummary) }
+// redactJob also drops the run environment (GPU class, image digest, backend) for a viewer that is neither Owner-side nor the
+// job's creator (C310.5: an Editor never sees GPU pools).
+func redactJob(v auth.Principal, owner string, j *Job) {
+	redactJobSummary(v, owner, &j.JobSummary)
+	if !v.IsOwnerSide() && !ownsRow(v, owner) {
+		j.Env = nil
+	}
+}
 
 // redactEstimate drops what an Editor never sees of a quote: the price, the GPU pools, the month and day pots, the batch cap and
 // the provider's armed and tripped flags. Its own expected, max and ceiling costs stay (C310.5).
@@ -45,6 +52,7 @@ func redactEstimate(v auth.Principal, e Estimate) Estimate {
 	e.Price = nil
 	e.Budget.Month, e.Budget.Day, e.Budget.BatchCapMicroUSD, e.Budget.BatchCapUSD = nil, nil, nil, nil
 	e.Provider.Armed, e.Provider.Tripped = nil, nil
+	e.Budget.WouldExceed = []string{} // which pot a quote would overrun is the pot's state; Fits alone tells the Editor
 	return e
 }
 

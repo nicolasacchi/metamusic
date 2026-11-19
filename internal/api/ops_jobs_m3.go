@@ -193,6 +193,9 @@ func registerJobsM3(a huma.API, d Deps) {
 				return nil, err
 			}
 			p := auth.FromContext(ctx)
+			if !p.IsOwnerSide() {
+				in.PrincipalKind = nil // the filter would tell an Editor which batches are agent-made (C305: no creator)
+			}
 			page, err := d.Jobs.ListBatches(ctx, p, jobs.BatchQuery{States: in.State, PrincipalKinds: in.PrincipalKind, Since: since, Until: until, Limit: in.Limit, Cursor: in.Cursor})
 			if err != nil {
 				return nil, jobsErr(err)

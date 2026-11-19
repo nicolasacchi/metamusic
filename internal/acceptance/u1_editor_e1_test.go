@@ -57,6 +57,9 @@ func TestEditorGeneration_E1(t *testing.T) {
 			t.Errorf("an Editor's estimate budget carries %s", k)
 		}
 	}
+	if w, _ := b["would_exceed"].([]any); len(w) != 0 {
+		t.Errorf("an Editor's estimate names the pot it would overrun: %v", w)
+	}
 	for _, k := range []string{"armed", "tripped"} {
 		if _, ok := obj(est["provider"])[k]; ok {
 			t.Errorf("an Editor's estimate provider carries %s", k)
@@ -127,6 +130,11 @@ func TestEditorGeneration_E1(t *testing.T) {
 	}
 	if len(leaks) > 0 {
 		t.Errorf("batch list leaks money of others: %v", leaks)
+	}
+	// the principal_kind filter is ignored for an Editor: it would tell agent-made batches from human-made ones
+	all, filtered := obj(bob.Do(t, "GET", "/api/batches", nil).JSON(t)), obj(bob.Do(t, "GET", "/api/batches?principal_kind=agent", nil).JSON(t))
+	if len(all["items"].([]any)) != len(filtered["items"].([]any)) {
+		t.Error("an Editor can filter batches by principal kind")
 	}
 	jobs := obj(bob.Do(t, "GET", "/api/jobs", nil).JSON(t))
 	leaks = nil

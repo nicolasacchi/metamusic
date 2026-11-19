@@ -195,3 +195,17 @@ func TestUpdateTrack_EditorFieldRule(t *testing.T) {
 		t.Errorf("listener: %v", err)
 	}
 }
+
+// An Editor sending an unknown status gets the validation error the Owner side gets, not OWNER_ONLY.
+func TestUpdateTrack_EditorBogusStatus(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	err := e.svc.UpdateTrack(context.Background(), bobEditor, lt.TrackLuna, nil, sp("bogus"))
+	var je *judgments.Error
+	if err == nil || errors.As(err, &je) {
+		t.Fatalf("err = %v, want the validation error, not OWNER_ONLY", err)
+	}
+	if want := e.svc.UpdateTrack(context.Background(), human, lt.TrackLuna, nil, sp("bogus")); want == nil || want.Error() != err.Error() {
+		t.Fatalf("editor err %v differs from owner err %v", err, want)
+	}
+}
