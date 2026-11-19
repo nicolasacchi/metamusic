@@ -30,7 +30,7 @@ async function boot(): Promise<void> {
     const p = document.createElement("p");
     p.setAttribute("role", "alert");
     p.dataset.testid = "boot-failed";
-    p.textContent = "Could not reach the server. ";
+    p.textContent = "Could not load your session. ";
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = "Try again";

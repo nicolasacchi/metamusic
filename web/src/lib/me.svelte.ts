@@ -1,8 +1,8 @@
 // The one `me` store (U1 C313.1). Loaded once before the first render (bootMe), refreshed when a step-up completes
 // (the deadline moves), and read everywhere through `can(opId)`. It replaces the independent /api/me callers.
 import { api } from "../api/client";
-import { dropMediaCache, dropOfflineDb } from "../api/browserState";
-import { applyUserState, canOp, fetchWhoami, readLast, roleOf, writeLast, type KV, type Role, type Whoami } from "./me";
+import { dropMediaCache, dropOfflineDb, dropOutboxDb } from "../api/browserState";
+import { applyUserState, canOp, fetchWhoami, identityOf, readLast, roleOf, writeLast, type KV, type Role, type Whoami } from "./me";
 
 export const me = $state<{
   loaded: boolean;
@@ -49,6 +49,8 @@ function storage(): KV | null {
   }
 }
 
+const BOOT_TIMEOUT_MS = 3000;
+
 let booting: Promise<boolean> | null = null;
 
 /**
@@ -58,15 +60,17 @@ let booting: Promise<boolean> | null = null;
 export function bootMe(): Promise<boolean> {
   booting ??= (async () => {
     const kv = storage();
-    let w = await fetchWhoami({ GET: (p, i) => api.GET(p, i) });
+    // A short timeout: a hung connection must not leave a blank page; the stored whoami serves the offline start.
+    const got = await fetchWhoami({ GET: (p, i) => api.GET(p, i) }, AbortSignal.timeout(BOOT_TIMEOUT_MS));
+    let w = got.who;
     let stale = false;
-    if (!w && kv) {
+    if (!w && got.offline && kv) {
       w = readLast(kv);
       stale = w !== null;
     }
     if (!w) return false;
     if (kv && !stale) {
-      await applyUserState({ kv, dropMediaCache, dropOfflineDb }, w.user, roleOf(w.role));
+      await applyUserState({ kv, dropMediaCache, dropOfflineDb, dropOutboxDb }, identityOf(w), roleOf(w.role));
       writeLast(kv, w);
     }
     apply(w, stale);
@@ -79,7 +83,7 @@ export function bootMe(): Promise<boolean> {
 
 /** Re-read whoami (step-up done): the user never changes inside a session, so no reset here. */
 export async function refreshMe(): Promise<void> {
-  const w = await fetchWhoami({ GET: (p, i) => api.GET(p, i) });
+  const { who: w } = await fetchWhoami({ GET: (p, i) => api.GET(p, i) });
   if (!w) return;
   const kv = storage();
   if (kv) writeLast(kv, w);

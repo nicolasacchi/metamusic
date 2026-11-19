@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyUserState, canOp, fetchWhoami, LAST_KEY, mustReset, readLast, roleOf, USER_KEY, writeLast, type KV, type Whoami } from "./me";
+import { applyUserState, canOp, fetchWhoami, identityOf, LAST_KEY, mustReset, readLast, roleOf, USER_KEY, writeLast, type KV, type Whoami } from "./me";
 
 class MemKV implements KV {
   m = new Map<string, string>();
@@ -28,6 +28,7 @@ function env(kv: KV) {
       kv,
       dropMediaCache: async () => void dropped.push("cache"),
       dropOfflineDb: async () => void dropped.push("db"),
+      dropOutboxDb: async () => void dropped.push("outbox"),
     },
   };
 }
@@ -83,7 +84,7 @@ describe("per-user browser state reset (C313.7)", () => {
     expect(await applyUserState(e, "bob", "editor")).toBe(true);
     expect([...kv.m.keys()].sort()).toEqual(["mm:me:user", "other"]);
     expect(kv.getItem(USER_KEY)).toBe("bob");
-    expect(dropped.sort()).toEqual(["cache", "db"]);
+    expect(dropped.sort()).toEqual(["cache", "db", "outbox"]);
   });
   test("the same user touches nothing", async () => {
     const kv = new MemKV();
@@ -109,7 +110,7 @@ describe("per-user browser state reset (C313.7)", () => {
     const { env: e, dropped } = env(kv);
     expect(await applyUserState(e, "carol", "listener")).toBe(true);
     expect(kv.getItem("mm:player:v1")).toBeNull();
-    expect(dropped.sort()).toEqual(["cache", "db"]);
+    expect(dropped.sort()).toEqual(["cache", "db", "outbox"]);
   });
   test("the saved whoami alone is not 'state'; a failing cache drop never blocks", async () => {
     const kv = new MemKV();
@@ -117,16 +118,21 @@ describe("per-user browser state reset (C313.7)", () => {
     const { env: e } = env(kv);
     expect(await applyUserState(e, "carol", "listener")).toBe(false);
     kv.setItem("mm:player:v1", "{}");
-    const boom = { kv, dropMediaCache: () => Promise.reject(new Error("x")), dropOfflineDb: () => Promise.reject(new Error("y")) };
+    const boom = { kv, dropMediaCache: () => Promise.reject(new Error("x")), dropOfflineDb: () => Promise.reject(new Error("y")), dropOutboxDb: () => Promise.reject(new Error("z")) };
     expect(await applyUserState(boom, "bob", "editor")).toBe(true);
     expect(kv.getItem(USER_KEY)).toBe("bob");
   });
-  test("a principal with no user (agent) resets nothing", async () => {
+  test("a principal with no user is keyed by kind and name, so it cannot inherit a user's state", async () => {
     const kv = new MemKV();
+    kv.setItem(USER_KEY, "alice");
     kv.setItem("mm:player:v1", "{}");
-    const { env: e } = env(kv);
-    expect(await applyUserState(e, null, null)).toBe(false);
-    expect(kv.getItem("mm:player:v1")).toBe("{}");
+    const { env: e, dropped } = env(kv);
+    const id = identityOf(who({ user: null, kind: "device", name: "kiosk", role: null }));
+    expect(id).toBe("device:kiosk");
+    expect(await applyUserState(e, id, null)).toBe(true);
+    expect(kv.getItem("mm:player:v1")).toBeNull();
+    expect(dropped).toContain("outbox");
+    expect(identityOf(who())).toBe("alice");
   });
 });
 
@@ -141,10 +147,11 @@ describe("last whoami (offline start)", () => {
     kv.setItem(LAST_KEY, JSON.stringify({ kind: "human" }));
     expect(readLast(kv)).toBeNull();
   });
-  test("fetchWhoami yields null on failure, never a throw", async () => {
-    expect(await fetchWhoami({ GET: () => Promise.reject(new Error("net")) })).toBeNull();
-    expect(await fetchWhoami({ GET: () => Promise.resolve({}) })).toBeNull();
-    expect((await fetchWhoami({ GET: () => Promise.resolve({ data: who() }) }))?.name).toBe("alice");
+  test("fetchWhoami: offline only when the request threw; an HTTP answer is never a fallback", async () => {
+    expect(await fetchWhoami({ GET: () => Promise.reject(new Error("net")) })).toEqual({ who: null, offline: true });
+    expect(await fetchWhoami({ GET: () => Promise.resolve({ error: {} }) })).toEqual({ who: null, offline: false });
+    expect(await fetchWhoami({ GET: () => Promise.resolve({}) })).toEqual({ who: null, offline: false });
+    expect((await fetchWhoami({ GET: () => Promise.resolve({ data: who() }) })).who?.name).toBe("alice");
   });
 });
 
@@ -153,4 +160,11 @@ test("the reset names match the service worker's store", async () => {
   const { MEDIA_CACHE, OFFLINE_DB } = await import("./me");
   expect(MEDIA_CACHE).toBe(CACHE_NAME);
   expect(OFFLINE_DB).toBe(DB_NAME);
+});
+
+test("the outbox database name matches the outbox store", async () => {
+  const { OUTBOX_DB } = await import("./me");
+  const src = await Bun.file(new URL("../api/outbox.ts", import.meta.url)).text();
+  expect(src).toContain("indexedDB.open(OUTBOX_DB");
+  expect(OUTBOX_DB).toBe("mm-outbox");
 });

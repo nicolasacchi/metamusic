@@ -10,7 +10,7 @@
   const links = $derived(subLinks(tab, can));
 </script>
 
-{#if links.length > 1}
+{#if links.length > 0}
   <nav class="sub" aria-label="{tab === 'library' ? 'Library' : 'Judge'} views" data-testid="subnav">
     {#each links as l (l.path)}
       {@const on = subActive(l, routeName)}

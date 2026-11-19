@@ -20,6 +20,7 @@ export const USER_KEY = "mm:me:user";
 export const LAST_KEY = "mm:me:last";
 export const MEDIA_CACHE = "mm-media-v1";
 export const OFFLINE_DB = "mm-offline";
+export const OUTBOX_DB = "mm-outbox";
 
 /** The slice of Storage this module needs. */
 export interface KV {
@@ -34,6 +35,12 @@ export interface ResetEnv {
   kv: KV;
   dropMediaCache(): Promise<void>;
   dropOfflineDb(): Promise<void>;
+  dropOutboxDb(): Promise<void>;
+}
+
+/** The key the browser state is filed under: the username, or kind and name for a principal with no user (device, agent). */
+export function identityOf(w: Pick<Whoami, "user" | "kind" | "name">): string {
+  return w.user ?? `${w.kind}:${w.name}`;
 }
 
 function mmKeys(kv: KV): string[] {
@@ -57,7 +64,7 @@ export function mustReset(stored: string | null, user: string, role: Role | null
 
 /**
  * Called once at boot with the signed-in user, before anything reads browser state: on a user change it clears every
- * `mm:*` localStorage key, the `mm-media-v1` cache and the `mm-offline` database, then records the user.
+ * `mm:*` localStorage key, the `mm-media-v1` cache and the `mm-offline` and `mm-outbox` databases, then records the user.
  * Returns whether anything was cleared. A failure to clear the caches never blocks boot.
  */
 export async function applyUserState(env: ResetEnv, user: string | null, role: Role | null): Promise<boolean> {
@@ -67,7 +74,7 @@ export async function applyUserState(env: ResetEnv, user: string | null, role: R
   const reset = mustReset(stored, user, role, keys.some((k) => k !== USER_KEY && k !== LAST_KEY));
   if (reset) {
     for (const k of keys) env.kv.removeItem(k);
-    await Promise.allSettled([env.dropMediaCache(), env.dropOfflineDb()]);
+    await Promise.allSettled([env.dropMediaCache(), env.dropOfflineDb(), env.dropOutboxDb()]);
   }
   if (stored !== user) env.kv.setItem(USER_KEY, user);
   return reset;
@@ -97,15 +104,19 @@ export function writeLast(kv: Pick<KV, "setItem">, w: Whoami): void {
 }
 
 export interface MeClient {
-  GET(path: "/api/me", init: Record<string, never>): Promise<{ data?: Whoami }>;
+  GET(path: "/api/me", init: { signal?: AbortSignal }): Promise<{ data?: Whoami; error?: unknown }>;
 }
 
-/** One whoami call; null when it failed (network, session lost) so the caller can fall back. */
-export async function fetchWhoami(client: MeClient): Promise<Whoami | null> {
+/**
+ * One whoami call. `offline` is true only when the request itself failed (network down, timeout): then and only then may
+ * the caller use the stored whoami. Any HTTP answer without data (401, 403, 5xx) is "no answer", never a fallback, so a
+ * user who lost the session or a different user at the edge cannot be shown the previous user's shell.
+ */
+export async function fetchWhoami(client: MeClient, signal?: AbortSignal): Promise<{ who: Whoami | null; offline: boolean }> {
   try {
-    const r = await client.GET("/api/me", {});
-    return r.data ?? null;
+    const r = await client.GET("/api/me", signal ? { signal } : {});
+    return { who: r.data ?? null, offline: false };
   } catch {
-    return null;
+    return { who: null, offline: true };
   }
 }
