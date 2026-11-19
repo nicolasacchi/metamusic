@@ -82,6 +82,9 @@ func TestListenerRedaction(t *testing.T) {
 			seenOwner[k] = true
 		}
 		cb := carol.Do(t, "GET", p, nil)
+		if cb.Status == 404 && strings.HasPrefix(p, "/api/records/") { // a draft Record is not there for a Listener (C305)
+			continue
+		}
 		if cb.Status != 200 {
 			if !strings.Contains(p, "/api/compare") {
 				t.Errorf("listener %s: %d %s", p, cb.Status, cb.Body)
