@@ -1,2 +1,2 @@
-# ghcr.io/nicolasacchi/metamusic-worker-acestep, published by worker-image.yml (acestep-publish) from main 43442f1 on 2026-11-14 (upload retry on UPLOAD_IN_PROGRESS); committed by hand, never edited by CI
-sha256:55bee15d51e3549fb6b1cb73857a5dc3f08853adffbf3f7a01e78630c8f8cb8e
+# ghcr.io/nicolasacchi/metamusic-worker-acestep, published by worker-image.yml (acestep-publish) from main 3e5b562 on 2026-11-18 (adds the cover task); committed by hand, never edited by CI
+sha256:88f9a058fdf80d937108ecbbe58518c11157e1d1d97c5afdd424f382f736f900
