@@ -232,7 +232,7 @@ func TestPicks_TriggerEnqueue_Table(t *testing.T) {
 	}
 	// a new take marks itself; an agent rating marks nothing
 	w.exec(`DELETE FROM provenance_dirty`)
-	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'agent',5,'agent','agent:ag1','a',?,?)`, tk[0], w.sc.At(2), w.sc.At(2))
+	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'agent',5,'agent','agent:ag1','a',?,?,'critic')`, tk[0], w.sc.At(2), w.sc.At(2))
 	if n := w.count(`SELECT COUNT(*) FROM provenance_dirty`); n != 0 {
 		t.Errorf("an agent rating marked %d keys", n)
 	}
@@ -242,7 +242,7 @@ func TestPick_AgentRatingsNeverCount(t *testing.T) {
 	t.Parallel()
 	w := newWorld(t)
 	song, tk := w.song(2)
-	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'agent',5,'agent','agent:ag1','a',?,?)`, tk[0], w.sc.At(2), w.sc.At(2))
+	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'agent',5,'agent','agent:ag1','a',?,?,'critic')`, tk[0], w.sc.At(2), w.sc.At(2))
 	w.exec(`UPDATE tracks SET status = status`)
 	w.settle()
 	if v := w.pick(song); v.Source != picks.SourceNewest || *v.TakeID != tk[1] {
@@ -255,7 +255,7 @@ func TestRatingIsolation_StillHolds(t *testing.T) {
 	w := newWorld(t)
 	_, tk := w.song(1)
 	// the schema still refuses an agent writing a human row, so a Pick can never be steered through the human source
-	_, err := w.st.W.Exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'human',5,'agent','agent:ag1','a',?,?)`, tk[0], w.sc.At(2), w.sc.At(2))
+	_, err := w.st.W.Exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'human',5,'agent','agent:ag1','a',?,?,'owner')`, tk[0], w.sc.At(2), w.sc.At(2))
 	if err == nil {
 		t.Fatal("an agent wrote a human rating")
 	}

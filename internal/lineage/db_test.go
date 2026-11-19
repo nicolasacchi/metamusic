@@ -303,8 +303,8 @@ func TestLineage_Tree(t *testing.T) {
 	}
 
 	// ratings: human and critic stars
-	e.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at) VALUES (?, 'human', 4, 'human', 'human:h', 'h', ?, ?) ON CONFLICT(track_id, source) DO UPDATE SET stars = 4`, lt.TrackLuna, "2026-10-14T12:00:00Z", "2026-10-14T12:00:00Z")
-	e.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at) VALUES (?, 'agent', 2, 'agent', 'agent:a', 'a', ?, ?) ON CONFLICT(track_id, source) DO UPDATE SET stars = 2`, lt.TrackLuna, "2026-10-14T12:00:00Z", "2026-10-14T12:00:00Z")
+	e.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 4, 'human', 'human:h', 'h', ?, ?,'owner') ON CONFLICT(track_id, source, rater) DO UPDATE SET stars = 4`, lt.TrackLuna, "2026-10-14T12:00:00Z", "2026-10-14T12:00:00Z")
+	e.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'agent', 2, 'agent', 'agent:a', 'a', ?, ?,'critic') ON CONFLICT(track_id, source, rater) DO UPDATE SET stars = 2`, lt.TrackLuna, "2026-10-14T12:00:00Z", "2026-10-14T12:00:00Z")
 	r, _ := e.svc.Tree(ctx, lt.TrackLuna, 10)
 	if r.Nodes[0].Stars == nil || *r.Nodes[0].Stars != 4 || r.Nodes[0].CriticStars == nil || *r.Nodes[0].CriticStars != 2 {
 		t.Errorf("stars = %v %v", r.Nodes[0].Stars, r.Nodes[0].CriticStars)

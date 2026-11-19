@@ -141,7 +141,7 @@ func TestContext_NextActionsCapDropsGenerationHint(t *testing.T) {
 		t.Errorf("the critique stays last: %v", na)
 	}
 	// rate the track: three conditional entries, the hint fits and sits before the critique
-	e.exec(t, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at) VALUES(?, 'human', 4, NULL, 'human', 'human:fixture', 'fixture', '2026-10-06T11:00:00Z', '2026-10-06T11:00:00Z')`, lt.TrackShort)
+	e.exec(t, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 4, NULL, 'human', 'human:fixture', 'fixture', '2026-10-06T11:00:00Z', '2026-10-06T11:00:00Z','owner')`, lt.TrackShort)
 	na = nextActions(t, e, generator, lt.TrackShort)
 	if len(na) != 5 || na[3] != hintText || !strings.HasPrefix(na[4], "record your critique") {
 		t.Errorf("with the hint: %v", na)

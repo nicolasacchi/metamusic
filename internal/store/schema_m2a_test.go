@@ -53,7 +53,7 @@ func TestMigration0003_RatingSourceCheck(t *testing.T) {
 	t.Parallel()
 	s, _ := open(t)
 	m2aTrack(t, s)
-	const q = `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1',?,3,?,'p','n',?,?)`
+	const q = `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES('t1',?,3,?,'p','n',?,?,CASE ?1 WHEN 'agent' THEN 'critic' ELSE 'owner' END)`
 	expectErr(t, exec(t, s, q, "human", "agent", ts, ts), "CHECK")
 	expectErr(t, exec(t, s, q, "agent", "device", ts, ts), "CHECK")
 	expectErr(t, exec(t, s, q, "agent", "human", ts, ts), "CHECK")

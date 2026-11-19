@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,10 +13,12 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/duels"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
+	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/sessions"
 	"github.com/nicolasacchi/metamusic/internal/songs"
 	"github.com/nicolasacchi/metamusic/internal/sounds"
@@ -206,11 +210,49 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 		}
 		bad += n
 	}
+	if err := printOrphanRaters(ctx, st, getenv, s.out); err != nil { // a warning, never counted (C301.10)
+		return fatal(err)
+	}
 	if total := len(an) + bad; total > 0 {
 		return exitError{code: 1, err: fmt.Errorf("%d anomalies", total)}
 	}
 	if len(an) == 0 {
 		fmt.Fprintln(s.out, "library model: consistent")
+	}
+	return nil
+}
+
+// orphanRaters lists the human raters whose name is no longer in the configured user map (D-U1-4, C301.10).
+func orphanRaters(ctx context.Context, st *store.Store, users map[string]config.Role) ([]judgments.OrphanRater, error) {
+	return judgments.OrphanRaters(ctx, st.R, func(name string) bool { _, ok := users[name]; return ok })
+}
+
+// warnOrphanRaters logs, once at startup, the raters that rated and have since been removed from MM_USERS. Their rows stay
+// inert (the Owner sees them as former users); this never stops the server (C301.10).
+func warnOrphanRaters(ctx context.Context, st *store.Store, users map[string]config.Role) {
+	orphans, err := orphanRaters(ctx, st, users)
+	if err != nil {
+		slog.Warn("orphan rater check failed", "err", redact.Error(err))
+		return
+	}
+	for _, o := range orphans {
+		slog.Warn("ratings of a user no longer configured stay as inert rows", "rater", o.Name, "rows", o.Rows)
+	}
+}
+
+// printOrphanRaters prints one warning line per orphan rater for `library verify`. They are findings of severity warning:
+// printed, not counted, so an operator who removed a user is not told the library is inconsistent.
+func printOrphanRaters(ctx context.Context, st *store.Store, getenv func(string) string, out io.Writer) error {
+	cfg, err := config.LoadOffline(getenv)
+	if err != nil {
+		return err
+	}
+	orphans, err := orphanRaters(ctx, st, cfg.Users)
+	if err != nil {
+		return err
+	}
+	for _, o := range orphans {
+		fmt.Fprintf(out, "warning orphan_rater %s %d rating rows of a user no longer in MM_USERS (kept as inert rows)\n", o.Name, o.Rows)
 	}
 	return nil
 }

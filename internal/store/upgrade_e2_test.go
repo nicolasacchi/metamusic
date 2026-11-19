@@ -36,7 +36,11 @@ func dbSnapshot(t *testing.T, db interface {
 	rows.Close()
 	out := map[string][]string{}
 	for _, tb := range tables {
-		r, err := db.QueryContext(ctx, `SELECT * FROM "`+tb+`"`)
+		q := `SELECT * FROM "` + tb + `"`
+		if tb == "ratings" { // 0017 rebuilds it with a rater column and a new column order: compare the columns that pre-date it
+			q = `SELECT track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at FROM ratings ORDER BY track_id, source`
+		}
+		r, err := db.QueryContext(ctx, q)
 		if err != nil {
 			continue // virtual tables of the search index
 		}

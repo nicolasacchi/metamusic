@@ -6,7 +6,7 @@ func TestTriggers_M2a(t *testing.T) {
 	t.Parallel()
 	s, _ := open(t)
 	m2aTrack(t, s)
-	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1','human',4,'human','human:h','h',?,?)`, ts, ts)
+	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES('t1','human',4,'human','human:h','h',?,?,'owner')`, ts, ts)
 	mustExec(t, s, `INSERT INTO tags(name,created_at) VALUES('warm',?)`, ts)
 	mustExec(t, s, `INSERT INTO track_tags(track_id,tag_id,source,principal_id,created_at,updated_at) VALUES('t1',1,'human','human:h',?,?)`, ts, ts)
 	mustExec(t, s, `INSERT INTO comments(id,track_id,body,kind,state,source,principal_kind,principal_id,principal_name,created_at,updated_at)

@@ -131,7 +131,7 @@ func TestSongView_TakeCardFields(t *testing.T) {
 	c1 := sc.Track(r, "Synthetic Child 1", root, sc.At(3)) // 24-char instant
 	c2 := sc.Track(r, "Synthetic Child 2", root, sc.At(2)) // 20-char instant, older than c1
 	sc.Rate(c1, 4)
-	if _, err := w.St.W.Exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'agent',2,'agent','agent:a','a',?,?)`, c1, sc.At(3), sc.At(3)); err != nil {
+	if _, err := w.St.W.Exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'agent',2,'agent','agent:a','a',?,?,'critic')`, c1, sc.At(3), sc.At(3)); err != nil {
 		t.Fatal(err)
 	}
 	w.Settle()

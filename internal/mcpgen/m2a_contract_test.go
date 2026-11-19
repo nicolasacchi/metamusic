@@ -82,9 +82,13 @@ import (
 // ace-cover + ace-stem-remix merge: re-baselined 115622 (main, source_stem +217) -> 115968 (measured 115868, +100 headroom). Cover
 // (+78 on its own branch: EditIn.strength, TakeEdit.strength, EngineCaps.cover, the cover mode) and edit.source_stem (remix) both ship.
 //
-// U1-F2 re-baselined 115968 -> 116093 (measured 115993, +100 headroom): whoami's output schema gains role, user and
-// allowed_ops (C304.3), the only tool-list change of the lane (+125 bytes, no description text).
-const toolsCeilingBytes = 116093
+// U1-R1 (C306.4): TrackRating gains mine, others and average (the Owner's wire value, human, is unchanged), re-baselined
+// 115968 -> 117300 (measured 117206, +1338 over 115868, +94 headroom): the per-user rating shape on get_track, rate_track and
+// update_track.
+//
+// U1-F2 merged after U1-R1: whoami's output schema gains role, user and allowed_ops (C304.3). Re-baselined 117300 -> 117406
+// (measured 117306 with both lanes, +100 headroom).
+const toolsCeilingBytes = 117406
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

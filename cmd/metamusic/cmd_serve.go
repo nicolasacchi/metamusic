@@ -239,6 +239,7 @@ func serve(ctx context.Context, b *booted, s streams) error {
 	} else if n > 0 {
 		slog.Info("recipe keys backfilled", "rows", n)
 	}
+	warnOrphanRaters(ctx, b.st, b.cfg.Users)
 	if n := sweepWorkDirs(root, time.Now(), workDirMaxAge); n > 0 {
 		slog.Info("swept stale work directories", "removed", n)
 	}

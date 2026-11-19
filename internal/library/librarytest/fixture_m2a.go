@@ -47,9 +47,11 @@ func addM2a(tb testing.TB, st *store.Store, now time.Time, fx Fixtures) Fixtures
 	fx.Devices = append(fx.Devices, DevicePaired)
 
 	// Ratings: Luna human 5 + agent 2; Citta human 3; TwinA agent 4 only.
+	withRater := hasRater(st.R)
 	rate := func(track, source string, stars int, verdict any, kind, id, name string) {
-		mustExec(tb, st, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`, track, source, stars, verdict, kind, id, name, at(-3*time.Hour), at(-2*time.Hour))
+		rc, rv := raterSQL(withRater, source)
+		mustExec(tb, st, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at`+rc+`)
+			VALUES (?,?,?,?,?,?,?,?,?`+rv+`)`, track, source, stars, verdict, kind, id, name, at(-3*time.Hour), at(-2*time.Hour))
 	}
 	rate(TrackLuna, "human", 5, "Synthetic keeper", "human", FixtureHuman, "fixture")
 	rate(TrackLuna, "agent", 2, "Synthetic critic note", "agent", FixtureAgent, "fixture-agent")

@@ -187,8 +187,7 @@ func TestSubsonic_RecordAlbum_ListAggregates(t *testing.T) {
 	e := newRecEnv(t)
 	r1 := "rec-" + e.record("Synthetic Record One")
 	a1 := e.one(`SELECT id FROM tracks WHERE title = 'Synthetic Take A1'`)
-	e.sql(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at)
-		VALUES (?, 'human', 5, 'human', 'human:op', 'op', '2026-10-15T10:00:00Z', '2026-10-15T10:00:00Z')`, a1)
+	e.sql(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 5, 'human', 'human:op', 'op', '2026-10-15T10:00:00Z', '2026-10-15T10:00:00Z','owner')`, a1)
 	e.sql(`INSERT INTO listen_events(id, track_id, session_id, kind, from_ms, source, principal_kind, principal_id, client_at, received_at)
 		VALUES ('00000000-0000-4000-8000-000000000501', ?, 'session-12345678', 'start', 0, 'web', 'device', 'device:d', '2999-01-01T00:00:00Z', '2999-01-01T00:00:00Z')`, a1)
 	// the Record's Takes hold the newest listen and a 5-star rating: the aggregates are those of its Takes (the same

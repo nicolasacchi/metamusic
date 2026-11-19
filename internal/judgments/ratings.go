@@ -3,6 +3,7 @@ package judgments
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -30,8 +31,10 @@ func (s *Service) requireTrack(ctx context.Context, trackID string) error {
 	return nil
 }
 
-// Rate sets or clears the caller's rating. The source comes from the principal
-// only: a human or device rates as the operator, anything else as the critic.
+// Rate sets or clears the caller's own rating. The source and the rater come from the principal only (C306.5): a human
+// or device rates as its user (RaterKey: "owner" for the Owner and the Owner's devices, the username for any other user),
+// an agent as the critic, and a principal that cannot rate (system, anonymous) is refused. The result is the unshaped
+// rating set; the caller shapes it for the viewer (library.ShapeRating).
 func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, stars *int, verdict *string) (TrackRating, error) {
 	if stars != nil && (*stars < 1 || *stars > 5) {
 		return TrackRating{}, inv("stars", "must be 1..5 or null")
@@ -53,6 +56,10 @@ func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, st
 	if stars != nil {
 		st = *stars
 	}
+	rater := auth.RaterKey(p)
+	if rater == "" {
+		return TrackRating{}, &Error{Status: http.StatusForbidden, Code: "CANNOT_RATE", Msg: "this principal cannot rate"}
+	}
 	if err := s.requireTrack(ctx, trackID); err != nil {
 		return TrackRating{}, err
 	}
@@ -61,17 +68,17 @@ func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, st
 		source = "human"
 	}
 	now := s.stamp()
-	if _, err := s.st.W.ExecContext(ctx, `INSERT INTO ratings(track_id,source,stars,verdict,principal_kind,principal_id,principal_name,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(track_id,source) DO UPDATE SET stars=excluded.stars, verdict=excluded.verdict,
+	if _, err := s.st.W.ExecContext(ctx, `INSERT INTO ratings(track_id,source,rater,stars,verdict,principal_kind,principal_id,principal_name,created_at,updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(track_id,source,rater) DO UPDATE SET stars=excluded.stars, verdict=excluded.verdict,
 		principal_kind=excluded.principal_kind, principal_id=excluded.principal_id,
 		principal_name=excluded.principal_name, updated_at=excluded.updated_at`,
-		trackID, source, st, v, string(p.Kind), p.Key(), p.Name, now, now); err != nil {
+		trackID, source, rater, st, v, string(p.Kind), p.Key(), p.Name, now, now); err != nil {
 		return TrackRating{}, fmt.Errorf("judgments: rate: %w", err)
 	}
 	return s.Ratings(ctx, trackID)
 }
 
-// Ratings returns both rating rows of a track.
+// Ratings returns a track's unshaped rating set (library.Ratings).
 func (s *Service) Ratings(ctx context.Context, trackID string) (TrackRating, error) {
 	return s.lib.Ratings(ctx, trackID)
 }

@@ -15,11 +15,38 @@ type RatingRow struct {
 	UpdatedAt string            `json:"updated_at" doc:"RFC 3339 UTC"`
 }
 
-// TrackRating holds both rating rows; the human row is canonical.
+// OtherRating is another user's rating of a track, shown to the Owner only (C306.4).
+type OtherRating struct {
+	User      string  `json:"user"` // the rater's name; a name no longer configured is a former user
+	Stars     *int    `json:"stars"`
+	Verdict   *string `json:"verdict"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
+// RatingAverage is the mean of every user's stars on a track (Owner and Editor only, D-U1-16).
+type RatingAverage struct {
+	Mean float64 `json:"mean"` // of the rated stars, two decimals
+	N    int     `json:"n"`    // how many users gave stars
+}
+
+// RaterRow is one human rater's row, the unshaped input of ShapeRating. It is never serialised.
+type RaterRow struct {
+	Rater string
+	Row   RatingRow
+}
+
+// TrackRating is a track's ratings as one viewer may see them (C306.4). Mine is the viewer's own row; Human is a deprecated
+// alias of it (for the Owner's wire value, unchanged) kept for one release; Others, Average and Critic depend on the
+// viewer's role (ShapeRating). A value that comes out of the library before ShapeRating carries every rater in Raters
+// (never serialised) and must be shaped before it is rendered.
 type TrackRating struct {
-	TrackID string     `json:"track_id"`
-	Human   *RatingRow `json:"human" doc:"The operator rating (canonical); null when none"`
-	Critic  *RatingRow `json:"critic" doc:"The agent rating; null when none"`
+	TrackID string         `json:"track_id"`
+	Mine    *RatingRow     `json:"mine" doc:"Your own rating; null when none"`
+	Human   *RatingRow     `json:"human" doc:"Deprecated alias of mine"`
+	Others  []OtherRating  `json:"others,omitempty"`
+	Average *RatingAverage `json:"average,omitempty"`
+	Critic  *RatingRow     `json:"critic" doc:"The agent rating; null when none"`
+	Raters  []RaterRow     `json:"-"`
 }
 
 // TagRef is one effective tag with the sources that carry it.

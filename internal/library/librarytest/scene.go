@@ -205,8 +205,10 @@ func (s *Scene) Source(recipeID, runID string, line int) {
 // Rate inserts or updates the human rating of a take.
 func (s *Scene) Rate(track string, stars int) {
 	s.TB.Helper()
-	s.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'human',?,'human','human:h','h',?,?)
-		ON CONFLICT(track_id, source) DO UPDATE SET stars = excluded.stars`, track, stars, s.At(3), s.At(3))
+	has := hasRater(s.St.R)
+	rc, rv := raterSQL(has, "human")
+	s.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at`+rc+`) VALUES(?,'human',?,'human','human:h','h',?,?`+rv+`)
+		ON CONFLICT(`+raterConflict(has)+`) DO UPDATE SET stars = excluded.stars`, track, stars, s.At(3), s.At(3))
 }
 
 // Status sets a take's status (draft | to_relisten | final | discarded).

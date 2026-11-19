@@ -263,7 +263,7 @@ func TestNextActions_Rules_Table(t *testing.T) {
 		}
 		// rating its one take makes the Song judged and the item goes away on the next call
 		take := str(t, r, `SELECT root_track_id FROM songs WHERE title = 'Synthetic Song u1'`)
-		exec(t, r, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'human',4,'human','human:fixture','fixture',?,?)`, take, "2026-10-06T10:00:00Z", "2026-10-06T10:00:00Z")
+		exec(t, r, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'human',4,'human','human:fixture','fixture',?,?,'owner')`, take, "2026-10-06T10:00:00Z", "2026-10-06T10:00:00Z")
 		if slices.Contains(subjects(byCode(list(t, r, agent, nextactions.Filter{}), "muse_unjudged")), m4) {
 			t.Error("a rated Muse is still unjudged")
 		}
