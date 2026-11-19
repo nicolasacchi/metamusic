@@ -69,7 +69,7 @@ func registerJudgments(a huma.API, d Deps) {
 	Register(a, withBody(huma.Operation{
 		OperationID: "rate_track", Method: "PUT", Path: "/api/tracks/{id}/rating",
 		Summary:     "Rate a track",
-		Description: "Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
+		Description: "Sets or clears your own 1-5 star rating and short verdict; agent ratings are kept apart as the critic.",
 	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *rateTrackIn) (*ratingOut, error) {
 			if d.Judgments == nil {

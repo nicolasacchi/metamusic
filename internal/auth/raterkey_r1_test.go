@@ -21,6 +21,8 @@ func TestRaterKey_Devices(t *testing.T) {
 		{"owner device with owner role", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleOwner, User: "alice"}, "owner"},
 		{"listener device", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleListener, User: "carol"}, "carol"},
 		{"editor device", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleEditor, User: "bob"}, "bob"},
+		{"editor role without user fails closed", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleEditor}, ""},
+		{"listener role without user fails closed", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleListener}, ""},
 		{"agent", auth.Principal{Kind: auth.KindAgent}, "critic"},
 		{"system", auth.Principal{Kind: auth.KindSystem}, ""},
 		{"anonymous", auth.Principal{}, ""},

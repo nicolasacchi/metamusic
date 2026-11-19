@@ -56,12 +56,12 @@ func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, st
 	if stars != nil {
 		st = *stars
 	}
-	if err := s.requireTrack(ctx, trackID); err != nil {
-		return TrackRating{}, err
-	}
 	rater := auth.RaterKey(p)
 	if rater == "" {
 		return TrackRating{}, &Error{Status: http.StatusForbidden, Code: "CANNOT_RATE", Msg: "this principal cannot rate"}
+	}
+	if err := s.requireTrack(ctx, trackID); err != nil {
+		return TrackRating{}, err
 	}
 	source := "agent"
 	if p.IsPerson() {
