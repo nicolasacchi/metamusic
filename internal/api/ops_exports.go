@@ -114,7 +114,7 @@ func registerExports(a huma.API, d Deps) {
 		OperationID: "get_export", Method: "GET", Path: "/api/exports/{id}",
 		Summary:     "Get an export",
 		Description: "An earlier export with a fresh download link; 410 once the file was swept (create a new export).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/export"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/export", OwnerOnly: true},
 		func(ctx context.Context, in *exportIDIn) (*exportOut, error) {
 			if d.Exports == nil {
 				return nil, unavailable("exports")

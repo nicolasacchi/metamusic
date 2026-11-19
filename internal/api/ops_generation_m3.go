@@ -285,7 +285,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create a generation batch",
 		Description: spendNote + "Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
 		func(ctx context.Context, in *createGenerationIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -329,7 +329,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create variants of a track",
 		Description: spendNote + "Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
 		func(ctx context.Context, in *createVariantIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")

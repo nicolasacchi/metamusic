@@ -98,9 +98,13 @@ var (
 		"list_subsonic_clients",
 		"revoke_device",
 		"revoke_subsonic_client",
+		// Fail-closed until the lanes that own their redaction or service guards land (review of F1b).
+		"get_budget", "create_generation", "create_variant", "update_track", "put_device_profile",
+		"get_stats", "list_batches", "get_batch", "list_jobs", "get_job", "get_track_context", "get_export", "update_record",
 	}
 	// Agent-facing or self-service ops that must stay untagged (C305, D-U1-6).
-	f1bNotOwnerOnly = []string{"propose_pick", "revoke_own_device", "revoke_own_token", "update_track", "get_budget", "get_adherence", "rate_track"}
+	f1bNotOwnerOnly = []string{"propose_pick", "revoke_own_device", "revoke_own_token", "get_adherence", "rate_track", "cancel_batch", "cancel_job", "export_jsonl", "create_transform", "request_approval", "set_tags"}
+	// Editor-open ops are intentionally scope-gated only; their service guards belong to later lanes.
 )
 
 func f1bSpecMeta(t *testing.T) map[string]api.Meta {
@@ -134,13 +138,19 @@ func TestF1bTagging(t *testing.T) {
 	t.Parallel()
 	metas := f1bSpecMeta(t)
 	for _, id := range f1bListen {
-		if m, ok := metas[id]; !ok || m.Scope != auth.ScopeListen {
-			t.Errorf("%s: want scope listen, got %q (registered %v)", id, m.Scope, ok)
+		m, ok := metas[id]
+		if !ok {
+			t.Errorf("%s: not registered", id)
+		} else if m.Scope != auth.ScopeListen {
+			t.Errorf("%s: want scope listen, got %q", id, m.Scope)
 		}
 	}
 	for _, id := range f1bRate {
-		if m, ok := metas[id]; !ok || m.Scope != auth.ScopeRate {
-			t.Errorf("%s: want scope rate, got %q (registered %v)", id, m.Scope, ok)
+		m, ok := metas[id]
+		if !ok {
+			t.Errorf("%s: not registered", id)
+		} else if m.Scope != auth.ScopeRate {
+			t.Errorf("%s: want scope rate, got %q", id, m.Scope)
 		}
 	}
 	for _, id := range f1bOwnerOnly {
@@ -179,7 +189,7 @@ func TestF1bEditorListenerFailClosed(t *testing.T) {
 			t.Errorf("%s: listener passes scope %s", id, m.Scope)
 		}
 	}
-	for _, id := range []string{"search_tracks", "whoami", "ping", "rate_track", "log_listen_events", "put_device_profile"} {
+	for _, id := range []string{"search_tracks", "whoami", "ping", "rate_track", "log_listen_events"} {
 		m := f1bSpecMeta(t)[id]
 		if pr := api.Permitted(listener, m); pr != nil {
 			t.Errorf("%s: listener refused: %v", id, pr.Code)

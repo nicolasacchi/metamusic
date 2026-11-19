@@ -13,7 +13,7 @@ func registerStats(a huma.API, d Deps) {
 		OperationID: "get_stats", Method: "GET", Path: "/api/stats",
 		Summary:     "Get library statistics",
 		Description: "Counts of tracks, drafts and recipes, loudness spread (listen_flac_recommended when above 2 LU), bandwidth, storage and import runs.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*statsOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")

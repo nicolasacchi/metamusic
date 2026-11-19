@@ -13,7 +13,7 @@ func registerContext(a huma.API, d Deps) {
 		OperationID: "get_track_context", Method: "GET", Path: "/api/tracks/{id}/context",
 		Summary:     "Get a track's context bundle",
 		Description: "Everything needed to critique and regenerate one take in a single size-bounded document: recipe, score, lineage, comments, perception and next actions. The _budget key reports the size.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id", OwnerOnly: true},
 		func(ctx context.Context, in *contextIn) (*contextOut, error) {
 			if d.Context == nil {
 				return nil, unavailable("context")

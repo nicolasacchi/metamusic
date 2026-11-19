@@ -18,7 +18,7 @@ func registerDevices(a huma.API, d Deps) {
 		OperationID: "put_device_profile", Method: "PUT", Path: "/api/device-profiles/{device_id}",
 		Summary:     "Create or update a device profile",
 		Description: "Upserts the playback profile of one client device (preferred quality and the FLAC probe result). Idempotent.",
-	}, Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "generic", UI: "/settings"},
+	}, Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "generic", UI: "/settings", OwnerOnly: true},
 		func(ctx context.Context, in *putDeviceProfileIn) (*deviceProfileOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")

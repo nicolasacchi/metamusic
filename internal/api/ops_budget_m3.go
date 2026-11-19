@@ -100,7 +100,7 @@ func registerBudgetM3(a huma.API, d Deps) {
 		OperationID: "get_budget", Method: "GET", Path: "/api/budget",
 		Summary:     "Get what you may still spend",
 		Description: "The caps, this month's and today's use, your auto-approve limits, the provider balance when readable, and whether generation is enabled.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs", OwnerOnly: true},
 		func(ctx context.Context, in *struct{}) (*budgetOut, error) {
 			if d.Spend == nil {
 				return nil, unavailable("spend")

@@ -86,7 +86,7 @@ func registerJudgments(a huma.API, d Deps) {
 		OperationID: "update_track", Method: "PATCH", Path: "/api/tracks/{id}",
 		Summary:     "Update a track",
 		Description: "Changes the title and/or the status (draft, to_relisten, final, discarded). The audio is never touched.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id", OwnerOnly: true},
 		func(ctx context.Context, in *updateTrackIn) (*trackDetailOut, error) {
 			if d.Judgments == nil || d.Library == nil {
 				return nil, unavailable("judgments")
