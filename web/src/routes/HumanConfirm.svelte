@@ -3,7 +3,7 @@
   import type { components } from "../api/schema";
   import { formatMicroUSD, formatMicroUSDCeil } from "../lib/money";
   import { pushToast } from "../lib/judge.svelte";
-  import { approvals } from "../lib/approvals.svelte";
+  import { me } from "../lib/me.svelte";
   import { stepUpExpired } from "../lib/approvals";
 
   type Batch = components["schemas"]["Batch"];
@@ -42,7 +42,7 @@
     const t = setInterval(() => (now = Date.now()), 15_000);
     return () => clearInterval(t);
   });
-  const confirmNeeded = $derived(stepUpExpired(approvals.stepUpUntil, now));
+  const confirmNeeded = $derived(stepUpExpired(me.stepUpUntil, now));
 
   const pending = $derived(b?.state === "awaiting_confirmation");
 

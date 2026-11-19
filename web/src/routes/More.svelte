@@ -1,36 +1,35 @@
 <script lang="ts">
   import { api } from "../api/client";
   import type { components } from "../api/schema";
-  import { NAV_LINKS } from "../lib/nav";
+  import { NAV_LINKS, linkVisible } from "../lib/nav";
+  import { can, me } from "../lib/me.svelte";
     import { offline } from "../lib/offline.svelte";
-  import { approvals } from "../lib/approvals.svelte";
+  import { approvals, showsApprovalBadge } from "../lib/approvals.svelte";
   import { badgeText } from "../lib/approvals";
   import LockIcon from "../lib/components/icons/LockIcon.svelte";
 
-  type Whoami = components["schemas"]["WhoamiOutBody"];
   type Ping = components["schemas"]["PingOutBody"];
 
-  let me = $state<Whoami | null>(null);
   let ping = $state<Ping | null>(null);
   let aboutError = $state("");
 
   $effect(() => {
     void (async () => {
-      const [m, p] = await Promise.allSettled([api.GET("/api/me"), api.GET("/api/ping")]);
-      if (m.status === "fulfilled" && m.value.data) me = m.value.data;
+      const [p] = await Promise.allSettled([api.GET("/api/ping")]);
       if (p.status === "fulfilled" && p.value.data) ping = p.value.data;
-      if (!me || !ping) aboutError = "Failed to load";
+      if (!me.loaded || !ping) aboutError = "Failed to load";
     })();
   });
 
   const GROUPS = ["Make", "Library tools", "Settings", "Secure"] as const;
-  const rows = (g: string) => NAV_LINKS.filter((l) => l.group === g && (l.path !== "/offline" || offline.available));
-  const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
+  const rows = (g: string) => NAV_LINKS.filter((l) => l.group === g && linkVisible(l, can) && (l.path !== "/offline" || offline.available));
+  const approvalBadge = $derived(showsApprovalBadge() ? badgeText(approvals.items.length, approvals.more) : null);
 </script>
 
 <h1>More</h1>
 
 {#each GROUPS as g (g)}
+  {#if rows(g).length > 0}
   <section aria-labelledby="more-{g.replace(' ', '-')}" data-testid="more-group">
     <h2 id="more-{g.replace(' ', '-')}">{g}</h2>
     <ul>
@@ -52,13 +51,14 @@
       {/each}
     </ul>
   </section>
+  {/if}
 {/each}
 
 <section aria-labelledby="more-About" data-testid="more-about">
   <h2 id="more-About">About</h2>
   <div class="about" aria-label="Status">
-    <span>Identity <b data-testid="identity">{me ? me.name : "…"}</b></span>
-    <span>Access <b data-testid="via">{me ? `${me.kind} via ${me.via} (${me.scopes.join(", ")})` : "…"}</b></span>
+    <span>Identity <b data-testid="identity">{me.loaded ? me.name : "…"}</b></span>
+    <span>Access <b data-testid="via">{me.loaded ? `${me.kind} via ${me.via} (${me.scopes.join(", ")})` : "…"}</b></span>
     <span>Server <b data-testid="version">{ping ? `${ping.ok ? "ok" : "down"} ${ping.version}` : "…"}</b></span>
   </div>
   {#if aboutError}<p role="alert">{aboutError}</p>{/if}

@@ -14,21 +14,37 @@ export type ConfirmOutcome =
   | { kind: "network" }
   | { kind: "failed"; status: number; code: string; message: string; details: Record<string, unknown> };
 
-export function confirmButtonLabel(e: Estimate): string {
-  return `Spend up to ${formatMicroUSDCeil(e.cost.ceiling_micro_usd)}`;
+/**
+ * An estimate as any role may receive it. The Owner gets everything; an Editor's estimate may omit the provider and
+ * budget blocks (U1 E1, C310.5: no month cap or usage), so those two are optional here and every reader tolerates it.
+ */
+export type EstimateLike = Omit<Estimate, "budget" | "provider"> & { budget?: Estimate["budget"]; provider?: Estimate["provider"] };
+
+/** human: the Owner's confirmation spends at once (/human/api). request: an Editor's request waits for the Owner (/api, create_generation). */
+export type ConfirmVia = "human" | "request";
+
+/** The path a caller confirms through: the Owner keeps the human path, anyone else requests approval. */
+export function confirmViaFor(can: (op: string) => boolean): ConfirmVia {
+  return can("create_generation_human") ? "human" : "request";
+}
+
+export function confirmButtonLabel(e: EstimateLike, via: ConfirmVia = "human"): string {
+  const up = formatMicroUSDCeil(e.cost.ceiling_micro_usd);
+  return via === "request" ? `Request approval (up to ${up})` : `Spend up to ${up}`;
 }
 
 /**
  * One user click: the returned function may be called again to retry after a network error and
  * always sends the same Idempotency-Key. A new click makes a new action (a fresh key).
  */
-export function createConfirmAction(api: Api, token: string, rationale: string): () => Promise<ConfirmOutcome> {
+export function createConfirmAction(api: Api, token: string, rationale: string, via: ConfirmVia = "human"): () => Promise<ConfirmOutcome> {
   return idempotentAction(async (key): Promise<ConfirmOutcome> => {
     try {
-      const r = await api.POST("/human/api/generations", {
+      const init = {
         params: { header: { "Idempotency-Key": key } },
         body: { confirmation_token: token, ...(rationale.trim() ? { rationale: rationale.trim() } : {}) },
-      });
+      };
+      const r = via === "request" ? await api.POST("/api/generations", init) : await api.POST("/human/api/generations", init);
       if (r.data) return { kind: "created", batchId: r.data.id };
       const status = r.response.status;
       const details = (r.error?.details ?? {}) as Record<string, unknown>;
@@ -75,13 +91,17 @@ export function describeConfirmFailure(f: Extract<ConfirmOutcome, { kind: "faile
 }
 
 /** Why Confirm must be disabled for this estimate; empty when it may be pressed (C84, M3-W1 Done). */
-export function confirmDisabledReasons(e: Estimate): string[] {
+export function confirmDisabledReasons(e: EstimateLike): string[] {
   const out: string[] = [];
   const errs = e.warnings.filter((w) => w.severity === "error").length;
   if (errs > 0) out.push(`${errs} error${errs === 1 ? "" : "s"} in the plan must be fixed first.`);
-  if (!e.provider.generation_enabled) out.push(`Generation is disabled${e.provider.disabled_reason ? ` (${e.provider.disabled_reason})` : ""}.`);
-  if (!e.provider.armed) out.push("The provider is disarmed.");
-  if (e.provider.tripped) out.push("The provider is tripped.");
-  if (!e.budget.fits) out.push(`Over budget: ${e.budget.would_exceed.length ? e.budget.would_exceed.join(", ") + " cap" : "cap"} would be exceeded.`);
+  const p = e.provider;
+  if (p) {
+    if (!p.generation_enabled) out.push(`Generation is disabled${p.disabled_reason ? ` (${p.disabled_reason})` : ""}.`);
+    if (!p.armed) out.push("The provider is disarmed.");
+    if (p.tripped) out.push("The provider is tripped.");
+  }
+  const b = e.budget;
+  if (b && !b.fits) out.push(`Over budget: ${b.would_exceed.length ? b.would_exceed.join(", ") + " cap" : "cap"} would be exceeded.`);
   return out;
 }

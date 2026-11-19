@@ -1,15 +1,16 @@
 <script lang="ts">
   import { subActive, subLinks, type Tab } from "../../nav";
+  import { can } from "../../me.svelte";
 
   interface Props {
     tab: Tab;
     routeName: string | null | undefined;
   }
   let { tab, routeName }: Props = $props();
-  const links = $derived(subLinks(tab));
+  const links = $derived(subLinks(tab, can));
 </script>
 
-{#if links.length > 0}
+{#if links.length > 1}
   <nav class="sub" aria-label="{tab === 'library' ? 'Library' : 'Judge'} views" data-testid="subnav">
     {#each links as l (l.path)}
       {@const on = subActive(l, routeName)}

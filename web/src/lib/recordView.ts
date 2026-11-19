@@ -11,6 +11,8 @@ export type RecordStatus = S["Record"]["status"];
 export interface Viewer {
   kind: "human" | "agent" | "device";
   scopes: readonly string[];
+  /** whoami.allowed_ops (C313.2). When present it decides; the kind and scopes rules are the fallback for callers without it. */
+  allowed?: readonly string[];
 }
 
 /**
@@ -18,13 +20,16 @@ export interface Viewer {
  * (human or paired device, like the server's ActsAsHuman) only; everything needs the write scope.
  */
 export function canEdit(viewer: Viewer | null, record: { status: RecordStatus }): boolean {
-  if (!viewer || !viewer.scopes.includes("write")) return false;
+  if (!viewer) return false;
+  if (viewer.allowed) return viewer.allowed.includes(record.status === "published" ? "update_record" : "edit_record_slots");
+  if (!viewer.scopes.includes("write")) return false;
   if (record.status === "published") return viewer.kind === "human" || viewer.kind === "device";
   return true;
 }
 
 /** Publishing (and the secure page) is for a human principal only. */
 export function canPublish(viewer: Viewer | null): boolean {
+  if (viewer?.allowed) return viewer.allowed.includes("publish_record");
   return viewer !== null && viewer.kind === "human" && viewer.scopes.includes("write");
 }
 

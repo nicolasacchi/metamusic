@@ -3,6 +3,7 @@
 import { api } from "../api/client";
 import { approvals } from "./approvals.svelte";
 import { getDevice } from "./device.svelte";
+import { can } from "./me.svelte";
 import {
   badgeFor,
   clock,
@@ -91,10 +92,11 @@ export async function refreshInboxBadge(): Promise<void> {
   const seen = inbox.seenAt;
   const [t, d, s, r, x] = await Promise.allSettled([
     api.GET("/api/tracks", { params: { query: { recorded_from: seen, sort: "recorded_asc", limit: 50 } } }),
-    api.GET("/api/duels", { params: { query: { state: ["open"], limit: 1 } } }),
-    api.GET("/api/songs", { params: { query: { has_open_proposals: true, limit: 1 } } }),
-    api.GET("/api/records", { params: { query: { status: ["proposed"], limit: 1 } } }),
-    api.GET("/api/taxonomy-proposals", { params: { query: { state: ["open"], limit: 1 } } }),
+    // Only what the caller may read is asked for (C313.3): a refused call would be a 403 on every poll.
+    can("list_duels") ? api.GET("/api/duels", { params: { query: { state: ["open"], limit: 1 } } }) : Promise.reject(new Error("not allowed")),
+    can("list_songs") ? api.GET("/api/songs", { params: { query: { has_open_proposals: true, limit: 1 } } }) : Promise.reject(new Error("not allowed")),
+    can("list_records") ? api.GET("/api/records", { params: { query: { status: ["proposed"], limit: 1 } } }) : Promise.reject(new Error("not allowed")),
+    can("list_taxonomy_proposals") ? api.GET("/api/taxonomy-proposals", { params: { query: { state: ["open"], limit: 1 } } }) : Promise.reject(new Error("not allowed")),
   ]);
   if (mine !== flight) return;
   if (t.status === "fulfilled" && t.value.data) {
