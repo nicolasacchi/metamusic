@@ -55,15 +55,16 @@ func capsFrom(viewer auth.Principal, v generation.CapsView) CapsView {
 
 func budgetFrom(viewer auth.Principal, v generation.BudgetView) Budget {
 	m, d := v.Month, v.Day
+	caps := capsFrom(viewer, v.Caps)
 	return Budget{
-		Caps: capsFrom(viewer, v.Caps),
-		Month: BudgetMonth{Start: store.FormatTime(m.Start), SettledMicroUSD: int64(m.Settled), SettledUSD: usd(m.Settled),
+		Caps: &caps,
+		Month: &BudgetMonth{Start: store.FormatTime(m.Start), SettledMicroUSD: int64(m.Settled), SettledUSD: usd(m.Settled),
 			BillAdjustmentsMicroUSD: int64(m.BillAdjustments), BillAdjustmentsUSD: usd(m.BillAdjustments), OutstandingMicroUSD: int64(m.Outstanding), OutstandingUSD: usd(m.Outstanding),
 			CapMicroUSD: int64(m.Cap), CapUSD: usd(m.Cap), LeftMicroUSD: int64(m.Left), LeftUSD: usd(m.Left)},
-		Day: BudgetDay{Principal: refOf(viewer, d.Principal), SettledMicroUSD: int64(d.Settled), SettledUSD: usd(d.Settled),
+		Day: &BudgetDay{Principal: refOf(viewer, d.Principal), SettledMicroUSD: int64(d.Settled), SettledUSD: usd(d.Settled),
 			OutstandingMicroUSD: int64(d.Outstanding), OutstandingUSD: usd(d.Outstanding), CapMicroUSD: int64(d.Cap), CapUSD: usd(d.Cap), LeftMicroUSD: int64(d.Left), LeftUSD: usd(d.Left)},
-		AutoApprove: AutoApprove{Takes: v.AutoApproveTakes, MicroUSD: int64(v.AutoApprove), USD: usd(v.AutoApprove)},
-		Balance:     Balance{Source: "unknown"},
+		AutoApprove: &AutoApprove{Takes: v.AutoApproveTakes, MicroUSD: int64(v.AutoApprove), USD: usd(v.AutoApprove)},
+		Balance:     &Balance{Source: "unknown"},
 		Provider:    providerBrief(v.Provider),
 	}
 }
@@ -100,7 +101,7 @@ func registerBudgetM3(a huma.API, d Deps) {
 		OperationID: "get_budget", Method: "GET", Path: "/api/budget",
 		Summary:     "Get what you may still spend",
 		Description: "The caps, this month's and today's use, your auto-approve limits, the provider balance when readable, and whether generation is enabled.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs", OwnerOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs"},
 		func(ctx context.Context, in *struct{}) (*budgetOut, error) {
 			if d.Spend == nil {
 				return nil, unavailable("spend")
@@ -109,6 +110,13 @@ func registerBudgetM3(a huma.API, d Deps) {
 				return nil, unavailable("generation")
 			}
 			p := auth.FromContext(ctx)
+			if !p.IsOwnerSide() { // C305: an Editor sees the approval rule and whether generation is on, no amount
+				br, err := d.Generation.Brief(ctx, p)
+				if err != nil {
+					return nil, genErr(err)
+				}
+				return &budgetOut{Body: budgetBrief(br)}, nil
+			}
 			v, err := d.Generation.Budget(ctx, p)
 			if err != nil {
 				return nil, genErr(err)

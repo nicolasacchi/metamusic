@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { TABS, tabFor, type Tab } from "../../nav";
+  import { tabFor, visibleTabs, type Tab } from "../../nav";
+  import { can } from "../../me.svelte";
   import InboxIcon from "../icons/InboxIcon.svelte";
   import LibraryIcon from "../icons/LibraryIcon.svelte";
   import QueueIcon from "../icons/QueueIcon.svelte";
@@ -18,7 +19,7 @@
 
 <!-- One element: the fixed bottom tab bar on a phone, the single-row top nav on desktop. -->
 <nav aria-label="Main" class="tabs" data-testid="tabbar">
-  {#each TABS as t (t.id)}
+  {#each visibleTabs(can) as t (t.id)}
     {@const Icon = icons[t.id]}
     {@const b = badges[t.id]}
     <a href={t.path} class:active={current === t.id} aria-current={current === t.id ? "page" : undefined} data-testid="tab-{t.id}">

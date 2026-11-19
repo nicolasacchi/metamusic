@@ -81,4 +81,5 @@ export function decideErrorText(code: string | undefined, message: string | unde
 }
 
 /** decide_taxonomy_proposal is human-only: agents and devices see the list read-only. */
-export const canDecide = (me: Viewer | null): boolean => me !== null && me.kind === "human" && me.scopes.includes("write");
+export const canDecide = (me: Viewer | null): boolean =>
+  me !== null && (me.allowed ? me.allowed.includes("decide_taxonomy_proposal") : me.kind === "human" && me.scopes.includes("write"));

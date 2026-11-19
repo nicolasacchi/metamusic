@@ -237,7 +237,11 @@
     void refreshInboxBadge();
   }
 
-  const costOf = (b: Batch) => `${formatMicroUSD(b.cost.settled_micro_usd + b.cost.outstanding_micro_usd)} of up to ${formatMicroUSD(b.cost.ceiling_micro_usd)}`;
+  const costOf = (b: Batch) => {
+    const c = b.cost;
+    if (!c) return "";
+    return `${formatMicroUSD(c.settled_micro_usd + c.outstanding_micro_usd)} of up to ${formatMicroUSD(c.ceiling_micro_usd)}`;
+  };
 </script>
 
 <h1>New</h1>

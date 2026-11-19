@@ -146,7 +146,7 @@
 <ProviderBanner provider={budget?.provider ?? null} />
 {#if error}<p role="alert">{error}</p>{/if}
 <PendingApprovals />
-{#if budget}
+{#if budget?.month && budget.day}
   <section aria-label="Budget">
     <BudgetBar label="Month" settled={budget.month.settled_micro_usd} reserved={budget.month.outstanding_micro_usd} cap={budget.month.cap_micro_usd} />
     <BudgetBar label="Today" settled={budget.day.settled_micro_usd} reserved={budget.day.outstanding_micro_usd} cap={budget.day.cap_micro_usd} />

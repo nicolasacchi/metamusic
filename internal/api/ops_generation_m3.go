@@ -101,12 +101,15 @@ func estimateVia(p auth.Principal) string {
 // ---- output conversion ----
 
 func providerBrief(st provider.State) ProviderBrief {
-	b := ProviderBrief{GenerationEnabled: st.Enabled, Armed: st.Armed, Tripped: st.Tripped}
+	armed, tripped := st.Armed, st.Tripped
+	b := ProviderBrief{GenerationEnabled: st.Enabled, Armed: &armed, Tripped: &tripped}
 	if !st.Enabled {
 		b.DisabledReason = nonEmpty(st.Reason)
 	}
 	return b
 }
+
+func valPtr[T any](v T) *T { return &v }
 
 func potOut(p generation.Pot) Pot {
 	return Pot{CapMicroUSD: int64(p.Cap), CapUSD: usd(p.Cap), UsedMicroUSD: int64(p.Used), UsedUSD: usd(p.Used), LeftMicroUSD: int64(p.Left), LeftUSD: usd(p.Left)}
@@ -122,10 +125,10 @@ func estimateFrom(e generation.Estimate) Estimate {
 			AttemptOverheadMicroUSD: int64(e.Cost.AttemptOverhead), AttemptOverheadUSD: usd(e.Cost.AttemptOverhead),
 		},
 		ETAS:  e.ETAS,
-		Price: EstimatePrice{PerHourMicroUSD: int64(e.PricePerHour), PerHourUSD: usd(e.PricePerHour), GPUPools: append([]string{}, e.GPUPools...), ObservedAt: optStr(e.PriceObservedAt)},
+		Price: &EstimatePrice{PerHourMicroUSD: int64(e.PricePerHour), PerHourUSD: usd(e.PricePerHour), GPUPools: append([]string{}, e.GPUPools...), ObservedAt: optStr(e.PriceObservedAt)},
 		Items: []EstimateItem{}, Warnings: []EstimateWarning{}, RequiresHumanApproval: e.RequiresApproval, ApprovalReasons: append([]string{}, e.ApprovalReasons...),
-		Budget: EstimateBudget{Fits: e.Budget.Fits, WouldExceed: append([]string{}, e.Budget.WouldExceed...), Month: potOut(e.Month), Day: potOut(e.Day),
-			BatchCapMicroUSD: int64(e.BatchCap), BatchCapUSD: usd(e.BatchCap)},
+		Budget: EstimateBudget{Fits: e.Budget.Fits, WouldExceed: append([]string{}, e.Budget.WouldExceed...), Month: valPtr(potOut(e.Month)), Day: valPtr(potOut(e.Day)),
+			BatchCapMicroUSD: valPtr(int64(e.BatchCap)), BatchCapUSD: valPtr(usd(e.BatchCap))},
 		Provider: providerBrief(e.Provider),
 	}
 	for _, it := range e.Items {
@@ -180,16 +183,16 @@ func jobSummaryFrom(j generation.JobView) JobSummary {
 	}
 	return JobSummary{ID: j.ID, BatchID: j.BatchID, TakeIndex: j.TakeIndex, State: j.State, Outcome: j.Outcome, ErrorCode: j.ErrorCode, Title: j.Title,
 		RequestID: j.RequestID, Seed: j.Seed, Operator: j.Operator, ParentTrackID: j.ParentTrackID, DraftID: j.DraftID, TrackID: j.TrackID,
-		CreatedAt: store.FormatTime(j.CreatedAt), UpdatedAt: store.FormatTime(j.UpdatedAt), Cost: c, Task: nonEmpty(j.Task), Stem: nonEmpty(j.Stem)}
+		CreatedAt: store.FormatTime(j.CreatedAt), UpdatedAt: store.FormatTime(j.UpdatedAt), Cost: &c, Task: nonEmpty(j.Task), Stem: nonEmpty(j.Stem)}
 }
 
 func batchFrom(viewer auth.Principal, c generation.Created) Batch {
 	b := Batch{BatchSummary: BatchSummary{
-		ID: c.BatchID, State: c.State, Via: c.Via, CreatedBy: refOf(viewer, c.CreatedBy), CreatedAt: store.FormatTime(c.CreatedAt), FinishedAt: optStr(c.FinishedAt),
+		ID: c.BatchID, State: c.State, Via: c.Via, CreatedBy: valPtr(refOf(viewer, c.CreatedBy)), CreatedAt: store.FormatTime(c.CreatedAt), FinishedAt: optStr(c.FinishedAt),
 		Rationale: c.Rationale, Takes: c.Takes,
 		Counts: BatchCounts{Awaiting: c.Counts.Awaiting, Queued: c.Counts.Queued, Running: c.Counts.Running, Completed: c.Counts.Completed, Truncated: c.Counts.Truncated,
 			Failed: c.Counts.Failed, Cancelled: c.Counts.Cancelled, Expired: c.Counts.Expired},
-		Cost: BatchCost{ExpectedMicroUSD: int64(c.Expected), ExpectedUSD: usd(c.Expected), MaxMicroUSD: int64(c.Max), MaxUSD: usd(c.Max),
+		Cost: &BatchCost{ExpectedMicroUSD: int64(c.Expected), ExpectedUSD: usd(c.Expected), MaxMicroUSD: int64(c.Max), MaxUSD: usd(c.Max),
 			CeilingMicroUSD: int64(c.Ceiling), CeilingUSD: usd(c.Ceiling), ReservedMicroUSD: int64(c.Reserved), ReservedUSD: usd(c.Reserved),
 			SettledMicroUSD: int64(c.Settled), SettledUSD: usd(c.Settled), OutstandingMicroUSD: int64(c.Outstanding), OutstandingUSD: usd(c.Outstanding), Reconciled: c.Reconciled},
 		Approval: approvalFrom(viewer, c.Approval), EstimateID: c.EstimateID,
@@ -197,6 +200,7 @@ func batchFrom(viewer auth.Principal, c generation.Created) Batch {
 	for _, j := range c.Jobs {
 		b.Jobs = append(b.Jobs, jobSummaryFrom(j))
 	}
+	redactBatch(viewer, c.CreatedBy.Key, &b)
 	return b
 }
 
@@ -277,7 +281,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 			if err != nil {
 				return nil, genErr(err)
 			}
-			return &estimateOut{Body: estimateFrom(e)}, nil
+			return &estimateOut{Body: redactEstimate(p, estimateFrom(e))}, nil
 		})
 
 	Register(a, withBody(created(huma.Operation{
@@ -285,7 +289,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create a generation batch",
 		Description: spendNote + "Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
 		func(ctx context.Context, in *createGenerationIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -321,7 +325,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 			if err != nil {
 				return nil, genErr(err)
 			}
-			return &estimateOut{Body: estimateFrom(e)}, nil
+			return &estimateOut{Body: redactEstimate(p, estimateFrom(e))}, nil
 		})
 
 	Register(a, withBody(created(huma.Operation{
@@ -329,7 +333,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create variants of a track",
 		Description: spendNote + "Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
 		func(ctx context.Context, in *createVariantIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")

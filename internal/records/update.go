@@ -6,10 +6,14 @@ import (
 	"fmt"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
 // requireEditable is the principal rule of D-L2-4: a published Record is edited by a human (or a paired device) only.
 func requireEditable(p auth.Principal, rec Record) error {
+	if rec.Status == StatusPublished && p.IsPerson() && !p.IsOwnerSide() { // an Editor edits drafts only (C305): the Owner edits a published one
+		return problem.OwnerOnly("editing a published record")
+	}
 	if rec.Status == StatusPublished && !(p.IsPerson() && p.IsOwnerSide()) {
 		return errHumanOnly("published records are edited by a human")
 	}

@@ -24,13 +24,15 @@
     if (onplay) onplay(id);
     else player.play(id, [id], { title: job.title });
   }
-  const amount = $derived(job.cost.display_micro_usd ?? job.cost.expected_micro_usd);
+  // cost is omitted for another user's job when the viewer is an Editor: show a dash, never throw.
+  const cost = $derived(job.cost);
+  const amount = $derived(cost ? (cost.display_micro_usd ?? cost.expected_micro_usd) : null);
 </script>
 
 <tr data-testid="job-row" data-state={job.state}>
   <td><a href="/jobs/{job.id}">{job.title || job.id}</a></td>
   <td><span class="chip {stateTone(job.state)}" data-testid="job-state">{stateLabel(job.state)}</span>{#if job.error_code} <code>{job.error_code}</code>{/if}</td>
-  <td data-testid="job-cost">{formatMicroUSD(amount)} <span class="muted">{job.cost.basis}</span></td>
+  <td data-testid="job-cost">{#if cost && amount !== null}{formatMicroUSD(amount)} <span class="muted">{cost.basis}</span>{:else}—{/if}</td>
   <td>{#if batchLink}<a href="/batches/{job.batch_id}">batch</a>{/if}</td>
   <td>
     {#if playable}

@@ -6,6 +6,7 @@ export const RECEIPT_GAP_MS = 30 * 60 * 1000;
 
 import type { components } from "../api/schema";
 import type { createApi } from "../api/client";
+import { owned } from "../api/owner";
 import { failure, type Res } from "./crateApi";
 
 type S = components["schemas"];
@@ -58,7 +59,8 @@ export function groupReceipts(entries: readonly Entry[], batches: readonly Batch
     }
     flush();
   }
-  for (const b of [...batches].sort((x, y) => ms(x.created_at) - ms(y.created_at))) {
+  for (const raw of [...batches].sort((x, y) => ms(x.created_at) - ms(y.created_at))) {
+    const b = owned<Batch, "cost" | "created_by">(raw);
     const t = ms(b.created_at);
     const g = groups.find((x) => x.principal.id === b.created_by.id && t >= ms(x.from) - gapMs && t <= ms(x.to) + gapMs);
     const spend = b.cost.settled_micro_usd;

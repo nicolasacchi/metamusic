@@ -104,10 +104,19 @@ func transformEstimateFrom(e transform.Estimate) TransformEstimate {
 	return out
 }
 
+// transformCreator is the creator of a transform. An Editor sees it on its own transforms only (C305: others' are listed without
+// creator); everyone else sees it as before.
+func transformCreator(viewer auth.Principal, v transform.View) *PrincipalRef {
+	if !viewer.IsOwnerSide() && v.PrincipalID != viewer.Key() {
+		return nil
+	}
+	return valPtr(RefFor(viewer, v.PrincipalID, v.PrincipalKind, v.PrincipalName))
+}
+
 func transformViewFrom(viewer auth.Principal, v transform.View) TransformView {
 	out := TransformView{
 		ID: v.ID, TakeID: v.ID, Kind: string(v.Kind), State: v.State, Phase: v.Phase, ProgressPermille: v.ProgressPermille, Title: v.Title,
-		SpecHash: v.SpecHash, Reused: v.Reused, Restored: v.Restored, Principal: RefFor(viewer, v.PrincipalID, v.PrincipalKind, v.PrincipalName),
+		SpecHash: v.SpecHash, Reused: v.Reused, Restored: v.Restored, Principal: transformCreator(viewer, v),
 		Rationale: v.Rationale, Inputs: make([]TransformInputRef, 0, len(v.Inputs)), Cost: TransformCost{USD: zeroUSD},
 		CPU:              TransformCPUUse{ExpectedMS: v.ExpectedMS, MaxMS: v.MaxMS, UsedMS: v.UsedMS},
 		OutputSecondsEst: v.OutputSecondsEst, Warnings: transformWarnings(v.Warnings),

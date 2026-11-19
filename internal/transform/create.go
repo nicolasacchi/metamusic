@@ -119,7 +119,7 @@ func (s *Service) insert(ctx context.Context, tx *sql.Tx, p auth.Principal, pl *
 	_, err = tx.ExecContext(ctx, `INSERT INTO transforms(id, kind, recipe_id, spec_hash, title, rationale, principal_id, principal_kind,
 		principal_name, state, expected_cpu_ms, max_cpu_ms, out_seconds_est, mem_mb_est, created_at)
 		VALUES (?,?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)`,
-		id, string(pl.Spec.Kind), recipeID, pl.Canon.SpecHash, pl.Title, rationale, p.Key(), pl.PrincipalKd, principalName(p),
+		id, string(pl.Spec.Kind), recipeID, pl.Canon.SpecHash, pl.Title, rationale, p.Key(), storedKind(pl.PrincipalKd), principalName(p),
 		pl.CPU.ExpectedMS, pl.CPU.MaxMS, pl.Res.OutS, pl.CPU.MemMB, store.FormatTime(now))
 	if err != nil {
 		return View{}, fmt.Errorf("transform: insert: %w", err)

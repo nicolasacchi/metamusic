@@ -125,6 +125,10 @@ func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID str
 	if title == nil && status == nil {
 		return inv("body", "give a title and/or a status")
 	}
+	guard, err := s.editorGuard(p, status)
+	if err != nil {
+		return err
+	}
 	set, args := []string{}, []any{}
 	if title != nil {
 		t := strings.TrimSpace(*title)
@@ -146,12 +150,12 @@ func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID str
 		}
 		set, args = append(set, "status = ?", "status_set_by = ?", "status_set_at = ?"), append(args, *status, p.Key(), s.stamp())
 	}
-	res, err := s.st.W.ExecContext(ctx, `UPDATE tracks SET `+strings.Join(set, ", ")+` WHERE id = ?`, append(args, trackID)...) //nolint:gosec // G202: fixed column list
+	res, err := s.st.W.ExecContext(ctx, `UPDATE tracks SET `+strings.Join(set, ", ")+` WHERE id = ?`+guard, append(args, trackID)...) //nolint:gosec // G202: fixed column list
 	if err != nil {
 		return fmt.Errorf("judgments: update track: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return library.ErrNotFound
+		return s.updateMissed(ctx, trackID, guard != "")
 	}
 	return nil
 }

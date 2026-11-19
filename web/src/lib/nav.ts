@@ -2,6 +2,8 @@
 // music keeps playing. Nothing here gates anything: their data calls hit /human/api/*, which the server gates on its own,
 // and a DOCUMENT request to /human/* (typed URL, notification link) still goes through the edge and the step-up check.
 
+import { APP_ROUTES } from "./router";
+
 // App shell (wave 2): five tabs, listen-first. Every route belongs to exactly one tab (tabFor); the phone tab bar and the
 // desktop top nav render the same groups. Make (Board, Backlog, Jobs, Generate) lives under More.
 export type Tab = "new" | "library" | "queue" | "judge" | "more";
@@ -142,8 +144,9 @@ export const NAV_LINKS: NavLink[] = [
 ];
 
 /** The sub-views a tab shows as a segmented row (Library, Judge). */
-export function subLinks(tab: Tab): NavLink[] {
-  return tab === "library" || tab === "judge" ? NAV_LINKS.filter((l) => l.tab === tab) : [];
+export function subLinks(tab: Tab, can?: (op: string) => boolean): NavLink[] {
+  const all = tab === "library" || tab === "judge" ? NAV_LINKS.filter((l) => l.tab === tab) : [];
+  return can ? all.filter((l) => linkVisible(l, can)) : all;
 }
 
 /** Whether a sub-view is the current page. */
@@ -245,4 +248,102 @@ export function titleFor(routeName: string | null | undefined): string {
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
   return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "more"].includes(routeName);
+}
+
+/**
+ * The operation a route's page is built on (its x-mm.ui op, U1 C313.3); null: every signed-in caller may open it. A caller
+ * for whom `can(op)` is false gets "no access" instead of the page, and no nav link or tab to it. Cosmetic: the server
+ * refuses the page's calls on its own. Every route has an entry (nav.test.ts), and every op id exists in openapi.json.
+ */
+export const ROUTE_OPS: Record<string, string | null> = {
+  new: "search_tracks",
+  home: "search_tracks",
+  track: "get_track",
+  lineage: "get_lineage",
+  patch: "get_patch",
+  song: "get_song",
+  sounds: "search_sounds",
+  atlas: "get_song_atlas",
+  records: "list_records",
+  record: "get_record",
+  crates: "list_crates",
+  crate: "get_crate",
+  playlists: "list_playlists",
+  playlist: "get_playlist",
+  queue: null,
+  judge: "next_duel",
+  callbacks: "list_callbacks",
+  callback: "get_callback",
+  duels: "list_duels",
+  duel: "get_duel",
+  ladder: "get_ladder",
+  compare: "compare_tracks",
+  more: null,
+  board: "get_muse_board",
+  muse: "get_muse",
+  backlog: "list_drafts",
+  "draft-new": "create_draft",
+  "draft-upload": "upload_batch_jsonl",
+  draft: "get_draft",
+  jobs: "list_jobs",
+  job: "get_job",
+  transforms: "list_transforms",
+  engines: "list_engines",
+  "engine-trial": "list_engines",
+  suite: "get_lineage",
+  batch: "get_batch",
+  "human-generate": "estimate_generation",
+  "human-confirm": "approve_batch",
+  export: "list_export_sources",
+  import: "list_import_runs",
+  offline: "get_offline_set",
+  settings: "get_system_info",
+  "settings-backups": "list_backups",
+  "settings-audit": "get_audit",
+  receipts: "list_ledger",
+  "settings-curation": "get_curation_settings",
+  human: "approve_batch",
+  "human-tokens": "list_tokens",
+  "human-devices": "list_devices",
+  "human-spend": "get_spend",
+  "human-connectors": "list_connector_grants",
+  "human-subsonic": "list_subsonic_clients",
+  "human-record-publish": "publish_record",
+  "human-curation": "set_curation_settings",
+};
+
+/** The page's primary op; undefined for a route with no entry (NotFound). */
+export function routeOp(routeName: string | null | undefined): string | null | undefined {
+  return routeName ? ROUTE_OPS[routeName] : undefined;
+}
+
+/** May the caller open this route? Routes without an op (queue, More, 404) are open to everyone signed in. */
+export function routeAllowed(routeName: string | null | undefined, can: (op: string) => boolean): boolean {
+  const op = routeOp(routeName);
+  return !op || can(op);
+}
+
+const NAME_OF_PATH = new Map(APP_ROUTES.map((r) => [r.pattern, r.name]));
+
+/** The route a static nav link points at. */
+export function linkRoute(l: NavLink): string | undefined {
+  return NAME_OF_PATH.get(l.path.replace(/\/$/, "") || "/");
+}
+
+/** Whether a nav link is shown to this caller. */
+export function linkVisible(l: NavLink, can: (op: string) => boolean): boolean {
+  return routeAllowed(linkRoute(l), can);
+}
+
+/** A tab is shown when its landing page is open to the caller or one of its sub-views / rows is. More always shows (About). */
+export function tabVisible(t: TabDef, can: (op: string) => boolean): boolean {
+  if (t.id === "more" || t.id === "queue") return true;
+  const landing = NAME_OF_PATH.get(t.path);
+  if (routeAllowed(landing, can)) return true;
+  return NAV_LINKS.some((l) => l.tab === t.id && linkVisible(l, can));
+}
+
+/** The tabs this caller sees. */
+export function visibleTabs(can: (op: string) => boolean): TabDef[] {
+  return TABS.filter((t) => tabVisible(t, can));
 }

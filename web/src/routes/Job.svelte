@@ -77,8 +77,8 @@
     {#if job.parent_track_id} · parent <a href="/tracks/{job.parent_track_id}">track</a>{/if}
   </p>
   <p data-testid="job-cost">
-    Cost {formatMicroUSD(job.cost.display_micro_usd ?? job.cost.expected_micro_usd)} <span class="muted">({job.cost.basis})</span>
-    · expected {job.expected_audio_s} s of audio{#if job.audio_s !== null}, got {job.audio_s.toFixed(1)} s{/if}
+    {#if job.cost}Cost {formatMicroUSD(job.cost.display_micro_usd ?? job.cost.expected_micro_usd)} <span class="muted">({job.cost.basis})</span>
+    · {/if}expected {job.expected_audio_s} s of audio{#if job.audio_s !== null}, got {job.audio_s.toFixed(1)} s{/if}
   </p>
   {#if job.timings.cold_start_s !== null || job.timings.execution_ms !== null}
     <p class="muted">

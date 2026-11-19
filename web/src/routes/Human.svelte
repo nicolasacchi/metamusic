@@ -3,6 +3,7 @@
   import PendingApprovals from "../lib/components/PendingApprovals.svelte";
   import { refreshApprovals } from "../lib/approvals.svelte";
   import { ageLabel, confirmHref, loadRecentDecisions, type PendingBatch } from "../lib/approvals";
+  import { owned } from "../api/owner";
   import { formatMicroUSDCeil } from "../lib/money";
 
   let decisions = $state<PendingBatch[] | null>(null);
@@ -42,10 +43,11 @@
   {:else}
     <ul>
       {#each decisions as b (b.id)}
+        {@const ob = owned<typeof b, "cost" | "created_by">(b)}
         <li data-testid="decision-row" data-batch={b.id}>
           <b>{b.approval.state}</b>
           <a href="/batches/{b.id}">{b.takes} take{b.takes === 1 ? "" : "s"}</a>
-          by {b.created_by.name}, up to {formatMicroUSDCeil(b.cost.ceiling_micro_usd)}
+          by {ob.created_by.name}, up to {formatMicroUSDCeil(ob.cost.ceiling_micro_usd)}
           <span class="muted">· {ageLabel(b.approval.decided_at ?? b.created_at, now)}{#if b.approval.reason} · {b.approval.reason}{/if}</span>
           <a class="muted" href={confirmHref(b.id)}>details</a>
         </li>

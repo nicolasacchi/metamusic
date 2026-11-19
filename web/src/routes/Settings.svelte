@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../api/client";
+  import { me } from "../lib/me.svelte";
   import type { components } from "../api/schema";
   import { getDevice, type DeviceProfile } from "../lib/device.svelte";
   import type { Quality } from "../lib/player.svelte";
@@ -14,7 +15,6 @@
   let error = $state("");
   let profiles = $state<DeviceProfile[]>([]);
   let profilesError = $state("");
-  let kind = $state("");
   let unpairing = $state(false);
   const hasConnection = typeof navigator !== "undefined" && "connection" in navigator;
 
@@ -79,16 +79,6 @@
   }
 
   // Only a paired device can unpair itself.
-  $effect(() => {
-    void (async () => {
-      try {
-        const r = await api.GET("/api/me", {});
-        if (r.data) kind = r.data.kind;
-      } catch {
-        /* the section stays hidden */
-      }
-    })();
-  });
   async function unpair() {
     if (unpairing) return;
     unpairing = true;
@@ -155,7 +145,7 @@
       Songs should be longer than the minimum and aim for the target band. Lint warns when the estimated duration misses them, and
       agents see these values.
     </p>
-    {#if kind === "human"}
+    {#if me.kind === "human"}
       <form onsubmit={saveTargets}>
         <label>Minimum (s) <input type="number" min="30" max="600" bind:value={swMin} data-testid="sw-min" /></label>
         <label>Target from (s) <input type="number" min="30" max="600" bind:value={swTargetMin} data-testid="sw-target-min" /></label>
@@ -171,7 +161,7 @@
   </div>
 {/if}
 
-{#if kind === "device"}
+{#if me.kind === "device"}
   <section data-testid="unpair-section">
     <h2>This browser</h2>
     <p class="muted">This browser is paired as a device. Unpairing signs it out until it is paired again.</p>

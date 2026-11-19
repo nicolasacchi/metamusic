@@ -140,3 +140,72 @@ func TestOrphanRaters(t *testing.T) {
 func judgmentsOrphans(ctx context.Context, e *env, known func(string) bool) ([]judgments.OrphanRater, error) {
 	return judgments.OrphanRaters(ctx, e.st.R, known)
 }
+
+// TestUpdateTrack_EditorFieldRule (C305, Q4): an Editor changes titles and sets or clears the to_relisten flag; final and
+// discarded are the Owner's (discarding changes what Listeners see), and an Editor cannot move a track that is already final or
+// discarded, so it cannot undo the Owner's decision either.
+func TestUpdateTrack_EditorFieldRule(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	id := lt.TrackLuna
+	status := func() string {
+		var s string
+		if err := e.st.R.QueryRow(`SELECT status FROM tracks WHERE id = ?`, id).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	owner := func(err error) bool {
+		var je *judgments.Error
+		return errors.As(err, &je) && je.Status == 403 && je.Code == "OWNER_ONLY"
+	}
+	if err := e.svc.UpdateTrack(ctx, bobEditor, id, sp("Renamed by bob"), sp("to_relisten")); err != nil {
+		t.Fatalf("title and to_relisten: %v", err)
+	}
+	if got := status(); got != "to_relisten" {
+		t.Fatalf("status = %s", got)
+	}
+	if err := e.svc.UpdateTrack(ctx, bobEditor, id, nil, sp("draft")); err != nil {
+		t.Errorf("clearing to_relisten: %v", err)
+	}
+	for _, st := range []string{"final", "discarded"} {
+		if err := e.svc.UpdateTrack(ctx, bobEditor, id, nil, sp(st)); !owner(err) {
+			t.Errorf("editor sets %s: %v", st, err)
+		}
+	}
+	if got := status(); got != "draft" {
+		t.Fatalf("a refused change moved the status to %s", got)
+	}
+	if err := e.svc.UpdateTrack(ctx, human, id, nil, sp("discarded")); err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []string{"draft", "to_relisten"} {
+		if err := e.svc.UpdateTrack(ctx, bobEditor, id, nil, sp(st)); !owner(err) {
+			t.Errorf("editor moves a discarded track to %s: %v", st, err)
+		}
+	}
+	if err := e.svc.UpdateTrack(ctx, bobEditor, id, sp("Still renamable"), nil); err != nil {
+		t.Errorf("title of a discarded track: %v", err)
+	}
+	if got := status(); got != "discarded" {
+		t.Fatalf("status = %s", got)
+	}
+	if err := e.svc.UpdateTrack(ctx, carolListen, id, sp("x"), nil); !owner(err) {
+		t.Errorf("listener: %v", err)
+	}
+}
+
+// An Editor sending an unknown status gets the validation error the Owner side gets, not OWNER_ONLY.
+func TestUpdateTrack_EditorBogusStatus(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	err := e.svc.UpdateTrack(context.Background(), bobEditor, lt.TrackLuna, nil, sp("bogus"))
+	var je *judgments.Error
+	if err == nil || errors.As(err, &je) {
+		t.Fatalf("err = %v, want the validation error, not OWNER_ONLY", err)
+	}
+	if want := e.svc.UpdateTrack(context.Background(), human, lt.TrackLuna, nil, sp("bogus")); want == nil || want.Error() != err.Error() {
+		t.Fatalf("editor err %v differs from owner err %v", err, want)
+	}
+}

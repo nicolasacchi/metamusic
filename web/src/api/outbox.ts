@@ -4,6 +4,7 @@ import { api } from "./client";
 import { RateLimited } from "./client";
 import type { components } from "./schema";
 import { uuidv7 } from "../lib/id";
+import { OUTBOX_DB } from "../lib/me";
 
 export type ListenEvent = components["schemas"]["ListenEventIn"];
 
@@ -55,7 +56,7 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 /** IndexedDB-backed store; rejects at open time when IndexedDB is unusable. */
 export async function idbStore(): Promise<Store> {
   const db = await new Promise<IDBDatabase>((res, rej) => {
-    const o = indexedDB.open("mm-outbox", 1);
+    const o = indexedDB.open(OUTBOX_DB, 1);
     o.onupgradeneeded = () => o.result.createObjectStore("events", { keyPath: "event.id" });
     o.onsuccess = () => res(o.result);
     o.onerror = () => rej(o.error);
