@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from "../api/client";
-  import { me } from "../lib/me.svelte";
+  import { can, me } from "../lib/me.svelte";
   import type { components } from "../api/schema";
   import { getDevice, type DeviceProfile } from "../lib/device.svelte";
   import type { Quality } from "../lib/player.svelte";
@@ -17,8 +17,12 @@
   let profilesError = $state("");
   let unpairing = $state(false);
   const hasConnection = typeof navigator !== "undefined" && "connection" in navigator;
+  // Every user opens this page for the playback quality (U1-INT-W); each Owner-only section shows only when its op is allowed.
+  // Before whoami has loaded every section shows, as before U1 (the server refuses what the caller may not call).
+  const may = (op: string) => !me.loaded || can(op);
 
   $effect(() => {
+    if (!may("get_system_info")) return;
     void (async () => {
       try {
         const r = await api.GET("/api/system");
@@ -45,6 +49,7 @@
     swTargetMax = t.target_max_duration_s;
   }
   $effect(() => {
+    if (!may("get_songwriting_settings")) return;
     void (async () => {
       try {
         const r = await api.GET("/api/settings/songwriting");
@@ -92,6 +97,7 @@
   }
 
   async function refreshProfiles() {
+    if (!may("list_device_profiles")) return;
     try {
       profiles = await device.listProfiles();
       profilesError = "";
@@ -124,7 +130,9 @@
 
 <h1>Settings</h1>
 {#if error}<p role="alert">{error}</p>{/if}
-{#if info}
+{#if !may("get_system_info")}
+  <!-- the system block is the Owner's -->
+{:else if info}
   <dl data-testid="system-info">
     {#each fields as k (k)}
       <dt>{k}</dt>
@@ -135,8 +143,13 @@
   <p class="muted">Loading…</p>
 {/if}
 
-<p><a href="/settings/backups">Backups</a> · <a href="/settings/audit">Audit log</a></p>
+{#if may("list_backups") || may("get_audit")}
+  <p>
+    {#if may("list_backups")}<a href="/settings/backups">Backups</a>{/if}{#if may("list_backups") && may("get_audit")} · {/if}{#if may("get_audit")}<a href="/settings/audit">Audit log</a>{/if}
+  </p>
+{/if}
 
+{#if may("get_songwriting_settings")}
 <h2>Songwriting targets</h2>
 {#if swError}<p role="alert" data-testid="songwriting-error">{swError}</p>{/if}
 {#if targets}
@@ -145,7 +158,7 @@
       Songs should be longer than the minimum and aim for the target band. Lint warns when the estimated duration misses them, and
       agents see these values.
     </p>
-    {#if me.kind === "human"}
+    {#if me.kind === "human" && may("update_songwriting_settings")}
       <form onsubmit={saveTargets}>
         <label>Minimum (s) <input type="number" min="30" max="600" bind:value={swMin} data-testid="sw-min" /></label>
         <label>Target from (s) <input type="number" min="30" max="600" bind:value={swTargetMin} data-testid="sw-target-min" /></label>
@@ -160,6 +173,7 @@
     {/if}
   </div>
 {/if}
+{/if}
 
 {#if me.kind === "device"}
   <section data-testid="unpair-section">
@@ -173,7 +187,7 @@
 <div data-testid="device-settings">
   <p>
     FLAC probe: <b data-testid="probe-result">{device.probeResult}</b>
-    <button type="button" onclick={test} disabled={device.busy} data-testid="probe-test">Test this device</button>
+    {#if may("get_device_probe")}<button type="button" onclick={test} disabled={device.busy} data-testid="probe-test">Test this device</button>{/if}
   </p>
   <fieldset>
     <legend>Playback quality</legend>
@@ -187,6 +201,7 @@
   </fieldset>
 </div>
 
+{#if may("list_device_profiles")}
 <h2>Device profiles</h2>
 {#if profilesError}<p role="alert">{profilesError}</p>{/if}
 <table data-testid="device-profiles">
@@ -204,6 +219,7 @@
     {/each}
   </tbody>
 </table>
+{/if}
 
 <style>
   fieldset label,

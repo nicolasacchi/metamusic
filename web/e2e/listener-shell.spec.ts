@@ -42,6 +42,16 @@ test("More: no Make, Spend or approval rows, no approvals badge or polling; My d
   expect(calls, "a Listener never polls the batch list").toEqual([]);
 });
 
+test("Settings: the Listener picks this device's playback quality and sees none of the Owner's sections", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "No access" })).toHaveCount(0);
+  await expect(page.getByTestId("device-settings")).toBeVisible();
+  await expect(page.locator('input[name="quality"][value="lossless"]')).toBeVisible();
+  for (const id of ["system-info", "device-profiles", "probe-test", "songwriting-targets"]) await expect(page.getByTestId(id), id).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^(Backups|Audit log)$/ })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
 test("the Owner's pages render no access and /human/api refuses the Listener", async ({ page, request }) => {
   for (const path of ["/human/spend", "/human/tokens", "/human/generate", "/settings/audit", "/jobs"]) {
     await page.goto(path);
