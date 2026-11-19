@@ -203,7 +203,8 @@ func (b *l3Builder) songs() {
 		b.put(`INSERT INTO song_picks(song_id,take_id,source,evidence_json,last_event_id,changed_at,computed_at) VALUES(?,?,'newest',?,?,?,?)`, sid, take, ev1, e1, rec, rec)
 		if tk.stars > 0 { // a human rating moves the Pick to the stars rule, as a Settle would
 			at := b.ts(tk.age - 30*time.Minute)
-			b.put(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'human',?,'human',?,'fixture',?,?)`,
+			rc, rv := raterSQL(hasRater(b.tx), "human")
+			b.put(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at`+rc+`) VALUES(?,'human',?,'human',?,'fixture',?,?`+rv+`)`,
 				take, tk.stars, FixtureHuman, at, at)
 			e2 := b.id(l3SpEvent)
 			ev2 := fmt.Sprintf(`{"def":"mm.pick/1","rule":"stars","eligible":1,"stars":%d,"tied":1}`, tk.stars)

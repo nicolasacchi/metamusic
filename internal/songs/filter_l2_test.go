@@ -181,7 +181,7 @@ func TestSongs_SubjectTakePredicates(t *testing.T) {
 		t.Error("at most 5 tags")
 	}
 	// the subject take is the Pick: a rating on S4's non-Pick take c2 does not count
-	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES(?,'human',5,'human','human:h','h','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`, w.fx.Takes["c2"])
+	w.exec(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES(?,'human',5,'human','human:h','h','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z','owner')`, w.fx.Takes["c2"])
 	eq(t, "min_stars=5 on a non-Pick take", w.labels(songs.ListFilter{MinStars: ip(5)}))
 	// lossy and recipe_known: S5's only take is a lossy reference take
 	eq(t, "lossy=true", w.labels(songs.ListFilter{Lossy: &yes}), "S5")

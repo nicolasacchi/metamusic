@@ -117,8 +117,7 @@ func TestSubsonic_SetRatingKeepsVerdict(t *testing.T) {
 	x := newS3Rig(t)
 	verdict := "too long"
 	at := x.clk.now().UTC().Format(time.RFC3339)
-	x.exec(`INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at)
-		VALUES (?, 'human', 3, ?, 'human', 'human:alice', 'alice', ?, ?)`, luna, verdict, at, at)
+	x.exec(`INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 3, ?, 'human', 'human:alice', 'alice', ?, ?,'owner')`, luna, verdict, at, at)
 	stars := func() (int, string) {
 		tr, err := x.judg.Ratings(context.Background(), luna)
 		if err != nil || tr.Human == nil {

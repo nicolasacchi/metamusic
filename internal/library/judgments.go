@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
+
+	"github.com/nicolasacchi/metamusic/internal/auth"
 )
 
 // tagSourceOrder is the order of TagRef.Sources.
@@ -59,22 +62,23 @@ func (s *Service) judgmentExtras(ctx context.Context, d *TrackDetail) error {
 	return nil
 }
 
-// Ratings returns both rating rows of a track as stored (principal references
-// are unmasked: the API layer renders them per viewer, D-M2a-19).
+// Ratings returns every rating row of a track as stored, unshaped: Human and Mine hold the Owner's row, Critic the agent's
+// and Raters every human rater's row. Principal references are unmasked: the API layer renders them per viewer
+// (D-M2a-19) and calls ShapeRating first, so no other user's row leaves in a response unshaped (C306.4).
 func (s *Service) Ratings(ctx context.Context, trackID string) (TrackRating, error) {
 	out := TrackRating{TrackID: trackID}
-	rows, err := s.st.R.QueryContext(ctx, `SELECT source, stars, verdict, principal_kind, principal_id, principal_name, updated_at FROM ratings WHERE track_id = ?`, trackID)
+	rows, err := s.st.R.QueryContext(ctx, `SELECT source, rater, stars, verdict, principal_kind, principal_id, principal_name, updated_at FROM ratings WHERE track_id = ? ORDER BY rater`, trackID)
 	if err != nil {
 		return out, fmt.Errorf("library: ratings: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var source string
+		var source, rater string
 		var stars sql.NullInt64
 		var verdict sql.NullString
 		row := RatingRow{}
 		var kind string
-		if err := rows.Scan(&source, &stars, &verdict, &kind, &row.By.ID, &row.By.Name, &row.UpdatedAt); err != nil {
+		if err := rows.Scan(&source, &rater, &stars, &verdict, &kind, &row.By.ID, &row.By.Name, &row.UpdatedAt); err != nil {
 			return out, err
 		}
 		row.By.Kind = kind
@@ -83,13 +87,78 @@ func (s *Service) Ratings(ctx context.Context, trackID string) (TrackRating, err
 			row.Stars = &v
 		}
 		row.Verdict = ptrStr(verdict)
-		if source == "human" {
-			out.Human = &row
-		} else {
+		switch {
+		case source != "human":
 			out.Critic = &row
+		default:
+			out.Raters = append(out.Raters, RaterRow{Rater: rater, Row: row})
+			if rater == ownerRater {
+				own := row
+				out.Human, out.Mine = &row, &own
+			}
 		}
 	}
 	return out, rows.Err()
+}
+
+// ownerRater is the rater key of the Owner's ratings (C301.7, migration 0017).
+const ownerRater = "owner"
+
+// ShapeRating renders a track's ratings for viewer (C306.4, D-U1-9, D-U1-16) and drops the raw rows:
+//   - Mine is the viewer's own row (the critic's for an agent); Human is a copy of it, except for an agent, which keeps
+//     seeing the Owner's row there as before.
+//   - Others, every other user's row, only for the Owner side (the Owner and the Owner's devices).
+//   - Average, over every user's stars, for the Owner side and Editors; never for a Listener or an agent.
+//   - Critic is hidden from a Listener.
+//
+// It is pure and idempotent on an already shaped value.
+func ShapeRating(viewer auth.Principal, tr TrackRating) TrackRating {
+	if tr.Raters == nil && (tr.Mine != nil || tr.Human != nil || tr.Others != nil || tr.Average != nil) {
+		return tr // already shaped
+	}
+	byKey := map[string]*RatingRow{}
+	for i := range tr.Raters {
+		byKey[tr.Raters[i].Rater] = &tr.Raters[i].Row
+	}
+	out := TrackRating{TrackID: tr.TrackID, Critic: tr.Critic}
+	cp := func(r *RatingRow) *RatingRow {
+		if r == nil {
+			return nil
+		}
+		c := *r
+		return &c
+	}
+	switch {
+	case viewer.IsAgent():
+		out.Mine, out.Human = cp(tr.Critic), cp(byKey[ownerRater])
+		return out
+	case viewer.Role == auth.RoleListener:
+		out.Critic = nil
+		out.Mine = cp(byKey[auth.RaterKey(viewer)])
+		out.Human = cp(out.Mine)
+		return out
+	}
+	out.Mine = cp(byKey[auth.RaterKey(viewer)])
+	out.Human = cp(out.Mine)
+	var n, sum int
+	for _, r := range tr.Raters {
+		if r.Row.Stars != nil {
+			n++
+			sum += *r.Row.Stars
+		}
+	}
+	if n > 0 {
+		out.Average = &RatingAverage{Mean: math.Round(float64(sum)/float64(n)*100) / 100, N: n}
+	}
+	if viewer.IsOwnerSide() {
+		for _, r := range tr.Raters {
+			if r.Rater == ownerRater || (r.Row.Stars == nil && r.Row.Verdict == nil) {
+				continue
+			}
+			out.Others = append(out.Others, OtherRating{User: r.Rater, Stars: r.Row.Stars, Verdict: r.Row.Verdict, UpdatedAt: r.Row.UpdatedAt})
+		}
+	}
+	return out
 }
 
 // Tags returns a track's effective tags: every active row of any source,

@@ -50,8 +50,7 @@ func (r *rig) setStatus(id, status string, at time.Time) {
 func (r *rig) rate(id string, stars int) {
 	r.t.Helper()
 	at := r.clk.now().UTC().Format(time.RFC3339)
-	r.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at)
-		VALUES (?, 'human', ?, 'human', 'human:alice', 'alice', ?, ?)`, id, stars, at, at)
+	r.exec(`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', ?, 'human', 'human:alice', 'alice', ?, ?,'owner')`, id, stars, at, at)
 }
 
 var evSeq atomic.Int64

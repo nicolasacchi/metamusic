@@ -26,9 +26,11 @@ func judgErr(err error) error {
 	return libErr(err)
 }
 
-// maskRating renders both rating rows' principal references for viewer (D-M2a-19).
+// maskRating shapes a track's ratings for viewer (C306.4: own row, others, average, critic by role) and renders the
+// rows' principal references for them (D-M2a-19). Every path that returns a TrackRating goes through it.
 func maskRating(v auth.Principal, tr *library.TrackRating) {
-	for _, row := range []*library.RatingRow{tr.Human, tr.Critic} {
+	*tr = library.ShapeRating(v, *tr)
+	for _, row := range []*library.RatingRow{tr.Mine, tr.Human, tr.Critic} {
 		if row != nil {
 			row.By = RefFor(v, row.By.ID, row.By.Kind, row.By.Name)
 		}
