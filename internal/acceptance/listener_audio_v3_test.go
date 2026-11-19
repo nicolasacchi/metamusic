@@ -204,7 +204,7 @@ func TestListenerAudioStripped(t *testing.T) {
 			t.Errorf("%s: download filename %q", id, fn)
 		}
 		tags := obj(dl["tags"])
-		if tags["genre"] != nil || tags["track_total"] != float64(1) {
+		if tags["genre"] != nil || tags["track_total"] != float64(0) || tags["album"] != "" || tags["title"] == "" {
 			t.Errorf("%s: download tags %v list more than the file carries", id, tags)
 		}
 	}
