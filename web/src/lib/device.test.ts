@@ -266,3 +266,61 @@ describe("lossy playback (M2c)", () => {
     expect(puts.slice(before).filter((x) => x.body.probe_result === "failed")).toHaveLength(0);
   });
 });
+
+// U1-W2 (risk 7, belt and braces): a 404 for the client's own device id means the row belongs to another user on this
+// browser; mint a new id once and retry once.
+describe("put_device_profile 404 retry", () => {
+  function withPuts(answers: (boolean | "not_found")[]) {
+    const s = setup();
+    const seen: string[] = [];
+    let i = 0;
+    s.dev["deps"].api.put = async (id) => {
+      seen.push(id);
+      return answers[Math.min(i++, answers.length - 1)]!;
+    };
+    return { ...s, seen };
+  }
+
+  test("a 404 mints a new id, stores it and retries once with it", async () => {
+    const { dev, store, seen } = withPuts(["not_found", true]);
+    const first = dev.deviceId;
+    await dev.setQuality("high");
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(first);
+    expect(seen[1]).not.toBe(first);
+    expect(seen[1]).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+    expect(dev.deviceId).toBe(seen[1]!);
+    expect(store.getItem("mm:device-id")).toBe(seen[1]!);
+  });
+
+  test("a second 404 is not retried again: exactly one retry per put", async () => {
+    const { dev, seen } = withPuts(["not_found"]);
+    await dev.setQuality("high");
+    expect(seen).toHaveLength(2);
+    await dev.setQuality("auto");
+    expect(seen).toHaveLength(4);
+  });
+
+  test("success and other failures never mint an id", async () => {
+    for (const answer of [true, false] as const) {
+      const { dev, seen } = withPuts([answer]);
+      const first = dev.deviceId;
+      await dev.setQuality("high");
+      expect(seen).toEqual([first]);
+      expect(dev.deviceId).toBe(first);
+    }
+  });
+
+  test("a thrown put is advisory and mints nothing", async () => {
+    const s = setup();
+    const first = s.dev.deviceId;
+    let n = 0;
+    s.dev["deps"].api.put = async () => {
+      n++;
+      throw new Error("offline");
+    };
+    await s.dev.setQuality("high");
+    expect(n).toBe(1);
+    expect(s.dev.deviceId).toBe(first);
+  });
+});

@@ -3,7 +3,7 @@ import { render } from "svelte/server";
 import Track from "./Track.svelte";
 import { trackKnown, trackLossy, trackReference } from "../lib/fixtures/m2c";
 
-const page = (t: typeof trackKnown) => render(Track, { props: { id: t.id, initial: t } } as never).body;
+const page = (t: typeof trackKnown, viewer?: unknown) => render(Track, { props: { id: t.id, initial: t, ...(viewer ? { viewer } : {}) } } as never).body;
 
 describe("Track page (M2c)", () => {
   test("a reference track shows the Recipe unknown panel and no Lyrics or Recipe panels", () => {
@@ -95,5 +95,63 @@ describe("Track page (T1 W1b)", () => {
     const h = page(trackKnown);
     expect(h).not.toContain('data-testid="origin-chip"');
     expect(h).not.toContain('data-testid="transform-provenance"');
+  });
+});
+
+// U1-W2: shells per role. The Owner's page is pinned (every panel present); an Editor and a Listener lose what they cannot use.
+const withAllowed = (allowed: string[]) => ({ kind: "human", scopes: [], allowed });
+const OWNER_OPS = ["list_comments", "create_voice_note", "update_playlist", "get_track_context", "set_tags", "edit_crate_items", "edit_record_slots", "create_transform", "create_generation_human"];
+const LISTENER_OPS = ["get_track", "rate_track", "list_playlists"];
+const EDITOR_OPS = OWNER_OPS.filter((o) => o !== "create_voice_note" && o !== "create_generation_human");
+
+describe("Track page shells (U1-W2)", () => {
+  test("Owner shape is pinned: comments, voice, records, crates, playlist and Agent context all present", () => {
+    for (const h of [page(trackKnown), page(trackKnown, withAllowed(OWNER_OPS))]) {
+      expect(h).toMatch(/<h2[^>]*>Comments<\/h2>/);
+      expect(h).toContain('data-testid="track-curation"');
+      expect(h).toContain('data-testid="add-to-crate"');
+      expect(h).toMatch(/<h2[^>]*>Agent context<\/h2>/);
+      expect(h).toContain('data-testid="copy-critique-prompt"');
+    }
+  });
+  test("a Listener sees no comment, voice, playlist, Records, Crates, tag or Agent context panel", () => {
+    const h = page(trackKnown, withAllowed(LISTENER_OPS));
+    expect(h).not.toMatch(/<h2[^>]*>Comments<\/h2>/);
+    expect(h).not.toMatch(/<h2[^>]*>Agent context<\/h2>/);
+    expect(h).not.toContain('data-testid="copy-critique-prompt"');
+    expect(h).not.toContain('data-testid="track-curation"');
+    expect(h).not.toContain('data-testid="add-to-crate"');
+    expect(h).not.toContain('data-testid="add-to-playlist"');
+    expect(h).toContain('data-testid="track-play"');
+  });
+  test("an Editor keeps comments and curation but not the voice recorder", () => {
+    const owner = page(trackKnown, withAllowed(OWNER_OPS));
+    const editor = page(trackKnown, withAllowed(EDITOR_OPS));
+    expect(editor).toMatch(/<h2[^>]*>Comments<\/h2>/);
+    expect(editor).toContain('data-testid="track-curation"');
+    expect(owner.length).toBeGreaterThan(editor.length);
+    expect(owner).toMatch(/voice/i);
+    expect(editor).not.toMatch(/voice/i);
+  });
+});
+
+describe("Track page ratings (U1-W2)", () => {
+  const withRating = (rating: unknown) => ({ ...trackKnown, rating }) as unknown as typeof trackKnown;
+  const own = { by: { id: "u1", kind: "human", name: "x" }, stars: 4, updated_at: "x", verdict: null };
+  test("Owner: other raters and the average are listed", () => {
+    const h = page(withRating({ track_id: "t", critic: null, human: own, mine: own, others: [{ user: "bob", stars: 2, verdict: "meh", updated_at: "x" }], average: { mean: 3, n: 2 } }));
+    expect(h).toContain('data-testid="rating-others"');
+    expect(h).toContain("bob");
+    expect(h).toContain("average 3 from 2 ratings");
+  });
+  test("Editor: the average, no others", () => {
+    const h = page(withRating({ track_id: "t", critic: null, human: own, mine: own, average: { mean: 4, n: 1 } }));
+    expect(h).toContain('data-testid="rating-average"');
+    expect(h).not.toContain('data-testid="rating-others"');
+  });
+  test("Listener: nothing but their own stars; no panel at all", () => {
+    const h = page(withRating({ track_id: "t", critic: null, human: own, mine: own }));
+    expect(h).not.toContain('data-testid="rating-panel"');
+    expect(h).not.toContain("average");
   });
 });

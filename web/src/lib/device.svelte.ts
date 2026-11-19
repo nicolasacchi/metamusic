@@ -13,7 +13,8 @@ export type ProbeInfo = Pick<components["schemas"]["DeviceProbeOutBody"], "versi
 
 export interface DeviceApi {
   probe(): Promise<ProbeInfo | null>;
-  put(id: string, body: ProfileBody): Promise<boolean>;
+  /** true: stored; "not_found": 404 (the id belongs to another user); false: any other failure. */
+  put(id: string, body: ProfileBody): Promise<boolean | "not_found">;
   list(): Promise<DeviceProfile[]>;
 }
 
@@ -277,7 +278,13 @@ export class Device implements DeviceHooks {
     }
     if (result === "none") delete body.probed_at;
     try {
-      await this.deps.api.put(this.deviceId, body);
+      // Risk 7 (C313.7): a 404 for our own id means the row is another user's (shared browser). Mint a new id once, retry once.
+      if ((await this.deps.api.put(this.deviceId, body)) === "not_found") {
+        const id = randomId();
+        this.deps.storage.setItem(K.id, id);
+        this.deviceId = id;
+        await this.deps.api.put(id, body);
+      }
     } catch {
       /* the profile is advisory; the local state already applies */
     }
@@ -299,7 +306,7 @@ export function realDeviceApi(): DeviceApi {
     },
     async put(id, body) {
       const r = await api.PUT("/api/device-profiles/{device_id}", { params: { path: { device_id: id } }, body });
-      return r.response.ok;
+      return r.response.status === 404 ? "not_found" : r.response.ok;
     },
     async list() {
       const out: DeviceProfile[] = [];

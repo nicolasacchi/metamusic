@@ -40,6 +40,9 @@
   import TrackStems from "../lib/components/TrackStems.svelte"; // E2-W5
   import TrackLrc from "../lib/components/TrackLrc.svelte"; // E2-W5
   import { canGenerate, type Viewer } from "../lib/genIntent";
+  import { showsPanel } from "../lib/shell";
+  import { mineOf } from "../lib/ratingView";
+  import RatingPanel from "../lib/components/RatingPanel.svelte";
   import { fetchViewer } from "../lib/viewer";
 
   // `song` and `is_pick` are library read amendments (D-L1-21, C98) that the generated type learns at integration.
@@ -139,8 +142,8 @@
         }
         const r = tr.data.rating;
         judge.seed(mine, {
-          stars: r.human?.stars ?? null,
-          verdict: r.human?.verdict ?? null,
+          stars: mineOf(r)?.stars ?? null,
+          verdict: mineOf(r)?.verdict ?? null,
           critic: r.critic ? { stars: r.critic.stars, verdict: r.critic.verdict } : null,
           status: tr.data.status,
           tags: tr.data.tags,
@@ -268,8 +271,11 @@
           <span class="muted" data-testid="critic">critic ★{j.critic.stars ?? "—"}{j.critic.verdict ? ` — ${j.critic.verdict}` : ""}</span>
         {/if}
       </div>
-      <TagEditor tags={j.tags} suggestions={tagNames} onadd={(n) => judge.addTag(id, n)} onremove={(n) => judge.removeTag(id, n)} />
+      {#if showsPanel(me, "tags")}
+        <TagEditor tags={j.tags} suggestions={tagNames} onadd={(n) => judge.addTag(id, n)} onremove={(n) => judge.removeTag(id, n)} />
+      {/if}
     {/if}
+    <RatingPanel rating={track.rating} />
 
     <div class="terms">
       {#each track.style_terms as term (term)}<span class="chip">{term}</span>{/each}
@@ -285,34 +291,46 @@
         <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} />
       {/if}
       <aside>
-        <section class="card">
-          <h2>Comments</h2>
-          <CommentsPanel trackId={id} bind:comments reloadKey={commentsReload} />
-          <!-- M5-W1b: voice note recorder in the comment composer; nothing is sent until the user saves -->
-          <VoiceRecorder trackId={id} atSecond={isCurrent ? Math.round(position * 10) / 10 : null} onsaved={() => (commentsReload += 1)} />
-        </section>
+        {#if showsPanel(me, "comments")}
+          <section class="card">
+            <h2>Comments</h2>
+            <CommentsPanel trackId={id} bind:comments reloadKey={commentsReload} />
+            <!-- M5-W1b: voice note recorder in the comment composer; nothing is sent until the user saves -->
+            {#if showsPanel(me, "voice")}
+              <VoiceRecorder trackId={id} atSecond={isCurrent ? Math.round(position * 10) / 10 : null} onsaved={() => (commentsReload += 1)} />
+            {/if}
+          </section>
+        {/if}
         <!-- M5-W1: Song PR panel (one mount; the panel owns its fetches) -->
         {#if track.recipe_known && !track.lossy}
           <SongPrPanel trackId={id} {comments} sections={track.sections} baseStyle={track.recipe.style} canPropose={me?.kind === "human"} navigate={navigate ?? defaultNavigate} />
         {/if}
-        <section class="card" data-testid="track-curation">
-          <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
-        </section>
-        <section class="card">
-          <AddToCrate subject="take" ids={[id]} heading="Take Crates" />
-        </section>
-        <section class="card">
-          <AddToPlaylist trackId={id} member={track.playlists} />
-        </section>
-        <section class="card">
-          <h2>Agent context</h2>
-          <ContextButton trackId={id} />
-          <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
-        </section>
+        {#if showsPanel(me, "records")}
+          <section class="card" data-testid="track-curation">
+            <AddToRecord songIds={track.song ? [track.song.id] : []} member={songRecords} pinTake={id} viewer={me} heading="Records" />
+          </section>
+        {/if}
+        {#if showsPanel(me, "crates")}
+          <section class="card">
+            <AddToCrate subject="take" ids={[id]} heading="Take Crates" />
+          </section>
+        {/if}
+        {#if showsPanel(me, "playlist")}
+          <section class="card">
+            <AddToPlaylist trackId={id} member={track.playlists} />
+          </section>
+        {/if}
+        {#if showsPanel(me, "context")}
+          <section class="card">
+            <h2>Agent context</h2>
+            <ContextButton trackId={id} />
+            <PromptButtons trackId={id} recipeKnown={track.recipe_known} />
+          </section>
+        {/if}
         {#if track.transform}
           <TransformProvenance transform={track.transform} />
         {/if}
-        {#if track.recipe_known && !track.lossy}
+        {#if track.recipe_known && !track.lossy && showsPanel(me, "transforms")}
           <TransformPanel trackId={id} hasScore={track.score !== null} />
         {/if}
         <!-- E2-W1b: engine actions (Repaint, Reference, A/B for a repaint child) -->

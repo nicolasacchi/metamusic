@@ -4,6 +4,8 @@
   import SecretOnce from "../lib/components/SecretOnce.svelte";
   import SubsonicClientForm from "../lib/components/SubsonicClientForm.svelte";
   import { pushToast } from "../lib/judge.svelte";
+  import { can } from "../lib/me.svelte";
+  import { actionError, hasOwnerColumn, ownerLabel } from "../lib/deviceView";
   import { createSecretOnce } from "../lib/secretOnce";
 
   type Client = components["schemas"]["SubsonicClient"];
@@ -39,7 +41,7 @@
         items = r.data.items;
         serverUrl = r.data.server_url;
         error = "";
-      } else error = r.error?.message ?? "Failed to load clients";
+      } else error = actionError(r.error, "Failed to load clients");
     } catch {
       error = "Failed to load clients";
     }
@@ -52,7 +54,7 @@
     if (!confirm(`Revoke "${c.name}"? The app stops working until you create a new client.`)) return;
     try {
       const r = await api.POST("/human/api/subsonic-clients/{id}/revoke", { params: { path: { id: c.id } } });
-      if (!r.data) pushToast(r.error?.message ?? "Could not revoke the client");
+      if (!r.data) pushToast(actionError(r.error, "Could not revoke the client"));
     } catch {
       pushToast("Could not revoke the client");
     }
@@ -61,7 +63,7 @@
 </script>
 
 <h1>Subsonic clients</h1>
-<p><a href="/human/connectors">Connectors</a></p>
+{#if can("list_connector_grants")}<p><a href="/human/connectors">Connectors</a></p>{/if}
 {#if serverUrl}<p>Server URL for the app: <code data-testid="subsonic-server-url">{serverUrl}</code></p>{/if}
 
 <SubsonicClientForm
@@ -80,16 +82,18 @@
 
 {#if error}<p role="alert">{error}</p>{/if}
 {#if items}
+  {@const ownerCol = hasOwnerColumn(items)}
   {#if items.length === 0}
     <p class="muted">No clients yet.</p>
   {:else}
     <div class="scroll-x">
       <table data-testid="subsonic-list">
-        <thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Credentials</th><th scope="col">Last seen</th><th scope="col">State</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">Name</th>{#if ownerCol}<th scope="col">Owner</th>{/if}<th scope="col">Username</th><th scope="col">Credentials</th><th scope="col">Last seen</th><th scope="col">State</th><th scope="col"></th></tr></thead>
         <tbody>
           {#each items as c (c.id)}
             <tr data-revoked={c.revoked_at !== null}>
               <td>{c.name}</td>
+              {#if ownerCol}<td data-testid="subsonic-owner">{ownerLabel(c.owner)}</td>{/if}
               <td><code>{c.username}</code></td>
               <td>{[c.has_api_key ? `API key ${c.api_key_prefix ?? ""}…` : "", c.has_password ? "password" : ""].filter(Boolean).join(", ")}</td>
               <td>{c.last_seen_at ?? "never"}{c.last_client ? ` (${c.last_client})` : ""}</td>
