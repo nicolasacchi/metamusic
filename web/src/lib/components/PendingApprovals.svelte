@@ -2,7 +2,6 @@
   import { approvals } from "../approvals.svelte";
   import { me } from "../me.svelte";
   import { ageLabel, confirmHref, expiryLabel, reasonLabel } from "../approvals";
-  import { owned } from "../../api/owner";
   import { formatMicroUSDCeil } from "../money";
 
   interface Props {
@@ -31,11 +30,10 @@
       <p class="muted" data-testid="approvals-readonly">This device cannot approve: approving needs the operator's second-factor page, which each link opens.</p>
     {/if}
     {#each approvals.items as b (b.id)}
-      {@const ob = owned<typeof b, "cost" | "created_by">(b)}
       <article class="row" data-testid="approval-row" data-batch={b.id}>
         <p>
-          <strong data-testid="approval-by">{ob.created_by.name}</strong> asks for <span data-testid="approval-takes">{b.takes} take{b.takes === 1 ? "" : "s"}</span>,
-          spend up to <strong data-testid="approval-ceiling">{formatMicroUSDCeil(ob.cost.ceiling_micro_usd)}</strong>
+          <strong data-testid="approval-by">{b.created_by?.name ?? "Someone"}</strong> asks for <span data-testid="approval-takes">{b.takes} take{b.takes === 1 ? "" : "s"}</span>{#if b.cost},
+          spend up to <strong data-testid="approval-ceiling">{formatMicroUSDCeil(b.cost.ceiling_micro_usd)}</strong>{/if}
         </p>
         <p class="muted">
           {#each b.approval.reasons as r, i (r)}{i > 0 ? "; " : ""}<span data-testid="approval-reason">{reasonLabel(r)}</span>{/each}

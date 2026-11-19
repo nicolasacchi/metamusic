@@ -2,7 +2,6 @@
   import type { components } from "../../api/schema";
   import { canCancel, stateLabel, stateTone, type Viewer } from "../jobState";
   import { formatMicroUSD } from "../money";
-  import { owned } from "../../api/owner";
   import { player } from "../player.svelte";
   import PlayIcon from "./icons/PlayIcon.svelte";
 
@@ -25,14 +24,15 @@
     if (onplay) onplay(id);
     else player.play(id, [id], { title: job.title });
   }
-  const cost = $derived(owned<Job, "cost">(job).cost);
-  const amount = $derived(cost.display_micro_usd ?? cost.expected_micro_usd);
+  // cost is omitted for another user's job when the viewer is an Editor: show a dash, never throw.
+  const cost = $derived(job.cost);
+  const amount = $derived(cost ? (cost.display_micro_usd ?? cost.expected_micro_usd) : null);
 </script>
 
 <tr data-testid="job-row" data-state={job.state}>
   <td><a href="/jobs/{job.id}">{job.title || job.id}</a></td>
   <td><span class="chip {stateTone(job.state)}" data-testid="job-state">{stateLabel(job.state)}</span>{#if job.error_code} <code>{job.error_code}</code>{/if}</td>
-  <td data-testid="job-cost">{formatMicroUSD(amount)} <span class="muted">{cost.basis}</span></td>
+  <td data-testid="job-cost">{#if cost && amount !== null}{formatMicroUSD(amount)} <span class="muted">{cost.basis}</span>{:else}—{/if}</td>
   <td>{#if batchLink}<a href="/batches/{job.batch_id}">batch</a>{/if}</td>
   <td>
     {#if playable}

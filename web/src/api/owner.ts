@@ -1,4 +1,6 @@
-// Owner-side narrowing. U1-E1 made some money and creator fields optional on the wire because the
+// Owner-side narrowing. SAFE ONLY where the route is Owner-only: Human, HumanConfirm, HumanSpend (ROUTE_OPS
+// approve_batch / get_spend, both OwnerOnly) and receipts (list_ledger, OwnerOnly). Anything an Editor can open
+// (jobs, job, batch, New, the estimate, PendingApprovals) must guard the fields at runtime instead. U1-E1 made some money and creator fields optional on the wire because the
 // server omits them for an Editor or Listener. The Owner's pages (Jobs, Human*, Receipts, batch and
 // job views) are only ever served the full shape, so they narrow the generated optional fields here.
 import type { components } from "./schema";

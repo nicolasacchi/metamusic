@@ -1,7 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "../api/client";
-  import { owned } from "../api/owner";
   import type { components } from "../api/schema";
   import { approvals, refreshApprovals } from "../lib/approvals.svelte";
   import {
@@ -239,7 +238,8 @@
   }
 
   const costOf = (b: Batch) => {
-    const c = owned<Batch, "cost">(b).cost;
+    const c = b.cost;
+    if (!c) return "";
     return `${formatMicroUSD(c.settled_micro_usd + c.outstanding_micro_usd)} of up to ${formatMicroUSD(c.ceiling_micro_usd)}`;
   };
 </script>
