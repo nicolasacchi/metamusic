@@ -475,3 +475,67 @@ func TestSanitize(t *testing.T) {
 		t.Errorf("error text")
 	}
 }
+
+func TestEnsureCancelledLeaderDoesNotFailJoiners(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, Options{})
+	gate, in := make(chan struct{}), make(chan struct{}, 4)
+	e.svc.hold = func() { in <- struct{}{}; <-gate }
+	lctx, cancel := context.WithCancel(context.Background())
+	lres, jres := make(chan error, 1), make(chan error, 1)
+	go func() { _, err := e.svc.Ensure(lctx, lt.TrackTwinA, KindFLAC); lres <- err }()
+	<-in
+	go func() { _, err := e.svc.Ensure(context.Background(), lt.TrackTwinA, KindFLAC); jres <- err }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	close(gate)
+	if err := <-jres; err != nil {
+		t.Fatalf("joiner with a live context got %v", err)
+	}
+	<-lres
+}
+
+func TestEnsureJoinerRetriesAfterLeaderWaitCancelled(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, Options{Cap: 1, Queue: 2})
+	gate, in := make(chan struct{}), make(chan struct{}, 4)
+	e.svc.hold = func() { in <- struct{}{}; <-gate }
+	go func() { _, _ = e.svc.Ensure(context.Background(), lt.TrackTwinB, KindFLAC) }()
+	<-in
+	// the leader for TwinA waits for the only slot and is cancelled there
+	lctx, cancel := context.WithCancel(context.Background())
+	lres, jres := make(chan error, 1), make(chan error, 1)
+	go func() { _, err := e.svc.Ensure(lctx, lt.TrackTwinA, KindFLAC); lres <- err }()
+	time.Sleep(50 * time.Millisecond)
+	go func() { _, err := e.svc.Ensure(context.Background(), lt.TrackTwinA, KindFLAC); jres <- err }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if err := <-lres; !errors.Is(err, context.Canceled) {
+		t.Fatalf("leader: %v", err)
+	}
+	close(gate)
+	if err := <-jres; err != nil {
+		t.Fatalf("joiner must retry, got %v", err)
+	}
+}
+
+func TestEnsureMP3FailsClosedOnTruncatedSpan(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, Options{})
+	id := lt.TrackTwinB
+	var rp string
+	if err := e.st.R.QueryRow(`SELECT path FROM renditions WHERE track_id = ? AND kind = 'mp3_320'`, id).Scan(&rp); err != nil {
+		t.Fatal(err)
+	}
+	frames := e.taints[id].MP3Frames
+	bad := append(append(append([]byte{}, frames...), bytes.Repeat([]byte{0x55}, 9000)...), frames...)
+	put(t, e.data, rp, bad)
+	if _, err := e.svc.Ensure(context.Background(), id, KindMP3); !errors.As(err, new(*ErrUnavailable)) {
+		t.Fatalf("a source cut short by garbage must fail closed: %v", err)
+	}
+	// a plain ID3v1 trailer is not a truncation
+	put(t, e.data, rp, append(append([]byte{}, frames...), append([]byte("TAG"), make([]byte, 125)...)...))
+	if _, err := e.svc.Ensure(context.Background(), id, KindMP3); err != nil {
+		t.Fatalf("ID3v1 trailer: %v", err)
+	}
+}

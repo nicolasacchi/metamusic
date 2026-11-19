@@ -9,6 +9,7 @@ package clean
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -51,6 +52,7 @@ const (
 	defaultCap    = 2
 	defaultQueue  = 8
 	retryAfter    = 5 * time.Second
+	buildTimeout  = 5 * time.Minute
 	workDir       = "incoming"
 )
 
@@ -110,7 +112,8 @@ type Service struct {
 	flight map[string]*call
 
 	builds atomic.Int64 // completed builds (tests assert the cache by it)
-	hold   func()       // tests: runs inside a build slot before the build
+	linkMu sync.Mutex
+	hold   func() // tests: runs inside a build slot before the build
 }
 
 type call struct {
@@ -215,29 +218,37 @@ func (s *Service) Ensure(ctx context.Context, trackID, kind string) (Rendition, 
 		return r, nil
 	}
 	key := trackID + "|" + kind
-	s.mu.Lock()
-	c, joined := s.flight[key]
-	if !joined {
-		c = &call{done: make(chan struct{})}
-		s.flight[key] = c
-	}
-	s.mu.Unlock()
-	if joined {
+	for {
+		s.mu.Lock()
+		c, joined := s.flight[key]
+		if !joined {
+			c = &call{done: make(chan struct{})}
+			s.flight[key] = c
+		}
+		s.mu.Unlock()
+		if !joined {
+			c.r, c.err = s.buildSlot(ctx, t, kind, fp, src)
+			s.mu.Lock()
+			delete(s.flight, key)
+			s.mu.Unlock()
+			close(c.done)
+			r := c.r
+			r.Lossy = lossy
+			return r, c.err
+		}
 		select {
 		case <-c.done:
 		case <-ctx.Done():
 			return Rendition{}, ctx.Err()
 		}
-		c.r.Lossy = lossy
-		return c.r, c.err
+		// the leader's own context ended while it waited for a slot: that is not this caller's failure; lead anew
+		if (errors.Is(c.err, context.Canceled) || errors.Is(c.err, context.DeadlineExceeded)) && ctx.Err() == nil {
+			continue
+		}
+		r := c.r
+		r.Lossy = lossy
+		return r, c.err
 	}
-	c.r, c.err = s.buildSlot(ctx, t, kind, fp, src)
-	s.mu.Lock()
-	delete(s.flight, key)
-	s.mu.Unlock()
-	close(c.done)
-	c.r.Lossy = lossy
-	return c.r, c.err
 }
 
 // source is the file a rendition is copied from: the frozen master for flac_clean and for a lossy master, the
@@ -310,7 +321,10 @@ func (s *Service) buildSlot(ctx context.Context, t trackRow, kind, fp string, sr
 	if s.hold != nil {
 		s.hold()
 	}
-	r, err := s.build(ctx, t, kind, fp, src)
+	// the build outlives a leader whose client went away: joiners and the cache profit from it
+	bctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), buildTimeout)
+	defer cancel()
+	r, err := s.build(bctx, t, kind, fp, src)
 	if err != nil && !errors.Is(err, library.ErrMediaUnavailable) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		err = &ErrUnavailable{Err: err}
 	}
@@ -384,6 +398,9 @@ func (s *Service) build(ctx context.Context, t trackRow, kind, fp string, src so
 	if err := s.data.MkdirAll("derived/"+sum[:2], 0o755); err != nil {
 		return Rendition{}, err
 	}
+	// link, row and dropOld are one step: a twin build must not see its linked file unreferenced and remove it
+	s.linkMu.Lock()
+	defer s.linkMu.Unlock()
 	if err := s.data.Link(tmp, rel); err != nil && !errors.Is(err, fs.ErrExist) {
 		return Rendition{}, err
 	}
@@ -479,9 +496,34 @@ func writeMP3(dst io.Writer, src io.ReaderAt, size int64, title string) error {
 	if _, err := dst.Write(id3.EncodeTitle(title)); err != nil {
 		return err
 	}
+	if err := checkTail(src, end, size); err != nil {
+		return err
+	}
 	n, err := io.Copy(dst, io.NewSectionReader(src, start, end-start))
 	if err == nil && n != end-start {
 		err = io.ErrUnexpectedEOF
 	}
 	return err
+}
+
+// maxFrame is the largest MPEG audio frame (MPEG-1 layer III at 320 kb/s is 1045 bytes; this leaves slack).
+const maxFrame = 2048
+
+// checkTail fails closed when the frame span stops before the end of the source for any reason other than a known
+// trailer (ID3v1, APE, Lyrics3) or a cut last frame: a damaged or mid-stream-tagged source would otherwise be served
+// shortened and pass the allow-list.
+func checkTail(src io.ReaderAt, end, size int64) error {
+	rest := size - end
+	if rest <= 0 || rest < maxFrame {
+		return nil
+	}
+	var b [16]byte
+	n, _ := src.ReadAt(b[:], end)
+	head := b[:n]
+	for _, p := range []string{"TAG", "APETAGEX", "LYRICSBEGIN"} {
+		if bytes.HasPrefix(head, []byte(p)) {
+			return nil
+		}
+	}
+	return fmt.Errorf("mp3 source has %d bytes after its last frame that are not a known trailer", rest)
 }

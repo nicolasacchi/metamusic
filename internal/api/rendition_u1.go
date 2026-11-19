@@ -27,8 +27,13 @@ func isListener(ctx context.Context) bool { return view.FromContext(ctx).Listene
 func renditionErr(err error) error {
 	var busy *clean.ErrBusy
 	var un *clean.ErrUnavailable
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		busy = &clean.ErrBusy{}
+	} else {
+		_ = errors.As(err, &busy)
+	}
 	switch {
-	case errors.As(err, &busy):
+	case busy != nil:
 		secs := max(int(busy.RetryAfter/time.Second), 1)
 		return huma.ErrorWithHeaders(Err(http.StatusServiceUnavailable, "RENDITION_BUSY", "audio renditions are being built, retry shortly", map[string]any{"retry_after_s": secs}),
 			http.Header{"Retry-After": []string{strconv.Itoa(secs)}})
@@ -99,7 +104,7 @@ func (d Deps) listenerMediaLinks(ctx context.Context, id string) (*mediaLinksOut
 
 // listenerDownloadLink is get_download_link for a Listener: the clean FLAC (the MP3 for a lossy master) under a
 // filename built from the title alone, never the seed. The tags the response lists are the ones the file carries:
-// the title.
+// the title. The URL serves inline (the same signed object streams in the player), so the filename is advisory.
 func (d Deps) listenerDownloadLink(ctx context.Context, id string) (*downloadLinkOut, error) {
 	r, err := d.listenerRendition(ctx, id, clean.KindFLAC)
 	if err != nil {
@@ -111,6 +116,6 @@ func (d Deps) listenerDownloadLink(ctx context.Context, id string) (*downloadLin
 	b := &out.Body
 	b.TrackID, b.URL, b.Filename, b.Bytes, b.SHA256 = id, l.URL, r.Filename, r.Bytes, r.SHA256
 	b.ExpiresAt, b.TTLS = l.Expires.UTC().Format(time.RFC3339), int64(ttl.Seconds())
-	b.Tags = DownloadTags{Title: r.Title, Album: r.Title, TrackNumber: 1, TrackTotal: 1}
+	b.Tags = DownloadTags{Title: r.Title}
 	return out, nil
 }

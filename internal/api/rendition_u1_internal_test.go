@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -33,5 +34,16 @@ func TestRenditionErr(t *testing.T) {
 	}
 	if err := renditionErr(library.ErrNotFound); !strings.Contains(err.Error(), "NOT_FOUND") {
 		t.Errorf("not found: %v", err)
+	}
+}
+
+func TestRenditionErrContext(t *testing.T) {
+	t.Parallel()
+	for _, e := range []error{context.DeadlineExceeded, context.Canceled} {
+		err := renditionErr(e)
+		var he huma.HeadersError
+		if !strings.Contains(err.Error(), "RENDITION_BUSY") || !errors.As(err, &he) || he.GetHeaders().Get("Retry-After") == "" {
+			t.Errorf("%v: %v", e, err)
+		}
 	}
 }
