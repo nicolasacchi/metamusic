@@ -8,7 +8,7 @@ function fakeIdb() {
   const conns: { closed: boolean; onversionchange: null | (() => void) }[] = [];
   const state = { deleted: false, blocked: false };
   const idb = {
-    open(_name: string, _v: number) {
+    open() {
       const r: Record<string, unknown> = {};
       const conn = {
         closed: false,
