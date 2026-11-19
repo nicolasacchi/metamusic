@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // Tree limits (C71.6).
@@ -116,12 +117,26 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 		limit = DefaultLimit
 	}
 	limit = min(limit, MaxTreeLimit)
-	var root string
-	switch err := s.st.R.QueryRowContext(ctx, `SELECT root_track_id FROM tracks WHERE id = ?`, trackID).Scan(&root); {
+	var root, status string
+	switch err := s.st.R.QueryRowContext(ctx, `SELECT root_track_id, status FROM tracks WHERE id = ?`, trackID).Scan(&root, &status); {
 	case errors.Is(err, sql.ErrNoRows):
 		return Tree{}, ErrNotFound
 	case err != nil:
 		return Tree{}, fmt.Errorf("lineage: tree: %w", err)
+	}
+	// A viewer that hides discarded takes gets 404 for a discarded id and a tree without discarded nodes: the visible
+	// children of a hidden node hang from its nearest visible ancestor (C308.2).
+	v := view.FromContext(ctx)
+	hide := v.HideDiscarded
+	if hide && status == "discarded" {
+		return Tree{}, ErrNotFound
+	}
+	var hidden map[string]bool
+	if hide {
+		var err error
+		if hidden, err = s.discardedSet(ctx); err != nil {
+			return Tree{}, err
+		}
 	}
 	rows, err := s.st.R.QueryContext(ctx, treeSQL, auth.DisplayRater(auth.FromContext(ctx)), root)
 	if err != nil {
@@ -131,6 +146,7 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 	nodes := map[string]*Node{}
 	children := map[string][]*Node{}
 	var rootNode *Node
+	hiddenParent := map[string]string{} // hidden node id -> its raw parent id ("" for none)
 	for rows.Next() {
 		n := &Node{}
 		var parent, rationale, outcome, jobID, tKind, tHash sql.NullString
@@ -148,11 +164,15 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 			&expected, &nTakes, &reconciled, &execSettled, &overheadSettled, &refTrack, &refFrom, &refTo, &stems, &cross); err != nil {
 			return Tree{}, fmt.Errorf("lineage: tree: %w", err)
 		}
+		if hide && hidden[n.ID] {
+			hiddenParent[n.ID] = parent.String
+			continue
+		}
 		n.RecipeKnown = engine != "unknown"
 		if engine != "yue2" && engine != "unknown" {
 			n.Engine = engine
 		}
-		if refTrack.Valid {
+		if refTrack.Valid && !(hide && hidden[refTrack.String]) {
 			n.Reference = &NodeReference{TrackID: refTrack.String, FromS: float64(refFrom.Int64) / 10, ToS: float64(refTo.Int64) / 10}
 		}
 		n.Stems, n.CrossEngine = stems, cross == 1
@@ -188,9 +208,6 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 			n.CostMicroUSD, n.CostBasis = &cost, &basis
 		}
 		nodes[n.ID] = n
-		if parent.Valid {
-			children[parent.String] = append(children[parent.String], n)
-		}
 		if n.ID == root {
 			rootNode = n
 		}
@@ -198,10 +215,47 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 	if err := rows.Err(); err != nil {
 		return Tree{}, err
 	}
-	if rootNode == nil {
+	if rootNode == nil && !hide {
 		return Tree{}, ErrNotFound
 	}
-	if err := s.alsoFrom(ctx, root, nodes); err != nil {
+	for _, n := range nodes {
+		if n.ParentID == nil {
+			continue
+		}
+		pid := *n.ParentID
+		for hidden[pid] { // climb past hidden ancestors (the loop ends: a hidden node's chain is finite)
+			pid = hiddenParent[pid]
+		}
+		if pid == "" {
+			n.ParentID = nil
+		} else {
+			n.ParentID = &pid
+		}
+		if n.ParentID != nil {
+			children[pid] = append(children[pid], n)
+		}
+	}
+	if rootNode == nil { // the root is hidden: start at the topmost visible ancestor of the requested take
+		top := nodes[trackID]
+		for top != nil && top.ParentID != nil && nodes[*top.ParentID] != nil {
+			top = nodes[*top.ParentID]
+		}
+		if top == nil {
+			return Tree{}, ErrNotFound
+		}
+		rootNode, root = top, top.ID
+		reach := map[string]*Node{}
+		var mark func(n *Node)
+		mark = func(n *Node) {
+			reach[n.ID] = n
+			for _, k := range children[n.ID] {
+				mark(k)
+			}
+		}
+		mark(top)
+		nodes = reach
+	}
+	if err := s.alsoFrom(ctx, root, nodes, hidden); err != nil {
 		return Tree{}, err
 	}
 	for id, kids := range children {
@@ -258,7 +312,7 @@ func DisplayCost(expected, nTakes int64, exec, overhead sql.NullInt64, reconcile
 
 // alsoFrom annotates the transform nodes of one tree with the inputs that are not their ledger parent (D-T1-5). The
 // annotated track gains no child edge: the tree is built from parent_track_id alone.
-func (s *Service) alsoFrom(ctx context.Context, root string, nodes map[string]*Node) error {
+func (s *Service) alsoFrom(ctx context.Context, root string, nodes map[string]*Node, hidden map[string]bool) error {
 	rows, err := s.st.R.QueryContext(ctx, `SELECT ti.transform_id, ti.track_id, ti.role
 		FROM transform_inputs ti JOIN tracks t ON t.id = ti.transform_id
 		WHERE t.root_track_id = ? AND (t.parent_track_id IS NULL OR ti.track_id <> t.parent_track_id)
@@ -273,9 +327,30 @@ func (s *Service) alsoFrom(ctx context.Context, root string, nodes map[string]*N
 		if err := rows.Scan(&id, &a.TrackID, &a.Role); err != nil {
 			return fmt.Errorf("lineage: also_from: %w", err)
 		}
+		if hidden[a.TrackID] {
+			continue
+		}
 		if n := nodes[id]; n != nil {
 			n.AlsoFrom = append(n.AlsoFrom, a)
 		}
 	}
 	return rows.Err()
+}
+
+// discardedSet is the id set of every discarded take (the hidden nodes of a Listener's tree).
+func (s *Service) discardedSet(ctx context.Context) (map[string]bool, error) {
+	rows, err := s.st.R.QueryContext(ctx, `SELECT id FROM tracks WHERE status = 'discarded'`)
+	if err != nil {
+		return nil, fmt.Errorf("lineage: discarded set: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
 }

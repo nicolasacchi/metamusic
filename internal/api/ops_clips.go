@@ -21,6 +21,9 @@ func registerClips(a huma.API, d Deps) {
 			if d.Clips == nil {
 				return nil, unavailable("clips")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			l, err := d.Clips.Link(ctx, auth.FromContext(ctx), in.ID, clip.Query{FromS: in.FromS.ptr(), ToS: in.ToS.ptr(), MatchLUFS: in.MatchLUFS.ptr()})
 			if err != nil {
 				return nil, m2bErr(err, "M2b-M1")

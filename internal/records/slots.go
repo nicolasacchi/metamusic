@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/problem"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // querier is what both a reader pool and a write transaction offer.
@@ -178,6 +179,7 @@ func resolveSlots(ctx context.Context, q querier, slots []Slot) ([]ResolvedSlot,
 		}
 	}
 	out := make([]ResolvedSlot, 0, len(slots))
+	hide := view.FromContext(ctx).HideDiscarded
 	for _, sl := range slots {
 		pk, ok := picks[sl.SongID]
 		if !ok {
@@ -189,6 +191,15 @@ func resolveSlots(ctx context.Context, q querier, slots []Slot) ([]ResolvedSlot,
 		}
 		if pk.TakeID != nil {
 			pickTake = takes[*pk.TakeID]
+		}
+		if hide { // a discarded take is shown as an empty slot, never as a take or a pin_ineligible one (C308.2)
+			if pickTake != nil && pickTake.Status == "discarded" {
+				pk.TakeID, pickTake = nil, nil
+			}
+			if pinned != nil && pinned.Status == "discarded" {
+				out = append(out, hideDiscardedSlot(ResolveSlot(sl, pinned, pk, pickTake)))
+				continue
+			}
 		}
 		out = append(out, ResolveSlot(sl, pinned, pk, pickTake))
 	}
@@ -259,4 +270,16 @@ func writeOrder(ctx context.Context, tx *sql.Tx, recordID string, ids []string) 
 		return fmt.Errorf("records: write order: %w", err)
 	}
 	return nil
+}
+
+// hideDiscardedSlot rewrites a slot whose pinned take is discarded for a viewer that hides discarded takes: no take, no
+// pin diff, state and warning "empty" (plus retired_song when it applies).
+func hideDiscardedSlot(r ResolvedSlot) ResolvedSlot {
+	r.Take, r.PinDiffers, r.State, r.Mode = nil, false, StateEmpty, ModeFloating
+	r.Slot.PinnedTakeID, r.Slot.PinnedBy, r.Slot.PinnedAt = nil, nil, nil
+	r.Warnings = []string{WarnEmpty}
+	if r.SongRetired {
+		r.Warnings = append(r.Warnings, WarnRetiredSong)
+	}
+	return r
 }

@@ -60,6 +60,7 @@ func (s *Service) Get(ctx context.Context, viewer auth.Principal, id string, o G
 		v.Energy = energy(d)
 	}
 	if has(IncludeChanges) {
+		changes = hideUnseenTakes(ctx, changes, func(id string) bool { _, ok := d.refs[id]; return ok })
 		v.Changes = changeViews(changes, d.title)
 	}
 	if has(IncludeTapes) && s.o.Tapes != nil {

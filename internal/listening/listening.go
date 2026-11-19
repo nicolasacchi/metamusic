@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // Listening is the summary shown on track detail and in the context bundle.
@@ -120,6 +121,7 @@ func (s *Service) Log(ctx context.Context, p auth.Principal, src string, evs []E
 		kind = string(auth.KindAgent)
 	}
 	durs := map[string]*int64{}
+	hideDiscarded := view.FromContext(ctx).NotDiscarded("") // a discarded take is an unknown track for a Listener (C308.2)
 	tx, err := s.st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, nil, err
@@ -130,7 +132,7 @@ func (s *Service) Log(ctx context.Context, p auth.Principal, src string, evs []E
 		d, seen := durs[e.TrackID]
 		if !seen {
 			var sec float64
-			switch err := tx.QueryRowContext(ctx, `SELECT duration_s FROM tracks WHERE id = ?`, e.TrackID).Scan(&sec); {
+			switch err := tx.QueryRowContext(ctx, `SELECT duration_s FROM tracks WHERE id = ?`+hideDiscarded, e.TrackID).Scan(&sec); {
 			case err == nil:
 				ms := int64(math.Round(sec * 1000))
 				d = &ms

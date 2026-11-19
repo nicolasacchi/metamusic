@@ -19,6 +19,9 @@ func registerLibrary(a huma.API, d Deps) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
+			if err := listenerFilterNotAllowed(ctx, trackFiltersSet(in)); err != nil {
+				return nil, err
+			}
 			params, err := l2TrackParams(*in, library.SearchParams{
 				Q: in.Q, Status: in.Status, Style: in.Style, MinDurationS: in.MinDurationS.ptr(), MaxDurationS: in.MaxDurationS.ptr(),
 				RecordedFrom: in.RecordedFrom, RecordedTo: in.RecordedTo, HasScore: in.HasScore.ptr(), Truncated: in.Truncated.ptr(),
@@ -66,6 +69,9 @@ func registerLibrary(a huma.API, d Deps) {
 			if d.Library == nil {
 				return nil, unavailable("library")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			t, err := d.Library.Track(ctx, in.ID)
 			if err != nil {
 				return nil, libErr(err)
@@ -82,6 +88,9 @@ func registerLibrary(a huma.API, d Deps) {
 		func(ctx context.Context, in *trackPeaksIn) (*peaksOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
+			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
 			}
 			p, err := d.Library.Peaks(ctx, in.ID, in.Level)
 			if err != nil {

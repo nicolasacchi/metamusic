@@ -55,6 +55,9 @@ func registerMedia(a huma.API, d Deps) {
 			if d.Signer == nil {
 				return nil, unavailable("signer")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			m, err := d.Library.Media(ctx, in.ID)
 			if err != nil {
 				return nil, libErr(err)

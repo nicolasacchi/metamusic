@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // Facets are the seven Sound facets a Song can be filtered by (C93): the five taxonomy facets plus the computed
@@ -146,7 +147,11 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 			(SELECT r.song_id FROM recipe_drafts d JOIN tracks t ON t.id = d.fulfilled_by_track_id JOIN song_roots r ON r.root_track_id = t.root_track_id WHERE d.id = ?))`, f.DraftID, f.DraftID)
 	}
 	if f.TrackID != "" {
-		add("s.id = (SELECT song_id FROM take_songs WHERE track_id = ?)", f.TrackID)
+		if f.HideDiscarded { // a discarded take has no Song for this viewer (C308.2)
+			add("s.id = (SELECT ts.song_id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.track_id = ? AND t.status <> 'discarded')", f.TrackID)
+		} else {
+			add("s.id = (SELECT song_id FROM take_songs WHERE track_id = ?)", f.TrackID)
+		}
 	}
 	return strings.Join(c, " AND "), args
 }
@@ -279,5 +284,6 @@ func (f ListFilter) WithViewer(ctx context.Context, st *store.Store) ListFilter 
 		f.Rater = auth.NoRater
 	}
 	f.OwnerEvents, f.OwnerEventsArgs = st.OwnerEventsSQL("le")
+	f.HideDiscarded = view.FromContext(ctx).HideDiscarded
 	return f
 }

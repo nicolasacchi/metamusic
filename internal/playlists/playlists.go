@@ -19,6 +19,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // MaxItems is the most tracks a playlist holds.
@@ -324,16 +325,25 @@ func (s *Service) Get(ctx context.Context, id string) (Playlist, error) {
 		return Playlist{}, err
 	}
 	pl.Items = make([]Item, 0, len(ids))
-	for i, tid := range ids {
-		pl.Items = append(pl.Items, Item{Position: i + 1, Track: sums[tid]})
+	hide := view.FromContext(ctx).HideDiscarded
+	for _, tid := range ids {
+		if hide && sums[tid].ID == "" { // a discarded take is not in the playlist for this viewer; positions stay dense (C308.2)
+			continue
+		}
+		pl.Items = append(pl.Items, Item{Position: len(pl.Items) + 1, Track: sums[tid]})
 	}
 	return pl, nil
 }
 
 // List returns the playlists, hidden ones only on request.
 func (s *Service) List(ctx context.Context, includeHidden bool) ([]PlaylistSummary, error) {
-	q := `SELECT p.id, p.name, p.items_count, p.revision, p.updated_at, p.hidden_at IS NOT NULL,
-		COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value), 0), p.role
+	count, notDiscarded := "p.items_count", ""
+	if view.FromContext(ctx).HideDiscarded { // the count and duration of a Listener never include a discarded take (C308.2)
+		notDiscarded = ` WHERE t.status <> 'discarded'`
+		count = `(SELECT COUNT(*) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value` + notDiscarded + `)`
+	}
+	q := `SELECT p.id, p.name, ` + count + `, p.revision, p.updated_at, p.hidden_at IS NOT NULL,
+		COALESCE((SELECT SUM(t.duration_s) FROM json_each(p.items_json) j JOIN tracks t ON t.id = j.value` + notDiscarded + `), 0), p.role
 		FROM playlists p`
 	if !includeHidden {
 		q += ` WHERE p.hidden_at IS NULL OR p.role = 'offline'`
@@ -382,7 +392,7 @@ func (s *Service) summaries(ctx context.Context, ids []string) (map[string]libra
 		FROM tracks t JOIN recipes r ON r.id = t.recipe_id
 `+store.ViewerRatingJoin("hs", "t.id")+`
 		LEFT JOIN critic_ratings ha ON ha.track_id = t.id
-		WHERE t.id IN (SELECT value FROM json_each(?))`, auth.DisplayRater(auth.FromContext(ctx)), string(arr))
+		WHERE t.id IN (SELECT value FROM json_each(?))`+view.FromContext(ctx).NotDiscarded("t"), auth.DisplayRater(auth.FromContext(ctx)), string(arr))
 	if err != nil {
 		return nil, fmt.Errorf("playlists: track summaries: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 const (
@@ -143,6 +144,11 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	if err := rows.Err(); err != nil {
 		return Page{}, err
 	}
+	if view.FromContext(ctx).HideDiscarded {
+		if err := s.visibleTakeCounts(ctx, page.Items); err != nil {
+			return Page{}, err
+		}
+	}
 	if more && len(page.Items) > 0 {
 		c := encodeCursor(lastAt, page.Items[len(page.Items)-1].ID)
 		page.NextCursor = &c
@@ -158,4 +164,39 @@ func (s *Service) Count(ctx context.Context, f ListFilter) (int, error) {
 		return 0, fmt.Errorf("songs: count: %w", err)
 	}
 	return n, nil
+}
+
+// visibleTakeCounts replaces Takes by the number of takes the viewer may see: a count that included discarded takes
+// would reveal them (C308.2).
+func (s *Service) visibleTakeCounts(ctx context.Context, items []Summary) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]any, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	//nolint:gosec // G202: only "?" placeholders are concatenated
+	rows, err := s.st.R.QueryContext(ctx, `SELECT ts.song_id, COUNT(*) FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
+		WHERE t.status <> 'discarded' AND ts.song_id IN (`+placeholders(len(ids))+`) GROUP BY ts.song_id`, ids...)
+	if err != nil {
+		return fmt.Errorf("songs: visible takes: %w", err)
+	}
+	defer rows.Close()
+	n := map[string]int{}
+	for rows.Next() {
+		var id string
+		var c int
+		if err := rows.Scan(&id, &c); err != nil {
+			return err
+		}
+		n[id] = c
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].Takes = n[items[i].ID]
+	}
+	return nil
 }

@@ -75,6 +75,9 @@ func registerJudgments(a huma.API, d Deps) {
 			if d.Judgments == nil {
 				return nil, unavailable("judgments")
 			}
+			if err := d.visible(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			p := auth.FromContext(ctx)
 			tr, err := d.Judgments.Rate(ctx, p, in.ID, in.Body.Stars, in.Body.Verdict)
 			if err != nil {
