@@ -90,6 +90,13 @@ func (c *call) recordAlbums(cat *catalog) ([]*recAlbum, error) {
 	return c.buildRecs(cat, items, set)
 }
 
+// museHidden reports whether id names a Muse or Unfiled auto-album the principal may not see (no SeeMuse): every route
+// answers it exactly as an unknown id, so none is an existence oracle on Muse ids.
+func (c *call) museHidden(id string) bool {
+	kind, _ := parseID(id)
+	return kind == kindAuto && !view.FromContext(c.ctx).SeeMuse
+}
+
 // catalogAlbum loads one catalog album (rec-, mus- or unf) by its full id; an unknown, unpublished, hidden or (under the folder
 // rule) empty one is error 70.
 func (c *call) catalogAlbum(cat *catalog, id string) (*recAlbum, error) {
@@ -100,7 +107,7 @@ func (c *call) catalogAlbum(cat *catalog, id string) (*recAlbum, error) {
 	if err != nil {
 		return nil, err
 	}
-	if kind, _ := parseID(id); kind == kindAuto && !view.FromContext(c.ctx).SeeMuse {
+	if c.museHidden(id) {
 		return nil, fail(errNotFound, "album not found")
 	}
 	a, songs, err := c.s.alb.Get(c.ctx, id)
@@ -491,6 +498,9 @@ func (c *call) recordStamp(cat *catalog) (int64, error) {
 // unknown, unpublished or hidden one is error 70).
 func (c *call) albumCover(id string, size int) (serve.Object, error) {
 	if c.s.alb == nil {
+		return serve.Object{}, fail(errNotFound, "cover art not found")
+	}
+	if c.museHidden(id) {
 		return serve.Object{}, fail(errNotFound, "cover art not found")
 	}
 	a, _, err := c.s.alb.Get(c.ctx, id)

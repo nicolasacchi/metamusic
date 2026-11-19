@@ -65,3 +65,31 @@ func (e *recEnv) albumIDsWith(c *subsonictest.Client, typ string) []string {
 	}
 	return ids(list(resp.Doc, "albumList2"))
 }
+
+// TestListenerClientMuseIDIsNoOracle (U1-INT-B review): the cover and the info endpoints answer a Muse or Unfiled auto-album
+// id for a Listener's client exactly as an unknown id (error 70 / 404).
+func TestListenerClientMuseIDIsNoOracle(t *testing.T) {
+	t.Parallel()
+	e := newRecEnv(t)
+	muse := e.muse(librarytest.L2Muse1Title)
+	listener := e.r.SubsonicClientFor(t, servertest.UserListener, subsonictest.ClientOpts{Name: "Listener cover app", Write: true})
+	for _, ep := range []string{"getAlbumInfo", "getAlbumInfo2", "getArtistInfo", "getArtistInfo2"} {
+		unknown := listener.Call(t, ep, qv("id", "mus-nonexistent"), subsonictest.CallOpts{JSON: true})
+		for _, id := range []string{muse, "unf"} {
+			got := listener.Call(t, ep, qv("id", id), subsonictest.CallOpts{JSON: true})
+			if got.Code != 70 || got.Code != unknown.Code {
+				t.Errorf("%s %s for a Listener: code %d, unknown id code %d, want 70 for both", ep, id, got.Code, unknown.Code)
+			}
+		}
+	}
+	unknown := listener.Call(t, "getCoverArt", qv("id", "mus-nonexistent", "size", "96"), subsonictest.CallOpts{})
+	for _, id := range []string{muse, "unf"} {
+		got := listener.Call(t, "getCoverArt", qv("id", id, "size", "96"), subsonictest.CallOpts{})
+		if got.HTTP != unknown.HTTP || strings.HasPrefix(got.Header.Get("Content-Type"), "image/") {
+			t.Errorf("getCoverArt %s for a Listener: http %d type %q, unknown id http %d", id, got.HTTP, got.Header.Get("Content-Type"), unknown.HTTP)
+		}
+	}
+	if resp := e.c.Call(t, "getCoverArt", qv("id", muse, "size", "96"), subsonictest.CallOpts{}); resp.HTTP != 200 {
+		t.Errorf("the Owner's cover for %s: http %d", muse, resp.HTTP)
+	}
+}

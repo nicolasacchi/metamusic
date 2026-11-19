@@ -94,3 +94,7 @@
 ./internal/provenance TestProperty_ProvenanceInvariants 120 1
 ./internal/provenance TestProperty_ProvenanceInvariantsUpper 120 0
 ./internal/provenance TestProperty_FeatureInvariants 120 2
+./internal/acceptance TestIntBEditorLeakSweep 120 1
+./internal/acceptance TestIntBListenerLeakSweep 100 3
+./internal/acceptance TestIntBListenerSubsonicSweep 60 0
+./internal/acceptance TestIntBFilterNotAnOracleByValue 40 2

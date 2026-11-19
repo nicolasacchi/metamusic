@@ -398,7 +398,7 @@ func (w *intbWorld) run(t *testing.T, role intbRole, ops []intbOp, skipHuman, mu
 			}
 			resp := role.Client.Do(t, c.Method, c.Path, c.Body, hdr...)
 			called[op.ID] = append(called[op.ID], resp)
-			if resp.Status >= 500 && !w.noFiles(t, c.Scrub) {
+			if resp.Status >= 500 && !(intbFileRoute(c.Path) && w.noFiles(t, c.Scrub)) {
 				t.Errorf("%s %s %s: %d %.200s", role.Name, c.Method, c.Path, resp.Status, resp.Body)
 			}
 			if c.Gone && role.HideDiscarded && resp.Status != 404 && resp.Status != 422 && resp.Status != 405 {
@@ -469,6 +469,17 @@ func (w *intbWorld) noFiles(tb testing.TB, ids []string) bool {
 			continue
 		}
 		if len(intbSQLStrings(tb, w.R, `SELECT id FROM tracks WHERE id = ?`, id)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// intbFileRoute reports whether a path needs a real audio file of its take: the only routes whose 5xx a placeholder fixture
+// master excuses. Any other 5xx is a server bug.
+func intbFileRoute(path string) bool {
+	for _, p := range []string{"/media", "/download", "/peaks", "/clip", "/audio", "/stream", "/spectrogram", "/waveform", "/cover", "/analysis", "/tape"} {
+		if strings.Contains(path, p) {
 			return true
 		}
 	}
