@@ -117,7 +117,14 @@ export function cacheStore(env: StoreEnv = { caches: globalThis.caches, indexedD
         o.result.createObjectStore("files");
         o.result.createObjectStore("tracks", { keyPath: "track_id" });
       };
-      o.onsuccess = () => res(o.result);
+      o.onsuccess = () => {
+        // A deleteDatabase from the page (per-user reset) must not stay blocked on this connection.
+        o.result.onversionchange = () => {
+          o.result.close();
+          dbp = null;
+        };
+        res(o.result);
+      };
       o.onerror = () => {
         dbp = null;
         rej(o.error);

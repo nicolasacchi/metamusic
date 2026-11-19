@@ -252,17 +252,25 @@ export function referenceIntent(trackId: string, from_s?: number, to_s?: number)
 export interface Viewer {
   kind: "human" | "agent" | "device";
   scopes: readonly string[];
+  /** whoami.allowed_ops (C313.2). When present it decides; the kind and scopes rules below are the fallback for callers without it. */
+  allowed?: readonly string[];
+}
+
+/** May this viewer start a generation: the Owner through the human path, an Editor by requesting approval (create_generation)? */
+function mayStart(me: Viewer): boolean {
+  if (me.allowed) return me.allowed.includes("create_generation_human") || me.allowed.includes("create_generation");
+  return me.kind !== "device" && me.scopes.includes("generate");
 }
 
 /** Devices, principals without the generate scope, reference (recipe unknown) and lossy tracks never see generation buttons. */
 export function canGenerate(me: Viewer | null, t: { recipe_known: boolean; lossy: boolean }): boolean {
-  if (!me || me.kind === "device" || !me.scopes.includes("generate")) return false;
+  if (!me || !mayStart(me)) return false;
   return t.recipe_known && !t.lossy;
 }
 
 /** Who may start any generation from a list page (no per-track check). */
 export function mayGenerate(me: Viewer | null): boolean {
-  return me !== null && me.kind !== "device" && me.scopes.includes("generate");
+  return me !== null && mayStart(me);
 }
 
 /** Hand the intent to the full-page /human/generate flow (C84.1). */

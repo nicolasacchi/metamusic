@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createApi } from "../api/client";
 import { createSession } from "../api/session";
-import { confirmButtonLabel, confirmDisabledReasons, createConfirmAction, describeConfirmFailure } from "./confirm";
+import { confirmButtonLabel, confirmDisabledReasons, confirmViaFor, createConfirmAction, describeConfirmFailure } from "./confirm";
 import type { components } from "../api/schema";
 
 type Estimate = components["schemas"]["Estimate"];
@@ -87,6 +87,29 @@ describe("confirm action", () => {
     const { api, paths } = rig(() => json(batch, 201));
     await createConfirmAction(api, "mmc_tok", "")();
     expect(paths).toEqual(["/human/api/generations"]);
+  });
+
+  test("an Editor's request posts to /api/generations with the same body and key discipline", async () => {
+    const { api, paths, keys } = rig(() => json(batch, 201));
+    const r = await createConfirmAction(api, "mmc_tok", " why ", "request")();
+    expect(r).toEqual({ kind: "created", batchId: "b1" });
+    expect(paths).toEqual(["/api/generations"]);
+    expect(keys[0]).toBeTruthy();
+  });
+
+  test("the button says request approval for an Editor and spend for the Owner", () => {
+    expect(confirmButtonLabel(est(), "request")).toBe("Request approval (up to $0.70)");
+    expect(confirmButtonLabel(est())).toBe("Spend up to $0.70");
+    expect(confirmViaFor((op) => op === "create_generation_human")).toBe("human");
+    expect(confirmViaFor((op) => op === "create_generation")).toBe("request");
+  });
+
+  test("an estimate without the provider and budget blocks (Editor view) only reports plan errors", () => {
+    const bare = est() as Partial<Estimate> as Omit<Estimate, "provider" | "budget">;
+    delete (bare as Partial<Estimate>).provider;
+    delete (bare as Partial<Estimate>).budget;
+    expect(confirmDisabledReasons(bare)).toEqual([]);
+    expect(confirmDisabledReasons({ ...bare, warnings: [{ severity: "error", code: "X", message: "m", take_index: 0, field: "" } as never] })).toHaveLength(1);
   });
 
   test("402 renders the cap details", async () => {

@@ -1,18 +1,15 @@
 <script lang="ts">
-  import type { components } from "../../api/schema";
-  import { confirmDisabledReasons } from "../confirm";
+  import { confirmDisabledReasons, type EstimateLike } from "../confirm";
+  import { can } from "../me.svelte";
   import { formatMicroUSD, formatMicroUSDCeil } from "../money";
   import { takeDetail, taskClasses, warningHint } from "../engines";
-  import { owned } from "../../api/owner";
   import BudgetBar from "./BudgetBar.svelte";
 
-  type Estimate = components["schemas"]["Estimate"];
   interface Props {
-    estimate: Estimate;
+    estimate: EstimateLike;
   }
   let { estimate: e }: Props = $props();
 
-  const eb = $derived(owned<Estimate["budget"], "month" | "day" | "batch_cap_micro_usd">(e.budget));
   const reasons = $derived(confirmDisabledReasons(e));
   const allTakes = $derived(e.items.flatMap((it) => it.takes));
   const classes = $derived(taskClasses(allTakes));
@@ -44,10 +41,12 @@
     </ul>
   {/if}
 
-  <h3>Budget</h3>
-  <BudgetBar label="Month" settled={eb.month.used_micro_usd} cap={eb.month.cap_micro_usd} />
-  <BudgetBar label="Today" settled={eb.day.used_micro_usd} cap={eb.day.cap_micro_usd} />
-  <p class="muted">Batch cap {formatMicroUSD(eb.batch_cap_micro_usd)}.</p>
+  {#if e.budget?.month && e.budget.day && can("get_spend")}
+    <h3>Budget</h3>
+    <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
+    <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
+    {#if e.budget.batch_cap_micro_usd !== undefined}<p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>{/if}
+  {/if}
 
   {#if e.requires_human_approval}
     <p class="note" data-testid="approval-notes">

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { components } from "../../api/schema";
+  import { can } from "../me.svelte";
 
   type Brief = components["schemas"]["ProviderBrief"];
   interface Props {
@@ -19,7 +20,7 @@
 
 {#if problem}
   <div class="banner" role="alert" data-testid="provider-banner">
-    {problem} <a href="/human/spend">Spend and provider settings</a>
+    {problem}{#if can("get_spend")} <a href="/human/spend">Spend and provider settings</a>{/if}
   </div>
 {/if}
 

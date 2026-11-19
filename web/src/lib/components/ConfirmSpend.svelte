@@ -1,17 +1,18 @@
 <script lang="ts">
   import { api } from "../../api/client";
-  import type { components } from "../../api/schema";
-  import { confirmButtonLabel, confirmDisabledReasons, createConfirmAction, describeConfirmFailure, type ConfirmOutcome } from "../confirm";
+  import { confirmButtonLabel, confirmDisabledReasons, confirmViaFor, createConfirmAction, describeConfirmFailure, type ConfirmOutcome, type EstimateLike } from "../confirm";
+  import { can } from "../me.svelte";
 
-  type Estimate = components["schemas"]["Estimate"];
   interface Props {
-    estimate: Estimate;
+    estimate: EstimateLike;
     /** Called with the batch to open (created, or the one a consumed token already made). */
     onbatch: (id: string) => void;
     onreestimate: () => void;
   }
   let { estimate, onbatch, onreestimate }: Props = $props();
 
+  // The Owner confirms and the batch starts; an Editor's confirmation is a request the Owner approves (C310.1).
+  const via = $derived(confirmViaFor(can));
   let rationale = $state("");
   let busy = $state(false);
   let failure = $state<Extract<ConfirmOutcome, { kind: "failed" }> | null>(null);
@@ -24,7 +25,7 @@
 
   async function click() {
     if (busy || blocked) return;
-    if (!action || !networkError) action = createConfirmAction(api, estimate.confirmation_token, rationale);
+    if (!action || !networkError) action = createConfirmAction(api, estimate.confirmation_token, rationale, via);
     busy = true;
     failure = null;
     networkError = false;
@@ -44,9 +45,10 @@
     Why (optional)
     <input type="text" bind:value={rationale} maxlength="500" disabled={busy || networkError} data-testid="rationale" />
   </label>
+  {#if via === "request"}<p class="muted" data-testid="request-note">Nothing runs or is spent until the owner approves this request.</p>{/if}
   <p>
     <button type="button" class="primary" disabled={busy || blocked} onclick={click} data-testid="confirm-button">
-      {networkError ? "Retry: " : ""}{confirmButtonLabel(estimate)}
+      {networkError ? "Retry: " : ""}{confirmButtonLabel(estimate, via)}
     </button>
   </p>
   {#if networkError}<p role="alert" data-testid="confirm-network">Network error. Your request may have gone through: retrying is safe, it cannot spend twice.</p>{/if}
