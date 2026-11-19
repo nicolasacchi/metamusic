@@ -3,6 +3,7 @@
   import { confirmDisabledReasons } from "../confirm";
   import { formatMicroUSD, formatMicroUSDCeil } from "../money";
   import { takeDetail, taskClasses, warningHint } from "../engines";
+  import { owned } from "../../api/owner";
   import BudgetBar from "./BudgetBar.svelte";
 
   type Estimate = components["schemas"]["Estimate"];
@@ -11,6 +12,7 @@
   }
   let { estimate: e }: Props = $props();
 
+  const eb = $derived(owned<Estimate["budget"], "month" | "day" | "batch_cap_micro_usd">(e.budget));
   const reasons = $derived(confirmDisabledReasons(e));
   const allTakes = $derived(e.items.flatMap((it) => it.takes));
   const classes = $derived(taskClasses(allTakes));
@@ -43,9 +45,9 @@
   {/if}
 
   <h3>Budget</h3>
-  <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
-  <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
-  <p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>
+  <BudgetBar label="Month" settled={eb.month.used_micro_usd} cap={eb.month.cap_micro_usd} />
+  <BudgetBar label="Today" settled={eb.day.used_micro_usd} cap={eb.day.cap_micro_usd} />
+  <p class="muted">Batch cap {formatMicroUSD(eb.batch_cap_micro_usd)}.</p>
 
   {#if e.requires_human_approval}
     <p class="note" data-testid="approval-notes">

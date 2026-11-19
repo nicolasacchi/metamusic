@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "../api/client";
+  import { owned } from "../api/owner";
   import type { components } from "../api/schema";
   import BatchCard from "../lib/components/BatchCard.svelte";
   import BudgetBar from "../lib/components/BudgetBar.svelte";
@@ -147,9 +148,10 @@
 {#if error}<p role="alert">{error}</p>{/if}
 <PendingApprovals />
 {#if budget}
+  {@const ob = owned<Budget, "month" | "day">(budget)}
   <section aria-label="Budget">
-    <BudgetBar label="Month" settled={budget.month.settled_micro_usd} reserved={budget.month.outstanding_micro_usd} cap={budget.month.cap_micro_usd} />
-    <BudgetBar label="Today" settled={budget.day.settled_micro_usd} reserved={budget.day.outstanding_micro_usd} cap={budget.day.cap_micro_usd} />
+    <BudgetBar label="Month" settled={ob.month.settled_micro_usd} reserved={ob.month.outstanding_micro_usd} cap={ob.month.cap_micro_usd} />
+    <BudgetBar label="Today" settled={ob.day.settled_micro_usd} reserved={ob.day.outstanding_micro_usd} cap={ob.day.cap_micro_usd} />
   </section>
 {/if}
 

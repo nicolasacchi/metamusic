@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "../api/client";
+  import { owned } from "../api/owner";
   import type { components } from "../api/schema";
   import { approvals, refreshApprovals } from "../lib/approvals.svelte";
   import {
@@ -237,7 +238,10 @@
     void refreshInboxBadge();
   }
 
-  const costOf = (b: Batch) => `${formatMicroUSD(b.cost.settled_micro_usd + b.cost.outstanding_micro_usd)} of up to ${formatMicroUSD(b.cost.ceiling_micro_usd)}`;
+  const costOf = (b: Batch) => {
+    const c = owned<Batch, "cost">(b).cost;
+    return `${formatMicroUSD(c.settled_micro_usd + c.outstanding_micro_usd)} of up to ${formatMicroUSD(c.ceiling_micro_usd)}`;
+  };
 </script>
 
 <h1>New</h1>

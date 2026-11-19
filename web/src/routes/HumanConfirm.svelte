@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../api/client";
+  import { owned } from "../api/owner";
   import type { components } from "../api/schema";
   import { formatMicroUSD, formatMicroUSDCeil } from "../lib/money";
   import { pushToast } from "../lib/judge.svelte";
@@ -70,9 +71,10 @@
 <h1>Approve spend</h1>
 {#if error}<p role="alert">{error}</p>{/if}
 {#if b}
+  {@const ob = owned<Batch, "cost" | "created_by">(b)}
   <section data-testid="confirm-batch" data-state={b.state}>
     <p>
-      Requested by <strong data-testid="requested-by">{b.created_by.name}</strong> ({b.created_by.kind}) at {b.created_at}.
+      Requested by <strong data-testid="requested-by">{ob.created_by.name}</strong> ({ob.created_by.kind}) at {b.created_at}.
       State: <b data-testid="batch-state">{b.state.replaceAll("_", " ")}</b>.
       <a href="/batches/{b.id}">Open batch</a>
     </p>
@@ -80,16 +82,17 @@
     <table>
       <tbody>
         <tr><th scope="row">Takes</th><td>{b.takes}</td></tr>
-        <tr><th scope="row">Expected</th><td data-testid="cost-expected">{formatMicroUSD(b.cost.expected_micro_usd)}</td></tr>
-        <tr><th scope="row">Maximum</th><td data-testid="cost-max">{formatMicroUSDCeil(b.cost.max_micro_usd)}</td></tr>
-        <tr><th scope="row">Ceiling (up to)</th><td data-testid="cost-ceiling"><strong>{formatMicroUSDCeil(b.cost.ceiling_micro_usd)}</strong></td></tr>
+        <tr><th scope="row">Expected</th><td data-testid="cost-expected">{formatMicroUSD(ob.cost.expected_micro_usd)}</td></tr>
+        <tr><th scope="row">Maximum</th><td data-testid="cost-max">{formatMicroUSDCeil(ob.cost.max_micro_usd)}</td></tr>
+        <tr><th scope="row">Ceiling (up to)</th><td data-testid="cost-ceiling"><strong>{formatMicroUSDCeil(ob.cost.ceiling_micro_usd)}</strong></td></tr>
       </tbody>
     </table>
     {#if budget}
+      {@const mo = owned<Budget, "month">(budget).month}
       <p class="muted" data-testid="budget-impact">
-        Budget impact: month {formatMicroUSD(budget.month.left_micro_usd)} left of {formatMicroUSD(budget.month.cap_micro_usd)};
-        reserving up to {formatMicroUSDCeil(b.cost.ceiling_micro_usd)}.
-        {#if b.cost.ceiling_micro_usd > budget.month.left_micro_usd}<b>This exceeds the monthly budget left.</b>{/if}
+        Budget impact: month {formatMicroUSD(mo.left_micro_usd)} left of {formatMicroUSD(mo.cap_micro_usd)};
+        reserving up to {formatMicroUSDCeil(ob.cost.ceiling_micro_usd)}.
+        {#if ob.cost.ceiling_micro_usd > mo.left_micro_usd}<b>This exceeds the monthly budget left.</b>{/if}
       </p>
     {/if}
     <h2>Takes</h2>
