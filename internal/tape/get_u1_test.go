@@ -55,3 +55,52 @@ func TestTape_GetHidesDiscardedFromListeners(t *testing.T) {
 		t.Errorf("listener after the take is restored: %v", err)
 	}
 }
+
+// TestTape_GetLinerLinkIsPrivate (U1-INT-B): a tape built with the liner carries the liner text (LINER_NOTES, DESCRIPTION, Muse
+// names) inside the FLAC, so a viewer that cannot see private text (a Listener, a Listener's phone) gets no download link for
+// it; one built without the liner is a link for everybody. The Owner, the Editor and agents get the link either way.
+func TestTape_GetLinerLinkIsPrivate(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	withLiner := r.mustExport(tape.ExportInput{IncludeLiner: true})
+	noLiner, err := r.svc.Export(context.Background(), human, rec, tape.ExportInput{IncludeLiner: false}) // r.export forces the liner on
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withLiner.ID == noLiner.ID {
+		t.Fatal("the two exports share a tape")
+	}
+	for r.runOne() {
+	}
+	for i := 1; i <= 3; i++ {
+		r.insertTake(fmt.Sprintf("take-%d", i), "final")
+	}
+	as := func(kind auth.Kind, role auth.Role) context.Context {
+		return auth.WithPrincipal(context.Background(), auth.Principal{Kind: kind, ID: "u", User: "u", Name: "u", Role: role, Scopes: auth.ScopesFor(role)})
+	}
+	for name, c := range map[string]struct {
+		ctx       context.Context
+		withLiner bool
+	}{
+		"owner":           {as(auth.KindHuman, auth.RoleOwner), true},
+		"editor":          {as(auth.KindHuman, auth.RoleEditor), true},
+		"editor phone":    {as(auth.KindDevice, auth.RoleEditor), true},
+		"bare (agent)":    {context.Background(), true},
+		"listener":        {as(auth.KindHuman, auth.RoleListener), false},
+		"listener phone":  {as(auth.KindDevice, auth.RoleListener), false},
+		"owner no-liner":  {as(auth.KindHuman, auth.RoleOwner), true},
+		"listener no-lin": {as(auth.KindHuman, auth.RoleListener), true},
+	} {
+		id, want := withLiner.ID, c.withLiner
+		if name == "owner no-liner" || name == "listener no-lin" {
+			id, want = noLiner.ID, true
+		}
+		got, err := r.svc.Get(c.ctx, id)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got.State != tape.StateReady || (got.Download != nil) != want {
+			t.Errorf("%s: link present = %v, want %v (state %s)", name, got.Download != nil, want, got.State)
+		}
+	}
+}

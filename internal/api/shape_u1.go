@@ -58,7 +58,8 @@ var shapeRules = map[string]view.Rules{
 	"get_playlist":       {Private: []string{"items.track.comments", "items.track.open_comments"}},
 	"list_crates":        {Private: []string{"items.filter"}},
 	"get_crate":          {Private: []string{"crate.filter"}},
-	"get_record":         {Private: []string{"liner", "record.liner_note", "record.proposal", "slots.why"}, Empty: []string{"changes"}},
+	// preview is the publish page's view of the tape file: its DESCRIPTION is the liner and its tags carry Muse names (INT-B)
+	"get_record":         {Private: []string{"liner", "preview", "record.liner_note", "record.proposal", "slots.why"}, Empty: []string{"changes"}},
 	"get_record_changes": {Empty: []string{"items"}},
 	"get_track_context":  {Editor: []string{"muse", "provenance.cost"}, MoneyKeys: true},
 	"get_stats":          {Editor: []string{"generation", "backups", "storage", "imports", "library_model.muses"}},
