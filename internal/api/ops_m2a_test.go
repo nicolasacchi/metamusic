@@ -19,6 +19,7 @@ type m2aOp struct {
 	id, method, path, mcp, ui string
 	scope                     auth.Scope
 	create, heavy             bool
+	listen, noAudit           bool // C304.4: rate class listen; exempt from audit
 	secrets                   []string
 	humanOnly                 bool
 	status                    int // success status; 0 => 200
@@ -32,7 +33,7 @@ const (
 
 // m2aOps is the C38 table: 32 operations.
 var m2aOps = []m2aOp{
-	{id: "rate_track", method: "PUT", path: "/api/tracks/{id}/rating", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeRate, body: 64 * kib},
+	{id: "rate_track", method: "PUT", path: "/api/tracks/{id}/rating", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeRate, listen: true, body: 64 * kib},
 	{id: "update_track", method: "PATCH", path: "/api/tracks/{id}", mcp: "generic", ui: "/tracks/:id", scope: auth.ScopeWrite, body: 64 * kib},
 	{id: "set_tags", method: "PATCH", path: "/api/tracks/{id}/tags", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeWrite, body: 64 * kib},
 	{id: "list_tags", method: "GET", path: "/api/tags", mcp: "generic", ui: "/", scope: auth.ScopeListen},
@@ -40,7 +41,7 @@ var m2aOps = []m2aOp{
 	{id: "update_comment", method: "PATCH", path: "/api/comments/{id}", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeWrite, body: 64 * kib},
 	{id: "list_comments", method: "GET", path: "/api/tracks/{id}/comments", mcp: "generic", ui: "/tracks/:id", scope: auth.ScopeRead},
 	{id: "get_track_context", method: "GET", path: "/api/tracks/{id}/context", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeRead},
-	{id: "log_listen_events", method: "POST", path: "/api/listen-events", mcp: "generic", ui: "/tracks/:id", scope: auth.ScopeRate, body: 256 * kib},
+	{id: "log_listen_events", method: "POST", path: "/api/listen-events", mcp: "generic", ui: "/tracks/:id", scope: auth.ScopeRate, listen: true, noAudit: true, body: 256 * kib},
 	{id: "lint_recipe", method: "POST", path: "/api/recipes/lint", mcp: "tool", ui: "/backlog/:id", scope: auth.ScopeRead, body: 2 * mib},
 	{id: "create_draft", method: "POST", path: "/api/drafts", mcp: "tool", ui: "/backlog/new", scope: auth.ScopeWrite, create: true, status: 201, body: 2 * mib},
 	{id: "update_draft", method: "PATCH", path: "/api/drafts/{id}", mcp: "generic", ui: "/backlog/:id", scope: auth.ScopeWrite, body: 2 * mib},
@@ -98,8 +99,11 @@ func TestOps_M2aRegisteredWithMeta(t *testing.T) {
 		if w.heavy {
 			rate = "heavy"
 		}
+		if w.listen {
+			rate = "listen"
+		}
 		if op.Method != w.method || op.Path != w.path || m.MCP != w.mcp || m.UI != w.ui || m.Scope != w.scope || m.Cost != "free" ||
-			m.HumanOnly != w.humanOnly || m.Idempotency != idem || m.Rate != rate || !slices.Equal(m.SecretFields, w.secrets) {
+			m.HumanOnly != w.humanOnly || m.Idempotency != idem || m.Rate != rate || m.NoAudit != w.noAudit || !slices.Equal(m.SecretFields, w.secrets) {
 			t.Errorf("%s = %+v, want %+v", w.id, op, w)
 		}
 		if strings.HasPrefix(w.path, "/human/api/") != w.humanOnly {

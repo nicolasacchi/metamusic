@@ -11053,6 +11053,12 @@
     "name": "whoami",
     "outputSchema": {
       "properties": {
+        "allowed_ops": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "kind": {
           "enum": [
             "human",
@@ -11064,6 +11070,12 @@
         "name": {
           "type": "string"
         },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "scopes": {
           "items": {
             "type": "string"
@@ -11071,6 +11083,12 @@
           "type": "array"
         },
         "step_up_until": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user": {
           "type": [
             "string",
             "null"
