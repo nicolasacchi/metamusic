@@ -113,7 +113,7 @@ func TestOps_AuthorizationT1(t *testing.T) {
 	t.Parallel()
 	r := t1Rig(t, api.Deps{Transform: transform.New(transform.Options{})})
 	for _, w := range t1Ops {
-		if w.scope != auth.ScopeRead {
+		if w.scope != auth.ScopeRead && w.scope != auth.ScopeListen {
 			if code, _ := t1Call(r, t1Agent(auth.ScopeRead), w); code != 403 {
 				t.Errorf("%s with read scope only: %d, want 403", w.id, code)
 			}

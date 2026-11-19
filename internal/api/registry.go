@@ -190,10 +190,6 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 			panic("api.Register: " + err.Error())
 		}
 	}
-	gate := meta
-	if sensitiveReadOps[op.OperationID] { // fail closed until the F1b tagging pass sets owner_only on these ops
-		gate.OwnerOnly = true
-	}
 	exts := make(map[string]any, len(op.Extensions)+1)
 	for k, v := range op.Extensions {
 		exts[k] = v
@@ -201,7 +197,7 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	exts["x-mm"] = meta
 	op.Extensions = exts
 	op.Middlewares = append(huma.Middlewares{func(ctx huma.Context, next func(huma.Context)) {
-		if err := Authorize(ctx.Context(), gate); err != nil {
+		if err := Authorize(ctx.Context(), meta); err != nil {
 			var pr *Problem
 			if !errors.As(err, &pr) {
 				pr = &Problem{Status: 500, Code: "INTERNAL", Message: "internal error", Details: map[string]any{}}
@@ -213,7 +209,7 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	}}, op.Middlewares...)
 	huma.Register(a, op, func(ctx context.Context, in *I) (*O, error) {
 		// Defense in depth: the middleware already refused unauthorized callers.
-		if err := Authorize(ctx, gate); err != nil {
+		if err := Authorize(ctx, meta); err != nil {
 			return nil, err
 		}
 		return h(ctx, in)

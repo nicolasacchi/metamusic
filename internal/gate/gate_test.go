@@ -154,7 +154,7 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		})
 	secretOp := reg("t_secret", "POST", "/human/api/t/secret", api.Meta{})
 	secretOp.DefaultStatus = 201
-	api.Register(a, secretOp, api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:test", UI: "none:test", HumanOnly: true,
+	api.Register(a, secretOp, api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:test", UI: "none:test", HumanOnly: true, OwnerOnly: true,
 		Idempotency: "create", SecretFields: []string{"token"}},
 		func(ctx context.Context, in *createIn) (*secretOut, error) {
 			o := &secretOut{}

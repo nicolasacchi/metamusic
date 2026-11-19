@@ -41,15 +41,17 @@ func (m Meta) ownerOnly() bool {
 }
 
 // sensitiveReadOps are the scope-read operations that must be owner-only (D-U1-6, C302.3): audit, tokens, backups,
-// imports, spend, ledger, provider and connectors. Lane F1b finalises the list from openapi.json.
+// imports, spend, ledger, provider and connectors, plus the other read-scope ops of the C305 Administration family.
+// Final list as of lane F1b, checked against openapi.json.
 var sensitiveReadOps = map[string]bool{
 	"get_audit": true, "list_tokens": true, "list_backups": true, "list_import_runs": true,
 	"get_spend": true, "list_ledger": true, "get_provider_status": true, "list_connector_grants": true,
+	"get_import_run": true, "get_device_probe": true, "list_device_profiles": true,
 }
 
-// enforceOwnerOnlyTags makes validate() require the explicit OwnerOnly tag on the classes of D-U1-6. It is false in
-// lane F1 (the tagging pass over ops_*.go is lane F1b, which flips it); until then Permitted derives the classes.
-const enforceOwnerOnlyTags = false
+// enforceOwnerOnlyTags makes validate() require the explicit OwnerOnly tag on the classes of D-U1-6. Lane F1b tagged
+// every op, so registration now fails for an unclassified HumanOnly, approve, admin or sensitive read op.
+const enforceOwnerOnlyTags = true
 
 // validateOwnerOnly applies the C302.3 registration rules: HumanOnly, cost approve, scope admin and the sensitive
 // read operations require OwnerOnly. OwnerOnly alone is always valid.

@@ -68,7 +68,7 @@ func registerTapeL2(a huma.API, d Deps) {
 		OperationID: "get_tape", Method: "GET", Path: "/api/tapes/{id}",
 		Summary:     "Get a tape",
 		Description: "A tape's state, progress, loudness plan, chapters and, when ready, its signed download link (14 days).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getTapeIn) (*tapeOut, error) {
 			if d.Tapes == nil {
 				return nil, unavailable("tape")

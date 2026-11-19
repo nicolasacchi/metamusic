@@ -16,7 +16,7 @@ func registerClips(a huma.API, d Deps) {
 		Description: "A signed link to a 30-45 s window of the master as 24-bit/48 kHz FLAC (shorter tracks: the whole track). " +
 			"match_lufs attenuates the clip toward a target loudness; clips are never boosted. " +
 			"Identical inputs give identical bytes, so the key identifies the clip.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "none:clip links reach the SPA inside duel responses", Rate: "heavy"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "none:clip links reach the SPA inside duel responses", Rate: "heavy"},
 		func(ctx context.Context, in *getClipIn) (*clipLinkOut, error) {
 			if d.Clips == nil {
 				return nil, unavailable("clips")

@@ -109,18 +109,18 @@ type opWant struct {
 }
 
 var m1Ops = []opWant{
-	{"search_tracks", "GET", "/api/tracks", "tool", "/library", auth.ScopeRead, []string{"engine", "origin", "sound", "status", "style", "tag"}},
-	{"get_library_facets", "GET", "/api/library/facets", "generic", "/library", auth.ScopeRead, nil},
-	{"get_track", "GET", "/api/tracks/{id}", "tool", "/tracks/:id", auth.ScopeRead, nil},
-	{"get_track_peaks", "GET", "/api/tracks/{id}/peaks", "generic", "/tracks/:id", auth.ScopeRead, nil},
-	{"get_media_links", "GET", "/api/tracks/{id}/media", "tool", "/tracks/:id", auth.ScopeRead, nil},
+	{"search_tracks", "GET", "/api/tracks", "tool", "/library", auth.ScopeListen, []string{"engine", "origin", "sound", "status", "style", "tag"}},
+	{"get_library_facets", "GET", "/api/library/facets", "generic", "/library", auth.ScopeListen, nil},
+	{"get_track", "GET", "/api/tracks/{id}", "tool", "/tracks/:id", auth.ScopeListen, nil},
+	{"get_track_peaks", "GET", "/api/tracks/{id}/peaks", "generic", "/tracks/:id", auth.ScopeListen, nil},
+	{"get_media_links", "GET", "/api/tracks/{id}/media", "tool", "/tracks/:id", auth.ScopeListen, nil},
 	{"list_drafts", "GET", "/api/drafts", "tool", "/backlog", auth.ScopeRead, nil},
 	{"get_draft", "GET", "/api/drafts/{id}", "tool", "/backlog/:id", auth.ScopeRead, nil},
 	{"get_stats", "GET", "/api/stats", "tool", "/", auth.ScopeRead, nil},
 	{"list_import_runs", "GET", "/api/imports", "generic", "/import", auth.ScopeRead, nil},
 	{"get_import_run", "GET", "/api/imports/{id}", "generic", "/import", auth.ScopeRead, nil},
 	{"get_device_probe", "GET", "/api/device-probe", "generic", "/", auth.ScopeRead, nil},
-	{"put_device_profile", "PUT", "/api/device-profiles/{device_id}", "generic", "/settings", auth.ScopeWrite, nil},
+	{"put_device_profile", "PUT", "/api/device-profiles/{device_id}", "generic", "/settings", auth.ScopeRate, nil},
 	{"list_device_profiles", "GET", "/api/device-profiles", "generic", "/settings", auth.ScopeRead, nil},
 }
 

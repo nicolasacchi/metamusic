@@ -22894,7 +22894,7 @@
         },
         "summary": "Get the Song Atlas",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/atlas",
@@ -23140,7 +23140,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/settings/audit",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -23176,7 +23177,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/settings/backups",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       },
       "post": {
@@ -23226,6 +23228,7 @@
           "mcp": "generic",
           "ui": "/settings/backups",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }
@@ -23338,7 +23341,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -23386,7 +23390,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/batches/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -23727,7 +23732,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -23947,7 +23953,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/judge/callbacks/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -24061,7 +24068,7 @@
         },
         "summary": "Compare two takes",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/compare",
@@ -24101,7 +24108,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/connectors",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -24159,7 +24167,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/connectors",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -24264,7 +24273,7 @@
         },
         "summary": "List Crates",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/crates",
@@ -24370,7 +24379,7 @@
         },
         "summary": "Get a Crate",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/crates/:id",
@@ -24556,7 +24565,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -24614,7 +24624,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/settings",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -24669,11 +24680,12 @@
         },
         "summary": "Create or update a device profile",
         "x-mm": {
-          "scope": "write",
+          "scope": "rate",
           "cost": "free",
           "mcp": "generic",
           "ui": "/settings",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25161,7 +25173,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/duels",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       },
       "post": {
@@ -25221,6 +25234,7 @@
           "mcp": "generic",
           "ui": "/duels",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }
@@ -25274,7 +25288,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/duels",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25378,7 +25393,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/duels",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25426,7 +25442,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/duels/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25484,7 +25501,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/duels",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25667,7 +25685,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/export",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25729,6 +25748,7 @@
           "mcp": "tool",
           "ui": "none:agent-face (the SPA confirms through create_generation_human)",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }
@@ -25835,7 +25855,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/import",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -25923,7 +25944,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/import",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26035,7 +26057,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26083,7 +26106,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/jobs/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26313,11 +26337,12 @@
         },
         "summary": "Get the preference ladder",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/ladder",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26421,7 +26446,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26453,7 +26479,7 @@
         },
         "summary": "Get library facets",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/library",
@@ -26499,7 +26525,7 @@
         },
         "summary": "Log listen events",
         "x-mm": {
-          "scope": "write",
+          "scope": "rate",
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
@@ -26535,7 +26561,7 @@
         },
         "summary": "Show the calling principal",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
@@ -26688,6 +26714,7 @@
           "mcp": "tool",
           "ui": "/board",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create"
         }
       }
@@ -26804,7 +26831,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/muses/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -26862,7 +26890,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/board",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -27006,7 +27035,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/offline",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -27332,7 +27362,8 @@
           "cost": "free",
           "mcp": "exclude:human-judgment",
           "ui": "/songs/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -27364,7 +27395,7 @@
         },
         "summary": "Ping the server",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
@@ -27410,7 +27441,7 @@
         },
         "summary": "List playlists",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/playlists",
@@ -27518,7 +27549,7 @@
         },
         "summary": "Get a playlist",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/playlists/:id",
@@ -27763,7 +27794,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -27904,7 +27936,7 @@
         },
         "summary": "List Records",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/records",
@@ -28043,7 +28075,7 @@
         },
         "summary": "Get a Record",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
@@ -28101,7 +28133,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -28191,7 +28224,7 @@
         },
         "summary": "Get a Record's changelog",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
@@ -28468,7 +28501,7 @@
         },
         "summary": "Suggest a sequence",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
@@ -28955,7 +28988,7 @@
         },
         "summary": "List Songs",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "none:agent-face (the Sound browser lists Songs through search_sounds)",
@@ -29041,7 +29074,7 @@
         },
         "summary": "Get a Song",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/songs/:id",
@@ -29231,7 +29264,8 @@
           "cost": "free",
           "mcp": "exclude:human-judgment",
           "ui": "/songs/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -29278,6 +29312,7 @@
           "mcp": "generic",
           "ui": "/sounds",
           "human_only": false,
+          "owner_only": true,
           "rate": "heavy"
         }
       }
@@ -29577,7 +29612,7 @@
         },
         "summary": "Search Sounds",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/sounds",
@@ -29669,7 +29704,7 @@
         },
         "summary": "Get the Sound taxonomy",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/sounds",
@@ -29722,7 +29757,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -29758,7 +29794,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -29794,7 +29831,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/subsonic",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       },
       "post": {
@@ -29854,6 +29892,7 @@
           "mcp": "generic",
           "ui": "/human/subsonic",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create",
           "secret_fields": [
             "api_key",
@@ -29906,7 +29945,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/subsonic",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -29942,7 +29982,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/settings",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -29974,7 +30015,7 @@
         },
         "summary": "List tags",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/",
@@ -30020,7 +30061,7 @@
         },
         "summary": "Get a tape",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
@@ -30226,7 +30267,8 @@
           "cost": "free",
           "mcp": "exclude:human-judgment",
           "ui": "/sounds",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -30262,7 +30304,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/human/tokens",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -30658,7 +30701,7 @@
         },
         "summary": "Search tracks",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/library",
@@ -30706,7 +30749,7 @@
         },
         "summary": "Get a track",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
@@ -30766,7 +30809,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -30810,7 +30854,7 @@
         },
         "summary": "Get the Ears dossier of a track",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
@@ -30897,7 +30941,7 @@
         },
         "summary": "Get an audio clip of a track",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "none:clip links reach the SPA inside duel responses",
@@ -31161,7 +31205,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -31205,7 +31250,7 @@
         },
         "summary": "Get a download link with current tags",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
@@ -31258,7 +31303,8 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
-          "human_only": false
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -31314,7 +31360,7 @@
         },
         "summary": "Get the lineage tree of a track",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/lineage/:id",
@@ -31362,7 +31408,7 @@
         },
         "summary": "Get signed media links",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
@@ -31423,7 +31469,7 @@
         },
         "summary": "Get waveform peaks",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
@@ -31481,7 +31527,7 @@
         },
         "summary": "Rate a track",
         "x-mm": {
-          "scope": "write",
+          "scope": "rate",
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
@@ -31540,7 +31586,7 @@
         },
         "summary": "Get the spectrogram of a track",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
@@ -31675,6 +31721,7 @@
           "mcp": "tool",
           "ui": "none:agent-face (the SPA confirms through create_generation_human)",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }
@@ -31807,6 +31854,7 @@
           "mcp": "exclude:human-recording",
           "ui": "/tracks/:id",
           "human_only": false,
+          "owner_only": true,
           "idempotency": "create"
         }
       }
@@ -32283,7 +32331,8 @@
           "cost": "approve",
           "mcp": "exclude:human-only",
           "ui": "/human/confirm/:batch",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32341,7 +32390,8 @@
           "cost": "approve",
           "mcp": "exclude:human-only",
           "ui": "/human/confirm/:batch",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32387,7 +32437,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/curation",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32423,7 +32474,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32485,6 +32537,7 @@
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
           "human_only": true,
+          "owner_only": true,
           "idempotency": "create",
           "secret_fields": [
             "code",
@@ -32537,7 +32590,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32599,6 +32653,7 @@
           "mcp": "exclude:human-only",
           "ui": "/human/generate",
           "human_only": true,
+          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy",
           "alias_of": "create_generation"
@@ -32647,7 +32702,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/spend",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32703,7 +32759,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/records/:id/publish",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32749,7 +32806,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/settings",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32795,7 +32853,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/spend",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     },
@@ -32857,6 +32916,7 @@
           "mcp": "exclude:human-only",
           "ui": "/human/tokens",
           "human_only": true,
+          "owner_only": true,
           "idempotency": "create",
           "secret_fields": [
             "token"
@@ -32908,7 +32968,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/tokens",
-          "human_only": true
+          "human_only": true,
+          "owner_only": true
         }
       }
     }

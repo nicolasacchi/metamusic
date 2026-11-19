@@ -35,7 +35,7 @@ type m4aOp struct {
 // m4aOps is the C113 table: 8 operations, all cost free.
 var m4aOps = []m4aOp{
 	{id: "get_offline_set", method: "GET", path: "/api/offline-set", scope: auth.ScopeRead, mcp: "generic", ui: "/offline", component: "playlists", task: "M4a-A1"},
-	{id: "get_download_link", method: "GET", path: "/api/tracks/{id}/download", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", heavy: true, component: "downloads", task: "M4a-M2"},
+	{id: "get_download_link", method: "GET", path: "/api/tracks/{id}/download", scope: auth.ScopeListen, mcp: "generic", ui: "/tracks/:id", heavy: true, component: "downloads", task: "M4a-M2"},
 	{id: "get_prompt", method: "GET", path: "/api/prompts/{name}", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "prompts", task: "M4a-A1", query: "?track_id=x"},
 	{id: "list_connector_grants", method: "GET", path: "/api/connectors", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/connectors", component: "connectors", task: "M4a-C2"},
 	{id: "set_connector_grant", method: "PUT", path: "/api/connectors/{id}", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/connectors", body: 64 * kib, component: "connectors", task: "M4a-C2", reqBody: `{"revoked":false}`},
@@ -122,7 +122,7 @@ func TestOps_RegisteredWithMetaM4a(t *testing.T) {
 			t.Errorf("%s: mcp %q, want generic", w.id, w.mcp)
 		}
 		switch w.scope {
-		case auth.ScopeRead:
+		case auth.ScopeRead, auth.ScopeListen:
 			reads++
 		case auth.ScopeAdmin:
 			admins++
@@ -143,7 +143,7 @@ func TestOps_RegisteredWithMetaM4a(t *testing.T) {
 func TestValidateMeta_SecretFieldsM4a(t *testing.T) {
 	t.Parallel()
 	op := huma.Operation{OperationID: "make_thing", Method: "POST", Path: "/api/things", Summary: "s", Description: "d"}
-	ok := api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/x", Idempotency: "create", SecretFields: []string{"api_key", "password"}}
+	ok := api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/x", Idempotency: "create", OwnerOnly: true, SecretFields: []string{"api_key", "password"}}
 	if err := api.ValidateMeta(op, ok); err != nil {
 		t.Fatalf("non-human create op with secret fields refused: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestValidateMeta_SecretFieldsM4a(t *testing.T) {
 	hop := op
 	hop.Path = "/human/api/things"
 	hm := ok
-	hm.HumanOnly, hm.MCP = true, "exclude:human-only"
+	hm.HumanOnly, hm.OwnerOnly, hm.MCP = true, true, "exclude:human-only"
 	if err := api.ValidateMeta(hop, hm); err != nil {
 		t.Errorf("human-only create with secrets: %v", err)
 	}

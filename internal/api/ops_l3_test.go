@@ -32,14 +32,14 @@ type l3Op struct {
 // The C142 table. The operator decided on 2026-11-01 that L3 adds no dedicated MCP tool (D-L2-21 precedent): the plan's two
 // tools (list_next_actions, propose_taxonomy) are generic. map_sound_term is unchanged: D-L3-22 is not approved.
 var l3Ops = []l3Op{
-	{id: "suggest_sequence", method: "GET", path: "/api/sequence", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "sequence", task: "L3-SR"},
+	{id: "suggest_sequence", method: "GET", path: "/api/sequence", scope: auth.ScopeListen, mcp: "generic", ui: "/records/:id", component: "sequence", task: "L3-SR"},
 	{id: "list_next_actions", method: "GET", path: "/api/next-actions", scope: auth.ScopeRead, mcp: "generic", ui: "/", component: "nextactions", task: "L3-NA1"},
 	{id: "propose_taxonomy", method: "POST", path: "/api/taxonomy-proposals", scope: auth.ScopeWrite, mcp: "generic", ui: "none:agent-face (a human maps terms directly with map_sound_term)", create: true, heavy: true, status: 201, body: 64 * kib, component: "sounds", task: "L3-TP2",
 		reqBody: `{"rationale":"r","mappings":[{"term":"t","facet":"mood","value":"chill","op":"add"}]}`},
 	{id: "list_taxonomy_proposals", method: "GET", path: "/api/taxonomy-proposals", scope: auth.ScopeRead, mcp: "generic", ui: "/sounds", component: "sounds", task: "L3-TP2"},
 	{id: "decide_taxonomy_proposal", method: "POST", path: "/api/taxonomy-proposals/{id}/decision", scope: auth.ScopeWrite, mcp: "exclude:human-judgment", ui: "/sounds", body: 64 * kib, component: "sounds", task: "L3-TP2",
 		reqBody: `{"decision":"reject"}`},
-	{id: "get_song_atlas", method: "GET", path: "/api/atlas", scope: auth.ScopeRead, mcp: "generic", ui: "/atlas", component: "atlas", task: "L3-AT2"},
+	{id: "get_song_atlas", method: "GET", path: "/api/atlas", scope: auth.ScopeListen, mcp: "generic", ui: "/atlas", component: "atlas", task: "L3-AT2"},
 	{id: "get_adherence", method: "GET", path: "/api/atlas/adherence", scope: auth.ScopeRead, mcp: "generic", ui: "/atlas", component: "atlas", task: "L3-AD"},
 }
 
@@ -219,7 +219,7 @@ func TestOps_AuthorizationL3(t *testing.T) {
 	t.Parallel()
 	r := l3Rig(t, l3Deps())
 	for _, w := range l3Ops {
-		if w.scope != auth.ScopeRead {
+		if w.scope != auth.ScopeRead && w.scope != auth.ScopeListen {
 			if code, _ := l3Call(r, l3Agent(auth.ScopeRead), w); code != 403 {
 				t.Errorf("%s with read scope only: %d, want 403", w.id, code)
 			}

@@ -14,7 +14,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "search_tracks", Method: "GET", Path: "/api/tracks",
 		Summary:     "Search tracks",
 		Description: "Lists library tracks with full-text search (q), status, style, duration, date, score, truncation, rating (min_stars, unrated), tag, open-comment, recipe_known, lossy, song_id, is_pick, session_id, unheard, in_record, sound, crate_id, origin (import, job, transform), engine and lyrics_of filters. Each row carries song_id, song_title, song_angle and is_pick. Discarded tracks are hidden unless status asks for them. Pages are capped in size; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/library"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/library"},
 		func(ctx context.Context, in *searchTracksIn) (*trackPageOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -45,7 +45,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "get_library_facets", Method: "GET", Path: "/api/library/facets",
 		Summary:     "Get library facets",
 		Description: "Top style terms, status counts and duration and recording-date ranges, for building filters.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/library"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/library"},
 		func(ctx context.Context, _ *empty) (*facetsOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -61,7 +61,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "get_track", Method: "GET", Path: "/api/tracks/{id}",
 		Summary:     "Get a track",
 		Description: "Full track detail: audio, recipe, lineage, score, lyric sections (timed only when a score aligns with them) and analyses.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *trackIDIn) (*trackOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -78,7 +78,7 @@ func registerLibrary(a huma.API, d Deps) {
 		OperationID: "get_track_peaks", Method: "GET", Path: "/api/tracks/{id}/peaks",
 		Summary:     "Get waveform peaks",
 		Description: "Waveform peaks of a track (audiowaveform JSON v2 levels): overview (about 2048 columns) or detail (20 per second).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
 		func(ctx context.Context, in *trackPeaksIn) (*peaksOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")

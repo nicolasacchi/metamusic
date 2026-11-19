@@ -14,7 +14,7 @@ func registerAttentionM5(a huma.API, d Deps) {
 		OperationID: "get_listen_heat", Method: "GET", Path: "/api/tracks/{id}/heat",
 		Summary:     "Get the listening heat of a take",
 		Description: "A 120-bin heat strip of how the operator and their devices listened to a take (heard, replays, rewinds, skips), up to three hotspots where people went back, and the bins they left most. Computed on read from listen events.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/tracks/:id", OwnerOnly: true},
 		func(ctx context.Context, in *getListenHeatIn) (*listenHeatOut, error) {
 			if d.Attention == nil {
 				return nil, unavailable("attention")

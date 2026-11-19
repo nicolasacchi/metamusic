@@ -285,7 +285,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create a generation batch",
 		Description: spendNote + "Reserves the cost ceiling and queues one job per take; above your auto-approve limits a human must approve (request_approval).",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
 		func(ctx context.Context, in *createGenerationIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -298,7 +298,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create a generation batch (human)",
 		Description: spendNote + "The operator's confirmation counts as the approval: the batch starts at once.",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "exclude:human-only", HumanOnly: true, Idempotency: "create", Rate: "heavy",
-		UI: "/human/generate", AliasOf: "create_generation"},
+		UI: "/human/generate", AliasOf: "create_generation", OwnerOnly: true},
 		func(ctx context.Context, in *createGenerationIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -329,7 +329,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		Summary:     "Create variants of a track",
 		Description: spendNote + "Confirms an estimate_variant of this track; same approval rules as create_generation. Needs an Idempotency-Key.",
 	}), bodyConfirm), Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", Idempotency: "create", Rate: "heavy",
-		UI: "none:agent-face (the SPA confirms through create_generation_human)"},
+		UI: "none:agent-face (the SPA confirms through create_generation_human)", OwnerOnly: true},
 		func(ctx context.Context, in *createVariantIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -375,7 +375,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		OperationID: "approve_batch", Method: "POST", Path: "/human/api/batches/{id}/approve",
 		Summary:     "Approve a pending batch",
 		Description: "The operator approves an agent's pending batch; its jobs start. Approving an approved batch changes nothing.",
-	}, bodySmall), Meta{Scope: auth.ScopeGenerate, Cost: "approve", MCP: "exclude:human-only", HumanOnly: true, UI: "/human/confirm/:batch"},
+	}, bodySmall), Meta{Scope: auth.ScopeGenerate, Cost: "approve", MCP: "exclude:human-only", HumanOnly: true, UI: "/human/confirm/:batch", OwnerOnly: true},
 		func(ctx context.Context, in *approveBatchIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -392,7 +392,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		OperationID: "reject_batch", Method: "POST", Path: "/human/api/batches/{id}/reject",
 		Summary:     "Reject a pending batch",
 		Description: "The operator rejects an agent's pending batch; the whole reservation is released.",
-	}, bodySmall), Meta{Scope: auth.ScopeGenerate, Cost: "approve", MCP: "exclude:human-only", HumanOnly: true, UI: "/human/confirm/:batch"},
+	}, bodySmall), Meta{Scope: auth.ScopeGenerate, Cost: "approve", MCP: "exclude:human-only", HumanOnly: true, UI: "/human/confirm/:batch", OwnerOnly: true},
 		func(ctx context.Context, in *rejectBatchIn) (*batchOut, error) {
 			if d.Generation == nil {
 				return nil, unavailable("generation")
@@ -409,7 +409,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 		OperationID: "get_lineage", Method: "GET", Path: "/api/tracks/{id}/lineage",
 		Summary:     "Get the lineage tree of a track",
 		Description: "Every track of the tree around the given track in pre-order, with the operator, rationale, cost and ratings of each edge. Cut at limit or the page byte cap (truncated).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/lineage/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/lineage/:id"},
 		func(ctx context.Context, in *getLineageIn) (*lineageOut, error) {
 			if d.Lineage == nil {
 				return nil, unavailable("lineage")

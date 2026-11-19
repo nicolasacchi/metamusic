@@ -183,7 +183,7 @@ func TestOps_AuthorizationM5(t *testing.T) {
 	t.Parallel()
 	r := m5Rig(t, m5Deps())
 	for _, w := range m5Ops {
-		if w.scope != auth.ScopeRead {
+		if w.scope != auth.ScopeRead && w.scope != auth.ScopeListen {
 			if code, _ := m5Call(r, m5Agent(auth.ScopeRead), w); code != 403 {
 				t.Errorf("%s with read scope only: %d, want 403", w.id, code)
 			}

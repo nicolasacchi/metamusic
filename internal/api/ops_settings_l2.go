@@ -49,7 +49,7 @@ func registerSettingsL2(a huma.API, d Deps) {
 		OperationID: "set_curation_settings", Method: "PUT", Path: "/human/api/curation/settings",
 		Summary:     "Change the curation settings",
 		Description: "Human only. Turns the Muse-name opt-ins on or off; send only the keys to change. An agent reads them with get_curation_settings.",
-	}, bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/curation", HumanOnly: true},
+	}, bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/curation", HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, in *setCurationSettingsIn) (*curationSettingsOut, error) {
 			if d.Curation == nil {
 				return nil, unavailable("curation")

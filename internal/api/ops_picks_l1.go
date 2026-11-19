@@ -70,7 +70,7 @@ func registerPicksL1(a huma.API, d Deps) {
 		OperationID: "pin_pick", Method: "PUT", Path: "/api/songs/{id}/pin",
 		Summary:     "Pin or unpin a Pick",
 		Description: "The operator pins a take as the Song's Pick (optionally accepting an open proposal) or unpins it with take_id null. Refused with 403 HUMAN_ONLY for agents.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/songs/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/songs/:id", OwnerOnly: true},
 		func(ctx context.Context, in *pinPickIn) (*pinResultOut, error) {
 			if d.Picks == nil {
 				return nil, unavailable("picks")
@@ -93,7 +93,7 @@ func registerPicksL1(a huma.API, d Deps) {
 		OperationID: "dismiss_pick_proposal", Method: "POST", Path: "/api/pick-proposals/{id}/dismiss",
 		Summary:     "Dismiss a Pick proposal",
 		Description: "The operator closes an open proposal as dismissed. Refused with 403 HUMAN_ONLY for agents.",
-	}, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/songs/:id"},
+	}, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/songs/:id", OwnerOnly: true},
 		func(ctx context.Context, in *dismissProposalIn) (*pickProposalOut, error) {
 			if d.Picks == nil {
 				return nil, unavailable("picks")

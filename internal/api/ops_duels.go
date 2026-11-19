@@ -19,7 +19,7 @@ func registerDuels(a huma.API, d Deps) {
 		Description: "Cuts a 30-45 s window of two takes into loudness-matched, sample-aligned clips (the louder one is attenuated, never boosted) " +
 			"and stores a duel. Blind duels (the default) hide which slot holds which track until the human has judged. " +
 			"A replayed call returns the first result; call get_duel for fresh clip links.",
-	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/duels", Idempotency: "create", Rate: "heavy"},
+	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/duels", Idempotency: "create", Rate: "heavy", OwnerOnly: true},
 		func(ctx context.Context, in *createDuelIn) (*duelOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
@@ -40,7 +40,7 @@ func registerDuels(a huma.API, d Deps) {
 		Description: "The oldest unexpired duel waiting for your verdict, with signed clip links, or null. " +
 			"Humans and paired devices judge as the operator; agents judge as critics and only see open duels they have not judged. " +
 			"Blind duels stay unrevealed until you have judged them.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/duels"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/duels", OwnerOnly: true},
 		func(ctx context.Context, in *nextDuelIn) (*nextDuelOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
@@ -57,7 +57,7 @@ func registerDuels(a huma.API, d Deps) {
 		Summary: "Get a duel",
 		Description: "A duel as you may see it: slots stay A and B (tracks, gains and loudness are null) until the duel is revealed to you, " +
 			"and other judges' verdicts appear only after your own. Clip links are minted fresh on every call.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels/:id"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels/:id", OwnerOnly: true},
 		func(ctx context.Context, in *duelIDIn) (*duelOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
@@ -74,7 +74,7 @@ func registerDuels(a huma.API, d Deps) {
 		Summary: "List duels",
 		Description: "Duels newest first, filtered by state, track, lineage or mode. Which two tracks a duel compares is not secret, " +
 			"but unrevealed rows keep the slots anonymous. Pages are capped in size; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels", OwnerOnly: true},
 		func(ctx context.Context, in *listDuelsIn) (*duelPageOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
@@ -100,7 +100,7 @@ func registerDuels(a huma.API, d Deps) {
 				Schema: a.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[duels.SubmitResult](), true, "SubmitResult")}},
 		}},
 	}
-	Register(a, withBody(submit, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/duels"},
+	Register(a, withBody(submit, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/duels", OwnerOnly: true},
 		func(ctx context.Context, in *submitDuelIn) (*submitDuelOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")
@@ -125,7 +125,7 @@ func registerDuels(a huma.API, d Deps) {
 		Description: "The operator's personal ranking of takes, fitted from human blind-duel verdicts only (critic verdicts never count), " +
 			"globally or within one lineage. u is a log-strength on a scale anchored at the virtual 'reject' item (0); " +
 			"compare u values, not probabilities of acceptance. sd is the Laplace standard deviation; provisional rows have few duels.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/ladder"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/ladder", OwnerOnly: true},
 		func(ctx context.Context, in *getLadderIn) (*ladderOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")

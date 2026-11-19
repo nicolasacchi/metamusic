@@ -16,7 +16,7 @@ func registerSongsL1(a huma.API, d Deps) {
 		OperationID: "list_songs", Method: "GET", Path: "/api/songs",
 		Summary:     "List Songs",
 		Description: "Songs (one idea each, however many takes were rendered) filtered by Muse, angle, state, session, Sound facets, draft or take; draft_id and track_id return the single Song of that draft or take. Curation filters: pick_decided (the Pick is pinned or won duels), unheard (never played by the operator), min_duration_s, max_duration_s, min_stars, unrated, tag, lossy and recipe_known (on the Song's subject take: its Pick, else its newest eligible take), in_record (in a live Record slot) and crate_id (members of a Crate).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "none:agent-face (the Sound browser lists Songs through search_sounds)"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "none:agent-face (the Sound browser lists Songs through search_sounds)"},
 		func(ctx context.Context, in *listSongsIn) (*songsOut, error) {
 			if d.Songs == nil {
 				return nil, unavailable("songs")
@@ -46,7 +46,7 @@ func registerSongsL1(a huma.API, d Deps) {
 		OperationID: "get_song", Method: "GET", Path: "/api/songs/{id}",
 		Summary:     "Get a Song",
 		Description: "One Song with its Muse, takes, current Pick and proposals, recent Pick events, Sound facets and sessions. With by=draft or by=track the id is a draft or take id. A retired Song answers 200 with retired_into.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/songs/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/songs/:id"},
 		func(ctx context.Context, in *getSongIn) (*songViewOut, error) {
 			if d.SongView == nil {
 				return nil, unavailable("songview")

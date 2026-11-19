@@ -17,7 +17,7 @@ func registerSoundsL1(a huma.API, d Deps) {
 		OperationID: "search_sounds", Method: "GET", Path: "/api/sounds/search",
 		Summary:     "Search Sounds",
 		Description: "Songs filtered by Sound facets (genre family, era, tempo band, vocal, mood, language, engine) with facet counts that keep a selected value's siblings visible; limit 0 returns the counts only. Accepts the curation filters of list_songs.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/sounds"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/sounds"},
 		func(ctx context.Context, in *searchSoundsIn) (*soundSearchOut, error) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")
@@ -65,7 +65,7 @@ func registerSoundsL1(a huma.API, d Deps) {
 		OperationID: "get_sound_taxonomy", Method: "GET", Path: "/api/sounds/taxonomy",
 		Summary:     "Get the Sound taxonomy",
 		Description: "The effective mapping of style terms to facet values with the version history, or with unmapped=true the most frequent style terms no mapping matches.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/sounds"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/sounds"},
 		func(ctx context.Context, in *taxonomyIn) (*taxonomyOut, error) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")
@@ -94,7 +94,7 @@ func registerSoundsL1(a huma.API, d Deps) {
 		OperationID: "map_sound_term", Method: "POST", Path: "/api/sound-terms",
 		Summary:     "Map Sound terms",
 		Description: "Adds or removes up to 50 style-term mappings as one new taxonomy version and recomputes the affected Songs before answering.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/sounds", Rate: "heavy"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/sounds", Rate: "heavy", OwnerOnly: true},
 		func(ctx context.Context, in *mapSoundTermIn) (*mapResultOut, error) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")

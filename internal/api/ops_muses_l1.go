@@ -110,7 +110,7 @@ func registerMusesL1(a huma.API, d Deps) {
 		OperationID: "create_muse", Method: "POST", Path: "/api/muses",
 		Summary:     "Create a Muse",
 		Description: "Creates a reference Muse (title, optional artist) or a brief Muse (short title and free text). A reference whose normalised title and artist already exist answers 409 MUSE_EXISTS with the existing id.",
-	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/board", Idempotency: "create"},
+	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/board", Idempotency: "create", OwnerOnly: true},
 		func(ctx context.Context, in *createMuseIn) (*museOut, error) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
@@ -127,7 +127,7 @@ func registerMusesL1(a huma.API, d Deps) {
 		OperationID: "update_muse", Method: "PATCH", Path: "/api/muses/{id}",
 		Summary:     "Update a Muse",
 		Description: "Changes a Muse's title, artist or brief, or hides it, under optimistic locking: send the revision you read.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/muses/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/muses/:id", OwnerOnly: true},
 		func(ctx context.Context, in *updateMuseIn) (*museOut, error) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
@@ -144,7 +144,7 @@ func registerMusesL1(a huma.API, d Deps) {
 		OperationID: "assign_muse_songs", Method: "POST", Path: "/api/muses/{id}/songs",
 		Summary:     "Assign a Muse to Songs",
 		Description: "Assigns the Muse to 1..200 Songs, all or nothing; an assignment is never overwritten by the index backfill.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/board"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/board", OwnerOnly: true},
 		func(ctx context.Context, in *assignMuseSongsIn) (*assignResultOut, error) {
 			if d.Muses == nil {
 				return nil, unavailable("muses")
