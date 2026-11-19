@@ -129,7 +129,7 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		if *f.HasPick {
 			neg = ""
 		}
-		c = append(c, neg+"EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.take_id IS NOT NULL)")
+		c = append(c, neg+"EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.take_id IS NOT NULL"+pickVisible(f)+")")
 	}
 	l2Clauses(f, add)
 	if f.HasOpenProposals != nil {
@@ -161,6 +161,26 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 const subjectTake = `COALESCE((SELECT p.take_id FROM song_picks p WHERE p.song_id = s.id),
 	(SELECT t.id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = s.id AND t.status <> 'discarded'
 	 ORDER BY t.recorded_at DESC, t.created_at DESC, t.id DESC LIMIT 1))`
+
+// pickVisible is the extra predicate on a song_picks row p that hides a Pick naming a discarded take from a Listener, so
+// has_pick, pick_decided and the take-level filters are no oracle on a hidden take (C308.2). Empty for every other viewer.
+func pickVisible(f ListFilter) string {
+	if !f.HideDiscarded {
+		return ""
+	}
+	return " AND NOT EXISTS (SELECT 1 FROM tracks pt WHERE pt.id = p.take_id AND pt.status = 'discarded')"
+}
+
+// subjectTakeFor is subjectTake for f's viewer: a Listener's subject skips a Pick on a discarded take and falls back to
+// the newest eligible take.
+func subjectTakeFor(f ListFilter) string {
+	if !f.HideDiscarded {
+		return subjectTake
+	}
+	return `COALESCE((SELECT p.take_id FROM song_picks p WHERE p.song_id = s.id` + pickVisible(f) + `),
+	(SELECT t.id FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = s.id AND t.status <> 'discarded'
+	 ORDER BY t.recorded_at DESC, t.created_at DESC, t.id DESC LIMIT 1))`
+}
 
 // normTag is the filter-side tag normalisation (lower case, single spaces); stored names already satisfy the full rule.
 func normTag(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
@@ -204,7 +224,7 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		if *f.PickDecided {
 			neg = ""
 		}
-		add(neg + "EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.source IN ('pinned','ladder'))")
+		add(neg + "EXISTS (SELECT 1 FROM song_picks p WHERE p.song_id = s.id AND p.source IN ('pinned','ladder')" + pickVisible(f) + ")")
 	}
 	if f.Unheard != nil {
 		neg := ""
@@ -257,7 +277,7 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		cond, args = append(cond, "(r.engine <> 'unknown') = ?"), append(args, b2i(*f.RecipeKnown))
 	}
 	if len(cond) > 0 {
-		add(fmt.Sprintf(`EXISTS (SELECT 1 FROM tracks t%s WHERE t.id = %s AND %s)`, joins, subjectTake, strings.Join(cond, " AND ")), append(joinArgs, args...)...)
+		add(fmt.Sprintf(`EXISTS (SELECT 1 FROM tracks t%s WHERE t.id = %s AND %s)`, joins, subjectTakeFor(f), strings.Join(cond, " AND ")), append(joinArgs, args...)...)
 	}
 	if f.InRecord != nil {
 		neg := "NOT "

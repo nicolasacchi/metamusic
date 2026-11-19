@@ -64,8 +64,11 @@ func (s *Service) carriesDiscarded(ctx context.Context, t Tape) (bool, error) {
 	for _, c := range t.Chapters {
 		ids = append(ids, c.TakeID)
 	}
-	if len(ids) == 0 || s.o.Store == nil {
+	if len(ids) == 0 {
 		return false, nil
+	}
+	if s.o.Store == nil { // fail closed: without a Store the check cannot run, so the tape is not served to this viewer
+		return false, fmt.Errorf("tape: discarded takes: no store")
 	}
 	arr, _ := json.Marshal(ids)
 	var n int

@@ -259,6 +259,10 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 		return Tree{}, err
 	}
 	for id, kids := range children {
+		if nodes[id] == nil { // a branch outside the re-rooted subtree
+			delete(children, id)
+			continue
+		}
 		sort.SliceStable(kids, func(a, b int) bool {
 			if kids[a].CreatedAt != kids[b].CreatedAt {
 				return kids[a].CreatedAt < kids[b].CreatedAt

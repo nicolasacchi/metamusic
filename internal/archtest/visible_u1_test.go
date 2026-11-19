@@ -1,6 +1,7 @@
 package archtest
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -140,5 +141,33 @@ func TestTrackHandlersCallVisible_PatternCatches(t *testing.T) {
 	}
 	if strings.Contains(parts[1], "d.visible(ctx") {
 		t.Fatalf("a handler without the gate reads as gated")
+	}
+}
+
+// TestLineageTracksCallers pins that library.LineageTracks, which is unfiltered on purpose (it feeds the Owner-side duels
+// and the tag numbering of a download), is called only from those packages. A Listener-reachable caller would leak
+// discarded takes; it needs a viewer-filtered variant instead.
+func TestLineageTracksCallers(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	allowed := map[string]bool{"internal/duels": true, "internal/media/tagged": true, "internal/library": true}
+	files, err := filepath.Glob(filepath.Join(root, "internal", "*", "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deep, _ := filepath.Glob(filepath.Join(root, "internal", "*", "*", "*.go"))
+	files = append(files, deep...)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		rel, _ := filepath.Rel(root, f)
+		dir := filepath.ToSlash(filepath.Dir(rel))
+		if allowed[dir] {
+			continue
+		}
+		if b, err := os.ReadFile(f); err == nil && strings.Contains(string(b), ".LineageTracks(") {
+			t.Errorf("%s calls library.LineageTracks, which does not filter discarded takes for a Listener (C308.2)", rel)
+		}
 	}
 }
