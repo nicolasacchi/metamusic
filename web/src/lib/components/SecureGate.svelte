@@ -3,8 +3,12 @@
   // (partly ungated /api) reads until a gated call has succeeded: the gate probe is a human-only read, answered by
   // the edge's two-factor rule or the local step-up (a failure runs api/stepup.ts and is retried in place), and only
   // a 200 for a human principal opens the content. Agents and devices never see these pages' data.
+  // The caller comes from the `me` store (no whoami call here). Only a caller who may list devices is probed: a human
+  // without that op (an Editor on Generate-as-request) has no human-only call on the page, so there is nothing to gate
+  // and the probe would only be refused. The route's own op is checked by App before this renders (C313.3).
   import type { Snippet } from "svelte";
   import { api } from "../../api/client";
+  import { can, me } from "../me.svelte";
 
   let { children }: { children: Snippet } = $props();
   let phase = $state<"checking" | "open" | "denied" | "failed">("checking");
@@ -12,9 +16,12 @@
   async function check() {
     phase = "checking";
     try {
-      const me = await api.GET("/api/me", {});
-      if (me.data?.kind !== "human") {
-        phase = me.data ? "denied" : "failed";
+      if (me.kind !== "human") {
+        phase = me.loaded ? "denied" : "failed";
+        return;
+      }
+      if (!can("list_devices")) {
+        phase = "open";
         return;
       }
       const r = await api.GET("/human/api/devices", {});

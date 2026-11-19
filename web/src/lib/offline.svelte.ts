@@ -2,6 +2,7 @@
 // false every offline UI element is hidden and nothing here touches the network or storage.
 import { createOfflineManager, isNetworkError, realDeps, type Format, type OfflineDeps, type LocalItem, type LocalSource, type OfflineManager, type OfflineSet, type Status, type SyncSummary } from "../api/offline";
 import { detectOfflineAvailable } from "../api/swRegister";
+import { can } from "./me.svelte";
 
 export type { LocalItem, LocalSource, Status, SyncSummary };
 
@@ -172,7 +173,8 @@ export class OfflineStore {
 }
 
 export const offline = new OfflineStore({
-  available: detectOfflineAvailable(),
+  // The offline set is the Owner's (C313.7): other roles get no offline precache, UI or downloads.
+  available: detectOfflineAvailable() && can("get_offline_set"),
   deviceFormat: () => "flac",
   manager: createOfflineManager,
   deps: realDeps,

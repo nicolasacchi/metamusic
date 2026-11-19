@@ -1,5 +1,6 @@
 <script lang="ts">
   import { approvals } from "../approvals.svelte";
+  import { me } from "../me.svelte";
   import { ageLabel, confirmHref, expiryLabel, reasonLabel } from "../approvals";
   import { formatMicroUSDCeil } from "../money";
 
@@ -13,7 +14,7 @@
     const t = setInterval(() => (now = Date.now()), 30_000);
     return () => clearInterval(t);
   });
-  const readOnly = $derived(approvals.viewer === "device");
+  const readOnly = $derived(me.kind === "device");
 </script>
 
 {#if approvals.items.length === 0 && showEmpty && approvals.loaded}

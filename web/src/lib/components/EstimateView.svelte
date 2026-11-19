@@ -1,13 +1,12 @@
 <script lang="ts">
-  import type { components } from "../../api/schema";
-  import { confirmDisabledReasons } from "../confirm";
+  import { confirmDisabledReasons, type EstimateLike } from "../confirm";
+  import { can } from "../me.svelte";
   import { formatMicroUSD, formatMicroUSDCeil } from "../money";
   import { takeDetail, taskClasses, warningHint } from "../engines";
   import BudgetBar from "./BudgetBar.svelte";
 
-  type Estimate = components["schemas"]["Estimate"];
   interface Props {
-    estimate: Estimate;
+    estimate: EstimateLike;
   }
   let { estimate: e }: Props = $props();
 
@@ -42,10 +41,12 @@
     </ul>
   {/if}
 
-  <h3>Budget</h3>
-  <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
-  <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
-  <p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>
+  {#if e.budget && can("get_spend")}
+    <h3>Budget</h3>
+    <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
+    <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
+    <p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>
+  {/if}
 
   {#if e.requires_human_approval}
     <p class="note" data-testid="approval-notes">

@@ -5,6 +5,7 @@
   import { player } from "../lib/player.svelte";
   import { parseFilters, toApiQuery, toSearch, type Filters } from "../lib/libraryQuery";
   import { fmt } from "../lib/time";
+  import { can, me, viewer } from "../lib/me.svelte";
   import LibraryFilters from "../lib/components/LibraryFilters.svelte";
   import Pager from "../lib/components/Pager.svelte";
   import TrackTable from "../lib/components/TrackTable.svelte";
@@ -12,7 +13,6 @@
   import { viewport } from "../lib/viewport.svelte";
   import { composeIntent, mayGenerate, startGeneration, templateIntent, toggled, validateIntent, type VariantMode } from "../lib/genIntent";
 
-  type Whoami = components["schemas"]["WhoamiOutBody"];
   type Stats = components["schemas"]["Stats"];
   type Facets = components["schemas"]["Facets"];
   type Track = components["schemas"]["TrackSummary"];
@@ -26,7 +26,6 @@
   }
   let { search, navigate }: Props = $props();
 
-  let me = $state<Whoami | null>(null);
   let stats = $state<Stats | null>(null);
   let facets = $state<Facets | null>(null);
   let headerError = $state("");
@@ -97,15 +96,13 @@
 
   $effect(() => {
     void (async () => {
-      const [m, s, fc] = await Promise.allSettled([
-        api.GET("/api/me"),
-        api.GET("/api/stats"),
+      const [s, fc] = await Promise.allSettled([
+        can("get_stats") ? api.GET("/api/stats") : Promise.resolve(null),
         api.GET("/api/library/facets"),
       ]);
-      if (m.status === "fulfilled" && m.value.data) me = m.value.data;
-      if (s.status === "fulfilled" && s.value.data) stats = s.value.data;
+      if (s.status === "fulfilled" && s.value?.data) stats = s.value.data;
       if (fc.status === "fulfilled" && fc.value.data) facets = fc.value.data;
-      if (!me) headerError = "Failed to load";
+      if (!me.loaded) headerError = "Failed to load";
     })();
   });
 
@@ -113,7 +110,7 @@
   let selecting = $state(false);
   let selected = $state<Set<string>>(new Set());
   let templateMode = $state<VariantMode>("style_edit");
-  const canGen = $derived(me !== null && mayGenerate(me));
+  const canGen = $derived(mayGenerate(viewer()));
   const intent = $derived(templateIntent([...selected], templateMode));
   const selError = $derived(selected.size === 0 ? "" : (validateIntent(intent) ?? ""));
   function toGenerate(i: ReturnType<typeof templateIntent>) {

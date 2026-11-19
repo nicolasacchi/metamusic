@@ -8,10 +8,12 @@
   import { installMediaSession, mediaSessionEnv } from "./lib/mediaSession";
   import { covers } from "./lib/cover";
   import { installListen } from "./lib/listen.svelte";
-  import { isTabRoot, tabFor, titleFor, TABS, type Tab } from "./lib/nav";
+  import { isTabRoot, routeAllowed, tabFor, titleFor, visibleTabs, type Tab } from "./lib/nav";
+  import { can } from "./lib/me.svelte";
+  import NoAccess from "./lib/components/NoAccess.svelte";
   import { api } from "./api/client";
   import { loadDuelBadge } from "./lib/navBadge";
-  import { approvals, refreshApprovals } from "./lib/approvals.svelte";
+  import { approvals, refreshApprovals, showsApprovalBadge } from "./lib/approvals.svelte";
   import { badgeText } from "./lib/approvals";
   import { badge as inboxBadge, inbox, installHeard, refreshInboxBadge } from "./lib/inbox.svelte";
   import { restoreMore } from "./lib/queueSource";
@@ -96,11 +98,12 @@
   let duelBadge = $state<number | null>(null);
   $effect(() => {
     void $router.path;
-    void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
+    if (can("list_duels")) void loadDuelBadge({ GET: (p, i) => api.GET(p, i) }).then((n) => (duelBadge = n));
   });
 
-  // Pending approvals: refreshed on navigation and every 30 s while the tab is visible. The badge is for humans only.
-  const approvalBadge = $derived(approvals.viewer === "human" ? badgeText(approvals.items.length, approvals.more) : null);
+  // Pending approvals: refreshed on navigation and every 30 s while the tab is visible. The badge and the polling are for
+  // whoever may decide a batch (the Owner); an Editor or Listener never polls the list or sees a badge (C313.3).
+  const approvalBadge = $derived(showsApprovalBadge() ? badgeText(approvals.items.length, approvals.more) : null);
   $effect(() => {
     void $router.path;
     void refreshApprovals();
@@ -158,7 +161,7 @@
       const onReg = (e: Event) => watchForUpdate((e as CustomEvent<ServiceWorkerRegistration>).detail, (r) => (waitingWorker = r));
       window.addEventListener("mm:sw-registered", onReg);
       // Offline badge: the set is fetched (never downloaded) so the nav can show downloaded/total.
-      if (offline.available) {
+      if (offline.available && can("get_offline_set")) {
         void offline.refresh();
         // The set is fetched only when the network is believed to be up (an offline start touches no API).
         if (navigator.onLine !== false) void offline.refreshSet();
@@ -181,7 +184,7 @@
   // Phone Back button: one step in history, or the tab's landing page for a deep link.
   function goBack() {
     if (history.length > 1) history.back();
-    else router.navigate(TABS.find((t) => t.id === tabFor(routeName))?.path ?? "/");
+    else router.navigate(visibleTabs(can).find((t) => t.id === tabFor(routeName))?.path ?? "/");
   }
 
   let audio: HTMLAudioElement;
@@ -245,7 +248,9 @@
         {/if}
       </p>
     {/if}
-    {#if $router.route?.name === "new"}
+    {#if !routeAllowed(routeName, can)}
+      <NoAccess />
+    {:else if $router.route?.name === "new"}
       <New />
     {:else if $router.route?.name === "queue"}
       <Queue />
