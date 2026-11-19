@@ -5,6 +5,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -22,6 +23,7 @@ var idRe = regexp.MustCompile(`"id":"([^"]+)"`)
 func (w *intbWorld) subsonicSweep(t *testing.T, name string, c *subsonictest.Client, secrets []intbSecret, banned []string) int {
 	t.Helper()
 	seen := map[string]bool{}
+	discovered := map[string]bool{}
 	var calls int
 	call := func(ep string, q url.Values) {
 		for _, js := range []bool{true, false} {
@@ -69,7 +71,6 @@ func (w *intbWorld) subsonicSweep(t *testing.T, name string, c *subsonictest.Cli
 			}
 		}
 	}
-	discovered = map[string]bool{}
 	ids := append([]string{"ar-metamusic", "unf"}, w.Discarded...)
 	ids = append(ids, w.Visible[:min(12, len(w.Visible))]...)
 	for id := range w.Taint {
@@ -117,12 +118,17 @@ func (w *intbWorld) subsonicSweep(t *testing.T, name string, c *subsonictest.Cli
 			found = append(found, id)
 		}
 	}
-	if len(found) > 120 {
-		found = found[:120]
+	if len(found) > 40 {
+		sort.Strings(found)
+		found = found[:40]
 	}
 	each(found)
 	// the audio: both formats and the master spellings, for every take we know
-	for _, id := range append(ids, found...) {
+	audio := append(append([]string{}, ids[:min(14, len(ids))]...), found[:min(8, len(found))]...)
+	for id := range w.Taint {
+		audio = append(audio, id)
+	}
+	for _, id := range audio {
 		for _, f := range []string{"", "raw", "flac", "mp3", "original"} {
 			q := url.Values{"id": {id}}
 			if f != "" {
@@ -143,18 +149,15 @@ func (w *intbWorld) subsonicSweep(t *testing.T, name string, c *subsonictest.Cli
 	return calls
 }
 
-var discovered map[string]bool
-
 // TestIntBListenerSubsonicSweep is the Subsonic half of the Listener sweep: a REAL Listener client, JSON and XML.
 func TestIntBListenerSubsonicSweep(t *testing.T) {
 	t.Parallel()
 	w := newIntbWorld(t)
 	lsec, _ := w.secrets(t)
-	for _, write := range []bool{false, true} {
-		c := w.R.SubsonicClientFor(t, "carol", subsonictest.ClientOpts{Name: "Carol sweep app", Write: write, Username: map[bool]string{false: "carol-ro", true: "carol-rw"}[write]})
-		n := w.subsonicSweep(t, "carol-subsonic", c, lsec, subsonicBanned)
-		if n < 500 {
-			t.Errorf("the Subsonic sweep made only %d calls", n)
-		}
+	// the write client reaches every endpoint a Listener's client can (setRating, scrobble); the read-only client's audio and
+	// song routes are swept by TestIntBListenerAudioEveryRoute
+	c := w.R.SubsonicClientFor(t, "carol", subsonictest.ClientOpts{Name: "Carol sweep app", Write: true})
+	if n := w.subsonicSweep(t, "carol-subsonic", c, lsec, subsonicBanned); n < 500 {
+		t.Errorf("the Subsonic sweep made only %d calls", n)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -38,6 +39,9 @@ func isMoneyKey(k string) bool {
 // intbHit is one leak.
 type intbHit struct{ Where, What string }
 
+// intbLeaf is one scalar of a body: where it is and its text (numbers as their token, ids the caller sent removed).
+type intbLeaf struct{ Path, Text string }
+
 // intbScan walks a decoded JSON body and reports every banned key and every secret value in it. Strings are matched as
 // substrings (a hash inside a URL counts), numbers as whole number tokens. scrub values (ids the caller itself sent) are
 // removed first: an echo of what the caller typed is not a leak.
@@ -49,6 +53,7 @@ func intbScan(op string, body []byte, secrets []intbSecret, banned []string, scr
 	if err := dec.Decode(&v); err != nil { // not JSON (XML, audio): the raw text is scanned
 		return intbScanText(op, string(body), secrets, scrub, "raw")
 	}
+	var leaves []intbLeaf
 	var walk func(path string, n any)
 	walk = func(path string, n any) {
 		switch x := n.(type) {
@@ -64,13 +69,77 @@ func intbScan(op string, body []byte, secrets []intbSecret, banned []string, scr
 				walk(path+"[]", c)
 			}
 		case string:
-			hits = append(hits, intbScanText(op, x, secrets, scrub, path)...)
+			leaves = append(leaves, intbLeaf{path, intbScrub(x, scrub)})
 		case json.Number:
-			hits = append(hits, intbScanText(op, x.String(), secrets, nil, path)...)
+			leaves = append(leaves, intbLeaf{path, x.String()})
 		}
 	}
 	walk("$", v)
+	return append(hits, intbMatch(op, leaves, secrets)...)
+}
+
+func intbScrub(s string, scrub []string) string {
+	for _, sc := range scrub {
+		if sc != "" {
+			s = strings.ReplaceAll(s, sc, "")
+		}
+	}
+	return s
+}
+
+// intbMatch looks for every secret in the leaves. One substring search of the whole joined text per secret keeps a body of
+// thousands of strings against hundreds of secrets cheap; only a candidate is then located and checked against its token
+// boundaries.
+func intbMatch(op string, leaves []intbLeaf, secrets []intbSecret) []intbHit {
+	var sb strings.Builder
+	for _, l := range leaves {
+		sb.WriteString(l.Text)
+		sb.WriteByte(0)
+	}
+	all := sb.String()
+	var hits []intbHit
+	for _, sc := range secrets {
+		if len(sc.Ops) > 0 && !slices.Contains(sc.Ops, op) {
+			continue
+		}
+		if !strings.Contains(all, sc.Value) {
+			continue
+		}
+		for _, l := range leaves {
+			if intbMatchOne(sc, l.Text) {
+				hits = append(hits, intbHit{l.Path, sc.Kind + " " + sc.Value})
+				break
+			}
+		}
+	}
 	return hits
+}
+
+var tokenRe sync.Map // pattern -> *regexp.Regexp
+
+func tokenRegexp(prefix, class, value string) *regexp.Regexp {
+	key := prefix + "\x00" + value
+	if re, ok := tokenRe.Load(key); ok {
+		return re.(*regexp.Regexp)
+	}
+	re := regexp.MustCompile(`(^|[^` + class + `])` + regexp.QuoteMeta(value) + `($|[^` + class + `])`)
+	tokenRe.Store(key, re)
+	return re
+}
+
+func intbMatchOne(sc intbSecret, s string) bool {
+	switch {
+	case sc.Word:
+		return tokenRegexp("w", "A-Za-z0-9_", sc.Value).MatchString(s)
+	case sc.Num:
+		return tokenRegexp("n", "0-9", sc.Value).MatchString(s)
+	}
+	return strings.Contains(s, sc.Value)
+}
+
+// intbScanText scans one text.
+func intbScanText(op, s string, secrets []intbSecret, scrub []string, where string) []intbHit {
+	return intbMatch(op, []intbLeaf{{where, intbScrub(s, scrub)}}, secrets)
 }
 
 // intbBanned reports whether the key at path is banned: a plain entry bans the key anywhere, an entry with a dot bans that
@@ -91,44 +160,6 @@ func intbBanned(banned []string, path, key string) bool {
 		}
 	}
 	return false
-}
-
-var numTok = map[string]*regexp.Regexp{}
-
-func intbScanText(op, s string, secrets []intbSecret, scrub []string, where string) []intbHit {
-	for _, sc := range scrub {
-		if sc != "" {
-			s = strings.ReplaceAll(s, sc, "")
-		}
-	}
-	var hits []intbHit
-	for _, sc := range secrets {
-		if len(sc.Ops) > 0 && !slices.Contains(sc.Ops, op) {
-			continue
-		}
-		if sc.Word {
-			re := numTok["w:"+sc.Value]
-			if re == nil {
-				re = regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(sc.Value) + `($|[^A-Za-z0-9_])`)
-				numTok["w:"+sc.Value] = re
-			}
-			if re.MatchString(s) {
-				hits = append(hits, intbHit{where, sc.Kind + " " + sc.Value})
-			}
-		} else if sc.Num {
-			re := numTok[sc.Value]
-			if re == nil {
-				re = regexp.MustCompile(`(^|[^0-9])` + regexp.QuoteMeta(sc.Value) + `($|[^0-9])`)
-				numTok[sc.Value] = re
-			}
-			if re.MatchString(s) {
-				hits = append(hits, intbHit{where, sc.Kind + " " + sc.Value})
-			}
-		} else if strings.Contains(s, sc.Value) {
-			hits = append(hits, intbHit{where, sc.Kind + " " + sc.Value})
-		}
-	}
-	return hits
 }
 
 // intbCall is one request of the sweep.
