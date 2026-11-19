@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/nicolasacchi/metamusic/internal/problem"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )

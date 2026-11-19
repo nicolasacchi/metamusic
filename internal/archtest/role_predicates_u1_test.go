@@ -13,7 +13,7 @@ import (
 // patterns are banned outside internal/auth (which defines the predicates) and internal/view. Code uses IsPerson,
 // IsOwner, IsOwnerSide, CanSeePrivate, IsAgent and IsHuman instead.
 var rolePredicateBans = regexp.MustCompile(
-	`\bActsAsHuman\b|\.Kind\s*(==|!=)\s*(auth\.)?Kind(Human|Agent)\b|\bcase\s+(auth\.)?Kind(Human|Agent)\b[,:]`)
+	`\bActsAsHuman\b|\.Kind\s*(==|!=)\s*(auth\.)?Kind(Human|Agent)\b|\bcase\s+([^:\n]*[\s,])?(auth\.)?Kind(Human|Agent)\b`)
 
 // rolePredicateAllowed names the sites that may keep a raw kind check, one reason each. It is empty: every agent-only
 // rule uses IsAgent. A new entry needs a reason that says why no predicate fits.
@@ -71,8 +71,8 @@ func TestRolePredicates_BanPatternsCatch(t *testing.T) {
 		"internal/x/e.go": "if p.Kind == KindAgent {}",
 		"internal/x/f.go": "if q.Kind\t!=  auth.KindHuman {}",
 	}
-	if off := rolePredicateOffenders(bad); len(off) != 5 { // d.go lists devices first: only a leading case is matched
-		t.Fatalf("want 5 offenders, got %d: %v", len(off), off)
+	if off := rolePredicateOffenders(bad); len(off) != 6 {
+		t.Fatalf("want 6 offenders, got %d: %v", len(off), off)
 	}
 	ok := map[string]string{
 		"internal/auth/p.go": "return p.Kind == KindHuman",

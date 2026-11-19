@@ -216,6 +216,20 @@ func TestServertest_NonOwnerRefusedOnOwnerOps(t *testing.T) {
 	}
 }
 
+// TestServertest_EditorRefusedOnSensitiveReads pins that the scope-read ops of D-U1-6 are owner-only in the real gate,
+// whatever the tagging pass has reached: an Editor holds the read scope but must get OWNER_ONLY.
+func TestServertest_EditorRefusedOnSensitiveReads(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	editor := r.User(t, servertest.UserEditor, config.RoleEditor)
+	for _, path := range []string{"/api/audit", "/api/tokens", "/api/backups", "/api/imports", "/api/spend", "/api/ledger", "/api/provider", "/api/connectors"} {
+		resp := editor.Do(t, "GET", path, nil)
+		if resp.Status != 403 || !strings.Contains(string(resp.Body), "OWNER_ONLY") {
+			t.Errorf("editor GET %s: %d %s", path, resp.Status, resp.Body)
+		}
+	}
+}
+
 func TestServertest_UserRefusesUnconfigured(t *testing.T) {
 	t.Parallel()
 	r := servertest.New(t, servertest.Options{})

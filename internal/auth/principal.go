@@ -154,7 +154,7 @@ func RaterKey(p Principal) string {
 		return "critic"
 	case p.Kind == KindHuman && p.Role != RoleOwner && p.User != "":
 		return p.User
-	case p.IsPerson():
+	case p.IsPerson(): // lane D1 hand-off: a device has no role yet; D1 must return the device owner key here
 		return "owner"
 	}
 	return ""

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"slices"
 	"testing"
@@ -144,5 +145,20 @@ func TestRaterKey(t *testing.T) {
 		if got := RaterKey(tc.p); got != tc.want {
 			t.Errorf("RaterKey(%+v) = %q, want %q", tc.p, got, tc.want)
 		}
+	}
+}
+
+func TestCreatePairingCodeOwnerOnly(t *testing.T) {
+	t.Parallel()
+	ds, _ := newDevices(t)
+	for _, role := range []Role{RoleEditor, RoleListener} {
+		by := Principal{Kind: KindHuman, ID: "human:bob", User: "bob", Role: role}
+		if _, _, err := ds.CreatePairingCode(t.Context(), by, "Phone"); !errors.Is(err, ErrNotHuman) {
+			t.Errorf("%s: err = %v, want ErrNotHuman", role, err)
+		}
+	}
+	owner := Principal{Kind: KindHuman, ID: "human:alice", User: "alice", Role: RoleOwner}
+	if _, _, err := ds.CreatePairingCode(t.Context(), owner, "Phone"); err != nil {
+		t.Errorf("owner: %v", err)
 	}
 }
