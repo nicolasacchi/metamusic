@@ -4,6 +4,16 @@
 # file is only for changes to the code under test. verify passes the selected spec files to scripts/e2e.sh
 # (MM_E2E_SPECS) and Playwright runs them on whatever projects/tags the config gives them; CI runs everything.
 @core	smoke m1-library m1-player
+web/src/lib/me.svelte.ts	user-switch listener-shell editor-shell smoke
+web/src/lib/me.ts	user-switch listener-shell editor-shell smoke
+web/src/api/browserState.ts	user-switch
+web/src/lib/device.svelte.ts	user-switch
+web/src/lib/ratingView.ts	ratings-per-user
+web/src/lib/components/RatingPanel.svelte	ratings-per-user
+web/src/lib/shell.ts	listener-shell editor-shell
+web/src/lib/nav.ts	listener-shell editor-shell ux-shell
+web/src/lib/components/NoAccess.svelte	listener-shell editor-shell
+web/e2e/u1Api.ts	listener-shell editor-shell ratings-per-user user-switch device-pairing
 web/src/*.test.ts	-
 web/src/lib/fixtures/*	-
 web/src/routes/Backlog.svelte	m1-backlog
@@ -46,12 +56,12 @@ web/src/routes/SettingsBackups.svelte	m2a-backup
 web/src/lib/components/BackupList.svelte	m2a-backup
 web/src/routes/SettingsAudit.svelte	m2a-audit
 web/src/lib/components/AuditTable.svelte	m2a-audit
-web/src/routes/HumanDevices.svelte	m2a-human
+web/src/routes/HumanDevices.svelte	m2a-human device-pairing
 web/src/api/stepup*	ux-secure
 web/src/lib/components/SecureGate.svelte	ux-secure m2a-human m4a-human
 web/src/lib/components/StepUpBanner.svelte	ux-secure
 web/src/routes/HumanConfirm.svelte	m2a-human
-web/src/lib/components/PairingPanel.svelte	m2a-human
+web/src/lib/components/PairingPanel.svelte	m2a-human device-pairing
 web/src/lib/humanView.ts	m2a-human
 web/src/lib/components/Comment*	m2a-comments m5-voice m5-voice-save
 web/src/lib/comments.ts	m2a-comments
@@ -71,7 +81,7 @@ web/src/routes/Jobs.svelte	m3-jobs
 web/src/routes/Job.svelte	m3-jobs
 web/src/lib/components/Job*	m3-jobs
 web/src/lib/jobState.ts	m3-jobs
-web/src/routes/Batch.svelte	m3-batch
+web/src/routes/Batch.svelte	m3-batch editor-shell
 web/src/lib/components/BatchCard.svelte	m3-batch
 web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout
 web/src/lib/components/Generate*	m3-compose m3-variant
@@ -229,7 +239,7 @@ web/src/lib/components/KeyBadge.svelte	l3-entry-points
 web/src/lib/components/EnergyBadge.svelte	l3-entry-points
 web/src/lib/components/SequencePanel.svelte	l2-records l3-sequence
 web/src/lib/sequenceView.ts	l2-records l3-sequence
-web/src/routes/New.svelte	ux-inbox ux-landing l3-next
+web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell
 internal/features/*	l3-entry-points l1-song
 internal/sequencer/*	l2-records l3-sequence
 internal/sequence/*	l2-records l3-sequence

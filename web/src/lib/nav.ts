@@ -297,7 +297,7 @@ export const ROUTE_OPS: Record<string, string | null> = {
   export: "list_export_sources",
   import: "list_import_runs",
   offline: "get_offline_set",
-  settings: "get_system_info",
+  settings: null, // every user picks this device's playback quality here; its Owner-only sections gate themselves (U1-INT-W)
   "settings-backups": "list_backups",
   "settings-audit": "get_audit",
   receipts: "list_ledger",

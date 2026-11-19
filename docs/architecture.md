@@ -64,7 +64,9 @@ What is hidden from whom:
   Songs, Crates, Records, the Atlas, counts or Subsonic.
 - **Clean renditions.** A Listener never receives a frozen master or its hash. Playback, download and
   Subsonic resolve to two renditions built on demand with every `MM_*` tag removed: `mp3_320_clean`
-  and `flac_clean`.
+  and `flac_clean`. Every user opens Settings to pick this device's playback quality (lossless FLAC or
+  MP3); the Owner-only sections of that page (system info, backups, audit, device probe and profiles)
+  show only to the Owner.
 
 Ratings are per user: a rating row is keyed by track, source and rater (`owner`, the username, or
 `critic` for agents). Every curation signal (picks, Song state, Atlas, next actions, ladder, stats)

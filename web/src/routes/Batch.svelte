@@ -1,10 +1,10 @@
 <script lang="ts">
   import { api } from "../api/client";
   import type { components } from "../api/schema";
+  import BatchReview from "../lib/components/BatchReview.svelte";
   import BatchCard from "../lib/components/BatchCard.svelte";
   import JobRow from "../lib/components/JobRow.svelte";
   import { pushToast } from "../lib/judge.svelte";
-  import { confirmHref } from "../lib/approvals";
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
 
@@ -82,7 +82,7 @@
 {#if error}<p role="alert">{error}</p>{/if}
 {#if batch}
   {#if batch.state === "awaiting_confirmation"}
-    <p class="review" data-testid="review-approve"><a href={confirmHref(batch.id)}><strong>Review &amp; approve</strong></a> <span class="muted">this batch is waiting for your approval; nothing is spent until you decide.</span></p>
+    <BatchReview id={batch.id} />
   {/if}
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
@@ -96,12 +96,3 @@
 {:else if !error}
   <p class="muted">Loading…</p>
 {/if}
-
-<style>
-  .review {
-    border: 1px solid #f2a65a;
-    border-radius: 0.4rem;
-    padding: 0.5rem 0.8rem;
-    font-size: 1.1rem;
-  }
-</style>
