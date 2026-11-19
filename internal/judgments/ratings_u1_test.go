@@ -2,6 +2,7 @@ package judgments_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -75,13 +76,13 @@ func TestRate_PerRater(t *testing.T) {
 	before := scalarInt(t, e, `SELECT COUNT(*) FROM ratings`)
 	if _, err := e.svc.Rate(ctx, systemSource, id, ip(3), nil); err == nil {
 		t.Error("a system principal rated")
-	} else if je, ok := err.(*judgments.Error); !ok || je.Status != 403 || je.Code != "CANNOT_RATE" {
+	} else if je := (*judgments.Error)(nil); !errors.As(err, &je) || je.Status != 403 || je.Code != "CANNOT_RATE" {
 		t.Errorf("system rate error = %v, want 403 CANNOT_RATE", err)
 	}
 	// the refusal comes before the track lookup: a missing track still answers 403 for a principal that cannot rate
 	if _, err := e.svc.Rate(ctx, systemSource, "no-such-track", ip(3), nil); err == nil {
 		t.Error("system rated a missing track")
-	} else if je, ok := err.(*judgments.Error); !ok || je.Status != 403 {
+	} else if je := (*judgments.Error)(nil); !errors.As(err, &je) || je.Status != 403 {
 		t.Errorf("missing track as system = %v, want 403", err)
 	}
 	if after := scalarInt(t, e, `SELECT COUNT(*) FROM ratings`); after != before {
