@@ -55,7 +55,7 @@ func newMediaEnv(t *testing.T, mode, publicURL string) *mediaEnv {
 	lib := library.New(st, root, now)
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: publicURL, AuthMode: mode,
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 	}
 	var sha, rel string
 	if err := st.R.QueryRow(`SELECT master_sha256, master_path FROM tracks WHERE id = ?`, lt.TrackLuna).Scan(&sha, &rel); err != nil {

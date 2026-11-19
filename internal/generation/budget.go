@@ -16,6 +16,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/idem"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -77,7 +78,7 @@ func (s *Service) capsView(ctx context.Context, q lineage.Querier, p auth.Princi
 	v.UpdatedBy, v.UpdatedAt = actorFor(ctx, q, by), parseT(at)
 	query := `SELECT id, name, daily_budget_micro_usd, auto_approve_takes, auto_approve_micro_usd FROM api_tokens WHERE revoked_at IS NULL`
 	args := []any{}
-	if p.Kind == auth.KindAgent {
+	if p.IsAgent() {
 		query += ` AND id = ?`
 		args = append(args, p.ID)
 	}
@@ -121,10 +122,10 @@ func (s *Service) connectorCaps(ctx context.Context, q lineage.Querier, p auth.P
 	query := `SELECT id, label, daily_budget_micro_usd, auto_approve_takes, auto_approve_micro_usd FROM connector_grants WHERE revoked_at IS NULL`
 	args := []any{}
 	switch {
-	case p.Kind == auth.KindAgent && p.Via == "oauth":
+	case p.IsAgent() && p.Via == "oauth":
 		query += ` AND id = ?`
 		args = append(args, p.ID)
-	case p.Kind == auth.KindAgent:
+	case p.IsAgent():
 		return out, nil
 	}
 	rows, err := q.QueryContext(ctx, query+` ORDER BY created_at, id`, args...)
@@ -218,7 +219,7 @@ func (s *Service) Budget(ctx context.Context, p auth.Principal) (BudgetView, err
 	daily := spend.PrincipalDaily(p, tok, caps)
 	v.Day = DayView{Principal: actorFor(ctx, q, p.Key()), Settled: u.PrincipalDaySettled, Outstanding: u.PrincipalOutstanding, Cap: daily,
 		Left: max(daily-u.PrincipalDaySettled-u.PrincipalOutstanding, 0)}
-	if p.Kind != auth.KindAgent {
+	if !p.IsAgent() {
 		v.Day.Principal = Actor{Key: p.Key(), Kind: string(p.Kind), Name: p.Name}
 	}
 	v.AutoApproveTakes, v.AutoApprove = caps.AutoApproveTakes, caps.AutoApproveMicro
@@ -444,6 +445,9 @@ func (s *Service) ListLedger(ctx context.Context, f LedgerQuery) (LedgerPage, er
 // SetCaps applies a set_spend_caps request (human-only) in one transaction with the cap-change rows and the
 // in-transaction audit row, and returns the new configuration.
 func (s *Service) SetCaps(ctx context.Context, p auth.Principal, patch spend.CapsPatch) (CapsView, error) {
+	if !p.IsOwnerSide() {
+		return CapsView{}, problem.OwnerOnly("changing the spend caps")
+	}
 	if err := s.ready(); err != nil {
 		return CapsView{}, err
 	}

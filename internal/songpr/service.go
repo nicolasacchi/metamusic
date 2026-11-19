@@ -242,8 +242,8 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, in ProposeInput
 	if err := s.ready(); err != nil {
 		return SongPR{}, err
 	}
-	switch p.Kind {
-	case auth.KindHuman, auth.KindDevice, auth.KindAgent:
+	switch {
+	case p.IsPerson(), p.IsAgent():
 	default:
 		return SongPR{}, perr(http.StatusForbidden, "FORBIDDEN", "this principal cannot propose a patch", nil)
 	}

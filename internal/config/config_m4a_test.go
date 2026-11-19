@@ -61,7 +61,7 @@ func TestConfig_OIDC(t *testing.T) {
 		{"no equals", with("MM_OIDC_CLIENTS", "abc"), "MM_OIDC_CLIENTS"},
 		{"scopes lack metamusic", with("MM_OIDC_SCOPES", "openid"), "MM_OIDC_SCOPES"},
 		{"scopes offline", with("MM_OIDC_SCOPES", "openid offline_access metamusic"), ""},
-		{"no trusted users", with("MM_TRUSTED_USERS", "-"), "MM_TRUSTED_USERS"},
+		{"no trusted users", with("MM_TRUSTED_USERS", "-"), "MM_USERS"},
 		{"http public", with("MM_PUBLIC_URL", "http://mm.example.com"), "MM_PUBLIC_URL"},
 		{"loopback public", with("MM_PUBLIC_URL", "http://127.0.0.1:41234"), ""},
 	}

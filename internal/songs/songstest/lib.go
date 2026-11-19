@@ -14,7 +14,7 @@ import (
 
 // HumanP and AgentP are the principals the scenes act as.
 var (
-	HumanP = auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
+	HumanP = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
 	AgentP = auth.Principal{Kind: auth.KindAgent, ID: "a", Name: "a", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "token"}
 )
 

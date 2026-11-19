@@ -14,7 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/tape"
 )
 
-var human = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "local"}
+var human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "local"}
 
 const (
 	r1Title = "Synthetic Record One"

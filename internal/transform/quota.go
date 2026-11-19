@@ -36,7 +36,7 @@ func (q Quota) RemainingMS() int64 { return max(q.CapMS-q.UsedMS-q.ReservedMS, 0
 // QuotaKind maps a principal to its quota pool: agents draw from the agent cap, every human-operated principal (human, device)
 // from the human one.
 func QuotaKind(p auth.Principal) string {
-	if p.Kind == auth.KindAgent {
+	if p.IsAgent() {
 		return "agent"
 	}
 	return "human"

@@ -76,7 +76,7 @@ func (x *s3rig) writeFixtureFiles(t *testing.T) {
 // newClient creates one more Subsonic client and returns its api key.
 func (r *rig) newClient(t *testing.T, name string, mp3, write bool) string {
 	t.Helper()
-	human := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
 	f := "raw"
 	if mp3 {
 		f = "mp3"

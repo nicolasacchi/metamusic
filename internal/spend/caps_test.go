@@ -289,11 +289,11 @@ func TestCreate_ReadsThroughTx(t *testing.T) {
 		},
 		func() error { _, err := blind.Ledger().Outstanding(ctx, tx, sd.Batch); return err },
 		func() error {
-			_, _, err := blind.SetCaps(ctx, tx, auth.Principal{Kind: auth.KindHuman, ID: "h1"}, CapsPatch{})
+			_, _, err := blind.SetCaps(ctx, tx, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1"}, CapsPatch{})
 			return err
 		},
 		func() error {
-			_, err := blind.RequestApproval(ctx, tx, sd.Batch, auth.Principal{Kind: auth.KindHuman, ID: "h1"})
+			_, err := blind.RequestApproval(ctx, tx, sd.Batch, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1"})
 			return err
 		},
 	}
@@ -310,7 +310,7 @@ func TestSetCaps_History(t *testing.T) {
 	r := newRig(t)
 	r.token("a1")
 	r.token("a2")
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h1"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1"}
 	v := func(x int64) *money.MicroUSD { m := money.MicroUSD(x); return &m }
 	n := 4
 	var changes []CapChange

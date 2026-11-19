@@ -2,6 +2,7 @@ package servertest_test
 
 import (
 	"context"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"os"
 	"strings"
@@ -177,3 +178,75 @@ func TestMain(m *testing.M) {
 	archivetest.Cleanup()
 	os.Exit(code)
 }
+
+func TestServertest_RoleUsers(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	for _, c := range []*servertest.Client{r.Human(t), r.User(t, servertest.UserEditor, config.RoleEditor)} {
+		if who := c.OK(t, "GET", "/api/me", nil).(map[string]any); who["kind"] != "human" {
+			t.Errorf("whoami %v", who)
+		}
+	}
+	// a Listener is a known user (403 on a read-scope op until F1b retags browse ops to listen), never anonymous
+	if resp := r.User(t, servertest.UserListener, config.RoleListener).Do(t, "GET", "/api/me", nil); resp.Status != 403 {
+		t.Errorf("listener whoami: %d %s", resp.Status, resp.Body)
+	}
+}
+
+// TestServertest_NonOwnerRefusedOnOwnerOps drives the real gate: an Editor and a Listener are refused the human-only and
+// admin operations (OWNER_ONLY), the Listener also lacks the legacy scopes, and an unknown user is anonymous (401).
+func TestServertest_NonOwnerRefusedOnOwnerOps(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	editor := r.User(t, servertest.UserEditor, config.RoleEditor)
+	listener := r.User(t, servertest.UserListener, config.RoleListener)
+	for name, c := range map[string]*servertest.Client{"editor": editor, "listener": listener} {
+		for path, method := range map[string]string{"/human/api/devices": "GET", "/human/api/spend/caps": "PUT"} {
+			resp := c.Do(t, method, path, map[string]any{"monthly_micro_usd": 1})
+			if resp.Status != 403 || !strings.Contains(string(resp.Body), "OWNER_ONLY") {
+				t.Errorf("%s %s %s: %d %s", name, method, path, resp.Status, resp.Body)
+			}
+		}
+	}
+	if resp := listener.Do(t, "GET", "/api/tokens", nil); resp.Status != 403 {
+		t.Errorf("listener list tokens: %d %s", resp.Status, resp.Body)
+	}
+	if resp := r.Human(t).Do(t, "GET", "/human/api/devices", nil); resp.Status != 200 {
+		t.Errorf("owner list devices: %d %s", resp.Status, resp.Body)
+	}
+}
+
+// TestServertest_EditorRefusedOnSensitiveReads pins that the scope-read ops of D-U1-6 are owner-only in the real gate,
+// whatever the tagging pass has reached: an Editor holds the read scope but must get OWNER_ONLY.
+func TestServertest_EditorRefusedOnSensitiveReads(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	editor := r.User(t, servertest.UserEditor, config.RoleEditor)
+	for _, path := range []string{"/api/audit", "/api/tokens", "/api/backups", "/api/imports", "/api/spend", "/api/ledger", "/api/provider", "/api/connectors"} {
+		resp := editor.Do(t, "GET", path, nil)
+		if resp.Status != 403 || !strings.Contains(string(resp.Body), "OWNER_ONLY") {
+			t.Errorf("editor GET %s: %d %s", path, resp.Status, resp.Body)
+		}
+	}
+}
+
+func TestServertest_UserRefusesUnconfigured(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	ft := &fatalRecorder{TB: t}
+	func() {
+		defer func() { _ = recover() }()
+		r.User(ft, "mallory", config.RoleListener)
+	}()
+	if !ft.failed {
+		t.Fatal("User must fail for an unconfigured name")
+	}
+}
+
+type fatalRecorder struct {
+	testing.TB
+	failed bool
+}
+
+func (f *fatalRecorder) Fatalf(string, ...any) { f.failed = true; panic("fatal") }
+func (f *fatalRecorder) Helper()               {}

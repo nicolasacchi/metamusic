@@ -59,8 +59,8 @@ func loadM4a(c *Config, getenv func(string) string) error {
 		return errors.New("config: MM_OIDC_CLIENTS needs at least one client when MM_OIDC_ISSUER is set")
 	}
 	c.OIDCClients = clients
-	if len(c.TrustedUsers) == 0 {
-		return errors.New("config: MM_TRUSTED_USERS must name at least one user when MM_OIDC_ISSUER is set")
+	if len(c.Users) == 0 {
+		return errors.New("config: MM_USERS (or MM_TRUSTED_USERS) must name at least one user when MM_OIDC_ISSUER is set")
 	}
 	if err := checkOIDCURL(c.PublicURL); err != nil || strings.Contains(c.PublicURL, "?") {
 		return errors.New("config: MM_PUBLIC_URL must be https (http only for loopback) when MM_OIDC_ISSUER is set")

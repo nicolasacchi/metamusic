@@ -150,7 +150,7 @@ func newRig(t *testing.T, ro rigOpts) *rig {
 		FailDelay: ro.failDelay, Sleep: r.sleeps.sleep,
 	})
 	r.srv.log = slog.New(slog.NewJSONHandler(r.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	human := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin}, Via: "proxy"}
 	var sec auth.SubsonicSecrets
 	r.rw, sec, err = creds.Create(ctx, human, auth.NewSubsonicClient{Name: "Reader Writer", Username: "rwclient", Write: true, APIKey: true, Password: true})
 	if err != nil {

@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	human  = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	human  = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 	device = auth.Principal{Kind: auth.KindDevice, ID: "dev-1", Name: "Phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 	agent  = auth.Principal{Kind: auth.KindAgent, ID: "tok-1", Name: "claude", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 	agent2 = auth.Principal{Kind: auth.KindAgent, ID: "tok-2", Name: "other", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}

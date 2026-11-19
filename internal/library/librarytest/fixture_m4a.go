@@ -80,7 +80,7 @@ func addM4a(tb testing.TB, st *store.Store, now time.Time, fx Fixtures) Fixtures
 	binary.LittleEndian.PutUint64(seed[:], 0x4d34)
 	cid := SubsonicClientID
 	creds := auth.NewSubsonicStore(st, []byte(SecretKey), func() time.Time { return now }, func() string { return cid }, &chachaReader{r: mrand.NewChaCha8(seed)})
-	client, secrets, err := creds.Create(ctx, auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeAdmin}},
+	client, secrets, err := creds.Create(ctx, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Scopes: []auth.Scope{auth.ScopeAdmin}},
 		auth.NewSubsonicClient{Name: "Fixture phone", Username: "fixture-phone", DefaultFormat: "raw", Write: true, APIKey: true, Password: true})
 	if err != nil {
 		tb.Fatal(err)

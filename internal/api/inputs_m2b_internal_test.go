@@ -36,7 +36,7 @@ func probeAPI(t *testing.T) (mux *http.ServeMux, clipIn **getClipIn, duelIn **cr
 
 func probeCall(mux *http.ServeMux, method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body)).
-		WithContext(auth.WithPrincipal(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}))
+		WithContext(auth.WithPrincipal(context.Background(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", "k")

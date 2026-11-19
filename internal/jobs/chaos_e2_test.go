@@ -109,7 +109,7 @@ func TestChaos_AceStepInitFailure(t *testing.T) {
 	// the stuck job ends (TTL / cancel); everything reserved is released after reconciliation
 	e.r.exec(`UPDATE provider_state SET armed = 1 WHERE backend = ?`, aceBackendName)
 	for _, id := range e.openJobs() {
-		_, _ = e.r.service(e.ctx).CancelJob(e.ctx, auth.Principal{Kind: auth.KindHuman, ID: "h1", Name: "h1"}, id, "")
+		_, _ = e.r.service(e.ctx).CancelJob(e.ctx, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1", Name: "h1"}, id, "")
 	}
 	e.drive2(200, 10*time.Minute, e.allTerminal)
 	for range 60 {

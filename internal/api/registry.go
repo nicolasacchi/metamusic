@@ -24,6 +24,10 @@ type Meta struct {
 	MCP       string     `json:"mcp"`
 	UI        string     `json:"ui"`
 	HumanOnly bool       `json:"human_only"`
+	// OwnerOnly refuses a principal whose role is Editor or Listener (a human, or a device or Subsonic client that
+	// inherits the role). Agents, connector grants, system and the Owner's own devices are Owner delegates: they skip
+	// this rule and pass or fail on scope as before (D-U1-6).
+	OwnerOnly bool `json:"owner_only,omitempty"`
 
 	Idempotency  string   `json:"idempotency,omitempty"`   // "" | "create" (D-M2a-3)
 	Rate         string   `json:"rate,omitempty"`          // "" (default bucket) | "heavy"
@@ -53,7 +57,7 @@ func validate(op huma.Operation, m Meta) error {
 		return fmt.Errorf("%s: description required", op.OperationID)
 	}
 	switch m.Scope {
-	case auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin:
+	case auth.ScopeListen, auth.ScopeRate, auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin:
 	default:
 		return fmt.Errorf("%s: invalid scope %q", op.OperationID, m.Scope)
 	}
@@ -115,6 +119,9 @@ func validate(op huma.Operation, m Meta) error {
 	}
 	if m.Cost == "approve" && !m.HumanOnly {
 		return fmt.Errorf("%s: cost approve requires a human-only operation", op.OperationID)
+	}
+	if err := validateOwnerOnly(op, m, enforceOwnerOnlyTags); err != nil {
+		return err
 	}
 	if m.AliasOf != "" {
 		if !opIDRe.MatchString(m.AliasOf) {
@@ -183,6 +190,10 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 			panic("api.Register: " + err.Error())
 		}
 	}
+	gate := meta
+	if sensitiveReadOps[op.OperationID] { // fail closed until the F1b tagging pass sets owner_only on these ops
+		gate.OwnerOnly = true
+	}
 	exts := make(map[string]any, len(op.Extensions)+1)
 	for k, v := range op.Extensions {
 		exts[k] = v
@@ -190,7 +201,7 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	exts["x-mm"] = meta
 	op.Extensions = exts
 	op.Middlewares = append(huma.Middlewares{func(ctx huma.Context, next func(huma.Context)) {
-		if err := Authorize(ctx.Context(), meta); err != nil {
+		if err := Authorize(ctx.Context(), gate); err != nil {
 			var pr *Problem
 			if !errors.As(err, &pr) {
 				pr = &Problem{Status: 500, Code: "INTERNAL", Message: "internal error", Details: map[string]any{}}
@@ -202,7 +213,7 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 	}}, op.Middlewares...)
 	huma.Register(a, op, func(ctx context.Context, in *I) (*O, error) {
 		// Defense in depth: the middleware already refused unauthorized callers.
-		if err := Authorize(ctx, meta); err != nil {
+		if err := Authorize(ctx, gate); err != nil {
 			return nil, err
 		}
 		return h(ctx, in)
@@ -210,21 +221,10 @@ func Register[I, O any](a huma.API, op huma.Operation, meta Meta, h func(context
 }
 
 // Authorize checks the principal in ctx against the operation metadata. The
-// registration wrapper and the request gate share it.
+// registration wrapper and the request gate share it; the rules are Permitted's.
 func Authorize(ctx context.Context, meta Meta) error {
-	p := auth.FromContext(ctx)
-	if p.Kind == auth.KindAnonymous || p.Kind == "" {
-		return Err(401, "UNAUTHENTICATED", "authentication required", nil)
-	}
-	if meta.HumanOnly && p.Kind != auth.KindHuman {
-		return Err(403, "HUMAN_ONLY", "this operation is restricted to human users", nil)
-	}
-	if !p.Has(meta.Scope) {
-		details := map[string]any{"scope": string(meta.Scope)}
-		if p.Via == "oauth" { // a connector's scopes are the grant's: only the operator can widen them (M4a C106)
-			details["hint"] = "the operator can enable this scope for the connector at /human/connectors"
-		}
-		return Err(403, "FORBIDDEN_SCOPE", "missing required scope", details)
+	if pr := Permitted(auth.FromContext(ctx), meta); pr != nil {
+		return pr
 	}
 	return nil
 }

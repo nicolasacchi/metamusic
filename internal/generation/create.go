@@ -97,7 +97,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 		return Created{}, err
 	}
 	via := in.Via
-	if via != spend.ViaHumanCreate || p.Kind != auth.KindHuman {
+	if via != spend.ViaHumanCreate || !p.IsOwner() {
 		via = spend.ViaAPI
 	}
 	hash := s.o.Spend.HashToken(in.Token)

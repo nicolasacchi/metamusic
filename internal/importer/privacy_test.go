@@ -111,7 +111,7 @@ func newPrivacyRig(t *testing.T, e *env) *privacyRig {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 		RateScale: 100, // every GET operation as two principals twice would otherwise drain the agent bucket (M4a added 8 operations)
 	}
 	tokens := auth.NewTokenStore(e.st, key, time.Now)

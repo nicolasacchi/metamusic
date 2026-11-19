@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -54,7 +55,7 @@ type ApprovalNeed struct {
 // an agent needs one when takes or the ceiling exceed its auto-approve limits.
 func NeedsApproval(p auth.Principal, via string, takes int, ceiling money.MicroUSD, tok TokenLimits, c Caps) ApprovalNeed {
 	n := ApprovalNeed{Reasons: []string{}}
-	if p.Kind != auth.KindAgent {
+	if !p.IsAgent() {
 		if via != ViaHumanCreate {
 			n.Needed = true
 			n.Reasons = append(n.Reasons, ReasonHumanAPIPath)
@@ -90,7 +91,7 @@ func (s *Service) InsertApproval(ctx context.Context, tx *sql.Tx, batchID string
 	state, viaCol, by, at := "pending", any(nil), any(nil), any(nil)
 	switch {
 	case need.Needed:
-	case via == ViaHumanCreate && p.Kind != auth.KindAgent:
+	case via == ViaHumanCreate && !p.IsAgent():
 		state, viaCol, by, at = "approved", ViaHumanCreate, p.Key(), store.FormatTime(now)
 	default:
 		state, viaCol, by, at = "auto", "auto", p.Key(), store.FormatTime(now)
@@ -127,6 +128,9 @@ func (s *Service) approvalState(ctx context.Context, tx *sql.Tx, batchID string)
 // (awaiting_confirmation -> active) move together; the jobs move to queued on the runner's next step.
 // changed is false when it was already approved. Rejected, expired and lapsed approvals refuse.
 func (s *Service) ApproveBatch(ctx context.Context, tx *sql.Tx, batchID string, by auth.Principal, reason string) (changed bool, err error) {
+	if !by.IsOwnerSide() { // C302.6: defence in depth behind the OwnerOnly op rule
+		return false, problem.OwnerOnly("approving a batch")
+	}
 	now := store.FormatTime(s.now())
 	res, err := tx.ExecContext(ctx, `UPDATE approvals SET state='approved', via='web', decided_by=?, decided_at=?, reason=?
 		WHERE batch_id=? AND state='pending' AND expires_at > ?`, by.Key(), now, nullStr(reason), batchID, now)
@@ -156,6 +160,9 @@ func (s *Service) ApproveBatch(ctx context.Context, tx *sql.Tx, batchID string, 
 // released ('rejected') and the batch is reconciled, all in the caller's transaction. A batch that is
 // already rejected is left alone (changed false).
 func (s *Service) RejectBatch(ctx context.Context, tx *sql.Tx, batchID string, by auth.Principal, reason string) (changed bool, err error) {
+	if !by.IsOwnerSide() {
+		return false, problem.OwnerOnly("rejecting a batch")
+	}
 	nowT := s.now()
 	now := store.FormatTime(nowT)
 	res, err := tx.ExecContext(ctx, `UPDATE approvals SET state='rejected', via='web', decided_by=?, decided_at=?, reason=?

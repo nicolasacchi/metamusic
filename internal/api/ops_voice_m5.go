@@ -25,7 +25,7 @@ func registerVoiceM5(a huma.API, d Deps) {
 				return nil, unavailable("voice")
 			}
 			p := auth.FromContext(ctx)
-			if !p.ActsAsHuman() {
+			if !(p.IsPerson() && p.IsOwnerSide()) {
 				return nil, Err(403, "HUMAN_ONLY", "only the operator records voice notes", nil)
 			}
 			if d.Judgments == nil {

@@ -33,7 +33,7 @@ func registerAtlasL3(a huma.API, d Deps) {
 			limit := in.Limit
 			if limit == 0 {
 				limit = atlas.AgentDefaultPage
-				if auth.FromContext(ctx).ActsAsHuman() {
+				if auth.FromContext(ctx).IsPerson() {
 					limit = atlas.DefaultPage
 				}
 			}

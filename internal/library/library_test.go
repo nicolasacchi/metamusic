@@ -619,7 +619,7 @@ func TestDeviceProfile_PutUpsert(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	in := library.DeviceProfileIn{DeviceID: "phone-abcdef01", Label: "Phone", UserAgent: "UA/1", Quality: "auto", QualitySource: "default", ProbeResult: "none", ProbeVersion: 1}
-	p1 := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}
+	p1 := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
 	p2 := auth.Principal{Kind: auth.KindAgent, ID: "tok-1", Name: "agent"}
 	d1, err := e.svc.PutDeviceProfile(ctx, p1, in)
 	if err != nil {

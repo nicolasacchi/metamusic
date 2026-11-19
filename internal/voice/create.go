@@ -50,7 +50,7 @@ func invalid(reason, msg string) error {
 // Only the operator and their devices may record (403 HUMAN_ONLY). Nothing is stored unless the upload validated: container
 // by magic, codec, a successful decode and a duration within MaxSeconds.
 func (s *Service) Create(ctx context.Context, p auth.Principal, src, trackID string, in Input) (string, error) {
-	if !p.ActsAsHuman() {
+	if !(p.IsPerson() && p.IsOwnerSide()) {
 		return "", problem.E(http.StatusForbidden, "HUMAN_ONLY", "only the operator records voice notes", nil)
 	}
 	if err := s.Available(ctx); err != nil {

@@ -205,7 +205,7 @@ func newRig(t *testing.T, o rigOpts) *rig {
 
 var (
 	allScopes = []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}
-	human     = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
+	human     = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
 	device    = auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "phone", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "device"}
 )
 

@@ -193,11 +193,11 @@ func TestScopeError_Is(t *testing.T) {
 func TestPrincipal_ClientField(t *testing.T) {
 	t.Parallel()
 	p := Principal{Kind: KindAgent, ID: "g1", Via: "oauth", Client: "c"}
-	if p.Key() != "agent:g1" || p.ActsAsHuman() {
+	if p.Key() != "agent:g1" || p.IsPerson() {
 		t.Fatalf("%+v", p)
 	}
 	d := Principal{Kind: KindDevice, ID: "c1", Via: "subsonic", Client: "amperfy"}
-	if d.Key() != "device:c1" || !d.ActsAsHuman() {
+	if d.Key() != "device:c1" || !d.IsPerson() {
 		t.Fatalf("%+v", d)
 	}
 }

@@ -41,7 +41,7 @@ type subRig struct {
 	s     *SubsonicStore
 }
 
-var adminHuman = Principal{Kind: KindHuman, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
+var adminHuman = Principal{Kind: KindHuman, Role: RoleOwner, ID: "alice", Name: "alice", Scopes: allScopes, Via: "proxy"}
 
 func newSubRig(t *testing.T) *subRig {
 	t.Helper()
@@ -167,7 +167,7 @@ func TestSubsonicStore_VerifyAPIKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Kind != KindDevice || p.ID != c.ID || p.Name != "Symfonium" || p.Via != "subsonic" || p.Client != "Symfonium" ||
-		!p.Has(ScopeWrite) || p.Has(ScopeGenerate) || p.Has(ScopeAdmin) || p.Key() != "device:"+c.ID || !p.ActsAsHuman() {
+		!p.Has(ScopeWrite) || p.Has(ScopeGenerate) || p.Has(ScopeAdmin) || p.Key() != "device:"+c.ID || !p.IsPerson() {
 		t.Fatalf("principal %+v", p)
 	}
 	for name, k := range map[string]string{"unknown": "mms_" + strings.Repeat("a", 52), "empty": "", "pat": "mmp_" + strings.Repeat("a", 52),

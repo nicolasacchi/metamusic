@@ -30,7 +30,7 @@ func museWorld(t *testing.T, n int) (*nextactions.Service, *store.Store) {
 	now := func() time.Time { return lt.FixedNow }
 	k := 0
 	ms := muses.New(st, now, func() string { k++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xe30000+k) })
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
 	// the writer pool has one connection: create the Muses first, then hold one transaction for the drafts
 	ids := make([]string, n)
 	for i := range ids {

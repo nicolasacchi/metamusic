@@ -99,10 +99,10 @@ func (s *Signer) Verify(sha, ext, exp, sig string) error {
 	return nil
 }
 
-// TTLFor is the link lifetime and expiry bucket for a principal: humans and
-// paired devices (ActsAsHuman) get 12h in 1h buckets, everything else 15m in 1m buckets.
+// TTLFor is the link lifetime and expiry bucket for a principal: a person or a paired device of any role but Listener gets
+// 12h in 1h buckets, everything else (agents, and Listeners and their devices, D-U1-13) 15m in 1m buckets.
 func TTLFor(p auth.Principal) (ttl, bucket time.Duration) {
-	if p.ActsAsHuman() {
+	if p.IsPerson() && p.CanSeePrivate() {
 		return 12 * time.Hour, time.Hour
 	}
 	return 15 * time.Minute, time.Minute

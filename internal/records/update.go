@@ -10,7 +10,7 @@ import (
 
 // requireEditable is the principal rule of D-L2-4: a published Record is edited by a human (or a paired device) only.
 func requireEditable(p auth.Principal, rec Record) error {
-	if rec.Status == StatusPublished && !p.ActsAsHuman() {
+	if rec.Status == StatusPublished && !(p.IsPerson() && p.IsOwnerSide()) {
 		return errHumanOnly("published records are edited by a human")
 	}
 	return nil
@@ -20,7 +20,7 @@ func requireEditable(p auth.Principal, rec Record) error {
 // fields are cleared and a proposal_dismissed row (detail {"reason": reason}) is appended. It returns nil rows for a
 // Record that is not proposed or for an editor who acts as a human (a human's edit keeps the proposal).
 func (s *Service) dismissProposal(ctx context.Context, tx *sql.Tx, rec Record, p auth.Principal, at, reason string) ([]Change, error) {
-	if rec.Status != StatusProposed || p.ActsAsHuman() {
+	if rec.Status != StatusProposed || p.IsPerson() {
 		return nil, nil
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE records SET status = 'draft', proposed_by = NULL, proposed_at = NULL, proposal_note = NULL WHERE id = ?`, rec.ID); err != nil {

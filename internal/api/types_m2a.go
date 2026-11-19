@@ -34,7 +34,7 @@ func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
 	if strings.HasPrefix(key, string(auth.KindSystem)+":") {
 		return PrincipalRef{Kind: string(auth.KindSystem), ID: key, Name: strings.TrimPrefix(key, string(auth.KindSystem)+":")}
 	}
-	if viewer.ActsAsHuman() {
+	if viewer.IsPerson() && viewer.CanSeePrivate() {
 		return PrincipalRef{Kind: kind, ID: key, Name: name}
 	}
 	switch kind {
@@ -49,7 +49,7 @@ func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
 // KeyFor renders a key-valued string field (created_by, updated_by, status_set_by)
 // for viewer: a human key becomes "human" for an agent, other keys are unchanged.
 func KeyFor(viewer auth.Principal, key string) string {
-	if !viewer.ActsAsHuman() && strings.HasPrefix(key, string(auth.KindHuman)+":") {
+	if !(viewer.IsPerson() && viewer.CanSeePrivate()) && strings.HasPrefix(key, string(auth.KindHuman)+":") {
 		return "human"
 	}
 	return key

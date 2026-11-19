@@ -843,7 +843,7 @@ func (e *propEnv) cancelRandom() {
 		return
 	}
 	svc := e.r.service(e.ctx)
-	if _, err := svc.CancelJob(e.ctx, auth.Principal{Kind: auth.KindHuman, ID: "h1", Name: "h1"}, ids[e.rng.IntN(len(ids))], ""); err != nil {
+	if _, err := svc.CancelJob(e.ctx, auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h1", Name: "h1"}, ids[e.rng.IntN(len(ids))], ""); err != nil {
 		_ = err // a job that finished in between
 	}
 }

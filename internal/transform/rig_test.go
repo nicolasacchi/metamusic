@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	human  = auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "local"}
+	human  = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "local"}
 	agentA = auth.Principal{Kind: auth.KindAgent, ID: "ag-a", Name: "synthetic-agent-a", Via: "token"}
 	agentB = auth.Principal{Kind: auth.KindAgent, ID: "ag-b", Name: "synthetic-agent-b", Via: "token"}
 

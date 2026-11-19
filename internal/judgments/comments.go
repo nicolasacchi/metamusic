@@ -253,10 +253,10 @@ func (s *Service) UpdateComment(ctx context.Context, p auth.Principal, id string
 	}
 	own := cur.Author.ID == p.Key()
 	authorIsOperator := cur.Author.Kind == string(auth.KindHuman) || cur.Author.Kind == string(auth.KindDevice)
-	if (in.Body != nil || in.Kind != nil) && !(own || (p.ActsAsHuman() && authorIsOperator)) {
+	if (in.Body != nil || in.Kind != nil) && !(own || (p.IsPerson() && p.IsOwnerSide() && authorIsOperator)) {
 		return Comment{}, notAuthor()
 	}
-	if in.Hidden != nil && !(own || p.ActsAsHuman()) {
+	if in.Hidden != nil && !(own || (p.IsPerson() && p.IsOwnerSide())) {
 		return Comment{}, notAuthor()
 	}
 	if in.State != nil {

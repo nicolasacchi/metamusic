@@ -230,7 +230,7 @@ func TestNextActions_Rules_Table(t *testing.T) {
 	m3, m4, m5 := museByTitle(t, r, lt.L3Muse3Title), museByTitle(t, r, lt.L3Muse4Title), museByTitle(t, r, lt.L3Muse5Title)
 	d1 := str(t, r, `SELECT draft_id FROM songs WHERE title = 'Synthetic Song d1'`)
 	agent := auth.Principal{Kind: auth.KindAgent, ID: "a", Name: "a", Scopes: []auth.Scope{auth.ScopeRead}}
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}}
 
 	t.Run("muse_unrendered fires for a Muse of drafts only, naming the first draft by angle", func(t *testing.T) {
 		as := byCode(list(t, r, agent, nextactions.Filter{}), "muse_unrendered")

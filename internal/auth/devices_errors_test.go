@@ -155,7 +155,7 @@ func TestPairing_HandlerErrors(t *testing.T) {
 func TestStepUp_FallbackClockAndErrors(t *testing.T) {
 	t.Parallel()
 	// a verifier without a clock falls back to wall time
-	p := Principal{Kind: KindHuman, StepUpAt: time.Now()}
+	p := Principal{Kind: KindHuman, Role: RoleOwner, StepUpAt: time.Now()}
 	if !stepUpFresh(fakeSessions{}, p) {
 		t.Fatal("fresh step-up rejected")
 	}

@@ -81,7 +81,7 @@ func restoredRig(t *testing.T, dataDir string) (*app.Services, bearer) {
 	t.Cleanup(func() { _ = root.Close() })
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 		DataDir: dataDir, SecretsDir: filepath.Join(filepath.Dir(dataDir), "secrets"), BackupDir: filepath.Join(filepath.Dir(dataDir), "backup2"),
 		BackupAt: "off", RateScale: 1,
 	}

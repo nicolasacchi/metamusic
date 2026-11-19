@@ -276,7 +276,7 @@ func New(tb testing.TB, o Options) *Rig {
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: mode,
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-		TrustedUsers:   []string{r.humanUser},
+		Users:          r.users(mode),
 		DataDir:        r.DataDir, SecretsDir: filepath.Join(root, "secrets"), BackupDir: r.BackupDir,
 		BackupAt: "off", FFmpeg: "ffmpeg", FLAC: "flac", Metaflac: "metaflac", RateScale: 1,
 		// M3 defaults (C68)
@@ -660,6 +660,31 @@ func (r *Rig) NewProcess(tb testing.TB, seed uint64) *app.Services {
 		}
 	})
 	return svc
+}
+
+// Fixed rig users (U1): the Owner is Rig.Human's user ("alice", or the canary name); bob and carol are always configured as
+// Editor and Listener in proxy mode, so User can hand out their clients. Role maps are fixed at startup, as in production.
+const (
+	UserEditor   = "bob"
+	UserListener = "carol"
+)
+
+func (r *Rig) users(mode string) map[string]config.Role {
+	u := map[string]config.Role{r.humanUser: config.RoleOwner}
+	if mode == "proxy" {
+		u[UserEditor], u[UserListener] = config.RoleEditor, config.RoleListener
+	}
+	return u
+}
+
+// User is a REST client for a configured non-Owner user, through the proxy headers like Human. Only bob (editor) and carol
+// (listener) exist, and only in proxy mode; asking for another name or role fails the test (the role map is fixed at startup).
+func (r *Rig) User(tb testing.TB, name string, role config.Role) *Client {
+	tb.Helper()
+	if want, ok := r.users(r.mode)[name]; !ok || want != role {
+		tb.Fatalf("servertest: user %q is not configured as %s in a %s-mode rig", name, role, r.mode)
+	}
+	return newClient(r.URL, http.Header{"Remote-User": {name}, "X-Mm-Edge": {r.edge}}, false)
 }
 
 // Human is a REST client for the operator: proxy headers in proxy mode, a

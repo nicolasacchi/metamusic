@@ -260,7 +260,7 @@ func TestMuses_OrdinalAssigned(t *testing.T) {
 	n := 0
 	newID := func() string { n++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xd2e000+n) }
 	svc := muses.New(s, func() time.Time { return librarytest.FixedNow }, newID)
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
 	brief := "text"
 	a, err := svc.Create(ctx, human, muses.NewMuse{Kind: muses.KindBrief, Title: "Synthetic Muse A", Brief: &brief})
 	if err != nil {

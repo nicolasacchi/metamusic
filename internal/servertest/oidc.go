@@ -39,6 +39,6 @@ func startOIDC(tb testing.TB, cfg *config.Config, clock *Clock) *oidctest.Provid
 	cfg.OIDCIssuer = p.URL
 	cfg.OIDCClients = []config.OIDCClient{{ID: OIDCClaudeClient, Label: "Claude Test"}, {ID: OIDCChatGPTClient, Label: "ChatGPT Test"}}
 	cfg.OIDCScopes = []string{"openid", "metamusic"}
-	cfg.TrustedUsers = append(cfg.TrustedUsers, OIDCUser)
+	cfg.Users[OIDCUser] = config.RoleOwner // the connector tests grant as this user; the rig skips the one-Owner config check
 	return p
 }

@@ -19,7 +19,7 @@ func TestApp_BuildWithPendingProbeRefusesSpend(t *testing.T) {
 	if s.Media == nil || s.Media.Lazy == nil || s.Media.Lazy.Ready() {
 		t.Fatalf("probe should be pending: %+v", s.Media)
 	}
-	p := auth.Principal{Kind: auth.KindHuman, ID: "u", Name: "u", Via: "proxy"}
+	p := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "u", Name: "u", Via: "proxy"}
 	_, err := s.Generation.Estimate(context.Background(), p, generation.EstimateIn{})
 	var pe *problem.Error
 	if !errors.As(err, &pe) || pe.Status != 503 || pe.Code != "UNAVAILABLE" || pe.Details["component"] != "ingest" {

@@ -27,7 +27,7 @@ type seedRow struct {
 }
 
 var (
-	pAlice = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"}
+	pAlice = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
 	pAgent = auth.Principal{Kind: auth.KindAgent, ID: "t1", Name: "bot"}
 	pDev   = auth.Principal{Kind: auth.KindDevice, ID: "d1", Name: "Phone"}
 	pCLI   = auth.Principal{Kind: auth.KindSystem, ID: "cli", Name: "cli"}

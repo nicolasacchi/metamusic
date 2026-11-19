@@ -127,7 +127,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in NewMuse) (Mus
 		return Muse{}, invalid("kind", "kind must be reference or brief")
 	}
 	source := SourceAgent
-	if p.ActsAsHuman() {
+	if p.IsPerson() {
 		source = SourceHuman
 	}
 	tx, err := s.st.W.BeginTx(ctx, nil)

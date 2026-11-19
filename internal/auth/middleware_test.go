@@ -27,7 +27,7 @@ type fakeSessions struct{}
 
 func (fakeSessions) VerifySession(_ context.Context, v string) (Principal, error) {
 	if v == "goodsess" {
-		return Principal{Kind: KindHuman, ID: "alice", Name: "alice", Scopes: allScopes, Via: "local"}, nil
+		return Principal{Kind: KindHuman, Role: RoleOwner, ID: "alice", Name: "alice", Scopes: allScopes, Via: "local"}, nil
 	}
 	return Principal{}, ErrInvalidSession
 }
@@ -39,7 +39,7 @@ func cfg(mode string) (config.Config, config.Secrets) {
 			AuthMode:       mode,
 			PublicURL:      "https://mm.example.com",
 			TrustedProxies: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
-			TrustedUsers:   []string{"alice"},
+			Users:          map[string]config.Role{"alice": config.RoleOwner},
 		},
 		config.Secrets{Key: key, EdgeSecret: edge}
 }
@@ -259,7 +259,7 @@ func TestResolvedPrincipals(t *testing.T) {
 	t.Parallel()
 	c, s := cfg("proxy")
 	_, p := runP(c, s, proxyReq("10.0.0.1:1"))
-	if p.Kind != KindHuman || p.Name != "alice" || p.ID != "alice" || p.Via != "proxy" || len(p.Scopes) != 4 {
+	if p.Kind != KindHuman || p.Name != "alice" || p.ID != "alice" || p.Via != "proxy" || p.Role != RoleOwner || p.User != "alice" || len(p.Scopes) != 6 {
 		t.Fatalf("proxy principal = %+v", p)
 	}
 	r := httptest.NewRequest("GET", "/api/x", nil)

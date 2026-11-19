@@ -235,13 +235,13 @@ func TestStepUpUntil(t *testing.T) {
 	if u := StepUpUntil(Principal{Kind: KindAgent, Via: "token"}); u != nil {
 		t.Errorf("agent: %v", u)
 	}
-	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "proxy"}); u != nil {
+	if u := StepUpUntil(Principal{Kind: KindHuman, Role: RoleOwner, Via: "proxy"}); u != nil {
 		t.Errorf("proxy human: %v", u)
 	}
-	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "local", StepUpAt: at}); u == nil || !u.Equal(at.Add(stepUpWindow)) {
+	if u := StepUpUntil(Principal{Kind: KindHuman, Role: RoleOwner, Via: "local", StepUpAt: at}); u == nil || !u.Equal(at.Add(stepUpWindow)) {
 		t.Errorf("confirmed: %v", u)
 	}
-	if u := StepUpUntil(Principal{Kind: KindHuman, Via: "local"}); u == nil || u.Unix() != 0 {
+	if u := StepUpUntil(Principal{Kind: KindHuman, Role: RoleOwner, Via: "local"}); u == nil || u.Unix() != 0 {
 		t.Errorf("never confirmed: %v", u)
 	}
 }

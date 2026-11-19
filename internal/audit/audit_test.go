@@ -52,7 +52,7 @@ func TestAudit_ListKeyset(t *testing.T) {
 		if i%2 == 0 {
 			op = "e"
 		}
-		if err := s.Insert(ctx, audit.Entry{At: time.Now(), Principal: auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice"},
+		if err := s.Insert(ctx, audit.Entry{At: time.Now(), Principal: auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"},
 			Transport: reqinfo.REST, Op: op, Method: "PATCH", Status: 200}); err != nil {
 			t.Fatal(err)
 		}

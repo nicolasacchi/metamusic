@@ -107,7 +107,7 @@ func (d *DeviceStore) CreatePairingCode(ctx context.Context, by Principal, name 
 	if d == nil || d.st == nil {
 		return "", PairingCode{}, errors.ErrUnsupported
 	}
-	if by.Kind != KindHuman {
+	if by.Kind != KindHuman || !by.IsOwnerSide() { // only the Owner pairs devices (D-U1-6); an Editor or Listener is refused
 		return "", PairingCode{}, ErrNotHuman
 	}
 	if n := utf8.RuneCountInString(name); n < 1 || n > maxNameRunes || strings.TrimSpace(name) == "" {

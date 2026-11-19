@@ -65,6 +65,10 @@ func TestConfigCheck(t *testing.T) {
 		errLines []string // exact stderr lines
 	}{
 		{name: "valid minimal proxy", code: 0, outHas: []string{"config ok\n", "auth: proxy", "oidc: disabled", "ntfy: disabled"}},
+		{name: "users listed as names and roles", extra: map[string]string{"MM_USERS": "alice:owner,bob:editor,carol:listener"}, code: 0, outHas: []string{"users: alice:owner,bob:editor,carol:listener\n"}},
+		{name: "trusted users alias warns", extra: map[string]string{"MM_TRUSTED_USERS": "Alice"}, code: 0, outHas: []string{"users: alice:owner\n", "warning: MM_TRUSTED_USERS is deprecated"}},
+		{name: "two owners refused", extra: map[string]string{"MM_USERS": "alice:owner,bob:owner"}, code: 1, errLines: []string{"config: MM_USERS needs exactly one owner, found 2"}},
+		{name: "several trusted users refused", extra: map[string]string{"MM_TRUSTED_USERS": "alice,bob"}, code: 1, errLines: []string{"config: MM_TRUSTED_USERS must hold exactly one name (the Owner); use MM_USERS=name:role,... for several users"}},
 		{name: "callback backlog default", code: 0, outHas: []string{"callback backlog: 6 per lineage root"}},
 		{name: "callback backlog off", extra: with("MM_CALLBACK_BACKLOG_MAX", "0", "MM_OIDC_CLIENTS", "metamusic-claude=Claude"), code: 0, outHas: []string{"callback backlog: gate off"}},
 		{name: "acestep off by default", code: 0, outHas: []string{"acestep: disabled"}},

@@ -15,7 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store/faultdb"
 )
 
-var faultHuman = auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
+var faultHuman = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "proxy"}
 
 func fsp(s string) *string { return &s }
 

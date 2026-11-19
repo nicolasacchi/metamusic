@@ -57,7 +57,7 @@ func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, st
 		return TrackRating{}, err
 	}
 	source := "agent"
-	if p.ActsAsHuman() {
+	if p.IsPerson() {
 		source = "human"
 	}
 	now := s.stamp()

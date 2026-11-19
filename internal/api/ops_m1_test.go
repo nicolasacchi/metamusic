@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	human    = auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}, Via: "proxy"}
+	human    = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}, Via: "proxy"}
 	agent    = auth.Principal{Kind: auth.KindAgent, ID: "tok-1", Name: "agent-1", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite}, Via: "token"}
 	readOnly = auth.Principal{Kind: auth.KindAgent, ID: "tok-2", Name: "ro", Scopes: []auth.Scope{auth.ScopeRead}, Via: "token"}
 )

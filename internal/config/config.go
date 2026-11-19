@@ -17,18 +17,19 @@ import (
 
 // Config is the process configuration, derived from MM_* environment variables.
 type Config struct {
-	Addr           string
-	PublicURL      string
-	AuthMode       string // "proxy" | "local"
-	DataDir        string
-	SecretsDir     string
-	TrustedProxies []netip.Prefix
-	TrustedUsers   []string
-	E2E            bool
-	FFmpeg         string // MM_FFMPEG, default "ffmpeg"
-	FLAC           string // MM_FLAC, default "flac"
-	Metaflac       string // MM_METAFLAC, default "metaflac"
-	Inbox          string // MM_INBOX, default DataDir/inbox
+	Addr              string
+	PublicURL         string
+	AuthMode          string // "proxy" | "local"
+	DataDir           string
+	SecretsDir        string
+	TrustedProxies    []netip.Prefix
+	Users             map[string]Role // MM_USERS (or the one-name MM_TRUSTED_USERS alias): lowercase name -> role
+	TrustedUsersAlias bool            // the deprecated MM_TRUSTED_USERS alias supplied Users
+	E2E               bool
+	FFmpeg            string // MM_FFMPEG, default "ffmpeg"
+	FLAC              string // MM_FLAC, default "flac"
+	Metaflac          string // MM_METAFLAC, default "metaflac"
+	Inbox             string // MM_INBOX, default DataDir/inbox
 
 	// M2a (C25).
 	BackupDir string // MM_BACKUP_DIR, default <parent of DataDir>/backup
@@ -140,7 +141,12 @@ func loadAll(getenv func(string) string) (Config, []error) {
 		}
 		c.TrustedProxies = append(c.TrustedProxies, pfx)
 	}
-	c.TrustedUsers = splitList(getenv("MM_TRUSTED_USERS"))
+	var uerr error
+	if c.Users, c.TrustedUsersAlias, uerr = parseUsers(getenv); uerr != nil {
+		errs = append(errs, uerr)
+	} else if uerr = checkUsersAuth(&c); uerr != nil {
+		errs = append(errs, uerr)
+	}
 	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)

@@ -82,7 +82,7 @@ func TestApp_M4aWiringOIDCOn(t *testing.T) {
 		c.OIDCIssuer = "https://auth.example.com"
 		c.OIDCClients = []config.OIDCClient{{ID: "test-claude", Label: "Claude Test"}}
 		c.OIDCScopes = []string{"openid", "metamusic"}
-		c.TrustedUsers = []string{"alice"}
+		c.Users = map[string]config.Role{"alice": config.RoleOwner}
 	}, app.Options{M4a: app.M4aOptions{OIDCClient: &http.Client{}}})
 	if s.Server.Connectors == nil || s.OIDC == nil || s.Deps.OIDC != s.OIDC || s.Server.OIDC != s.OIDC {
 		t.Fatalf("connector verifier not wired: %#v %v", s.Server.Connectors, s.OIDC)

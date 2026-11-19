@@ -149,7 +149,7 @@ func TestBuildE2Ops_WiresBound(t *testing.T) {
 		}
 	}
 	no, yes := false, true
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeAdmin}, Via: "local"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h", Scopes: []auth.Scope{auth.ScopeAdmin}, Via: "local"}
 	if _, err := s.Provider.Update(context.Background(), human, jobs.UpdateIn{Armed: &no, Reason: "off", Backend: provider.BackendFakeACEStep}); err != nil {
 		t.Fatal(err)
 	}

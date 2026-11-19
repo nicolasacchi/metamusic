@@ -58,7 +58,7 @@ func TestEncodeResponse_MatchesHumaBody(t *testing.T) {
 
 func TestRefFor_SystemKeys(t *testing.T) {
 	t.Parallel()
-	human := auth.Principal{Kind: auth.KindHuman, ID: "h", Name: "h"}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "h", Name: "h"}
 	agent := auth.Principal{Kind: auth.KindAgent, ID: "a", Name: "a"}
 	device := auth.Principal{Kind: auth.KindDevice, ID: "d", Name: "d"}
 	for _, viewer := range []auth.Principal{human, agent, device} {

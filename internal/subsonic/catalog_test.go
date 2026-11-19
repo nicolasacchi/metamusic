@@ -584,7 +584,7 @@ func TestSubsonic_ChildShape(t *testing.T) {
 func TestSubsonic_DefaultFormatMP3(t *testing.T) {
 	t.Parallel()
 	r := newLibRig(t)
-	human := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeAdmin}}
+	human := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice", Scopes: []auth.Scope{auth.ScopeAdmin}}
 	_, sec, err := r.creds.Create(context.Background(), human, auth.NewSubsonicClient{Name: "MP3 phone", Username: "mp3phone", DefaultFormat: "mp3", APIKey: true})
 	if err != nil {
 		t.Fatal(err)

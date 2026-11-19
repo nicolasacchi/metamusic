@@ -321,7 +321,7 @@ func (l *LocalAuth) VerifySession(ctx context.Context, cookieValue string) (Prin
 	if expires.Sub(n) < sessionTTL-slideAfter {
 		_, _ = l.st.W.ExecContext(ctx, `UPDATE human_sessions SET expires_at=? WHERE id=?`, l.ts(n.Add(sessionTTL)), id)
 	}
-	p := humanPrincipal(user, "local")
+	p := humanPrincipal(user, RoleOwner, "local")
 	if t, perr := time.Parse(time.RFC3339, stepUp.String); stepUp.Valid && perr == nil {
 		p.StepUpAt = t
 	}

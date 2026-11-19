@@ -16,7 +16,7 @@ func TestSourceFor(t *testing.T) {
 		want string
 		err  error
 	}{
-		{"operator", auth.Principal{Kind: auth.KindHuman, ID: "op"}, "human", nil},
+		{"operator", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op"}, "human", nil},
 		{"paired device", auth.Principal{Kind: auth.KindDevice, ID: "d1"}, "human", nil},
 		{"PAT agent", auth.Principal{Kind: auth.KindAgent, ID: "t1"}, "critic", nil},
 		{"system", auth.CLI, "", duels.ErrNoSource},

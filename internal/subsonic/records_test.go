@@ -22,7 +22,7 @@ import (
 // The Record albums of L2 (C126.7, D-L2-35) over the FixtureL2 world: R1 "Synthetic Record One" is published with five slots
 // of which four are listable (a1, b1, the pinned c2, e1: slot D is an empty slot), R2 is an agent's draft.
 
-var recHuman = auth.Principal{Kind: auth.KindHuman, ID: "op", Name: "op", Via: "local"}
+var recHuman = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "op", Name: "op", Via: "local"}
 
 type recEnv struct {
 	t *testing.T

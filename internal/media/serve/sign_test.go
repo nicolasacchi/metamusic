@@ -143,3 +143,26 @@ func TestTTLFor(t *testing.T) {
 		}
 	}
 }
+
+// TestTTLForByRole: the lifetime follows the role, not the kind (U1 D-U1-13): a Listener's browser or device gets the agent
+// lifetime, Editors, the Owner and their devices keep 12h.
+func TestTTLForByRole(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		p    auth.Principal
+		ttl  time.Duration
+	}{
+		{"owner", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner}, 12 * time.Hour},
+		{"editor", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleEditor}, 12 * time.Hour},
+		{"listener", auth.Principal{Kind: auth.KindHuman, Role: auth.RoleListener}, 15 * time.Minute},
+		{"owner device", auth.Principal{Kind: auth.KindDevice}, 12 * time.Hour},
+		{"editor device", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleEditor}, 12 * time.Hour},
+		{"listener device", auth.Principal{Kind: auth.KindDevice, Role: auth.RoleListener}, 15 * time.Minute},
+		{"agent", auth.Principal{Kind: auth.KindAgent}, 15 * time.Minute},
+	} {
+		if ttl, _ := TTLFor(tc.p); ttl != tc.ttl {
+			t.Errorf("%s: ttl %v, want %v", tc.name, ttl, tc.ttl)
+		}
+	}
+}

@@ -36,7 +36,7 @@ func leakRig(t *testing.T, e2e bool) (http.Handler, string) {
 	t.Cleanup(func() { st.Close() })
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy", E2E: e2e,
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 	}
 	sec := config.Secrets{Key: canaryKey, EdgeSecret: canaryEdge, NtfyToken: canaryNtfy}
 	tokens := auth.NewTokenStore(st, canaryKey, time.Now)

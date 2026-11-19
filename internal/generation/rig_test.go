@@ -97,7 +97,7 @@ func (c *capture) all() []notify.Message {
 }
 
 var (
-	human = auth.Principal{Kind: auth.KindHuman, ID: "fixture", Name: "fixture", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}}
+	human = auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "fixture", Name: "fixture", Via: "proxy", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate, auth.ScopeAdmin}}
 	agent = auth.Principal{Kind: auth.KindAgent, ID: "fixture-token", Name: "fixture-agent", Via: "token", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeGenerate}}
 	other = auth.Principal{Kind: auth.KindAgent, ID: "other-token", Name: "other-agent", Via: "token", Scopes: []auth.Scope{auth.ScopeRead, auth.ScopeGenerate}}
 )

@@ -73,7 +73,7 @@ func (s *Service) SetTags(ctx context.Context, p auth.Principal, trackID string,
 		return TrackTags{}, err
 	}
 	source, removeFrom := "agent", `('agent')`
-	if p.ActsAsHuman() {
+	if p.IsPerson() {
 		source, removeFrom = "human", `('human','inherited','agent')`
 	}
 	now := s.stamp()

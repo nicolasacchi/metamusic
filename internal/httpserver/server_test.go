@@ -42,7 +42,7 @@ func newEnv(t *testing.T, mutate func(*config.Config), spa fstestFS, mcp http.Ha
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-		TrustedUsers:   []string{"alice"},
+		Users:          map[string]config.Role{"alice": config.RoleOwner},
 	}
 	if mutate != nil {
 		mutate(&cfg)
@@ -128,7 +128,7 @@ func TestOpsHumanAndAgent(t *testing.T) {
 	}
 	w = e.do(human(httptest.NewRequest("GET", "/api/me", nil)))
 	m := decode(t, w)
-	if m["kind"] != "human" || m["name"] != "alice" || m["via"] != "proxy" || len(m["scopes"].([]any)) != 4 {
+	if m["kind"] != "human" || m["name"] != "alice" || m["via"] != "proxy" || len(m["scopes"].([]any)) != 6 {
 		t.Fatalf("me human %v", m)
 	}
 	tok := e.token(t, auth.ScopeRead)
@@ -374,7 +374,7 @@ func TestHTTPServer_OptionsWired(t *testing.T) {
 	probe := &serve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("cd", 32)}
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 	}
 	tokens := auth.NewTokenStore(st, key, time.Now)
 	build := func(media http.Handler) http.Handler {
@@ -447,7 +447,7 @@ func TestHTTPServer_NilDevicesNoPanic(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	cfg := config.Config{
 		Addr: "127.0.0.1:8080", PublicURL: "http://mm.example.com", AuthMode: "proxy",
-		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, TrustedUsers: []string{"alice"},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}, Users: map[string]config.Role{"alice": config.RoleOwner},
 	}
 	var typedNil *auth.DeviceStore
 	for name, o := range map[string]httpserver.Options{
