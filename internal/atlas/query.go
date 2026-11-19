@@ -75,7 +75,7 @@ func (s *Service) Get(ctx context.Context, q Query) (Atlas, error) {
 		return Atlas{}, err
 	}
 	cols := featureColumns(xa, ya, q.ColorBy, q.NearSongID != "" && q.Cursor == "")
-	rows, scopeTotal, err := scope(ctx, tx, q.Filter, q.Dim, s.maxScope, cols)
+	rows, scopeTotal, err := scope(ctx, tx, q.Filter.WithViewer(ctx, s.st), q.Dim, s.maxScope, cols)
 	if err != nil {
 		return Atlas{}, err
 	}

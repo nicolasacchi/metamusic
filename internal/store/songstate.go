@@ -9,8 +9,8 @@ package store
 // rendered (takes > 0), else draft; see SongStateCase.
 const SongStateSQL = `SELECT s.id AS song_id,
   (SELECT COUNT(*) FROM take_songs ts WHERE ts.song_id = s.id) AS takes,
-  (EXISTS (SELECT 1 FROM take_songs ts JOIN ratings r ON r.track_id = ts.track_id
-            WHERE ts.song_id = s.id AND r.source = 'human' AND r.stars IS NOT NULL)
+  (EXISTS (SELECT 1 FROM take_songs ts JOIN owner_ratings r ON r.track_id = ts.track_id
+            WHERE ts.song_id = s.id AND r.stars IS NOT NULL)
    OR EXISTS (SELECT 1 FROM duel_verdicts v JOIN duels d ON d.id = v.duel_id
                WHERE v.source = 'human'
                  AND (d.slot_a_track_id IN (SELECT ts.track_id FROM take_songs ts WHERE ts.song_id = s.id)

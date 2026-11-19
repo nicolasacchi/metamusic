@@ -77,7 +77,7 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	if limit > 100 {
 		limit = 100
 	}
-	where, args := FilterSQL(f, "")
+	where, args := FilterSQL(f.WithViewer(ctx, s.st), "")
 	var page Page
 	var cur cursor
 	if f.Cursor != "" {
@@ -152,7 +152,7 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 
 // Count is the number of Songs f selects (Limit and Cursor are ignored): the COUNT List runs, without building a page.
 func (s *Service) Count(ctx context.Context, f ListFilter) (int, error) {
-	where, args := FilterSQL(f, "")
+	where, args := FilterSQL(f.WithViewer(ctx, s.st), "")
 	var n int
 	if err := s.st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM songs s WHERE `+where, args...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("songs: count: %w", err)

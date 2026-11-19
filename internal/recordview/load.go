@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/records"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // chunk keeps an IN list well under SQLite's variable limit.
@@ -105,7 +107,7 @@ func (s *Service) takeFacts(ctx context.Context, ids []string) (map[string]takeF
 		}
 		//nolint:gosec // G202: only "?" placeholders are concatenated
 		rows, err := s.o.Store.R.QueryContext(ctx, `SELECT t.id, t.master_bytes, t.bits_per_sample, r.stars FROM tracks t
-			LEFT JOIN ratings r ON r.track_id = t.id AND r.source = 'human' WHERE t.id IN (`+placeholders(len(part))+`)`, args...)
+`+store.ViewerRatingJoin("r", "t.id")+` WHERE t.id IN (`+placeholders(len(part))+`)`, append([]any{auth.DisplayRater(auth.FromContext(ctx))}, args...)...)
 		if err != nil {
 			return nil, fmt.Errorf("recordview: take facts: %w", err)
 		}

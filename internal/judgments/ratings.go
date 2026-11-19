@@ -83,7 +83,8 @@ func (s *Service) Ratings(ctx context.Context, trackID string) (TrackRating, err
 	return s.lib.Ratings(ctx, trackID)
 }
 
-// HumanStars returns the human stars of the rated tracks among trackIDs.
+// HumanStars returns the stars the caller sees on the rated tracks among trackIDs: the caller's own row (the Owner's for the
+// Owner and for agents, C307.2), never another user's.
 func (s *Service) HumanStars(ctx context.Context, trackIDs []string) (map[string]int, error) {
 	out := map[string]int{}
 	const chunk = 500
@@ -98,7 +99,7 @@ func (s *Service) HumanStars(ctx context.Context, trackIDs []string) (map[string
 			}
 			ph = append(ph, '?')
 		}
-		rows, err := s.st.R.QueryContext(ctx, `SELECT track_id, stars FROM ratings WHERE source = 'human' AND stars IS NOT NULL AND track_id IN (`+string(ph)+`)`, args...) //nolint:gosec // G202: only "?" placeholders are concatenated
+		rows, err := s.st.R.QueryContext(ctx, `SELECT track_id, stars FROM ratings WHERE source = 'human' AND rater = ? AND stars IS NOT NULL AND track_id IN (`+string(ph)+`)`, append([]any{auth.DisplayRater(auth.FromContext(ctx))}, args...)...) //nolint:gosec // G202: only "?" placeholders are concatenated
 		if err != nil {
 			return nil, fmt.Errorf("judgments: human stars: %w", err)
 		}

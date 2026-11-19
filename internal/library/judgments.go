@@ -50,8 +50,9 @@ func (s *Service) judgmentExtras(ctx context.Context, d *TrackDetail) error {
 	}
 	var starts, completes int
 	var last sql.NullString
+	ownerEv, ownerArgs := s.st.OwnerEventsSQL("") // the Owner side's plays only (C306.7)
 	if err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(kind = 'start'), 0), COALESCE(SUM(kind = 'complete'), 0), MAX(CASE WHEN kind = 'start' THEN client_at END)
-		FROM listen_events WHERE track_id = ? AND principal_kind IN ('human', 'device')`, d.ID).Scan(&starts, &completes, &last); err != nil {
+		FROM listen_events WHERE track_id = ? AND `+ownerEv, append([]any{d.ID}, ownerArgs...)...).Scan(&starts, &completes, &last); err != nil {
 		return fmt.Errorf("library: listening stats: %w", err)
 	}
 	d.Listening = ListeningStats{Plays: starts, LastPlayedAt: ptrStr(last)}
@@ -200,3 +201,7 @@ func (s *Service) TrackExists(ctx context.Context, id string) (bool, error) {
 	}
 	return err == nil, err
 }
+
+// viewerRater is the rater whose row the caller sees as "the stars" in lists, sort, filter and facets (C307.2): the
+// caller's own, or the Owner's for a delegate (agent, system) and for a bare context.
+func viewerRater(ctx context.Context) string { return auth.DisplayRater(auth.FromContext(ctx)) }

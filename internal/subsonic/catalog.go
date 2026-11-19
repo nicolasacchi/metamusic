@@ -11,7 +11,9 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // This file holds every SQL statement of the catalog endpoints (C109.1): read pool only, songs are tracks, albums
@@ -52,7 +54,22 @@ func folderStatuses(folder int) (map[string]bool, error) {
 }
 
 // catalog reads the library through the read pool.
-type catalog struct{ db *sql.DB }
+type catalog struct {
+	db *sql.DB
+	// ownerEvents is the Owner-side listen-event filter (store.OwnerEventsSQL): play counts and last-played are the
+	// Owner's, never another user's (C306.7).
+	ownerEvents func(alias string) (string, []any)
+}
+
+// viewer renders the viewer-dependent parts of a catalog statement for the calling principal: the Owner-side event
+// condition (alias e, placeholders first) and the viewer's rater for the rating join (C307.2). Its arguments are the first
+// of the statement: in both queries the select list and the joins precede every WHERE argument.
+func (c *catalog) viewer(ctx context.Context) (cond string, args []any) {
+	cond, evArgs := c.ownerEvents("e")
+	args = append(append(args, evArgs...), evArgs...) // the two event subqueries
+	args = append(args, auth.DisplayRater(auth.FromContext(ctx)))
+	return cond, args
+}
 
 // songRow is one track as the Subsonic catalog sees it.
 type songRow struct {
@@ -74,18 +91,22 @@ type songRow struct {
 	Terms                                                             sql.NullString
 }
 
-const songSelect = `SELECT t.id, t.root_track_id, t.title, t.slug, t.status, COALESCE(t.status_set_at, t.created_at), t.created_at, t.recorded_at,
+// songSelect is a template: {events} is replaced by the Owner-side event condition (catalog.viewer).
+var songSelect = `SELECT t.id, t.root_track_id, t.title, t.slug, t.status, COALESCE(t.status_set_at, t.created_at), t.created_at, t.recorded_at,
  t.duration_s, t.sample_rate, t.bits_per_sample, t.channels, t.master_bytes, t.lossy, t.bpm_declared,
  rt.title, rt.slug, r.seed, r.style,
  (SELECT COUNT(*) FROM tracks m WHERE m.root_track_id = t.root_track_id AND (m.recorded_at < t.recorded_at OR (m.recorded_at = t.recorded_at AND m.id <= t.id))),
  (SELECT bytes FROM renditions n WHERE n.track_id = t.id AND n.kind = 'mp3_320'),
- (SELECT COUNT(*) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND e.principal_kind IN ('human','device')),
- (SELECT MAX(e.client_at) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND e.principal_kind IN ('human','device')),
- (SELECT stars FROM ratings g WHERE g.track_id = t.id AND g.source = 'human'),
+ (SELECT COUNT(*) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events}),
+ (SELECT MAX(e.client_at) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events}),
+ hs.stars,
  (SELECT json_extract(a.metrics_json, '$.integrated_lufs') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'loudness' ORDER BY a.created_at DESC, a.version DESC LIMIT 1),
  (SELECT json_extract(a.metrics_json, '$.true_peak_dbtp') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'loudness' ORDER BY a.created_at DESC, a.version DESC LIMIT 1),
  (SELECT group_concat(ts.term, char(31)) FROM track_style_terms ts WHERE ts.track_id = t.id)
- FROM tracks t JOIN tracks rt ON rt.id = t.root_track_id JOIN recipes r ON r.id = t.recipe_id`
+ FROM tracks t JOIN tracks rt ON rt.id = t.root_track_id JOIN recipes r ON r.id = t.recipe_id` + viewerJoin
+
+// viewerJoin joins the calling viewer's own rating row as hs (its rater is the last of catalog.viewer's arguments).
+var viewerJoin = store.ViewerRatingJoin("hs", "t.id")
 
 func scanSong(rows interface{ Scan(...any) error }) (songRow, error) {
 	var s songRow
@@ -129,7 +150,9 @@ type songQuery struct {
 func (c *catalog) songs(ctx context.Context, q songQuery) ([]songRow, error) {
 	var b strings.Builder
 	var args []any
-	b.WriteString(songSelect)
+	cond, vargs := c.viewer(ctx)
+	args = vargs
+	b.WriteString(strings.ReplaceAll(songSelect, "{events}", cond))
 	if q.fts != "" {
 		b.WriteString(` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`)
 		args = append(args, q.fts)
@@ -260,14 +283,14 @@ func (a albumRow) genre() string {
 }
 
 // albumAgg is the lineage aggregate over alias t (with the folder fragment); %s is that fragment.
-const albumAgg = `SELECT t.root_track_id AS id, rt.title AS name, rt.slug AS slug, rt.created_at AS created, rt.recorded_at AS rrec, rr.style AS style,
+var albumAgg = `SELECT t.root_track_id AS id, rt.title AS name, rt.slug AS slug, rt.created_at AS created, rt.recorded_at AS rrec, rr.style AS style,
  CAST(substr(rt.recorded_at, 1, 4) AS INTEGER) AS year, COUNT(*) AS songs, SUM(t.duration_s) AS dur,
- SUM((SELECT COUNT(*) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND e.principal_kind IN ('human','device'))) AS plays,
- MAX((SELECT MAX(e.client_at) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND e.principal_kind IN ('human','device'))) AS last_play,
- MAX((SELECT stars FROM ratings g WHERE g.track_id = t.id AND g.source = 'human')) AS stars,
+ SUM((SELECT COUNT(*) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events})) AS plays,
+ MAX((SELECT MAX(e.client_at) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events})) AS last_play,
+ MAX(hs.stars) AS stars,
  MAX(CASE WHEN t.status = 'final' THEN COALESCE(t.status_set_at, t.created_at) END) AS starred,
  MAX(MAX(t.created_at), MAX(COALESCE(t.status_set_at, t.created_at))) AS modified
- FROM tracks t JOIN tracks rt ON rt.id = t.root_track_id JOIN recipes rr ON rr.id = rt.recipe_id
+ FROM tracks t JOIN tracks rt ON rt.id = t.root_track_id JOIN recipes rr ON rr.id = rt.recipe_id` + viewerJoin + `
  WHERE %s GROUP BY t.root_track_id`
 
 // albumQuery selects albums: where is over alias a (outer), order a full ORDER BY body (default name, id).
@@ -282,7 +305,8 @@ type albumQuery struct {
 
 func (c *catalog) albums(ctx context.Context, q albumQuery) ([]albumRow, error) {
 	var b strings.Builder
-	b.WriteString("SELECT a.* FROM (" + fmt.Sprintf(albumAgg, q.folderWhere) + ") a")
+	cond, vargs := c.viewer(ctx)
+	b.WriteString("SELECT a.* FROM (" + strings.ReplaceAll(fmt.Sprintf(albumAgg, q.folderWhere), "{events}", cond) + ") a")
 	if q.where != "" {
 		b.WriteString(" WHERE " + q.where)
 	}
@@ -291,7 +315,7 @@ func (c *catalog) albums(ctx context.Context, q albumQuery) ([]albumRow, error) 
 		order = "lower(a.name), a.id"
 	}
 	b.WriteString(" ORDER BY " + order)
-	args := append([]any(nil), q.args...)
+	args := append(vargs, q.args...)
 	if q.limit > 0 {
 		b.WriteString(" LIMIT ? OFFSET ?")
 		args = append(args, q.limit, q.offset)
