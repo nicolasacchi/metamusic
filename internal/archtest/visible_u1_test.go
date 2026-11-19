@@ -48,7 +48,13 @@ var visibleFiltered = map[string]string{
 
 var visibleNoTrack = map[string]string{
 	"whoami": "the caller", "ping": "liveness", "get_sound_taxonomy": "the taxonomy, no take data",
-	"put_device_profile": "a playback profile of the caller's own device; no take involved",
+	"put_device_profile":     "a playback profile of the caller's own device; no take involved",
+	"create_pairing_code":    "pairs the caller's own device (D-U1-14); no take involved",
+	"list_devices":           "the caller's own devices (the Owner's: all); no take involved",
+	"revoke_device":          "revokes the caller's own device (a foreign id is 404); no take involved",
+	"create_subsonic_client": "creates the caller's own Subsonic client (D-U1-14); no take involved",
+	"list_subsonic_clients":  "the caller's own Subsonic clients (the Owner's: all); no take involved",
+	"revoke_subsonic_client": "revokes the caller's own Subsonic client (a foreign id is 404); no take involved",
 }
 
 var (
