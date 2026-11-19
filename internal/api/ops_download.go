@@ -18,7 +18,7 @@ func registerDownloadM4a(a huma.API, d Deps) {
 		Description: "A signed, expiring link to a FLAC copy of the track carrying its current title, album, track number and tags (audio frames unchanged). A lossy track answers a link to its MP3 master unchanged. Humans get 12 h links, agents 15 min.",
 	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/tracks/:id", Rate: "heavy"},
 		func(ctx context.Context, in *trackIDIn) (*downloadLinkOut, error) {
-			if d.Downloads == nil {
+			if d.Downloads == nil && !isListener(ctx) { // a Listener's audio needs the rendition service instead
 				return nil, unavailable("downloads")
 			}
 			if d.Signer == nil {
@@ -26,6 +26,9 @@ func registerDownloadM4a(a huma.API, d Deps) {
 			}
 			if err := d.visible(ctx, in.ID); err != nil {
 				return nil, err
+			}
+			if isListener(ctx) { // the clean copy, never the tagged master (D-U1-17)
+				return d.listenerDownloadLink(ctx, in.ID)
 			}
 			dl, err := d.Downloads.Ensure(ctx, in.ID)
 			if err != nil {

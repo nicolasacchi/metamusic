@@ -40,6 +40,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
@@ -123,6 +124,7 @@ type Deps struct {
 	Subsonic   *auth.SubsonicStore
 	Covers     *cover.Service
 	Downloads  *tagged.Service
+	Renditions *clean.Service // a Listener's clean audio renditions (C308.7); nil makes a Listener's audio answer 503, never the master
 	Prompts    prompts.Sources
 
 	// L1 (C87). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}

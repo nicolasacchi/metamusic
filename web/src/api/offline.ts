@@ -347,12 +347,15 @@ export function createOfflineManager(deps: OfflineDeps) {
       const useFlac = links.flac !== null && deps.deviceFormat() === "flac";
       const f = useFlac ? links.flac! : links.mp3;
       const ext: Format = useFlac ? "flac" : "mp3";
+      // a Listener's links carry no hash (D-U1-17); the offline set is Owner-only (D-U1-10), so a link without one is refused
+      if (!f.sha256) throw new OfflineError("links", "The media links carry no hash");
+      const sha256 = f.sha256;
       const remint = async () => {
         const fresh = await deps.mediaLinks(trackId);
         return (ext === "flac" ? fresh?.flac?.url : fresh?.mp3.url) ?? null;
       };
       await mgr.downloadTrack(
-        { url: f.url, bytes: f.bytes, sha256: f.sha256, content_type: f.content_type, ext, remint },
+        { url: f.url, bytes: f.bytes, sha256, content_type: f.content_type, ext, remint },
         { ...meta, track_id: trackId, cover_url: links.cover?.url_512 ?? null },
         onProgress,
         signal,

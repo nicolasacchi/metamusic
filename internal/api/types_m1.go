@@ -32,12 +32,12 @@ type listDeviceProfilesIn struct {
 	Cursor string `query:"cursor"`
 }
 
-// FlacLink is a signed link to the lossless master.
+// FlacLink is a signed link to the lossless master (for a Listener: to the clean FLAC rendition, C308.7).
 type FlacLink struct {
 	URL           string `json:"url" doc:"Signed, relative URL; valid until expires_at"`
 	ContentType   string `json:"content_type" example:"audio/flac"`
 	Bytes         int64  `json:"bytes"`
-	SHA256        string `json:"sha256"`
+	SHA256        string `json:"sha256,omitempty" doc:"Of the master; absent for a Listener, whose link is the clean rendition (its own hash is in the URL)"`
 	SampleRate    int    `json:"sample_rate"`
 	BitsPerSample int    `json:"bits_per_sample"`
 }
@@ -60,7 +60,7 @@ type MP3Link struct {
 	URL         string `json:"url" doc:"Signed, relative URL; valid until expires_at"`
 	ContentType string `json:"content_type" example:"audio/mpeg"`
 	Bytes       int64  `json:"bytes"`
-	SHA256      string `json:"sha256"`
+	SHA256      string `json:"sha256,omitempty" doc:"Absent for a Listener, whose link is the clean rendition (its own hash is in the URL)"`
 	BitrateKbps int    `json:"bitrate_kbps"`
 }
 

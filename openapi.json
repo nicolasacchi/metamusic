@@ -9517,6 +9517,7 @@
             "type": "integer"
           },
           "sha256": {
+            "description": "Absent for a Listener",
             "type": "string"
           },
           "url": {
@@ -9525,8 +9526,7 @@
         },
         "required": [
           "url",
-          "bytes",
-          "sha256"
+          "bytes"
         ],
         "type": "object"
       },
@@ -10727,6 +10727,7 @@
             "type": "string"
           },
           "sha256": {
+            "description": "Absent for a Listener, whose link is the clean rendition (its own hash is in the URL)",
             "type": "string"
           },
           "url": {
@@ -10738,7 +10739,6 @@
           "url",
           "content_type",
           "bytes",
-          "sha256",
           "bitrate_kbps"
         ],
         "type": "object"
@@ -10985,6 +10985,7 @@
                 "type": "integer"
               },
               "sha256": {
+                "description": "Of the master; absent for a Listener, whose link is the clean rendition (its own hash is in the URL)",
                 "type": "string"
               },
               "url": {
@@ -10996,7 +10997,6 @@
               "url",
               "content_type",
               "bytes",
-              "sha256",
               "sample_rate",
               "bits_per_sample"
             ],

@@ -335,7 +335,9 @@ func mediaOf(ctx context.Context, db *sql.DB) ([]mediaFile, map[string]int, erro
 	for _, q := range []struct{ kind, sql string }{
 		{"master", `SELECT master_path, master_sha256 FROM tracks`},
 		{"artifact", `SELECT path, sha256 FROM artifacts`},
-		{"rendition", `SELECT path, sha256 FROM renditions`},
+		// a Listener's clean renditions (mp3_320_clean, flac_clean) are derived and rebuilt on demand from the frozen masters
+		// (C308.8): a restore with none of them is complete, and a row whose file verify removed must not fail the backup
+		{"rendition", `SELECT path, sha256 FROM renditions WHERE kind NOT IN ('mp3_320_clean', 'flac_clean')`},
 		// voice notes (C259): the frozen upload is an artifact, the MP3 playback rendition a rendition
 		{"artifact", `SELECT path, sha256 FROM voice_notes`},
 		{"rendition", `SELECT mp3_path, mp3_sha256 FROM voice_notes`},
