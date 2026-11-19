@@ -16,7 +16,7 @@ func registerDownloadM4a(a huma.API, d Deps) {
 		OperationID: "get_download_link", Method: "GET", Path: "/api/tracks/{id}/download",
 		Summary:     "Get a download link with current tags",
 		Description: "A signed, expiring link to a FLAC copy of the track carrying its current title, album, track number and tags (audio frames unchanged). A lossy track answers a link to its MP3 master unchanged. Humans get 12 h links, agents 15 min.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/tracks/:id", Rate: "heavy"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/tracks/:id", Rate: "heavy"},
 		func(ctx context.Context, in *trackIDIn) (*downloadLinkOut, error) {
 			if d.Downloads == nil {
 				return nil, unavailable("downloads")

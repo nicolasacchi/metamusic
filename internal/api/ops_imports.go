@@ -13,7 +13,7 @@ func registerImports(a huma.API, d Deps) {
 		OperationID: "list_import_runs", Method: "GET", Path: "/api/imports",
 		Summary:     "List import runs",
 		Description: "Import runs, newest first, with state, plan digest and error and warning counts. Pages are capped in size; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/import"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/import", OwnerOnly: true},
 		func(ctx context.Context, in *listImportsIn) (*importRunsOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -29,7 +29,7 @@ func registerImports(a huma.API, d Deps) {
 		OperationID: "get_import_run", Method: "GET", Path: "/api/imports/{id}",
 		Summary:     "Get one section of an import report",
 		Description: "One run and a page of one report section (errors by default). The whole inventory is never returned at once; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/import"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/import", OwnerOnly: true},
 		func(ctx context.Context, in *importRunIn) (*importRunPageOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")

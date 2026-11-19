@@ -189,7 +189,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "list_records", Method: "GET", Path: "/api/records",
 		Summary:     "List Records",
 		Description: "Records (ordered listening sequences of Songs) by status, title, or a Song they hold; newest first. Hidden ones only with include_hidden.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/records"},
 		func(ctx context.Context, in *listRecordsIn) (*recordsOut, error) {
 			if err := records(); err != nil {
 				return nil, err
@@ -222,7 +222,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "get_record", Method: "GET", Path: "/api/records/{id}",
 		Summary:     "Get a Record",
 		Description: "One Record with its slots (resolved takes, warnings), totals and cover; include adds liner notes, energy, tapes, changes, the publish preview or the latest sequence run.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err
@@ -264,7 +264,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "update_record", Method: "PATCH", Path: "/api/records/{id}",
 		Summary:     "Update a Record",
 		Description: "Changes title, subtitle, liner note, hides or unhides, or re-rolls the cover, under optimistic locking: send the revision you read. A published Record is edited by a human only.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id", OwnerOnly: true},
 		func(ctx context.Context, in *updateRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err
@@ -296,7 +296,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "get_record_changes", Method: "GET", Path: "/api/records/{id}/changes",
 		Summary:     "Get a Record's changelog",
 		Description: "The append-only changelog of a Record: edits, Pick-driven upgrades with their evidence, proposals and publications. Newest first unless order is asc; cursor is the last seq.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/records/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getRecordChangesIn) (*recordChangesOut, error) {
 			if err := records(); err != nil {
 				return nil, err
@@ -340,7 +340,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "publish_record", Method: "POST", Path: "/human/api/records/{id}/publish",
 		Summary:     "Publish or unpublish a Record",
 		Description: "Human only. published true publishes a draft or proposed Record (Subsonic clients and tapes then see it); false sends a proposal back to draft or unpublishes. Send the revision you reviewed.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-only", UI: "/human/records/:id/publish", HumanOnly: true},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-only", UI: "/human/records/:id/publish", HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, in *publishRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err

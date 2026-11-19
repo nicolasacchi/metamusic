@@ -15,7 +15,7 @@ func registerDuelsM5(a huma.API, d Deps) {
 		OperationID: "suggest_duel_pairs", Method: "GET", Path: "/api/duels/suggestions",
 		Summary:     "Suggest duel pairs",
 		Description: "The pairs of takes whose next human verdict would teach the ladder most, by expected information, for one lineage or the whole library, optionally for the same section of both takes.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/duels", OwnerOnly: true},
 		func(ctx context.Context, in *suggestDuelPairsIn) (*pairSuggestionsOut, error) {
 			if d.Duels == nil {
 				return nil, unavailable("duels")

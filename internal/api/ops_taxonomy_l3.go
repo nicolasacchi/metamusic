@@ -71,7 +71,7 @@ func registerTaxonomyL3(a huma.API, d Deps) {
 		OperationID: "decide_taxonomy_proposal", Method: "POST", Path: "/api/taxonomy-proposals/{id}/decision",
 		Summary:     "Decide a taxonomy proposal",
 		Description: "The operator accepts (all mappings or a subset by index) or rejects an open proposal. Refused with 403 HUMAN_ONLY for agents.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/sounds"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-judgment", UI: "/sounds", OwnerOnly: true},
 		func(ctx context.Context, in *decideTaxonomyIn) (*decideResultOut, error) {
 			if d.Sounds == nil {
 				return nil, unavailable("sounds")

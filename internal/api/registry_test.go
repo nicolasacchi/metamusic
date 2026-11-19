@@ -118,7 +118,7 @@ func TestRegisterOK(t *testing.T) {
 	hop := goodOp()
 	hop.OperationID, hop.Path = "human_thing", "/human/api/thing"
 	hm := goodMeta()
-	hm.HumanOnly, hm.UI, hm.MCP = true, "none:test", "exclude:human-only"
+	hm.HumanOnly, hm.OwnerOnly, hm.UI, hm.MCP = true, true, "none:test", "exclude:human-only"
 	api.Register(a, hop, hm, h)
 }
 
@@ -191,7 +191,7 @@ func TestWrapperEnforcement(t *testing.T) {
 	hop := goodOp()
 	hop.OperationID, hop.Path = "human_thing", "/human/api/thing"
 	hm := goodMeta()
-	hm.HumanOnly, hm.UI, hm.MCP = true, "none:test", "exclude:human-only"
+	hm.HumanOnly, hm.OwnerOnly, hm.UI, hm.MCP = true, true, "none:test", "exclude:human-only"
 	api.Register(a, hop, hm, h)
 
 	agentRead := auth.Principal{Kind: auth.KindAgent, Scopes: []auth.Scope{auth.ScopeRead}}
@@ -234,7 +234,7 @@ func TestAuthBeforeInput(t *testing.T) {
 	mux := http.NewServeMux()
 	a := humago.New(mux, huma.DefaultConfig("t", "1"))
 	api.Register(a, huma.Operation{OperationID: "purge", Method: "GET", Path: "/human/api/purge", Summary: "s", Description: "d"},
-		api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "none:t", HumanOnly: true},
+		api.Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "none:t", HumanOnly: true, OwnerOnly: true},
 		func(context.Context, *struct {
 			Q string `query:"q" required:"true"`
 		}) (*outT, error) {
@@ -287,7 +287,7 @@ func TestRegisterOK_M2aMeta(t *testing.T) {
 	op := goodOp()
 	op.OperationID, op.Method, op.Path = "mint_thing", "POST", "/human/api/mint"
 	api.Register(a, op, api.Meta{
-		Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "none:test", HumanOnly: true,
+		Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "none:test", HumanOnly: true, OwnerOnly: true,
 		Idempotency: "create", Rate: "heavy", SecretFields: []string{"token"},
 	}, h)
 	m, ok := api.OpMeta(a.OpenAPI().Paths["/human/api/mint"].Post)
@@ -299,7 +299,7 @@ func TestRegisterOK_M2aMeta(t *testing.T) {
 func TestAuthorize_Exported(t *testing.T) {
 	t.Parallel()
 	read := api.Meta{Scope: auth.ScopeRead}
-	humanOnly := api.Meta{Scope: auth.ScopeRead, HumanOnly: true}
+	humanOnly := api.Meta{Scope: auth.ScopeRead, HumanOnly: true, OwnerOnly: true}
 	for _, tc := range []struct {
 		name string
 		p    auth.Principal
@@ -337,5 +337,5 @@ func TestRegisterSpendAndApproveOK(t *testing.T) {
 	api.Register(a, op, api.Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "tool", UI: "none:x", Idempotency: "create"}, h)
 	hop := goodOp()
 	hop.OperationID, hop.Method, hop.Path = "approve_thing", "POST", "/human/api/approve"
-	api.Register(a, hop, api.Meta{Scope: auth.ScopeAdmin, Cost: "approve", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true}, h)
+	api.Register(a, hop, api.Meta{Scope: auth.ScopeAdmin, Cost: "approve", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true, OwnerOnly: true}, h)
 }

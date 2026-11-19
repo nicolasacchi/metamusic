@@ -70,7 +70,7 @@ func registerJudgments(a huma.API, d Deps) {
 		OperationID: "rate_track", Method: "PUT", Path: "/api/tracks/{id}/rating",
 		Summary:     "Rate a track",
 		Description: "Sets or clears your own 1-5 star rating and short verdict; agent ratings are kept apart as the critic.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *rateTrackIn) (*ratingOut, error) {
 			if d.Judgments == nil {
 				return nil, unavailable("judgments")
@@ -88,7 +88,7 @@ func registerJudgments(a huma.API, d Deps) {
 		OperationID: "update_track", Method: "PATCH", Path: "/api/tracks/{id}",
 		Summary:     "Update a track",
 		Description: "Changes the title and/or the status (draft, to_relisten, final, discarded). The audio is never touched.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id", OwnerOnly: true},
 		func(ctx context.Context, in *updateTrackIn) (*trackDetailOut, error) {
 			if d.Judgments == nil || d.Library == nil {
 				return nil, unavailable("judgments")
@@ -125,7 +125,7 @@ func registerJudgments(a huma.API, d Deps) {
 		OperationID: "list_tags", Method: "GET", Path: "/api/tags",
 		Summary:     "List tags",
 		Description: "Every active tag with its track count and counts per source.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/"},
 		func(ctx context.Context, _ *empty) (*tagCountsOut, error) {
 			if d.Judgments == nil {
 				return nil, unavailable("judgments")

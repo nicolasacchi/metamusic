@@ -2206,7 +2206,7 @@ export interface paths {
         get?: never;
         /**
          * Rate a track
-         * @description Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.
+         * @description Sets or clears your own 1-5 star rating and short verdict; agent ratings are kept apart as the critic.
          */
         put: operations["rate_track"];
         post?: never;
@@ -6072,6 +6072,13 @@ export interface components {
             export_muse_names: boolean;
             subsonic_muse_names: boolean;
         };
+        OtherRating: {
+            /** Format: int64 */
+            stars: number | null;
+            updated_at: string;
+            user: string;
+            verdict: string | null;
+        };
         PairStats: {
             critic: components["schemas"]["VerdictCounts"];
             human: components["schemas"]["VerdictCounts"];
@@ -6682,6 +6689,12 @@ export interface components {
             stars: number | null;
             /** @description Short free-text verdict, or null */
             verdict?: string | null;
+        };
+        RatingAverage: {
+            /** Format: double */
+            mean: number;
+            /** Format: int64 */
+            n: number;
         };
         ReasonBody: {
             reason?: string;
@@ -8204,6 +8217,7 @@ export interface components {
             total: number;
         };
         TrackRating: {
+            average?: components["schemas"]["RatingAverage"];
             /** @description The agent rating; null when none */
             critic: {
                 by: components["schemas"]["PrincipalRef"];
@@ -8213,7 +8227,7 @@ export interface components {
                 updated_at: string;
                 verdict: string | null;
             } | null;
-            /** @description The operator rating (canonical); null when none */
+            /** @description Deprecated alias of mine */
             human: {
                 by: components["schemas"]["PrincipalRef"];
                 /** Format: int64 */
@@ -8222,6 +8236,16 @@ export interface components {
                 updated_at: string;
                 verdict: string | null;
             } | null;
+            /** @description Your own rating; null when none */
+            mine: {
+                by: components["schemas"]["PrincipalRef"];
+                /** Format: int64 */
+                stars: number | null;
+                /** @description RFC 3339 UTC */
+                updated_at: string;
+                verdict: string | null;
+            } | null;
+            others?: components["schemas"]["OtherRating"][] | null;
             track_id: string;
         };
         TrackStats: {

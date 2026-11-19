@@ -18,7 +18,7 @@ func registerAtlasL3(a huma.API, d Deps) {
 		OperationID: "get_song_atlas", Method: "GET", Path: "/api/atlas",
 		Summary:     "Get the Song Atlas",
 		Description: "A 2-D map of the library: any two axes (tempo, energy, family, vocal, era, mood, language, key, duration, bpm_requested, bpm_measured), coloured by Muse or Sound, with totals and the basis of every value. Accepts the list_songs filters.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/atlas"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/atlas"},
 		func(ctx context.Context, in *atlasIn) (*atlasOut, error) {
 			if d.Atlas == nil {
 				return nil, unavailable("atlas")

@@ -15,7 +15,7 @@ func registerOfflineM4a(a huma.API, d Deps) {
 		OperationID: "get_offline_set", Method: "GET", Path: "/api/offline-set",
 		Summary:     "Get the offline set",
 		Description: "The protected offline-set playlist with per-item media facts (FLAC and MP3 sizes and hashes), so a device can plan downloads without further calls. Edit it with update_playlist, sending the revision from this response.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/offline"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/offline", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*offlineSetOut, error) {
 			if d.Playlists == nil {
 				return nil, unavailable("playlists")

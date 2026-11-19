@@ -32,7 +32,7 @@ func registerAudit(a huma.API, d Deps) {
 		OperationID: "get_audit", Method: "GET", Path: "/api/audit",
 		Summary:     "Read the audit log",
 		Description: "Recorded agent calls and operator mutations, newest first, filtered by principal, operation, time and status. Never contains request bodies.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings/audit"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings/audit", OwnerOnly: true},
 		func(ctx context.Context, in *getAuditIn) (*auditOut, error) {
 			if d.Audit == nil {
 				return nil, unavailable("audit")

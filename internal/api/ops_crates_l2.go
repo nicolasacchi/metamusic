@@ -59,7 +59,7 @@ func registerCratesL2(a huma.API, d Deps) {
 		OperationID: "list_crates", Method: "GET", Path: "/api/crates",
 		Summary:     "List Crates",
 		Description: "Crates (working sets of Songs or Takes, manual or saved filters) by kind, subject or name. Smart Crate counts are computed only with counts=true.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/crates"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/crates"},
 		func(ctx context.Context, in *listCratesIn) (*cratesOut, error) {
 			if d.Crates == nil {
 				return nil, unavailable("crates")
@@ -83,7 +83,7 @@ func registerCratesL2(a huma.API, d Deps) {
 		OperationID: "get_crate", Method: "GET", Path: "/api/crates/{id}",
 		Summary:     "Get a Crate",
 		Description: "One Crate with its live count; list its members through list_songs or search_tracks with crate_id.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/crates/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/crates/:id"},
 		func(ctx context.Context, in *getCrateIn) (*crateDetailOut, error) {
 			if d.Crates == nil {
 				return nil, unavailable("crates")

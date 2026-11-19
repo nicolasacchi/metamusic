@@ -19,7 +19,7 @@ func registerVoiceM5(a huma.API, d Deps) {
 		OperationID: "create_voice_note", Method: "POST", Path: "/api/tracks/{id}/voice-notes",
 		Summary:     "Leave a voice note on a track",
 		Description: "Records a spoken comment (at most 120 s and 4 MiB, base64) at a second of the track as a note, fix or keep comment. Only the operator and their devices; the MP3 rendition is what gets played back.",
-	}), bodyVoice), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-recording", UI: "/tracks/:id", Idempotency: "create"},
+	}), bodyVoice), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:human-recording", UI: "/tracks/:id", Idempotency: "create", OwnerOnly: true},
 		func(ctx context.Context, in *createVoiceNoteIn) (*commentOut, error) {
 			if d.Voice == nil {
 				return nil, unavailable("voice")

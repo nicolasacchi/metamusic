@@ -28,18 +28,18 @@ type l2Op struct {
 }
 
 var l2Ops = []l2Op{
-	{id: "list_records", method: "GET", path: "/api/records", scope: auth.ScopeRead, mcp: "generic", ui: "/records", component: "records", task: "L2-V2"},
-	{id: "get_record", method: "GET", path: "/api/records/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
+	{id: "list_records", method: "GET", path: "/api/records", scope: auth.ScopeListen, mcp: "generic", ui: "/records", component: "records", task: "L2-V2"},
+	{id: "get_record", method: "GET", path: "/api/records/{id}", scope: auth.ScopeListen, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
 	{id: "create_record", method: "POST", path: "/api/records", scope: auth.ScopeWrite, mcp: "generic", ui: "/records", create: true, status: 201, body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"title":"Synthetic Record 001"}`},
 	{id: "update_record", method: "PATCH", path: "/api/records/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "edit_record_slots", method: "POST", path: "/api/records/{id}/slots", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"ops":[{"op":"pin_all"}]}`},
-	{id: "get_record_changes", method: "GET", path: "/api/records/{id}/changes", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
+	{id: "get_record_changes", method: "GET", path: "/api/records/{id}/changes", scope: auth.ScopeListen, mcp: "generic", ui: "/records/:id", component: "records", task: "L2-V2"},
 	{id: "propose_record", method: "POST", path: "/api/records/{id}/proposal", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"rationale":"ready"}`},
 	{id: "publish_record", method: "POST", path: "/human/api/records/{id}/publish", scope: auth.ScopeWrite, mcp: "exclude:human-only", ui: "/human/records/:id/publish", humanOnly: true, body: 64 * kib, component: "records", task: "L2-V2", reqBody: `{"revision":1,"published":true}`},
 	{id: "export_record_tape", method: "POST", path: "/api/records/{id}/tapes", scope: auth.ScopeWrite, mcp: "generic", ui: "/records/:id", create: true, heavy: true, status: 201, body: 64 * kib, component: "tape", task: "L2-T2", reqBody: `{}`},
-	{id: "get_tape", method: "GET", path: "/api/tapes/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/records/:id", component: "tape", task: "L2-T2"},
-	{id: "list_crates", method: "GET", path: "/api/crates", scope: auth.ScopeRead, mcp: "generic", ui: "/crates", component: "crates", task: "L2-K"},
-	{id: "get_crate", method: "GET", path: "/api/crates/{id}", scope: auth.ScopeRead, mcp: "generic", ui: "/crates/:id", component: "crates", task: "L2-K"},
+	{id: "get_tape", method: "GET", path: "/api/tapes/{id}", scope: auth.ScopeListen, mcp: "generic", ui: "/records/:id", component: "tape", task: "L2-T2"},
+	{id: "list_crates", method: "GET", path: "/api/crates", scope: auth.ScopeListen, mcp: "generic", ui: "/crates", component: "crates", task: "L2-K"},
+	{id: "get_crate", method: "GET", path: "/api/crates/{id}", scope: auth.ScopeListen, mcp: "generic", ui: "/crates/:id", component: "crates", task: "L2-K"},
 	{id: "create_crate", method: "POST", path: "/api/crates", scope: auth.ScopeWrite, mcp: "generic", ui: "/crates", create: true, status: 201, body: 64 * kib, component: "crates", task: "L2-K", reqBody: `{"name":"Synthetic Crate 001","kind":"manual"}`},
 	{id: "update_crate", method: "PATCH", path: "/api/crates/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/crates/:id", body: 64 * kib, component: "crates", task: "L2-K", reqBody: `{"revision":1,"name":"x"}`},
 	{id: "edit_crate_items", method: "POST", path: "/api/crates/{id}/items", scope: auth.ScopeWrite, mcp: "generic", ui: "/crates/:id", body: 64 * kib, component: "crates", task: "L2-K", reqBody: `{"add":[{"song_id":"s1"}]}`},
@@ -267,7 +267,7 @@ func TestOps_AuthorizationL2(t *testing.T) {
 		"system":                 auth.System("runner"),
 	}
 	for _, w := range l2Ops {
-		if w.scope != auth.ScopeRead {
+		if w.scope != auth.ScopeRead && w.scope != auth.ScopeListen {
 			if code, _ := l2Call(r, ro, w); code != 403 {
 				t.Errorf("%s with read scope only: %d, want 403", w.id, code)
 			}

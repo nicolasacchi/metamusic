@@ -262,7 +262,7 @@ func TestAuthz_T1(t *testing.T) {
 		if op.scope == auth.ScopeWrite && r.Status != 403 {
 			t.Errorf("%s with read scope: %d", op.id, r.Status)
 		}
-		if op.scope == auth.ScopeRead && r.Status == 403 {
+		if (op.scope == auth.ScopeRead || op.scope == auth.ScopeListen) && r.Status == 403 {
 			t.Errorf("%s with read scope: 403", op.id)
 		}
 	}

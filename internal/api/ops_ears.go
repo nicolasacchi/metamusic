@@ -15,7 +15,7 @@ func registerEars(a huma.API, d Deps) {
 		Description: "Measured facts about a take: loudness, bandwidth, silence spans, clipping, token-loop metrics from the model's semantic tokens, " +
 			"structure and duration against the score, plus computed flags with evidence. tier is A when every applicable analyzer ran. " +
 			"Read blind_spots first: it lists what these numbers cannot tell you.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *trackIDIn) (*dossierOut, error) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")
@@ -34,7 +34,7 @@ func registerEars(a huma.API, d Deps) {
 			"Returns the image as MCP ImageContent; never audio. Over REST the image is base64 in image.data_base64, or pass inline=false for a signed link only. " +
 			"A spectrogram shows energy over time and frequency, not pitch accuracy or words; see blind_spots. " +
 			"Missing until Tier A analysis has run (ANALYSIS_UNAVAILABLE).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id", MCPImage: true},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/tracks/:id", MCPImage: true},
 		func(ctx context.Context, in *spectrogramIn) (*spectrogramOut, error) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")
@@ -52,7 +52,7 @@ func registerEars(a huma.API, d Deps) {
 		Description: "Metric, flag, recipe and verdict deltas between two takes (b minus a): loudness, clipping, silence, token loops, " +
 			"which request fields changed, head-to-head duel counts and both tracks' ladder strengths. " +
 			"relation says how they are related (siblings, parent_child, child_parent, same_lineage, unrelated). See blind_spots.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/compare"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/compare"},
 		func(ctx context.Context, in *compareIn) (*comparisonOut, error) {
 			if d.Ears == nil {
 				return nil, unavailable("ears")

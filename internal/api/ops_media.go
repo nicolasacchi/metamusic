@@ -47,7 +47,7 @@ func registerMedia(a huma.API, d Deps) {
 		OperationID: "get_media_links", Method: "GET", Path: "/api/tracks/{id}/media",
 		Summary:     "Get signed media links",
 		Description: "Signed, expiring URLs for the lossless FLAC master and the MP3 rendition of a track. For a lossy reference track flac is null and mp3 is the master itself (lossy true). Humans get 12 h links, agents 15 min.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
 		func(ctx context.Context, in *trackIDIn) (*mediaLinksOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -107,7 +107,7 @@ func registerMedia(a huma.API, d Deps) {
 		OperationID: "get_device_probe", Method: "GET", Path: "/api/device-probe",
 		Summary:     "Get the device FLAC probe",
 		Description: "A signed link to a 3 s 24-bit/48 kHz FLAC test file and the expectations a client checks to learn whether the device decodes and seeks FLAC.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*deviceProbeOut, error) {
 			if d.Signer == nil {
 				return nil, unavailable("signer")

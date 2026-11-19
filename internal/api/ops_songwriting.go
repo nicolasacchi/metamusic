@@ -44,7 +44,7 @@ func registerSongwriting(a huma.API, d Deps) {
 		OperationID: "update_songwriting_settings", Method: "PUT", Path: "/human/api/settings/songwriting",
 		Summary:     "Set the songwriting duration targets",
 		Description: "The operator changes the minimum song length and/or the target band, in seconds (30 to 600; min <= target min <= target max). At least one field.",
-	}, bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", HumanOnly: true, UI: "/settings"},
+	}, bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", HumanOnly: true, UI: "/settings", OwnerOnly: true},
 		func(ctx context.Context, in *updateSongwritingIn) (*songwritingOut, error) {
 			if d.Songwriting == nil {
 				return nil, unavailable("songwriting")

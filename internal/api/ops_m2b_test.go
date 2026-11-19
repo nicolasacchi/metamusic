@@ -32,7 +32,7 @@ type m2bOp struct {
 
 // m2bOps is the C53 table: 10 operations. D-M2b-22 demoted create_duel, get_ladder and compare_tracks to mcp generic to hold the tools/list ceiling. call is the request path used by the stub tests.
 var m2bOps = []m2bOp{
-	{id: "get_clip", method: "GET", path: "/api/tracks/{id}/clip", mcp: "generic", ui: "none:clip links reach the SPA inside duel responses", scope: auth.ScopeRead, heavy: true,
+	{id: "get_clip", method: "GET", path: "/api/tracks/{id}/clip", mcp: "generic", ui: "none:clip links reach the SPA inside duel responses", scope: auth.ScopeListen, heavy: true,
 		component: "clips", task: "M2b-M1", call: "/api/tracks/t1/clip"},
 	{id: "create_duel", method: "POST", path: "/api/duels", mcp: "generic", ui: "/duels", scope: auth.ScopeWrite, create: true, heavy: true, status: 201, body: 64 * kib,
 		component: "duels", task: "M2b-J2", call: "/api/duels", reqBody: `{"a_track_id":"a","b_track_id":"b"}`},
@@ -44,13 +44,13 @@ var m2bOps = []m2bOp{
 		component: "duels", task: "M2b-J2", call: "/api/duels"},
 	{id: "submit_duel", method: "POST", path: "/api/duels/{id}/verdicts", mcp: "tool", ui: "/duels", scope: auth.ScopeWrite, status: 201, body: 64 * kib,
 		component: "duels", task: "M2b-J2", call: "/api/duels/d1/verdicts", reqBody: `{"verdict":"a"}`},
-	{id: "get_ladder", method: "GET", path: "/api/ladder", mcp: "generic", ui: "/ladder", scope: auth.ScopeRead,
+	{id: "get_ladder", method: "GET", path: "/api/ladder", mcp: "generic", ui: "/ladder", scope: auth.ScopeListen,
 		component: "duels", task: "M2b-J2", call: "/api/ladder"},
-	{id: "get_track_analysis", method: "GET", path: "/api/tracks/{id}/analysis", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeRead,
+	{id: "get_track_analysis", method: "GET", path: "/api/tracks/{id}/analysis", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeListen,
 		component: "ears", task: "M2b-E3", call: "/api/tracks/t1/analysis"},
-	{id: "get_track_spectrogram", method: "GET", path: "/api/tracks/{id}/spectrogram", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeRead, image: true,
+	{id: "get_track_spectrogram", method: "GET", path: "/api/tracks/{id}/spectrogram", mcp: "tool", ui: "/tracks/:id", scope: auth.ScopeListen, image: true,
 		component: "ears", task: "M2b-E3", call: "/api/tracks/t1/spectrogram"},
-	{id: "compare_tracks", method: "GET", path: "/api/compare", mcp: "generic", ui: "/compare", scope: auth.ScopeRead,
+	{id: "compare_tracks", method: "GET", path: "/api/compare", mcp: "generic", ui: "/compare", scope: auth.ScopeListen,
 		component: "ears", task: "M2b-E3", call: "/api/compare?a=x&b=y"},
 }
 
@@ -255,7 +255,7 @@ func TestOps_M2bScopes(t *testing.T) {
 		rq := r.callWith(readOnly, w.method, w.call, w.reqBody, hdrFor(w)...)
 		m := decodeProblem(t, rq.Body.Bytes())
 		wantCode := 501
-		if w.scope == auth.ScopeWrite {
+		if w.scope == auth.ScopeWrite || w.scope == auth.ScopeRate {
 			wantCode = 403
 		}
 		if rq.Code != wantCode {

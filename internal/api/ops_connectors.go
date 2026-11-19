@@ -143,7 +143,7 @@ func registerConnectorsM4a(a huma.API, d Deps) {
 		OperationID: "list_connector_grants", Method: "GET", Path: "/api/connectors",
 		Summary:     "List hosted-connector grants",
 		Description: "The OAuth connector status (issuer, resource, allowed clients, key cache) and every connector grant with its scopes, limits and last use. Needs scope admin. Usernames and subject hints are shown to humans only.",
-	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/human/connectors"},
+	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/human/connectors", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*connectorListOut, error) {
 			if d.Connectors == nil {
 				return nil, unavailable("connectors")
@@ -174,7 +174,7 @@ func registerConnectorsM4a(a huma.API, d Deps) {
 		OperationID: "set_connector_grant", Method: "PUT", Path: "/api/connectors/{id}",
 		Summary:     "Change a connector grant",
 		Description: "Sets a connector grant's scopes (read is required; generate is off by default), its spend limits (the whole limits object; null means the global default) and/or revokes or restores it. Needs scope admin. The global monthly cap stays human-only, so a connector budget never exceeds it.",
-	}, bodyM4a), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/human/connectors"},
+	}, bodyM4a), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "generic", UI: "/human/connectors", OwnerOnly: true},
 		func(ctx context.Context, in *setConnectorGrantIn) (*connectorOut, error) {
 			if d.Connectors == nil {
 				return nil, unavailable("connectors")

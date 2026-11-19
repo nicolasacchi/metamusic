@@ -27,7 +27,7 @@ func registerBackups(a huma.API, d Deps) {
 		Description: "Starts a database and file snapshot in the background and returns the running run; poll list_backups. 409 while another backup runs.",
 	}
 	op.DefaultStatus = 202
-	Register(a, op, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/settings/backups", Idempotency: "create", Rate: "heavy"},
+	Register(a, op, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/settings/backups", Idempotency: "create", Rate: "heavy", OwnerOnly: true},
 		func(ctx context.Context, _ *createBackupIn) (*backupRunOut, error) {
 			if d.Backups == nil {
 				return nil, unavailable("backups")
@@ -42,7 +42,7 @@ func registerBackups(a huma.API, d Deps) {
 		OperationID: "list_backups", Method: "GET", Path: "/api/backups",
 		Summary:     "List backups",
 		Description: "The newest backup runs, the snapshots on disk and the daily schedule.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings/backups"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings/backups", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*backupListingOut, error) {
 			if d.Backups == nil {
 				return nil, unavailable("backups")
