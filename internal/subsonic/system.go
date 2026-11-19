@@ -59,7 +59,7 @@ func (s *server) registerSystem() {
 			return fail(errNotAuthorized, "the client is not authorized to see other users")
 		}
 		w := c.principal.Has(auth.ScopeWrite)
-		c.resp.User = &User{Username: cl.Username, ScrobblingEnabled: w, PlaylistRole: w, CommentRole: w,
+		c.resp.User = &User{Username: cl.Username, ScrobblingEnabled: c.principal.Has(auth.ScopeRate), PlaylistRole: w, CommentRole: w,
 			DownloadRole: true, CoverArtRole: true, StreamRole: true, Folder: userFolders(c.ctx)}
 		return nil
 	})

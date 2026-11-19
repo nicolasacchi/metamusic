@@ -50,6 +50,8 @@ func subsonicClient(viewer auth.Principal, c auth.SubsonicClient) SubsonicClient
 
 func subsonicErr(err error) error {
 	switch {
+	case errors.Is(err, auth.ErrNotHuman):
+		return Err(403, "HUMAN_ONLY", "only a signed-in user can manage Subsonic clients", nil)
 	case errors.Is(err, auth.ErrNotFound):
 		return Err(404, "NOT_FOUND", "no such Subsonic client", nil)
 	case errors.Is(err, auth.ErrDeviceLimit):
@@ -80,7 +82,7 @@ func registerSubsonicClientsM4a(a huma.API, d Deps) {
 		OperationID: "list_subsonic_clients", Method: "GET", Path: "/human/api/subsonic-clients",
 		Summary:     "List Subsonic clients",
 		Description: "The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. The Owner sees every user's clients (with an owner column); anyone else only their own.",
-	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/subsonic", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/subsonic", HumanOnly: true, SelfService: true},
 		func(ctx context.Context, _ *empty) (*subsonicListOut, error) {
 			if d.Subsonic == nil {
 				return nil, unavailable("subsonic")
@@ -105,7 +107,7 @@ func registerSubsonicClientsM4a(a huma.API, d Deps) {
 		Summary:     "Create a Subsonic client",
 		Description: "Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. The client belongs to the caller and acts with the caller's role; an Editor or Listener may hold 5 active clients.",
 	}), bodyM4a), Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/subsonic", Idempotency: "create",
-		SecretFields: []string{"api_key", "password"}, HumanOnly: true},
+		SecretFields: []string{"api_key", "password"}, HumanOnly: true, SelfService: true},
 		func(ctx context.Context, in *createSubsonicClientIn) (*subsonicCreatedOut, error) {
 			if d.Subsonic == nil {
 				return nil, unavailable("subsonic")
@@ -135,7 +137,7 @@ func registerSubsonicClientsM4a(a huma.API, d Deps) {
 		OperationID: "revoke_subsonic_client", Method: "POST", Path: "/human/api/subsonic-clients/{id}/revoke",
 		Summary:     "Revoke a Subsonic client",
 		Description: "Revokes a native-app credential by id; repeating the call returns the same result. The Owner may revoke any client; anyone else only their own (another user's id answers 404).",
-	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/subsonic", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/subsonic", HumanOnly: true, SelfService: true},
 		func(ctx context.Context, in *subsonicIDIn) (*subsonicOut, error) {
 			if d.Subsonic == nil {
 				return nil, unavailable("subsonic")

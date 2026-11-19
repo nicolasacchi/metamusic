@@ -24753,7 +24753,7 @@
         },
         "summary": "Unpair this device",
         "x-mm": {
-          "scope": "write",
+          "scope": "listen",
           "cost": "free",
           "mcp": "exclude:device-self-service",
           "ui": "/settings",
@@ -32345,7 +32345,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true
+          "human_only": true,
+          "self_service": true
         }
       }
     },
@@ -32407,6 +32408,7 @@
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
           "human_only": true,
+          "self_service": true,
           "idempotency": "create",
           "secret_fields": [
             "code",
@@ -32459,7 +32461,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true
+          "human_only": true,
+          "self_service": true
         }
       }
     },
@@ -32758,7 +32761,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/subsonic",
-          "human_only": true
+          "human_only": true,
+          "self_service": true
         }
       },
       "post": {
@@ -32818,6 +32822,7 @@
           "mcp": "exclude:human-only",
           "ui": "/human/subsonic",
           "human_only": true,
+          "self_service": true,
           "idempotency": "create",
           "secret_fields": [
             "api_key",
@@ -32870,7 +32875,8 @@
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/subsonic",
-          "human_only": true
+          "human_only": true,
+          "self_service": true
         }
       }
     },

@@ -294,4 +294,14 @@ func TestRealListenerDeviceAndSubsonicClient(t *testing.T) {
 			t.Errorf("the 6th device: %d %s", resp.Status, resp.Body)
 		}
 	})
+
+	t.Run("a Listener unpairs their own phone", func(t *testing.T) {
+		phone := dev // last subtest: the paired Listener phone unpairs itself
+		if resp := phone.Do(t, "POST", "/api/devices/self/revoke", nil); resp.Status != 200 && resp.Status != 204 {
+			t.Fatalf("a Listener device revokes itself: %d %s", resp.Status, resp.Body)
+		}
+		if resp := phone.Do(t, "GET", "/api/tracks", nil); resp.Status != 401 {
+			t.Errorf("the unpaired phone: %d", resp.Status)
+		}
+	})
 }

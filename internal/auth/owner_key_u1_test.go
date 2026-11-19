@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 var (
@@ -259,5 +260,26 @@ func TestDeviceLimitAndCodeIsolation(t *testing.T) {
 	}
 	if !strings.Contains(ErrDeviceLimit.Error(), "limit") {
 		t.Error("limit error text")
+	}
+}
+
+// TestDeviceLimitIgnoresExpired: an expired, unrevoked device does not occupy a slot.
+func TestDeviceLimitIgnoresExpired(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ds, clk := newDevices(t)
+	ds.UseUsers(testUsers)
+	for i := range MaxUserDevices {
+		code, _, err := ds.CreatePairingCode(ctx, carolH, "Phone")
+		if err != nil {
+			t.Fatalf("code %d: %v", i, err)
+		}
+		if _, _, err = ds.Redeem(ctx, code, "ua"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clk.Advance(DeviceTTL + time.Hour)
+	if _, _, err := ds.CreatePairingCode(ctx, carolH, "Fresh"); err != nil {
+		t.Errorf("expired devices still hold slots: %v", err)
 	}
 }

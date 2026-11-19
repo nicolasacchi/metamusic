@@ -94,7 +94,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "list_devices", Method: "GET", Path: "/human/api/devices",
 		Summary:     "List paired devices",
 		Description: "Paired browsers and phones with their last use. The Owner sees every user's devices (with an owner column); anyone else sees only their own. A person's own login only: user agents and names are personal data.",
-	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, SelfService: true},
 		func(ctx context.Context, _ *empty) (*deviceListOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
@@ -116,7 +116,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "create_pairing_code", Method: "POST", Path: "/human/api/devices/pairing-codes",
 		Summary:     "Create a pairing code",
 		Description: "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. The device belongs to the caller and acts with the caller's role. An Editor or Listener may hold 5 active devices.",
-	}), bodySmall), Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true,
+	}), bodySmall), Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, SelfService: true,
 		Idempotency: "create", SecretFields: []string{"code", "pair_url"}},
 		func(ctx context.Context, in *createPairingIn) (*pairingOut, error) {
 			if d.Devices == nil {
@@ -134,7 +134,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "revoke_device", Method: "POST", Path: "/human/api/devices/{id}/revoke",
 		Summary:     "Revoke a paired device",
 		Description: "Unpairs a device by id. The Owner may revoke any device; anyone else only their own (another user's id answers 404). Repeating the call returns the same result.",
-	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, SelfService: true},
 		func(ctx context.Context, in *deviceIDIn) (*deviceOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
@@ -151,7 +151,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "revoke_own_device", Method: "POST", Path: "/api/devices/self/revoke",
 		Summary:     "Unpair this device",
 		Description: "Revokes the paired device that made this call and clears its cookie. Other callers get 403 NOT_A_DEVICE.",
-	}, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "exclude:device-self-service", UI: "/settings"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:device-self-service", UI: "/settings"},
 		func(ctx context.Context, _ *empty) (*deviceSelfOut, error) {
 			p := auth.FromContext(ctx)
 			if p.Kind != auth.KindDevice {

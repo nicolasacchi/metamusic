@@ -98,7 +98,7 @@ func toChild(s songRow, mp3 bool) Child {
 	if s.LastPlay.Valid {
 		ch.Played = iso(s.LastPlay.String)
 	}
-	if s.Status == "final" {
+	if s.Status == "final" && !s.Listener { // the keep decision is Owner-side state
 		ch.Starred = iso(s.StatusSetAt)
 	}
 	if s.Stars.Valid {

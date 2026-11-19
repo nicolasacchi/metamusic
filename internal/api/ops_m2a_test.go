@@ -64,7 +64,7 @@ var m2aOps = []m2aOp{
 	{id: "list_devices", method: "GET", path: "/human/api/devices", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true},
 	{id: "create_pairing_code", method: "POST", path: "/human/api/devices/pairing-codes", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true, create: true, secrets: []string{"code", "pair_url"}, status: 201, body: 64 * kib},
 	{id: "revoke_device", method: "POST", path: "/human/api/devices/{id}/revoke", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true},
-	{id: "revoke_own_device", method: "POST", path: "/api/devices/self/revoke", mcp: "exclude:device-self-service", ui: "/settings", scope: auth.ScopeWrite},
+	{id: "revoke_own_device", method: "POST", path: "/api/devices/self/revoke", mcp: "exclude:device-self-service", ui: "/settings", scope: auth.ScopeListen},
 }
 
 func newTestAPI(t *testing.T) (huma.API, *http.ServeMux) {

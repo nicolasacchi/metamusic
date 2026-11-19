@@ -28,6 +28,9 @@ type Meta struct {
 	// inherits the role). Agents, connector grants, system and the Owner's own devices are Owner delegates: they skip
 	// this rule and pass or fail on scope as before (D-U1-6).
 	OwnerOnly bool `json:"owner_only,omitempty"`
+	// SelfService marks the human-only ops an Editor or Listener may call for themselves (D-U1-14, C305). It is the explicit
+	// allow that lifts the fail-closed owner-only default of HumanOnly; it is published in x-mm.
+	SelfService bool `json:"self_service,omitempty"`
 
 	Idempotency string `json:"idempotency,omitempty"` // "" | "create" (D-M2a-3)
 	Rate        string `json:"rate,omitempty"`        // "" (default bucket) | "heavy" | "listen" (scope listen or rate; Editor and Listener principals also draw on the listen class, C304.4)

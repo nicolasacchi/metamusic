@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -35,5 +36,24 @@ func TestValidateOwnerOnlyRules(t *testing.T) {
 		if err := validateOwnerOnly(op(tc.id), tc.m, false); err != nil {
 			t.Errorf("%s: not enforced, yet %v", tc.name, err)
 		}
+	}
+}
+
+// TestOwnerOnlyFailsClosedForHumanOnly: an untagged HumanOnly op is owner-only at runtime unless it is SelfService.
+func TestOwnerOnlyFailsClosedForHumanOnly(t *testing.T) {
+	t.Parallel()
+	if !(Meta{HumanOnly: true}).ownerOnly() {
+		t.Error("untagged HumanOnly op is open to Editors")
+	}
+	if (Meta{HumanOnly: true, SelfService: true}).ownerOnly() {
+		t.Error("self-service op is owner-only")
+	}
+}
+
+func TestSubsonicErrNotHuman(t *testing.T) {
+	t.Parallel()
+	var p *Problem
+	if err := subsonicErr(auth.ErrNotHuman); !errors.As(err, &p) || p.Status != 403 || p.Code != "HUMAN_ONLY" {
+		t.Errorf("got %v", err)
 	}
 }

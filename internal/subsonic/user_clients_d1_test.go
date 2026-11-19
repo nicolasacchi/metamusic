@@ -226,3 +226,16 @@ func TestToListenerChildMP3Default(t *testing.T) {
 		t.Errorf("flac default: %+v", ch)
 	}
 }
+
+// TestListenerChildHidesOwnerDecision: the keep decision (starred) is Owner-side state a Listener's song never carries.
+func TestListenerChildHidesOwnerDecision(t *testing.T) {
+	t.Parallel()
+	s := songRow{ID: "t1", Status: "final", StatusSetAt: "2026-10-01T10:00:00Z", Listener: true}
+	if ch := toChild(s, false); ch.Starred != "" {
+		t.Errorf("listener starred: %q", ch.Starred)
+	}
+	s.Listener = false
+	if ch := toChild(s, false); ch.Starred == "" {
+		t.Error("owner lost starred")
+	}
+}

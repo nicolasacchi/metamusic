@@ -34,11 +34,10 @@ func Permitted(p auth.Principal, m Meta) *Problem {
 }
 
 // ownerOnly is the effective rule: an explicit tag, or one of the classes validate() requires the tag on (cost approve,
-// scope admin; HumanOnly too, except the self-service ops below). Treating the classes as owner-only here, not only at
-// registration, keeps an op that forgot the tag closed to Editors and Listeners. A HumanOnly op alone is not owner-only
-// because the self-service ops are HumanOnly and open to every user; validateOwnerOnly keeps every other HumanOnly op tagged.
+// scope admin, HumanOnly unless Meta.SelfService allows it). Treating the classes as owner-only here, not only at
+// registration, keeps an op that forgot the tag closed to Editors and Listeners.
 func (m Meta) ownerOnly() bool {
-	return m.OwnerOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin
+	return m.OwnerOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin || (m.HumanOnly && !m.SelfService)
 }
 
 // selfServiceHumanOps are the human-only operations an Editor or Listener may call on their own behalf (D-U1-14, C305):

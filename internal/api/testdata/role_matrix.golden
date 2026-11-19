@@ -124,7 +124,7 @@ rate_track	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 reject_batch	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 request_approval	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 revoke_device	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
-revoke_own_device	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
+revoke_own_device	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 revoke_own_token	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 revoke_subsonic_client	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 revoke_token	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO

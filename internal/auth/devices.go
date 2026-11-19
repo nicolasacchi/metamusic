@@ -163,7 +163,7 @@ func (d *DeviceStore) checkLimit(ctx context.Context, tx *sql.Tx, ownerKey strin
 		return nil
 	}
 	var n int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM devices WHERE owner_key=? AND revoked_at IS NULL`, ownerKey).Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM devices WHERE owner_key=? AND revoked_at IS NULL AND expires_at>?`, ownerKey, d.ts(d.now())).Scan(&n); err != nil {
 		return fmt.Errorf("count devices: %w", err)
 	}
 	if n >= MaxUserDevices {
