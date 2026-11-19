@@ -7,6 +7,7 @@
   import { confirmHref } from "../lib/approvals";
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
+  import { can } from "../lib/me.svelte";
 
   type Batch = components["schemas"]["Batch"];
   interface Props {
@@ -82,7 +83,11 @@
 {#if error}<p role="alert">{error}</p>{/if}
 {#if batch}
   {#if batch.state === "awaiting_confirmation"}
-    <p class="review" data-testid="review-approve"><a href={confirmHref(batch.id)}><strong>Review &amp; approve</strong></a> <span class="muted">this batch is waiting for your approval; nothing is spent until you decide.</span></p>
+    {#if can("approve_batch")}
+      <p class="review" data-testid="review-approve"><a href={confirmHref(batch.id)}><strong>Review &amp; approve</strong></a> <span class="muted">this batch is waiting for your approval; nothing is spent until you decide.</span></p>
+    {:else}
+      <p class="review muted" data-testid="review-waiting">Waiting for the owner to approve this request; nothing runs or is spent until then.</p>
+    {/if}
   {/if}
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
