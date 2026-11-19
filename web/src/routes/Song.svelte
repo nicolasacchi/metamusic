@@ -91,7 +91,7 @@
       }
       view = r.data;
       for (const t of r.data.takes) {
-        if (!judge.get(t.id)) judge.seed(t.id, { stars: t.stars, verdict: null, critic: t.critic_stars === null ? null : { stars: t.critic_stars, verdict: null }, status: t.status, tags: [] });
+        if (!judge.get(t.id)) judge.seed(t.id, { stars: t.stars, verdict: null, critic: t.critic_stars == null ? null : { stars: t.critic_stars, verdict: null }, status: t.status, tags: [] });
       }
     } catch {
       if (!quiet && mine === seq) error = "Failed to load the Song";
@@ -254,7 +254,7 @@
       <p class="chips">
         <span class="state" data-testid="song-state">{s.state}</span>
         {#if s.angle}<span class="chip" data-testid="song-angle">{s.angle}</span>{/if}
-        {#if s.queued_jobs > 0}<span class="chip">queued ×{s.queued_jobs}</span>{/if}
+        {#if (s.queued_jobs ?? 0) > 0}<span class="chip">queued ×{s.queued_jobs}</span>{/if}
         {#if view.pending || view.pick?.pending}<span class="chip" data-testid="song-pending">updating…</span>{/if}
         {#each Object.entries(view.sounds?.facets ?? {}) as [facet, entries] (facet)}
           {#each entries ?? [] as e (e.value)}
@@ -341,7 +341,7 @@
     {#if (view.proposals ?? []).length > 0}
       <section aria-labelledby="prop-h">
         <h2 id="prop-h">Proposals</h2>
-        <ProposalList proposals={view.proposals} canDecide={human} {titleOf} onaccept={accept} ondismiss={dismiss} />
+        <ProposalList proposals={view.proposals ?? []} canDecide={human} {titleOf} onaccept={accept} ondismiss={dismiss} />
       </section>
     {/if}
 

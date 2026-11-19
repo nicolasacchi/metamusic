@@ -269,12 +269,13 @@ func (s *Service) JSONL(ctx context.Context, p auth.Principal, sel export.Select
 // Get returns an export with a fresh link; EXPORT_EXPIRED when swept.
 func (s *Service) Get(ctx context.Context, p auth.Principal, id string) (Export, error) {
 	var (
-		e        Export
-		rel, sum string
+		e              Export
+		rel, sum, made string
 	)
-	err := s.o.Store.R.QueryRowContext(ctx, `SELECT kind, filename, sha256, bytes, created_at, path, summary_json FROM exports WHERE id = ?`, id).
-		Scan(&e.Kind, &e.Filename, &e.SHA256, &e.Bytes, &e.CreatedAt, &rel, &sum)
-	if errors.Is(err, sql.ErrNoRows) {
+	err := s.o.Store.R.QueryRowContext(ctx, `SELECT kind, filename, sha256, bytes, created_at, path, summary_json, principal_id FROM exports WHERE id = ?`, id).
+		Scan(&e.Kind, &e.Filename, &e.SHA256, &e.Bytes, &e.CreatedAt, &rel, &sum, &made)
+	// An Editor reads only the exports it made; another's is a 404, the body of a missing id (C305: own).
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !p.IsOwnerSide() && made != p.Key()) {
 		return Export{}, &Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Msg: "no such resource"}
 	}
 	if err != nil {

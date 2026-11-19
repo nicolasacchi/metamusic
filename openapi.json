@@ -653,7 +653,6 @@
           "guides",
           "color_by",
           "legend",
-          "muses",
           "totals",
           "points",
           "next_cursor"
@@ -699,7 +698,6 @@
               }
             },
             "required": [
-              "sha256",
               "bytes",
               "gain_db"
             ],
@@ -722,9 +720,7 @@
           "bits_per_sample",
           "channels",
           "total_samples",
-          "master_sha256",
           "master_bytes",
-          "audio_md5",
           "mp3"
         ],
         "type": "object"
@@ -3770,8 +3766,6 @@
           "deltas",
           "flags",
           "recipe_diff",
-          "duels",
-          "ladder",
           "blind_spots"
         ],
         "type": "object"
@@ -3894,8 +3888,6 @@
         "required": [
           "track_id",
           "title",
-          "seed",
-          "request_id",
           "root_track_id",
           "duration_s",
           "tier",
@@ -4188,7 +4180,6 @@
           "format",
           "track",
           "song",
-          "muse",
           "sounds",
           "recipe",
           "provenance",
@@ -4282,7 +4273,6 @@
           "description",
           "kind",
           "subject",
-          "filter",
           "revision",
           "created_by",
           "created_at",
@@ -4410,7 +4400,6 @@
           "description",
           "kind",
           "subject",
-          "filter",
           "revision",
           "created_by",
           "created_at",
@@ -9920,7 +9909,6 @@
         },
         "required": [
           "songs",
-          "muses",
           "sessions",
           "taxonomy_version",
           "pending"
@@ -9972,9 +9960,6 @@
           "root_track_id",
           "parent_track_id",
           "generation",
-          "operator",
-          "inferred",
-          "rule",
           "siblings"
         ],
         "type": "object"
@@ -10014,8 +9999,6 @@
               }
             },
             "required": [
-              "display_micro_usd",
-              "display_usd",
               "basis"
             ],
             "type": [
@@ -10150,19 +10133,11 @@
           "generation",
           "title",
           "status",
-          "seed",
           "recipe_known",
           "lossy",
-          "request_id",
           "origin",
-          "operator",
           "inferred",
-          "rationale",
           "stars",
-          "critic_stars",
-          "outcome",
-          "cost",
-          "job_id",
           "created_at",
           "children_count",
           "transform",
@@ -13244,16 +13219,11 @@
         "required": [
           "take_id",
           "source",
-          "pinned_take_id",
           "pin_ineligible",
-          "pinned_by",
-          "pinned_at",
-          "evidence",
           "changed_at",
           "last_event_id",
           "seq",
-          "pending",
-          "open_proposals"
+          "pending"
         ],
         "type": "object"
       },
@@ -14704,9 +14674,6 @@
           }
         },
         "required": [
-          "same_hash",
-          "changed",
-          "seed",
           "style_terms"
         ],
         "type": "object"
@@ -14793,12 +14760,7 @@
         "required": [
           "id",
           "engine",
-          "request_id",
-          "style",
           "lyrics",
-          "cot",
-          "seed",
-          "hash",
           "sources_count"
         ],
         "type": "object"
@@ -14965,7 +14927,6 @@
           "id",
           "title",
           "subtitle",
-          "liner_note",
           "status",
           "revision",
           "cover_rerolls",
@@ -14973,7 +14934,6 @@
           "created_by",
           "created_at",
           "updated_at",
-          "proposal",
           "published"
         ],
         "type": "object"
@@ -16106,7 +16066,6 @@
         "required": [
           "id",
           "title",
-          "seed",
           "recorded_at"
         ],
         "type": "object"
@@ -16500,7 +16459,6 @@
           "pick",
           "pin_differs",
           "gain_db",
-          "why",
           "warnings"
         ],
         "type": "object"
@@ -16667,12 +16625,10 @@
           "state",
           "hidden",
           "archived",
-          "queued_jobs",
           "created_at",
           "updated_at",
           "root_track_id",
           "root_track_ids",
-          "draft_id",
           "retired",
           "retired_into"
         ],
@@ -16725,7 +16681,6 @@
           "status",
           "revision",
           "label",
-          "request_id",
           "group_key"
         ],
         "type": "object"
@@ -17112,14 +17067,10 @@
           "id",
           "title",
           "angle",
-          "muse_id",
           "state",
           "takes",
           "pick",
-          "draft_id",
           "root_track_id",
-          "queued_jobs",
-          "open_proposals",
           "hidden",
           "archived",
           "updated_at"
@@ -17232,15 +17183,10 @@
         },
         "required": [
           "song",
-          "muse",
-          "draft",
           "takes",
           "takes_total",
           "pick",
-          "proposals",
-          "events",
           "sounds",
-          "sessions",
           "lineage",
           "pending",
           "records",
@@ -17812,13 +17758,9 @@
           "recipes",
           "loudness",
           "bandwidth",
-          "storage",
-          "imports",
           "judgments",
           "playlists",
           "drafts_by_origin",
-          "backups",
-          "generation",
           "breakdown",
           "library_model",
           "curation"
@@ -18483,14 +18425,11 @@
           "lossy",
           "recipe_known",
           "stars",
-          "critic_stars",
           "is_pick",
           "pinned",
           "has_ears",
           "flags",
-          "ladder",
-          "tempo",
-          "cost_display_usd"
+          "tempo"
         ],
         "type": "object"
       },
@@ -19454,9 +19393,7 @@
           "version",
           "kind",
           "seed_id",
-          "created_by",
-          "created_at",
-          "note"
+          "created_at"
         ],
         "type": "object"
       },
@@ -19908,8 +19845,6 @@
                   }
                 },
                 "required": [
-                  "display_micro_usd",
-                  "display_usd",
                   "basis"
                 ],
                 "type": [
@@ -19991,7 +19926,6 @@
               "batch_id",
               "operator",
               "rationale",
-              "cost",
               "env"
             ],
             "type": [
@@ -20136,7 +20070,6 @@
               "id",
               "title",
               "angle",
-              "muse_id",
               "pick_source"
             ],
             "type": [
@@ -20230,7 +20163,6 @@
           "title",
           "slug",
           "status",
-          "status_set_by",
           "origin",
           "transform",
           "recorded_at",
@@ -20246,16 +20178,10 @@
           "sections",
           "timed",
           "analysis",
-          "import",
           "rating",
           "tags",
-          "comments",
-          "open_comments",
-          "playlists",
-          "listening",
           "recipe_known",
           "lossy",
-          "generation",
           "song"
         ],
         "type": "object"
@@ -20473,8 +20399,7 @@
         "required": [
           "track_id",
           "mine",
-          "human",
-          "critic"
+          "human"
         ],
         "type": "object"
       },
@@ -20787,8 +20712,6 @@
           "duration_s",
           "recorded_at",
           "created_at",
-          "request_id",
-          "seed",
           "style_terms",
           "bpm_declared",
           "has_score",
@@ -20800,15 +20723,10 @@
           "parent_track_id",
           "children_count",
           "stars",
-          "critic_stars",
           "tags",
-          "comments",
-          "open_comments",
           "recipe_known",
           "lossy",
           "origin",
-          "cost_display_micro_usd",
-          "cost_display_usd",
           "engine",
           "song_id",
           "is_pick",
@@ -24790,8 +24708,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/settings",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -25791,8 +25708,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/export",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -29898,8 +29814,7 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -31308,8 +31223,7 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },

@@ -1327,3 +1327,33 @@ func TestListDrafts_PageCap(t *testing.T) {
 		t.Errorf("duplicates: %d vs %d", len(seen), len(want))
 	}
 }
+
+// TestDeviceProfile_OwnRowsForEditorsAndListeners pins C305: an Editor or Listener may create a profile and update only a
+// row it created (another principal's row answers ErrNotFound and is left untouched); the Owner side keeps the plain upsert.
+func TestDeviceProfile_OwnRowsForEditorsAndListeners(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	in := library.DeviceProfileIn{DeviceID: "phone-abcdef01", Label: "Phone", UserAgent: "UA/1", Quality: "auto", QualitySource: "default", ProbeResult: "none", ProbeVersion: 1}
+	bob := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleEditor, ID: "bob", Name: "bob", User: "bob"}
+	carol := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleListener, ID: "carol", Name: "carol", User: "carol"}
+	owner := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
+	if _, err := e.svc.PutDeviceProfile(ctx, bob, in); err != nil {
+		t.Fatalf("an Editor creates a profile: %v", err)
+	}
+	in.Label = "Renamed"
+	if _, err := e.svc.PutDeviceProfile(ctx, bob, in); err != nil {
+		t.Errorf("an Editor updates their own profile: %v", err)
+	}
+	in.Label = "Hijack"
+	if _, err := e.svc.PutDeviceProfile(ctx, carol, in); !errors.Is(err, library.ErrNotFound) {
+		t.Errorf("a Listener updates an Editor's profile: %v", err)
+	}
+	var label string
+	if err := e.st.R.QueryRow(`SELECT label FROM device_profiles WHERE device_id = ?`, in.DeviceID).Scan(&label); err != nil || label != "Renamed" {
+		t.Errorf("the refused write changed the row: %q %v", label, err)
+	}
+	if _, err := e.svc.PutDeviceProfile(ctx, owner, in); err != nil {
+		t.Errorf("the Owner updates a profile: %v", err)
+	}
+}

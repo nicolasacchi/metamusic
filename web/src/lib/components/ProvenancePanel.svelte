@@ -37,7 +37,7 @@
       <dt>Rationale</dt>
       <dd data-testid="prov-rationale">{generation.rationale}</dd>
     {/if}
-    {#if generation.cost}
+    {#if generation.cost && generation.cost.display_micro_usd !== undefined}
       <dt>Cost</dt>
       <dd data-testid="prov-cost">{formatMicroUSD(generation.cost.display_micro_usd)} <span class="muted">({basisLabel[generation.cost.basis]})</span></dd>
     {/if}

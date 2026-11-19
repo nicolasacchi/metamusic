@@ -111,8 +111,8 @@ export function summaryToChip(s: S["SongSummary"]): Chip {
     takes: s.takes,
     pick_source: s.pick?.source ?? null,
     pick_take_id: s.pick?.take_id ?? null,
-    queued: s.queued_jobs > 0,
-    draft_id: s.draft_id,
+    queued: (s.queued_jobs ?? 0) > 0,
+    draft_id: s.draft_id ?? null,
     tempo_mismatch: false,
   };
 }

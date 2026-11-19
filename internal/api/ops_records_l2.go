@@ -10,6 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // defaultRecordIncludes is get_record's default when no include is sent; every other Records operation includes none, so the
@@ -195,6 +196,12 @@ func registerRecordsL2(a huma.API, d Deps) {
 				return nil, err
 			}
 			f := recordsListFilter(in)
+			f, none := listenerRecordFilter(ctx, f)
+			if none {
+				empty := &recordsOut{}
+				empty.Body.Items = []RecordSummary{}
+				return empty, nil
+			}
 			page, err := d.Records.List(ctx, f)
 			if err != nil {
 				return nil, m2bErr(err, taskV2)
@@ -232,6 +239,9 @@ func registerRecordsL2(a huma.API, d Deps) {
 				inc = slices.Clone(defaultRecordIncludes)
 			}
 			p := auth.FromContext(ctx)
+			if err := d.listenerRecord(ctx, in.ID); err != nil {
+				return nil, err
+			}
 			v, err := d.RecordView.Get(ctx, p, in.ID, recordview.GetOptions{Include: inc, ChangesLimit: in.ChangesLimit})
 			if err != nil {
 				return nil, m2bErr(err, taskV2)
@@ -299,6 +309,9 @@ func registerRecordsL2(a huma.API, d Deps) {
 	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *getRecordChangesIn) (*recordChangesOut, error) {
 			if err := records(); err != nil {
+				return nil, err
+			}
+			if err := d.listenerRecord(ctx, in.ID); err != nil {
 				return nil, err
 			}
 			page, err := d.Records.Changes(ctx, recordsChangeFilter(in))
@@ -379,4 +392,34 @@ func recordsSeqSpec(s *SequenceSpec) *records.SeqSpec {
 		return nil
 	}
 	return &records.SeqSpec{Strategy: s.Strategy, FirstSongID: s.FirstSongID, LastSongID: s.LastSongID}
+}
+
+// listenerRecord is the by-id gate of a Record for a Listener (C305): only a published, non-hidden Record exists for them, any
+// other id answers the 404 of a missing one. The Owner side passes without a read.
+func (d Deps) listenerRecord(ctx context.Context, id string) error {
+	if !view.FromContext(ctx).Listener() {
+		return nil
+	}
+	rec, err := d.Records.Get(ctx, id)
+	if err != nil {
+		return m2bErr(err, taskV2)
+	}
+	if rec.Status != records.StatusPublished || rec.HiddenAt != nil {
+		return Err(404, "NOT_FOUND", "record not found", map[string]any{"record_id": id})
+	}
+	return nil
+}
+
+// listenerRecordFilter narrows a Record list for a Listener to published, non-hidden Records (C305); none is true when the
+// request's own status filter cannot match one.
+func listenerRecordFilter(ctx context.Context, f records.ListFilter) (out records.ListFilter, none bool) {
+	if !view.FromContext(ctx).Listener() {
+		return f, false
+	}
+	f.IncludeHidden = false
+	if len(f.Statuses) > 0 && !slices.Contains(f.Statuses, records.StatusPublished) {
+		return f, true
+	}
+	f.Statuses = []records.Status{records.StatusPublished}
+	return f, false
 }

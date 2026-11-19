@@ -2878,7 +2878,7 @@ export interface components {
             layout_token: string;
             legend: components["schemas"]["LegendEntry"][];
             /** @description Muse ids only, for color_by=muse */
-            muses: string[];
+            muses?: string[];
             neighbors?: components["schemas"]["Neighbour"][] | null;
             next_cursor: string | null;
             pending: boolean;
@@ -2888,7 +2888,7 @@ export interface components {
             totals: components["schemas"]["Totals"];
         };
         AudioInfo: {
-            audio_md5: string;
+            audio_md5?: string;
             /**
              * Format: int64
              * @description Nominal (16) for a lossy master
@@ -2898,14 +2898,14 @@ export interface components {
             channels: number;
             /** Format: int64 */
             master_bytes: number;
-            master_sha256: string;
+            master_sha256?: string;
             /** @description MP3 rendition; null when missing */
             mp3: {
                 /** Format: int64 */
                 bytes: number;
                 /** Format: double */
                 gain_db: number;
-                sha256: string;
+                sha256?: string;
             } | null;
             /** Format: int64 */
             sample_rate: number;
@@ -3735,9 +3735,9 @@ export interface components {
             b: components["schemas"]["ComparisonSide"];
             blind_spots: string[];
             deltas: components["schemas"]["ComparisonDeltas"];
-            duels: components["schemas"]["PairStats"];
+            duels?: components["schemas"]["PairStats"];
             flags: components["schemas"]["FlagDiff"];
-            ladder: components["schemas"]["CompareLadder"];
+            ladder?: components["schemas"]["CompareLadder"];
             recipe_diff: components["schemas"]["RecipeDiff"];
             /** @enum {string} */
             relation: "siblings" | "parent_child" | "child_parent" | "same_lineage" | "unrelated";
@@ -3766,10 +3766,10 @@ export interface components {
             flags: string[];
             lossy: boolean;
             recipe_known: boolean;
-            request_id: string;
+            request_id?: string;
             root_track_id: string;
             /** Format: int64 */
-            seed: number;
+            seed?: number;
             /** @enum {string} */
             tier: "0" | "A";
             title: string;
@@ -3839,7 +3839,7 @@ export interface components {
                 [key: string]: unknown;
             };
             /** @description The Song's Muse (title, artist or brief up to 500 characters); null without a Muse */
-            muse: {
+            muse?: {
                 [key: string]: unknown;
             } | null;
             next_actions: string[];
@@ -3886,7 +3886,7 @@ export interface components {
             created_by: components["schemas"]["PrincipalRef"];
             description: string;
             /** @description A smart Crate's saved filter (mm.crate-filter/1); null for a manual one */
-            filter: {
+            filter?: {
                 [key: string]: unknown;
             } | null;
             hidden: boolean;
@@ -3923,7 +3923,7 @@ export interface components {
             created_by: components["schemas"]["PrincipalRef"];
             description: string;
             /** @description A smart Crate's saved filter (mm.crate-filter/1); null for a manual one */
-            filter: {
+            filter?: {
                 [key: string]: unknown;
             } | null;
             hidden: boolean;
@@ -5425,7 +5425,7 @@ export interface components {
         };
         LibraryModel: {
             /** Format: int64 */
-            muses: number;
+            muses?: number;
             /**
              * Format: int64
              * @description Entries waiting in the provenance queue
@@ -5443,11 +5443,11 @@ export interface components {
         Lineage: {
             /** Format: int64 */
             generation: number;
-            inferred: boolean | null;
-            operator: string | null;
+            inferred?: boolean | null;
+            operator?: string | null;
             parent_track_id: string | null;
             root_track_id: string;
-            rule: string | null;
+            rule?: string | null;
             siblings: components["schemas"]["Sibling"][];
         };
         LineageNode: {
@@ -5455,38 +5455,38 @@ export interface components {
             also_from: components["schemas"]["AlsoFrom"][];
             /** Format: int64 */
             children_count: number;
-            cost: {
+            cost?: {
                 /** @enum {string} */
                 basis: "estimate" | "provisional" | "reconciled";
                 /** Format: int64 */
-                display_micro_usd: number;
+                display_micro_usd?: number;
                 /** @description Exact decimal dollars */
-                display_usd: string;
+                display_usd?: string;
             } | null;
             created_at: string;
             /** Format: int64 */
-            critic_stars: number | null;
+            critic_stars?: number | null;
             cross_engine?: boolean;
             engine?: string;
             /** Format: int64 */
             generation: number;
             id: string;
             inferred: boolean;
-            job_id: string | null;
+            job_id?: string | null;
             lossy: boolean;
-            operator: string | null;
+            operator?: string | null;
             origin: string;
-            outcome: string | null;
+            outcome?: string | null;
             parent_id: string | null;
-            rationale: string | null;
+            rationale?: string | null;
             recipe_known: boolean;
             reference?: components["schemas"]["LineageReference"];
-            request_id: string;
+            request_id?: string;
             /**
              * Format: int64
              * @description null for a reference track (recipe unknown)
              */
-            seed: number | null;
+            seed?: number | null;
             /** Format: int64 */
             stars: number | null;
             status: string;
@@ -6322,15 +6322,15 @@ export interface components {
         PickView: {
             changed_at: string;
             /** @description mm.pick/1 evidence */
-            evidence: Record<string, never>;
+            evidence?: Record<string, never>;
             last_event_id: string;
             /** Format: int64 */
-            open_proposals: number;
+            open_proposals?: number;
             pending: boolean;
             pin_ineligible: boolean;
-            pinned_at: string | null;
-            pinned_by: components["schemas"]["PrincipalRef"];
-            pinned_take_id: string | null;
+            pinned_at?: string | null;
+            pinned_by?: components["schemas"]["PrincipalRef"];
+            pinned_take_id?: string | null;
             /** Format: int64 */
             seq: number;
             /** @enum {string} */
@@ -6717,9 +6717,9 @@ export interface components {
         };
         RecipeDiff: {
             /** @description seed, style, lyrics and/or cot */
-            changed: string[];
-            same_hash: boolean;
-            seed: components["schemas"]["SeedPair"];
+            changed?: string[];
+            same_hash?: boolean;
+            seed?: components["schemas"]["SeedPair"];
             style_terms: components["schemas"]["StyleTermDiff"];
         };
         RecipeEdit: {
@@ -6735,17 +6735,17 @@ export interface components {
         };
         RecipeInfo: {
             acestep?: components["schemas"]["RecipeACE"];
-            cot: string;
+            cot?: string;
             engine: string;
-            hash: string;
+            hash?: string;
             id: string;
             lyrics: string;
-            request_id: string;
+            request_id?: string;
             /** Format: int64 */
-            seed: number;
+            seed?: number;
             /** Format: int64 */
             sources_count: number;
-            style: string;
+            style?: string;
         };
         RecipeRef: {
             clip_sha256: string;
@@ -6775,8 +6775,8 @@ export interface components {
             hidden: boolean;
             id: string;
             /** @description The operator's own note, prepended to the generated liner notes */
-            liner_note: string;
-            proposal: {
+            liner_note?: string;
+            proposal?: {
                 /** @description RFC 3339 UTC */
                 at: string;
                 by: components["schemas"]["PrincipalRef"];
@@ -7104,7 +7104,7 @@ export interface components {
             id: string;
             recorded_at: string;
             /** Format: int64 */
-            seed: number;
+            seed?: number;
             title: string;
         };
         Slot: {
@@ -7214,7 +7214,7 @@ export interface components {
             } | null;
             warnings: string[];
             /** @description Why the Song's current Pick is what it is */
-            why: string | null;
+            why?: string | null;
         };
         SongChip: {
             /** @description Only when state is draft */
@@ -7236,13 +7236,13 @@ export interface components {
             angle_source: "reference" | "request_id" | "manual" | "cleared" | null;
             archived: boolean;
             created_at: string;
-            draft_id: string | null;
+            draft_id?: string | null;
             hidden: boolean;
             id: string;
             /** @enum {string} */
             origin: "draft" | "root";
             /** Format: int64 */
-            queued_jobs: number;
+            queued_jobs?: number;
             retired: boolean;
             retired_into: string | null;
             /** Format: int64 */
@@ -7262,7 +7262,7 @@ export interface components {
             group_key: string | null;
             id: string;
             label: string;
-            request_id: string;
+            request_id?: string;
             /** Format: int64 */
             revision: number;
             status: string;
@@ -7347,15 +7347,15 @@ export interface components {
         SongSummary: {
             angle: string | null;
             archived: boolean;
-            draft_id: string | null;
+            draft_id?: string | null;
             hidden: boolean;
             id: string;
-            muse_id: string | null;
+            muse_id?: string | null;
             /** Format: int64 */
-            open_proposals: number;
+            open_proposals?: number;
             pick: components["schemas"]["SongPickRef"];
             /** Format: int64 */
-            queued_jobs: number;
+            queued_jobs?: number;
             root_track_id: string | null;
             /** @enum {string} */
             state: "draft" | "rendered" | "judged" | "picked";
@@ -7366,8 +7366,8 @@ export interface components {
         };
         SongView: {
             crates: components["schemas"]["SongCrateRef"][];
-            draft: components["schemas"]["SongDraft"];
-            events: components["schemas"]["PickEvent"][];
+            draft?: components["schemas"]["SongDraft"];
+            events?: components["schemas"]["PickEvent"][];
             features: {
                 /** Format: double */
                 duration_ratio: number | null;
@@ -7378,12 +7378,12 @@ export interface components {
                 tempo: components["schemas"]["FeaturesTempo"];
             } | null;
             lineage: components["schemas"]["SongLineage"];
-            muse: components["schemas"]["MuseRef"];
+            muse?: components["schemas"]["MuseRef"];
             pending: boolean;
             pick: components["schemas"]["PickView"];
-            proposals: components["schemas"]["PickProposal"][];
+            proposals?: components["schemas"]["PickProposal"][];
             records: components["schemas"]["SongRecordRef"][];
-            sessions: components["schemas"]["SongSession"][];
+            sessions?: components["schemas"]["SongSession"][];
             song: components["schemas"]["SongCore"];
             sounds: components["schemas"]["SongSounds"];
             takes: components["schemas"]["TakeCard"][];
@@ -7526,7 +7526,7 @@ export interface components {
         };
         Stats: {
             backlog: components["schemas"]["BacklogStats"];
-            backups: components["schemas"]["BackupStatus"];
+            backups?: components["schemas"]["BackupStatus"];
             bandwidth: components["schemas"]["BandwidthStats"];
             breakdown: components["schemas"]["Breakdown"];
             /** @description Records, Crates, tapes and the two opt-ins; null when the curation services are absent */
@@ -7545,8 +7545,8 @@ export interface components {
             drafts_by_origin: {
                 [key: string]: number;
             };
-            generation: components["schemas"]["GenerationStats"];
-            imports: components["schemas"]["ImportStats"];
+            generation?: components["schemas"]["GenerationStats"];
+            imports?: components["schemas"]["ImportStats"];
             judgments: components["schemas"]["JudgmentCounters"];
             /** @description Songs, Muses and Sessions; null on a pre-L1 schema */
             library_model: components["schemas"]["LibraryModel"];
@@ -7554,7 +7554,7 @@ export interface components {
             /** Format: int64 */
             playlists: number;
             recipes: components["schemas"]["RecipeStats"];
-            storage: components["schemas"]["StorageStats"];
+            storage?: components["schemas"]["StorageStats"];
             tracks: components["schemas"]["TrackStats"];
         };
         StatusCount: {
@@ -7714,9 +7714,9 @@ export interface components {
             inherited: number;
         };
         TakeCard: {
-            cost_display_usd: string | null;
+            cost_display_usd?: string | null;
             /** Format: int64 */
-            critic_stars: number | null;
+            critic_stars?: number | null;
             /** Format: double */
             duration_s: number;
             /** @description Ears flag codes */
@@ -7726,7 +7726,7 @@ export interface components {
             has_ears: boolean;
             id: string;
             is_pick: boolean;
-            ladder: components["schemas"]["TakeLadder"];
+            ladder?: components["schemas"]["TakeLadder"];
             lossy: boolean;
             origin: string;
             parent_track_id: string | null;
@@ -7974,10 +7974,10 @@ export interface components {
         };
         TaxonomyVersion: {
             created_at: string;
-            created_by: components["schemas"]["PrincipalRef"];
+            created_by?: components["schemas"]["PrincipalRef"];
             /** @enum {string} */
             kind: "seed" | "extension";
-            note: string | null;
+            note?: string | null;
             seed_id: string | null;
             /** Format: int64 */
             version: number;
@@ -8098,20 +8098,20 @@ export interface components {
             /** Format: int64 */
             bpm_declared: number | null;
             /** Format: int64 */
-            comments: number;
+            comments?: number;
             created_at: string;
             /** Format: double */
             duration_s: number;
             /** @description How the take was generated; null for imported takes */
-            generation: {
+            generation?: {
                 batch_id: string;
-                cost: {
+                cost?: {
                     /** @enum {string} */
                     basis: "estimate" | "provisional" | "reconciled";
                     /** Format: int64 */
-                    display_micro_usd: number;
+                    display_micro_usd?: number;
                     /** @description Exact decimal dollars */
-                    display_usd: string;
+                    display_usd?: string;
                 } | null;
                 env: {
                     backend: string;
@@ -8134,17 +8134,17 @@ export interface components {
                 rationale: string | null;
             } | null;
             id: string;
-            import: components["schemas"]["ImportInfo"];
+            import?: components["schemas"]["ImportInfo"];
             lineage: components["schemas"]["Lineage"];
-            listening: components["schemas"]["ListeningStats"];
+            listening?: components["schemas"]["ListeningStats"];
             /** @description The master is an MP3; bits_per_sample is nominal and there is no lossless file */
             lossy: boolean;
             lrc?: components["schemas"]["LRCInfo"];
             /** Format: int64 */
-            open_comments: number;
+            open_comments?: number;
             /** @description import, job or transform */
             origin: string;
-            playlists: components["schemas"]["PlaylistRef"][];
+            playlists?: components["schemas"]["PlaylistRef"][];
             rating: components["schemas"]["TrackRating"];
             recipe: components["schemas"]["RecipeInfo"];
             /** @description false for a reference track: its recipe is a stub */
@@ -8168,13 +8168,13 @@ export interface components {
             song: {
                 angle: string | null;
                 id: string;
-                muse_id: string | null;
+                muse_id?: string | null;
                 /** @description How the Song's current Pick was chosen; null when it has none */
                 pick_source: string | null;
                 title: string;
             } | null;
             status: string;
-            status_set_by: string;
+            status_set_by?: string;
             stems?: components["schemas"]["StemInfo"][];
             style_terms: string[];
             tags: components["schemas"]["TagRef"][];
@@ -8220,7 +8220,7 @@ export interface components {
         TrackRating: {
             average?: components["schemas"]["RatingAverage"];
             /** @description The agent rating; null when none */
-            critic: {
+            critic?: {
                 by: components["schemas"]["PrincipalRef"];
                 /** Format: int64 */
                 stars: number | null;
@@ -8295,20 +8295,20 @@ export interface components {
             /** Format: int64 */
             children_count: number;
             /** Format: int64 */
-            comments: number;
+            comments?: number;
             /**
              * Format: int64
              * @description Cost of a generated take (reconciled, else provisional, else estimate); null for imported takes
              */
-            cost_display_micro_usd: number | null;
-            cost_display_usd: string | null;
+            cost_display_micro_usd?: number | null;
+            cost_display_usd?: string | null;
             /** @description RFC 3339 UTC */
             created_at: string;
             /**
              * Format: int64
              * @description The agent's stars
              */
-            critic_stars: number | null;
+            critic_stars?: number | null;
             /** Format: double */
             duration_s: number;
             engine: string;
@@ -8321,7 +8321,7 @@ export interface components {
             /** @description The master is an MP3; there is no lossless file */
             lossy: boolean;
             /** Format: int64 */
-            open_comments: number;
+            open_comments?: number;
             /** @description import, job or transform (a transform Take) */
             origin: string;
             parent_track_id: string | null;
@@ -8329,10 +8329,10 @@ export interface components {
             recipe_known: boolean;
             /** @description RFC 3339 UTC */
             recorded_at: string;
-            request_id: string;
+            request_id?: string;
             root_track_id: string;
             /** Format: int64 */
-            seed: number;
+            seed?: number;
             /** @description The Song's angle; null when unset or the take has no Song */
             song_angle: string | null;
             /** @description The Song this take belongs to; null before the Song exists or on a pre-L1 schema */

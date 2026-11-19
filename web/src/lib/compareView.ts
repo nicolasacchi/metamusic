@@ -54,20 +54,24 @@ export function compareView(c: Comparison) {
     relation: RELATIONS[c.relation],
     deltas: SPEC.map((s) => deltaRow(c.deltas, s)),
     flags: { onlyA: c.flags.only_a, onlyB: c.flags.only_b, both: c.flags.both },
+    // A Listener's comparison has no hash, seed, changed-field list, duels or ladder (C308.3): each is null here, never zero.
     recipe: {
-      sameHash: r.same_hash,
-      changed: r.changed,
-      seed: `${r.seed.a} → ${r.seed.b}`,
+      sameHash: r.same_hash ?? null,
+      changed: r.changed ?? null,
+      seed: r.seed ? `${r.seed.a} → ${r.seed.b}` : null,
       added: r.style_terms.added,
       removed: r.style_terms.removed,
     },
-    headToHead: {
-      human: `A-B-T-BB ${counts(c.duels.human)} (n=${c.duels.human.n})`,
-      blindN: c.duels.human_blind_n,
-      critic: `A-B-T-BB ${counts(c.duels.critic)} (n=${c.duels.critic.n})`,
-    },
-    ladderLine:
-      l.p_a_beats_b === null || !l.a || !l.b
+    headToHead: c.duels
+      ? {
+          human: `A-B-T-BB ${counts(c.duels.human)} (n=${c.duels.human.n})`,
+          blindN: c.duels.human_blind_n,
+          critic: `A-B-T-BB ${counts(c.duels.critic)} (n=${c.duels.critic.n})`,
+        }
+      : null,
+    ladderLine: !l
+      ? null
+      : l.p_a_beats_b === null || !l.a || !l.b
         ? "Not enough counted duels to compare on the ladder."
         : `P(A beats B) ${Math.round(l.p_a_beats_b * 100)}%${l.p_tie === null ? "" : `, P(tie) ${Math.round(l.p_tie * 100)}%`} (u ${l.a.u.toFixed(2)} vs ${l.b.u.toFixed(2)})`,
     blindSpots: c.blind_spots,
