@@ -5311,7 +5311,8 @@ export interface components {
         LRCLink: {
             /** Format: int64 */
             bytes: number;
-            sha256: string;
+            /** @description Absent for a Listener */
+            sha256?: string;
             url: string;
         };
         LadderCounts: {
@@ -5647,7 +5648,8 @@ export interface components {
             bytes: number;
             /** @example audio/mpeg */
             content_type: string;
-            sha256: string;
+            /** @description Absent for a Listener, whose link is the clean rendition (its own hash is in the URL) */
+            sha256?: string;
             /** @description Signed, relative URL; valid until expires_at */
             url: string;
         };
@@ -5729,7 +5731,8 @@ export interface components {
                 content_type: string;
                 /** Format: int64 */
                 sample_rate: number;
-                sha256: string;
+                /** @description Of the master; absent for a Listener, whose link is the clean rendition (its own hash is in the URL) */
+                sha256?: string;
                 /** @description Signed, relative URL; valid until expires_at */
                 url: string;
             } | null;

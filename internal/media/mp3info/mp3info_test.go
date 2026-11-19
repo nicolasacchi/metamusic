@@ -170,3 +170,29 @@ func TestMp3info_JunkBeyondWindow(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestSpan(t *testing.T) {
+	t.Parallel()
+	f := frame(t, 3, 9, 0, 0)
+	frames := stream(f, f, f)
+	trailer := append([]byte("TAG"), make([]byte, 125)...) // an ID3v1 tag
+	cases := []struct {
+		name       string
+		data       []byte
+		start, end int
+		err        error
+	}{
+		{"bare", frames, 0, len(frames), nil},
+		{"id3v2 header and id3v1 trailer", stream(id3(20, false), frames, trailer), 30, 30 + len(frames), nil},
+		{"junk before the first frame", stream([]byte{0x44, 0x44, 0x44}, frames), 3, 3 + len(frames), nil},
+		{"truncated last frame", stream(frames, f[:len(f)-1]), 0, len(frames), nil},
+		{"APE trailer", stream(frames, []byte("APETAGEX"), make([]byte, 40)), 0, len(frames), nil},
+		{"not mp3", bytes.Repeat([]byte{1}, 200), 0, 0, ErrNotMP3},
+	}
+	for _, c := range cases {
+		s, e, err := Span(bytes.NewReader(c.data), int64(len(c.data)))
+		if !errors.Is(err, c.err) || int(s) != c.start || int(e) != c.end {
+			t.Errorf("%s: got %d %d %v, want %d %d %v", c.name, s, e, err, c.start, c.end, c.err)
+		}
+	}
+}

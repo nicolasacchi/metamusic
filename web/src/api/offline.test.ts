@@ -344,6 +344,21 @@ describe("sync", () => {
     expect((await m2.localSource("t1"))?.format).toBe("mp3");
   });
 
+  test("links without a sha256 (a Listener's shape) are refused, never downloaded unverified", async () => {
+    const r = await rig();
+    const orig = r.deps.mediaLinks;
+    r.deps.mediaLinks = async (id) => {
+      const l = await orig(id);
+      return l && { ...l, flac: l.flac && { ...l.flac, sha256: undefined } };
+    };
+    r.set = { ...r.set, items: r.set.items.slice(0, 1) };
+    const m = createOfflineManager(r.deps);
+    const s = await m.sync();
+    expect(s.downloaded).toEqual([]);
+    expect(s.failed.length).toBe(1);
+    expect(r.fake.calls).toEqual([]);
+  });
+
   test("quota refusal stops the sync with a summary", async () => {
     const r = await rig();
     r.quota.quota = 1 * MiB;

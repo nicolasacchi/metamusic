@@ -127,3 +127,14 @@ func TestID3_Sanitises(t *testing.T) {
 		t.Errorf("TXXX %q", fr[len(fr)-1].Data)
 	}
 }
+
+func TestEncodeTitle(t *testing.T) {
+	t.Parallel()
+	got := EncodeTitle("A\x00B")
+	body := mkFrame("TIT2", []byte("\x03A B"))
+	want := append([]byte{'I', 'D', '3', 4, 0, 0}, synchsafe(len(body))...)
+	want = append(want, body...)
+	if !bytes.Equal(got, want) {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}

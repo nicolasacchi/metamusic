@@ -42,6 +42,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/ingest"
@@ -153,6 +154,7 @@ type Services struct {
 	Subsonic   *auth.SubsonicStore
 	Covers     *cover.Service
 	Downloads  *tagged.Service
+	Renditions *clean.Service
 	// L1 services (C87). Provenance is the Reconciler: serve runs its startup Settle and Run, mcp-stdio and the
 	// rigs never start it (rigs call Rig.Settle).
 	Muses      *muses.Service
@@ -277,7 +279,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	}
 	covers := cover.New(data, lib, now)
 	downloads := tagged.New(data, lib, covers, now)
-	resolvers = append(resolvers, m4aResolvers(covers, downloads)...)
+	renditions := clean.New(clean.Options{Store: st, Data: data, Now: now}) // a Listener's two audio renditions (C308.7), built on demand
+	resolvers = append(resolvers, m4aResolvers(covers, downloads, renditions)...)
 	aud := audit.NewStore(st, newID)
 	limiter := ratelimit.New(limits, now)
 
@@ -322,7 +325,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 
 	// M4a is built after L2 so the Subsonic handler can serve the Record albums (C126.7).
 	m4a := buildM4a(m4aInputs{cfg: cfg, sec: sec, st: st, data: data, lib: lib, judg: judg, pls: pls, listen: listen, audit: aud,
-		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, ctxb: ctxb,
+		limiter: limiter, notifier: notifier, now: now, newID: newID, rnd: o.Rand, version: o.Version, covers: covers, downloads: downloads, renditions: renditions, ctxb: ctxb,
 		albums: l2.Albums}, o.M4a)
 
 	s := &Services{
@@ -330,7 +333,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
 		Engines: e2.Engines, Backends: e2.Backends, Gates: e2.Gates, Adoption: e2.Adoption,
 		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
-		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads,
+		OIDC: m4a.OIDC, Connectors: m4a.Connectors, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Renditions: renditions,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
 		Board: l1.Board, Provenance: l1.Provenance,
 		Lineage: m3.Lineage, Spend: m3.Spend, Generation: m3.Generation, Jobs: m3.Jobs, Provider: m3.Provider, Uploads: m3.Uploads,
@@ -359,7 +362,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Duels: ds, Ears: media.Ears, Clips: media.Clips,
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds, Board: l1.Board,
 		Generation: m3.Generation, Spend: m3.Spend, Jobs: m3.Jobs, Provider: m3.Provider, Lineage: m3.Lineage, Songwriting: sw,
-		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
+		Connectors: m4a.Connectors, OIDC: m4a.OIDC, Subsonic: m4a.Subsonic, Covers: covers, Downloads: downloads, Renditions: renditions, Prompts: m4a.Prompts,
 		Records: l2.Records, RecordView: l2.RecordView, Crates: l2.Crates, Tapes: l2.Tapes, Curation: l2.Curation, Albums: l2.Albums,
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
 		Engines: e2.Engines, Backends: e2.Backends, Gates: e2.Gates, Adoption: e2.Adoption,
@@ -381,7 +384,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 		BaseContext: o.M3.Shutdown,
 		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
-		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Prompts: m4a.Prompts,
+		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Renditions: renditions, Prompts: m4a.Prompts,
 		StepUp: m4a.StepUp,
 	}
 	mediaRoute.set(s.Server.Media)

@@ -2,12 +2,16 @@ package subsonic
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/redact"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // Cache-Control of the media endpoints (C108.8): streams and downloads are revalidated, covers live a day.
@@ -75,10 +79,57 @@ func notFound(err error) bool {
 	return errors.Is(err, library.ErrNotFound) || errors.Is(err, serve.ErrNotFound) || errors.Is(err, library.ErrMediaUnavailable)
 }
 
+// listenerAudio serves a Listener client's stream or download (C308.6, D-U1-17): the client never receives the master,
+// only mp3_320_clean (default, format=mp3, a maxBitRate of 1 to 320) or flac_clean (raw, flac, original). A discarded
+// take is not found. The rendition is built on demand; a busy builder answers 503 with Retry-After.
+func (c *call) listenerAudio(row songRow, download bool) error {
+	cat, err := c.cat()
+	if err != nil {
+		return err
+	}
+	if err := library.Visible(c.ctx, cat.db, view.FromContext(c.ctx), row.ID); err != nil {
+		return c.mediaErr(err)
+	}
+	if c.s.rends == nil {
+		return fail(errGeneric, "service unavailable")
+	}
+	want, err := c.wantMP3()
+	if err != nil {
+		return err
+	}
+	kind := clean.KindFLAC
+	if want {
+		kind = clean.KindMP3
+	}
+	r, err := c.s.rends.Ensure(c.ctx, row.ID, kind)
+	var busy *clean.ErrBusy
+	switch {
+	case errors.As(err, &busy):
+		return &apiError{code: errGeneric, msg: "renditions are busy, retry shortly", status: http.StatusServiceUnavailable, retryAfter: busy.RetryAfter}
+	case errors.Is(err, library.ErrNotFound) || errors.Is(err, library.ErrMediaUnavailable):
+		return fail(errNotFound, "media not available")
+	case err != nil:
+		c.s.logger().Error("subsonic: listener rendition unavailable", "err", redact.Error(err))
+		return fail(errGeneric, "service unavailable")
+	}
+	obj := r.Object()
+	if download {
+		obj.DownloadName = r.Filename
+	} else {
+		c.s.play.streamed.put(playKey(c.principal.ID, row.ID), r.Ext)
+	}
+	c.binary = true
+	serve.ServeObject(c.w, c.r, c.s.o.Data, obj, cacheStream)
+	return nil
+}
+
 func (c *call) stream() error {
 	row, err := c.songParam("id")
 	if err != nil {
 		return err
+	}
+	if view.FromContext(c.ctx).Listener() {
+		return c.listenerAudio(row, false)
 	}
 	res, err := c.resolver()
 	if err != nil {
@@ -125,6 +176,9 @@ func (c *call) download() error {
 	row, err := c.songParam("id")
 	if err != nil {
 		return err
+	}
+	if view.FromContext(c.ctx).Listener() {
+		return c.listenerAudio(row, true)
 	}
 	var obj serve.Object
 	if row.Lossy {
