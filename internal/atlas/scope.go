@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // feat is the feature part of a scope row: the song_features columns the Atlas reads. A Song without a song_features row has
@@ -163,9 +164,20 @@ func attachFeatures(ctx context.Context, q queryer, rows []row, cols []string) e
 	if err := rs.Err(); err != nil {
 		return fmt.Errorf("atlas: features: %w", err)
 	}
+	// a Pick on a discarded take is no Pick for a Listener (C308.2)
+	pickHide := ""
+	if view.FromContext(ctx).HideDiscarded {
+		pickHide = " (take_id IS NULL OR take_id NOT IN (SELECT id FROM tracks WHERE status = 'discarded'))"
+	}
 	stmt, args = "SELECT song_id, source FROM song_picks", []any{}
-	if small {
+	switch {
+	case small:
 		stmt, args = stmt+" WHERE song_id IN (SELECT value FROM json_each(?))", []any{keys}
+		if pickHide != "" {
+			stmt += " AND" + pickHide
+		}
+	case pickHide != "":
+		stmt += " WHERE" + pickHide
 	}
 	ps, err := q.QueryContext(ctx, stmt, args...)
 	if err != nil {
@@ -206,6 +218,8 @@ type songState struct {
 // loadState reads the state inputs of every Song, one pass per table (the grouped reads touch each table once, whatever the
 // scope size).
 func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
+	hide := view.FromContext(ctx) // a Listener's state counts visible takes only (C308.2)
+	notDiscarded := hide.NotDiscarded("t")
 	out := map[string]*songState{}
 	at := func(id string) *songState {
 		if out[id] == nil {
@@ -235,7 +249,7 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 	}); err != nil {
 		return nil, err
 	}
-	if err := each("takes", `SELECT root_track_id, COUNT(*), MAX(status <> 'draft') FROM tracks GROUP BY root_track_id`, func(rs *sql.Rows) error {
+	if err := each("takes", `SELECT t.root_track_id, COUNT(*), MAX(t.status <> 'draft') FROM tracks t WHERE 1 = 1`+notDiscarded+` GROUP BY t.root_track_id`, func(rs *sql.Rows) error {
 		var root string
 		var n, nd int
 		if err := rs.Scan(&root, &n, &nd); err != nil {
@@ -251,7 +265,7 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 		return nil, err
 	}
 	if err := each("ratings", `SELECT DISTINCT r.song_id FROM owner_ratings g JOIN tracks t ON t.id = g.track_id JOIN song_roots r ON r.root_track_id = t.root_track_id
-		WHERE g.stars IS NOT NULL`, func(rs *sql.Rows) error {
+		WHERE g.stars IS NOT NULL`+notDiscarded, func(rs *sql.Rows) error {
 		var id string
 		err := rs.Scan(&id)
 		at(id).rated = true
@@ -260,7 +274,7 @@ func loadState(ctx context.Context, q queryer) (map[string]*songState, error) {
 		return nil, err
 	}
 	if err := each("duels", `SELECT DISTINCT r.song_id FROM duel_verdicts v JOIN duels d ON d.id = v.duel_id
-		JOIN tracks t ON t.id IN (d.slot_a_track_id, d.slot_b_track_id) JOIN song_roots r ON r.root_track_id = t.root_track_id WHERE v.source = 'human'`, func(rs *sql.Rows) error {
+		JOIN tracks t ON t.id IN (d.slot_a_track_id, d.slot_b_track_id) JOIN song_roots r ON r.root_track_id = t.root_track_id WHERE v.source = 'human'`+notDiscarded, func(rs *sql.Rows) error {
 		var id string
 		err := rs.Scan(&id)
 		at(id).dueled = true
@@ -306,7 +320,7 @@ func scope(ctx context.Context, q queryer, f songs.ListFilter, dim bool, limit i
 	hExpr := "1"
 	var hArgs []any
 	if dim {
-		base := songs.ListFilter{IncludeHidden: f.IncludeHidden, IncludeArchived: f.IncludeArchived}
+		base := songs.ListFilter{IncludeHidden: f.IncludeHidden, IncludeArchived: f.IncludeArchived, HideDiscarded: f.HideDiscarded}
 		var hw string
 		hw, hArgs = songs.FilterSQL(f, "")
 		where, args = songs.FilterSQL(base, "")
@@ -356,7 +370,11 @@ func scope(ctx context.Context, q queryer, f songs.ListFilter, dim bool, limit i
 
 // one reads a single Song as a scope row (for near_song_id outside the scope); ok is false for an unknown Song.
 func one(ctx context.Context, q queryer, id string, cols []string) (row, bool, error) {
-	r, err := scanRow(q.QueryRowContext(ctx, "SELECT s.id, s.title, s.muse_id, 1, s.created_at FROM songs s WHERE s.id = ?", id))
+	where := "s.id = ?"
+	if view.FromContext(ctx).HideDiscarded { // a Song that exists only through discarded takes is unknown to a Listener (C308.2)
+		where += " AND " + songs.AllDiscardedHidden
+	}
+	r, err := scanRow(q.QueryRowContext(ctx, "SELECT s.id, s.title, s.muse_id, 1, s.created_at FROM songs s WHERE "+where, id)) //nolint:gosec // G202: fixed fragments
 	if errors.Is(err, sql.ErrNoRows) {
 		return row{}, false, nil
 	}

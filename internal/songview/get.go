@@ -152,6 +152,20 @@ func (s *Service) Get(ctx context.Context, p auth.Principal, id string, o GetOpt
 		}
 		return View{}, err
 	}
+	hide := view.FromContext(ctx).HideDiscarded
+	if hide { // a Song that exists only through discarded takes is not there for this viewer (C308.2)
+		var gone bool
+		if err := s.st.R.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM take_songs WHERE song_id = ?)
+			AND NOT EXISTS (SELECT 1 FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = ? AND t.status <> 'discarded')`, row.ID, row.ID).Scan(&gone); err != nil {
+			return View{}, err
+		}
+		if gone {
+			return View{}, notFound(id, false)
+		}
+		if row.RootTrackID != nil && s.takeHidden(ctx, *row.RootTrackID) { // the primary root names a discarded take
+			row.RootTrackID = nil
+		}
+	}
 	v := View{Song: SongCore{
 		ID: row.ID, Title: row.Title, Angle: row.Angle, AngleSource: row.AngleSource, Origin: row.Origin, Revision: row.Revision,
 		Hidden: row.HiddenAt != nil, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, RootTrackID: row.RootTrackID, DraftID: row.DraftID,
@@ -192,7 +206,7 @@ func (s *Service) Get(ctx context.Context, p auth.Principal, id string, o GetOpt
 func (s *Service) state(ctx context.Context, c *SongCore) error {
 	var st string
 	var archived bool
-	err := s.st.R.QueryRowContext(ctx, `SELECT `+store.SongStateCase+`, st.queued_jobs, st.archived FROM (`+store.SongStateSQL+` WHERE s.id = ?) st`, c.ID).Scan(&st, &c.QueuedJobs, &archived)
+	err := s.st.R.QueryRowContext(ctx, `SELECT `+store.SongStateCase+`, st.queued_jobs, st.archived FROM (`+store.SongStateFor(view.FromContext(ctx).HideDiscarded)+` WHERE s.id = ?) st`, c.ID).Scan(&st, &c.QueuedJobs, &archived)
 	if err != nil {
 		return fmt.Errorf("songview: state: %w", err)
 	}
@@ -202,6 +216,7 @@ func (s *Service) state(ctx context.Context, c *SongCore) error {
 
 func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, events int) error {
 	r := s.st.R
+	hide := view.FromContext(ctx).HideDiscarded
 	// roots, primary first
 	rows, err := r.QueryContext(ctx, `SELECT root_track_id FROM song_roots WHERE song_id = ? ORDER BY root_track_id = ? DESC, root_track_id`, row.ID, row.RootTrackID)
 	if err != nil {
@@ -212,6 +227,9 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 		if err := rows.Scan(&id); err != nil {
 			_ = rows.Close()
 			return err
+		}
+		if hide && s.takeHidden(ctx, id) { // a root that is itself discarded is not named
+			continue
 		}
 		v.Song.RootTrackIDs = append(v.Song.RootTrackIDs, id)
 	}
@@ -238,7 +256,7 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 	if err != nil {
 		return err
 	}
-	if pick != nil && view.FromContext(ctx).HideDiscarded { // a Pick that points at a discarded take shows no take (C308.2)
+	if pick != nil && hide { // a Pick that points at a discarded take shows no take (C308.2)
 		hide := func(id **string) {
 			if *id != nil && s.takeHidden(ctx, **id) {
 				*id = nil
@@ -337,7 +355,7 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 	if err := s.sessionRefs(ctx, v, row); err != nil {
 		return err
 	}
-	if len(v.Song.RootTrackIDs) > 0 && row.RootTrackID != nil {
+	if len(v.Song.RootTrackIDs) > 0 && row.RootTrackID != nil { // row.RootTrackID is nil for a viewer when the root is discarded
 		var l LineageBlock
 		l.RootTrackID = *row.RootTrackID
 		var maxGen sql.NullInt64

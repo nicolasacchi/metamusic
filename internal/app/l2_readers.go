@@ -15,6 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/recordview"
 	"github.com/nicolasacchi/metamusic/internal/store"
 	"github.com/nicolasacchi/metamusic/internal/tape"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // The batch readers of recordview (C124.2, lane V2): each answers any number of ids in one statement (TestBatchReaders_OneStatement).
@@ -105,7 +106,7 @@ func (r l2Readers) Briefs(ctx context.Context, songIDs []string) (map[string]rec
 	rows, err := r.st.R.QueryContext(ctx, `SELECT s.id, s.title, s.angle, s.muse_id, `+store.SongStateCase+`, s.retired_at IS NOT NULL, s.retired_into,
 		s.hidden_at IS NOT NULL, COALESCE(s.root_track_id, ''), COALESCE(rc.seed, 0), s.draft_id, COALESCE(rc.engine, ''),
 		(SELECT ss.detail_json FROM song_sounds ss WHERE ss.song_id = s.id AND ss.facet = 'tempo_band' LIMIT 1)
-		FROM (`+store.SongStateSQL+` WHERE s.id IN (`+ph+`)) st
+		FROM (`+store.SongStateFor(view.FromContext(ctx).HideDiscarded)+` WHERE s.id IN (`+ph+`)) st
 		JOIN songs s ON s.id = st.song_id LEFT JOIN tracks t ON t.id = s.root_track_id LEFT JOIN recipes rc ON rc.id = t.recipe_id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("briefs of songs: %w", err)

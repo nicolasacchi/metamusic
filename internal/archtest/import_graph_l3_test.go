@@ -38,7 +38,7 @@ var l3Imports = map[string][]string{
 	"internal/sequencer":   {},
 	"internal/sequence":    {"store", "sequencer", "problem"},
 	"internal/nextactions": {"store", "auth", "muses", "songview", "sounds", "songs", "problem"},
-	"internal/atlas":       {"store", "songs", "sequencer", "textfold", "problem"},
+	"internal/atlas":       {"store", "songs", "sequencer", "textfold", "problem", "view"},
 }
 
 // l3Packages are the packages the plan announces; the table may name them before they exist.

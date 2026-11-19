@@ -39,7 +39,7 @@ func ParseSoundFilters(sel []string) (map[string][]string, error) {
 }
 
 // stateSub is the uncorrelated Song state table every state-derived clause selects from (C90.4).
-const stateSub = `(` + store.SongStateSQL + `) st`
+func stateSub(f ListFilter) string { return `(` + store.SongStateFor(f.HideDiscarded) + `) st` }
 
 // likeEscape escapes LIKE wildcards so a title substring is literal.
 func likeEscape(s string) string {
@@ -59,6 +59,9 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		args = append(args, a...)
 	}
 	c = append(c, "s.retired_at IS NULL")
+	if f.HideDiscarded { // a Song whose takes are all discarded does not exist for this viewer (C308.2)
+		c = append(c, AllDiscardedHidden)
+	}
 	if f.None {
 		c = append(c, "0 = 1")
 	}
@@ -66,7 +69,7 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		c = append(c, "s.hidden_at IS NULL")
 	}
 	if !f.IncludeArchived {
-		c = append(c, "s.id NOT IN (SELECT st.song_id FROM "+stateSub+" WHERE st.archived = 1)")
+		c = append(c, "s.id NOT IN (SELECT st.song_id FROM "+stateSub(f)+" WHERE st.archived = 1)")
 	}
 	if f.MuseID != "" {
 		add("s.muse_id = ?", f.MuseID)
@@ -82,14 +85,14 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 		for _, s := range f.States {
 			vals = append(vals, string(s))
 		}
-		add("s.id IN (SELECT st.song_id FROM "+stateSub+" WHERE "+store.SongStateCase+" IN ("+placeholders(len(vals))+"))", vals...)
+		add("s.id IN (SELECT st.song_id FROM "+stateSub(f)+" WHERE "+store.SongStateCase+" IN ("+placeholders(len(vals))+"))", vals...)
 	}
 	if f.Queued != nil {
 		neg := ""
 		if !*f.Queued {
 			neg = "NOT "
 		}
-		c = append(c, "s.id "+neg+"IN (SELECT st.song_id FROM "+stateSub+" WHERE st.queued_jobs > 0)")
+		c = append(c, "s.id "+neg+"IN (SELECT st.song_id FROM "+stateSub(f)+" WHERE st.queued_jobs > 0)")
 	}
 	if f.SessionID != "" {
 		add(`s.id IN (SELECT ts.song_id FROM session_members m JOIN take_songs ts ON ts.track_id = m.member_id
@@ -155,6 +158,11 @@ func FilterSQL(f ListFilter, excludeFacet string) (where string, args []any) {
 	}
 	return strings.Join(c, " AND "), args
 }
+
+// AllDiscardedHidden (alias s) keeps a Song with no take (a draft) and a Song with a visible take; it drops a Song that has takes
+// and no visible one, so a Listener cannot list, count or plot a Song that exists only through discarded takes.
+const AllDiscardedHidden = `(NOT EXISTS (SELECT 1 FROM take_songs hs WHERE hs.song_id = s.id)
+	OR EXISTS (SELECT 1 FROM take_songs hs JOIN tracks ht ON ht.id = hs.track_id WHERE hs.song_id = s.id AND ht.status <> 'discarded'))`
 
 // subjectTake is the SQL expression of a Song's subject take (C125.3): its Pick take, else its newest eligible take
 // (D-L1-14's representative without the draft fallback). NULL for a Song with no take.

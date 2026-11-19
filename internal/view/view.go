@@ -60,3 +60,25 @@ func (v Viewer) NotDiscardedBy(col string) string {
 	}
 	return " AND " + col + " NOT IN (SELECT id FROM tracks WHERE status = 'discarded')"
 }
+
+// ListenerBannedFilters is the C308.3b list of filters that are boolean oracles on hidden data, refused for a Listener
+// (422 FILTER_NOT_ALLOWED). The order is fixed so a refusal names the first one deterministically. color_by names the
+// Atlas overlay (muse); the others are query or saved-filter keys.
+var ListenerBannedFilters = []string{
+	"has_open_comments", "session_id", "has_open_proposals", "queued", "draft_id", "angle", "origin", "engine",
+	"root_track_id", "lyrics_of", "muse_id", "unheard", "color_by",
+}
+
+// BannedFilterKey reports whether a saved or requested filter key is on the Listener ban list, and under which name
+// (no_muse is the Muse filter's other spelling).
+func BannedFilterKey(key string) (string, bool) {
+	if key == "no_muse" {
+		key = "muse_id"
+	}
+	for _, b := range ListenerBannedFilters {
+		if b == key {
+			return b, true
+		}
+	}
+	return "", false
+}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
-	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 const (
@@ -43,6 +42,11 @@ const SummaryColumns = `s.id, s.title, s.angle, s.muse_id, s.draft_id, s.root_tr
 
 // SummaryFrom is the FROM clause SummaryColumns needs.
 const SummaryFrom = `FROM songs s JOIN (` + store.SongStateSQL + `) st ON st.song_id = s.id LEFT JOIN song_picks p ON p.song_id = s.id`
+
+// SummaryFromFor is SummaryFrom with the state table of the viewer: a Listener's is computed over visible takes only.
+func SummaryFromFor(hideDiscarded bool) string {
+	return `FROM songs s JOIN (` + store.SongStateFor(hideDiscarded) + `) st ON st.song_id = s.id LEFT JOIN song_picks p ON p.song_id = s.id`
+}
 
 // ScanSummary reads one row of SummaryColumns; extra receives further columns scanned after them.
 func ScanSummary(r interface{ Scan(...any) error }, extra ...any) (Summary, error) {
@@ -78,7 +82,8 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	if limit > 100 {
 		limit = 100
 	}
-	where, args := FilterSQL(f.WithViewer(ctx, s.st), "")
+	f = f.WithViewer(ctx, s.st)
+	where, args := FilterSQL(f, "")
 	var page Page
 	var cur cursor
 	if f.Cursor != "" {
@@ -114,7 +119,7 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	if len(pageIDs) == 0 {
 		return page, nil
 	}
-	rows, err := s.st.R.QueryContext(ctx, `SELECT `+SummaryColumns+`, s.created_at `+SummaryFrom+` WHERE s.id IN (`+placeholders(len(pageIDs))+`) ORDER BY s.created_at DESC, s.id DESC`, pageIDs...) //nolint:gosec // G202: fragments are fixed strings built in this function
+	rows, err := s.st.R.QueryContext(ctx, `SELECT `+SummaryColumns+`, s.created_at `+SummaryFromFor(f.HideDiscarded)+` WHERE s.id IN (`+placeholders(len(pageIDs))+`) ORDER BY s.created_at DESC, s.id DESC`, pageIDs...) //nolint:gosec // G202: fragments are fixed strings built in this function
 	if err != nil {
 		return Page{}, fmt.Errorf("songs: list: %w", err)
 	}
@@ -144,8 +149,8 @@ func (s *Service) List(ctx context.Context, f ListFilter) (Page, error) {
 	if err := rows.Err(); err != nil {
 		return Page{}, err
 	}
-	if view.FromContext(ctx).HideDiscarded {
-		if err := s.visibleTakeCounts(ctx, page.Items); err != nil {
+	if f.HideDiscarded { // the state table already counted visible takes only; a Pick or root that is itself discarded goes
+		if err := s.hideDiscardedRefs(ctx, page.Items); err != nil {
 			return Page{}, err
 		}
 	}
@@ -166,37 +171,52 @@ func (s *Service) Count(ctx context.Context, f ListFilter) (int, error) {
 	return n, nil
 }
 
-// visibleTakeCounts replaces Takes by the number of takes the viewer may see: a count that included discarded takes
-// would reveal them (C308.2).
-func (s *Service) visibleTakeCounts(ctx context.Context, items []Summary) error {
-	if len(items) == 0 {
+// hideDiscardedRefs removes from each Summary what names a discarded take: a Pick on one shows no take (C308.2) and a
+// root take that is discarded is not named (root_track_id is null), so no Song field points at a take the viewer cannot read.
+func (s *Service) hideDiscardedRefs(ctx context.Context, items []Summary) error {
+	var ids []any
+	seen := map[string]bool{}
+	add := func(id string) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	for _, it := range items {
+		if it.Pick != nil {
+			add(it.Pick.TakeID)
+		}
+		if it.RootTrackID != nil {
+			add(*it.RootTrackID)
+		}
+	}
+	if len(ids) == 0 {
 		return nil
 	}
-	ids := make([]any, len(items))
-	for i, it := range items {
-		ids[i] = it.ID
-	}
 	//nolint:gosec // G202: only "?" placeholders are concatenated
-	rows, err := s.st.R.QueryContext(ctx, `SELECT ts.song_id, COUNT(*) FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
-		WHERE t.status <> 'discarded' AND ts.song_id IN (`+placeholders(len(ids))+`) GROUP BY ts.song_id`, ids...)
+	rows, err := s.st.R.QueryContext(ctx, `SELECT id FROM tracks WHERE status = 'discarded' AND id IN (`+placeholders(len(ids))+`)`, ids...)
 	if err != nil {
-		return fmt.Errorf("songs: visible takes: %w", err)
+		return fmt.Errorf("songs: discarded refs: %w", err)
 	}
 	defer rows.Close()
-	n := map[string]int{}
+	gone := map[string]bool{}
 	for rows.Next() {
 		var id string
-		var c int
-		if err := rows.Scan(&id, &c); err != nil {
+		if err := rows.Scan(&id); err != nil {
 			return err
 		}
-		n[id] = c
+		gone[id] = true
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	for i := range items {
-		items[i].Takes = n[items[i].ID]
+		if items[i].Pick != nil && gone[items[i].Pick.TakeID] {
+			items[i].Pick = nil
+		}
+		if items[i].RootTrackID != nil && gone[*items[i].RootTrackID] {
+			items[i].RootTrackID = nil
+		}
 	}
 	return nil
 }
