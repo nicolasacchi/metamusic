@@ -186,7 +186,7 @@ type StemLink struct {
 type LRCLink struct {
 	URL    string `json:"url"`
 	Bytes  int64  `json:"bytes"`
-	SHA256 string `json:"sha256"`
+	SHA256 string `json:"sha256,omitempty" doc:"Absent for a Listener"`
 }
 
 // ---- error codes (C149.2, C151, C153, C158) ----

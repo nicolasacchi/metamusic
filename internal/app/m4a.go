@@ -17,6 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
@@ -47,6 +48,7 @@ type m4aServices struct {
 	Subsonic        *auth.SubsonicStore
 	Covers          *cover.Service
 	Downloads       *tagged.Service
+	Renditions      *clean.Service
 	PRM             http.Handler
 	SubsonicHandler http.Handler
 	Prompts         prompts.Sources
@@ -54,25 +56,26 @@ type m4aServices struct {
 }
 
 type m4aInputs struct {
-	cfg       config.Config
-	sec       config.Secrets
-	st        *store.Store
-	data      *os.Root
-	lib       *library.Service
-	judg      *judgments.Service
-	pls       *playlists.Service
-	listen    *listening.Service
-	audit     *audit.Store
-	limiter   *ratelimit.Limiter
-	notifier  notify.Notifier
-	now       func() time.Time
-	newID     func() string
-	rnd       io.Reader
-	version   string
-	covers    *cover.Service
-	downloads *tagged.Service
-	ctxb      *trackctx.Builder
-	albums    *albums.Service // the Record albums the Subsonic server lists (L2 C126.7)
+	cfg        config.Config
+	sec        config.Secrets
+	st         *store.Store
+	data       *os.Root
+	lib        *library.Service
+	judg       *judgments.Service
+	pls        *playlists.Service
+	listen     *listening.Service
+	audit      *audit.Store
+	limiter    *ratelimit.Limiter
+	notifier   notify.Notifier
+	now        func() time.Time
+	newID      func() string
+	rnd        io.Reader
+	version    string
+	covers     *cover.Service
+	downloads  *tagged.Service
+	renditions *clean.Service
+	ctxb       *trackctx.Builder
+	albums     *albums.Service // the Record albums the Subsonic server lists (L2 C126.7)
 }
 
 // oidcHTTPClient is the production client of the OIDC verifier: 5 s timeout, redirects refused (C114).
@@ -92,6 +95,7 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 		Subsonic:   auth.NewSubsonicStore(in.st, in.sec.Key, in.now, in.newID, in.rnd),
 		Covers:     in.covers,
 		Downloads:  in.downloads,
+		Renditions: in.renditions,
 		PRM:        connectors.PRMHandler(in.cfg),
 		Prompts:    api.NewPromptSources(in.lib, in.ctxb, in.listen),
 	}
@@ -126,13 +130,13 @@ func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 	}
 	m.SubsonicHandler = subsonic.NewHandler(subsonic.Options{
 		Cfg: in.cfg, Version: in.version, Store: in.st, Data: in.data, Lib: in.lib, Judgments: in.judg, Playlists: in.pls,
-		Listening: in.listen, Covers: in.covers, Albums: in.albums, Downloads: in.downloads, Creds: m.Subsonic, Audit: in.audit, Limiter: in.limiter,
+		Listening: in.listen, Covers: in.covers, Albums: in.albums, Downloads: in.downloads, Renditions: in.renditions, Creds: m.Subsonic, Audit: in.audit, Limiter: in.limiter,
 		Now: in.now, Sleep: o.SubsonicSleep,
 	})
 	return m
 }
 
 // m4aResolvers are the resolvers M4a appends to the media chain after library, exports and clips (C110.3).
-func m4aResolvers(covers *cover.Service, downloads *tagged.Service) []mediaserve.Resolver {
-	return []mediaserve.Resolver{covers, downloads}
+func m4aResolvers(covers *cover.Service, downloads *tagged.Service, renditions *clean.Service) []mediaserve.Resolver {
+	return []mediaserve.Resolver{covers, downloads, renditions}
 }

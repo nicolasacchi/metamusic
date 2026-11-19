@@ -58,6 +58,9 @@ func registerMedia(a huma.API, d Deps) {
 			if err := d.visible(ctx, in.ID); err != nil {
 				return nil, err
 			}
+			if isListener(ctx) { // never the master, its hash or its tags (D-U1-17)
+				return d.listenerMediaLinks(ctx, in.ID)
+			}
 			m, err := d.Library.Media(ctx, in.ID)
 			if err != nil {
 				return nil, libErr(err)

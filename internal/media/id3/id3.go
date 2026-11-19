@@ -70,3 +70,13 @@ func Encode(t Tag) []byte {
 	out = append(out, synchsafe(body.Len())...)
 	return append(out, body.Bytes()...)
 }
+
+// EncodeTitle returns an ID3v2.4 tag with the single frame TIT2 (UTF-8). It is the only metadata a Listener's MP3
+// rendition carries (C308.7).
+func EncodeTitle(title string) []byte {
+	body := textFrame("TIT2", title)
+	out := make([]byte, 0, 10+len(body))
+	out = append(out, 'I', 'D', '3', 4, 0, 0)
+	out = append(out, synchsafe(len(body))...)
+	return append(out, body...)
+}

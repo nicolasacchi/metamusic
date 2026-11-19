@@ -15,6 +15,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
@@ -210,6 +211,11 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 		}
 		bad += n
 	}
+	nr, err := verifyRenditions(ctx, st, getenv, s.out) // the Listener renditions (C308.8)
+	if err != nil {
+		return fatal(err)
+	}
+	bad += nr
 	if err := printOrphanRaters(ctx, st, getenv, s.out); err != nil { // a warning, never counted (C301.10)
 		return fatal(err)
 	}
@@ -220,6 +226,33 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 		fmt.Fprintln(s.out, "library model: consistent")
 	}
 	return nil
+}
+
+// verifyRenditions checks every mp3_320_clean and flac_clean row against its file (C308.8): hash, the metadata allow-list
+// (no MM_* key) and for flac_clean the STREAMINFO MD5 of the master. A missing file is a warning (the next Listener request
+// rebuilds it); a leak or mismatch is an error, and its file is removed so it is never served until rebuilt. The row stays
+// (renditions has no physical delete; a row without its file is rebuilt on demand). No master is ever written.
+func verifyRenditions(ctx context.Context, st *store.Store, getenv func(string) string, out io.Writer) (errors int, err error) {
+	cfg, err := config.LoadOffline(getenv)
+	if err != nil {
+		return 0, err
+	}
+	root, err := os.OpenRoot(cfg.DataDir)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = root.Close() }()
+	fs, err := clean.Verify(ctx, st.R, root, true)
+	if err != nil {
+		return 0, err
+	}
+	for _, f := range fs {
+		fmt.Fprintf(out, "%s %s %s %s\n", f.Severity, f.Code, f.Subject, f.Detail)
+		if f.Severity == "error" {
+			errors++
+		}
+	}
+	return errors, nil
 }
 
 // orphanRaters lists the human raters whose name is no longer in the configured user map (D-U1-4, C301.10).

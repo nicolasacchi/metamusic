@@ -22,6 +22,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
@@ -42,26 +43,33 @@ type DownloadSource interface {
 	Ensure(ctx context.Context, trackID string) (tagged.Download, error)
 }
 
+// RenditionSource builds the clean audio renditions a Listener's client receives (C308.6, C308.7); *clean.Service in
+// production, fakes in lane tests.
+type RenditionSource interface {
+	Ensure(ctx context.Context, trackID, kind string) (clean.Rendition, error)
+}
+
 // Options are the handler's collaborators (C108).
 type Options struct {
-	Cfg       config.Config
-	Version   string       // serverVersion
-	Store     *store.Store // read pool for catalog SQL (C109.1)
-	Data      *os.Root
-	Lib       *library.Service
-	Judgments *judgments.Service
-	Playlists *playlists.Service
-	Listening *listening.Service
-	Covers    CoverSource
-	Albums    *albums.Service // Record albums (L2 C126.7); nil => lineage albums only
-	Downloads DownloadSource
-	Creds     *auth.SubsonicStore
-	Audit     *audit.Store
-	Limiter   *ratelimit.Limiter
-	Now       func() time.Time
-	Rand      func() uint64 // getRandomSongs / getAlbumList type=random; tests inject a fixed sequence
-	FailDelay time.Duration // default 1 s
-	Sleep     func(ctx context.Context, d time.Duration) error
+	Cfg        config.Config
+	Version    string       // serverVersion
+	Store      *store.Store // read pool for catalog SQL (C109.1)
+	Data       *os.Root
+	Lib        *library.Service
+	Judgments  *judgments.Service
+	Playlists  *playlists.Service
+	Listening  *listening.Service
+	Covers     CoverSource
+	Albums     *albums.Service // Record albums (L2 C126.7); nil => lineage albums only
+	Downloads  DownloadSource
+	Renditions RenditionSource // nil => a Listener client gets "service unavailable" for audio, never the master
+	Creds      *auth.SubsonicStore
+	Audit      *audit.Store
+	Limiter    *ratelimit.Limiter
+	Now        func() time.Time
+	Rand       func() uint64 // getRandomSongs / getAlbumList type=random; tests inject a fixed sequence
+	FailDelay  time.Duration // default 1 s
+	Sleep      func(ctx context.Context, d time.Duration) error
 }
 
 // limiter is the part of *ratelimit.Limiter the handler uses (an interface so tests can spy on the call order).
@@ -105,6 +113,7 @@ type server struct {
 	resolve mediaResolver
 	covers  CoverSource
 	dls     DownloadSource
+	rends   RenditionSource
 	play    *playState
 	alb     albumSource // nil => no Record albums
 	stamp   recStamp
@@ -158,6 +167,9 @@ func newServer(o Options) *server {
 	}
 	if o.Downloads != nil {
 		s.dls = o.Downloads
+	}
+	if o.Renditions != nil {
+		s.rends = o.Renditions
 	}
 	if o.Albums != nil {
 		s.alb = o.Albums

@@ -84,6 +84,12 @@ func parseHeader(b []byte) (h header, ok bool) {
 // consecutive valid layer III frame headers within the next 64 KiB (resync
 // allowed over junk). It reads at most 128 KiB.
 func Parse(r io.ReaderAt, size int64) (Info, error) {
+	info, _, err := locate(r, size)
+	return info, err
+}
+
+// locate is Parse that also returns the offset of the first frame header.
+func locate(r io.ReaderAt, size int64) (Info, int64, error) {
 	off := int64(0)
 	var tag [10]byte
 	if n, _ := r.ReadAt(tag[:], 0); n == len(tag) && string(tag[:3]) == "ID3" &&
@@ -94,7 +100,7 @@ func Parse(r io.ReaderAt, size int64) (Info, error) {
 		}
 	}
 	if off >= size {
-		return Info{}, ErrNotMP3
+		return Info{}, 0, ErrNotMP3
 	}
 	want := int64(resyncWindow + maxFrame + 4)
 	if rest := size - off; rest < want {
@@ -103,7 +109,7 @@ func Parse(r io.ReaderAt, size int64) (Info, error) {
 	buf := make([]byte, want)
 	n, err := r.ReadAt(buf, off)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return Info{}, err
+		return Info{}, 0, err
 	}
 	buf = buf[:n]
 	for i := 0; i < len(buf) && i < resyncWindow; i++ {
@@ -122,7 +128,41 @@ func Parse(r io.ReaderAt, size int64) (Info, error) {
 		if !ok || h2.version != h.version || h2.SampleRate != h.SampleRate {
 			continue
 		}
-		return h.Info, nil
+		return h.Info, off + int64(i), nil
 	}
-	return Info{}, ErrNotMP3
+	return Info{}, 0, ErrNotMP3
+}
+
+// Span returns the byte range [start, end) of the MPEG audio frames of a stream: from the first valid frame after the
+// ID3v2 tag to the end of the last whole frame of the same version and sample rate. An ID3v1, APE or other trailer, a
+// truncated last frame and every leading tag are outside the range, so copying it yields audio with no metadata
+// (a Listener's rendition is built from it, C308.7). The input is read in 4-byte header probes, never decoded.
+func Span(r io.ReaderAt, size int64) (start, end int64, err error) {
+	first, start, err := locate(r, size)
+	if err != nil {
+		return 0, 0, err
+	}
+	var hdr [4]byte
+	pos := start
+	for pos+4 <= size {
+		if n, _ := r.ReadAt(hdr[:], pos); n < 4 {
+			break
+		}
+		h, ok := parseHeader(hdr[:])
+		if !ok || h.version != versionOf(first.MPEGVersion) || h.SampleRate != first.SampleRate || pos+int64(h.frameLen) > size {
+			break
+		}
+		pos += int64(h.frameLen)
+	}
+	return start, pos, nil
+}
+
+func versionOf(s string) int {
+	switch s {
+	case "1":
+		return 1
+	case "2.5":
+		return 25
+	}
+	return 2
 }

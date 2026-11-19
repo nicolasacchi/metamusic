@@ -768,3 +768,31 @@ func TestBackup_FailureNotifies(t *testing.T) {
 		}
 	}
 }
+
+// TestBackup_ExcludesCleanRenditions: a Listener's clean renditions are derived and rebuilt on demand (C308.8), so a
+// snapshot neither lists them nor fails when verify removed the file under a row.
+func TestBackup_ExcludesCleanRenditions(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	_, before, _ := e.run(t)
+	var track string
+	if err := e.st.R.QueryRow(`SELECT track_id FROM renditions WHERE kind = 'mp3_320' LIMIT 1`).Scan(&track); err != nil {
+		t.Fatal(err)
+	}
+	for i, kind := range []string{"mp3_320_clean", "flac_clean"} {
+		rel := fmt.Sprintf("derived/ee/%064d.x", i) // the file does not exist: the row is stale
+		if _, err := e.st.W.Exec(`INSERT INTO renditions(track_id, kind, sha256, bytes, path, params_json, created_at) VALUES (?,?,?,?,?,'{}',?)`,
+			track, kind, fmt.Sprintf("%064d", i), 1, rel, lt.FixedNow.Format(time.RFC3339)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, after, _ := e.run(t)
+	if mediaKinds(after) != mediaKinds(before) {
+		t.Errorf("media files %d, want %d", mediaKinds(after), mediaKinds(before))
+	}
+	for _, f := range after.Files {
+		if strings.HasPrefix(f.Path, "derived/ee/") {
+			t.Errorf("unexpected %s", f.Path)
+		}
+	}
+}

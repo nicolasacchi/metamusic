@@ -41,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/listening"
+	"github.com/nicolasacchi/metamusic/internal/media/clean"
 	"github.com/nicolasacchi/metamusic/internal/media/clip"
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
@@ -184,6 +185,7 @@ type Options struct {
 	SubsonicStore  *auth.SubsonicStore
 	Covers         *cover.Service
 	Downloads      *tagged.Service
+	Renditions     *clean.Service
 	Prompts        prompts.Sources
 	// BaseContext is the server's base context: when it ends (shutdown starts) every request context's
 	// reqinfo.ShutdownDone fires, so long-polls return and the 30 s drain does not wait on them (C75.8).
@@ -220,7 +222,7 @@ func New(o Options) (http.Handler, error) {
 		Duels: o.Duels, Ears: o.Ears, Clips: o.Clips,
 		Generation: o.Generation, Spend: o.Spend, Jobs: o.Jobs, Provider: o.Provider, Lineage: o.Lineage, Songwriting: o.Songwriting,
 		Muses: o.Muses, Songs: o.Songs, SongView: o.SongView, Sessions: o.LibSessions, Picks: o.Picks, Sounds: o.Sounds, Board: o.Board,
-		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Prompts: o.Prompts,
+		Connectors: o.ConnectorStore, OIDC: o.OIDC, Subsonic: o.SubsonicStore, Covers: o.Covers, Downloads: o.Downloads, Renditions: o.Renditions, Prompts: o.Prompts,
 		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
 		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform,
 		Engines: o.Engines, Backends: o.Backends, Gates: o.Gates, Adoption: o.Adoption,
