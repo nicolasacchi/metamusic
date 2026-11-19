@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -199,4 +200,34 @@ func TestRelaxResponseSchemas(t *testing.T) {
 	relaxWhere(reg, map[string]bool{}, loop, view.MoneyKey, map[*huma.Schema]bool{})
 	markComponents(reg, loop, map[string]bool{}, map[*huma.Schema]bool{})
 	relaxPath(reg, map[string]bool{}, nil, []string{"a"}, 0)
+}
+
+// TestRulesForEditorWritesAndRecipeSources pins the review fixes: the write-scope ops an Editor reaches that return money
+// shed it, and a Listener's get_track names neither the source take of an edit recipe nor its master or clip hash.
+func TestRulesForEditorWritesAndRecipeSources(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"update_track", "create_playlist", "update_playlist"} {
+		if r := rulesFor(id, Meta{Scope: auth.ScopeWrite}); !r.MoneyKeys {
+			t.Errorf("%s keeps money for an Editor", id)
+		}
+	}
+	body := map[string]any{"id": "t1", "recipe": map[string]any{"acestep": map[string]any{
+		"task": "repaint",
+		"src":  map[string]any{"track_id": "gone", "master_sha256": "abc", "duration_s": 1.5},
+		"ref":  map[string]any{"track_id": "gone", "clip_sha256": "def", "from_s": 0.0},
+	}}}
+	ctx := auth.WithPrincipal(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "carol", User: "carol", Role: auth.RoleListener})
+	out, err := view.FromContext(ctx).Shape(body, rulesFor("get_track", Meta{Scope: auth.ScopeListen}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(out)
+	for _, leak := range []string{"gone", "abc", "def", "master_sha256", "clip_sha256"} {
+		if strings.Contains(string(raw), leak) {
+			t.Errorf("listener get_track keeps %q: %s", leak, raw)
+		}
+	}
+	if !strings.Contains(string(raw), "duration_s") {
+		t.Errorf("shaping removed more than the rules name: %s", raw)
+	}
 }

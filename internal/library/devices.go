@@ -80,6 +80,9 @@ func effectiveFormat(quality string) string {
 }
 
 func (s *Service) putActor(p auth.Principal) string {
+	if !p.IsOwnerSide() && p.Key() != "" { // the kind-qualified key, so an agent named "bob" is not the Editor "bob"
+		return p.Key()
+	}
 	if p.ID != "" {
 		return p.ID
 	}

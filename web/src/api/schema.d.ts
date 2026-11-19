@@ -6748,18 +6748,18 @@ export interface components {
             style?: string;
         };
         RecipeRef: {
-            clip_sha256: string;
+            clip_sha256?: string;
             /** Format: double */
             from_s: number;
             /** Format: double */
             to_s: number;
-            track_id: string;
+            track_id?: string;
         };
         RecipeSrc: {
             /** Format: double */
             duration_s: number;
-            master_sha256: string;
-            track_id: string;
+            master_sha256?: string;
+            track_id?: string;
         };
         RecipeStats: {
             /** Format: int64 */
@@ -8220,7 +8220,7 @@ export interface components {
         TrackRating: {
             average?: components["schemas"]["RatingAverage"];
             /** @description The agent rating; null when none */
-            critic?: {
+            critic: {
                 by: components["schemas"]["PrincipalRef"];
                 /** Format: int64 */
                 stars: number | null;

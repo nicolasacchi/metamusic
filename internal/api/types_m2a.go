@@ -47,6 +47,9 @@ func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
 		}
 		return PrincipalRef{Kind: kind, ID: "human", Name: "human"}
 	case string(auth.KindDevice):
+		if viewer.IsPerson() { // a Listener never learns another principal's device key
+			return PrincipalRef{Kind: kind, ID: kind, Name: kind}
+		}
 		return PrincipalRef{Kind: kind, ID: key, Name: "device"}
 	}
 	return PrincipalRef{Kind: kind, ID: key, Name: name}

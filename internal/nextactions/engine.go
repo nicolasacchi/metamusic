@@ -195,6 +195,9 @@ func evInt(ev map[string]any, key string) (int, bool) {
 	return 0, false
 }
 
+// editorHidden are the rules an Editor never receives: C305 gives an Editor list_next_actions without spend or callback items.
+var editorHidden = map[string]bool{"callback_waiting": true, "patch_ready_to_render": true}
+
 // candidateRules selects the rules a call evaluates: the audience admits the viewer, the viewer holds the rule's scope, and the
 // priority reaches the floor.
 func candidateRules(viewer auth.Principal, aud Audience, minPriority int, only func(*Rule) bool) []*Rule {
@@ -202,6 +205,9 @@ func candidateRules(viewer auth.Principal, aud Audience, minPriority int, only f
 	for i := range Rules {
 		r := &Rules[i]
 		if !admits(viewer, aud, r.Audience) || r.Priority < minPriority || (r.MinScope != "" && !viewer.Has(r.MinScope)) {
+			continue
+		}
+		if viewer.Role == auth.RoleEditor && editorHidden[r.Code] {
 			continue
 		}
 		if only != nil && !only(r) {

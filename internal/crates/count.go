@@ -28,6 +28,9 @@ func (s *Service) count(ctx context.Context, c Crate) (int, error) {
 	if s.lib == nil {
 		return 0, errNoCounter
 	}
+	if listenerSafe(ctx, c.Filter) != nil { // a count of a hidden filter is the oracle C308.3b bans: a constant 0
+		return 0, nil //nolint:nilerr // refusing is expansion's job; a count shows nothing
+	}
 	f, err := ParseFilter(c.Subject, c.Filter)
 	if err != nil {
 		return 0, err
@@ -44,6 +47,9 @@ func (s *Service) Warnings(ctx context.Context, c Crate) ([]string, error) {
 	out := []string{}
 	if c.Kind != KindSmart {
 		return out, nil
+	}
+	if listenerSafe(ctx, c.Filter) != nil { // warnings would name hidden filter keys and Muse/session existence
+		return out, nil //nolint:nilerr // nothing to warn a Listener about
 	}
 	f, err := ParseFilter(c.Subject, c.Filter)
 	if err != nil {

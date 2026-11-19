@@ -218,7 +218,7 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 	r := s.st.R
 	hide := view.FromContext(ctx).HideDiscarded
 	// roots, primary first
-	rows, err := r.QueryContext(ctx, `SELECT root_track_id FROM song_roots WHERE song_id = ? ORDER BY root_track_id = ? DESC, root_track_id`, row.ID, row.RootTrackID)
+	rows, err := r.QueryContext(ctx, `SELECT root_track_id FROM song_roots WHERE song_id = ?`+view.FromContext(ctx).NotDiscardedBy("root_track_id")+` ORDER BY root_track_id = ? DESC, root_track_id`, row.ID, row.RootTrackID) //nolint:gosec // G202: fixed fragment
 	if err != nil {
 		return err
 	}
@@ -227,9 +227,6 @@ func (s *Service) fill(ctx context.Context, v *View, row songs.Song, takeLimit, 
 		if err := rows.Scan(&id); err != nil {
 			_ = rows.Close()
 			return err
-		}
-		if hide && s.takeHidden(ctx, id) { // a root that is itself discarded is not named
-			continue
 		}
 		v.Song.RootTrackIDs = append(v.Song.RootTrackIDs, id)
 	}

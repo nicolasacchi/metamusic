@@ -29,11 +29,16 @@ var shapeRules = map[string]view.Rules{
 		Cost: []string{"generation.cost"},
 		Muse: []string{"song.muse_id"},
 		Private: []string{
-			"generation", "import", "playlists", "listening", "comments", "open_comments", "rating.critic",
-			"recipe.cot", "recipe.hash", "recipe.style", "audio.master_sha256", "audio.audio_md5", "audio.mp3.sha256",
+			"generation", "import", "playlists", "listening", "comments", "open_comments",
+			"recipe.cot", "recipe.hash", "recipe.style",
+			"recipe.acestep.src.master_sha256", "recipe.acestep.src.track_id", "recipe.acestep.ref.clip_sha256", "recipe.acestep.ref.track_id", "audio.master_sha256", "audio.audio_md5", "audio.mp3.sha256",
 			"lineage.operator", "lineage.rule", "lineage.inferred",
 		},
 	},
+	// write-scope operations an Editor reaches that return a track or playlist body carrying money (D-U1-12)
+	"update_track":    {Cost: []string{"generation.cost"}, MoneyKeys: true},
+	"create_playlist": {MoneyKeys: true},
+	"update_playlist": {MoneyKeys: true},
 	"get_lineage": {
 		Cost:    []string{"nodes.cost"},
 		Private: []string{"nodes.job_id", "nodes.operator", "nodes.outcome", "nodes.rationale"},

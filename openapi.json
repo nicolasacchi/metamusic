@@ -14784,8 +14784,6 @@
           }
         },
         "required": [
-          "track_id",
-          "clip_sha256",
           "from_s",
           "to_s"
         ],
@@ -14806,8 +14804,6 @@
           }
         },
         "required": [
-          "track_id",
-          "master_sha256",
           "duration_s"
         ],
         "type": "object"
@@ -20399,7 +20395,8 @@
         "required": [
           "track_id",
           "mine",
-          "human"
+          "human",
+          "critic"
         ],
         "type": "object"
       },

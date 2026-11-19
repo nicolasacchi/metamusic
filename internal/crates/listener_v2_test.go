@@ -61,3 +61,28 @@ func TestExpandListenerBannedFilter(t *testing.T) {
 		t.Errorf("a harmless smart crate for a Listener: %v", err)
 	}
 }
+
+// TestListenerCountAndWarningsNoOracle pins that a Listener gets neither a count nor a warning derived from a banned
+// stored filter (C308.3b), while the Owner side keeps both.
+func TestListenerCountAndWarningsNoOracle(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	carol := auth.WithPrincipal(context.Background(), auth.Principal{Kind: auth.KindHuman, ID: "carol", User: "carol", Role: auth.RoleListener})
+	c, _, err := w.svc.Create(w.ctx, human, crates.NewCrate{Name: "Hidden session", Kind: crates.KindSmart, Subject: crates.SubjectSong, Filter: json.RawMessage(`{"session_id":"gone"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if warn, err := w.svc.Warnings(w.ctx, c); err != nil || len(warn) == 0 {
+		t.Fatalf("owner warnings = %v, %v; want one", warn, err)
+	}
+	if warn, err := w.svc.Warnings(carol, c); err != nil || len(warn) != 0 {
+		t.Errorf("listener warnings = %v, %v; want none", warn, err)
+	}
+	unheard := w.crate("Synthetic Unheard Reggae")
+	if _, n, err := w.svc.Get(w.ctx, unheard); err != nil || n == 0 {
+		t.Fatalf("owner count = %d, %v; want > 0", n, err)
+	}
+	if _, n, err := w.svc.Get(carol, unheard); err != nil || n != 0 {
+		t.Errorf("listener count = %d, %v; want 0", n, err)
+	}
+}

@@ -1356,4 +1356,10 @@ func TestDeviceProfile_OwnRowsForEditorsAndListeners(t *testing.T) {
 	if _, err := e.svc.PutDeviceProfile(ctx, owner, in); err != nil {
 		t.Errorf("the Owner updates a profile: %v", err)
 	}
+	// a different kind of principal with the same id is not the same owner
+	in.Label = "Collide"
+	twin := auth.Principal{Kind: auth.KindDevice, Role: auth.RoleListener, ID: "bob", Name: "bob", User: "carol"}
+	if _, err := e.svc.PutDeviceProfile(ctx, twin, in); !errors.Is(err, library.ErrNotFound) {
+		t.Errorf("a Listener device with the Editor's id updates the Editor's row: %v", err)
+	}
 }
