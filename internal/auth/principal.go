@@ -152,9 +152,11 @@ func RaterKey(p Principal) string {
 	switch {
 	case p.IsAgent():
 		return "critic"
-	case p.Kind == KindHuman && p.Role != RoleOwner && p.User != "":
-		return p.User
-	case p.IsPerson(): // lane D1 hand-off: a device has no role yet; D1 must return the device owner key here
+	case p.IsPerson() && p.Role != RoleOwner && p.User != "":
+		return p.User // an Editor or Listener, or their paired device or client (lane D1 sets Role and User from owner_key)
+	case p.IsPerson() && p.Role != "" && p.Role != RoleOwner:
+		return "" // an Editor or Listener role without a user must never fall back to the Owner's row
+	case p.IsPerson(): // the Owner, the Owner (Role owner) and the Owner's devices and clients, which have no user until lane D1
 		return "owner"
 	}
 	return ""

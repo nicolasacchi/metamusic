@@ -111,14 +111,15 @@ func (c *call) setRating() error {
 	if err != nil {
 		return mapService(err, "rating not allowed")
 	}
+	mine := library.ShapeRating(c.principal, cur).Mine // the caller's own row, never another user's
 	var verdict *string
-	if cur.Human != nil {
-		verdict = cur.Human.Verdict
+	if mine != nil {
+		verdict = mine.Verdict
 	}
 	var stars *int
 	if n > 0 {
 		stars = &n
-	} else if cur.Human == nil {
+	} else if mine == nil {
 		return nil // clearing a rating that does not exist writes nothing
 	}
 	_, err = jd.Rate(c.ctx, c.principal, row.ID, stars, verdict)

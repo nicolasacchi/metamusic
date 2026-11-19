@@ -131,7 +131,7 @@ func TestGetStats_GenerationBreakdown(t *testing.T) {
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	e.mustExec(t, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at) VALUES(?, 'human', 4, NULL, 'human', 'human:fixture', 'fixture', ?, ?)`,
+	e.mustExec(t, `INSERT INTO ratings(track_id, source, stars, verdict, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 4, NULL, 'human', 'human:fixture', 'fixture', ?, ?,'owner')`,
 		tracks[0], "2026-10-06T12:00:00Z", "2026-10-06T12:00:00Z")
 
 	st, err := e.svc.Stats(ctx)

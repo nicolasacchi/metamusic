@@ -12285,6 +12285,37 @@
         ],
         "type": "object"
       },
+      "OtherRating": {
+        "additionalProperties": false,
+        "properties": {
+          "stars": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "user",
+          "stars",
+          "verdict",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "PairStats": {
         "additionalProperties": false,
         "properties": {
@@ -14568,6 +14599,24 @@
         },
         "required": [
           "stars"
+        ],
+        "type": "object"
+      },
+      "RatingAverage": {
+        "additionalProperties": false,
+        "properties": {
+          "mean": {
+            "format": "double",
+            "type": "number"
+          },
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mean",
+          "n"
         ],
         "type": "object"
       },
@@ -20303,6 +20352,9 @@
       "TrackRating": {
         "additionalProperties": false,
         "properties": {
+          "average": {
+            "$ref": "#/components/schemas/RatingAverage"
+          },
           "critic": {
             "additionalProperties": false,
             "description": "The agent rating; null when none",
@@ -20344,7 +20396,7 @@
           },
           "human": {
             "additionalProperties": false,
-            "description": "The operator rating (canonical); null when none",
+            "description": "Deprecated alias of mine",
             "properties": {
               "by": {
                 "$ref": "#/components/schemas/PrincipalRef"
@@ -20381,12 +20433,61 @@
               "null"
             ]
           },
+          "mine": {
+            "additionalProperties": false,
+            "description": "Your own rating; null when none",
+            "properties": {
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "stars": {
+                "format": "int64",
+                "maximum": 5,
+                "minimum": 1,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "description": "RFC 3339 UTC",
+                "type": "string"
+              },
+              "verdict": {
+                "maxLength": 280,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "stars",
+              "verdict",
+              "by",
+              "updated_at"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "others": {
+            "items": {
+              "$ref": "#/components/schemas/OtherRating"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "track_id": {
             "type": "string"
           }
         },
         "required": [
           "track_id",
+          "mine",
           "human",
           "critic"
         ],
@@ -31479,7 +31580,7 @@
     },
     "/api/tracks/{id}/rating": {
       "put": {
-        "description": "Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
+        "description": "Sets or clears your own 1-5 star rating and short verdict; agent ratings are kept apart as the critic.",
         "operationId": "rate_track",
         "parameters": [
           {

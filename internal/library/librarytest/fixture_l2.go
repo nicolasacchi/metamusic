@@ -334,8 +334,9 @@ func (b *l2Builder) songs() {
 		age   time.Duration
 	}{{"c1", 4, 90 * time.Minute}, {"s6a", 3, 80 * time.Minute}} {
 		at := b.ts(r.age)
-		b.put(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at)
-			VALUES(?,'human',?,'human',?,'fixture',?,?)`, b.out.Takes[r.label], r.stars, FixtureHuman, at, at)
+		rc, rv := raterSQL(hasRater(b.tx), "human")
+		b.put(`INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at`+rc+`)
+			VALUES(?,'human',?,'human',?,'fixture',?,?`+rv+`)`, b.out.Takes[r.label], r.stars, FixtureHuman, at, at)
 	}
 	at := b.ts(30 * time.Minute)
 	b.put(`INSERT INTO listen_events(id,track_id,session_id,kind,from_ms,to_ms,format,device_id,source,principal_kind,principal_id,client_at,received_at)

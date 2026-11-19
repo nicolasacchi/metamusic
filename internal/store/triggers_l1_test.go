@@ -287,11 +287,11 @@ func TestQueueTriggers_Table(t *testing.T) {
 	}
 	reset()
 	// ratings: human rows enqueue, agent rows do not
-	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1','agent',3,'agent','agent:a','a',?,?)`, ts, ts)
+	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES('t1','agent',3,'agent','agent:a','a',?,?,'critic')`, ts, ts)
 	if n, _, _ := count("track", "t1"); n != 0 {
 		t.Errorf("agent rating must not enqueue")
 	}
-	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at) VALUES('t1','human',4,'human','human:h','h',?,?)`, ts, ts)
+	mustExec(t, s, `INSERT INTO ratings(track_id,source,stars,principal_kind,principal_id,principal_name,created_at,updated_at,rater) VALUES('t1','human',4,'human','human:h','h',?,?,'owner')`, ts, ts)
 	if n, _, _ := count("track", "t1"); n != 1 {
 		t.Errorf("human rating insert must enqueue")
 	}

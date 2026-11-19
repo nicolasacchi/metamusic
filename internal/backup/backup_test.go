@@ -390,8 +390,7 @@ func TestBackup_SnapshotSurvivesLiveMutation(t *testing.T) {
 		{`INSERT INTO comments(id, track_id, body, kind, state, source, principal_kind, principal_id, principal_name, created_at, updated_at)
 			VALUES ('c-late', ?, 'late note', 'note', 'open', 'api', 'human', 'human:x', 'x', ?, ?)`, []any{trackID, ts, ts}},
 		{`UPDATE tracks SET title = 'Retitled' WHERE id = ?`, []any{trackID}},
-		{`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at)
-			VALUES (?, 'human', 5, 'human', 'human:x', 'x', ?, ?) ON CONFLICT(track_id, source) DO UPDATE SET stars = 5`, []any{trackID, ts, ts}},
+		{`INSERT INTO ratings(track_id, source, stars, principal_kind, principal_id, principal_name, created_at, updated_at,rater) VALUES(?, 'human', 5, 'human', 'human:x', 'x', ?, ?,'owner') ON CONFLICT(track_id, source, rater) DO UPDATE SET stars = 5`, []any{trackID, ts, ts}},
 	} {
 		if _, err := e.st.W.Exec(q.sql, q.args...); err != nil {
 			t.Fatal(err)
