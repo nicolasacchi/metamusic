@@ -21,7 +21,9 @@ test("after switching user, the first user's queue, inbox markers and device id 
   await page.goto(`/tracks/${t1.id}`);
   await page.getByTestId("track-play").click();
   await expect.poll(() => ls(PLAYER_KEY)).toContain(t1.id);
-  await page.evaluate((k) => localStorage.setItem(k, new Date().toISOString()), SEEN_KEY);
+  // a marker value no fresh boot would write (the inbox writes "now" on a first visit, so the Listener gets a marker of their own)
+  const OWNER_SEEN = "2001-02-03T04:05:06.000Z";
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [SEEN_KEY, OWNER_SEEN] as const);
   await expect.poll(() => ls(DEVICE_KEY)).toBeTruthy();
   const ownerDevice = await ls(DEVICE_KEY);
   expect(await ls(USER_KEY)).toBe(E2E_USER);
@@ -36,7 +38,7 @@ test("after switching user, the first user's queue, inbox markers and device id 
 
   expect(await ls(USER_KEY)).toBe(LISTENER_USER);
   expect(await ls(PLAYER_KEY), "the Owner's queue is gone").toBeNull();
-  expect(await ls(SEEN_KEY), "the Owner's inbox marker is gone").toBeNull();
+  expect(await ls(SEEN_KEY), "the Owner's inbox marker is gone").not.toBe(OWNER_SEEN);
   const listenerDevice = await ls(DEVICE_KEY);
   expect(listenerDevice === null || listenerDevice !== ownerDevice, "the Listener has no copy of the Owner's device id").toBe(true);
 

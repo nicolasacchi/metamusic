@@ -38,7 +38,7 @@ test("the Editor cannot approve, reject, publish, set caps or reach the Owner's 
     ["POST", "/human/api/batches/none/reject", { reason: "no" }],
     ["PUT", "/human/api/spend/caps", { monthly_micro_usd: 1_000_000 }],
     ["POST", "/human/api/records/none/publish", {}],
-    ["GET", "/human/api/tokens", undefined],
+    ["GET", "/api/tokens", undefined],
     ["POST", "/human/api/generations", { confirmation_token: "none", rationale: "no" }],
   ] as const) {
     const r = await request.fetch(path, { method, ...(data === undefined ? {} : { data }), headers: { "Idempotency-Key": idemKey() } });

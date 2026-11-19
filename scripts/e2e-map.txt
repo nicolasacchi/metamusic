@@ -239,7 +239,7 @@ web/src/lib/components/KeyBadge.svelte	l3-entry-points
 web/src/lib/components/EnergyBadge.svelte	l3-entry-points
 web/src/lib/components/SequencePanel.svelte	l2-records l3-sequence
 web/src/lib/sequenceView.ts	l2-records l3-sequence
-web/src/routes/New.svelte	ux-inbox ux-landing l3-next
+web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell
 internal/features/*	l3-entry-points l1-song
 internal/sequencer/*	l2-records l3-sequence
 internal/sequence/*	l2-records l3-sequence

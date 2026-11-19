@@ -48,7 +48,7 @@ test("the Owner's pages render no access and /human/api refuses the Listener", a
     await expect(page.getByRole("heading", { name: "No access" }), path).toBeVisible();
   }
   for (const [method, path] of [
-    ["GET", "/human/api/tokens"],
+    ["GET", "/api/tokens"],
     ["GET", "/api/spend"],
     ["PUT", "/human/api/spend/caps"],
     ["POST", "/human/api/batches/none/approve"],

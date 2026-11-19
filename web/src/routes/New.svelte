@@ -3,6 +3,7 @@
   import { api } from "../api/client";
   import type { components } from "../api/schema";
   import { approvals, refreshApprovals } from "../lib/approvals.svelte";
+  import { can, me } from "../lib/me.svelte";
   import {
     buildInbox,
     headerLine,
@@ -78,6 +79,8 @@
   });
 
   async function loadBatches(): Promise<Batch[]> {
+    // A Listener has no list_batches (403): ask only when the role allows it, or while the role is not known yet (U1-INT-W).
+    if (me.loaded && !can("list_batches")) return [];
     const l = await api.GET("/api/batches", { params: { query: { state: ["active"], limit: MAX_BATCHES } } });
     // a batch that just finished is no longer listed as active: re-read the ones we were showing so its last take is seen
     const all = [...(l.data ? l.data.items.map((b) => b.id) : []), ...batches.map((b) => b.id)];
