@@ -7,8 +7,18 @@ export const BASE_URL = `http://127.0.0.1:${PORT}`;
 // process that loaded the config) share it; a stale server on the port rejects it.
 process.env.MM_E2E_EDGE_SECRET ??= randomBytes(16).toString("hex");
 export const EDGE_SECRET = process.env.MM_E2E_EDGE_SECRET;
+/** The Owner keeps the name the committed Owner specs read ("e2e"); bob and carol are the Editor and the Listener (U1 C314.7). */
 export const E2E_USER = "e2e";
-export const HEADERS = { "Remote-User": E2E_USER, "X-MM-Edge": EDGE_SECRET };
+export const EDITOR_USER = "bob";
+export const LISTENER_USER = "carol";
+export type E2eRole = "owner" | "editor" | "listener";
+/** The users of every e2e server, in MM_USERS order (`name:role`). */
+export const USERS: Record<string, E2eRole> = { [E2E_USER]: "owner", [EDITOR_USER]: "editor", [LISTENER_USER]: "listener" };
+export const MM_USERS = Object.entries(USERS).map(([n, r]) => `${n}:${r}`).join(",");
+/** The proxy identity headers of one configured user (what the edge would add after sign-in). */
+export const headersFor = (user: string): Record<string, string> => ({ "Remote-User": user, "X-MM-Edge": EDGE_SECRET });
+/** The Owner's headers: the default project identity, the setup calls and the /__e2e endpoints. */
+export const HEADERS = headersFor(E2E_USER);
 // Per-run Playwright artifact directory (exported so workers share it): concurrent or overlapping runs
 // never write into the same .playwright-artifacts-N tree.
 process.env.MM_E2E_OUTPUT_DIR ??= `test-results/run-${process.pid}-${Date.now()}`;

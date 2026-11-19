@@ -98,8 +98,9 @@ export function confirmDisabledReasons(e: EstimateLike): string[] {
   const p = e.provider;
   if (p) {
     if (!p.generation_enabled) out.push(`Generation is disabled${p.disabled_reason ? ` (${p.disabled_reason})` : ""}.`);
-    if (!p.armed) out.push("The provider is disarmed.");
-    if (p.tripped) out.push("The provider is tripped.");
+    // An Editor's estimate carries no armed or tripped flag (redactEstimate): absent means unknown, not disarmed (U1-INT-W).
+    if (p.armed === false) out.push("The provider is disarmed.");
+    if (p.tripped === true) out.push("The provider is tripped.");
   }
   const b = e.budget;
   if (b && !b.fits) out.push(`Over budget: ${b.would_exceed.length ? b.would_exceed.join(", ") + " cap" : "cap"} would be exceeded.`);

@@ -31,15 +31,16 @@ describe("route gating (C313.3)", () => {
   test("every static nav link resolves to a route", () => {
     for (const l of NAV_LINKS) expect(linkRoute(l), l.path).toBeDefined();
   });
-  test("a caller who can do nothing keeps only the opted-in routes (queue, More, 404)", () => {
+  test("a caller who can do nothing keeps only the opted-in routes (queue, More, Settings, 404)", () => {
     const open = APP_ROUTES.filter((r) => routeAllowed(r.name, nothing)).map((r) => r.name);
-    expect(open.sort()).toEqual(["more", "queue"]);
+    // Settings holds this device's playback quality, which every user picks (U1-INT-W); its Owner sections gate themselves
+    expect(open.sort()).toEqual(["more", "queue", "settings"]);
     expect(routeAllowed("nope", nothing)).toBe(true);
     expect(routeAllowed(null, nothing)).toBe(true);
   });
   test("a Listener sees the library views and no spend, approval, audit or token surface", () => {
     const shown = NAV_LINKS.filter((l) => linkVisible(l, listener)).map((l) => l.label);
-    expect(shown).toEqual(["Takes", "Sounds", "Atlas", "Records", "Crates", "Playlists"]);
+    expect(shown).toEqual(["Takes", "Sounds", "Atlas", "Records", "Crates", "Playlists", "Settings"]);
     for (const n of ["human-spend", "human", "human-tokens", "settings-audit", "receipts", "jobs", "board", "judge", "duels", "human-generate"]) expect(routeAllowed(n, listener), n).toBe(false);
     expect(TABS.filter((t) => tabVisible(t, listener)).map((t) => t.id)).toEqual(["new", "library", "queue", "more"]);
   });

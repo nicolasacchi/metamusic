@@ -1,5 +1,5 @@
 import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
-import { HEADERS, OUTPUT_DIR } from "./e2e/env";
+import { E2E_USER, EDITOR_USER, LISTENER_USER, OUTPUT_DIR, headersFor } from "./e2e/env";
 import { matrixIgnore, quarantineFilter } from "./e2e/matrix";
 
 // Chrome must autoplay without a prior gesture so specs can start playback programmatically
@@ -49,19 +49,29 @@ const androidFirefox = (policy: number) => ({
 // A new skip needs a reason of this kind; anything capability- or environment-related must fail instead.
 // CI runs one `--shard=i/N` slice of the whole test list per job; no flag runs everything (make e2e).
 
+// U1 (C314.7): the Owner is the default identity of every project above (the committed Owner specs run unchanged); the Editor
+// and the Listener each have a project whose identity headers are that user's, and which runs only that role's shell specs.
+// ratings-per-user and user-switch run in the Owner "chrome" project and open request contexts or switch the headers themselves.
+const EDITOR_SPECS = "**/editor-shell.spec.ts";
+const LISTENER_SPECS = ["**/listener-shell.spec.ts", "**/device-pairing.spec.ts"];
+const roleOnly = [EDITOR_SPECS, ...LISTENER_SPECS]; // not run by the Owner projects
+
 const allProjects: NonNullable<PlaywrightTestConfig["projects"]> = [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([])] },
-    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("mobile")] },
-    { name: "firefox-android", use: androidFirefox(0), testIgnore: [...noM3, LISTEN, ...matrixIgnore("android-firefox")] },
-    { name: "firefox-android-strict", use: androidFirefox(2), testIgnore: [...noM3, LISTEN, ...matrixIgnore("android-firefox")], grep: /strict autoplay/ },
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [LISTEN, ...ignoreM3([]), ...roleOnly] },
+    { name: "chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...roleOnly, ...matrixIgnore("mobile")] },
+    { name: "firefox-android", use: androidFirefox(0), testIgnore: [...noM3, LISTEN, ...roleOnly, ...matrixIgnore("android-firefox")] },
+    { name: "firefox-android-strict", use: androidFirefox(2), testIgnore: [...noM3, LISTEN, ...roleOnly, ...matrixIgnore("android-firefox")], grep: /strict autoplay/ },
     // WebKit-sized viewport/touch emulation on Chrome; real iOS Safari is covered by the device checklist.
-    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("mobile")] },
-    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...noM3, LISTEN, ...matrixIgnore("firefox")] },
+    { name: "chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testIgnore: [...noM3, LISTEN, ...roleOnly, ...matrixIgnore("mobile")] },
+    { name: "firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testIgnore: [...noM3, LISTEN, ...roleOnly, ...matrixIgnore("firefox")] },
     // the listen spec has one project per device (each owns a seed track)
     { name: "listen-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN },
     { name: "listen-chrome-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: LISTEN, testIgnore: matrixIgnore("mobile") },
     { name: "listen-chrome-iphone15", use: { ...devices["iPhone 15"], channel: "chrome", defaultBrowserType: "chromium", launchOptions: chromeLaunch }, testMatch: LISTEN, testIgnore: matrixIgnore("mobile") },
     { name: "listen-firefox", use: { ...devices["Desktop Firefox"], launchOptions: { firefoxUserPrefs: firefoxPrefs } }, testMatch: LISTEN, testIgnore: matrixIgnore("firefox") },
+    // U1 role projects: one desktop Chrome per non-Owner user, extraHTTPHeaders replacing the Owner identity
+    { name: "editor", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch, extraHTTPHeaders: headersFor(EDITOR_USER) }, testMatch: EDITOR_SPECS },
+    { name: "listener", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch, extraHTTPHeaders: headersFor(LISTENER_USER) }, testMatch: LISTENER_SPECS },
     // the M3 specs (see M3 above)
     { name: "m3-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...noSpend, AUTOADV] },
     { name: "m3-pixel7", use: { ...devices["Pixel 7"], channel: "chrome", launchOptions: chromeLaunch }, testMatch: M3_SPECS, testIgnore: [...noSpend, AUTOADV, ...matrixIgnore("mobile")] },
@@ -82,7 +92,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
-    extraHTTPHeaders: HEADERS,
+    extraHTTPHeaders: headersFor(E2E_USER), // the Owner; the editor and listener projects override it
     trace: "retain-on-failure",
     // M4a (C117.6): service workers are blocked by default so the route mocks and request observations of the other specs
     // stay intact; m4a-offline and m4a-track opt in with test.use({ serviceWorkers: "allow" }) (their server is per worker).

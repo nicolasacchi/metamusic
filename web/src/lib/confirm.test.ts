@@ -112,6 +112,17 @@ describe("confirm action", () => {
     expect(confirmDisabledReasons({ ...bare, warnings: [{ severity: "error", code: "X", message: "m", take_index: 0, field: "" } as never] })).toHaveLength(1);
   });
 
+  test("the Editor's real estimate (provider without armed and tripped, budget without pots) is not blocked", () => {
+    // redactEstimate (internal/api/editor_u1.go) keeps generation_enabled and disabled_reason and drops armed and tripped
+    const e = est();
+    const editor = { ...e, provider: { generation_enabled: true, disabled_reason: null }, budget: { ...e.budget, would_exceed: [] } };
+    expect(confirmDisabledReasons(editor)).toEqual([]);
+    expect(confirmDisabledReasons({ ...editor, provider: { generation_enabled: false, disabled_reason: "keys_absent" } })).toEqual(["Generation is disabled (keys_absent)."]);
+    // the Owner's flags still block
+    expect(confirmDisabledReasons({ ...e, provider: { generation_enabled: true, disabled_reason: null, armed: false, tripped: false } })).toEqual(["The provider is disarmed."]);
+    expect(confirmDisabledReasons({ ...e, provider: { generation_enabled: true, disabled_reason: null, armed: true, tripped: true } })).toEqual(["The provider is tripped."]);
+  });
+
   test("402 renders the cap details", async () => {
     const { api } = rig(() => problem(402, "BUDGET_EXCEEDED", { cap: "monthly", limit_micro_usd: 20000000, limit_usd: "20", used_micro_usd: 19900000, used_usd: "19.9", requested_micro_usd: 691731, requested_usd: "0.691731" }));
     const r = await createConfirmAction(api, "t", "")();

@@ -2,7 +2,7 @@
 // per-worker fixture (a fresh copy of that template per Playwright worker and spec file, see fixtures.ts).
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
-import { HEADERS } from "./env";
+import { MM_USERS } from "./env";
 
 export interface RunningServer {
   url: string;
@@ -43,7 +43,7 @@ export function serverEnv(dataDir: string, secretsDir: string, url: string, extr
     MM_ADDR: `127.0.0.1:${u.port}`,
     MM_PUBLIC_URL: url,
     MM_TRUSTED_PROXY: "127.0.0.1/32,::1/128",
-    MM_TRUSTED_USERS: HEADERS["Remote-User"],
+    MM_USERS,
     MM_E2E: "1",
     MM_DATA_DIR: dataDir,
     MM_SECRETS_DIR: secretsDir,
