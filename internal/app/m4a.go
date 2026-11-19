@@ -90,9 +90,11 @@ func oidcHTTPClient() *http.Client {
 // (and with it the connector principal) depends on MM_OIDC_ISSUER.
 func buildM4a(in m4aInputs, o M4aOptions) *m4aServices {
 	cs := connectors.NewStore(in.st, in.now, in.newID)
+	sub := auth.NewSubsonicStore(in.st, in.sec.Key, in.now, in.newID, in.rnd)
+	sub.UseUsers(in.cfg.Users) // a client's owner key resolves to its role against the startup user map (D-U1-14)
 	m := &m4aServices{
 		Connectors: cs,
-		Subsonic:   auth.NewSubsonicStore(in.st, in.sec.Key, in.now, in.newID, in.rnd),
+		Subsonic:   sub,
 		Covers:     in.covers,
 		Downloads:  in.downloads,
 		Renditions: in.renditions,

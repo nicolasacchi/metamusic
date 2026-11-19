@@ -1,5 +1,7 @@
 # M4a — Remote Agents & Native Mobile — Implementation Plan (DRAFT, revision 3)
 
+> **Superseded in part by U1-D1 (2026-11-19):** the three Subsonic client ops (D-M4a-24) now live at `/human/api/subsonic-clients`, human-only and excluded from MCP; admin-scope agents no longer manage Subsonic clients. See Revision 14 of `2026-11-18-u1-multi-user.md`.
+
 > **Revision 2** (review fixes): connector limits on top-ups (now `spend.Service.TokenLimitsFor` with the connector branch, rev 3); Subsonic global
 > auth-failure class only throttles failures; endpoint-dependent salt window (12 h media); protected-resource
 > metadata only at `/.well-known/oauth-protected-resource/mcp` with an own handler; default scopes without

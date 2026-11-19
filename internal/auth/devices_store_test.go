@@ -166,7 +166,7 @@ func TestPairing_SingleUse(t *testing.T) {
 	if wins != 1 {
 		t.Fatalf("wins = %d", wins)
 	}
-	list, err := ds.List(ctx)
+	list, err := ds.List(ctx, human)
 	if err != nil || len(list) != 2 {
 		t.Fatalf("list = %d, %v", len(list), err)
 	}
@@ -181,7 +181,7 @@ func TestDevice_VerifySlidesExpiry(t *testing.T) {
 	created := clk.Now()
 	get := func() DeviceInfo {
 		t.Helper()
-		l, err := ds.List(ctx)
+		l, err := ds.List(ctx, human)
 		if err != nil || len(l) != 1 {
 			t.Fatalf("list %v %v", l, err)
 		}
@@ -267,23 +267,23 @@ func TestDevice_RevokeAndList(t *testing.T) {
 	clk.Advance(time.Minute)
 	code, _, _ = ds.CreatePairingCode(ctx, human, "Tablet")
 	_, dev2, _ := ds.Redeem(ctx, code, "ua2")
-	l, _ := ds.List(ctx)
+	l, _ := ds.List(ctx, human)
 	if len(l) != 2 || l[0].ID != dev2.ID || l[1].ID != dev.ID {
 		t.Fatalf("order: %+v", l)
 	}
-	r1, err := ds.Revoke(ctx, dev.ID)
+	r1, err := ds.Revoke(ctx, human, dev.ID)
 	if err != nil || r1.RevokedAt == "" {
 		t.Fatalf("revoke: %+v %v", r1, err)
 	}
 	clk.Advance(time.Hour)
-	r2, err := ds.Revoke(ctx, dev.ID)
+	r2, err := ds.Revoke(ctx, human, dev.ID)
 	if err != nil || r2.RevokedAt != r1.RevokedAt {
 		t.Fatalf("revoke not idempotent: %+v %v", r2, err)
 	}
 	if _, err := ds.VerifyDevice(ctx, cookie); !errors.Is(err, ErrInvalidDevice) {
 		t.Fatalf("revoked cookie: %v", err)
 	}
-	if _, err := ds.Revoke(ctx, "nope"); !errors.Is(err, ErrNotFound) {
+	if _, err := ds.Revoke(ctx, human, "nope"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown id: %v", err)
 	}
 	for _, bad := range []string{"", "mmd_x", "mmp_" + strings.Repeat("a", 52), "mmd_" + strings.Repeat("A", 52), "mmd_" + strings.Repeat("a", 52)} {

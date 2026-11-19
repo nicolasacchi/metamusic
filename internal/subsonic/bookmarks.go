@@ -26,6 +26,9 @@ func (c *call) st() (*store.Store, error) {
 }
 
 func (c *call) getBookmarks() error {
+	if err := c.ownerSideOnly(); err != nil {
+		return err
+	}
 	st, err := c.st()
 	if err != nil {
 		return err
@@ -97,6 +100,9 @@ func (c *call) getBookmarks() error {
 // bookmark's previous comment also creates one timestamped comment (D-M4a-12); comment-less bookmarks stay
 // resume positions only.
 func (c *call) createBookmark() error {
+	if err := c.ownerSideOnly(); err != nil {
+		return err
+	}
 	row, err := c.songParam("id")
 	if err != nil {
 		return err
@@ -152,6 +158,9 @@ func (c *call) createBookmark() error {
 
 // deleteBookmark hides the bookmark; the comment it created stays (comments are never deleted).
 func (c *call) deleteBookmark() error {
+	if err := c.ownerSideOnly(); err != nil {
+		return err
+	}
 	row, err := c.songParam("id")
 	if err != nil {
 		return err

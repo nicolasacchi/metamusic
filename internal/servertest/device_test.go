@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/servertest"
+	"github.com/nicolasacchi/metamusic/internal/subsonic/subsonictest"
 )
 
 func TestRig_Device(t *testing.T) {
@@ -94,5 +95,31 @@ func TestSec_PairAuditTransportIsPair(t *testing.T) {
 	}
 	if tr != "pair" {
 		t.Fatalf("transport = %q, want pair", tr)
+	}
+}
+
+// TestRig_DeviceForAndSubsonicClientFor: a device and a Subsonic client created for bob and carol go through the real pairing
+// and creation operations, belong to that user and act with the user's role; an unknown user fails the test helper (checked by
+// the rig's own tests, not here).
+func TestRig_DeviceForAndSubsonicClientFor(t *testing.T) {
+	t.Parallel()
+	r := servertest.New(t, servertest.Options{})
+	for user, role := range map[string]string{servertest.UserEditor: "editor", servertest.UserListener: "listener"} {
+		d := r.DeviceFor(t, user)
+		resp := d.Do(t, "GET", "/api/me", nil)
+		if resp.Status != 200 || !strings.Contains(string(resp.Body), `"kind":"device"`) || !strings.Contains(string(resp.Body), role) {
+			t.Errorf("%s's device whoami: %d %s", user, resp.Status, resp.Body)
+		}
+		c := r.SubsonicClientFor(t, user, subsonictest.ClientOpts{Write: true})
+		if res := c.Call(t, "ping", nil, subsonictest.CallOpts{JSON: true}); res.HTTP != 200 || res.Code != 0 {
+			t.Errorf("%s's Subsonic client ping: %d %d", user, res.HTTP, res.Code)
+		}
+	}
+	var n int
+	if err := r.Store.R.QueryRow(`SELECT COUNT(*) FROM devices WHERE owner_key IN ('bob','carol')`).Scan(&n); err != nil || n != 2 {
+		t.Errorf("devices owned by bob and carol: %d %v", n, err)
+	}
+	if err := r.Store.R.QueryRow(`SELECT COUNT(*) FROM subsonic_clients WHERE owner_key IN ('bob','carol')`).Scan(&n); err != nil || n != 2 {
+		t.Errorf("clients owned by bob and carol: %d %v", n, err)
 	}
 }

@@ -92,19 +92,15 @@ var (
 		"get_import_run",
 		"get_device_probe",
 		"list_device_profiles",
-		"create_pairing_code",
-		"create_subsonic_client",
-		"list_devices",
-		"list_subsonic_clients",
-		"revoke_device",
-		"revoke_subsonic_client",
 		// Fail-closed until the lanes that own their redaction or service guards land (review of F1b). Lane E1 lifted
 		// get_budget, create_generation, create_variant, update_track, list_batches, get_batch, list_jobs, get_job and
 		// update_record with their Editor behaviour; lane V2 lifted put_device_profile, get_stats, get_track_context and
 		// get_export (below).
 	}
+	// D-U1-14: the human-only self-service ops (lane D1) are open to Editors and Listeners; ownership is a service guard.
+	f1bSelfService = []string{"create_pairing_code", "create_subsonic_client", "list_devices", "list_subsonic_clients", "revoke_device", "revoke_subsonic_client"}
 	// Agent-facing or self-service ops that must stay untagged (C305, D-U1-6).
-	f1bNotOwnerOnly = []string{"propose_pick", "revoke_own_device", "revoke_own_token", "get_adherence", "rate_track", "cancel_batch", "cancel_job", "export_jsonl", "create_transform", "request_approval", "set_tags",
+	f1bNotOwnerOnly = []string{"create_pairing_code", "create_subsonic_client", "list_devices", "list_subsonic_clients", "revoke_device", "revoke_subsonic_client", "propose_pick", "revoke_own_device", "revoke_own_token", "get_adherence", "rate_track", "cancel_batch", "cancel_job", "export_jsonl", "create_transform", "request_approval", "set_tags",
 		"get_budget", "create_generation", "create_variant", "update_track", "list_batches", "get_batch", "list_jobs", "get_job", "update_record",
 		"put_device_profile", "get_stats", "get_track_context", "get_export"}
 	// Editor-open ops are intentionally scope-gated only; their service guards belong to later lanes.
@@ -168,7 +164,7 @@ func TestF1bTagging(t *testing.T) {
 	}
 	// Every class validate() requires the tag on carries it, in the serialised spec too.
 	for id, m := range metas {
-		if (m.HumanOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin) && !m.OwnerOnly {
+		if (m.HumanOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin) && !m.OwnerOnly && !slices.Contains(f1bSelfService, id) {
 			t.Errorf("%s: human_only, approve or admin without owner_only", id)
 		}
 	}
@@ -179,6 +175,12 @@ func TestF1bEditorListenerFailClosed(t *testing.T) {
 	editor, listener := humanOf(config.RoleEditor), humanOf(config.RoleListener)
 	for id, m := range f1bSpecMeta(t) {
 		pe, pl := api.Permitted(editor, m), api.Permitted(listener, m)
+		if slices.Contains(f1bSelfService, id) { // an Editor or Listener passes these; a delegate never does (HumanOnly)
+			if pe != nil || pl != nil {
+				t.Errorf("%s: self-service op refused to a user: %v %v", id, problemCode(pe), problemCode(pl))
+			}
+			continue
+		}
 		if m.OwnerOnly || m.HumanOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin {
 			if problemCode(pe) != "OWNER_ONLY" && problemCode(pe) != "HUMAN_ONLY" && pe == nil {
 				t.Errorf("%s: editor passes an owner-class op", id)
@@ -198,7 +200,7 @@ func TestF1bEditorListenerFailClosed(t *testing.T) {
 			t.Errorf("%s: listener refused: %v", id, pr.Code)
 		}
 	}
-	for _, id := range []string{"get_audit", "get_spend", "approve_batch", "get_offline_set", "create_duel", "create_muse", "create_pairing_code"} {
+	for _, id := range []string{"get_audit", "get_spend", "approve_batch", "get_offline_set", "create_duel", "create_muse"} {
 		m := f1bSpecMeta(t)[id]
 		if got := problemCode(api.Permitted(editor, m)); got != "OWNER_ONLY" && got != "HUMAN_ONLY" {
 			t.Errorf("%s: editor got %q, want OWNER_ONLY", id, got)

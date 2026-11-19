@@ -100,12 +100,20 @@ func (s *Service) PutDeviceProfile(ctx context.Context, p auth.Principal, in Dev
 	if in.ProbedAt != nil {
 		probedAt = *in.ProbedAt
 	}
-	// An Editor or Listener may only update a row it created (C305: own); another principal's row answers 404, the body of a
-	// missing id. The Owner side keeps the unguarded upsert. The guard rides the upsert, so there is no check-then-write race.
-	guard := ""
+	// An Editor or Listener may only update a row it created or one created by the same user: the user's own login or one of
+	// the devices and Subsonic clients the user owns (C305, D-U1-14). Another principal's row answers 404, the body of a missing
+	// id. The Owner side keeps the unguarded upsert. The guard rides the upsert, so there is no check-then-write race.
+	guard, gargs := "", []any(nil)
 	if !p.IsOwnerSide() {
 		guard = ` WHERE device_profiles.created_by = excluded.created_by`
+		if p.User != "" {
+			guard += ` OR device_profiles.created_by = ?
+			OR device_profiles.created_by IN (SELECT 'device:' || id FROM devices WHERE owner_key = ?)
+			OR device_profiles.created_by IN (SELECT 'device:' || id FROM subsonic_clients WHERE owner_key = ?)`
+			gargs = []any{"human:" + p.User, p.User, p.User}
+		}
 	}
+	//nolint:gosec // G202: guard is one of two fixed fragments; every value is a bound argument
 	res, err := s.st.W.ExecContext(ctx, `INSERT INTO device_profiles(device_id, label, user_agent, quality, quality_source, probe_result, flac_can_play,
 		flac_decode_ok, flac_seek_ok, probe_version, probed_at, created_by, updated_by, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -113,8 +121,8 @@ func (s *Service) PutDeviceProfile(ctx context.Context, p auth.Principal, in Dev
 		quality_source=excluded.quality_source, probe_result=excluded.probe_result, flac_can_play=excluded.flac_can_play,
 		flac_decode_ok=excluded.flac_decode_ok, flac_seek_ok=excluded.flac_seek_ok, probe_version=excluded.probe_version,
 		probed_at=excluded.probed_at, updated_by=excluded.updated_by, updated_at=excluded.updated_at`+guard,
-		in.DeviceID, in.Label, in.UserAgent, in.Quality, in.QualitySource, in.ProbeResult, in.FlacCanPlay,
-		boolPtr(in.FlacDecodeOK), boolPtr(in.FlacSeekOK), in.ProbeVersion, probedAt, actor, actor, now, now)
+		append([]any{in.DeviceID, in.Label, in.UserAgent, in.Quality, in.QualitySource, in.ProbeResult, in.FlacCanPlay,
+			boolPtr(in.FlacDecodeOK), boolPtr(in.FlacSeekOK), in.ProbeVersion, probedAt, actor, actor, now, now}, gargs...)...)
 	if err != nil {
 		return DeviceProfile{}, fmt.Errorf("library: put device profile: %w", err)
 	}

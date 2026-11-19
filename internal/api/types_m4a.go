@@ -267,6 +267,7 @@ type SubsonicClient struct {
 	LastSeenAt    *string      `json:"last_seen_at"`
 	LastClient    *string      `json:"last_client"`
 	RevokedAt     *string      `json:"revoked_at"`
+	Owner         *string      `json:"owner,omitempty" doc:"Whose client this is: owner or a username. Only the Owner's listing carries it (D-U1-14)"`
 }
 
 // SubsonicClientList is the answer of list_subsonic_clients.

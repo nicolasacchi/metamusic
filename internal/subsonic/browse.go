@@ -98,7 +98,7 @@ func toChild(s songRow, mp3 bool) Child {
 	if s.LastPlay.Valid {
 		ch.Played = iso(s.LastPlay.String)
 	}
-	if s.Status == "final" {
+	if s.Status == "final" && !s.Listener { // the keep decision is Owner-side state
 		ch.Starred = iso(s.StatusSetAt)
 	}
 	if s.Stars.Valid {
@@ -107,13 +107,17 @@ func toChild(s songRow, mp3 bool) Child {
 	if s.BPM.Valid {
 		ch.BPM = int(s.BPM.Int64)
 	}
-	if r := []rune(s.Style); len(r) > 200 {
-		ch.Comment = string(r[:200])
-	} else {
-		ch.Comment = s.Style
+	if !s.Listener { // V2 removed recipe.style for a Listener: the style prompt is never sent as the comment
+		if r := []rune(s.Style); len(r) > 200 {
+			ch.Comment = string(r[:200])
+		} else {
+			ch.Comment = s.Style
+		}
 	}
 	ext := "flac"
 	switch {
+	case s.Listener:
+		ext = toListenerChild(&ch, s, mp3)
 	case s.Lossy: // D-M4a-25: the master is an MP3, never transcoded
 		ext = "mp3"
 		ch.Size, ch.ContentType, ch.Suffix = s.MasterBytes, "audio/mpeg", "mp3"
@@ -129,6 +133,9 @@ func toChild(s songRow, mp3 bool) Child {
 		}
 	}
 	ch.Path = s.AlbumSlug + "/" + s.Slug + "__" + strconv.FormatInt(s.Seed, 10) + "." + ext
+	if s.Listener { // the seed is a generation parameter a Listener never sees
+		ch.Path = s.AlbumSlug + "/" + s.Slug + "." + ext
+	}
 	if s.LUFS.Valid {
 		g := round2(-18 - s.LUFS.Float64)
 		ch.ReplayGain.TrackGain = &g
@@ -138,6 +145,34 @@ func toChild(s songRow, mp3 bool) Child {
 		ch.ReplayGain.TrackPeak = &p
 	}
 	return ch
+}
+
+// toListenerChild fills the media fields of a Listener client's song from the clean renditions (C308.6, D-U1-17): a lossy
+// master and a client whose default format is MP3 report mp3_320_clean, any other lossless track flac_clean. The size is
+// the built rendition row's when one exists and is omitted otherwise; the master's size, bit depth and bit rate are never
+// reported. It returns the file extension of the reported suffix.
+func toListenerChild(ch *Child, s songRow, mp3 bool) string {
+	if s.Lossy {
+		ch.ContentType, ch.Suffix = "audio/mpeg", "mp3"
+		if s.MP3Bytes.Valid {
+			ch.Size = s.MP3Bytes.Int64
+			ch.BitRate = kbps(s.MP3Bytes.Int64, s.DurationS)
+		}
+		return "mp3"
+	}
+	ch.ContentType, ch.Suffix = "audio/flac", "flac"
+	if s.FlacCleanBytes.Valid {
+		ch.Size = s.FlacCleanBytes.Int64
+		ch.BitRate = kbps(s.FlacCleanBytes.Int64, s.DurationS)
+	}
+	if mp3 {
+		ch.TranscodedContentType, ch.TranscodedSuffix, ch.BitRate = "audio/mpeg", "mp3", 320
+		ch.Size = 0
+		if s.MP3Bytes.Valid {
+			ch.Size = s.MP3Bytes.Int64
+		}
+	}
+	return "flac"
 }
 
 func kbps(bytes int64, sec float64) int {

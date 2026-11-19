@@ -74,3 +74,48 @@ func TestQuota_EditorPoolIsItsOwn(t *testing.T) {
 		t.Errorf("agent pool = %+v", q)
 	}
 }
+
+// TestQuota_EditorDeviceRidesTheEditorPool (D-U1-14, E1 hand-off): a paired device or Subsonic client owned by an Editor draws
+// from the Editor pool; the Owner's device and a Listener's draw from the human pool.
+func TestQuota_EditorDeviceRidesTheEditorPool(t *testing.T) {
+	r := newRig(t, false, withUsers)
+	for _, q := range []string{
+		`INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at,owner_key)
+		 VALUES('dev-bob','P','a','h1','read,write','','human:bob','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','bob'),
+		       ('dev-own','P','b','h2','read,write','','human:alice','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','owner')`,
+		`INSERT INTO subsonic_clients(id,name,username,scopes,default_format,api_key_prefix,api_key_hmac,created_by,created_at,owner_key)
+		 VALUES('sub-bob','A','bob.app','read,write','raw','a','k1','human:bob','2026-10-01T10:00:00Z','bob')`,
+	} {
+		if _, err := r.st.W.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dev := func(id string, role auth.Role, user string) auth.Principal {
+		return auth.Principal{Kind: auth.KindDevice, ID: id, Name: "P", Role: role, User: user, Via: "device", Scopes: auth.ScopesFor(auth.RoleEditor)}
+	}
+	bobPhone, bobApp, ownPhone := dev("dev-bob", auth.RoleEditor, "bob"), dev("sub-bob", auth.RoleEditor, "bob"), dev("dev-own", "", "")
+	if transform.QuotaKind(bobPhone) != "editor" || transform.QuotaKind(ownPhone) != "human" {
+		t.Fatalf("QuotaKind: %s %s", transform.QuotaKind(bobPhone), transform.QuotaKind(ownPhone))
+	}
+	r.queue(qspec{principal: bobPhone, tag: "d", maxCPU: 3_000_000})
+	r.queue(qspec{principal: bobApp, tag: "s", maxCPU: 2_000_000})
+	r.queue(qspec{principal: ownPhone, tag: "o", maxCPU: 1_000_000})
+	if q := quotaOf(t, r, "editor"); q.ReservedMS != 5_000_000 {
+		t.Errorf("editor pool = %+v, want the phone and the client", q)
+	}
+	if q := quotaOf(t, r, "human"); q.ReservedMS != 1_000_000 {
+		t.Errorf("human pool = %+v, want the Owner's phone only", q)
+	}
+}
+
+// TestQuota_NoEditorPools: with no Editor configured the human pool is every human row and the editor pool is empty.
+func TestQuota_NoEditorPools(t *testing.T) {
+	r := newRig(t, false)
+	r.queue(qspec{principal: aliceOwn, tag: "o", maxCPU: 1_000_000})
+	if q := quotaOf(t, r, "human"); q.ReservedMS != 1_000_000 {
+		t.Errorf("human pool = %+v", q)
+	}
+	if q := quotaOf(t, r, "editor"); q.ReservedMS != 0 {
+		t.Errorf("editor pool = %+v", q)
+	}
+}

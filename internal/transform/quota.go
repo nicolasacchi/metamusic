@@ -56,29 +56,49 @@ func storedKind(pool string) string {
 	return pool
 }
 
-// editorKeys are the principal keys of the configured Editors. The role map is fixed at startup (D-U1-4), so the editor pool
-// is the human rows whose principal is one of them; every other human row is the Owner's pool. With no Editor configured (all
-// of production until one is provisioned) the Owner pool is every human row, as before. A paired device of an Editor has its own
-// key and counts with the human rows until lane D1 gives devices their owner (recorded in the plan).
-func (s *Service) editorKeys() []any {
-	var keys []any
+// editorNames are the configured Editors. The role map is fixed at startup (D-U1-4), so the editor pool is the human rows whose
+// principal is one of them or a device or Subsonic client one of them owns (owner_key, D-U1-14); every other human row is the
+// Owner's pool. With no Editor configured (all of production until one is provisioned) the Owner pool is every human row, as before.
+func (s *Service) editorNames() []any {
+	var names []any
 	for name, role := range s.o.Config.Users {
 		if role == config.RoleEditor {
-			keys = append(keys, auth.Principal{Kind: auth.KindHuman, ID: name}.Key())
+			names = append(names, name)
 		}
 	}
-	return keys
+	return names
+}
+
+// editorPrincipals is the predicate on principal_id that selects the Editors' rows (their own key, their devices and their
+// Subsonic clients) with its arguments; ok is false when no Editor is configured.
+func (s *Service) editorPrincipals() (in string, args []any, ok bool) {
+	names := s.editorNames()
+	if len(names) == 0 {
+		return "", nil, false
+	}
+	ph := "(" + strings.TrimSuffix(strings.Repeat("?,", len(names)), ",") + ")"
+	for _, n := range names {
+		args = append(args, auth.Principal{Kind: auth.KindHuman, ID: n.(string)}.Key())
+	}
+	args = append(args, names...)
+	args = append(args, names...)
+	return `principal_id IN ` + ph + ` OR principal_id IN (SELECT 'device:' || id FROM devices WHERE owner_key IN ` + ph +
+		` UNION ALL SELECT 'device:' || id FROM subsonic_clients WHERE owner_key IN ` + ph + `)`, args, true
 }
 
 // poolWhere is the predicate that selects the rows of pool, with its arguments.
 func (s *Service) poolWhere(pool string) (string, []any) {
 	if pool == "editor" || pool == "human" {
-		keys := s.editorKeys()
-		in := "principal_id IN (" + strings.TrimSuffix(strings.Repeat("?,", len(keys)), ",") + ")"
-		if pool == "human" {
-			in = "principal_id NOT IN (" + strings.TrimSuffix(strings.Repeat("?,", len(keys)), ",") + ")"
+		in, args, ok := s.editorPrincipals()
+		switch {
+		case !ok && pool == "editor":
+			return "principal_kind = 'human' AND principal_id IN ()", nil // no Editor configured: the pool is empty
+		case !ok:
+			return "principal_kind = 'human'", nil
+		case pool == "human":
+			return "principal_kind = 'human' AND NOT (" + in + ")", args
 		}
-		return "principal_kind = 'human' AND " + in, keys
+		return "principal_kind = 'human' AND (" + in + ")", args
 	}
 	return "principal_kind = ?", []any{pool}
 }

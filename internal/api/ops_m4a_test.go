@@ -26,6 +26,7 @@ type m4aOp struct {
 	secrets                   []string
 	status                    int    // success status; 0 => 200
 	body                      int    // MaxBodyBytes; 0 => no body
+	humanOnly                 bool   // a self-service op (D-U1-14): human-only, under /human/api/
 	component                 string // the 503 UNAVAILABLE component
 	task                      string // the lane that replaces the stub
 	reqBody                   string // a body that passes validation
@@ -39,9 +40,9 @@ var m4aOps = []m4aOp{
 	{id: "get_prompt", method: "GET", path: "/api/prompts/{name}", scope: auth.ScopeRead, mcp: "generic", ui: "/tracks/:id", component: "prompts", task: "M4a-A1", query: "?track_id=x"},
 	{id: "list_connector_grants", method: "GET", path: "/api/connectors", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/connectors", component: "connectors", task: "M4a-C2"},
 	{id: "set_connector_grant", method: "PUT", path: "/api/connectors/{id}", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/connectors", body: 64 * kib, component: "connectors", task: "M4a-C2", reqBody: `{"revoked":false}`},
-	{id: "list_subsonic_clients", method: "GET", path: "/api/subsonic-clients", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/subsonic", component: "subsonic", task: "M4a-S1"},
-	{id: "create_subsonic_client", method: "POST", path: "/api/subsonic-clients", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/subsonic", create: true, secrets: []string{"api_key", "password"}, status: 201, body: 64 * kib, component: "subsonic", task: "M4a-S1", reqBody: `{"name":"Test phone"}`},
-	{id: "revoke_subsonic_client", method: "POST", path: "/api/subsonic-clients/{id}/revoke", scope: auth.ScopeAdmin, mcp: "generic", ui: "/human/subsonic", component: "subsonic", task: "M4a-S1"},
+	{id: "list_subsonic_clients", method: "GET", path: "/human/api/subsonic-clients", scope: auth.ScopeListen, mcp: "exclude:human-only", humanOnly: true, ui: "/human/subsonic", component: "subsonic", task: "M4a-S1"},
+	{id: "create_subsonic_client", method: "POST", path: "/human/api/subsonic-clients", scope: auth.ScopeListen, mcp: "exclude:human-only", humanOnly: true, ui: "/human/subsonic", create: true, secrets: []string{"api_key", "password"}, status: 201, body: 64 * kib, component: "subsonic", task: "M4a-S1", reqBody: `{"name":"Test phone"}`},
+	{id: "revoke_subsonic_client", method: "POST", path: "/human/api/subsonic-clients/{id}/revoke", scope: auth.ScopeListen, mcp: "exclude:human-only", humanOnly: true, ui: "/human/subsonic", component: "subsonic", task: "M4a-S1"},
 }
 
 func m4aPath(w m4aOp) string {
@@ -101,11 +102,11 @@ func TestOps_RegisteredWithMetaM4a(t *testing.T) {
 			rate = "heavy"
 		}
 		if op.Method != w.method || op.Path != w.path || m.MCP != w.mcp || m.UI != w.ui || m.Scope != w.scope || m.Cost != "free" ||
-			m.HumanOnly || m.Idempotency != idem || m.Rate != rate || m.AliasOf != "" || !slices.Equal(m.SecretFields, w.secrets) {
+			m.HumanOnly != w.humanOnly || m.Idempotency != idem || m.Rate != rate || m.AliasOf != "" || !slices.Equal(m.SecretFields, w.secrets) {
 			t.Errorf("%s = %+v, want %+v", w.id, op, w)
 		}
-		if strings.HasPrefix(w.path, "/human/api/") {
-			t.Errorf("%s must live under /api/ (D-M4a-24)", w.id)
+		if strings.HasPrefix(w.path, "/human/api/") != w.humanOnly {
+			t.Errorf("%s: human-only and path disagree (D-U1-14)", w.id)
 		}
 		want := w.status
 		if want == 0 {
@@ -118,7 +119,7 @@ func TestOps_RegisteredWithMetaM4a(t *testing.T) {
 	// three read ops, five admin management ops, all generic; none excluded and no first-class tool
 	reads, admins := 0, 0
 	for _, w := range m4aOps {
-		if w.mcp != "generic" {
+		if w.mcp != "generic" && !w.humanOnly {
 			t.Errorf("%s: mcp %q, want generic", w.id, w.mcp)
 		}
 		switch w.scope {
@@ -128,8 +129,8 @@ func TestOps_RegisteredWithMetaM4a(t *testing.T) {
 			admins++
 		}
 	}
-	if reads != 3 || admins != 5 {
-		t.Errorf("read/admin = %d/%d, want 3/5", reads, admins)
+	if reads != 6 || admins != 2 {
+		t.Errorf("read/admin = %d/%d, want 6/2", reads, admins)
 	}
 	// the human-only global caps stay out of reach of agents (D-M4a-24)
 	for _, id := range []string{"set_spend_caps", "create_token", "revoke_token"} {
@@ -192,7 +193,7 @@ func TestOps_NilDepsUnavailableM4a(t *testing.T) {
 	r := m4aRig(t, api.Deps{})
 	seen := map[string]bool{}
 	for _, w := range m4aOps {
-		rec := r.callWith(fullAdmin, w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
+		rec := r.callWith(m4aCaller(w), w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
 		m := decodeProblem(t, rec.Body.Bytes())
 		d, _ := m["details"].(map[string]any)
 		if rec.Code != 503 || m["code"] != "UNAVAILABLE" || d["component"] != w.component {
@@ -215,7 +216,7 @@ func TestOps_StubsAnswer501M4a(t *testing.T) {
 		if implementedM4a[w.id] { // a lane replaced the stub: its behaviour is covered by that lane's tests
 			continue
 		}
-		rec := r.callWith(fullAdmin, w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
+		rec := r.callWith(m4aCaller(w), w.method, m4aPath(w), w.reqBody, m4aIdem(w)...)
 		m := decodeProblem(t, rec.Body.Bytes())
 		d, _ := m["details"].(map[string]any)
 		if rec.Code != 501 || m["code"] != "NOT_IMPLEMENTED" || d["task"] != w.task {
@@ -279,6 +280,14 @@ func TestOps_AuthorizationM4a(t *testing.T) {
 	}
 }
 
+// m4aCaller is the principal that may call w: the signed-in Owner for a self-service (human-only) op, else a full-scope agent.
+func m4aCaller(w m4aOp) auth.Principal {
+	if w.humanOnly {
+		return auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", User: "alice", Role: auth.RoleOwner, Scopes: auth.ScopesFor(auth.RoleOwner), Via: "proxy"}
+	}
+	return fullAdmin
+}
+
 var fullAdmin = auth.Principal{Kind: auth.KindAgent, ID: "tok-all", Name: "all", Scopes: allScopes, Via: "token"}
 
 func TestOps_PromptNameEnum(t *testing.T) {
@@ -305,12 +314,12 @@ func TestOps_SubsonicClientInputsM4a(t *testing.T) {
 		`{}`, `{"name":""}`, `{"name":"` + strings.Repeat("x", 81) + `"}`, `{"name":"a","username":"Bad Name"}`,
 		`{"name":"a","default_format":"flac"}`, `{"name":"a","write":"yes"}`,
 	} {
-		if rec := r.callWith(fullAdmin, "POST", "/api/subsonic-clients", bad, "Idempotency-Key", "k"); rec.Code != 422 {
+		if rec := r.callWith(m4aCaller(m4aOp{humanOnly: true}), "POST", "/human/api/subsonic-clients", bad, "Idempotency-Key", "k"); rec.Code != 422 {
 			t.Errorf("%s: %d, want 422", bad, rec.Code)
 		}
 	}
 	for _, good := range []string{`{"name":"Phone"}`, `{"name":"Phone","username":"phone.1","write":false,"default_format":"mp3","api_key":false,"password":true}`} {
-		if rec := r.callWith(fullAdmin, "POST", "/api/subsonic-clients", good, "Idempotency-Key", "k"); rec.Code == 422 || rec.Code == 400 {
+		if rec := r.callWith(m4aCaller(m4aOp{humanOnly: true}), "POST", "/human/api/subsonic-clients", good, "Idempotency-Key", "k"); rec.Code == 422 || rec.Code == 400 {
 			t.Errorf("%s refused: %d %s", good, rec.Code, rec.Body)
 		}
 	}

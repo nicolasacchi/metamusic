@@ -33,11 +33,19 @@ func Permitted(p auth.Principal, m Meta) *Problem {
 	return nil
 }
 
-// ownerOnly is the effective rule: an explicit tag, or one of the classes validate() requires the tag on (HumanOnly,
-// cost approve, scope admin). Treating the classes as owner-only here, not only at registration, keeps an op that
-// forgot the tag closed to Editors and Listeners.
+// ownerOnly is the effective rule: an explicit tag, or one of the classes validate() requires the tag on (cost approve,
+// scope admin, HumanOnly unless Meta.SelfService allows it). Treating the classes as owner-only here, not only at
+// registration, keeps an op that forgot the tag closed to Editors and Listeners.
 func (m Meta) ownerOnly() bool {
-	return m.OwnerOnly || m.HumanOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin
+	return m.OwnerOnly || m.Cost == "approve" || m.Scope == auth.ScopeAdmin || (m.HumanOnly && !m.SelfService)
+}
+
+// selfServiceHumanOps are the human-only operations an Editor or Listener may call on their own behalf (D-U1-14, C305):
+// pairing a device, creating a Subsonic client, and listing and revoking them, each bound to the caller's owner key. They
+// are the only HumanOnly operations that may omit OwnerOnly; the service layer enforces the ownership.
+var selfServiceHumanOps = map[string]bool{
+	"create_pairing_code": true, "list_devices": true, "revoke_device": true,
+	"create_subsonic_client": true, "list_subsonic_clients": true, "revoke_subsonic_client": true,
 }
 
 // sensitiveReadOps are the scope-read operations that must be owner-only (D-U1-6, C302.3): audit, tokens, backups,
@@ -60,7 +68,7 @@ func validateOwnerOnly(op huma.Operation, m Meta, enforce bool) error {
 		return nil
 	}
 	switch {
-	case m.HumanOnly:
+	case m.HumanOnly && !selfServiceHumanOps[op.OperationID]:
 		return fmt.Errorf("%s: human_only operations require owner_only", op.OperationID)
 	case m.Cost == "approve":
 		return fmt.Errorf("%s: cost approve requires owner_only", op.OperationID)

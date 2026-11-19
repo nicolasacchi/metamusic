@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
@@ -33,7 +34,7 @@ func TestRig_M4aRows(t *testing.T) {
 		t.Errorf("Connectors.Get: %+v %v", g, err)
 	}
 	// the fixture's Subsonic key verifies in the rig (same secret key)
-	if clients, err := r.Services.Subsonic.List(context.Background()); err != nil || len(clients) != 1 {
+	if clients, err := r.Services.Subsonic.List(context.Background(), auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner}); err != nil || len(clients) != 1 {
 		t.Errorf("subsonic clients: %v %v", clients, err)
 	}
 	// and a human sees the offline set through the API

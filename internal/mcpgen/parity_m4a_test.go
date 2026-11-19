@@ -17,8 +17,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
-// m4aCases covers the eight M4a operations (C113, C117.2): all are MCP generic. The three read ops and the five
-// admin ones run on the admin-scope PAT of every face. A 501 NOT_IMPLEMENTED naming an M4a task fails the
+// m4aCases covers the five MCP-generic M4a operations (C113, C117.2); the three Subsonic client ops left MCP in U1-D1. They run on the admin-scope PAT of every face. A 501 NOT_IMPLEMENTED naming an M4a task fails the
 // run (m4aStubTask; TestNoPendingM4aStubs). The management cases mask ids, timestamps, keys and the
 // one-time secrets; the owning lane tunes the masks when it fills the handler.
 var m4aCases = []ParityCase{
@@ -29,11 +28,7 @@ var m4aCases = []ParityCase{
 	{Op: "list_connector_grants", Masks: []string{"id", "created_at", "updated_at", "last_used_at", "updated_by", "fetched_at", "keys"}},
 	{Op: "set_connector_grant", Args: fixedArgs(map[string]any{"id": lt.ConnectorGrantID, "scopes": []string{"read", "write", "generate"}}), SkipGeneric: true,
 		Masks: []string{"id", "created_at", "updated_at", "last_used_at", "updated_by", "revoked_by"}},
-	{Op: "list_subsonic_clients", Masks: []string{"id", "created_at", "created_by", "last_seen_at", "api_key_prefix"}},
-	{Op: "create_subsonic_client", Args: fixedArgs(map[string]any{"name": "Parity phone"}), SkipGeneric: true,
-		Masks: []string{"id", "created_at", "created_by", "api_key", "password", "api_key_prefix", "client"}},
-	{Op: "revoke_subsonic_client", Args: fixedArgs(map[string]any{"id": lt.SubsonicClientID}), SkipGeneric: true,
-		Masks: []string{"id", "created_at", "created_by", "revoked_at", "api_key_prefix"}},
+	// list, create and revoke_subsonic_client are human-only self-service ops since U1-D1 (D-U1-14): no MCP face, no parity case
 }
 
 func init() {

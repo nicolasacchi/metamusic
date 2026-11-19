@@ -18,8 +18,9 @@ import (
 
 // -update is the package flag declared in types_m2b_test.go (updateFixtures); it also rewrites testdata/role_matrix.golden.
 
-// matrixRows are the principals of C305/C314.1, in golden column order. Devices carry the scopes the clamp of C301.3 gives
-// them (lane D1 builds the real principals; the matrix pins what Permitted must do with them).
+// matrixRows are the principals of C305/C314.1, in golden column order. Devices carry the role and scopes of the clamp of
+// C301.3 (lane D1: the real device and Subsonic principals are built from owner_key; auth.TestOwnerIdentityClamp and
+// TestDeviceOwnership pin that the real principals carry exactly these roles and scopes).
 var matrixRows = []struct {
 	Name string
 	P    auth.Principal
@@ -50,14 +51,7 @@ func deviceOf(role auth.Role, s ...auth.Scope) auth.Principal {
 // failClosedHolds are the operations F1b closed as OwnerOnly until the lane that builds their redaction or service
 // guard lifts the tag in the same change (plan revision 5). The golden shows the lane in its hold column; the test
 // requires each to be owner-only today, so a lane that lifts one must delete its entry here and re-bless the golden.
-var failClosedHolds = map[string]string{
-	"create_pairing_code":    "D1 (self-service pairing)",
-	"create_subsonic_client": "D1 (self-service clients)",
-	"list_devices":           "D1 (own-only list)",
-	"list_subsonic_clients":  "D1 (own-only list)",
-	"revoke_device":          "D1 (own-only revoke)",
-	"revoke_subsonic_client": "D1 (own-only revoke)",
-}
+var failClosedHolds = map[string]string{}
 
 // cell renders one Permitted outcome: Y, or a short refusal code.
 func cell(pr *api.Problem) string {

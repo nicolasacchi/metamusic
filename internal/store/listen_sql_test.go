@@ -69,3 +69,43 @@ func TestOwnerEventsSQLKeyCaseInsensitive(t *testing.T) {
 		}
 	}
 }
+
+// TestOwnerEventsSQLDeviceOwner pins the device clause (D-U1-14, C306.7): events of a device or Subsonic client whose owner_key
+// names another user never count as the Owner's; the Owner's own (owner_key 'owner'), and a device id with no row, still do.
+func TestOwnerEventsSQLDeviceOwner(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	librarytest.Fixture(t, s, librarytest.FixedNow)
+	for _, q := range []string{
+		`INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at,owner_key)
+		 VALUES('d-own','P','a','h1','read,write','','human:alice','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','owner'),
+		       ('d-bob','P','b','h2','read,write','','human:bob','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','bob')`,
+		`INSERT INTO subsonic_clients(id,name,username,scopes,default_format,api_key_prefix,api_key_hmac,created_by,created_at,owner_key)
+		 VALUES('s-own','A','own.app','read','raw','a','k1','human:alice','2026-10-01T10:00:00Z','owner'),
+		       ('s-carol','A','carol.app','read','raw','b','k2','human:carol','2026-10-01T10:00:00Z','carol')`,
+	} {
+		if _, err := s.W.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, id := range []string{"device:d-own", "device:d-bob", "device:s-own", "device:s-carol", "device:orphan"} {
+		if _, err := s.W.ExecContext(ctx, `INSERT INTO listen_events(id,track_id,session_id,kind,source,principal_kind,principal_id,client_at,received_at)
+			VALUES(?,?,'session-0001','start','web','device',?,'2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`,
+			"01900000-0000-7000-8000-0000000001"+string(rune('a'+i))+"0", librarytest.TrackLuna, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, owner := range []string{"alice", ""} { // with and without a user map
+		s.SetOwner(owner)
+		cond, args := s.OwnerEventsSQL("e")
+		got := scalar(t, s.R, `SELECT group_concat(e.principal_id, ',') FROM (SELECT * FROM listen_events WHERE principal_kind = 'device' ORDER BY id) e WHERE `+cond, args...)
+		if want := "device:d-own,device:s-own,device:orphan"; got != want {
+			t.Errorf("owner %q counts %q, want %q", owner, got, want)
+		}
+	}
+}

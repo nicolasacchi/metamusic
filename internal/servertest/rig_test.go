@@ -205,12 +205,16 @@ func TestServertest_NonOwnerRefusedOnOwnerOps(t *testing.T) {
 	editor := r.User(t, servertest.UserEditor, config.RoleEditor)
 	listener := r.User(t, servertest.UserListener, config.RoleListener)
 	for name, c := range map[string]*servertest.Client{"editor": editor, "listener": listener} {
-		for path, method := range map[string]string{"/human/api/devices": "GET", "/human/api/spend/caps": "PUT"} {
+		for path, method := range map[string]string{"/human/api/spend/caps": "PUT"} {
 			resp := c.Do(t, method, path, map[string]any{"monthly_micro_usd": 1})
 			if resp.Status != 403 || !strings.Contains(string(resp.Body), "OWNER_ONLY") {
 				t.Errorf("%s %s %s: %d %s", name, method, path, resp.Status, resp.Body)
 			}
 		}
+	}
+	// D-U1-14: a user lists their own devices (none yet); the device ops are self-service, not owner-only
+	if resp := listener.Do(t, "GET", "/human/api/devices", nil); resp.Status != 200 {
+		t.Errorf("listener list own devices: %d %s", resp.Status, resp.Body)
 	}
 	if resp := listener.Do(t, "GET", "/api/tokens", nil); resp.Status != 403 {
 		t.Errorf("listener list tokens: %d %s", resp.Status, resp.Body)

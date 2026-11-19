@@ -16,7 +16,7 @@
   let sentBody = "";
 
   function post(key: string, body: ReturnType<typeof buildClientBody>) {
-    return api.POST("/api/subsonic-clients", { params: { header: { "Idempotency-Key": key } }, body });
+    return api.POST("/human/api/subsonic-clients", { params: { header: { "Idempotency-Key": key } }, body });
   }
 
   async function submit(e: SubmitEvent) {
