@@ -280,10 +280,15 @@ export class Device implements DeviceHooks {
     try {
       // Risk 7 (C313.7): a 404 for our own id means the row is another user's (shared browser). Mint a new id once, retry once.
       if ((await this.deps.api.put(this.deviceId, body)) === "not_found") {
+        const old = this.deviceId;
         const id = randomId();
         this.deps.storage.setItem(K.id, id);
         this.deviceId = id;
-        await this.deps.api.put(id, body);
+        // Keep the new id only when the retry lands; otherwise (an old server without the route) the identity is not lost.
+        if ((await this.deps.api.put(id, body)) !== true) {
+          this.deps.storage.setItem(K.id, old);
+          this.deviceId = old;
+        }
       }
     } catch {
       /* the profile is advisory; the local state already applies */

@@ -301,6 +301,15 @@ describe("put_device_profile 404 retry", () => {
     expect(seen).toHaveLength(4);
   });
 
+  test("a failed retry restores the old id: no orphan id per probe", async () => {
+    const { dev, store, seen } = withPuts(["not_found"]);
+    const first = dev.deviceId;
+    await dev.setQuality("high");
+    expect(seen).toHaveLength(2);
+    expect(dev.deviceId).toBe(first);
+    expect(store.getItem("mm:device-id")).toBe(first);
+  });
+
   test("success and other failures never mint an id", async () => {
     for (const answer of [true, false] as const) {
       const { dev, seen } = withPuts([answer]);

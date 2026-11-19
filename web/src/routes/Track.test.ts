@@ -100,7 +100,7 @@ describe("Track page (T1 W1b)", () => {
 
 // U1-W2: shells per role. The Owner's page is pinned (every panel present); an Editor and a Listener lose what they cannot use.
 const withAllowed = (allowed: string[]) => ({ kind: "human", scopes: [], allowed });
-const OWNER_OPS = ["list_comments", "create_voice_note", "update_playlist", "get_track_context", "set_tags", "edit_crate_items", "edit_record_slots", "create_transform", "create_generation_human"];
+const OWNER_OPS = ["propose_patch", "list_comments", "create_voice_note", "update_playlist", "get_track_context", "set_tags", "edit_crate_items", "edit_record_slots", "create_transform", "create_generation_human"];
 const LISTENER_OPS = ["get_track", "rate_track", "list_playlists"];
 const EDITOR_OPS = OWNER_OPS.filter((o) => o !== "create_voice_note" && o !== "create_generation_human");
 
@@ -112,6 +112,7 @@ describe("Track page shells (U1-W2)", () => {
       expect(h).toContain('data-testid="add-to-crate"');
       expect(h).toMatch(/<h2[^>]*>Agent context<\/h2>/);
       expect(h).toContain('data-testid="copy-critique-prompt"');
+      expect(h).toContain('data-testid="song-pr-panel"');
     }
   });
   test("a Listener sees no comment, voice, playlist, Records, Crates, tag or Agent context panel", () => {
@@ -119,6 +120,7 @@ describe("Track page shells (U1-W2)", () => {
     expect(h).not.toMatch(/<h2[^>]*>Comments<\/h2>/);
     expect(h).not.toMatch(/<h2[^>]*>Agent context<\/h2>/);
     expect(h).not.toContain('data-testid="copy-critique-prompt"');
+    expect(h).not.toContain('data-testid="song-pr-panel"');
     expect(h).not.toContain('data-testid="track-curation"');
     expect(h).not.toContain('data-testid="add-to-crate"');
     expect(h).not.toContain('data-testid="add-to-playlist"');

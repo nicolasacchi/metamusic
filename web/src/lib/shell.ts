@@ -11,6 +11,7 @@ export function mayOp(v: Viewer | null | undefined, op: string): boolean {
 /** The Track page panels a Listener or Editor cannot use, each tied to the op its controls call. */
 export const TRACK_PANEL_OPS = {
   comments: "list_comments",
+  songpr: "propose_patch",
   voice: "create_voice_note",
   playlist: "update_playlist",
   context: "get_track_context",

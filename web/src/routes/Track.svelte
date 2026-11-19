@@ -302,7 +302,7 @@
           </section>
         {/if}
         <!-- M5-W1: Song PR panel (one mount; the panel owns its fetches) -->
-        {#if track.recipe_known && !track.lossy}
+        {#if track.recipe_known && !track.lossy && showsPanel(me, "songpr")}
           <SongPrPanel trackId={id} {comments} sections={track.sections} baseStyle={track.recipe.style} canPropose={me?.kind === "human"} navigate={navigate ?? defaultNavigate} />
         {/if}
         {#if showsPanel(me, "records")}
