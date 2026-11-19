@@ -210,6 +210,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		limits = ratelimit.Default.Scaled(max(cfg.RateScale, 1))
 	}
 
+	st.SetOwner(config.Owner(cfg.Users)) // Owner-side listening readers filter by this key (C306.7); read-only after startup
 	tokens := auth.NewTokenStore(st, sec.Key, now)
 	local := auth.NewLocalAuth(st, sec.Key, cfg.PublicURL)
 	local.UseClock(now)

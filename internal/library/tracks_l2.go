@@ -42,7 +42,9 @@ func compileL2(p SearchParams, where string, args *[]any) (string, error) {
 		if *p.Unheard {
 			neg = "NOT "
 		}
-		where += ` AND ` + neg + `EXISTS (SELECT 1 FROM listen_events le WHERE le.track_id = t.id AND le.kind = 'start' AND le.principal_kind IN ('human','device'))`
+		cond, oargs := p.ownerEvents("le") // unheard means the Owner's plays only, never a Listener's (C306.7)
+		where += ` AND ` + neg + `EXISTS (SELECT 1 FROM listen_events le WHERE le.track_id = t.id AND le.kind = 'start' AND ` + cond + `)`
+		*args = append(*args, oargs...)
 	}
 	if p.InRecord != nil {
 		switch {

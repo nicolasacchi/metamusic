@@ -71,7 +71,7 @@ func loadPickTx(ctx context.Context, tx *sql.Tx, songID string) (storedPick, err
 // loadInputTx gathers the Derive input of a Song (C91.5).
 func loadInputTx(ctx context.Context, tx *sql.Tx, songID string, st map[string]ladder.Strength) ([]TakeInput, int, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT t.id, t.status, t.recorded_at, t.created_at,
-		(SELECT r.stars FROM ratings r WHERE r.track_id = t.id AND r.source = 'human'), t.transform_id IS NOT NULL
+		(SELECT r.stars FROM owner_ratings r WHERE r.track_id = t.id), t.transform_id IS NOT NULL
 		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id WHERE ts.song_id = ? ORDER BY t.id`, songID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("picks: load takes: %w", err)

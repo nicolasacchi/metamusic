@@ -357,13 +357,14 @@ func nullStr(p *string) any {
 }
 
 func (s *Service) takeRows(ctx context.Context, songID string) ([]takeRow, error) {
+	//nolint:gosec // G202: the viewer join is a fixed fragment of store.ViewerRatingJoin; the rater is a bound argument
 	rows, err := s.st.R.QueryContext(ctx, `SELECT t.id, t.title, t.status, t.generation, t.parent_track_id, t.origin, t.duration_s, t.recorded_at, t.lossy,
 		(r.engine <> 'unknown'), hs.stars, ha.stars, t.bpm_declared, r.style, t.job_id,
 		EXISTS(SELECT 1 FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'loudness'),
 		(SELECT json_extract(a.metrics_json, '$.bpm') FROM analyses a WHERE a.track_id = t.id AND a.analyzer = 'tempo' ORDER BY a.created_at DESC, a.version DESC LIMIT 1)
 		FROM take_songs ts JOIN tracks t ON t.id = ts.track_id JOIN recipes r ON r.id = t.recipe_id
-		LEFT JOIN ratings hs ON hs.track_id = t.id AND hs.source = 'human' LEFT JOIN ratings ha ON ha.track_id = t.id AND ha.source = 'agent'
-		WHERE ts.song_id = ?`, songID)
+`+store.ViewerRatingJoin("hs", "t.id")+` LEFT JOIN critic_ratings ha ON ha.track_id = t.id
+		WHERE ts.song_id = ?`, auth.DisplayRater(auth.FromContext(ctx)), songID)
 	if err != nil {
 		return nil, fmt.Errorf("songview: takes: %w", err)
 	}

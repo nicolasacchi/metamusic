@@ -94,7 +94,7 @@ func (s *Service) Get(ctx context.Context, q Query) (Board, error) {
 		}
 	}
 	f, narrowing := q.filter()
-	where, wargs := songs.FilterSQL(f, "")
+	where, wargs := songs.FilterSQL(f.WithViewer(ctx, s.st), "")
 	if !q.IncludeHidden {
 		where += " AND (s.muse_id IS NULL OR s.muse_id IN (SELECT id FROM muses WHERE hidden_at IS NULL))"
 	}

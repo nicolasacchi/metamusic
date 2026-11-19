@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/money"
+	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
 // Tree limits (C71.6).
@@ -82,7 +84,10 @@ type Tree struct {
 	Total     int
 }
 
-const treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.request_id, t.parent_track_id, t.generation, r.seed, r.engine,
+// treeSQL's first placeholder is the viewer's rater (store.ViewerRatingJoin), the second the root track.
+//
+//nolint:gosec // G202: the viewer join is a fixed fragment of store.ViewerRatingJoin
+var treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.request_id, t.parent_track_id, t.generation, r.seed, r.engine,
 	t.lossy, COALESCE(m.inferred, 0), m.rationale, hr.stars, ar.stars,
 	CASE WHEN t.transform_id IS NOT NULL THEN 'transform' ELSE t.origin END, tr.kind, tr.spec_hash, j.outcome, j.id, t.created_at,
 	j.expected_micro_usd, b.n_takes, b.reconciled_at IS NOT NULL,
@@ -93,8 +98,8 @@ const treeSQL = `SELECT t.id, t.title, t.status, COALESCE(m.operator, ''), r.req
 	COALESCE(json_extract(m.params_json, '$.cross_engine'), 0)
 	FROM tracks t JOIN recipes r ON r.id = t.recipe_id
 	LEFT JOIN mutations m ON m.child_track_id = t.id
-	LEFT JOIN ratings hr ON hr.track_id = t.id AND hr.source = 'human'
-	LEFT JOIN ratings ar ON ar.track_id = t.id AND ar.source = 'agent'
+	` + store.ViewerRatingJoin("hr", "t.id") + `
+	LEFT JOIN critic_ratings ar ON ar.track_id = t.id
 	LEFT JOIN transforms tr ON tr.id = t.transform_id
 	LEFT JOIN jobs j ON j.id = t.job_id
 	LEFT JOIN batches b ON b.id = j.batch_id
@@ -118,7 +123,7 @@ func (s *Service) Tree(ctx context.Context, trackID string, limit int) (Tree, er
 	case err != nil:
 		return Tree{}, fmt.Errorf("lineage: tree: %w", err)
 	}
-	rows, err := s.st.R.QueryContext(ctx, treeSQL, root)
+	rows, err := s.st.R.QueryContext(ctx, treeSQL, auth.DisplayRater(auth.FromContext(ctx)), root)
 	if err != nil {
 		return Tree{}, fmt.Errorf("lineage: tree: %w", err)
 	}

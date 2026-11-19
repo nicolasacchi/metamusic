@@ -11,7 +11,11 @@ import (
 )
 
 // Store holds a single-connection writer pool and a reader pool.
-type Store struct{ W, R *sql.DB }
+type Store struct {
+	W, R *sql.DB
+	// ownerKey is the Owner's principal key, set once at startup by SetOwner (listen_sql.go).
+	ownerKey string
+}
 
 func dsn(path string, writer bool) string {
 	q := url.Values{}

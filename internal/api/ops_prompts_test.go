@@ -17,6 +17,7 @@ import (
 func promptRig(t *testing.T) *rig {
 	t.Helper()
 	sr := servertest.New(t, servertest.Options{Fixture: true, M2c: true, M3: true, M4a: true, Files: true})
+	sr.Store.SetOwner("fixture") // the fixture's plays are principal human:fixture; session_review reads the Owner side's plays only
 	d := sr.Services.Deps
 	mux := http.NewServeMux()
 	api.New(mux, d)

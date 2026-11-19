@@ -100,6 +100,14 @@ type ListFilter struct {
 	// None makes the filter match nothing: crates.ExpandSongs sets it when a stored list and a request list intersect to the
 	// empty set (an empty list alone means "unset").
 	None bool
+
+	// Viewer context (U1, C306.7, C307.2); set by WithViewer, never by a request. Rater is the rater whose rating row the star
+	// predicates read ("" means the Owner's, which is what agents and system see). OwnerEvents and OwnerEventsArgs are the
+	// Owner-side listen-event condition over alias le that Unheard uses; empty means no event counts, so a caller that
+	// forgets WithViewer sees every Song as unheard, never another user's plays.
+	Rater           string
+	OwnerEvents     string
+	OwnerEventsArgs []any
 }
 
 // Page is one page of Songs.
