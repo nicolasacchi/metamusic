@@ -12,8 +12,9 @@
   const problem = $derived.by(() => {
     if (!provider) return null;
     if (!provider.generation_enabled) return `Generation is disabled${provider.disabled_reason ? ` (${provider.disabled_reason})` : ""}.`;
-    if (provider.tripped) return "The provider is tripped: new jobs are held until a human resets it.";
-    if (!provider.armed) return "The provider is disarmed: new jobs are held until a human arms it.";
+    // an Editor's brief has no armed or tripped flag (C310.5): absent is unknown, never "disarmed"
+    if (provider.tripped === true) return "The provider is tripped: new jobs are held until a human resets it.";
+    if (provider.armed === false) return "The provider is disarmed: new jobs are held until a human arms it.";
     return null;
   });
 </script>

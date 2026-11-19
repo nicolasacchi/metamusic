@@ -52,7 +52,10 @@ test("a generation request from the Editor lands awaiting approval and shows no 
   await page.goto("/human/generate");
   await expect(page.getByTestId("estimate")).toBeVisible();
   await expect(page.getByTestId("request-note")).toBeVisible();
+  // the Editor's quote has no armed or tripped flag: that is not "disarmed" (no banner, the button is enabled)
+  await expect(page.getByTestId("provider-banner")).toHaveCount(0);
   await expect(page.getByTestId("confirm-button")).toContainText("Request approval");
+  await expect(page.getByTestId("confirm-button")).toBeEnabled();
   await page.getByTestId("confirm-button").click();
   await page.waitForURL(/\/batches\/[^/]+$/);
   batchId = new URL(page.url()).pathname.split("/").pop() ?? "";

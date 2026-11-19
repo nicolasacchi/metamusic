@@ -65,10 +65,15 @@ test("after switching user, the first user's queue, inbox markers and device id 
       await route.continue();
     },
   );
+  // A Listener never runs the playback probe (get_device_probe is Owner-only, plan "Administration"), so their profile is written
+  // when they choose a playback quality in Settings: that is the put this test drives.
   const retried = page.waitForResponse((r) => isPut(r.request().method(), r.url()) && r.status() === 200, { timeout: 30_000 });
+  await page.goto("/settings");
+  await page.locator('input[name="quality"]:not(:checked)').first().check();
+  await retried;
   await page.goto(`/tracks/${t2.id}`);
   await page.getByTestId("track-play").click();
-  await retried;
+  await expect.poll(() => ls(PLAYER_KEY)).toContain(t2.id);
   expect(faked, "the 404 was injected").toBe(true);
   const newId = await ls(DEVICE_KEY);
   expect(newId, "a new device id was minted after the 404").toBeTruthy();
