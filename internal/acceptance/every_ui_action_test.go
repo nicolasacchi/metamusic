@@ -43,8 +43,8 @@ type uiState struct {
 	track, timed, draft, playlist, comment, export, run, duel string
 	// M3: a mother with a known recipe, the token of the last estimate, the batch and the job it created
 	mother, token, batch, job string
-	// M4a: a connector grant (inserted through connectors.Store.Ensure) and the Subsonic client create_subsonic_client made
-	grant, subClient string
+	// M4a: a connector grant (inserted through connectors.Store.Ensure)
+	grant string
 	// L1: ids of a Song, a Muse and a session, read from list_songs, create_muse and list_sessions
 	song, song2, muse, session string
 	// the revisions of the settled Song and Session the script updates (read from the rig before the first call)
@@ -184,17 +184,7 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"set_connector_grant": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.grant, "scopes": []string{"read", "write"}}
 	},
-	"list_subsonic_clients": func(*uiState) map[string]any { return nil },
-	"create_subsonic_client": func(*uiState) map[string]any {
-		return map[string]any{"name": "Scripted phone"}
-	},
-	"revoke_subsonic_client": func(s *uiState) map[string]any {
-		id := s.subClient
-		if id == "" { // create_subsonic_client is still a stub: any id reaches the stub's 501
-			id = "00000000-0000-7000-8000-00000000dead"
-		}
-		return map[string]any{"id": id}
-	},
+	// list, create and revoke_subsonic_client are human-only self-service ops since U1-D1: no agent call
 	// L1 (C101.2): the 14 operations with a UI route and an MCP face.
 	"list_muses": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"get_muse":   func(s *uiState) map[string]any { return map[string]any{"id": s.muse} },
@@ -312,7 +302,6 @@ var uiOrder = []string{
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
 	// M4a
 	"get_offline_set", "get_download_link", "get_prompt", "list_connector_grants", "set_connector_grant",
-	"list_subsonic_clients", "create_subsonic_client", "revoke_subsonic_client",
 	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them
 	"list_songs", "create_muse", "list_muses", "get_muse", "update_muse", "list_sessions", "update_session", "get_song", "update_song",
 	"assign_muse_songs", "list_pick_events", "search_sounds", "get_sound_taxonomy", "map_sound_term", "get_muse_board",
@@ -347,10 +336,6 @@ func (s *uiState) afterStep(op string, res any) {
 		s.batch, _ = m["id"].(string)
 		if jobs, _ := m["jobs"].([]any); len(jobs) > 0 {
 			s.job, _ = jobs[0].(map[string]any)["id"].(string)
-		}
-	case "create_subsonic_client":
-		if c, _ := m["client"].(map[string]any); c != nil {
-			s.subClient, _ = c["id"].(string)
 		}
 	case "create_muse":
 		if id, _ := m["id"].(string); id != "" {

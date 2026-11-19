@@ -61,9 +61,9 @@ var m2aOps = []m2aOp{
 	{id: "revoke_own_token", method: "POST", path: "/api/tokens/self/revoke", mcp: "generic", ui: "none:agent-self-service", scope: auth.ScopeRead},
 	{id: "create_token", method: "POST", path: "/human/api/tokens", mcp: "exclude:human-only", ui: "/human/tokens", scope: auth.ScopeAdmin, humanOnly: true, create: true, secrets: []string{"token"}, status: 201, body: 64 * kib},
 	{id: "revoke_token", method: "POST", path: "/human/api/tokens/{id}/revoke", mcp: "exclude:human-only", ui: "/human/tokens", scope: auth.ScopeAdmin, humanOnly: true},
-	{id: "list_devices", method: "GET", path: "/human/api/devices", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeRead, humanOnly: true},
-	{id: "create_pairing_code", method: "POST", path: "/human/api/devices/pairing-codes", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeAdmin, humanOnly: true, create: true, secrets: []string{"code", "pair_url"}, status: 201, body: 64 * kib},
-	{id: "revoke_device", method: "POST", path: "/human/api/devices/{id}/revoke", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeAdmin, humanOnly: true},
+	{id: "list_devices", method: "GET", path: "/human/api/devices", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true},
+	{id: "create_pairing_code", method: "POST", path: "/human/api/devices/pairing-codes", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true, create: true, secrets: []string{"code", "pair_url"}, status: 201, body: 64 * kib},
+	{id: "revoke_device", method: "POST", path: "/human/api/devices/{id}/revoke", mcp: "exclude:human-only", ui: "/human/devices", scope: auth.ScopeListen, humanOnly: true},
 	{id: "revoke_own_device", method: "POST", path: "/api/devices/self/revoke", mcp: "exclude:device-self-service", ui: "/settings", scope: auth.ScopeWrite},
 }
 

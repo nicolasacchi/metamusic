@@ -4982,6 +4982,10 @@
           "name": {
             "type": "string"
           },
+          "owner": {
+            "description": "Whose device this is: owner or a username. Only the Owner's listing carries it (D-U1-14)",
+            "type": "string"
+          },
           "paired_by": {
             "type": "string"
           },
@@ -18042,6 +18046,10 @@
           "name": {
             "type": "string"
           },
+          "owner": {
+            "description": "Whose client this is: owner or a username. Only the Owner's listing carries it (D-U1-14)",
+            "type": "string"
+          },
           "revoked_at": {
             "type": [
               "string",
@@ -29815,157 +29823,6 @@
         }
       }
     },
-    "/api/subsonic-clients": {
-      "get": {
-        "description": "The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. Needs scope admin.",
-        "operationId": "list_subsonic_clients",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubsonicClientList"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "List Subsonic clients",
-        "x-mm": {
-          "scope": "admin",
-          "cost": "free",
-          "mcp": "generic",
-          "ui": "/human/subsonic",
-          "human_only": false,
-          "owner_only": true
-        }
-      },
-      "post": {
-        "description": "Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. Needs scope admin.",
-        "operationId": "create_subsonic_client",
-        "parameters": [
-          {
-            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
-              "maxLength": 255,
-              "minLength": 1,
-              "pattern": "^[!-~]+$",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSubsonicClientInBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreatedSubsonicClient"
-                }
-              }
-            },
-            "description": "Created"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Create a Subsonic client",
-        "x-mm": {
-          "scope": "admin",
-          "cost": "free",
-          "mcp": "generic",
-          "ui": "/human/subsonic",
-          "human_only": false,
-          "owner_only": true,
-          "idempotency": "create",
-          "secret_fields": [
-            "api_key",
-            "password"
-          ]
-        }
-      }
-    },
-    "/api/subsonic-clients/{id}/revoke": {
-      "post": {
-        "description": "Revokes a native-app credential by id; repeating the call returns the same result. Needs scope admin.",
-        "operationId": "revoke_subsonic_client",
-        "parameters": [
-          {
-            "description": "Subsonic client id",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Subsonic client id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubsonicClient"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Revoke a Subsonic client",
-        "x-mm": {
-          "scope": "admin",
-          "cost": "free",
-          "mcp": "generic",
-          "ui": "/human/subsonic",
-          "human_only": false,
-          "owner_only": true
-        }
-      }
-    },
     "/api/system": {
       "get": {
         "description": "Version, commit, auth mode, database schema version and uptime.",
@@ -32458,7 +32315,7 @@
     },
     "/human/api/devices": {
       "get": {
-        "description": "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
+        "description": "Paired browsers and phones with their last use. The Owner sees every user's devices (with an owner column); anyone else sees only their own. A person's own login only: user agents and names are personal data.",
         "operationId": "list_devices",
         "responses": {
           "200": {
@@ -32484,18 +32341,17 @@
         },
         "summary": "List paired devices",
         "x-mm": {
-          "scope": "read",
+          "scope": "listen",
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true,
-          "owner_only": true
+          "human_only": true
         }
       }
     },
     "/human/api/devices/pairing-codes": {
       "post": {
-        "description": "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. Operator only.",
+        "description": "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. The device belongs to the caller and acts with the caller's role. An Editor or Listener may hold 5 active devices.",
         "operationId": "create_pairing_code",
         "parameters": [
           {
@@ -32546,12 +32402,11 @@
         },
         "summary": "Create a pairing code",
         "x-mm": {
-          "scope": "admin",
+          "scope": "listen",
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
           "human_only": true,
-          "owner_only": true,
           "idempotency": "create",
           "secret_fields": [
             "code",
@@ -32562,7 +32417,7 @@
     },
     "/human/api/devices/{id}/revoke": {
       "post": {
-        "description": "Unpairs a device by id. Repeating the call returns the same result. Operator only.",
+        "description": "Unpairs a device by id. The Owner may revoke any device; anyone else only their own (another user's id answers 404). Repeating the call returns the same result.",
         "operationId": "revoke_device",
         "parameters": [
           {
@@ -32600,12 +32455,11 @@
         },
         "summary": "Revoke a paired device",
         "x-mm": {
-          "scope": "admin",
+          "scope": "listen",
           "cost": "free",
           "mcp": "exclude:human-only",
           "ui": "/human/devices",
-          "human_only": true,
-          "owner_only": true
+          "human_only": true
         }
       }
     },
@@ -32869,6 +32723,154 @@
           "ui": "/human/spend",
           "human_only": true,
           "owner_only": true
+        }
+      }
+    },
+    "/human/api/subsonic-clients": {
+      "get": {
+        "description": "The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. The Owner sees every user's clients (with an owner column); anyone else only their own.",
+        "operationId": "list_subsonic_clients",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubsonicClientList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Subsonic clients",
+        "x-mm": {
+          "scope": "listen",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/subsonic",
+          "human_only": true
+        }
+      },
+      "post": {
+        "description": "Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. The client belongs to the caller and acts with the caller's role; an Editor or Listener may hold 5 active clients.",
+        "operationId": "create_subsonic_client",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubsonicClientInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedSubsonicClient"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a Subsonic client",
+        "x-mm": {
+          "scope": "listen",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/subsonic",
+          "human_only": true,
+          "idempotency": "create",
+          "secret_fields": [
+            "api_key",
+            "password"
+          ]
+        }
+      }
+    },
+    "/human/api/subsonic-clients/{id}/revoke": {
+      "post": {
+        "description": "Revokes a native-app credential by id; repeating the call returns the same result. The Owner may revoke any client; anyone else only their own (another user's id answers 404).",
+        "operationId": "revoke_subsonic_client",
+        "parameters": [
+          {
+            "description": "Subsonic client id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Subsonic client id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubsonicClient"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a Subsonic client",
+        "x-mm": {
+          "scope": "listen",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/subsonic",
+          "human_only": true
         }
       }
     },

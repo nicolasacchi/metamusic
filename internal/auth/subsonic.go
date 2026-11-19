@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -49,6 +50,7 @@ func SaltWindowFor(endpoint string) time.Duration {
 // SubsonicClient is one native-app credential row; it never carries key material.
 type SubsonicClient struct {
 	ID, Name, Username, DefaultFormat, APIKeyPrefix, CreatedBy, LastClient, RevokedBy string
+	OwnerKey                                                                          string // "owner" or the username that created it (D-U1-14)
 	Scopes                                                                            []Scope
 	HasAPIKey, HasPassword                                                            bool
 	CreatedAt                                                                         time.Time
@@ -89,6 +91,7 @@ type SubsonicStore struct {
 	rnd    io.Reader
 	dummyN []byte // a fixed ciphertext decrypted for unknown users, so timing does not reveal usernames
 	dummyC []byte
+	users  map[string]Role // the configured users (startup, D-U1-4); resolves a client's owner key to its role
 
 	decrypts atomic.Int64 // test hook: number of password decryptions attempted
 }
@@ -124,6 +127,10 @@ func NewSubsonicStore(st *store.Store, secretKey []byte, now func() time.Time, n
 	s.dummyC = aead.Seal(nil, s.dummyN, []byte("dummy-password-0123456789"), s.aad("dummy"))
 	return s
 }
+
+// UseUsers sets the user map a client's owner key is resolved against on every request (C312.3). Call once at startup;
+// without it only the Owner's clients authenticate.
+func (s *SubsonicStore) UseUsers(users map[string]Role) { s.users = maps.Clone(users) }
 
 func (s *SubsonicStore) aad(id string) []byte { return []byte("subsonic-password\n" + id) }
 
@@ -174,9 +181,13 @@ func slugUsername(name string) string {
 	return out
 }
 
-// Create stores a new client and returns its plaintext credentials once. by holds scope admin (the gate
-// enforces it before this is called).
+// Create stores a new client bound to the calling human (OwnerKeyOf) and returns its plaintext credentials once. The gate
+// has already required a human login; a non-owner user may hold MaxUserDevices active clients (ErrDeviceLimit).
 func (s *SubsonicStore) Create(ctx context.Context, by Principal, in NewSubsonicClient) (SubsonicClient, SubsonicSecrets, error) {
+	ownerKey, ok := OwnerKeyOf(by)
+	if !ok {
+		return SubsonicClient{}, SubsonicSecrets{}, ErrNotHuman
+	}
 	name := strings.TrimSpace(in.Name)
 	if n := len([]rune(name)); n < 1 || n > 80 {
 		return SubsonicClient{}, SubsonicSecrets{}, subsonicInput("name must be 1 to 80 characters")
@@ -231,9 +242,27 @@ func (s *SubsonicStore) Create(ctx context.Context, by Principal, in NewSubsonic
 		sec.Password = pw
 		nonce, ct = n, s.aead.Seal(nil, n, []byte(pw), s.aad(id))
 	}
-	_, err := s.st.W.ExecContext(ctx, `INSERT INTO subsonic_clients(id, name, username, scopes, default_format, api_key_prefix, api_key_hmac,
-		password_nonce, password_ct, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		id, name, user, scopes, format, prefix, keyMAC, nonce, ct, by.Key(), store.FormatTime(s.now()))
+	// The limit check and the insert share one transaction on the single writer connection, so two creations cannot both pass.
+	tx, err := s.st.W.BeginTx(ctx, nil)
+	if err != nil {
+		return SubsonicClient{}, SubsonicSecrets{}, fmt.Errorf("subsonic: create client: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if ownerKey != OwnerKeyOwner {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM subsonic_clients WHERE owner_key = ? AND revoked_at IS NULL`, ownerKey).Scan(&n); err != nil {
+			return SubsonicClient{}, SubsonicSecrets{}, fmt.Errorf("subsonic: count clients: %w", err)
+		}
+		if n >= MaxUserDevices {
+			return SubsonicClient{}, SubsonicSecrets{}, ErrDeviceLimit
+		}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO subsonic_clients(id, name, username, scopes, default_format, api_key_prefix, api_key_hmac,
+		password_nonce, password_ct, created_by, created_at, owner_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		id, name, user, scopes, format, prefix, keyMAC, nonce, ct, by.Key(), store.FormatTime(s.now()), ownerKey)
+	if err == nil {
+		err = tx.Commit()
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "subsonic_clients.username") {
 			return SubsonicClient{}, SubsonicSecrets{}, ErrUsernameTaken
@@ -245,14 +274,14 @@ func (s *SubsonicStore) Create(ctx context.Context, by Principal, in NewSubsonic
 }
 
 const subsonicCols = `id, name, username, scopes, default_format, api_key_prefix, api_key_hmac IS NOT NULL, password_ct IS NOT NULL,
-	created_by, created_at, last_seen_at, last_client, revoked_at, revoked_by`
+	created_by, created_at, last_seen_at, last_client, revoked_at, revoked_by, owner_key`
 
 func scanSubsonic(r rowScanner) (SubsonicClient, error) {
 	var c SubsonicClient
 	var scopes, created string
 	var prefix, lastSeen, lastClient, revoked, revokedBy sql.NullString
 	if err := r.Scan(&c.ID, &c.Name, &c.Username, &scopes, &c.DefaultFormat, &prefix, &c.HasAPIKey, &c.HasPassword,
-		&c.CreatedBy, &created, &lastSeen, &lastClient, &revoked, &revokedBy); err != nil {
+		&c.CreatedBy, &created, &lastSeen, &lastClient, &revoked, &revokedBy, &c.OwnerKey); err != nil {
 		return SubsonicClient{}, err
 	}
 	c.Scopes, c.APIKeyPrefix, c.LastClient, c.RevokedBy = splitScopes(scopes), prefix.String, lastClient.String, revokedBy.String
@@ -276,9 +305,27 @@ func (s *SubsonicStore) get(ctx context.Context, id string) (SubsonicClient, err
 	return c, err
 }
 
-// List returns every client, oldest first; it never returns key material.
-func (s *SubsonicStore) List(ctx context.Context) ([]SubsonicClient, error) {
-	rows, err := s.st.R.QueryContext(ctx, `SELECT `+subsonicCols+` FROM subsonic_clients ORDER BY created_at, id`)
+// Client returns one client row by id (the Subsonic bridge loads the caller's own row); ErrNotFound if absent.
+func (s *SubsonicStore) Client(ctx context.Context, id string) (SubsonicClient, error) {
+	c, err := scanSubsonic(s.st.R.QueryRowContext(ctx, `SELECT `+subsonicCols+` FROM subsonic_clients WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return SubsonicClient{}, ErrNotFound
+	}
+	return c, err
+}
+
+// List returns the clients viewer may see, oldest first: every user's for the Owner, only the viewer's own otherwise
+// (D-U1-14). It never returns key material.
+func (s *SubsonicStore) List(ctx context.Context, viewer Principal) ([]SubsonicClient, error) {
+	q, args := `SELECT `+subsonicCols+` FROM subsonic_clients`, []any(nil)
+	if !SeesAllDevices(viewer) {
+		key, ok := OwnerKeyOf(viewer)
+		if !ok {
+			return []SubsonicClient{}, nil
+		}
+		q, args = q+` WHERE owner_key = ?`, []any{key}
+	}
+	rows, err := s.st.R.QueryContext(ctx, q+` ORDER BY created_at, id`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -294,8 +341,18 @@ func (s *SubsonicStore) List(ctx context.Context) ([]SubsonicClient, error) {
 	return out, rows.Err()
 }
 
-// Revoke retires a client (idempotent); ErrNotFound for an unknown id.
+// Revoke retires a client on behalf of by (idempotent): the Owner may revoke any client at once, any other user only
+// their own, and a foreign id is ErrNotFound exactly like an unknown one.
 func (s *SubsonicStore) Revoke(ctx context.Context, by Principal, id string) (SubsonicClient, error) {
+	c, err := s.get(ctx, id)
+	if err != nil {
+		return SubsonicClient{}, err
+	}
+	if !SeesAllDevices(by) {
+		if key, ok := OwnerKeyOf(by); !ok || key != c.OwnerKey {
+			return SubsonicClient{}, ErrNotFound
+		}
+	}
 	if _, err := s.st.W.ExecContext(ctx, `UPDATE subsonic_clients SET revoked_at = ?, revoked_by = ? WHERE id = ? AND revoked_at IS NULL`,
 		store.FormatTime(s.now()), by.Key(), id); err != nil {
 		return SubsonicClient{}, fmt.Errorf("subsonic: revoke client: %w", err)
@@ -304,13 +361,19 @@ func (s *SubsonicStore) Revoke(ctx context.Context, by Principal, id string) (Su
 }
 
 type liveClient struct {
-	id, name, scopes string
-	nonce, ct        []byte
+	id, name, scopes, ownerKey string
+	nonce, ct                  []byte
 }
 
-func (c liveClient) principal(clientParam string) Principal {
-	return Principal{Kind: KindDevice, ID: c.id, Name: c.name, Scopes: splitScopes(c.scopes), Via: "subsonic",
-		Client: reqinfo.SanitizeClient(clientParam)}
+// principal builds the client's principal: its owner's role and user, scopes clamped to that role (C312.3). ok is false
+// when the owner is no longer a configured Editor or Listener, which the verifiers answer as bad credentials.
+func (s *SubsonicStore) principal(c liveClient, clientParam string) (Principal, bool) {
+	role, user, scopes, ok := ownerIdentity(s.users, c.ownerKey, splitScopes(c.scopes))
+	if !ok {
+		return Principal{}, false
+	}
+	return Principal{Kind: KindDevice, ID: c.id, Name: c.name, Role: role, User: user, Scopes: scopes, Via: "subsonic",
+		Client: reqinfo.SanitizeClient(clientParam)}, true
 }
 
 // VerifyAPIKey resolves an `apiKey` parameter to its client's principal.
@@ -319,15 +382,18 @@ func (s *SubsonicStore) VerifyAPIKey(ctx context.Context, key, clientParam strin
 		return Principal{}, ErrSubsonicAPIKey
 	}
 	var c liveClient
-	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, scopes FROM subsonic_clients WHERE api_key_hmac = ? AND revoked_at IS NULL`,
-		s.apiKeyHMAC(key)).Scan(&c.id, &c.name, &c.scopes)
+	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, scopes, owner_key FROM subsonic_clients WHERE api_key_hmac = ? AND revoked_at IS NULL`,
+		s.apiKeyHMAC(key)).Scan(&c.id, &c.name, &c.scopes, &c.ownerKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, ErrSubsonicAPIKey
 	}
 	if err != nil {
 		return Principal{}, fmt.Errorf("subsonic: verify api key: %w", err)
 	}
-	p := c.principal(clientParam)
+	p, ok := s.principal(c, clientParam)
+	if !ok {
+		return Principal{}, ErrSubsonicAPIKey
+	}
 	s.touch(ctx, c.id, p.Client)
 	return p, nil
 }
@@ -351,8 +417,8 @@ func (s *SubsonicStore) VerifyToken(ctx context.Context, username, token, salt, 
 		return Principal{}, ErrSubsonicCredentials
 	}
 	var c liveClient
-	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, scopes, password_nonce, password_ct FROM subsonic_clients
-		WHERE username = ? AND revoked_at IS NULL`, username).Scan(&c.id, &c.name, &c.scopes, &c.nonce, &c.ct)
+	err := s.st.R.QueryRowContext(ctx, `SELECT id, name, scopes, owner_key, password_nonce, password_ct FROM subsonic_clients
+		WHERE username = ? AND revoked_at IS NULL`, username).Scan(&c.id, &c.name, &c.scopes, &c.ownerKey, &c.nonce, &c.ct)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, fmt.Errorf("subsonic: verify token: %w", err)
 	}
@@ -375,7 +441,10 @@ func (s *SubsonicStore) VerifyToken(ctx context.Context, username, token, salt, 
 	if err := s.checkSalt(ctx, c.id, salt, window); err != nil {
 		return Principal{}, err
 	}
-	p := c.principal(clientParam)
+	p, ok := s.principal(c, clientParam)
+	if !ok {
+		return Principal{}, ErrSubsonicCredentials
+	}
 	s.touch(ctx, c.id, p.Client)
 	return p, nil
 }

@@ -32,9 +32,9 @@ func TestDeviceStore_NilStoreIsUnsupported(t *testing.T) {
 	for name, f := range map[string]func() error{
 		"create": func() error { _, _, err := nilDS.CreatePairingCode(ctx, human, "x"); return err },
 		"redeem": func() error { _, _, err := nilDS.Redeem(ctx, "ABCD-EFGH", "ua"); return err },
-		"list":   func() error { _, err := nilDS.List(ctx); return err },
+		"list":   func() error { _, err := nilDS.List(ctx, human); return err },
 		"get":    func() error { _, err := nilDS.Get(ctx, "x"); return err },
-		"revoke": func() error { _, err := nilDS.Revoke(ctx, "x"); return err },
+		"revoke": func() error { _, err := nilDS.Revoke(ctx, human, "x"); return err },
 	} {
 		if err := f(); !errors.Is(err, errors.ErrUnsupported) {
 			t.Errorf("%s: %v", name, err)
@@ -80,13 +80,13 @@ func TestDeviceStore_DatabaseErrors(t *testing.T) {
 	if _, err := ds.VerifyDevice(ctx, cookie); err == nil || errors.Is(err, ErrInvalidDevice) {
 		t.Errorf("verify: %v", err)
 	}
-	if _, err := ds.List(ctx); err == nil {
+	if _, err := ds.List(ctx, human); err == nil {
 		t.Error("list")
 	}
 	if _, err := ds.Get(ctx, dev.ID); err == nil || errors.Is(err, ErrNotFound) {
 		t.Errorf("get: %v", err)
 	}
-	if _, err := ds.Revoke(ctx, dev.ID); err == nil {
+	if _, err := ds.Revoke(ctx, human, dev.ID); err == nil {
 		t.Error("revoke")
 	}
 }
@@ -258,7 +258,7 @@ func TestDeviceStore_ListScanError(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := ds.st.W.Exec(`UPDATE devices SET user_agent=NULL`); err == nil {
-		if _, err := ds.List(ctx); err == nil {
+		if _, err := ds.List(ctx, human); err == nil {
 			t.Fatal("List accepted a NULL user agent")
 		}
 	}

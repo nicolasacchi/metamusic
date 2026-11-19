@@ -85,11 +85,15 @@ type songRow struct {
 	Style                                                             string
 	Pos                                                               int
 	MP3Bytes                                                          sql.NullInt64
-	Plays                                                             int64
-	LastPlay                                                          sql.NullString
-	Stars                                                             sql.NullInt64
-	LUFS, TruePeak                                                    sql.NullFloat64
-	Terms                                                             sql.NullString
+	// FlacCleanBytes is the built flac_clean rendition's size and Listener marks a Listener client's row: such a client never
+	// sees the master's size, suffix or content type, only the clean rendition's (C308.6, D-U1-17).
+	FlacCleanBytes sql.NullInt64
+	Listener       bool
+	Plays          int64
+	LastPlay       sql.NullString
+	Stars          sql.NullInt64
+	LUFS, TruePeak sql.NullFloat64
+	Terms          sql.NullString
 }
 
 // songSelect is a template: {events} is replaced by the Owner-side event condition (catalog.viewer).
@@ -97,7 +101,8 @@ var songSelect = `SELECT t.id, t.root_track_id, t.title, t.slug, t.status, COALE
  t.duration_s, t.sample_rate, t.bits_per_sample, t.channels, t.master_bytes, t.lossy, t.bpm_declared,
  rt.title, rt.slug, r.seed, r.style,
  (SELECT COUNT(*) FROM tracks m WHERE m.root_track_id = t.root_track_id AND (m.recorded_at < t.recorded_at OR (m.recorded_at = t.recorded_at AND m.id <= t.id))),
- (SELECT bytes FROM renditions n WHERE n.track_id = t.id AND n.kind = 'mp3_320'),
+ (SELECT bytes FROM renditions n WHERE n.track_id = t.id AND n.kind = '{mp3kind}'),
+ (SELECT bytes FROM renditions n WHERE n.track_id = t.id AND n.kind = 'flac_clean'), {listener},
  (SELECT COUNT(*) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events}),
  (SELECT MAX(e.client_at) FROM listen_events e WHERE e.track_id = t.id AND e.kind = 'start' AND {events}),
  hs.stars,
@@ -111,12 +116,12 @@ var viewerJoin = store.ViewerRatingJoin("hs", "t.id")
 
 func scanSong(rows interface{ Scan(...any) error }) (songRow, error) {
 	var s songRow
-	var lossy int
+	var lossy, listener int
 	err := rows.Scan(&s.ID, &s.Root, &s.Title, &s.Slug, &s.Status, &s.StatusSetAt, &s.CreatedAt, &s.RecordedAt,
 		&s.DurationS, &s.SampleRate, &s.BitsPerSample, &s.Channels, &s.MasterBytes, &lossy, &s.BPM,
-		&s.AlbumTitle, &s.AlbumSlug, &s.Seed, &s.Style, &s.Pos, &s.MP3Bytes, &s.Plays, &s.LastPlay, &s.Stars,
+		&s.AlbumTitle, &s.AlbumSlug, &s.Seed, &s.Style, &s.Pos, &s.MP3Bytes, &s.FlacCleanBytes, &listener, &s.Plays, &s.LastPlay, &s.Stars,
 		&s.LUFS, &s.TruePeak, &s.Terms)
-	s.Lossy = lossy == 1
+	s.Lossy, s.Listener = lossy == 1, listener == 1
 	return s, err
 }
 
@@ -153,7 +158,12 @@ func (c *catalog) songs(ctx context.Context, q songQuery) ([]songRow, error) {
 	var args []any
 	cond, vargs := c.viewer(ctx)
 	args = vargs
-	b.WriteString(strings.ReplaceAll(songSelect, "{events}", cond))
+	// A Listener's client reads the clean MP3 rendition's size, never the master-derived mp3_320 row's (C308.6).
+	mp3kind, listener := "mp3_320", "0"
+	if view.FromContext(ctx).Listener() {
+		mp3kind, listener = "mp3_320_clean", "1"
+	}
+	b.WriteString(strings.NewReplacer("{events}", cond, "{mp3kind}", mp3kind, "{listener}", listener).Replace(songSelect))
 	if q.fts != "" {
 		b.WriteString(` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`)
 		args = append(args, q.fts)

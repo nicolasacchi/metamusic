@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ var (
 	ErrInvalidDevice = errors.New("invalid device")
 	ErrInvalidCode   = errors.New("invalid pairing code")
 	ErrInvalidName   = errors.New("name must be 1 to 80 characters")
-	ErrNotHuman      = errors.New("only the operator can mint pairing codes")
+	ErrNotHuman      = errors.New("only a signed-in user can mint pairing codes")
 )
 
 var deviceRE = regexp.MustCompile(`^mmd_[a-z2-7]{52}$`)
@@ -42,11 +43,12 @@ var deviceRE = regexp.MustCompile(`^mmd_[a-z2-7]{52}$`)
 // DeviceInfo describes one paired device; it never carries the cookie hash.
 type DeviceInfo struct {
 	ID, Name, Prefix, UserAgent, PairedBy, CreatedAt, LastSeenAt, ExpiresAt, RevokedAt string
+	OwnerKey                                                                           string // "owner" or the username that paired it (D-U1-14)
 	Scopes                                                                             []Scope
 }
 
 // PairingCode describes one pairing code (never the code itself).
-type PairingCode struct{ ID, Name, CreatedBy, CreatedAt, ExpiresAt string }
+type PairingCode struct{ ID, Name, CreatedBy, OwnerKey, CreatedAt, ExpiresAt string }
 
 // DeviceVerifier resolves a device cookie to a principal.
 type DeviceVerifier interface {
@@ -65,6 +67,7 @@ type DeviceStore struct {
 	key   []byte
 	now   func() time.Time
 	newID func() string
+	users map[string]Role // the configured users (startup, D-U1-4); resolves a device's owner key to its role
 }
 
 // NewDeviceStore builds a DeviceStore; nil now means time.Now.
@@ -74,6 +77,10 @@ func NewDeviceStore(st *store.Store, key []byte, now func() time.Time, newID fun
 	}
 	return &DeviceStore{st: st, key: key, now: now, newID: newID}
 }
+
+// UseUsers sets the user map a device's owner key is resolved against on every request (C312.2). Call once at startup;
+// without it only the Owner's devices authenticate (a non-owner key answers invalid, never the Owner).
+func (d *DeviceStore) UseUsers(users map[string]Role) { d.users = maps.Clone(users) }
 
 func (d *DeviceStore) ts(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
@@ -107,7 +114,8 @@ func (d *DeviceStore) CreatePairingCode(ctx context.Context, by Principal, name 
 	if d == nil || d.st == nil {
 		return "", PairingCode{}, errors.ErrUnsupported
 	}
-	if by.Kind != KindHuman || !by.IsOwnerSide() { // only the Owner pairs devices (D-U1-6); an Editor or Listener is refused
+	ownerKey, ok := OwnerKeyOf(by) // the code is bound to the calling human; a device or agent never pairs (D-U1-14)
+	if !ok {
 		return "", PairingCode{}, ErrNotHuman
 	}
 	if n := utf8.RuneCountInString(name); n < 1 || n > maxNameRunes || strings.TrimSpace(name) == "" {
@@ -124,26 +132,44 @@ func (d *DeviceStore) CreatePairingCode(ctx context.Context, by Principal, name 
 	norm := string(sym)
 	code = norm[:4] + "-" + norm[4:]
 	now := d.now()
-	pc = PairingCode{ID: d.newID(), Name: name, CreatedBy: by.Key(), CreatedAt: d.ts(now), ExpiresAt: d.ts(now.Add(PairingTTL))}
+	pc = PairingCode{ID: d.newID(), Name: name, CreatedBy: by.Key(), OwnerKey: ownerKey, CreatedAt: d.ts(now), ExpiresAt: d.ts(now.Add(PairingTTL))}
 	tx, err := d.st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return "", PairingCode{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := d.checkLimit(ctx, tx, ownerKey); err != nil {
+		return "", PairingCode{}, err
+	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE pairing_codes SET revoked_at=? WHERE redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?`,
-		pc.CreatedAt, pc.CreatedAt); err != nil {
+		`UPDATE pairing_codes SET revoked_at=? WHERE redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>? AND owner_key=?`,
+		pc.CreatedAt, pc.CreatedAt, ownerKey); err != nil {
 		return "", PairingCode{}, fmt.Errorf("supersede pairing codes: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO pairing_codes(id,hmac_hash,name,created_by,created_at,expires_at) VALUES(?,?,?,?,?,?)`,
-		pc.ID, d.codeHash(norm), pc.Name, pc.CreatedBy, pc.CreatedAt, pc.ExpiresAt); err != nil {
+		`INSERT INTO pairing_codes(id,hmac_hash,name,created_by,created_at,expires_at,owner_key) VALUES(?,?,?,?,?,?,?)`,
+		pc.ID, d.codeHash(norm), pc.Name, pc.CreatedBy, pc.CreatedAt, pc.ExpiresAt, ownerKey); err != nil {
 		return "", PairingCode{}, fmt.Errorf("create pairing code: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return "", PairingCode{}, err
 	}
 	return code, pc, nil
+}
+
+// checkLimit refuses a non-owner key that already holds MaxUserDevices active devices (the Owner is unlimited).
+func (d *DeviceStore) checkLimit(ctx context.Context, tx *sql.Tx, ownerKey string) error {
+	if ownerKey == OwnerKeyOwner {
+		return nil
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM devices WHERE owner_key=? AND revoked_at IS NULL`, ownerKey).Scan(&n); err != nil {
+		return fmt.Errorf("count devices: %w", err)
+	}
+	if n >= MaxUserDevices {
+		return ErrDeviceLimit
+	}
+	return nil
 }
 
 // truncateUTF8 cuts s to at most n bytes without splitting a rune.
@@ -178,23 +204,28 @@ func (d *DeviceStore) Redeem(ctx context.Context, code, userAgent string) (cooki
 		return "", DeviceInfo{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	var codeID, name, by string
+	var codeID, name, by, ownerKey string
 	err = tx.QueryRowContext(ctx,
-		`SELECT id,name,created_by FROM pairing_codes WHERE hmac_hash=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?`,
-		d.codeHash(norm), d.ts(now)).Scan(&codeID, &name, &by)
+		`SELECT id,name,created_by,owner_key FROM pairing_codes WHERE hmac_hash=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?`,
+		d.codeHash(norm), d.ts(now)).Scan(&codeID, &name, &by, &ownerKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", DeviceInfo{}, ErrInvalidCode
 	}
 	if err != nil {
 		return "", DeviceInfo{}, fmt.Errorf("redeem pairing code: %w", err)
 	}
+	// The owner key comes from the code row the creator's login wrote, never from the (unauthenticated) request. A user
+	// who filled the limit between creating and redeeming the code, or who was removed, gets the generic invalid answer.
+	if _, _, _, ok := ownerIdentity(d.users, ownerKey, nil); !ok || d.checkLimit(ctx, tx, ownerKey) != nil {
+		return "", DeviceInfo{}, ErrInvalidCode
+	}
 	dev = DeviceInfo{
-		ID: d.newID(), Name: name, Prefix: cookie[4:12], UserAgent: truncateUTF8(userAgent, maxUserAgent), PairedBy: by,
+		OwnerKey: ownerKey, ID: d.newID(), Name: name, Prefix: cookie[4:12], UserAgent: truncateUTF8(userAgent, maxUserAgent), PairedBy: by,
 		CreatedAt: d.ts(now), ExpiresAt: d.ts(now.Add(DeviceTTL)), Scopes: []Scope{ScopeRead, ScopeWrite},
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?)`,
-		dev.ID, dev.Name, dev.Prefix, mac(d.key, cookie), "read,write", dev.UserAgent, dev.PairedBy, dev.CreatedAt, dev.ExpiresAt); err != nil {
+		`INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at,owner_key) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		dev.ID, dev.Name, dev.Prefix, mac(d.key, cookie), "read,write", dev.UserAgent, dev.PairedBy, dev.CreatedAt, dev.ExpiresAt, ownerKey); err != nil {
 		return "", DeviceInfo{}, fmt.Errorf("create device: %w", err)
 	}
 	// The single writer connection serialises redemptions, and the SELECT above
@@ -221,16 +252,20 @@ func (d *DeviceStore) verify(ctx context.Context, cookie string) (Principal, boo
 	if d == nil || d.st == nil || !deviceRE.MatchString(cookie) {
 		return Principal{}, false, ErrInvalidDevice
 	}
-	var id, name, scopes, exp string
+	var id, name, scopes, exp, ownerKey string
 	var seen, revoked sql.NullString
 	err := d.st.R.QueryRowContext(ctx,
-		`SELECT id,name,scopes,expires_at,last_seen_at,revoked_at FROM devices WHERE hmac_hash=?`, mac(d.key, cookie)).
-		Scan(&id, &name, &scopes, &exp, &seen, &revoked)
+		`SELECT id,name,scopes,expires_at,last_seen_at,revoked_at,owner_key FROM devices WHERE hmac_hash=?`, mac(d.key, cookie)).
+		Scan(&id, &name, &scopes, &exp, &seen, &revoked, &ownerKey)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && revoked.Valid) {
 		return Principal{}, false, ErrInvalidDevice
 	}
 	if err != nil {
 		return Principal{}, false, fmt.Errorf("verify device: %w", err)
+	}
+	role, user, eff, ok := ownerIdentity(d.users, ownerKey, splitScopes(scopes))
+	if !ok { // the owner left the user map: the device is inert (C312.5), never the Owner's
+		return Principal{}, false, ErrInvalidDevice
 	}
 	n := d.now().UTC()
 	expires, perr := time.Parse(time.RFC3339, exp)
@@ -247,10 +282,10 @@ func (d *DeviceStore) verify(ctx context.Context, cookie string) (Principal, boo
 	if ls, perr := time.Parse(time.RFC3339, seen.String); !seen.Valid || perr != nil || n.Sub(ls) >= deviceTouch {
 		_, _ = d.st.W.ExecContext(wctx, `UPDATE devices SET last_seen_at=? WHERE id=?`, d.ts(n), id)
 	}
-	return Principal{Kind: KindDevice, ID: id, Name: name, Scopes: splitScopes(scopes), Via: "device"}, slid, nil
+	return Principal{Kind: KindDevice, ID: id, Name: name, Role: role, User: user, Scopes: eff, Via: "device"}, slid, nil
 }
 
-const deviceCols = `id,name,prefix,scopes,user_agent,paired_by,created_at,last_seen_at,expires_at,revoked_at`
+const deviceCols = `id,name,prefix,scopes,user_agent,paired_by,created_at,last_seen_at,expires_at,revoked_at,owner_key`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -258,19 +293,28 @@ func scanDevice(r rowScanner) (DeviceInfo, error) {
 	var di DeviceInfo
 	var scopes string
 	var seen, rev sql.NullString
-	if err := r.Scan(&di.ID, &di.Name, &di.Prefix, &scopes, &di.UserAgent, &di.PairedBy, &di.CreatedAt, &seen, &di.ExpiresAt, &rev); err != nil {
+	if err := r.Scan(&di.ID, &di.Name, &di.Prefix, &scopes, &di.UserAgent, &di.PairedBy, &di.CreatedAt, &seen, &di.ExpiresAt, &rev, &di.OwnerKey); err != nil {
 		return DeviceInfo{}, err
 	}
 	di.Scopes, di.LastSeenAt, di.RevokedAt = splitScopes(scopes), seen.String, rev.String
 	return di, nil
 }
 
-// List returns every device, newest first; it never returns hashes.
-func (d *DeviceStore) List(ctx context.Context) ([]DeviceInfo, error) {
+// List returns the devices viewer may see, newest first: every user's for the Owner, only the viewer's own otherwise
+// (D-U1-14). It never returns hashes.
+func (d *DeviceStore) List(ctx context.Context, viewer Principal) ([]DeviceInfo, error) {
 	if d == nil || d.st == nil {
 		return nil, errors.ErrUnsupported
 	}
-	rows, err := d.st.R.QueryContext(ctx, `SELECT `+deviceCols+` FROM devices ORDER BY created_at DESC, id DESC`)
+	q, args := `SELECT `+deviceCols+` FROM devices`, []any(nil)
+	if !SeesAllDevices(viewer) {
+		key, ok := OwnerKeyOf(viewer)
+		if !ok {
+			return nil, nil
+		}
+		q, args = q+` WHERE owner_key=?`, []any{key}
+	}
+	rows, err := d.st.R.QueryContext(ctx, q+` ORDER BY created_at DESC, id DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +342,27 @@ func (d *DeviceStore) Get(ctx context.Context, id string) (DeviceInfo, error) {
 	return di, err
 }
 
-// Revoke revokes a device (idempotent); ErrNotFound for an unknown id.
-func (d *DeviceStore) Revoke(ctx context.Context, id string) (DeviceInfo, error) {
+// Revoke revokes a device on behalf of by (idempotent): the Owner may revoke any device at once, any other user only
+// their own, and a foreign id is ErrNotFound exactly like an unknown one.
+func (d *DeviceStore) Revoke(ctx context.Context, by Principal, id string) (DeviceInfo, error) {
+	if d == nil || d.st == nil {
+		return DeviceInfo{}, errors.ErrUnsupported
+	}
+	if !SeesAllDevices(by) {
+		di, err := d.Get(ctx, id)
+		if err != nil {
+			return DeviceInfo{}, err
+		}
+		if key, ok := OwnerKeyOf(by); !ok || key != di.OwnerKey {
+			return DeviceInfo{}, ErrNotFound
+		}
+	}
+	return d.RevokeSelf(ctx, id)
+}
+
+// RevokeSelf revokes the device with id without an ownership check: the caller is that device (revoke_own_device) or has
+// already checked ownership.
+func (d *DeviceStore) RevokeSelf(ctx context.Context, id string) (DeviceInfo, error) {
 	if d == nil || d.st == nil {
 		return DeviceInfo{}, errors.ErrUnsupported
 	}

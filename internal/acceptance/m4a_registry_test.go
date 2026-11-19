@@ -89,7 +89,7 @@ func TestNoSecretLeak_M4a(t *testing.T) {
 
 	// the Subsonic client: both credentials are shown once
 	body := map[string]any{"name": "Leak client", "write": true}
-	issue := human.Do(t, "POST", "/api/subsonic-clients", body, "Idempotency-Key", "leak-sub-1")
+	issue := human.Do(t, "POST", "/human/api/subsonic-clients", body, "Idempotency-Key", "leak-sub-1")
 	if issue.Status != http.StatusCreated {
 		t.Fatalf("create_subsonic_client: %d %s", issue.Status, issue.Body)
 	}
@@ -103,7 +103,7 @@ func TestNoSecretLeak_M4a(t *testing.T) {
 	}
 	l.add("subsonic-api-key", *made.APIKey)
 	l.add("subsonic-password", *made.Password)
-	replay := human.Do(t, "POST", "/api/subsonic-clients", body, "Idempotency-Key", "leak-sub-1")
+	replay := human.Do(t, "POST", "/human/api/subsonic-clients", body, "Idempotency-Key", "leak-sub-1")
 	var again struct {
 		APIKey   *string `json:"api_key"`
 		Password *string `json:"password"`
@@ -111,7 +111,7 @@ func TestNoSecretLeak_M4a(t *testing.T) {
 	if err := json.Unmarshal(replay.Body, &again); err != nil || again.APIKey != nil || again.Password != nil {
 		t.Errorf("the replay of the issuing call holds a credential: %v %d", err, replay.Status)
 	}
-	human.Do(t, "GET", "/api/subsonic-clients", nil)
+	human.Do(t, "GET", "/human/api/subsonic-clients", nil)
 	human.Do(t, "GET", "/api/connectors", nil)
 
 	// the Subsonic face with those credentials, and refusals
@@ -173,7 +173,7 @@ func TestNoSecretLeak_M4a(t *testing.T) {
 	mcpResults = append(mcpResults, recorded{leakClient{name: "forged"}, servertest.Response{Method: "POST", Path: "/mcp", Status: rr.StatusCode, Header: rr.Header, Body: rb}})
 
 	// scan: the issuing 201 may hold both credentials, nothing else may
-	allowed := map[string][]string{"/api/subsonic-clients": {*made.APIKey, *made.Password}}
+	allowed := map[string][]string{"/human/api/subsonic-clients": {*made.APIKey, *made.Password}}
 	for _, resp := range human.Responses() {
 		var a []string
 		if resp.Status == http.StatusCreated && resp.Method == "POST" {
@@ -250,7 +250,7 @@ func TestGETNeverWritesDB_M4a(t *testing.T) {
 
 	// the two management lists are audited by design (D-M4a-24: every call leaves an audit row): nothing else changes
 	before = tableChecksums(t, r.Store.R, map[string]bool{"audit_log": true}, nil)
-	for _, p := range []string{"/api/connectors", "/api/subsonic-clients"} {
+	for _, p := range []string{"/api/connectors", "/human/api/subsonic-clients"} {
 		if resp := human.Do(t, "GET", p, nil); resp.Status != 200 {
 			t.Fatalf("GET %s: %d %s", p, resp.Status, resp.Body)
 		}
@@ -262,7 +262,7 @@ func TestGETNeverWritesDB_M4a(t *testing.T) {
 	skip := map[string]bool{"audit_log": true, "subsonic_salts": true}
 	drop := map[string][]string{"api_tokens": {"last_used_at"}, "subsonic_clients": {"last_seen_at", "last_client"}}
 	run(agent)
-	for _, p := range []string{"/api/connectors", "/api/subsonic-clients"} {
+	for _, p := range []string{"/api/connectors", "/human/api/subsonic-clients"} {
 		agent.Do(t, "GET", p, nil)
 	}
 	sc := r.Subsonic(t, subsonictest.ClientOpts{Name: "Reader", Write: false})

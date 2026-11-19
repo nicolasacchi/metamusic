@@ -52,7 +52,7 @@ func registerDevices(a huma.API, d Deps) {
 		})
 }
 
-func deviceView(di auth.DeviceInfo) Device {
+func deviceView(viewer auth.Principal, di auth.DeviceInfo) Device {
 	out := Device{ID: di.ID, Name: di.Name, Prefix: di.Prefix, UserAgent: di.UserAgent, PairedBy: di.PairedBy,
 		CreatedAt: di.CreatedAt, ExpiresAt: di.ExpiresAt, Scopes: make([]string, len(di.Scopes))}
 	for i, sc := range di.Scopes {
@@ -64,6 +64,9 @@ func deviceView(di auth.DeviceInfo) Device {
 	if di.RevokedAt != "" {
 		out.RevokedAt = &di.RevokedAt
 	}
+	if auth.SeesAllDevices(viewer) { // the owner column is the Owner's oversight view only
+		out.Owner = &di.OwnerKey
+	}
 	return out
 }
 
@@ -71,6 +74,8 @@ func deviceErr(err error) error {
 	switch {
 	case errors.Is(err, auth.ErrNotFound):
 		return Err(404, "NOT_FOUND", "no such device", nil)
+	case errors.Is(err, auth.ErrDeviceLimit):
+		return Err(422, "DEVICE_LIMIT", "you already have the maximum number of active devices; revoke one first", nil)
 	case errors.Is(err, auth.ErrInvalidName):
 		return Err(422, "VALIDATION_FAILED", "name must be 1 to 80 characters", nil)
 	}
@@ -88,20 +93,21 @@ func registerPairedDevices(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_devices", Method: "GET", Path: "/human/api/devices",
 		Summary:     "List paired devices",
-		Description: "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, OwnerOnly: true},
+		Description: "Paired browsers and phones with their last use. The Owner sees every user's devices (with an owner column); anyone else sees only their own. A person's own login only: user agents and names are personal data.",
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
 		func(ctx context.Context, _ *empty) (*deviceListOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
 			}
-			list, err := d.Devices.List(ctx)
+			viewer := auth.FromContext(ctx)
+			list, err := d.Devices.List(ctx, viewer)
 			if err != nil {
 				return nil, err
 			}
 			out := &deviceListOut{}
 			out.Body.Items = make([]Device, len(list))
 			for i, di := range list {
-				out.Body.Items[i] = deviceView(di)
+				out.Body.Items[i] = deviceView(viewer, di)
 			}
 			return out, nil
 		})
@@ -109,9 +115,9 @@ func registerPairedDevices(a huma.API, d Deps) {
 	Register(a, withBody(created(huma.Operation{
 		OperationID: "create_pairing_code", Method: "POST", Path: "/human/api/devices/pairing-codes",
 		Summary:     "Create a pairing code",
-		Description: "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. Operator only.",
-	}), bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true,
-		Idempotency: "create", SecretFields: []string{"code", "pair_url"}, OwnerOnly: true},
+		Description: "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. The device belongs to the caller and acts with the caller's role. An Editor or Listener may hold 5 active devices.",
+	}), bodySmall), Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true,
+		Idempotency: "create", SecretFields: []string{"code", "pair_url"}},
 		func(ctx context.Context, in *createPairingIn) (*pairingOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
@@ -127,17 +133,18 @@ func registerPairedDevices(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "revoke_device", Method: "POST", Path: "/human/api/devices/{id}/revoke",
 		Summary:     "Revoke a paired device",
-		Description: "Unpairs a device by id. Repeating the call returns the same result. Operator only.",
-	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, OwnerOnly: true},
+		Description: "Unpairs a device by id. The Owner may revoke any device; anyone else only their own (another user's id answers 404). Repeating the call returns the same result.",
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
 		func(ctx context.Context, in *deviceIDIn) (*deviceOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
 			}
-			di, err := d.Devices.Revoke(ctx, in.ID)
+			viewer := auth.FromContext(ctx)
+			di, err := d.Devices.Revoke(ctx, viewer, in.ID)
 			if err != nil {
 				return nil, deviceErr(err)
 			}
-			return &deviceOut{Body: deviceView(di)}, nil
+			return &deviceOut{Body: deviceView(viewer, di)}, nil
 		})
 
 	Register(a, huma.Operation{
@@ -153,7 +160,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
 			}
-			di, err := d.Devices.Revoke(ctx, p.ID)
+			di, err := d.Devices.RevokeSelf(ctx, p.ID)
 			if err != nil {
 				return nil, deviceErr(err)
 			}

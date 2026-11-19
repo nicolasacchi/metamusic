@@ -190,6 +190,26 @@ func newServer(o Options) *server {
 }
 
 // add registers an endpoint; later tasks call it from their register functions.
+// writeScope is the scope a write endpoint needs: rating and listening endpoints need rate (a Listener's client holds it),
+// every other change needs write. For the Owner's clients and Editors' the two coincide (write implies rate), so nothing
+// that passed before is refused.
+func writeScope(name string) auth.Scope {
+	switch name {
+	case "setRating", "scrobble", "reportPlayback":
+		return auth.ScopeRate
+	}
+	return auth.ScopeWrite
+}
+
+// ownerSideOnly refuses a client that carries an Editor's or Listener's role: star and unstar change a song's status, and the
+// bookmarks and the play queue are single-user state of the Owner (D-U1-10, C308.6).
+func (c *call) ownerSideOnly() error {
+	if !c.principal.IsOwnerSide() {
+		return fail(errNotAuthorized, "the client is not authorized to use this endpoint")
+	}
+	return nil
+}
+
 func (s *server) add(name string, write bool, fn func(c *call) error) {
 	s.routes[name] = endpoint{write: write, fn: fn}
 }
@@ -295,7 +315,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) (res result) {
 		}
 		c.principal = p
 		res.kind = string(p.Kind)
-		if ep.write && !p.Has(auth.ScopeWrite) {
+		if ep.write && !p.Has(writeScope(name)) {
 			return failWith(f, fail(errNotAuthorized, "the client is not authorized to change data"))
 		}
 		if s.lim != nil {

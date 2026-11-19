@@ -220,6 +220,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	lib := library.New(st, data, now)
 	signer := mediaserve.NewSigner(sec.Key, now)
 	devices := auth.NewDeviceStore(st, sec.Key, now, newID)
+	devices.UseUsers(cfg.Users) // a device's owner key resolves to its role against the startup user map (D-U1-14)
 
 	notifier := o.Notify
 	if notifier == nil {

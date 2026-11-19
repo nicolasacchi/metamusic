@@ -1363,3 +1363,67 @@ func TestDeviceProfile_OwnRowsForEditorsAndListeners(t *testing.T) {
 		t.Errorf("a Listener device with the Editor's id updates the Editor's row: %v", err)
 	}
 }
+
+// TestDeviceProfile_OwnedDevicesShareRows: an Editor or Listener may write a row created by their own login or by a device or Subsonic
+// client they own (D-U1-14), and never a row of another user, the Owner or an agent (404, the body of a missing id); the Owner side
+// keeps the unguarded upsert.
+func TestDeviceProfile_OwnedDevicesShareRows(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO devices(id,name,prefix,hmac_hash,scopes,user_agent,paired_by,created_at,expires_at,owner_key)
+		 VALUES('dc1','P','a','h1','read,write','','human:carol','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','carol'),
+		       ('db1','P','b','h2','read,write','','human:bob','2026-10-01T10:00:00Z','2027-01-01T10:00:00Z','bob')`,
+		`INSERT INTO subsonic_clients(id,name,username,scopes,default_format,api_key_prefix,api_key_hmac,created_by,created_at,owner_key)
+		 VALUES('sc1','A','carol.app','read','raw','a','k1','human:carol','2026-10-01T10:00:00Z','carol')`,
+	} {
+		if _, err := e.st.W.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	carol := auth.Principal{Kind: auth.KindHuman, ID: "carol", Name: "carol", User: "carol", Role: auth.RoleListener}
+	carolPhone := auth.Principal{Kind: auth.KindDevice, ID: "dc1", Name: "P", User: "carol", Role: auth.RoleListener}
+	carolApp := auth.Principal{Kind: auth.KindDevice, ID: "sc1", Name: "A", User: "carol", Role: auth.RoleListener}
+	bobPhone := auth.Principal{Kind: auth.KindDevice, ID: "db1", Name: "P", User: "bob", Role: auth.RoleEditor}
+	owner := auth.Principal{Kind: auth.KindHuman, Role: auth.RoleOwner, ID: "alice", Name: "alice"}
+	put := func(p auth.Principal, id string) error {
+		_, err := e.svc.PutDeviceProfile(ctx, p, library.DeviceProfileIn{DeviceID: id, Label: "l", Quality: "auto", QualitySource: "default", ProbeResult: "none", ProbeVersion: 1})
+		return err
+	}
+	if err := put(carol, "carol-browser-01"); err != nil { // created by the login
+		t.Fatal(err)
+	}
+	for name, p := range map[string]auth.Principal{"her phone": carolPhone, "her Subsonic client": carolApp} {
+		if err := put(p, "carol-browser-01"); err != nil {
+			t.Errorf("%s writing her login's row: %v", name, err)
+		}
+	}
+	if err := put(carolPhone, "carol-phone-0001"); err != nil { // created by the device
+		t.Fatal(err)
+	}
+	for name, p := range map[string]auth.Principal{"her login": carol, "her other client": carolApp, "the phone itself": carolPhone} {
+		if err := put(p, "carol-phone-0001"); err != nil {
+			t.Errorf("%s writing the phone's row: %v", name, err)
+		}
+	}
+	for name, p := range map[string]auth.Principal{"bob's phone": bobPhone, "an agent": {Kind: auth.KindAgent, ID: "tok-1"}} {
+		if err := put(p, "carol-phone-0001"); err != nil && !errors.Is(err, library.ErrNotFound) {
+			t.Errorf("%s: %v", name, err)
+		} else if name == "bob's phone" && err == nil {
+			t.Error("bob's phone wrote carol's row")
+		}
+	}
+	if err := put(carolPhone, "alice-row-000001"); err != nil && !errors.Is(err, library.ErrNotFound) {
+		t.Fatal(err)
+	}
+	if err := put(owner, "owner-row-000001"); err != nil {
+		t.Fatal(err)
+	}
+	if err := put(carolPhone, "owner-row-000001"); !errors.Is(err, library.ErrNotFound) {
+		t.Errorf("a Listener's phone wrote the Owner's row: %v", err)
+	}
+	if err := put(owner, "carol-phone-0001"); err != nil { // the Owner side is unguarded
+		t.Errorf("the Owner's write: %v", err)
+	}
+}

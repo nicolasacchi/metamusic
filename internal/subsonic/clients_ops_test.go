@@ -61,7 +61,7 @@ func TestSubsonicClients_Ops(t *testing.T) {
 
 	// create: 201 with both secrets, once
 	body := map[string]any{"name": "Phone", "username": "phone.one"}
-	resp := human.Do(t, "POST", "/api/subsonic-clients", body, "Idempotency-Key", "k-create-1")
+	resp := human.Do(t, "POST", "/human/api/subsonic-clients", body, "Idempotency-Key", "k-create-1")
 	if resp.Status != 201 {
 		t.Fatalf("create: %d %s", resp.Status, resp.Body)
 	}
@@ -83,7 +83,7 @@ func TestSubsonicClients_Ops(t *testing.T) {
 	apiKey, password := *created.APIKey, *created.Password
 
 	// replay with the same key: the same client, both secrets null
-	replay := human.Do(t, "POST", "/api/subsonic-clients", body, "Idempotency-Key", "k-create-1")
+	replay := human.Do(t, "POST", "/human/api/subsonic-clients", body, "Idempotency-Key", "k-create-1")
 	var rep struct {
 		Client   map[string]any `json:"client"`
 		APIKey   *string        `json:"api_key"`
@@ -103,7 +103,7 @@ func TestSubsonicClients_Ops(t *testing.T) {
 	}
 
 	// list never contains the secrets
-	list := human.Do(t, "GET", "/api/subsonic-clients", nil)
+	list := human.Do(t, "GET", "/human/api/subsonic-clients", nil)
 	if list.Status != 200 || strings.Contains(string(list.Body), apiKey) || strings.Contains(string(list.Body), password) ||
 		strings.Contains(string(list.Body), "api_key\":\"mms_") {
 		t.Fatalf("list: %d %s", list.Status, list.Body)
@@ -124,17 +124,17 @@ func TestSubsonicClients_Ops(t *testing.T) {
 	}
 
 	// duplicate username: 409 USERNAME_TAKEN
-	dup := human.Do(t, "POST", "/api/subsonic-clients", body, "Idempotency-Key", "k-create-2")
+	dup := human.Do(t, "POST", "/human/api/subsonic-clients", body, "Idempotency-Key", "k-create-2")
 	if dup.Status != 409 || !strings.Contains(string(dup.Body), "USERNAME_TAKEN") {
 		t.Errorf("dup: %d %s", dup.Status, dup.Body)
 	}
 	// both methods false: 422
-	none := human.Do(t, "POST", "/api/subsonic-clients", map[string]any{"name": "x", "api_key": false, "password": false}, "Idempotency-Key", "k-create-3")
+	none := human.Do(t, "POST", "/human/api/subsonic-clients", map[string]any{"name": "x", "api_key": false, "password": false}, "Idempotency-Key", "k-create-3")
 	if none.Status != 422 {
 		t.Errorf("no method: %d %s", none.Status, none.Body)
 	}
 	// an explicit false survives: read-only, key only
-	ro := human.Do(t, "POST", "/api/subsonic-clients", map[string]any{"name": "Reader", "write": false, "password": false}, "Idempotency-Key", "k-create-4")
+	ro := human.Do(t, "POST", "/human/api/subsonic-clients", map[string]any{"name": "Reader", "write": false, "password": false}, "Idempotency-Key", "k-create-4")
 	var rov struct {
 		Client   map[string]any `json:"client"`
 		Password *string        `json:"password"`
@@ -146,7 +146,7 @@ func TestSubsonicClients_Ops(t *testing.T) {
 
 	// revoke: idempotent; the credential stops working
 	for i := 0; i < 2; i++ {
-		rv := human.Do(t, "POST", "/api/subsonic-clients/"+id+"/revoke", nil)
+		rv := human.Do(t, "POST", "/human/api/subsonic-clients/"+id+"/revoke", nil)
 		if rv.Status != 200 || !strings.Contains(string(rv.Body), `"revoked_at":"`) {
 			t.Fatalf("revoke %d: %d %s", i, rv.Status, rv.Body)
 		}
@@ -154,33 +154,41 @@ func TestSubsonicClients_Ops(t *testing.T) {
 	if got := cl.Call(t, "ping", nil, subsonictest.CallOpts{JSON: true, APIKey: true}); got.Code != 44 {
 		t.Errorf("revoked key: %+v", got)
 	}
-	if rv := human.Do(t, "POST", "/api/subsonic-clients/nope/revoke", nil); rv.Status != 404 {
+	if rv := human.Do(t, "POST", "/human/api/subsonic-clients/nope/revoke", nil); rv.Status != 404 {
 		t.Errorf("unknown id: %d", rv.Status)
 	}
 
 	// a read-scope agent is refused
 	reader, _ := r.Agent(t, auth.ScopeRead)
-	for _, c := range [][3]string{{"GET", "/api/subsonic-clients", ""}, {"POST", "/api/subsonic-clients", `{"name":"x"}`}, {"POST", "/api/subsonic-clients/" + id + "/revoke", ""}} {
+	for _, c := range [][3]string{{"GET", "/human/api/subsonic-clients", ""}, {"POST", "/human/api/subsonic-clients", `{"name":"x"}`}, {"POST", "/human/api/subsonic-clients/" + id + "/revoke", ""}} {
 		var b any
 		if c[2] != "" {
 			b = json.RawMessage(c[2])
 		}
 		resp := reader.Do(t, c[0], c[1], b, "Idempotency-Key", "k-read")
-		if resp.Status != 403 || !strings.Contains(string(resp.Body), "FORBIDDEN_SCOPE") {
+		if resp.Status != 403 || !strings.Contains(string(resp.Body), "HUMAN_ONLY") {
 			t.Errorf("read agent %s %s: %d %s", c[0], c[1], resp.Status, resp.Body)
 		}
 	}
 }
 
-func TestSubsonicClients_AdminAgent(t *testing.T) {
+// TestSubsonicClients_AgentRefusedHumanCreates: since U1-D1 the client ops are human-only self-service (D-U1-14): even an
+// admin-scope agent is refused (HUMAN_ONLY), the human's creation is audited and pushed once, the secrets stay out of every
+// stored row and push, a list sends no push and a repeated revoke sends none.
+func TestSubsonicClients_AgentRefusedHumanCreates(t *testing.T) {
 	t.Parallel()
 	r := servertest.New(t, servertest.Options{Canary: true})
 	agent, _ := r.Agent(t, auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin)
+	for _, c := range [][2]string{{"POST", "/human/api/subsonic-clients"}, {"GET", "/human/api/subsonic-clients"}, {"POST", "/human/api/subsonic-clients/x/revoke"}} {
+		if resp := agent.Do(t, c[0], c[1], map[string]any{"name": "Agent Made"}, "Idempotency-Key", "agent-k-1"); resp.Status != 403 || !strings.Contains(string(resp.Body), "HUMAN_ONLY") {
+			t.Errorf("admin agent %s %s: %d %s", c[0], c[1], resp.Status, resp.Body)
+		}
+	}
 	before := len(r.Ntfy.Requests())
-
-	resp := agent.Do(t, "POST", "/api/subsonic-clients", map[string]any{"name": "Agent Made"}, "Idempotency-Key", "agent-k-1")
+	human := r.Human(t)
+	resp := human.Do(t, "POST", "/human/api/subsonic-clients", map[string]any{"name": "Desk Made"}, "Idempotency-Key", "human-k-1")
 	if resp.Status != 201 {
-		t.Fatalf("agent create: %d %s", resp.Status, resp.Body)
+		t.Fatalf("create: %d %s", resp.Status, resp.Body)
 	}
 	var created struct {
 		Client   map[string]any `json:"client"`
@@ -191,10 +199,8 @@ func TestSubsonicClients_AdminAgent(t *testing.T) {
 		t.Fatalf("created: %s", resp.Body)
 	}
 	apiKey, password := *created.APIKey, *created.Password
-	// created_by is masked for the agent: it sees its own device-style reference, never the human's name
-	by := created.Client["created_by"].(map[string]any)
-	if by["kind"] != "agent" {
-		t.Errorf("created_by for an agent: %v", by)
+	if created.Client["owner"] != "owner" {
+		t.Errorf("the Owner's own create shows owner = %v", created.Client["owner"])
 	}
 
 	pushes := waitPushes(t, r, before+1)
@@ -202,23 +208,13 @@ func TestSubsonicClients_AdminAgent(t *testing.T) {
 		t.Fatalf("pushes = %d, want %d", len(pushes), before+1)
 	}
 	push := pushes[len(pushes)-1].Body
-	if !strings.Contains(push, "Subsonic client created") || !strings.Contains(push, "agent-1 created Agent Made") {
+	if !strings.Contains(push, "Subsonic client created") || !strings.Contains(push, "created Desk Made") {
 		t.Errorf("push: %s", push)
 	}
-
-	// the secrets exist only in that one response: not in the audit rows, the idempotency row, the push or the list
 	tables := dumpTables(t, r, "audit_log", "idempotency")
 	for _, secret := range []string{apiKey, password} {
-		if strings.Contains(tables, secret) {
-			t.Errorf("a stored row holds a one-time secret")
-		}
-		if strings.Contains(push, secret) {
-			t.Errorf("the push holds a one-time secret")
-		}
-		for _, p := range pushes {
-			if strings.Contains(p.Body, secret) {
-				t.Errorf("a push holds a one-time secret")
-			}
+		if strings.Contains(tables, secret) || strings.Contains(push, secret) {
+			t.Errorf("a stored row or push holds a one-time secret")
 		}
 	}
 	page, err := r.Services.Audit.List(context.Background(), audit.Filter{})
@@ -227,9 +223,9 @@ func TestSubsonicClients_AdminAgent(t *testing.T) {
 	}
 	found := false
 	for _, row := range page.Items {
-		if row.Op == "create_subsonic_client" {
+		if row.Op == "create_subsonic_client" && row.Status == 201 {
 			found = true
-			if row.PrincipalKind != "agent" || len(row.CreatedIDs) != 1 || row.CreatedIDs[0] != created.Client["id"] {
+			if row.PrincipalKind != "human" || len(row.CreatedIDs) != 1 || row.CreatedIDs[0] != created.Client["id"] {
 				t.Errorf("audit row: %+v", row)
 			}
 		}
@@ -237,49 +233,22 @@ func TestSubsonicClients_AdminAgent(t *testing.T) {
 	if !found {
 		t.Error("no audit row for create_subsonic_client")
 	}
-
-	// the list: pushes for an agent caller, the creator masked as an agent reference
-	lst := agent.Do(t, "GET", "/api/subsonic-clients", nil)
+	lst := human.Do(t, "GET", "/human/api/subsonic-clients", nil)
 	if lst.Status != 200 || strings.Contains(string(lst.Body), apiKey) || strings.Contains(string(lst.Body), password) {
 		t.Fatalf("list: %d %s", lst.Status, lst.Body)
 	}
-	if got := waitPushes(t, r, before+2); len(got) != before+2 || !strings.Contains(got[len(got)-1].Body, "Subsonic clients listed") {
-		t.Errorf("list push: %+v", got)
-	}
-	// a human's own list sends no push
-	r.Human(t).OK(t, "GET", "/api/subsonic-clients", nil)
 	time.Sleep(100 * time.Millisecond)
-	if n := len(r.Ntfy.Requests()); n != before+2 {
-		t.Errorf("human list pushed: %d requests", n)
+	if n := len(r.Ntfy.Requests()); n != before+1 {
+		t.Errorf("list pushed: %d requests", n)
 	}
-	// revoking pushes once, a repeat none
 	id := created.Client["id"].(string)
-	agent.OK(t, "POST", "/api/subsonic-clients/"+id+"/revoke", nil)
-	agent.OK(t, "POST", "/api/subsonic-clients/"+id+"/revoke", nil)
-	waitPushes(t, r, before+3)
+	human.OK(t, "POST", "/human/api/subsonic-clients/"+id+"/revoke", nil)
+	human.OK(t, "POST", "/human/api/subsonic-clients/"+id+"/revoke", nil)
+	waitPushes(t, r, before+2)
 	time.Sleep(100 * time.Millisecond)
 	got := r.Ntfy.Requests()
-	if len(got) != before+3 || !strings.Contains(got[len(got)-1].Body, "Subsonic client revoked") {
+	if len(got) != before+2 || !strings.Contains(got[len(got)-1].Body, "Subsonic client revoked") {
 		t.Errorf("revoke pushes: %d %+v", len(got), got)
-	}
-}
-
-// TestSubsonicClients_CreatedByMaskedForAgents: a human-created client shows the agent an opaque human reference.
-func TestSubsonicClients_CreatedByMaskedForAgents(t *testing.T) {
-	t.Parallel()
-	r := servertest.New(t, servertest.Options{Canary: true})
-	r.Subsonic(t, subsonictest.ClientOpts{Name: "Desk", Write: true})
-	agent, _ := r.Agent(t, auth.ScopeRead, auth.ScopeAdmin)
-	lst := agent.Do(t, "GET", "/api/subsonic-clients", nil)
-	if lst.Status != 200 || strings.Contains(string(lst.Body), "canary-human") {
-		t.Fatalf("the agent's list names the human: %d %s", lst.Status, lst.Body)
-	}
-	if !strings.Contains(string(lst.Body), `"created_by":{"kind":"human","id":"human","name":"human"}`) {
-		t.Errorf("created_by not masked: %s", lst.Body)
-	}
-	human := r.Human(t).Do(t, "GET", "/api/subsonic-clients", nil)
-	if !strings.Contains(string(human.Body), "canary-human") {
-		t.Errorf("the human sees their own name: %s", human.Body)
 	}
 }
 

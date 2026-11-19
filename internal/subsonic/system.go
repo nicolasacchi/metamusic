@@ -2,6 +2,7 @@ package subsonic
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -73,16 +74,11 @@ func (c *call) client() (auth.SubsonicClient, error) {
 	if c.s.o.Creds == nil {
 		return auth.SubsonicClient{}, fail(errGeneric, "service unavailable")
 	}
-	list, err := c.s.o.Creds.List(c.ctx)
-	if err != nil {
-		return auth.SubsonicClient{}, err
+	cl, err := c.s.o.Creds.Client(c.ctx, c.principal.ID)
+	if errors.Is(err, auth.ErrNotFound) {
+		return auth.SubsonicClient{}, fail(errBadCreds, "wrong username or password")
 	}
-	for _, cl := range list {
-		if cl.ID == c.principal.ID {
-			return cl, nil
-		}
-	}
-	return auth.SubsonicClient{}, fail(errBadCreds, "wrong username or password")
+	return cl, err
 }
 
 // userFolders is the folder id list of getUser, without the Discarded folder for a Listener's client.

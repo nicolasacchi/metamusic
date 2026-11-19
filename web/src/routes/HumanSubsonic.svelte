@@ -34,7 +34,7 @@
 
   async function load() {
     try {
-      const r = await api.GET("/api/subsonic-clients", {});
+      const r = await api.GET("/human/api/subsonic-clients", {});
       if (r.data) {
         items = r.data.items;
         serverUrl = r.data.server_url;
@@ -51,7 +51,7 @@
   async function revoke(c: Client) {
     if (!confirm(`Revoke "${c.name}"? The app stops working until you create a new client.`)) return;
     try {
-      const r = await api.POST("/api/subsonic-clients/{id}/revoke", { params: { path: { id: c.id } } });
+      const r = await api.POST("/human/api/subsonic-clients/{id}/revoke", { params: { path: { id: c.id } } });
       if (!r.data) pushToast(r.error?.message ?? "Could not revoke the client");
     } catch {
       pushToast("Could not revoke the client");

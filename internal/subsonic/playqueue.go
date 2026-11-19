@@ -20,6 +20,9 @@ func (s *server) registerPlayQueue() {
 
 // getPlayQueue answers the singleton queue; with none saved the element is present and empty.
 func (c *call) getPlayQueue() error {
+	if err := c.ownerSideOnly(); err != nil { // the one queue is the Owner's
+		return err
+	}
 	st, err := c.st()
 	if err != nil {
 		return err
@@ -69,6 +72,9 @@ func (c *call) getPlayQueue() error {
 
 // savePlayQueue replaces the one queue row: unknown ids are dropped, a current track outside the queue is forgotten.
 func (c *call) savePlayQueue() error {
+	if err := c.ownerSideOnly(); err != nil { // the one queue is the Owner's
+		return err
+	}
 	st, err := c.st()
 	if err != nil {
 		return err

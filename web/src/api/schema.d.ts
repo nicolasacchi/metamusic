@@ -1780,50 +1780,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/subsonic-clients": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Subsonic clients
-         * @description The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. Needs scope admin.
-         */
-        get: operations["list_subsonic_clients"];
-        put?: never;
-        /**
-         * Create a Subsonic client
-         * @description Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. Needs scope admin.
-         */
-        post: operations["create_subsonic_client"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/subsonic-clients/{id}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke a Subsonic client
-         * @description Revokes a native-app credential by id; repeating the call returns the same result. Needs scope admin.
-         */
-        post: operations["revoke_subsonic_client"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/system": {
         parameters: {
             query?: never;
@@ -2509,7 +2465,7 @@ export interface paths {
         };
         /**
          * List paired devices
-         * @description Paired browsers and phones with their last use. Operator only: user agents and names are personal data.
+         * @description Paired browsers and phones with their last use. The Owner sees every user's devices (with an owner column); anyone else sees only their own. A person's own login only: user agents and names are personal data.
          */
         get: operations["list_devices"];
         put?: never;
@@ -2531,7 +2487,7 @@ export interface paths {
         put?: never;
         /**
          * Create a pairing code
-         * @description Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. Operator only.
+         * @description Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. The device belongs to the caller and acts with the caller's role. An Editor or Listener may hold 5 active devices.
          */
         post: operations["create_pairing_code"];
         delete?: never;
@@ -2551,7 +2507,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke a paired device
-         * @description Unpairs a device by id. Repeating the call returns the same result. Operator only.
+         * @description Unpairs a device by id. The Owner may revoke any device; anyone else only their own (another user's id answers 404). Repeating the call returns the same result.
          */
         post: operations["revoke_device"];
         delete?: never;
@@ -2654,6 +2610,50 @@ export interface paths {
          */
         put: operations["set_spend_caps"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/subsonic-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subsonic clients
+         * @description The native-app credentials of the OpenSubsonic bridge with their last use, plus the server URL to enter in the app. Never key material. The Owner sees every user's clients (with an owner column); anyone else only their own.
+         */
+        get: operations["list_subsonic_clients"];
+        put?: never;
+        /**
+         * Create a Subsonic client
+         * @description Creates a credential for one native app: an API key (mms_...) and/or an app password for token authentication. Both are shown once; a replay of the same Idempotency-Key returns them as null. The client belongs to the caller and acts with the caller's role; an Editor or Listener may hold 5 active clients.
+         */
+        post: operations["create_subsonic_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/subsonic-clients/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a Subsonic client
+         * @description Revokes a native-app credential by id; repeating the call returns the same result. The Owner may revoke any client; anyone else only their own (another user's id answers 404).
+         */
+        post: operations["revoke_subsonic_client"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4098,6 +4098,8 @@ export interface components {
             id: string;
             last_seen_at: string | null;
             name: string;
+            /** @description Whose device this is: owner or a username. Only the Owner's listing carries it (D-U1-14) */
+            owner?: string;
             paired_by: string;
             prefix: string;
             revoked_at: string | null;
@@ -7644,6 +7646,8 @@ export interface components {
             last_client: string | null;
             last_seen_at: string | null;
             name: string;
+            /** @description Whose client this is: owner or a username. Only the Owner's listing carries it (D-U1-14) */
+            owner?: string;
             revoked_at: string | null;
             scopes: ("read" | "write")[];
             username: string;
@@ -12423,103 +12427,6 @@ export interface operations {
             };
         };
     };
-    list_subsonic_clients: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubsonicClientList"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    create_subsonic_client: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSubsonicClientInBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreatedSubsonicClient"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    revoke_subsonic_client: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Subsonic client id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubsonicClient"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     get_system_info: {
         parameters: {
             query?: never;
@@ -14080,6 +13987,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CapsView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_subsonic_clients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubsonicClientList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_subsonic_client: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSubsonicClientInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedSubsonicClient"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_subsonic_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subsonic client id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubsonicClient"];
                 };
             };
             /** @description Error */

@@ -51,6 +51,9 @@ func (c *call) judger() (judger, error) {
 // setStarred implements star and unstar (D-M4a-10): star makes a song final, unstar turns a final song into
 // to_relisten; every other state is left alone. Album and artist ids are accepted and ignored.
 func (c *call) setStarred(star bool) error {
+	if err := c.ownerSideOnly(); err != nil { // star changes a status: refused for Editor and Listener clients (C308.6)
+		return err
+	}
 	cat, err := c.cat()
 	if err != nil {
 		return err

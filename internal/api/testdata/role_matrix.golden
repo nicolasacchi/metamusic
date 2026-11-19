@@ -17,10 +17,10 @@ create_duel	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_generation	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 create_generation_human	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
-create_pairing_code	admin	D1_(self-service_pairing)	Y	OO	OO	HO	HO	HO	HO	HO	HO
+create_pairing_code	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 create_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
-create_subsonic_client	admin	D1_(self-service_clients)	Y	OO	OO	SC	SC	Y	SC	OO	OO
+create_subsonic_client	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 create_token	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_transform	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_variant	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
@@ -88,7 +88,7 @@ list_comments	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_connector_grants	admin	-	Y	OO	OO	SC	SC	Y	SC	OO	OO
 list_crates	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_device_profiles	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
-list_devices	read	D1_(own-only_list)	Y	OO	OO	HO	HO	HO	HO	HO	HO
+list_devices	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 list_drafts	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_duels	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 list_engines	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -104,7 +104,7 @@ list_playlists	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_records	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_sessions	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_songs	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
-list_subsonic_clients	admin	D1_(own-only_list)	Y	OO	OO	SC	SC	Y	SC	OO	OO
+list_subsonic_clients	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 list_tags	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_taxonomy_proposals	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_tokens	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
@@ -123,10 +123,10 @@ put_device_profile	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 rate_track	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 reject_batch	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 request_approval	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
-revoke_device	admin	D1_(own-only_revoke)	Y	OO	OO	HO	HO	HO	HO	HO	HO
+revoke_device	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 revoke_own_device	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 revoke_own_token	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
-revoke_subsonic_client	admin	D1_(own-only_revoke)	Y	OO	OO	SC	SC	Y	SC	OO	OO
+revoke_subsonic_client	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 revoke_token	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 search_sounds	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 search_tracks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y

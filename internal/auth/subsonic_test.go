@@ -118,7 +118,7 @@ func TestSubsonicStore_CreateAndStorage(t *testing.T) {
 			t.Fatalf("plaintext secret %q stored", secret)
 		}
 	}
-	list, err := r.s.List(context.Background())
+	list, err := r.s.List(context.Background(), human)
 	if err != nil || len(list) != 1 || list[0].ID != c.ID {
 		t.Fatalf("list %+v %v", list, err)
 	}
@@ -437,7 +437,7 @@ func TestSubsonicStore_ListNeverReturnsKeyMaterial(t *testing.T) {
 	t.Parallel()
 	r := newSubRig(t)
 	_, sec := r.create(t, NewSubsonicClient{Name: "L", Username: "lll", APIKey: true, Password: true})
-	list, err := r.s.List(context.Background())
+	list, err := r.s.List(context.Background(), human)
 	if err != nil {
 		t.Fatal(err)
 	}

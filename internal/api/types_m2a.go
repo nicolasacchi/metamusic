@@ -421,6 +421,7 @@ type Device struct {
 	LastSeenAt *string  `json:"last_seen_at"`
 	ExpiresAt  string   `json:"expires_at"`
 	RevokedAt  *string  `json:"revoked_at"`
+	Owner      *string  `json:"owner,omitempty" doc:"Whose device this is: owner or a username. Only the Owner's listing carries it (D-U1-14)"`
 }
 
 // DeviceSelf is the caller's own device, nothing else.

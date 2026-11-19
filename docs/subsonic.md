@@ -5,7 +5,7 @@ rate and sync it. Examples use `mm.example.com`.
 
 ## Creating a client
 
-Open `/human/subsonic` (or call the `create_subsonic_client` operation with an `admin`-scope token) and create
+Open `/human/subsonic` (a human sign-in, behind the step-up; every user creates their own clients) and create
 one client per app. The response shows once:
 
 - an **API key** beginning `mms_` for apps that support API-key login, and
@@ -34,6 +34,10 @@ Creating, listing and revoking clients is audited and sends a push naming the ca
 - **Albums** are lineages (a root track and its descendants); there is one synthetic artist.
 - **Star and rating:** `star` marks the track final; `unstar` of a final track sets it to relisten. `setRating`
   writes a human rating attributed to the device; `0` clears it.
+- **Editor and Listener clients (U1):** a client belongs to the user who created it and acts with that user's role. `star`,
+  `unstar`, bookmarks and the play queue are refused (error 50) for them, `setRating` writes that user's own rating, and a
+  Listener's client sees the clean renditions only (suffix, content type and size of `flac_clean` or `mp3_320_clean`, never
+  the master's size, seed or style comment). A non-Owner user may hold 5 active clients.
 - **Scrobbles and bookmarks:** plays are recorded as listen events (deduplicated on retry). A bookmark with a new
   comment creates one timestamped comment; comment-less bookmarks only store a resume position.
 - **Lyrics** are always unsynced.

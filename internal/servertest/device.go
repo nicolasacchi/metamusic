@@ -26,7 +26,32 @@ func (r *Rig) Device(tb testing.TB) *Client {
 // DeviceWithCookie is Device with a chosen label; it also returns the cookie value.
 func (r *Rig) DeviceWithCookie(tb testing.TB, name string) (*Client, string) {
 	tb.Helper()
-	res := r.Human(tb).Do(tb, "POST", "/human/api/devices/pairing-codes", map[string]any{"name": name},
+	return r.pairAs(tb, r.Human(tb), name)
+}
+
+// DeviceFor pairs a device as a configured Editor or Listener (bob, carol) through the real pairing path: that user's own
+// create_pairing_code, redeemed against /auth/pair unauthenticated. The returned device belongs to the user and carries the
+// user's role (D-U1-14).
+func (r *Rig) DeviceFor(tb testing.TB, user string) *Client {
+	tb.Helper()
+	c, _ := r.DeviceForWithCookie(tb, user, user+" phone")
+	return c
+}
+
+// DeviceForWithCookie is DeviceFor with a chosen label; it also returns the cookie value.
+func (r *Rig) DeviceForWithCookie(tb testing.TB, user, label string) (*Client, string) {
+	tb.Helper()
+	role, ok := r.users(r.mode)[user]
+	if !ok {
+		tb.Fatalf("servertest: user %q is not configured in a %s-mode rig", user, r.mode)
+	}
+	return r.pairAs(tb, r.User(tb, user, role), label)
+}
+
+// pairAs mints a pairing code as the given human and redeems it unauthenticated.
+func (r *Rig) pairAs(tb testing.TB, human *Client, name string) (*Client, string) {
+	tb.Helper()
+	res := human.Do(tb, "POST", "/human/api/devices/pairing-codes", map[string]any{"name": name},
 		"Idempotency-Key", fmt.Sprintf("servertest-pair-%d", pairSeq.Add(1)))
 	if res.Status != http.StatusCreated {
 		tb.Fatalf("servertest: create_pairing_code: status %d: %s", res.Status, res.Body)

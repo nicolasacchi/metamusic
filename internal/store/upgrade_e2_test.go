@@ -142,6 +142,13 @@ func TestUpgrade_E2_FromEveryPriorSchema(t *testing.T) {
 						got[i] = strings.TrimSuffix(r, "backend=runpod-serverless|")
 					}
 				}
+				if tb == "devices" || tb == "subsonic_clients" || tb == "pairing_codes" {
+					// migration 0019 appends owner_key='owner' to these rows; TestMigration_U1Devices pins that
+					got = make([]string, len(after[tb]))
+					for i, r := range after[tb] {
+						got[i] = strings.TrimSuffix(r, "owner_key=owner|")
+					}
+				}
 				if strings.Join(rows, "\n") != strings.Join(got, "\n") {
 					t.Errorf("table %s changed by the upgrade: %d rows before, %d after", tb, len(rows), len(after[tb]))
 				}

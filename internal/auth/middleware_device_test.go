@@ -35,7 +35,7 @@ func newDeviceFixture(t *testing.T) *deviceFixture {
 	f.valid, _ = mk("valid")
 	var rev DeviceInfo
 	f.revoked, rev = mk("revoked")
-	if _, err := ds.Revoke(ctx, rev.ID); err != nil {
+	if _, err := ds.Revoke(ctx, human, rev.ID); err != nil {
 		t.Fatal(err)
 	}
 	// "expired": expiry in the past, written directly
