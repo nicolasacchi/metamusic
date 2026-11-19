@@ -23,7 +23,11 @@ type whoamiOut struct {
 		Kind   string   `json:"kind" enum:"human,agent,device" doc:"Principal kind"`
 		Name   string   `json:"name" doc:"Username or token name"`
 		Scopes []string `json:"scopes" nullable:"false" doc:"Granted scopes"`
-		Via    string   `json:"via" doc:"How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)"`
+		// Role and User are null for principals with no role (agents, connector grants).
+		Role       *string  `json:"role" nullable:"true" doc:"One of owner, editor, listener: the caller's role (a person, or a device or Subsonic client acting as its owner); null for agents and connector grants, which are Owner delegates"`
+		User       *string  `json:"user" nullable:"true" doc:"The lowercase username of the person (for a device, its owner); null for agents"`
+		AllowedOps []string `json:"allowed_ops" nullable:"false" doc:"Operation ids the caller may invoke: exactly those for which the permission gate passes (role, owner-only, human-only and scope rules). The web app builds its Owner, Editor and Listener shells from this list"`
+		Via        string   `json:"via" doc:"How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)"`
 		// StepUpUntil is null when the second factor is the edge's alone (proxy mode without MM_STEPUP_OIDC_CLIENT) or the caller is not a human.
 		StepUpUntil *string `json:"step_up_until" nullable:"true" doc:"RFC 3339 UTC: until when a recent second-factor confirmation (password in local mode, OIDC in proxy mode) lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode without MM_STEPUP_OIDC_CLIENT, agents, devices)"`
 	}
@@ -64,6 +68,21 @@ func registerSystem(a huma.API, d Deps) {
 			p := auth.FromContext(ctx)
 			out := &whoamiOut{}
 			out.Body.Kind, out.Body.Name, out.Body.Via = string(p.Kind), p.Name, p.Via
+			if p.Role != "" {
+				role := string(p.Role)
+				out.Body.Role = &role
+			}
+			if p.User != "" {
+				user := p.User
+				out.Body.User = &user
+			}
+			out.Body.AllowedOps = []string{}
+			for _, op := range Operations(a) {
+				if Permitted(p, op.Meta) == nil {
+					out.Body.AllowedOps = append(out.Body.AllowedOps, op.ID)
+				}
+			}
+			slices.Sort(out.Body.AllowedOps)
 			if t := auth.StepUpUntil(p); t != nil {
 				v := t.Format(time.RFC3339)
 				out.Body.StepUpUntil = &v

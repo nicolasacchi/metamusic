@@ -29,8 +29,11 @@ type Meta struct {
 	// this rule and pass or fail on scope as before (D-U1-6).
 	OwnerOnly bool `json:"owner_only,omitempty"`
 
-	Idempotency  string   `json:"idempotency,omitempty"`   // "" | "create" (D-M2a-3)
-	Rate         string   `json:"rate,omitempty"`          // "" (default bucket) | "heavy"
+	Idempotency string `json:"idempotency,omitempty"` // "" | "create" (D-M2a-3)
+	Rate        string `json:"rate,omitempty"`        // "" (default bucket) | "heavy" | "listen" (scope listen or rate; Editor and Listener principals also draw on the listen class, C304.4)
+	// NoAudit exempts the call from the audit row and from response holding (C304.4). Only a scope-rate operation that
+	// writes an immutable, attributed event log and has no idempotency key may carry it (log_listen_events).
+	NoAudit      bool     `json:"no_audit,omitempty"`
 	SecretFields []string `json:"secret_fields,omitempty"` // top-level response keys that carry a secret (D-M2a-14)
 	MCPImage     bool     `json:"mcp_image,omitempty"`     // the 2xx body has image {mime_type, data_base64 (optional)}; MCP returns ImageContent (C52)
 	AliasOf      string   `json:"alias_of,omitempty"`      // a human-only alias of another operation (design §4.1, M3 C80)
@@ -93,8 +96,22 @@ func validate(op huma.Operation, m Meta) error {
 	}
 	switch m.Rate {
 	case "", "heavy":
+	case "listen":
+		if m.Scope != auth.ScopeListen && m.Scope != auth.ScopeRate {
+			return fmt.Errorf("%s: rate listen requires scope listen or rate, got %q", op.OperationID, m.Scope)
+		}
 	default:
 		return fmt.Errorf("%s: invalid rate %q", op.OperationID, m.Rate)
+	}
+	if m.NoAudit {
+		switch {
+		case m.Scope != auth.ScopeRate:
+			return fmt.Errorf("%s: no_audit requires scope rate, got %q", op.OperationID, m.Scope)
+		case m.Idempotency != "":
+			return fmt.Errorf("%s: no_audit requires no idempotency key", op.OperationID)
+		case m.HumanOnly:
+			return fmt.Errorf("%s: no_audit is not allowed on a human-only operation", op.OperationID)
+		}
 	}
 	// D-M4a-24: a secret may be minted by an admin-scope agent too, so the rule is "a create operation" (the
 	// idempotent replay nulls the secrets through idem.Redact), no longer "a human-only create operation".

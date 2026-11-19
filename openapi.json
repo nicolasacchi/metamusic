@@ -22451,6 +22451,13 @@
       "WhoamiOutBody": {
         "additionalProperties": false,
         "properties": {
+          "allowed_ops": {
+            "description": "Operation ids the caller may invoke: exactly those for which the permission gate passes (role, owner-only, human-only and scope rules). The web app builds its Owner, Editor and Listener shells from this list",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "kind": {
             "description": "Principal kind",
             "enum": [
@@ -22463,6 +22470,13 @@
           "name": {
             "description": "Username or token name",
             "type": "string"
+          },
+          "role": {
+            "description": "One of owner, editor, listener: the caller's role (a person, or a device or Subsonic client acting as its owner); null for agents and connector grants, which are Owner delegates",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "scopes": {
             "description": "Granted scopes",
@@ -22478,6 +22492,13 @@
               "null"
             ]
           },
+          "user": {
+            "description": "The lowercase username of the person (for a device, its owner); null for agents",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "via": {
             "description": "How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app)",
             "type": "string"
@@ -22487,6 +22508,9 @@
           "kind",
           "name",
           "scopes",
+          "role",
+          "user",
+          "allowed_ops",
           "via",
           "step_up_until"
         ],
@@ -26529,7 +26553,9 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
-          "human_only": false
+          "human_only": false,
+          "rate": "listen",
+          "no_audit": true
         }
       }
     },
@@ -31531,7 +31557,8 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/tracks/:id",
-          "human_only": false
+          "human_only": false,
+          "rate": "listen"
         }
       }
     },

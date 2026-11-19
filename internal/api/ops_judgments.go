@@ -68,7 +68,7 @@ func registerJudgments(a huma.API, d Deps) {
 		OperationID: "rate_track", Method: "PUT", Path: "/api/tracks/{id}/rating",
 		Summary:     "Rate a track",
 		Description: "Sets or clears your 1-5 star rating and short verdict. Humans rate as the operator; agent ratings are kept apart as the critic.",
-	}, bodySmall), Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "tool", UI: "/tracks/:id"},
+	}, bodySmall), Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "tool", UI: "/tracks/:id", Rate: "listen"},
 		func(ctx context.Context, in *rateTrackIn) (*ratingOut, error) {
 			if d.Judgments == nil {
 				return nil, unavailable("judgments")
