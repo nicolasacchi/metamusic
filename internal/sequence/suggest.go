@@ -55,9 +55,9 @@ func (s *Service) Suggest(ctx context.Context, in SuggestInput) (Suggestion, err
 	defer func() { _ = tx.Rollback() }()
 	var refs []Ref
 	if in.RecordID != "" {
-		refs, err = recordRefs(ctx, tx, in.RecordID)
+		refs, err = recordRefs(ctx, tx, in.RecordID, in.HideDiscarded)
 	} else {
-		refs, err = songRefs(ctx, tx, songIDs)
+		refs, err = songRefs(ctx, tx, songIDs, in.HideDiscarded)
 	}
 	if err != nil {
 		return Suggestion{}, err
@@ -71,7 +71,10 @@ func (s *Service) Suggest(ctx context.Context, in SuggestInput) (Suggestion, err
 
 // recordRefs lists the live slots of a Record in order, each with its resolved Take: the pin, else the Song's Pick take,
 // else nil (the Song's subject features count).
-func recordRefs(ctx context.Context, q Querier, recordID string) ([]Ref, error) {
+//
+// With hide, a Song whose takes are all discarded has no slot here and a discarded resolved take counts as none (the Song's
+// subject features stay), so the plan names nothing a Listener cannot open (U1-INT-B).
+func recordRefs(ctx context.Context, q Querier, recordID string, hide bool) ([]Ref, error) {
 	var order sql.NullString
 	err := q.QueryRowContext(ctx, `SELECT order_json FROM records WHERE id = ?`, recordID).Scan(&order)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -80,11 +83,12 @@ func recordRefs(ctx context.Context, q Querier, recordID string) ([]Ref, error) 
 	if err != nil {
 		return nil, fmt.Errorf("sequence: read record: %w", err)
 	}
-	rows, err := q.QueryContext(ctx, `SELECT s.song_id, COALESCE(s.pinned_take_id, p.take_id)
+	rows, err := q.QueryContext(ctx, `SELECT s.song_id, COALESCE(s.pinned_take_id, p.take_id), tk.status
 		FROM records r, json_each(r.order_json) j
 		JOIN record_slots s ON s.id = j.value AND s.record_id = r.id AND s.removed_at IS NULL
 		LEFT JOIN song_picks p ON p.song_id = s.song_id
-		WHERE r.id = ? ORDER BY j.key`, recordID)
+		LEFT JOIN tracks tk ON tk.id = COALESCE(s.pinned_take_id, p.take_id)
+		WHERE r.id = ? AND (? = 0 OR `+songVisible("s.song_id")+`) ORDER BY j.key`, recordID, b2i(hide))
 	if err != nil {
 		return nil, fmt.Errorf("sequence: read slots: %w", err)
 	}
@@ -92,8 +96,12 @@ func recordRefs(ctx context.Context, q Querier, recordID string) ([]Ref, error) 
 	var refs []Ref
 	for rows.Next() {
 		var r Ref
-		if err := rows.Scan(&r.SongID, &r.TakeID); err != nil {
+		var status sql.NullString
+		if err := rows.Scan(&r.SongID, &r.TakeID, &status); err != nil {
 			return nil, fmt.Errorf("sequence: read slots: %w", err)
+		}
+		if hide && status.String == "discarded" {
+			r.TakeID = nil
 		}
 		refs = append(refs, r)
 	}
@@ -101,7 +109,9 @@ func recordRefs(ctx context.Context, q Querier, recordID string) ([]Ref, error) 
 }
 
 // songRefs checks that every id is a Song (UNKNOWN_SONG) and not repeated, and returns Refs on the Songs' subjects.
-func songRefs(ctx context.Context, q Querier, ids []string) ([]Ref, error) {
+//
+// With hide, a Song whose takes are all discarded is as unknown as an id that was never a Song.
+func songRefs(ctx context.Context, q Querier, ids []string, hide bool) ([]Ref, error) {
 	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		if seen[id] {
@@ -116,7 +126,7 @@ func songRefs(ctx context.Context, q Querier, ids []string) ([]Ref, error) {
 		for i, id := range part {
 			args[i] = id
 		}
-		rows, err := q.QueryContext(ctx, `SELECT id FROM songs WHERE id IN (`+placeholders(len(part))+`)`, args...) //nolint:gosec // G202: only "?" placeholders
+		rows, err := q.QueryContext(ctx, `SELECT id FROM songs WHERE id IN (`+placeholders(len(part))+`) AND (? = 0 OR `+songVisible("songs.id")+`)`, append(args, b2i(hide))...) //nolint:gosec // G202: only "?" placeholders and a fixed fragment
 		if err != nil {
 			return nil, fmt.Errorf("sequence: read songs: %w", err)
 		}
@@ -235,4 +245,18 @@ func pendingFeatures(ctx context.Context, q Querier, songIDs []string) (bool, er
 		}
 	}
 	return false, nil
+}
+
+// songVisible is the SQL predicate (col is a songs id) that keeps a Song with no take (a draft) and a Song with a visible take:
+// the same rule as songs.AllDiscardedHidden, which this package cannot import (C133).
+func songVisible(col string) string {
+	return `(NOT EXISTS (SELECT 1 FROM take_songs hs WHERE hs.song_id = ` + col + `)
+		OR EXISTS (SELECT 1 FROM take_songs hs JOIN tracks ht ON ht.id = hs.track_id WHERE hs.song_id = ` + col + ` AND ht.status <> 'discarded'))`
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

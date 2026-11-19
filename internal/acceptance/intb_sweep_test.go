@@ -434,7 +434,7 @@ func (w *intbWorld) run(t *testing.T, role intbRole, ops []intbOp, skipHuman, mu
 func (w *intbWorld) noFiles(tb testing.TB, ids []string) bool {
 	tb.Helper()
 	for _, id := range ids {
-		if _, real := w.Taint[id]; real || id == "" {
+		if _, tainted := w.Taint[id]; tainted || id == "" {
 			continue
 		}
 		if len(intbSQLStrings(tb, w.R, `SELECT id FROM tracks WHERE id = ?`, id)) > 0 {

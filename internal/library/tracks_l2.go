@@ -56,9 +56,13 @@ func compileL2(p SearchParams, where string, args *[]any) (string, error) {
 			if *p.InRecord {
 				neg = ""
 			}
+			pub := ""
+			if p.viewer.Listener() { // a Listener sees published Records only: a draft's slots are no oracle (U1-INT-B, C305)
+				pub = " AND rc.status = 'published'"
+			}
 			where += ` AND ` + neg + `EXISTS (SELECT 1 FROM record_slots rs JOIN records rc ON rc.id = rs.record_id
 				LEFT JOIN song_picks sp ON sp.song_id = rs.song_id
-				WHERE rs.removed_at IS NULL AND rc.hidden_at IS NULL AND COALESCE(rs.pinned_take_id, sp.take_id) = t.id)`
+				WHERE rs.removed_at IS NULL AND rc.hidden_at IS NULL` + pub + ` AND COALESCE(rs.pinned_take_id, sp.take_id) = t.id)`
 		}
 	}
 	if len(p.Sounds) > 0 {

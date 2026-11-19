@@ -292,8 +292,12 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		if *f.InRecord {
 			neg = ""
 		}
+		pub := ""
+		if f.HideDiscarded { // a Listener sees published Records only: a draft's slots are no oracle (U1-INT-B, C305)
+			pub = " AND rc.status = 'published'"
+		}
 		add(neg + `EXISTS (SELECT 1 FROM record_slots rs JOIN records rc ON rc.id = rs.record_id
-			WHERE rs.song_id = s.id AND rs.removed_at IS NULL AND rc.hidden_at IS NULL)`)
+			WHERE rs.song_id = s.id AND rs.removed_at IS NULL AND rc.hidden_at IS NULL` + pub + `)`)
 	}
 	if f.CrateID != "" {
 		// A member that was retired is followed to the Song it was merged into (C125.3); retired Songs never match themselves.

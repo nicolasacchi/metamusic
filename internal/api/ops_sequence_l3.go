@@ -12,6 +12,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/sequence"
 	"github.com/nicolasacchi/metamusic/internal/sequencer"
 	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // registerSequenceL3 registers suggest_sequence (C138.1): a read-only preview, never a write.
@@ -28,8 +29,13 @@ func registerSequenceL3(a huma.API, d Deps) {
 			if d.Sequence == nil {
 				return nil, unavailable("sequence")
 			}
+			if in.RecordID != "" && d.Records != nil { // a draft or hidden Record is the 404 of a missing one for a Listener (C305)
+				if err := d.listenerRecord(ctx, in.RecordID); err != nil {
+					return nil, err
+				}
+			}
 			s, err := d.Sequence.Suggest(ctx, sequence.SuggestInput{RecordID: in.RecordID, SongIDs: in.SongIDs, CrateID: in.CrateID,
-				Strategy: sequencer.Strategy(in.Strategy), First: in.FirstSongID, Last: in.LastSongID})
+				Strategy: sequencer.Strategy(in.Strategy), First: in.FirstSongID, Last: in.LastSongID, HideDiscarded: view.FromContext(ctx).HideDiscarded})
 			if err != nil {
 				return nil, m2bErr(err, taskSR)
 			}

@@ -41,18 +41,20 @@ type intbWorld struct {
 	Own, Bob, Carol *servertest.Client
 	Taint           map[string]cleantest.Taint
 
-	Discarded []string // every discarded take id
-	Visible   []string // take ids a Listener may open
-	GoneSong  string   // the Song whose takes are all discarded
-	Songs     []string
-	Records   []string // published, visible Records
-	Draft     string   // a draft Record
-	Playlists []string
-	Crates    []string
-	SmartBad  string // a smart Crate whose filter holds a hidden filter
-	Tape      string // a ready tape of a published Record built with the liner
-	LinerDesc string // the DESCRIPTION text the Owner's tape carries
-	BobBatch  string // the batch the Editor requested: its own cost is the Editor's to see (C310.5)
+	Discarded    []string // every discarded take id
+	Visible      []string // take ids a Listener may open
+	GoneSong     string   // the Song whose takes are all discarded
+	Songs        []string
+	Records      []string // published, visible Records
+	Draft        string   // a draft Record
+	Playlists    []string
+	Crates       []string
+	SmartBad     string // a smart Crate (Songs) whose filter holds a hidden filter
+	SmartBadTake string // the same for Takes
+	Tape         string // a ready tape of a published Record built with the liner
+	LinerDesc    string // the DESCRIPTION text the Owner's tape carries
+	TapeNoLiner  string // a ready tape of the same Record built without the liner
+	BobBatch     string // the batch the Editor requested: its own cost is the Editor's to see (C310.5)
 }
 
 func intbSQLStrings(tb testing.TB, r *servertest.Rig, q string, args ...any) []string {
@@ -163,6 +165,10 @@ func newIntbWorld(t *testing.T) *intbWorld {
 	if w.LinerDesc == "" {
 		t.Fatalf("setup: the Owner's tape carries no DESCRIPTION: %q", info.Comments)
 	}
+	tp2 := obj(own.OK(t, "POST", "/api/records/"+w.Records[0]+"/tapes", map[string]any{"include_liner": false, "accept_warnings": true}, "Idempotency-Key", "intb-tape-2"))
+	w.TapeNoLiner = tp2["id"].(string)
+	for r.Tapes.RunOne(t) {
+	}
 	w.Playlists = intbSQLStrings(t, r, `SELECT id FROM playlists ORDER BY id`)
 	w.Crates = intbSQLStrings(t, r, `SELECT id FROM crates ORDER BY id`)
 	c := obj(own.OK(t, "POST", "/api/crates", map[string]any{"name": "hidden-filter-crate", "kind": "smart", "subject": "song", "filter": map[string]any{"angle": "variant-a"}}, "Idempotency-Key", "intb-smart"))
@@ -171,7 +177,13 @@ func newIntbWorld(t *testing.T) *intbWorld {
 	} else {
 		w.SmartBad = c["id"].(string)
 	}
-	w.Crates = append(w.Crates, w.SmartBad)
+	ct := obj(own.OK(t, "POST", "/api/crates", map[string]any{"name": "hidden-filter-take-crate", "kind": "smart", "subject": "take", "filter": map[string]any{"has_open_comments": true}}, "Idempotency-Key", "intb-smart-take"))
+	if id := obj(ct["crate"])["id"]; id != nil {
+		w.SmartBadTake = id.(string)
+	} else {
+		w.SmartBadTake = ct["id"].(string)
+	}
+	w.Crates = append(w.Crates, w.SmartBad, w.SmartBadTake)
 	return w
 }
 
