@@ -32,11 +32,12 @@ test("More: Generate is there; Approvals, Spend, Tokens and Connectors are not, 
   }
 });
 
-test("the Editor cannot approve, reject, set caps or reach the Owner's human API", async ({ request }) => {
+test("the Editor cannot approve, reject, publish, set caps or reach the Owner's human API", async ({ request }) => {
   for (const [method, path, data] of [
     ["POST", "/human/api/batches/none/approve", {}],
     ["POST", "/human/api/batches/none/reject", { reason: "no" }],
     ["PUT", "/human/api/spend/caps", { monthly_micro_usd: 1_000_000 }],
+    ["POST", "/human/api/records/none/publish", {}],
     ["GET", "/human/api/tokens", undefined],
     ["POST", "/human/api/generations", { confirmation_token: "none", rationale: "no" }],
   ] as const) {

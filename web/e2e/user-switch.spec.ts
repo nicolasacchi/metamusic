@@ -31,10 +31,6 @@ test("after switching user, the first user's queue, inbox markers and device id 
 
   // the same browser, now signed in as the Listener
   await context.setExtraHTTPHeaders(headersFor(LISTENER_USER));
-  const puts: number[] = [];
-  page.on("response", (r) => {
-    if (r.request().method() === "PUT" && new URL(r.url()).pathname.startsWith("/api/device-profiles/")) puts.push(r.status());
-  });
   await page.goto("/more");
   await expect(page.getByTestId("identity")).toHaveText(LISTENER_USER);
 
@@ -51,12 +47,32 @@ test("after switching user, the first user's queue, inbox markers and device id 
   } finally {
     await carol.dispose();
   }
-  const put = page.waitForResponse((r) => r.request().method() === "PUT" && new URL(r.url()).pathname.startsWith("/api/device-profiles/"), { timeout: 30_000 });
+  // C313.7 404 path: the first put for the Listener's id is answered 404 once; the client mints a new device id and retries.
+  const isPut = (m: string, u: string) => m === "PUT" && new URL(u).pathname.startsWith("/api/device-profiles/");
+  let faked = false;
+  let idBefore: string | null = null;
+  await page.route(
+    (u) => u.pathname.startsWith("/api/device-profiles/"),
+    async (route) => {
+      if (route.request().method() === "PUT" && !faked) {
+        faked = true;
+        idBefore = await ls(DEVICE_KEY);
+        await route.fulfill({ status: 404, contentType: "application/problem+json", body: JSON.stringify({ code: "NOT_FOUND", message: "unknown device", details: null }) });
+        return;
+      }
+      await route.continue();
+    },
+  );
+  const retried = page.waitForResponse((r) => isPut(r.request().method(), r.url()) && r.status() === 200, { timeout: 30_000 });
   await page.goto(`/tracks/${t2.id}`);
   await page.getByTestId("track-play").click();
-  expect((await put).status(), "put_device_profile for the Listener's own device id").toBe(200);
-  expect(puts.every((s) => s === 200), `every device profile save succeeded (${puts.join(",")})`).toBe(true);
-  expect(await ls(DEVICE_KEY)).not.toBe(ownerDevice);
+  await retried;
+  expect(faked, "the 404 was injected").toBe(true);
+  const newId = await ls(DEVICE_KEY);
+  expect(newId, "a new device id was minted after the 404").toBeTruthy();
+  expect(newId).not.toBe(ownerDevice);
+  if (idBefore) expect(newId).not.toBe(idBefore);
   const queue = (await ls(PLAYER_KEY)) ?? "";
+  expect(queue, "the stored queue is not empty").toContain(t2.id);
   expect(queue).not.toContain(t1.id);
 });

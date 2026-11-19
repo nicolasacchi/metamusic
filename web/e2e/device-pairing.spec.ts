@@ -60,7 +60,10 @@ test("a Listener pairs and unpairs their own device; the Owner sees and revokes 
     expect(who.kind).toBe("device");
     expect(who.user).toBe(LISTENER_USER);
     // a Listener's device never reaches the Owner's pages
-    expect((await phone1.request.get("/human/api/tokens")).status()).toBeGreaterThanOrEqual(401);
+    const refusedPage = await phone1.request.get("/human/api/tokens");
+    expect([401, 403], "a paired device is refused on the Owner's pages").toContain(refusedPage.status());
+    const refusedBody = (await refusedPage.json()) as { code?: string };
+    expect(["UNAUTHENTICATED", "HUMAN_ONLY", "OWNER_ONLY", "FORBIDDEN"], `stable problem code (${refusedBody.code})`).toContain(refusedBody.code);
 
     await page.goto("/human/devices");
     await expect(rowOf(page, own1)).toContainText("active");

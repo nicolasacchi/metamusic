@@ -94,8 +94,8 @@ test("a take the Owner discards is gone for the Listener", async ({ page, reques
     await page.goto("/library");
     await expect(page.locator("[data-testid=track-table], [data-testid=track-list]")).toBeVisible();
     await expect(page.locator(`a[href="/tracks/${t.id}"]`)).toHaveCount(0);
-    await setStatus(owner, t.id, "draft");
   } finally {
+    await setStatus(owner, t.id, "draft");
     await owner.dispose();
   }
 });
