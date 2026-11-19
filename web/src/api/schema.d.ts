@@ -8838,6 +8838,8 @@ export interface components {
             version: number;
         };
         WhoamiOutBody: {
+            /** @description Operation ids the caller may invoke: exactly those for which the permission gate passes (role, owner-only, human-only and scope rules). The web app builds its Owner, Editor and Listener shells from this list */
+            allowed_ops: string[];
             /**
              * @description Principal kind
              * @enum {string}
@@ -8845,10 +8847,14 @@ export interface components {
             kind: "human" | "agent" | "device";
             /** @description Username or token name */
             name: string;
+            /** @description One of owner, editor, listener: the caller's role; null for principals with no role: agents and connector grants (Owner delegates) and, until the device lane decides otherwise, an Owner's device */
+            role: string | null;
             /** @description Granted scopes */
             scopes: string[];
             /** @description RFC 3339 UTC: until when a recent second-factor confirmation (password in local mode, OIDC in proxy mode) lets /human/ calls through. A time at or before now means a confirmation is required first. Null when step-up does not apply (proxy mode without MM_STEPUP_OIDC_CLIENT, agents, devices) */
             step_up_until: string | null;
+            /** @description The lowercase username of the person; null for principals with no user (agents and, for now, devices) */
+            user: string | null;
             /** @description How the principal authenticated: proxy, local, token, device, oauth (hosted connector) or subsonic (native music app) */
             via: string;
         };

@@ -225,8 +225,10 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// transaction; a context.WithValue made there could never reach this function.
 	ctx, marks := idem.WithMarks(ctx)
 
-	audited := p.IsAgent() ||
-		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead && info.Meta.Scope != auth.ScopeListen))
+	// C304.4: audited = agent, or human-only, or a scope outside {read, listen}; Meta.NoAudit (log_listen_events) opts out
+	// of the row and of response holding, its rows being an immutable attributed log already.
+	audited := !(matched && info.Meta.NoAudit) && (p.IsAgent() ||
+		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead && info.Meta.Scope != auth.ScopeListen)))
 	create := matched && info.Meta.Idempotency == "create"
 
 	rec := &recorder{ResponseWriter: w}
@@ -284,6 +286,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if matched && info.Meta.Rate == "heavy" {
 			classes = append(classes, heavy)
+		}
+		if matched && info.Meta.Rate == "listen" && !p.IsOwnerSide() {
+			classes = append(classes, ratelimit.Listen)
 		}
 		if ok, retry, bucket := g.Limiter.Allow(p.Key(), classes...); !ok {
 			secs := int(retry / time.Second)

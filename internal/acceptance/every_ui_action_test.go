@@ -520,6 +520,8 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 		}
 		gotOps = append(gotOps, row["op"].(string))
 	}
+	// log_listen_events is exempt from audit (Meta.NoAudit, C304.4): the call writes no row.
+	called = slices.DeleteFunc(slices.Clone(called), func(op string) bool { return op == "log_listen_events" })
 	want := append(slices.Clone(called), "get_audit")
 	if len(gotOps) == len(want)-1 {
 		want = called // the audit row of the listing itself is written after the listing

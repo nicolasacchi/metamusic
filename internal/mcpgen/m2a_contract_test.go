@@ -85,7 +85,10 @@ import (
 // U1-R1 (C306.4): TrackRating gains mine, others and average (the Owner's wire value, human, is unchanged), re-baselined
 // 115968 -> 117300 (measured 117206, +1338 over 115868, +94 headroom): the per-user rating shape on get_track, rate_track and
 // update_track.
-const toolsCeilingBytes = 117300
+//
+// U1-F2 merged after U1-R1: whoami's output schema gains role, user and allowed_ops (C304.3). Re-baselined 117300 -> 117406
+// (measured 117306 with both lanes, +100 headroom).
+const toolsCeilingBytes = 117406
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

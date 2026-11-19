@@ -18,6 +18,9 @@ const (
 	Human      Class = "human"
 	HumanHeavy Class = "human_heavy"
 	Pair       Class = "pair"
+	// Listen (C304.4) is charged, besides Human, to rate_track and log_listen_events calls of an Editor or Listener
+	// principal, so a playback loop of theirs is bounded by its own bucket (1 req/s sustained, burst 60).
+	Listen Class = "listen"
 
 	// M4a (C102): the OpenSubsonic bridge.
 	Subsonic               Class = "subsonic"
@@ -41,6 +44,7 @@ var Default = Config{
 	Human:      {600, 200},
 	HumanHeavy: {12, 6},
 	Pair:       {10, 5},
+	Listen:     {60, 60},
 
 	Subsonic:               {1200, 300},
 	SubsonicAuthFail:       {10, 5},

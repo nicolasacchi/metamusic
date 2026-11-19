@@ -100,8 +100,8 @@ func TestListen_StatsReachTrackDetail(t *testing.T) {
 }
 
 // TestListen_BeaconQueryFlag: the sendBeacon fallback marks itself with ?mm_client=spa, an undeclared
-// query parameter. The request is accepted, audited as the SPA transport and counted by the
-// served-operation recorder; the flag appears in neither the OpenAPI document nor an MCP schema.
+// query parameter. The request is accepted and counted by the served-operation recorder (log_listen_events writes no
+// audit row since U1-F2, C304.4); the flag appears in neither the OpenAPI document nor an MCP schema.
 func TestListen_BeaconQueryFlag(t *testing.T) {
 	t.Parallel()
 	r := judgRig(t)
@@ -110,9 +110,9 @@ func TestListen_BeaconQueryFlag(t *testing.T) {
 	if resp.Status != 200 || obj(t, resp.JSON(t))["accepted"] != 1.0 {
 		t.Fatalf("beacon: %d %s", resp.Status, resp.Body)
 	}
-	var transport string
-	if err := r.Store.R.QueryRow(`SELECT transport FROM audit_log WHERE op = 'log_listen_events'`).Scan(&transport); err != nil || transport != "spa" {
-		t.Errorf("audit transport %q %v", transport, err)
+	var audited int
+	if err := r.Store.R.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE op = 'log_listen_events'`).Scan(&audited); err != nil || audited != 0 {
+		t.Errorf("log_listen_events audit rows = %d, %v; want 0 (NoAudit)", audited, err)
 	}
 
 	// the served-operation recorder (E2E mode) counts it
