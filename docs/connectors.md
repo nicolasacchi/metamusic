@@ -27,7 +27,7 @@ Then configure the app (see the README table):
 
 ```yaml
 MM_PUBLIC_URL: https://mm.example.com        # must be https
-MM_TRUSTED_USERS: owner
+MM_USERS: alice:owner                        # a connector is an Owner delegate; only the Owner may grant one
 MM_OIDC_ISSUER: https://auth.example.com
 MM_OIDC_CLIENTS: metamusic-claude=Claude
 ```

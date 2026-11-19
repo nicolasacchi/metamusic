@@ -94,7 +94,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_PUBLIC_URL` | Externally visible base URL. |
 | `MM_TRUSTED_PROXY` | Comma-separated CIDRs allowed to assert `Remote-User` (proxy mode). |
 | `MM_USERS` | Allow-listed users for proxy mode as `name:role` pairs, for example `alice:owner,bob:editor,carol:listener`; a bare name means owner. Exactly one owner; names are case-insensitive and fixed at startup (a role change needs a restart). `metamusic config check` validates it. |
-| `MM_TRUSTED_USERS` | Deprecated alias of `MM_USERS=<name>:owner`; it must hold exactly one name and cannot be combined with `MM_USERS`. |
+| `MM_TRUSTED_USERS` | Deprecated alias of `MM_USERS=<name>:owner`, still accepted: it must hold exactly one name (folded to lowercase), setting both variables is refused, and `metamusic config check` warns when it is used. |
 | `MM_BACKUP_DIR` | Backup snapshot directory (default: `backup` next to `MM_DATA_DIR`; must not be inside it). |
 | `MM_BACKUP_AT` | Daily snapshot time `HH:MM` in the process time zone (default `03:30`), or `off`. |
 | `MM_NTFY_URL` | Optional ntfy topic URL for notifications; `https://` unless the host is loopback, no credentials or query. Optional secret file `ntfy_token` holds the publisher token. |
@@ -119,7 +119,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_SOUNDFONTS` | Score renders only: `name=/abs/file.sf2[;name=/abs/file.sf3]` (at most 8, names `^[a-z][a-z0-9_-]{0,31}$`); empty disables score renders. Files are read-only and never copied. |
 | `MM_FLUIDSYNTH` | Score renders only: absolute path of the fluidsynth binary (default: `PATH` lookup). |
 | `MM_E2E` | `1` enables the E2E-only test hooks; never set in production. |
-| `MM_OIDC_ISSUER` | Issuer URL of the OpenID Connect provider for hosted connectors (claude.ai, ChatGPT); unset disables them. Needs an `https://` `MM_PUBLIC_URL`, `MM_OIDC_CLIENTS` and `MM_TRUSTED_USERS`. See `docs/connectors.md`. |
+| `MM_OIDC_ISSUER` | Issuer URL of the OpenID Connect provider for hosted connectors (claude.ai, ChatGPT); unset disables them. Needs an `https://` `MM_PUBLIC_URL`, `MM_OIDC_CLIENTS` and `MM_USERS`. See `docs/connectors.md`. |
 | `MM_OIDC_CLIENTS` | Allow-listed connector clients as `<client_id>=<label>[,...]`; only these may connect. |
 | `MM_STEPUP_OIDC_CLIENT` | `MM_AUTH=proxy` only. Client id of the OIDC client the app signs in with to demand a fresh second factor (ID token `amr`, `auth_time`) before any `/human/` call; needs `MM_OIDC_ISSUER`. Optional secrets file `stepup_client_secret` (else a public PKCE client). Unset: the edge's two-factor rule is the only gate. See `docs/connectors.md`. |
 | `MM_OIDC_JWKS_URL` | Optional override of the provider's signing-key URL (default: discovered from the issuer). |

@@ -181,6 +181,95 @@ are released after the hold period when billing is not readable.
 Received worker uploads of jobs that ended without a take are removed 24 h after the job's end.
 `incoming/` is never part of a backup.
 
+## Users and roles (U1)
+
+Roles and the visibility rules are in `docs/architecture.md` ("Users and roles"). Operations:
+
+### Bootstrap: `MM_USERS`
+
+`MM_USERS` is a comma list of `name:role` pairs, for example `alice:owner,bob:editor,carol:listener`
+(`mm.example.com` in the examples). Rules, enforced at startup and by `metamusic config check`:
+
+- exactly one `owner`; a bare name means owner; roles are `owner`, `editor`, `listener`;
+- names are folded to lowercase and must be unique after folding; no commas, colons or whitespace; the
+  names `owner`, `critic`, `system`, `user` and `human` are reserved;
+- `MM_AUTH=local` is Owner-only (a dev mode): a non-owner user is refused there;
+- `MM_TRUSTED_USERS` is still accepted as a deprecated alias of `MM_USERS=<name>:owner`: it must hold
+  exactly one name, setting both variables is refused, and `config check` warns when the alias is used;
+- a proxy user that is not in the map gets 401.
+
+Always run the check against the exact environment you are about to deploy, before any restart:
+
+```
+metamusic config check
+```
+
+It validates the whole configuration without opening the database, prints `users: alice:owner,...`
+(names and roles only) and exits non-zero with the offending entry on an error. A deploy with a
+malformed environment caused a long outage once: never skip it and never deploy unattended.
+
+### Restart to revoke
+
+The map is read once at startup; there is no reload. To remove a user or change a role, edit
+`MM_USERS`, run `metamusic config check`, restart attended, and confirm the Owner can still sign in.
+A removed user gets 401 on the next request after the restart, and their paired phones and Subsonic
+clients stop with them (a device of a demoted user is clamped to the new role). The Owner can also
+revoke any device or Subsonic client at once, without a restart, on `/human/devices` and
+`/human/subsonic`. A removed user's ratings stay as inert rows: they are never a reason to refuse
+to start, the Owner reads them under the raw rater key, and startup and `library verify` print them as orphan-rater
+warnings. A nicer "former user" label is deferred (the SPA does not know the configured user list yet).
+Renaming a user orphans their old ratings the same way; the new name starts fresh (there is no remap
+tool).
+
+### Rollout checklist (first multi-user deploy)
+
+Do this attended, one step at a time; never deploy a migration unattended.
+
+1. Read the current production `MM_TRUSTED_USERS`. It must hold exactly one name (the alias refuses
+   several). Note it; it becomes the Owner.
+2. Deploy `MM_USERS=<that name>:owner`, identical to today's behaviour, attended, and confirm the
+   Owner can sign in.
+3. Back up (`MM_BACKUP_DIR` snapshot) and rehearse the migrations on a copy: `VACUUM INTO` a private
+   path outside the repo tree, run the new binary against it, then check `PRAGMA quick_check` and
+   `PRAGMA foreign_key_check`, rating row counts equal before and after (every earlier rating now has
+   rater `owner`, stars and verdict unchanged), picks unchanged and `metamusic library verify`. Delete
+   the copy afterwards. The rating migration is not additive (it rebuilds the ratings table); the
+   device migration is additive. Downgrading is a restore from the snapshot.
+4. In the identity provider create the accounts, a group for the new users and the access-control
+   rule (see "Per-role Authelia policy"). A provider user that is not in `MM_USERS` gets 401.
+5. Add users to `MM_USERS` one at a time, running `metamusic config check` and restarting attended
+   after each.
+6. The device migration defaults every existing device and Subsonic client to the Owner. Before any
+   non-owner pairs anything, verify that an Owner phone (stream and rate) still works.
+
+### Per-role Authelia policy
+
+The rules example (`deploy/authelia-rules.example.yml`) keeps `^/human/` and `^/oauth/authorize` at
+`two_factor` for every user, and it must stay that way: the app does not weaken it per role. Make
+the rest of the host available to your users: the domain-wide `one_factor` rule in that file already
+covers every Authelia account, so add a group rule only if you want to limit the host to a group.
+
+- Owner and Editor: use two factors, always. An Editor can request spend.
+- Listener: one factor is enough for browsing, listening and rating. Pairing a phone and creating a
+  Subsonic client live under `/human/`, so the edge then asks for two factors; a Listener who wants a
+  device enrols a second factor first.
+- Hosted connectors stay Owner-only (`metamusic_owner` policy in `deploy/authelia-oidc.example.yml`).
+  That policy matches the literal subject `user:owner`; set it to the Authelia username of the user
+  that `MM_USERS` maps to `owner` (for example `user:alice`), or the Owner gets no connector access.
+
+### Devices: ownership and revocation
+
+Each user pairs their own phone or browser and creates their own Subsonic clients on the My devices
+page (`/human/devices`, `/human/subsonic`); the device carries the user's role and never more.
+
+- An Editor or Listener is limited to 5 active devices and 5 active Subsonic clients; a sixth answers
+  `422 DEVICE_LIMIT` and the user revokes one first. The Owner is unlimited.
+- A user lists and revokes only their own. The Owner lists all (with an owner column) and revokes any:
+  open the page, find the device by owner and label, revoke; it stops on its next request.
+- A lost phone: the user revokes it themselves, or the Owner does. Removing the user from `MM_USERS`
+  and restarting cuts all of their devices.
+- The offline set stays a single Owner set; a non-owner phone streams but has no offline set.
+
 ## Remote agents and mobile (M4a)
 
 ### Service-worker recovery

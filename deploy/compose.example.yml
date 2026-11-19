@@ -24,8 +24,11 @@ services:
       # Optional push notifications (backup failed, device paired, token created). https:// unless
       # loopback; the publisher token, if any, is the optional secret file "ntfy_token".
       # MM_NTFY_URL: https://ntfy.example.com/metamusic
+      # Proxy mode only (MM_AUTH=proxy): the allow-listed users and their roles, exactly one owner. A user
+      # absent from this list gets 401. Changes need a restart. Validate first with "metamusic config check".
+      # MM_USERS: alice:owner,bob:editor,carol:listener
       # Hosted connectors (claude.ai, ChatGPT), see docs/connectors.md. Needs an https MM_PUBLIC_URL and
-      # MM_TRUSTED_USERS. No secret belongs here: hosted clients are public or hold their secret at the provider.
+      # MM_USERS. No secret belongs here: hosted clients are public or hold their secret at the provider.
       # MM_OIDC_ISSUER: https://auth.example.com
       # MM_OIDC_CLIENTS: metamusic-claude=Claude
       # MM_OIDC_SCOPES: "openid metamusic"
