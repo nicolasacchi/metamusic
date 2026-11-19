@@ -2,6 +2,7 @@ package crates
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -10,7 +11,27 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/songs"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
+
+// listenerSafe refuses a smart Crate whose stored filter holds a filter that is a boolean oracle on hidden data when the
+// viewer is a Listener (C308.3b): expanding it through crate_id would run the hidden filter on the Listener's behalf. The
+// refusal names crate_id, not the stored key, so it reveals nothing of the saved filter (which a Listener never reads).
+func listenerSafe(ctx context.Context, raw json.RawMessage) error {
+	if !view.FromContext(ctx).Listener() || len(raw) == 0 {
+		return nil
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		return nil //nolint:nilerr // an unparsable filter is refused by ParseFilter, with the Crate's own error
+	}
+	for k := range keys {
+		if _, banned := view.BannedFilterKey(k); banned {
+			return problem.E(http.StatusUnprocessableEntity, "FILTER_NOT_ALLOWED", "this filter is not available to your role", map[string]any{"filter": "crate_id"})
+		}
+	}
+	return nil
+}
 
 func conflict(field string) error {
 	return problem.E(http.StatusConflict, "FILTER_CONFLICT", "the request sets a field the Crate's saved filter sets to another value", map[string]any{"field": field})
@@ -121,6 +142,9 @@ func (s *Service) ExpandSongs(ctx context.Context, crateID string, base songs.Li
 		base.CrateID = crateID
 		return base, nil
 	}
+	if err := listenerSafe(ctx, c.Filter); err != nil {
+		return base, err
+	}
 	pf, err := ParseFilter(SubjectSong, c.Filter)
 	if err != nil {
 		return base, fmt.Errorf("crates: stored filter of %s: %w", crateID, err)
@@ -187,6 +211,9 @@ func (s *Service) ExpandTracks(ctx context.Context, crateID string, base library
 	if c.Kind == KindManual {
 		base.CrateID = crateID
 		return base, nil
+	}
+	if err := listenerSafe(ctx, c.Filter); err != nil {
+		return base, err
 	}
 	pf, err := ParseFilter(SubjectTake, c.Filter)
 	if err != nil {

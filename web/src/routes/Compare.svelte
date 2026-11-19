@@ -40,7 +40,7 @@
   <p class="muted">Loading…</p>
 {:else}
   <p>
-    <a href="/tracks/{cmp.a.track_id}">{cmp.a.title}</a> <TrackBadges recipeKnown={cmp.a.recipe_known} lossy={cmp.a.lossy} /> (A, seed {cmp.a.seed}) vs <a href="/tracks/{cmp.b.track_id}">{cmp.b.title}</a> <TrackBadges recipeKnown={cmp.b.recipe_known} lossy={cmp.b.lossy} /> (B, seed {cmp.b.seed})
+    <a href="/tracks/{cmp.a.track_id}">{cmp.a.title}</a> <TrackBadges recipeKnown={cmp.a.recipe_known} lossy={cmp.a.lossy} /> (A{cmp.a.seed !== undefined ? `, seed ${cmp.a.seed}` : ""}) vs <a href="/tracks/{cmp.b.track_id}">{cmp.b.title}</a> <TrackBadges recipeKnown={cmp.b.recipe_known} lossy={cmp.b.lossy} /> (B{cmp.b.seed !== undefined ? `, seed ${cmp.b.seed}` : ""})
     — <span data-testid="relation">{v.relation}</span>
   </p>
   <table data-testid="deltas">
@@ -58,14 +58,20 @@
     <li>Both: {v.flags.both.join(", ") || "none"}</li>
   </ul>
   <h2>Recipe</h2>
-  <p>{v.recipe.sameHash ? "Same recipe hash." : `Differs in: ${v.recipe.changed.join(", ") || "nothing listed"}.`} Seed {v.recipe.seed}.</p>
+  {#if v.recipe.sameHash !== null && v.recipe.changed !== null}
+    <p>{v.recipe.sameHash ? "Same recipe hash." : `Differs in: ${v.recipe.changed.join(", ") || "nothing listed"}.`}{v.recipe.seed ? ` Seed ${v.recipe.seed}.` : ""}</p>
+  {/if}
   {#if v.recipe.added.length > 0 || v.recipe.removed.length > 0}
     <p>Style terms: +{v.recipe.added.join(", +") || "none"} / −{v.recipe.removed.join(", −") || "none"}</p>
   {/if}
-  <h2>Head to head</h2>
-  <p>Human {v.headToHead.human}; {v.headToHead.blindN} blind. Critic {v.headToHead.critic}.</p>
-  <h2>Ladder</h2>
-  <p>{v.ladderLine}</p>
+  {#if v.headToHead}
+    <h2>Head to head</h2>
+    <p>Human {v.headToHead.human}; {v.headToHead.blindN} blind. Critic {v.headToHead.critic}.</p>
+  {/if}
+  {#if v.ladderLine}
+    <h2>Ladder</h2>
+    <p>{v.ladderLine}</p>
+  {/if}
   <h2>What this cannot hear</h2>
   <ul class="blind">{#each v.blindSpots as s (s)}<li>{s}</li>{/each}</ul>
 {/if}

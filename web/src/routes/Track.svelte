@@ -235,7 +235,7 @@
       <p class="badges"><span class="chip" data-testid="origin-chip">origin: transform</span></p>
     {/if}
     <p class="meta muted">
-      {fmt(track.duration_s)} · recorded {track.recorded_at.slice(0, 10)} · {track.status} · seed {track.recipe.seed}
+      {fmt(track.duration_s)} · recorded {track.recorded_at.slice(0, 10)} · {track.status}{track.recipe.seed !== undefined ? ` · seed ${track.recipe.seed}` : ""}
       {#if track.bpm_declared} · {track.bpm_declared} BPM{/if}
     </p>
       </div>
@@ -353,11 +353,11 @@
             navigate={(to) => (navigate ?? defaultNavigate)(to)}
           />
         {/if}
-        {#if track.recipe_known}
+        {#if track.recipe_known && track.recipe.style !== undefined}
           <section class="card">
             <h2>Recipe</h2>
             <p class="style" data-testid="recipe-style">{track.recipe.style}</p>
-            <p class="muted">request {track.recipe.request_id}</p>
+            {#if track.recipe.request_id !== undefined}<p class="muted">request {track.recipe.request_id}</p>{/if}
           </section>
         {/if}
         <section class="card">
@@ -375,7 +375,7 @@
           {#if track.lineage.siblings.length > 0}
             <ul>
               {#each track.lineage.siblings as s (s.id)}
-                <li><a class="tap" href="/tracks/{s.id}">{s.title}</a> <span class="muted">seed {s.seed}</span></li>
+                <li><a class="tap" href="/tracks/{s.id}">{s.title}</a> {#if s.seed !== undefined}<span class="muted">seed {s.seed}</span>{/if}</li>
               {/each}
             </ul>
           {/if}

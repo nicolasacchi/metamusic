@@ -31,7 +31,7 @@ func listenerFilterNotAllowed(ctx context.Context, set map[string]bool) error {
 	if !view.FromContext(ctx).Listener() {
 		return nil
 	}
-	for _, name := range listenerBannedFilters {
+	for _, name := range view.ListenerBannedFilters {
 		if set[name] {
 			return Err(http.StatusUnprocessableEntity, "FILTER_NOT_ALLOWED", "this filter is not available to your role", map[string]any{"filter": name})
 		}
@@ -53,10 +53,4 @@ func songFiltersSet(in SongFilterIn) map[string]bool {
 		"muse_id": in.MuseID != "" || in.NoMuse, "angle": in.Angle != "", "session_id": in.SessionID != "", "queued": in.Queued.IsSet,
 		"has_open_proposals": in.HasOpenProposals.IsSet, "draft_id": in.DraftID != "", "unheard": in.Unheard.IsSet,
 	}
-}
-
-// listenerBannedFilters is the C308.3b list, in a fixed order so the refusal names the first one deterministically.
-var listenerBannedFilters = []string{
-	"has_open_comments", "session_id", "has_open_proposals", "queued", "draft_id", "angle", "origin", "engine",
-	"root_track_id", "lyrics_of", "muse_id", "unheard", "color_by",
 }

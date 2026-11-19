@@ -100,12 +100,13 @@ var (
 		"revoke_subsonic_client",
 		// Fail-closed until the lanes that own their redaction or service guards land (review of F1b). Lane E1 lifted
 		// get_budget, create_generation, create_variant, update_track, list_batches, get_batch, list_jobs, get_job and
-		// update_record with their Editor behaviour.
-		"put_device_profile", "get_stats", "get_track_context", "get_export",
+		// update_record with their Editor behaviour; lane V2 lifted put_device_profile, get_stats, get_track_context and
+		// get_export (below).
 	}
 	// Agent-facing or self-service ops that must stay untagged (C305, D-U1-6).
 	f1bNotOwnerOnly = []string{"propose_pick", "revoke_own_device", "revoke_own_token", "get_adherence", "rate_track", "cancel_batch", "cancel_job", "export_jsonl", "create_transform", "request_approval", "set_tags",
-		"get_budget", "create_generation", "create_variant", "update_track", "list_batches", "get_batch", "list_jobs", "get_job", "update_record"}
+		"get_budget", "create_generation", "create_variant", "update_track", "list_batches", "get_batch", "list_jobs", "get_job", "update_record",
+		"put_device_profile", "get_stats", "get_track_context", "get_export"}
 	// Editor-open ops are intentionally scope-gated only; their service guards belong to later lanes.
 )
 

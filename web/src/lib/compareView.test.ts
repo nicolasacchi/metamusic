@@ -34,9 +34,26 @@ describe("compareView", () => {
   });
   test("head-to-head and ladder line", () => {
     const v = compareView(comparison);
-    expect(v.headToHead.human).toContain("1-3-1");
-    expect(v.headToHead.blindN).toBe(4);
+    expect(v.headToHead?.human).toContain("1-3-1");
+    expect(v.headToHead?.blindN).toBe(4);
     expect(v.ladderLine).toContain("22%");
+  });
+  test("a Listener's comparison has no hash, seed, duels or ladder and renders without them", () => {
+    const listener = structuredClone(comparison) as Partial<typeof comparison>;
+    delete listener.duels;
+    delete listener.ladder;
+    const diff: Partial<typeof comparison.recipe_diff> = { ...comparison.recipe_diff };
+    delete diff.same_hash;
+    delete diff.changed;
+    delete diff.seed;
+    listener.recipe_diff = diff as typeof comparison.recipe_diff;
+    const v = compareView(listener as typeof comparison);
+    expect(v.recipe.sameHash).toBeNull();
+    expect(v.recipe.changed).toBeNull();
+    expect(v.recipe.seed).toBeNull();
+    expect(v.headToHead).toBeNull();
+    expect(v.ladderLine).toBeNull();
+    expect(v.recipe.added).toEqual(comparison.recipe_diff.style_terms.added);
   });
   test("every relation has a label", () => {
     for (const rel of ["siblings", "parent_child", "child_parent", "same_lineage", "unrelated"] as const) {

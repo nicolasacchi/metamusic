@@ -1,9 +1,11 @@
 package subsonic
 
 import (
+	"context"
 	"slices"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // extensions are the advertised OpenSubsonic extensions (C108.6), sorted by name.
@@ -16,6 +18,14 @@ var extensions = []ExtensionInfo{
 
 // folders are the three virtual music folders (D-M4a-10).
 var folders = []MusicFolder{{ID: 1, Name: "Library"}, {ID: 2, Name: "Drafts"}, {ID: 3, Name: "Discarded"}}
+
+// visibleFolders are the folders the caller sees: a Listener's client has no Discarded folder (C308.6).
+func visibleFolders(ctx context.Context) []MusicFolder {
+	if view.FromContext(ctx).HideDiscarded {
+		return slices.Clone(folders[:2])
+	}
+	return slices.Clone(folders)
+}
 
 func (s *server) registerSystem() {
 	s.add("ping", false, func(*call) error { return nil })
@@ -49,11 +59,11 @@ func (s *server) registerSystem() {
 		}
 		w := c.principal.Has(auth.ScopeWrite)
 		c.resp.User = &User{Username: cl.Username, ScrobblingEnabled: w, PlaylistRole: w, CommentRole: w,
-			DownloadRole: true, CoverArtRole: true, StreamRole: true, Folder: []int{1, 2, 3}}
+			DownloadRole: true, CoverArtRole: true, StreamRole: true, Folder: userFolders(c.ctx)}
 		return nil
 	})
 	s.add("getMusicFolders", false, func(c *call) error {
-		c.resp.MusicFolders = &MusicFolders{MusicFolder: slices.Clone(folders)}
+		c.resp.MusicFolders = &MusicFolders{MusicFolder: visibleFolders(c.ctx)}
 		return nil
 	})
 }
@@ -73,4 +83,12 @@ func (c *call) client() (auth.SubsonicClient, error) {
 		}
 	}
 	return auth.SubsonicClient{}, fail(errBadCreds, "wrong username or password")
+}
+
+// userFolders is the folder id list of getUser, without the Discarded folder for a Listener's client.
+func userFolders(ctx context.Context) []int {
+	if view.FromContext(ctx).HideDiscarded {
+		return []int{1, 2}
+	}
+	return []int{1, 2, 3}
 }

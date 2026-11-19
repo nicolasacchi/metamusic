@@ -48,6 +48,6 @@ describe("M2b fixtures (TestWebFixtures_M2b)", () => {
   test("the comparison carries b-minus-a deltas and a relation", () => {
     expect(comparison.relation).toBe("siblings");
     expect(comparison.deltas.integrated_lufs).toBe(-2.1);
-    expect(comparison.ladder.a?.n_duels).toBe(6);
+    expect(comparison.ladder?.a?.n_duels).toBe(6);
   });
 });

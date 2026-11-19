@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicolasacchi/metamusic/internal/textfold"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // folderFrag resolves musicFolderId (D-M4a-10): absent = folders 1 + 2; 1, 2 or 3 = that folder; anything else is
@@ -34,6 +35,9 @@ func (c *call) folderNum() (int, error) {
 		if n, err = strconv.Atoi(v); err != nil {
 			return 0, fail(errNotFound, "music folder not found")
 		}
+	}
+	if n == 3 && view.FromContext(c.ctx).HideDiscarded { // the Discarded folder does not exist for a Listener's client (C308.6)
+		return 0, fail(errNotFound, "music folder not found")
 	}
 	return n, nil
 }

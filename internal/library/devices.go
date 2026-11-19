@@ -80,6 +80,9 @@ func effectiveFormat(quality string) string {
 }
 
 func (s *Service) putActor(p auth.Principal) string {
+	if !p.IsOwnerSide() && p.Key() != "" { // the kind-qualified key, so an agent named "bob" is not the Editor "bob"
+		return p.Key()
+	}
 	if p.ID != "" {
 		return p.ID
 	}
@@ -97,17 +100,26 @@ func (s *Service) PutDeviceProfile(ctx context.Context, p auth.Principal, in Dev
 	if in.ProbedAt != nil {
 		probedAt = *in.ProbedAt
 	}
-	_, err := s.st.W.ExecContext(ctx, `INSERT INTO device_profiles(device_id, label, user_agent, quality, quality_source, probe_result, flac_can_play,
+	// An Editor or Listener may only update a row it created (C305: own); another principal's row answers 404, the body of a
+	// missing id. The Owner side keeps the unguarded upsert. The guard rides the upsert, so there is no check-then-write race.
+	guard := ""
+	if !p.IsOwnerSide() {
+		guard = ` WHERE device_profiles.created_by = excluded.created_by`
+	}
+	res, err := s.st.W.ExecContext(ctx, `INSERT INTO device_profiles(device_id, label, user_agent, quality, quality_source, probe_result, flac_can_play,
 		flac_decode_ok, flac_seek_ok, probe_version, probed_at, created_by, updated_by, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(device_id) DO UPDATE SET label=excluded.label, user_agent=excluded.user_agent, quality=excluded.quality,
 		quality_source=excluded.quality_source, probe_result=excluded.probe_result, flac_can_play=excluded.flac_can_play,
 		flac_decode_ok=excluded.flac_decode_ok, flac_seek_ok=excluded.flac_seek_ok, probe_version=excluded.probe_version,
-		probed_at=excluded.probed_at, updated_by=excluded.updated_by, updated_at=excluded.updated_at`,
+		probed_at=excluded.probed_at, updated_by=excluded.updated_by, updated_at=excluded.updated_at`+guard,
 		in.DeviceID, in.Label, in.UserAgent, in.Quality, in.QualitySource, in.ProbeResult, in.FlacCanPlay,
 		boolPtr(in.FlacDecodeOK), boolPtr(in.FlacSeekOK), in.ProbeVersion, probedAt, actor, actor, now, now)
 	if err != nil {
 		return DeviceProfile{}, fmt.Errorf("library: put device profile: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return DeviceProfile{}, ErrNotFound
 	}
 	row := s.st.W.QueryRowContext(ctx, deviceSelect+` WHERE device_id = ?`, in.DeviceID)
 	return scanDevice(row)

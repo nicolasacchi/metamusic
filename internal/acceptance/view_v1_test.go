@@ -258,6 +258,11 @@ func TestListenerDiscardedRecordSlot(t *testing.T) {
 	rev := obj(rec["record"])["revision"].(float64)
 	owner.OK(t, "POST", "/api/records/"+rid+"/slots", map[string]any{"revision": rev, "ops": []any{map[string]any{"op": "pin", "slot_id": slotID, "take_id": d}}})
 	owner.OK(t, "PATCH", "/api/tracks/"+d, map[string]any{"status": "discarded"})
+	// a Listener reads published Records only (V2, C305): publish it directly, the human-only route needs a step-up
+	if _, err := r.Store.W.Exec(`UPDATE records SET status = 'published', published_by = 'human:alice', published_at = ?, first_published_at = ? WHERE id = ?`,
+		lt.FixedNow.Format("2006-01-02T15:04:05.000Z"), lt.FixedNow.Format("2006-01-02T15:04:05.000Z"), rid); err != nil {
+		t.Fatal(err)
+	}
 
 	ob := string(owner.Do(t, "GET", "/api/records/"+rid, nil).Body)
 	if !strings.Contains(ob, d) || !strings.Contains(ob, "pin_ineligible") {

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/nicolasacchi/metamusic/internal/view"
 
 	"github.com/nicolasacchi/metamusic/internal/songview"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -22,11 +23,15 @@ func wireL2Curation(st *store.Store, sv *songview.Service, ctxb *trackctx.Builde
 	ctxb.UseCuration(c)
 }
 
-// RecordsOf lists the non-hidden Records with a live slot of the Song, newest first.
+// RecordsOf lists the non-hidden Records with a live slot of the Song, newest first; a Listener sees published ones only (C305).
 func (c l2Curation) RecordsOf(ctx context.Context, songID string, limit int) ([]songview.RecordRef, error) {
+	published := ""
+	if view.FromContext(ctx).Listener() {
+		published = " AND r.status = 'published'"
+	}
 	rows, err := c.st.R.QueryContext(ctx, `SELECT r.id, r.title, r.status, CASE WHEN s.pinned_take_id IS NULL THEN 'floating' ELSE 'pinned' END
 		FROM record_slots s JOIN records r ON r.id = s.record_id
-		WHERE s.song_id = ? AND s.removed_at IS NULL AND r.hidden_at IS NULL ORDER BY r.created_at DESC, r.id DESC LIMIT ?`, songID, limit)
+		WHERE s.song_id = ? AND s.removed_at IS NULL AND r.hidden_at IS NULL`+published+` ORDER BY r.created_at DESC, r.id DESC LIMIT ?`, songID, limit) //nolint:gosec // G202: fixed fragment
 	if err != nil {
 		return nil, fmt.Errorf("records of song: %w", err)
 	}

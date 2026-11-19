@@ -29,7 +29,7 @@ var visibleGated = map[string]string{
 var visibleFiltered = map[string]string{
 	"search_tracks":      "SQL: compileSearch appends view.NotDiscarded; Listener q and filter rules in the handler",
 	"get_library_facets": "SQL: every facet count excludes discarded takes",
-	"list_songs":         "SQL: songs.FilterSQL track_id clause and visibleTakeCounts; a discarded track_id lists nothing, like an unknown one (a 404 would be an oracle)",
+	"list_songs":         "SQL: songs.FilterSQL (track_id clause, all-discarded Songs dropped) and the visible state table, Pick and root refs; a discarded track_id lists nothing, like an unknown one (a 404 would be an oracle)",
 	"get_song":           "service: songview resolves by=track through the visible takes, takeRows and the lineage block filter them",
 	"get_song_atlas":     "Songs only, no take id in the answer; the Song set is the list_songs filter",
 	"search_sounds":      "Songs only; the Song set is the list_songs filter",
@@ -48,6 +48,7 @@ var visibleFiltered = map[string]string{
 
 var visibleNoTrack = map[string]string{
 	"whoami": "the caller", "ping": "liveness", "get_sound_taxonomy": "the taxonomy, no take data",
+	"put_device_profile": "a playback profile of the caller's own device; no take involved",
 }
 
 var (

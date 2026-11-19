@@ -62,7 +62,7 @@
   const axisError = $derived(axisPairError(filter.x, filter.y));
   const points = $derived(atlas ? visiblePoints(atlas.points, hidePredicted) : []);
   const ids = $derived([...selected]);
-  const muse = $derived(atlas ? sharedMuse(atlas.points, atlas.muses, selected) : "");
+  const muse = $derived(atlas ? sharedMuse(atlas.points, atlas.muses ?? [], selected) : "");
   const nearTitle = $derived(filter.near ? (atlas?.points.find((p) => p.id === filter.near)?.t ?? "") : "");
 
   function go(f: AtlasFilter) {

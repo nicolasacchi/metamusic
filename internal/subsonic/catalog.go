@@ -14,6 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/view"
 )
 
 // This file holds every SQL statement of the catalog endpoints (C109.1): read pool only, songs are tracks, albums
@@ -157,9 +158,14 @@ func (c *catalog) songs(ctx context.Context, q songQuery) ([]songRow, error) {
 		b.WriteString(` JOIN (SELECT track_id, bm25(tracks_fts, 0, 10, 2, 2, 1) AS rank FROM tracks_fts WHERE tracks_fts MATCH ?) f ON f.track_id = t.id`)
 		args = append(args, q.fts)
 	}
-	if q.where != "" {
-		b.WriteString(" WHERE " + q.where)
+	// A client that carries a Listener's role never reaches a discarded take, by folder or by id (C308.6).
+	hide := view.FromContext(ctx).NotDiscarded("t")
+	switch {
+	case q.where != "":
+		b.WriteString(" WHERE (" + q.where + ")" + hide)
 		args = append(args, q.args...)
+	case hide != "":
+		b.WriteString(" WHERE 1 = 1" + hide)
 	}
 	order := q.order
 	if order == "" {
@@ -306,7 +312,7 @@ type albumQuery struct {
 func (c *catalog) albums(ctx context.Context, q albumQuery) ([]albumRow, error) {
 	var b strings.Builder
 	cond, vargs := c.viewer(ctx)
-	b.WriteString("SELECT a.* FROM (" + strings.ReplaceAll(fmt.Sprintf(albumAgg, q.folderWhere), "{events}", cond) + ") a")
+	b.WriteString("SELECT a.* FROM (" + strings.ReplaceAll(fmt.Sprintf(albumAgg, q.folderWhere+view.FromContext(ctx).NotDiscarded("t")), "{events}", cond) + ") a")
 	if q.where != "" {
 		b.WriteString(" WHERE " + q.where)
 	}
@@ -375,7 +381,7 @@ func (c *catalog) albumsByIDs(ctx context.Context, folderFrag string, ids []stri
 // albumExists reports whether any track (in any folder) belongs to the lineage.
 func (c *catalog) albumExists(ctx context.Context, root string) (bool, error) {
 	var n int
-	err := c.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks WHERE root_track_id = ?`, root).Scan(&n)
+	err := c.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracks t WHERE t.root_track_id = ?`+view.FromContext(ctx).NotDiscarded("t"), root).Scan(&n) //nolint:gosec // G202: fixed fragment
 	return n > 0, err
 }
 
@@ -549,7 +555,62 @@ func (c *catalog) playlists(ctx context.Context) ([]playlistRow, error) {
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if err := c.hideDiscardedMembers(ctx, &out[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// hideDiscardedMembers drops the discarded takes of a playlist for a viewer that hides them, with their duration, so the
+// song count and length of a Listener's client never include one (C308.2).
+func (c *catalog) hideDiscardedMembers(ctx context.Context, p *playlistRow) error {
+	if !view.FromContext(ctx).HideDiscarded || len(p.Items) == 0 {
+		return nil
+	}
+	var kept []string
+	var dur float64
+	if err := c.eachVisible(ctx, p.Items, func(id string, d float64) { kept, dur = append(kept, id), dur+d }); err != nil {
+		return err
+	}
+	p.Items, p.DurationS = kept, dur
+	return nil
+}
+
+// eachVisible calls fn, in the order of ids, for each id that names a take the viewer may see.
+func (c *catalog) eachVisible(ctx context.Context, ids []string, fn func(id string, durationS float64)) error {
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := c.db.QueryContext(ctx, `SELECT t.id, t.duration_s FROM tracks t WHERE t.id IN (`+ph+`)`+view.FromContext(ctx).NotDiscarded("t"), args...) //nolint:gosec // G202: placeholders and a fixed fragment
+	if err != nil {
+		return fmt.Errorf("subsonic: visible members: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	dur := map[string]float64{}
+	for rows.Next() {
+		var id string
+		var d float64
+		if err := rows.Scan(&id, &d); err != nil {
+			return err
+		}
+		dur[id] = d
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if d, ok := dur[id]; ok {
+			fn(id, d)
+		}
+	}
+	return nil
 }
 
 // playlist returns one playlist by id; a hidden playlist other than the offline set does not exist for the bridge.
@@ -558,7 +619,10 @@ func (c *catalog) playlist(ctx context.Context, id string) (playlistRow, bool, e
 	if errors.Is(err, sql.ErrNoRows) {
 		return playlistRow{}, false, nil
 	}
-	return p, err == nil, err
+	if err != nil {
+		return p, false, err
+	}
+	return p, true, c.hideDiscardedMembers(ctx, &p)
 }
 
 // recordCreated maps every published, non-hidden Record to its first_published_at (the Record album's `created`, C126.7).

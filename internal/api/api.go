@@ -202,6 +202,7 @@ func HumaConfig() huma.Config {
 	cfg.DocsPath = "/api/docs"
 	cfg.SchemasPath = ""
 	cfg.CreateHooks = nil
+	cfg.Transformers = []huma.Transformer{shapeTransformer} // C308: the last step of a response, a no-op for the Owner side
 	cfg.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", schemaNamer)
 	return cfg
 }
@@ -330,6 +331,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerAttentionM5(a, d)
 	registerDuelsM5(a, d)
 	registerVoiceM5(a, d)
+	relaxResponseSchemas(a) // C308: the keys a role may not receive are optional in the response schemas
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")
 	ValidateAliases(a)

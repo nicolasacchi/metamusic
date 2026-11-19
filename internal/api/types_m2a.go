@@ -25,10 +25,10 @@ import (
 // PrincipalRef is how a principal appears in a response (D-M2a-19).
 type PrincipalRef = auth.PrincipalRef
 
-// RefFor renders a principal reference for viewer. A viewer that acts as the
-// operator (human or device) sees references unchanged; any other viewer
-// (an agent) sees the operator as {human, "human", "human"} and a device as
-// {device, <key>, "device"}. Handlers never build references by hand.
+// RefFor renders a principal reference for viewer. A viewer that is a person with private access (the Owner, an
+// Editor, their devices) sees references unchanged; an agent sees any human as {human, "human", "human"} and a device
+// as {device, <key>, "device"}; a Listener sees only their own reference and every other human as {human, "user",
+// "user"} (C309, D-U1-15: an SSO username never reaches a Listener). Handlers never build references by hand.
 func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
 	// system:* keys (runner, reconciler, billing, cli, job) render the same for every viewer (M3 D-M3-22).
 	if strings.HasPrefix(key, string(auth.KindSystem)+":") {
@@ -37,22 +37,40 @@ func RefFor(viewer auth.Principal, key, kind, name string) PrincipalRef {
 	if viewer.IsPerson() && viewer.CanSeePrivate() {
 		return PrincipalRef{Kind: kind, ID: key, Name: name}
 	}
+	if viewer.IsPerson() && key != "" && key == viewer.Key() { // a Listener sees their own name
+		return PrincipalRef{Kind: kind, ID: key, Name: name}
+	}
 	switch kind {
 	case string(auth.KindHuman):
+		if viewer.IsPerson() { // a Listener
+			return PrincipalRef{Kind: kind, ID: listenerOther, Name: listenerOther}
+		}
 		return PrincipalRef{Kind: kind, ID: "human", Name: "human"}
 	case string(auth.KindDevice):
+		if viewer.IsPerson() { // a Listener never learns another principal's device key
+			return PrincipalRef{Kind: kind, ID: kind, Name: kind}
+		}
 		return PrincipalRef{Kind: kind, ID: key, Name: "device"}
 	}
 	return PrincipalRef{Kind: kind, ID: key, Name: name}
 }
 
-// KeyFor renders a key-valued string field (created_by, updated_by, status_set_by)
-// for viewer: a human key becomes "human" for an agent, other keys are unchanged.
+// listenerOther is how a Listener sees every user but themselves (D-U1-15).
+const listenerOther = "user"
+
+// KeyFor renders a key-valued string field (created_by, updated_by, status_set_by) for viewer: a human key becomes
+// "human" for an agent and "user" for a Listener unless it is the Listener's own; other keys are unchanged.
 func KeyFor(viewer auth.Principal, key string) string {
-	if !(viewer.IsPerson() && viewer.CanSeePrivate()) && strings.HasPrefix(key, string(auth.KindHuman)+":") {
-		return "human"
+	if (viewer.IsPerson() && viewer.CanSeePrivate()) || !strings.HasPrefix(key, string(auth.KindHuman)+":") {
+		return key
 	}
-	return key
+	switch {
+	case !viewer.IsPerson():
+		return "human"
+	case key == viewer.Key():
+		return key
+	}
+	return listenerOther
 }
 
 // RawRequest is a request object kept as the client's exact JSON bytes, so

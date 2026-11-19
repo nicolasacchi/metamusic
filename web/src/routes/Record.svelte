@@ -196,7 +196,7 @@
 
   function startEdit() {
     if (!rec) return;
-    draft = { title: rec.title, subtitle: rec.subtitle, note: rec.liner_note };
+    draft = { title: rec.title, subtitle: rec.subtitle, note: rec.liner_note ?? "" };
     editing = true;
   }
   async function saveEdit() {

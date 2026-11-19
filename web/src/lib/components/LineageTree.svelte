@@ -56,7 +56,7 @@
       {#each nodeBadges(x) as b (b.kind)}<span class="chip engine-{b.kind}" data-testid="lineage-badge-{b.kind}" title={b.title}>{b.text}</span>{/each}
       <span class="muted">{x.status}</span>
       {#if x.stars !== null}<span title="Your rating">{stars(x.stars)}</span>{/if}
-      {#if x.cost}<span class="muted" data-testid="lineage-cost">{formatMicroUSD(x.cost.display_micro_usd)}</span>{/if}
+      {#if x.cost && x.cost.display_micro_usd !== undefined}<span class="muted" data-testid="lineage-cost">{formatMicroUSD(x.cost.display_micro_usd)}</span>{/if}
       {#if r.collapsed}<span class="muted">(+{r.hidden} hidden)</span>{/if}
       {#if refEdge.get(x.id)}
         {@const e = refEdge.get(x.id)}

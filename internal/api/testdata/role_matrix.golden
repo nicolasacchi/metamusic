@@ -48,7 +48,7 @@ get_device_probe	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_download_link	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_draft	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_duel	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
-get_export	read	V2_(exports.principal_id_ownership)	Y	OO	OO	Y	Y	Y	Y	OO	OO
+get_export	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_import_run	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_job	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_ladder	listen	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
@@ -70,12 +70,12 @@ get_song_atlas	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_songwriting_settings	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_sound_taxonomy	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_spend	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
-get_stats	read	V2_(Editor_redaction_of_generation/backup/storage_blocks)	Y	OO	OO	Y	Y	Y	Y	OO	OO
+get_stats	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_system_info	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_tape	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_analysis	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
-get_track_context	read	V2_(cost_and_Muse_redaction)	Y	OO	OO	Y	Y	Y	Y	OO	OO
+get_track_context	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_track_peaks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_spectrogram	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_transform	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -119,7 +119,7 @@ propose_pick	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 propose_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 propose_taxonomy	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 publish_record	write	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
-put_device_profile	rate	V2_(created_by_ownership_guard)	Y	OO	OO	SC	Y	Y	Y	OO	OO
+put_device_profile	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 rate_track	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 reject_batch	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 request_approval	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
