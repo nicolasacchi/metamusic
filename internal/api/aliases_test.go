@@ -46,7 +46,7 @@ func spendOp(id, path string) huma.Operation {
 }
 
 func aliasMeta(of string) api.Meta {
-	return api.Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true, Idempotency: "create", AliasOf: of}
+	return api.Meta{Scope: auth.ScopeGenerate, Cost: "spend", MCP: "exclude:human-only", UI: "none:x", HumanOnly: true, OwnerOnly: true, Idempotency: "create", AliasOf: of}
 }
 
 func regTarget(a huma.API) {

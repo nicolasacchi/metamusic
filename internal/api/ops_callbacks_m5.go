@@ -54,7 +54,7 @@ func registerCallbacksM5(a huma.API, d Deps) {
 		OperationID: "submit_callback_verdict", Method: "POST", Path: "/api/callbacks/{id}/verdicts",
 		Summary:     "Answer a callback",
 		Description: "fixed, not_yet or worse for a fix callback; kept or lost for a keep callback. A human answer moves the comment; an agent answer is a critic verdict that never does. Repeating an identical answer returns it with replayed true.",
-	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/judge/callbacks/:id"},
+	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/judge/callbacks/:id", OwnerOnly: true},
 		func(ctx context.Context, in *submitCallbackVerdictIn) (*callbackSubmitOut, error) {
 			if d.Callbacks == nil {
 				return nil, unavailable("callbacks")

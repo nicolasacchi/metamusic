@@ -49,7 +49,7 @@ func registerSystem(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "ping", Method: "GET", Path: "/api/ping",
 		Summary: "Ping the server", Description: "Liveness check that also reports the server version.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/"},
 		func(ctx context.Context, _ *empty) (*pingOut, error) {
 			out := &pingOut{}
 			out.Body.OK, out.Body.Version = true, d.Version
@@ -59,7 +59,7 @@ func registerSystem(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "whoami", Method: "GET", Path: "/api/me",
 		Summary: "Show the calling principal", Description: "Returns the identity, scopes and authentication path of the caller.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/"},
 		func(ctx context.Context, _ *empty) (*whoamiOut, error) {
 			p := auth.FromContext(ctx)
 			out := &whoamiOut{}
@@ -78,7 +78,7 @@ func registerSystem(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "get_system_info", Method: "GET", Path: "/api/system",
 		Summary: "Get system information", Description: "Version, commit, auth mode, database schema version and uptime.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/settings"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/settings", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*systemOut, error) {
 			out := &systemOut{}
 			b := &out.Body

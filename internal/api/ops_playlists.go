@@ -29,7 +29,7 @@ func registerPlaylists(a huma.API, d Deps) {
 		OperationID: "list_playlists", Method: "GET", Path: "/api/playlists",
 		Summary:     "List playlists",
 		Description: "Playlists with their track counts and total duration; hidden ones only with include_hidden.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/playlists"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "tool", UI: "/playlists"},
 		func(ctx context.Context, in *includeHiddenIn) (*playlistsOut, error) {
 			if d.Playlists == nil {
 				return nil, unavailable("playlists")
@@ -47,7 +47,7 @@ func registerPlaylists(a huma.API, d Deps) {
 		OperationID: "get_playlist", Method: "GET", Path: "/api/playlists/{id}",
 		Summary:     "Get a playlist",
 		Description: "One playlist with its tracks in order.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/playlists/:id"},
+	}, Meta{Scope: auth.ScopeListen, Cost: "free", MCP: "generic", UI: "/playlists/:id"},
 		func(ctx context.Context, in *playlistIDIn) (*playlistOut, error) {
 			if d.Playlists == nil {
 				return nil, unavailable("playlists")

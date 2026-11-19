@@ -226,7 +226,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, marks := idem.WithMarks(ctx)
 
 	audited := p.IsAgent() ||
-		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead))
+		(matched && (info.Meta.HumanOnly || info.Meta.Scope != auth.ScopeRead && info.Meta.Scope != auth.ScopeListen))
 	create := matched && info.Meta.Idempotency == "create"
 
 	rec := &recorder{ResponseWriter: w}

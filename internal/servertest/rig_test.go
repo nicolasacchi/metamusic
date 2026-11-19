@@ -187,9 +187,13 @@ func TestServertest_RoleUsers(t *testing.T) {
 			t.Errorf("whoami %v", who)
 		}
 	}
-	// a Listener is a known user (403 on a read-scope op until F1b retags browse ops to listen), never anonymous
-	if resp := r.User(t, servertest.UserListener, config.RoleListener).Do(t, "GET", "/api/me", nil); resp.Status != 403 {
+	// a Listener is a known user: whoami is scope listen since F1b, and a read-scope op is refused
+	l := r.User(t, servertest.UserListener, config.RoleListener)
+	if resp := l.Do(t, "GET", "/api/me", nil); resp.Status != 200 {
 		t.Errorf("listener whoami: %d %s", resp.Status, resp.Body)
+	}
+	if resp := l.Do(t, "GET", "/api/budget", nil); resp.Status != 403 {
+		t.Errorf("listener budget: %d %s", resp.Status, resp.Body)
 	}
 }
 

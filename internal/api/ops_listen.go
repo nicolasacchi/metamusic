@@ -15,7 +15,7 @@ func registerListen(a huma.API, d Deps) {
 		OperationID: "log_listen_events", Method: "POST", Path: "/api/listen-events",
 		Summary:     "Log listen events",
 		Description: "Records player events (start, segment, seek, complete, skip) and client playback diagnostics (autoplay_blocked, stall_end, advance, error) with client-generated ids; re-sending an id is harmless.",
-	}, bodyListen), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
+	}, bodyListen), Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "generic", UI: "/tracks/:id"},
 		func(ctx context.Context, in *logListenIn) (*logListenOut, error) {
 			if d.Listening == nil {
 				return nil, unavailable("listening")

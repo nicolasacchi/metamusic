@@ -43,7 +43,7 @@ func registerTokens(a huma.API, d Deps) {
 		OperationID: "list_tokens", Method: "GET", Path: "/api/tokens",
 		Summary:     "List API tokens",
 		Description: "Token names, prefixes, scopes, expiry and last use. Never the tokens themselves.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/human/tokens"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/human/tokens", OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*tokenListOut, error) {
 			if d.Tokens == nil {
 				return nil, unavailable("tokens")
@@ -88,7 +88,7 @@ func registerTokens(a huma.API, d Deps) {
 		Summary:     "Create an API token",
 		Description: "Mints a token with the given scopes. It expires after ttl_days (default 90; 0 = never). The token is shown once. Operator only.",
 	}), bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/tokens", HumanOnly: true,
-		Idempotency: "create", SecretFields: []string{"token"}},
+		Idempotency: "create", SecretFields: []string{"token"}, OwnerOnly: true},
 		func(ctx context.Context, in *createTokenIn) (*createdTokenOut, error) {
 			if d.Tokens == nil {
 				return nil, unavailable("tokens")
@@ -119,7 +119,7 @@ func registerTokens(a huma.API, d Deps) {
 		OperationID: "revoke_token", Method: "POST", Path: "/human/api/tokens/{id}/revoke",
 		Summary:     "Revoke an API token",
 		Description: "Revokes any token by id. Repeating the call returns the same result. Operator only.",
-	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/tokens", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/tokens", HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, in *tokenIDIn) (*tokenOut, error) {
 			if d.Tokens == nil {
 				return nil, unavailable("tokens")

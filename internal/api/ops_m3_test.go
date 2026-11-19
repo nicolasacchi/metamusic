@@ -56,7 +56,7 @@ var m3Ops = []m3Op{
 	{id: "get_provider_status", method: "GET", path: "/api/provider", scope: auth.ScopeRead, cost: "free", mcp: "generic", ui: "/jobs", component: "provider", lane: "M3-B6"},
 	{id: "set_spend_caps", method: "PUT", path: "/human/api/spend/caps", scope: auth.ScopeAdmin, cost: "free", mcp: "exclude:human-only", ui: "/human/spend", humanOnly: true, body: 64 * kib, component: "spend", lane: "M3-B4", reqBody: `{"monthly_micro_usd":1000000}`},
 	{id: "update_provider_state", method: "POST", path: "/human/api/provider/state", scope: auth.ScopeAdmin, cost: "free", mcp: "exclude:human-only", ui: "/human/spend", humanOnly: true, body: 64 * kib, component: "provider", lane: "M3-B6", reqBody: `{"armed":true,"reason":"test"}`},
-	{id: "get_lineage", method: "GET", path: "/api/tracks/{id}/lineage", scope: auth.ScopeRead, cost: "free", mcp: "generic", ui: "/lineage/:id", component: "lineage", lane: "M3-B4"},
+	{id: "get_lineage", method: "GET", path: "/api/tracks/{id}/lineage", scope: auth.ScopeListen, cost: "free", mcp: "generic", ui: "/lineage/:id", component: "lineage", lane: "M3-B4"},
 }
 
 func TestOps_RegisteredWithMetaM3(t *testing.T) {
@@ -215,7 +215,7 @@ func TestOps_AuthorizationM3(t *testing.T) {
 	r := m3Rig(t, fullM3Deps())
 	readOnlyAgent := auth.Principal{Kind: auth.KindAgent, ID: "tok-ro", Name: "ro", Scopes: []auth.Scope{auth.ScopeRead}, Via: "token"}
 	for _, w := range m3Ops {
-		if w.scope == auth.ScopeRead {
+		if w.scope == auth.ScopeRead || w.scope == auth.ScopeListen {
 			continue
 		}
 		path := strings.NewReplacer("{id}", "x").Replace(w.path)

@@ -41,8 +41,8 @@ var l1Ops = []l1Op{
 		reqBody: `{"kind":"reference","title":"Synthetic Muse 001"}`},
 	{id: "update_muse", method: "PATCH", path: "/api/muses/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/muses/:id", body: 64 * kib, component: "muses", lane: "L1-B5", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "assign_muse_songs", method: "POST", path: "/api/muses/{id}/songs", scope: auth.ScopeWrite, mcp: "generic", ui: "/board", body: 64 * kib, component: "muses", lane: "L1-B5", reqBody: `{"song_ids":["s1"]}`},
-	{id: "list_songs", method: "GET", path: "/api/songs", scope: auth.ScopeRead, mcp: "generic", ui: l1AgentFace, component: "songs", lane: "L1-B5"},
-	{id: "get_song", method: "GET", path: "/api/songs/{id}", scope: auth.ScopeRead, mcp: "tool", ui: "/songs/:id", component: "songview", lane: "L1-B5"},
+	{id: "list_songs", method: "GET", path: "/api/songs", scope: auth.ScopeListen, mcp: "generic", ui: l1AgentFace, component: "songs", lane: "L1-B5"},
+	{id: "get_song", method: "GET", path: "/api/songs/{id}", scope: auth.ScopeListen, mcp: "tool", ui: "/songs/:id", component: "songview", lane: "L1-B5"},
 	{id: "update_song", method: "PATCH", path: "/api/songs/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/songs/:id", body: 64 * kib, component: "songs", lane: "L1-B5", reqBody: `{"revision":1,"title":"x"}`},
 	{id: "propose_pick", method: "POST", path: "/api/songs/{id}/pick-proposals", scope: auth.ScopeWrite, mcp: "tool", ui: l1Proposal, create: true, status: 201, body: 64 * kib, component: "picks", lane: "L1-B4",
 		reqBody: `{"take_id":"t1","rationale":"why"}`},
@@ -51,8 +51,8 @@ var l1Ops = []l1Op{
 	{id: "list_pick_events", method: "GET", path: "/api/pick-events", scope: auth.ScopeRead, mcp: "generic", ui: "/songs/:id", component: "picks", lane: "L1-B4"},
 	{id: "list_sessions", method: "GET", path: "/api/sessions", scope: auth.ScopeRead, mcp: "generic", ui: "/board", component: "sessions", lane: "L1-B5"},
 	{id: "update_session", method: "PATCH", path: "/api/sessions/{id}", scope: auth.ScopeWrite, mcp: "generic", ui: "/board", body: 64 * kib, component: "sessions", lane: "L1-B5", reqBody: `{"revision":1,"name":"x"}`},
-	{id: "search_sounds", method: "GET", path: "/api/sounds/search", scope: auth.ScopeRead, mcp: "tool", ui: "/sounds", component: "sounds", lane: "L1-B6"},
-	{id: "get_sound_taxonomy", method: "GET", path: "/api/sounds/taxonomy", scope: auth.ScopeRead, mcp: "generic", ui: "/sounds", component: "sounds", lane: "L1-B6"},
+	{id: "search_sounds", method: "GET", path: "/api/sounds/search", scope: auth.ScopeListen, mcp: "tool", ui: "/sounds", component: "sounds", lane: "L1-B6"},
+	{id: "get_sound_taxonomy", method: "GET", path: "/api/sounds/taxonomy", scope: auth.ScopeListen, mcp: "generic", ui: "/sounds", component: "sounds", lane: "L1-B6"},
 	{id: "map_sound_term", method: "POST", path: "/api/sound-terms", scope: auth.ScopeWrite, mcp: "generic", ui: "/sounds", heavy: true, body: 64 * kib, component: "sounds", lane: "L1-B6",
 		reqBody: `{"mappings":[{"term":"dub","facet":"genre_family","value":"reggae","op":"add"}]}`},
 	{id: "get_muse_board", method: "GET", path: "/api/board", scope: auth.ScopeRead, mcp: "generic", ui: "/board", component: "board", lane: "L1-B5"},
@@ -215,7 +215,7 @@ func TestOps_AuthorizationL1(t *testing.T) {
 	r := l1Rig(t, l1Deps())
 	ro := auth.Principal{Kind: auth.KindAgent, ID: "tok-ro", Name: "ro", Scopes: []auth.Scope{auth.ScopeRead}, Via: "token"}
 	for _, w := range l1Ops {
-		if w.scope == auth.ScopeRead {
+		if w.scope == auth.ScopeRead || w.scope == auth.ScopeListen {
 			continue
 		}
 		path := strings.NewReplacer("{id}", "x").Replace(w.path)

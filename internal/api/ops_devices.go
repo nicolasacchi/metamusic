@@ -18,7 +18,7 @@ func registerDevices(a huma.API, d Deps) {
 		OperationID: "put_device_profile", Method: "PUT", Path: "/api/device-profiles/{device_id}",
 		Summary:     "Create or update a device profile",
 		Description: "Upserts the playback profile of one client device (preferred quality and the FLAC probe result). Idempotent.",
-	}, Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/settings"},
+	}, Meta{Scope: auth.ScopeRate, Cost: "free", MCP: "generic", UI: "/settings"},
 		func(ctx context.Context, in *putDeviceProfileIn) (*deviceProfileOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -39,7 +39,7 @@ func registerDevices(a huma.API, d Deps) {
 		OperationID: "list_device_profiles", Method: "GET", Path: "/api/device-profiles",
 		Summary:     "List device profiles",
 		Description: "Known device playback profiles. Pages are capped in size; follow next_cursor.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings"},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/settings", OwnerOnly: true},
 		func(ctx context.Context, in *listDeviceProfilesIn) (*deviceProfilesOut, error) {
 			if d.Library == nil {
 				return nil, unavailable("library")
@@ -89,7 +89,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "list_devices", Method: "GET", Path: "/human/api/devices",
 		Summary:     "List paired devices",
 		Description: "Paired browsers and phones with their last use. Operator only: user agents and names are personal data.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, _ *empty) (*deviceListOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
@@ -111,7 +111,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		Summary:     "Create a pairing code",
 		Description: "Mints a single-use code (5 minutes) for pairing a new device; shown once with its pairing URL. Operator only.",
 	}), bodySmall), Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true,
-		Idempotency: "create", SecretFields: []string{"code", "pair_url"}},
+		Idempotency: "create", SecretFields: []string{"code", "pair_url"}, OwnerOnly: true},
 		func(ctx context.Context, in *createPairingIn) (*pairingOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")
@@ -128,7 +128,7 @@ func registerPairedDevices(a huma.API, d Deps) {
 		OperationID: "revoke_device", Method: "POST", Path: "/human/api/devices/{id}/revoke",
 		Summary:     "Revoke a paired device",
 		Description: "Unpairs a device by id. Repeating the call returns the same result. Operator only.",
-	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true},
+	}, Meta{Scope: auth.ScopeAdmin, Cost: "free", MCP: "exclude:human-only", UI: "/human/devices", HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, in *deviceIDIn) (*deviceOut, error) {
 			if d.Devices == nil {
 				return nil, unavailable("devices")

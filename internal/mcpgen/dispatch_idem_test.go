@@ -69,7 +69,7 @@ func newGatedRig(t *testing.T) *gatedRig {
 			out.Body.Text = in.Body.Text
 			return out, nil
 		})
-	humanMeta := api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:human_only", UI: "none:test", HumanOnly: true}
+	humanMeta := api.Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "exclude:human_only", UI: "none:test", HumanOnly: true, OwnerOnly: true}
 	api.Register(r.a, huma.Operation{OperationID: "h_only", Method: "GET", Path: "/human/api/h", Summary: "S", Description: "D"}, humanMeta,
 		func(ctx context.Context, _ *struct{}) (*createOut, error) { return &createOut{}, nil })
 	genericMeta := meta
