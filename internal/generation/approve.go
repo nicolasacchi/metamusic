@@ -45,6 +45,16 @@ func (s *Service) Approval(ctx context.Context, p auth.Principal, batchID string
 	if err := s.ready(); err != nil {
 		return ApprovalView{}, err
 	}
+	if !p.IsOwnerSide() { // C305: an Editor reads the approval of its own batches only; another's answers as an unknown id
+		var owner string
+		err := s.o.Store.R.QueryRowContext(ctx, `SELECT principal_id FROM batches WHERE id = ?`, batchID).Scan(&owner)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && owner != p.Key()) {
+			return ApprovalView{}, notFound()
+		}
+		if err != nil {
+			return ApprovalView{}, err
+		}
+	}
 	return loadApproval(ctx, s.o.Store.R, batchID)
 }
 

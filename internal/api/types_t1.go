@@ -278,7 +278,7 @@ type TransformWarning struct {
 
 // TransformQuota is the daily CPU pool of the caller's principal kind (a shared pool, D-T1-10).
 type TransformQuota struct {
-	PrincipalKind string `json:"principal_kind" doc:"human or agent: the pool is shared by every principal of that kind"`
+	PrincipalKind string `json:"principal_kind" doc:"human, editor or agent: the pool is shared by every principal of that kind"`
 	CapMS         int64  `json:"cap_ms"`
 	UsedMS        int64  `json:"used_ms"`
 	ReservedMS    int64  `json:"reserved_ms"`
@@ -363,7 +363,7 @@ type TransformView struct {
 	SpecHash          string              `json:"spec_hash"`
 	Reused            bool                `json:"reused"`
 	Restored          bool                `json:"restored" doc:"A discarded Take of this spec was restored to draft instead of rendering again"`
-	Principal         PrincipalRef        `json:"principal"`
+	Principal         *PrincipalRef       `json:"principal,omitempty"`
 	Rationale         *string             `json:"rationale" nullable:"true"`
 	Inputs            []TransformInputRef `json:"inputs" nullable:"false"`
 	Cost              TransformCost       `json:"cost"`

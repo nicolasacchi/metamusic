@@ -22,6 +22,7 @@ const (
 	ApprovalTTL         = 24 * time.Hour
 	ApprovalRequestGap  = 10 * time.Minute
 	ReasonHumanAPIPath  = "human_api_path"
+	ReasonEditorBatch   = "editor_batch" // D-U1-11: every Editor batch waits for the Owner
 	ReasonTakesOverLim  = "takes_over_limit"
 	ReasonCostOverLimit = "cost_over_limit"
 
@@ -52,9 +53,15 @@ type ApprovalNeed struct {
 }
 
 // NeedsApproval decides C72.6: via human_create never needs one; any other human path always does;
-// an agent needs one when takes or the ceiling exceed its auto-approve limits.
+// an agent needs one when takes or the ceiling exceed its auto-approve limits. An Editor (human or paired device) always
+// needs one, reason editor_batch, whatever the path claims and whatever the auto-approve limits are (D-U1-11, C310.2).
 func NeedsApproval(p auth.Principal, via string, takes int, ceiling money.MicroUSD, tok TokenLimits, c Caps) ApprovalNeed {
 	n := ApprovalNeed{Reasons: []string{}}
+	if p.Role == auth.RoleEditor {
+		n.Needed = true
+		n.Reasons = append(n.Reasons, ReasonEditorBatch)
+		return n
+	}
 	if !p.IsAgent() {
 		if via != ViaHumanCreate {
 			n.Needed = true
@@ -91,7 +98,7 @@ func (s *Service) InsertApproval(ctx context.Context, tx *sql.Tx, batchID string
 	state, viaCol, by, at := "pending", any(nil), any(nil), any(nil)
 	switch {
 	case need.Needed:
-	case via == ViaHumanCreate && !p.IsAgent():
+	case via == ViaHumanCreate && !p.IsAgent() && p.IsOwnerSide():
 		state, viaCol, by, at = "approved", ViaHumanCreate, p.Key(), store.FormatTime(now)
 	default:
 		state, viaCol, by, at = "auto", "auto", p.Key(), store.FormatTime(now)

@@ -70,7 +70,12 @@ func tokenErr(err error) error {
 	return perr(http.StatusConflict, "CONFIRMATION_INVALID", "the confirmation token is not valid", map[string]any{"reason": "unknown"})
 }
 
-func capErr(ce *spend.CapError) error {
+// capErr is the 402 of a refused reserve. An Editor gets the code and the message only: the amounts and limits of the
+// caps are the Owner's (C310.5).
+func capErr(p auth.Principal, ce *spend.CapError) error {
+	if !p.IsOwnerSide() {
+		return perr(http.StatusPaymentRequired, "BUDGET_EXCEEDED", "this would exceed the "+ce.Cap+" spend cap", map[string]any{})
+	}
 	return perr(http.StatusPaymentRequired, "BUDGET_EXCEEDED", "this would exceed the "+ce.Cap+" spend cap", ce.Details())
 }
 
@@ -169,7 +174,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 		return Created{}, err
 	}
 	if ce := spend.CheckCaps(u, caps, spend.PrincipalDaily(p, tok, caps), money.MicroUSD(est.Ceiling), money.MicroUSD(est.Max)); ce != nil {
-		err = capErr(ce)
+		err = capErr(p, ce)
 		return Created{}, err
 	}
 

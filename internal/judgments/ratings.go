@@ -2,6 +2,8 @@ package judgments
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -124,6 +126,9 @@ func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID str
 	if title == nil && status == nil {
 		return inv("body", "give a title and/or a status")
 	}
+	if err := s.editorMayUpdate(ctx, p, trackID, status); err != nil {
+		return err
+	}
 	set, args := []string{}, []any{}
 	if title != nil {
 		t := strings.TrimSpace(*title)
@@ -151,6 +156,38 @@ func (s *Service) UpdateTrack(ctx context.Context, p auth.Principal, trackID str
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return library.ErrNotFound
+	}
+	return nil
+}
+
+// editorMayUpdate is the field rule for a principal that is not on the Owner side (C305, Q4): a Listener changes nothing; an
+// Editor may change titles and set or clear to_relisten (draft), nothing else. A track that is already final or discarded keeps
+// its status, so an Editor cannot undo the Owner's decision. Discarding changes what Listeners see, so it stays the Owner's.
+func (s *Service) editorMayUpdate(ctx context.Context, p auth.Principal, trackID string, status *string) error {
+	if p.IsOwnerSide() {
+		return nil
+	}
+	ownerOnly := func(what string) error {
+		return &Error{Status: 403, Code: "OWNER_ONLY", Msg: what + " is restricted to the Owner"}
+	}
+	if p.Role != auth.RoleEditor {
+		return ownerOnly("updating a track")
+	}
+	if status == nil {
+		return nil
+	}
+	if *status != "draft" && *status != "to_relisten" {
+		return ownerOnly("setting a track " + *status)
+	}
+	var cur string
+	switch err := s.st.R.QueryRowContext(ctx, `SELECT status FROM tracks WHERE id = ?`, trackID).Scan(&cur); {
+	case errors.Is(err, sql.ErrNoRows):
+		return library.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("judgments: track status: %w", err)
+	}
+	if cur == "final" || cur == "discarded" {
+		return ownerOnly("changing the status of a " + cur + " track")
 	}
 	return nil
 }
