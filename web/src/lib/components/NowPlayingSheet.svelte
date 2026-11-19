@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mineOf } from "../ratingView";
   // Now-playing sheet (phone: bottom sheet over a scrim; desktop: 360 px right panel). Mounted once in App.svelte.
   // Opening and closing never touch playback. Phone: opening pushes a history entry so Back closes the sheet.
   import { tick } from "svelte";
@@ -44,8 +45,8 @@
         const r = await api.GET("/api/tracks/{id}", { params: { path: { id } } });
         if (r.data && !judge.get(id)) {
           judge.seed(id, {
-            stars: r.data.rating.human?.stars ?? null,
-            verdict: r.data.rating.human?.verdict ?? null,
+            stars: mineOf(r.data.rating)?.stars ?? null,
+            verdict: mineOf(r.data.rating)?.verdict ?? null,
             critic: r.data.rating.critic ? { stars: r.data.rating.critic.stars, verdict: r.data.rating.critic.verdict } : null,
             status: r.data.status,
             tags: r.data.tags,

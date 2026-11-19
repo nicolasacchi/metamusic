@@ -2,6 +2,7 @@
   import { api } from "../../api/client";
   import { buildClientBody, canSubmit, effectiveUsername, emptyClientForm } from "../subsonicForm";
   import { onceSubmit } from "../secretOnce";
+  import { actionError } from "../deviceView";
 
   interface Props {
     oncreated: (r: { secrets: { apiKey: string | null; password: string | null }; username: string; serverUrl: string }) => void;
@@ -36,7 +37,7 @@
         send = null;
         oncreated({ secrets: { apiKey: r.data.api_key, password: r.data.password }, username: r.data.username, serverUrl: r.data.server_url });
         f = emptyClientForm();
-      } else error = r.error?.message ?? "Could not create the client";
+      } else error = actionError(r.error, "Could not create the client");
     } catch {
       error = "Could not create the client";
     } finally {
