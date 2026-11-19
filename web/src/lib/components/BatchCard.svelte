@@ -12,6 +12,9 @@
   }
   let { batch, viewer, busy = false, onterminate }: Props = $props();
   const c = $derived(batch.counts);
+  // The server omits cost and created_by on another user's batch for an Editor: render neither, never throw.
+  const cost = $derived(batch.cost);
+  const by = $derived(batch.created_by);
 </script>
 
 <article class="card" data-testid="batch-card">
@@ -19,10 +22,12 @@
   <p class="muted">
     {c.completed} done · {c.running} running · {c.queued} queued{#if c.awaiting} · {c.awaiting} awaiting{/if}{#if c.failed} · {c.failed} failed{/if}{#if c.cancelled} · {c.cancelled} cancelled{/if}{#if c.expired} · {c.expired} expired{/if}{#if c.truncated} · {c.truncated} truncated{/if}
   </p>
-  <p data-testid="batch-cost">
-    Settled {formatMicroUSD(batch.cost.settled_micro_usd)} · outstanding {formatMicroUSD(batch.cost.outstanding_micro_usd)} · expected {formatMicroUSD(batch.cost.expected_micro_usd)} · up to {formatMicroUSDCeil(batch.cost.ceiling_micro_usd)}
-  </p>
-  <p class="muted">Approval: {batch.approval.state} · by {batch.created_by.name}</p>
+  {#if cost}
+    <p data-testid="batch-cost">
+      Settled {formatMicroUSD(cost.settled_micro_usd)} · outstanding {formatMicroUSD(cost.outstanding_micro_usd)} · expected {formatMicroUSD(cost.expected_micro_usd)} · up to {formatMicroUSDCeil(cost.ceiling_micro_usd)}
+    </p>
+  {/if}
+  <p class="muted">Approval: {batch.approval.state} {#if by} · by {by.name}{/if}</p>
   {#if canCancelBatch(batch, viewer)}
     <button type="button" disabled={busy} onclick={() => onterminate(batch.id)} data-testid="terminate-batch">Terminate batch</button>
   {/if}

@@ -1630,13 +1630,11 @@
           "id",
           "state",
           "via",
-          "created_by",
           "created_at",
           "finished_at",
           "rationale",
           "takes",
           "counts",
-          "cost",
           "approval",
           "estimate_id"
         ],
@@ -1841,13 +1839,11 @@
           "id",
           "state",
           "via",
-          "created_by",
           "created_at",
           "finished_at",
           "rationale",
           "takes",
           "counts",
-          "cost",
           "approval",
           "estimate_id"
         ],
@@ -2231,6 +2227,9 @@
       "Budget": {
         "additionalProperties": false,
         "properties": {
+          "approval_required": {
+            "type": "boolean"
+          },
           "auto_approve": {
             "$ref": "#/components/schemas/AutoApprove"
           },
@@ -2251,11 +2250,6 @@
           }
         },
         "required": [
-          "caps",
-          "month",
-          "day",
-          "auto_approve",
-          "balance",
           "provider"
         ],
         "type": "object"
@@ -7254,7 +7248,6 @@
           "takes",
           "cost",
           "eta_s",
-          "price",
           "items",
           "warnings",
           "requires_human_approval",
@@ -7293,11 +7286,7 @@
         },
         "required": [
           "fits",
-          "would_exceed",
-          "month",
-          "day",
-          "batch_cap_micro_usd",
-          "batch_cap_usd"
+          "would_exceed"
         ],
         "type": "object"
       },
@@ -9168,7 +9157,6 @@
           "track_id",
           "created_at",
           "updated_at",
-          "cost",
           "task",
           "stem"
         ],
@@ -9417,7 +9405,6 @@
           "track_id",
           "created_at",
           "updated_at",
-          "cost",
           "task",
           "stem"
         ],
@@ -14088,9 +14075,7 @@
         },
         "required": [
           "generation_enabled",
-          "disabled_reason",
-          "armed",
-          "tripped"
+          "disabled_reason"
         ],
         "type": "object"
       },
@@ -21451,7 +21436,7 @@
             "type": "integer"
           },
           "principal_kind": {
-            "description": "human or agent: the pool is shared by every principal of that kind",
+            "description": "human, editor or agent: the pool is shared by every principal of that kind",
             "type": "string"
           },
           "reserved_ms": {
@@ -21759,7 +21744,6 @@
           "spec_hash",
           "reused",
           "restored",
-          "principal",
           "rationale",
           "inputs",
           "cost",
@@ -23466,8 +23450,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -23515,8 +23498,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/batches/:id",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -23857,8 +23839,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -25873,7 +25854,6 @@
           "mcp": "tool",
           "ui": "none:agent-face (the SPA confirms through create_generation_human)",
           "human_only": false,
-          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }
@@ -26182,8 +26162,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/jobs",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -26231,8 +26210,7 @@
           "cost": "free",
           "mcp": "tool",
           "ui": "/jobs/:id",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -28260,8 +28238,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/records/:id",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -30936,8 +30913,7 @@
           "cost": "free",
           "mcp": "generic",
           "ui": "/tracks/:id",
-          "human_only": false,
-          "owner_only": true
+          "human_only": false
         }
       }
     },
@@ -31849,7 +31825,6 @@
           "mcp": "tool",
           "ui": "none:agent-face (the SPA confirms through create_generation_human)",
           "human_only": false,
-          "owner_only": true,
           "idempotency": "create",
           "rate": "heavy"
         }

@@ -813,8 +813,9 @@ func completeAudit(ctx context.Context, tx *sql.Tx, clk clock.Clock, start time.
 
 const cancelSQL = `UPDATE jobs SET cancel_requested_at = ?, cancel_requested_by = ? WHERE id = ? AND cancel_requested_at IS NULL AND state NOT IN ('completed','failed','cancelled','expired')`
 
+// mayCancel: an agent and an Editor (human or device) cancel only what they created; the Owner side cancels any (C305, C310.3).
 func (s *Service) mayCancel(p auth.Principal, owner string) error {
-	if p.IsAgent() && owner != p.Key() {
+	if (p.IsAgent() || !p.IsOwnerSide()) && owner != p.Key() {
 		return ErrNotBatchOwner
 	}
 	return nil

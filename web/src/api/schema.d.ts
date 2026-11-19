@@ -3135,10 +3135,10 @@ export interface components {
         };
         Batch: {
             approval: components["schemas"]["ApprovalStatus"];
-            cost: components["schemas"]["BatchCost"];
+            cost?: components["schemas"]["BatchCost"];
             counts: components["schemas"]["BatchCounts"];
             created_at: string;
-            created_by: components["schemas"]["PrincipalRef"];
+            created_by?: components["schemas"]["PrincipalRef"];
             estimate_id: string;
             finished_at: string | null;
             id: string;
@@ -3198,10 +3198,10 @@ export interface components {
         };
         BatchSummary: {
             approval: components["schemas"]["ApprovalStatus"];
-            cost: components["schemas"]["BatchCost"];
+            cost?: components["schemas"]["BatchCost"];
             counts: components["schemas"]["BatchCounts"];
             created_at: string;
-            created_by: components["schemas"]["PrincipalRef"];
+            created_by?: components["schemas"]["PrincipalRef"];
             estimate_id: string;
             finished_at: string | null;
             id: string;
@@ -3317,11 +3317,12 @@ export interface components {
             tracks: number;
         };
         Budget: {
-            auto_approve: components["schemas"]["AutoApprove"];
-            balance: components["schemas"]["Balance"];
-            caps: components["schemas"]["CapsView"];
-            day: components["schemas"]["BudgetDay"];
-            month: components["schemas"]["BudgetMonth"];
+            approval_required?: boolean;
+            auto_approve?: components["schemas"]["AutoApprove"];
+            balance?: components["schemas"]["Balance"];
+            caps?: components["schemas"]["CapsView"];
+            day?: components["schemas"]["BudgetDay"];
+            month?: components["schemas"]["BudgetMonth"];
             provider: components["schemas"]["ProviderBrief"];
         };
         BudgetDay: {
@@ -4693,7 +4694,7 @@ export interface components {
             /** @description RFC 3339 UTC */
             expires_at: string;
             items: components["schemas"]["EstimateItem"][];
-            price: components["schemas"]["EstimatePrice"];
+            price?: components["schemas"]["EstimatePrice"];
             provider: components["schemas"]["ProviderBrief"];
             requires_human_approval: boolean;
             /** Format: int64 */
@@ -4702,11 +4703,11 @@ export interface components {
         };
         EstimateBudget: {
             /** Format: int64 */
-            batch_cap_micro_usd: number;
-            batch_cap_usd: string;
-            day: components["schemas"]["Pot"];
+            batch_cap_micro_usd?: number;
+            batch_cap_usd?: string;
+            day?: components["schemas"]["Pot"];
             fits: boolean;
-            month: components["schemas"]["Pot"];
+            month?: components["schemas"]["Pot"];
             /** @description batch, monthly and/or daily */
             would_exceed: string[];
         };
@@ -5155,7 +5156,7 @@ export interface components {
             backend: string;
             batch_id: string;
             cancel_requested_at: string | null;
-            cost: components["schemas"]["JobCost"];
+            cost?: components["schemas"]["JobCost"];
             created_at: string;
             deadline_at: string | null;
             draft_id: string | null;
@@ -5246,7 +5247,7 @@ export interface components {
         };
         JobSummary: {
             batch_id: string;
-            cost: components["schemas"]["JobCost"];
+            cost?: components["schemas"]["JobCost"];
             created_at: string;
             draft_id: string | null;
             /** @description Failed, cancelled and expired jobs; see the job error codes */
@@ -6549,11 +6550,11 @@ export interface components {
             rationale: string;
         };
         ProviderBrief: {
-            armed: boolean;
+            armed?: boolean;
             /** @description backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable */
             disabled_reason: string | null;
             generation_enabled: boolean;
-            tripped: boolean;
+            tripped?: boolean;
         };
         ProviderCapabilities: {
             /** @enum {string} */
@@ -8533,7 +8534,7 @@ export interface components {
         TransformQuota: {
             /** Format: int64 */
             cap_ms: number;
-            /** @description human or agent: the pool is shared by every principal of that kind */
+            /** @description human, editor or agent: the pool is shared by every principal of that kind */
             principal_kind: string;
             /** Format: int64 */
             reserved_ms: number;
@@ -8595,7 +8596,7 @@ export interface components {
             /** Format: double */
             output_seconds_est: number;
             phase: string | null;
-            principal: components["schemas"]["PrincipalRef"];
+            principal?: components["schemas"]["PrincipalRef"];
             /** Format: int64 */
             progress_permille: number;
             rationale: string | null;

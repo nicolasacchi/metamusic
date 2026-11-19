@@ -95,10 +95,11 @@ func (s *Service) resolvePatches(ctx context.Context, q lineage.Querier, items [
 }
 
 // gateBacklog refuses an agent's work on a lineage whose callbacks wait for the human (D-M5-R3-3): 409 CALLBACKS_BACKLOG at
-// pending >= Limit. parents are the mother tracks of the planned takes; humans and a limit of 0 pass.
+// pending >= Limit. parents are the mother tracks of the planned takes; the Owner side (humans, their devices) and a limit
+// of 0 pass. An Editor is gated like an agent: it is not the operator who answers the callbacks (C303).
 func (s *Service) gateBacklog(ctx context.Context, q lineage.Querier, p auth.Principal, parents []string) error {
 	g := s.o.BacklogGate
-	if g == nil || !p.IsAgent() {
+	if g == nil || (!p.IsAgent() && p.IsOwnerSide()) {
 		return nil
 	}
 	limit := g.Limit()

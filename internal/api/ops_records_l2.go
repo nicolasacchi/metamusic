@@ -264,7 +264,7 @@ func registerRecordsL2(a huma.API, d Deps) {
 		OperationID: "update_record", Method: "PATCH", Path: "/api/records/{id}",
 		Summary:     "Update a Record",
 		Description: "Changes title, subtitle, liner note, hides or unhides, or re-rolls the cover, under optimistic locking: send the revision you read. A published Record is edited by a human only.",
-	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id", OwnerOnly: true},
+	}, bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/records/:id"},
 		func(ctx context.Context, in *updateRecordIn) (*recordViewOut, error) {
 			if err := records(); err != nil {
 				return nil, err

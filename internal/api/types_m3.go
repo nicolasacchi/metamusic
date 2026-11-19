@@ -145,8 +145,8 @@ type Pot struct {
 type ProviderBrief struct {
 	GenerationEnabled bool    `json:"generation_enabled"`
 	DisabledReason    *string `json:"disabled_reason" doc:"backend_none, keys_absent, endpoint_inactive, endpoint_config, quote_stale, catalog_unreadable or sweep_unreadable"`
-	Armed             bool    `json:"armed"`
-	Tripped           bool    `json:"tripped"`
+	Armed             *bool   `json:"armed,omitempty"`
+	Tripped           *bool   `json:"tripped,omitempty"`
 }
 
 // Balance is the provider account balance when readable.
@@ -224,10 +224,10 @@ type EstimateWarning struct {
 type EstimateBudget struct {
 	Fits             bool     `json:"fits"`
 	WouldExceed      []string `json:"would_exceed" nullable:"false" doc:"batch, monthly and/or daily"`
-	Month            Pot      `json:"month"`
-	Day              Pot      `json:"day"`
-	BatchCapMicroUSD int64    `json:"batch_cap_micro_usd"`
-	BatchCapUSD      string   `json:"batch_cap_usd"`
+	Month            *Pot     `json:"month,omitempty"`
+	Day              *Pot     `json:"day,omitempty"`
+	BatchCapMicroUSD *int64   `json:"batch_cap_micro_usd,omitempty"`
+	BatchCapUSD      *string  `json:"batch_cap_usd,omitempty"`
 }
 
 // Estimate is a frozen plan with its single-use confirmation token.
@@ -240,7 +240,7 @@ type Estimate struct {
 	Takes                 int               `json:"takes"`
 	Cost                  EstimateCost      `json:"cost"`
 	ETAS                  int               `json:"eta_s"`
-	Price                 EstimatePrice     `json:"price"`
+	Price                 *EstimatePrice    `json:"price,omitempty"`
 	Items                 []EstimateItem    `json:"items" nullable:"false"`
 	Warnings              []EstimateWarning `json:"warnings" nullable:"false"`
 	RequiresHumanApproval bool              `json:"requires_human_approval"`
@@ -316,22 +316,22 @@ type JobCost struct {
 
 // JobSummary is one job in lists and batches.
 type JobSummary struct {
-	ID            string  `json:"id"`
-	BatchID       string  `json:"batch_id"`
-	TakeIndex     int     `json:"take_index"`
-	State         string  `json:"state" enum:"awaiting_confirmation,queued,submitting,starting,generating,transferring,ingesting,cancelling,failing,completed,failed,cancelled,expired"`
-	Outcome       *string `json:"outcome" enum:"clean,truncated" doc:"Completed jobs only"`
-	ErrorCode     *string `json:"error_code" doc:"Failed, cancelled and expired jobs; see the job error codes"`
-	Title         string  `json:"title"`
-	RequestID     string  `json:"request_id"`
-	Seed          int64   `json:"seed"`
-	Operator      string  `json:"operator"`
-	ParentTrackID *string `json:"parent_track_id"`
-	DraftID       *string `json:"draft_id"`
-	TrackID       *string `json:"track_id"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
-	Cost          JobCost `json:"cost"`
+	ID            string   `json:"id"`
+	BatchID       string   `json:"batch_id"`
+	TakeIndex     int      `json:"take_index"`
+	State         string   `json:"state" enum:"awaiting_confirmation,queued,submitting,starting,generating,transferring,ingesting,cancelling,failing,completed,failed,cancelled,expired"`
+	Outcome       *string  `json:"outcome" enum:"clean,truncated" doc:"Completed jobs only"`
+	ErrorCode     *string  `json:"error_code" doc:"Failed, cancelled and expired jobs; see the job error codes"`
+	Title         string   `json:"title"`
+	RequestID     string   `json:"request_id"`
+	Seed          int64    `json:"seed"`
+	Operator      string   `json:"operator"`
+	ParentTrackID *string  `json:"parent_track_id"`
+	DraftID       *string  `json:"draft_id"`
+	TrackID       *string  `json:"track_id"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
+	Cost          *JobCost `json:"cost,omitempty"`
 	// E2 (C149, C166): acestep15 jobs name their task and, for an extract job, the stem; null otherwise.
 	Task *string `json:"task"`
 	Stem *string `json:"stem"`
@@ -414,13 +414,13 @@ type BatchSummary struct {
 	ID         string         `json:"id"`
 	State      string         `json:"state" enum:"awaiting_confirmation,active,finished,rejected,expired"`
 	Via        string         `json:"via" enum:"api,human_create"`
-	CreatedBy  PrincipalRef   `json:"created_by"`
+	CreatedBy  *PrincipalRef  `json:"created_by,omitempty"`
 	CreatedAt  string         `json:"created_at"`
 	FinishedAt *string        `json:"finished_at"`
 	Rationale  *string        `json:"rationale"`
 	Takes      int            `json:"takes"`
 	Counts     BatchCounts    `json:"counts"`
-	Cost       BatchCost      `json:"cost"`
+	Cost       *BatchCost     `json:"cost,omitempty"`
 	Approval   ApprovalStatus `json:"approval"`
 	EstimateID string         `json:"estimate_id"`
 }
@@ -514,12 +514,14 @@ type AutoApprove struct {
 
 // Budget is what the caller may still spend.
 type Budget struct {
-	Caps        CapsView      `json:"caps"`
-	Month       BudgetMonth   `json:"month"`
-	Day         BudgetDay     `json:"day"`
-	AutoApprove AutoApprove   `json:"auto_approve"`
-	Balance     Balance       `json:"balance"`
+	Caps        *CapsView     `json:"caps,omitempty"`
+	Month       *BudgetMonth  `json:"month,omitempty"`
+	Day         *BudgetDay    `json:"day,omitempty"`
+	AutoApprove *AutoApprove  `json:"auto_approve,omitempty"`
+	Balance     *Balance      `json:"balance,omitempty"`
 	Provider    ProviderBrief `json:"provider"`
+	// ApprovalRequired is set for an Editor only: every batch waits for the Owner (D-U1-11).
+	ApprovalRequired *bool `json:"approval_required,omitempty"`
 }
 
 // SpendDay is one day's settled spend.

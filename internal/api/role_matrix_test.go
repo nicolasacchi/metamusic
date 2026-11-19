@@ -51,15 +51,6 @@ func deviceOf(role auth.Role, s ...auth.Scope) auth.Principal {
 // guard lifts the tag in the same change (plan revision 5). The golden shows the lane in its hold column; the test
 // requires each to be owner-only today, so a lane that lifts one must delete its entry here and re-bless the golden.
 var failClosedHolds = map[string]string{
-	"get_budget":             "E1 (Editor approval_required/generation_enabled view)",
-	"create_generation":      "E1 (editor_batch forcing)",
-	"create_variant":         "E1 (editor_batch forcing)",
-	"update_track":           "unassigned, E1 proposed (final/discarded field rule, C305 Q4)",
-	"update_record":          "unassigned, E1 proposed (published-record rule, C305)",
-	"list_batches":           "E1 (own batches with cost, others without)",
-	"get_batch":              "E1 (own batches with cost, others without)",
-	"list_jobs":              "E1 (own jobs with cost, others without)",
-	"get_job":                "E1 (own jobs with cost, others without)",
 	"put_device_profile":     "V2 (created_by ownership guard)",
 	"get_export":             "V2 (exports.principal_id ownership)",
 	"get_stats":              "V2 (Editor redaction of generation/backup/storage blocks)",

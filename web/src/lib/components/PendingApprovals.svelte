@@ -32,8 +32,8 @@
     {#each approvals.items as b (b.id)}
       <article class="row" data-testid="approval-row" data-batch={b.id}>
         <p>
-          <strong data-testid="approval-by">{b.created_by.name}</strong> asks for <span data-testid="approval-takes">{b.takes} take{b.takes === 1 ? "" : "s"}</span>,
-          spend up to <strong data-testid="approval-ceiling">{formatMicroUSDCeil(b.cost.ceiling_micro_usd)}</strong>
+          <strong data-testid="approval-by">{b.created_by?.name ?? "Someone"}</strong> asks for <span data-testid="approval-takes">{b.takes} take{b.takes === 1 ? "" : "s"}</span>{#if b.cost},
+          spend up to <strong data-testid="approval-ceiling">{formatMicroUSDCeil(b.cost.ceiling_micro_usd)}</strong>{/if}
         </p>
         <p class="muted">
           {#each b.approval.reasons as r, i (r)}{i > 0 ? "; " : ""}<span data-testid="approval-reason">{reasonLabel(r)}</span>{/each}

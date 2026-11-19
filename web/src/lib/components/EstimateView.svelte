@@ -41,11 +41,11 @@
     </ul>
   {/if}
 
-  {#if e.budget && can("get_spend")}
+  {#if e.budget?.month && e.budget.day && can("get_spend")}
     <h3>Budget</h3>
     <BudgetBar label="Month" settled={e.budget.month.used_micro_usd} cap={e.budget.month.cap_micro_usd} />
     <BudgetBar label="Today" settled={e.budget.day.used_micro_usd} cap={e.budget.day.cap_micro_usd} />
-    <p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>
+    {#if e.budget.batch_cap_micro_usd !== undefined}<p class="muted">Batch cap {formatMicroUSD(e.budget.batch_cap_micro_usd)}.</p>{/if}
   {/if}
 
   {#if e.requires_human_approval}

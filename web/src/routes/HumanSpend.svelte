@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../api/client";
+  import { owned, type OwnerBudget } from "../api/owner";
   import type { components } from "../api/schema";
   import BudgetBar from "../lib/components/BudgetBar.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
@@ -7,7 +8,7 @@
   import { formatMicroUSD } from "../lib/money";
   import { CAP_FIELDS, capsToForm, formToCaps, textToToken, tokenToText, type CapsForm, type TokenLimitText } from "../lib/spendCaps";
 
-  type Budget = components["schemas"]["Budget"];
+  type Budget = OwnerBudget;
   type Status = components["schemas"]["ProviderStatus"];
   type TokenInfo = components["schemas"]["TokenInfo"];
 
@@ -25,9 +26,10 @@
     try {
       const [b, s, t] = await Promise.all([api.GET("/api/budget", {}), api.GET("/api/provider", {}), api.GET("/api/tokens", {})]);
       if (b.data) {
-        budget = b.data;
-        form = capsToForm(b.data.caps);
-        tokenText = Object.fromEntries(b.data.caps.tokens.map((c) => [c.token_id, tokenToText(c)]));
+        const full = owned<components["schemas"]["Budget"], "caps" | "month" | "day" | "balance" | "auto_approve">(b.data);
+        budget = full;
+        form = capsToForm(full.caps);
+        tokenText = Object.fromEntries(full.caps.tokens.map((c) => [c.token_id, tokenToText(c)]));
         error = "";
       } else error = b.error?.message ?? "Could not load the budget";
       if (s.data) status = s.data;

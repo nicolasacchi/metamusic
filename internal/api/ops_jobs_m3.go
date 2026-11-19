@@ -64,8 +64,8 @@ func keyKind(key string) (kind, id string) {
 	return kind, id
 }
 
-func jobsJobCost(c jobs.JobCostInfo) JobCost {
-	out := JobCost{ExpectedMicroUSD: int64(c.Expected), ExpectedUSD: usd(c.Expected), Basis: c.Basis}
+func jobsJobCost(c jobs.JobCostInfo) *JobCost {
+	out := &JobCost{ExpectedMicroUSD: int64(c.Expected), ExpectedUSD: usd(c.Expected), Basis: c.Basis}
 	if c.Display != nil {
 		v, s := int64(*c.Display), usd(*c.Display)
 		out.DisplayMicroUSD, out.DisplayUSD = &v, &s
@@ -111,19 +111,23 @@ func jobsApproval(viewer auth.Principal, b jobs.Batch) ApprovalStatus {
 
 func jobsBatchSummary(viewer auth.Principal, b jobs.Batch) BatchSummary {
 	c, k := b.Counts, b.Cost
-	return BatchSummary{ID: b.ID, State: b.State, Via: b.Via, CreatedBy: RefFor(viewer, b.CreatedByKey, b.CreatedByKind, b.CreatedByName),
+	out := BatchSummary{ID: b.ID, State: b.State, Via: b.Via, CreatedBy: valPtr(RefFor(viewer, b.CreatedByKey, b.CreatedByKind, b.CreatedByName)),
 		CreatedAt: tsOut(b.CreatedAt), FinishedAt: tsPtr(b.FinishedAt), Rationale: b.Rationale, Takes: b.Takes,
 		Counts: BatchCounts{Awaiting: c.Awaiting, Queued: c.Queued, Running: c.Running, Completed: c.Completed, Truncated: c.Truncated, Failed: c.Failed, Cancelled: c.Cancelled, Expired: c.Expired},
-		Cost: BatchCost{ExpectedMicroUSD: int64(k.Expected), ExpectedUSD: usd(k.Expected), MaxMicroUSD: int64(k.Max), MaxUSD: usd(k.Max),
+		Cost: &BatchCost{ExpectedMicroUSD: int64(k.Expected), ExpectedUSD: usd(k.Expected), MaxMicroUSD: int64(k.Max), MaxUSD: usd(k.Max),
 			CeilingMicroUSD: int64(k.Ceiling), CeilingUSD: usd(k.Ceiling), ReservedMicroUSD: int64(k.Reserved), ReservedUSD: usd(k.Reserved),
 			SettledMicroUSD: int64(k.Settled), SettledUSD: usd(k.Settled), OutstandingMicroUSD: int64(k.Outstanding), OutstandingUSD: usd(k.Outstanding), Reconciled: k.Reconciled},
 		Approval: jobsApproval(viewer, b), EstimateID: b.EstimateID}
+	redactBatchSummary(viewer, b.CreatedByKey, &out)
+	return out
 }
 
 func jobsBatch(viewer auth.Principal, b jobs.Batch) Batch {
 	out := Batch{BatchSummary: jobsBatchSummary(viewer, b), Jobs: []JobSummary{}}
 	for _, j := range b.Jobs {
-		out.Jobs = append(out.Jobs, jobsSummary(j))
+		js := jobsSummary(j)
+		redactJobSummary(viewer, b.CreatedByKey, &js)
+		out.Jobs = append(out.Jobs, js)
 	}
 	return out
 }
@@ -175,7 +179,7 @@ func registerJobsM3(a huma.API, d Deps) {
 		OperationID: "list_batches", Method: "GET", Path: "/api/batches",
 		Summary:     "List generation batches",
 		Description: "Batches newest first with their counts and costs, filtered by state, creator kind or time.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs", OwnerOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs"},
 		func(ctx context.Context, in *listBatchesIn) (*batchPageOut, error) {
 			if d.Jobs == nil {
 				return nil, unavailable("jobs")
@@ -189,6 +193,9 @@ func registerJobsM3(a huma.API, d Deps) {
 				return nil, err
 			}
 			p := auth.FromContext(ctx)
+			if !p.IsOwnerSide() {
+				in.PrincipalKind = nil // the filter would tell an Editor which batches are agent-made (C305: no creator)
+			}
 			page, err := d.Jobs.ListBatches(ctx, p, jobs.BatchQuery{States: in.State, PrincipalKinds: in.PrincipalKind, Since: since, Until: until, Limit: in.Limit, Cursor: in.Cursor})
 			if err != nil {
 				return nil, jobsErr(err)
@@ -206,7 +213,7 @@ func registerJobsM3(a huma.API, d Deps) {
 		OperationID: "get_batch", Method: "GET", Path: "/api/batches/{id}",
 		Summary:     "Get a generation batch",
 		Description: "One batch with its approval, counts, costs and jobs in take order.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/batches/:id", OwnerOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/batches/:id"},
 		func(ctx context.Context, in *batchIDIn) (*batchOut, error) {
 			if d.Jobs == nil {
 				return nil, unavailable("jobs")
@@ -240,7 +247,7 @@ func registerJobsM3(a huma.API, d Deps) {
 		OperationID: "list_jobs", Method: "GET", Path: "/api/jobs",
 		Summary:     "List generation jobs",
 		Description: "Jobs newest first, filtered by state, batch or track (as parent or child).",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs", OwnerOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "generic", UI: "/jobs"},
 		func(ctx context.Context, in *listJobsIn) (*jobPageOut, error) {
 			if d.Jobs == nil {
 				return nil, unavailable("jobs")
@@ -256,8 +263,14 @@ func registerJobsM3(a huma.API, d Deps) {
 			}
 			out := &jobPageOut{}
 			out.Body.Items = []JobSummary{}
+			owners, err := jobOwners(ctx, d, p, page.Items)
+			if err != nil {
+				return nil, jobsErr(err)
+			}
 			for _, j := range page.Items {
-				out.Body.Items = append(out.Body.Items, jobsSummary(j))
+				js := jobsSummary(j)
+				redactJobSummary(p, owners[j.BatchID], &js)
+				out.Body.Items = append(out.Body.Items, js)
 			}
 			out.Body.Items, out.Body.NextCursor = capJobPage(out.Body.Items, nextCursor(page.NextCursor))
 			return out, nil
@@ -267,16 +280,17 @@ func registerJobsM3(a huma.API, d Deps) {
 		OperationID: "get_job", Method: "GET", Path: "/api/jobs/{id}",
 		Summary:     "Get a generation job",
 		Description: "One job: state, outcome, cost, timings, environment, artifacts and its newest events. The job id is the take id.",
-	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/jobs/:id", OwnerOnly: true},
+	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/jobs/:id"},
 		func(ctx context.Context, in *jobIDIn) (*jobOut, error) {
 			if d.Jobs == nil {
 				return nil, unavailable("jobs")
 			}
-			j, err := d.Jobs.Job(ctx, auth.FromContext(ctx), in.ID)
+			p := auth.FromContext(ctx)
+			j, err := d.Jobs.Job(ctx, p, in.ID)
 			if err != nil {
 				return nil, jobsErr(err)
 			}
-			return &jobOut{Body: jobsFull(j)}, nil
+			return &jobOut{Body: jobFullFor(ctx, d, p, j)}, nil
 		})
 
 	Register(a, huma.Operation{
@@ -301,7 +315,7 @@ func registerJobsM3(a huma.API, d Deps) {
 			if err != nil {
 				return nil, jobsErr(err)
 			}
-			return &waitJobOut{Body: WaitJobResult{Job: jobsFull(res.Job), Changed: res.Changed, TimedOut: res.TimedOut}}, nil
+			return &waitJobOut{Body: WaitJobResult{Job: jobFullFor(ctx, d, p, res.Job), Changed: res.Changed, TimedOut: res.TimedOut}}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -319,6 +333,34 @@ func registerJobsM3(a huma.API, d Deps) {
 			}
 			return &jobOut{Body: jobsFull(j)}, nil
 		})
+}
+
+// jobOwners maps the batches of items to their creators for a viewer that is not on the Owner side; nil for everyone else, who
+// needs no redaction.
+func jobOwners(ctx context.Context, d Deps, p auth.Principal, items []jobs.Job) (map[string]string, error) {
+	if p.IsOwnerSide() || len(items) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(items))
+	for _, j := range items {
+		ids = append(ids, j.BatchID)
+	}
+	return d.Jobs.BatchOwners(ctx, ids)
+}
+
+// jobFullFor renders one job for p, hiding its cost from an Editor unless its batch is the Editor's own. A lookup that fails
+// hides the cost (fail closed).
+func jobFullFor(ctx context.Context, d Deps, p auth.Principal, j jobs.Job) Job {
+	out := jobsFull(j)
+	if p.IsOwnerSide() {
+		return out
+	}
+	owners, err := d.Jobs.BatchOwners(ctx, []string{j.BatchID})
+	if err != nil {
+		owners = nil
+	}
+	redactJob(p, owners[j.BatchID], &out)
+	return out
 }
 
 func reasonOf(r *string) string {

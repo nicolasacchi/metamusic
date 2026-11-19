@@ -104,7 +104,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		return Estimate{}, tooLarge(0, len(in.Items))
 	}
 	via := in.Via
-	if via == "" {
+	if via == "" || (via == spend.ViaHumanCreate && !p.IsOwner()) { // C310.1: only the Owner has the human path
 		via = spend.ViaAPI
 	}
 	// song_pr items name their base through the stored patch: resolve it first so the batch engine derives from that base like

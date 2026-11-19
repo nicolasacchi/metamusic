@@ -418,6 +418,9 @@ func (s *Service) Cancel(ctx context.Context, p auth.Principal, id string) error
 		if p.IsAgent() && ownerID != p.Key() {
 			return problem.E(403, "FORBIDDEN", "an agent cancels only its own transforms", map[string]any{"owner": ownerName})
 		}
+		if !p.IsAgent() && !p.IsOwnerSide() && ownerID != p.Key() { // an Editor (D-U1-18, C305): own only, the creator is not named
+			return problem.E(403, "FORBIDDEN", "an Editor cancels only its own transforms", map[string]any{})
+		}
 		now := s.o.Now()
 		switch state {
 		case StateQueued:
