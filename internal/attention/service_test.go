@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync/atomic"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/attention"
@@ -46,15 +47,15 @@ func count(t *testing.T, st *store.Store, q string) (n int) {
 	return n
 }
 
-var evN int
+var evN atomic.Int64 // parallel tests share it
 
 // addEvent inserts one listen event row directly (the write path is the listening service's, not this lane's).
 func addEvent(t *testing.T, st *store.Store, track, session, kind string, from, to *int64, pk string) {
 	t.Helper()
-	evN++
+	n := evN.Add(1)
 	exec(t, st, `INSERT INTO listen_events(id, track_id, session_id, kind, from_ms, to_ms, source, principal_kind, principal_id, client_at, received_at)
 		VALUES (?,?,?,?,?,?,'web',?,'p','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
-		fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xa5000+evN), track, session, kind, from, to, pk)
+		fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xa5000+n), track, session, kind, from, to, pk)
 }
 
 func ms(n int64) *int64 { return &n }
