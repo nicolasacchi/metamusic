@@ -54,7 +54,7 @@ as a second axis, and Listener ownership of `read,write`. Rejected from A: letti
 
 ## Dependencies and sequencing
 
-Builds on `main` (migrations to `0016_billing_backend.sql`; next free number at build time, currently **0017**; U1 adds two migrations: ratings per user (0017) and the additive device owner key (**0018**); the loader rejects
+Builds on `main` (migrations to `0016_billing_backend.sql`; next free number at build time, currently **0017**; U1 adds two migrations: ratings per user (0017) and the additive device owner key (**0019**, after R2 took 0018; see Revision 7); the loader rejects
 gaps). Order is fixed by risk: **the privilege-escalation fix lands first with a single Owner, and no non-owner account is provisioned
 in production until lane `u1-view` and the leak sweep are merged.** Deploys are never unattended and the env is validated first
 (deploy-safety rule: a malformed env once caused a 17 h outage).
@@ -145,7 +145,7 @@ Revision log). The roughly 25 `FROM/JOIN ratings` lines (about 20 packages), the
 8. **`metamusic config check`** runs the full config validation (D-U1-3) without starting the server and prints the resolved user-to-role map (names only) and any deprecated `MM_TRUSTED_USERS` alias use. Startup runs the same function.
 9. Case: `Remote-User` and `MM_USERS` keys are lowercased before comparison; validation rejects names that collide after folding.
 10. Orphan raters (a human rating row whose rater is neither `owner` nor a configured name) are a startup **warning**, a metric and a `library verify` finding. Never a refusal.
-11. **Device owner key.** Migration `<next+1>_device_owner.sql` (currently 0018, additive): `owner_key TEXT NOT NULL DEFAULT 'owner'` on `devices`, `subsonic_clients` and the pairing-code table. Every existing row becomes the Owner's, so current phones and clients behave as before. Rows are never physically deleted (revocation is a status flag, CLAUDE.md rule 5), so joins from history stay valid. Table and column names are re-read by lane D1.
+11. **Device owner key.** Migration `<next+1>_device_owner.sql` (currently 0019, after R2 took 0018; additive): `owner_key TEXT NOT NULL DEFAULT 'owner'` on `devices`, `subsonic_clients` and the pairing-code table. Every existing row becomes the Owner's, so current phones and clients behave as before. Rows are never physically deleted (revocation is a status flag, CLAUDE.md rule 5), so joins from history stay valid. Table and column names are re-read by lane D1.
 
 ### C302. One gate: `Permitted`, `Authorize`, scopes, `Meta.OwnerOnly` (`internal/api`, `internal/auth`)
 

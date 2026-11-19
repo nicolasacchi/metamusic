@@ -30,6 +30,7 @@ func TestRatingsPerUser_Display(t *testing.T) {
 	// carol rates Luna (the Owner gave it 5) and Twin A (unrated by the Owner)
 	carolRates(t, e, lt.TrackLuna, 1)
 	carolRates(t, e, lt.TrackTwinA, 5)
+	carolRates(t, e, lt.TrackTwinB, 4) // carol rates 3 tracks, the Owner 2: the unrated counts must differ by one
 	owner, carol := asUser(auth.RoleOwner, "alice"), asUser(auth.RoleListener, "carol")
 	stars := func(ctx context.Context, p library.SearchParams) map[string]int {
 		page, err := e.svc.SearchTracks(ctx, p)
@@ -102,8 +103,8 @@ func TestRatingsPerUser_Display(t *testing.T) {
 	if count(fo, 5) != 1 || count(fo, 1) != 0 || count(fc, 5) != 1 || count(fc, 1) != 1 || count(fc, 3) != 0 {
 		t.Errorf("facets owner %+v carol %+v", fo.Stars, fc.Stars)
 	}
-	if fc.Unrated != fo.Unrated+1 && fc.Unrated != fo.Unrated { // carol rated 2 tracks, the Owner 2
-		t.Logf("unrated owner %d carol %d", fo.Unrated, fc.Unrated)
+	if fo.Unrated == 0 || fc.Unrated != fo.Unrated-1 {
+		t.Errorf("unrated owner %d carol %d, want carol one fewer (3 rated vs 2)", fo.Unrated, fc.Unrated)
 	}
 }
 

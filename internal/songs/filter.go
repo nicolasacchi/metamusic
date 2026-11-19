@@ -226,7 +226,7 @@ func l2Clauses(f ListFilter, add func(string, ...any)) {
 		joins += store.ViewerRatingJoin("hs", "t.id")
 		rater := f.Rater
 		if rater == "" {
-			rater = "owner"
+			rater = auth.NoRater // fail closed: a filter built without WithViewer matches no rating row
 		}
 		joinArgs = append(joinArgs, rater)
 	}

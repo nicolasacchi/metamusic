@@ -28,7 +28,7 @@ func TestOwnerEventsSQL(t *testing.T) {
 	}
 	s.SetOwner("alice")
 	cond, args = s.OwnerEventsSQL("e")
-	if len(args) != 1 || args[0] != "human:alice" || !strings.Contains(cond, "e.principal_id = ?") || !strings.Contains(cond, "e.principal_kind = 'device'") {
+	if len(args) != 1 || args[0] != "human:alice" || !strings.Contains(cond, "lower(e.principal_id) = ?") || !strings.Contains(cond, "e.principal_kind = 'device'") {
 		t.Errorf("alice owner: %q %v", cond, args)
 	}
 	if n := strings.Count(cond, "?"); n != len(args) {
