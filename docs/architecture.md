@@ -25,9 +25,61 @@ Two modes, selected by `MM_AUTH` (unset means refuse to start):
 - `proxy`: a reverse proxy performs SSO and sets `Remote-User`.
 
 Rules: an `Authorization` header means bearer-only. `Remote-User` is honoured only on UI-class
-paths, from a trusted proxy peer, with a matching edge secret header, for exactly one allow-listed
-user. Agents use scoped personal access tokens (stored hashed). Human-only operations live under
+paths, from a trusted proxy peer, with a matching edge secret header, for a configured set of
+allow-listed users, each mapped to a role (see "Users and roles"). Agents use scoped personal access tokens (stored hashed). Human-only operations live under
 `/human/api/` and are refused for any non-human principal.
+
+## Users and roles (U1)
+
+One library, several people. A user is a name in the `MM_USERS` config map
+(`MM_USERS=alice:owner,bob:editor,carol:listener`); there is no users table. Login stays SSO through
+the proxy: a request is accepted only on the trusted-peer, edge-secret and single `Remote-User`
+conditions above, the name is folded to lowercase and looked up in the map, and a name that is not in
+the map is anonymous (401). Exactly one user is the Owner. The role is derived from the map when the
+process starts and is never stored in a session, device or token, so a demotion or removal takes
+effect on the next restart. `MM_TRUSTED_USERS` is a deprecated alias that stands for one Owner.
+`metamusic config check` validates the map without starting the server.
+
+| Role | What it can do |
+|---|---|
+| Owner | Everything: spend, approvals, caps, publishing, tokens, backups, administration. |
+| Editor | Creates and edits drafts, playlists, Crates and Records (unpublished), rates, and requests generations; every Editor batch waits for the Owner's approval. Cannot approve, change caps, publish or administer. |
+| Listener | Listens and rates. Read-only view of the library. |
+
+Two scopes, `listen` and `rate`, back this: a Listener holds only those two, so no operation outside
+browsing, playback and rating is reachable. One pure function (`api.Permitted`) gates REST, the MCP
+tool list and the SPA's `allowed_ops`; operations that spend, approve, publish or administer carry
+`owner_only` in their `x-mm` metadata and are refused for an Editor or Listener. Field-level
+redaction lives in one package (`internal/view`) called by the handlers.
+
+What is hidden from whom:
+
+- **Money.** Costs, spend, ledger, caps and provider status are Owner-side. An Editor sees its own
+  estimate and batch cost, nothing of anyone else's. A Listener sees
+  no money field at all (the fields are absent, not zero).
+- **Muse text and structure, private notes and comments.** Hidden from a Listener; an Editor can read
+  Muses. Voice notes are Owner-only.
+- **Discarded takes.** A Listener gets 404 for a discarded take and never sees it in search, lineage,
+  Songs, Crates, Records, the Atlas, counts or Subsonic.
+- **Clean renditions.** A Listener never receives a frozen master or its hash. Playback, download and
+  Subsonic resolve to two renditions built on demand with every `MM_*` tag removed: `mp3_320_clean`
+  and `flac_clean`.
+
+Ratings are per user: a rating row is keyed by track, source and rater (`owner`, the username, or
+`critic` for agents). Every curation signal (picks, Song state, Atlas, next actions, ladder, stats)
+reads the Owner's rows only, so another user rating changes nothing the Owner curates. Each user
+sees their own stars. The Owner sees every user's rating and the average, an Editor sees its own and
+the average, a Listener sees only its own and no average. Removing a user leaves their ratings as
+inert rows (the Owner reads them under the raw key).
+
+Devices (paired phones and browsers) and Subsonic clients belong to the user who created them: the
+row carries an owner key (`owner` for the Owner; every pre-existing row is the Owner's). A device acts
+as its user's role and never more, its ratings and plays attribute to that user, and each Editor or
+Listener lists and revokes only their own (the Owner lists and revokes all). Each of them is limited
+to 5 active devices and 5 active Subsonic clients (`422 DEVICE_LIMIT`; the Owner is unlimited).
+
+Agents are unchanged: personal access tokens, connector grants and the MCP endpoint remain
+Owner-side delegates, and only the Owner mints or grants them. Editors and Listeners have no MCP path.
 
 ## Data and invariants
 

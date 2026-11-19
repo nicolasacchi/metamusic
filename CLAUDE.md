@@ -65,7 +65,7 @@ experiment in how well Go suits LLM-driven development — do not bypass the wra
 3. **Human-only ops** live under `/human/api/` and are refused (403) for any non-human principal.
 4. **Auth precedence:** an `Authorization` header means bearer-only (Remote-* and cookies ignored).
    `Remote-User` is honoured only on UI-class paths, from a trusted proxy peer, with a matching
-   `X-MM-Edge` secret, and for exactly one allow-listed user. `MM_AUTH` unset ⇒ refuse to start.
+   `X-MM-Edge` secret, and for a configured set of allow-listed users, each mapped to a role (`MM_USERS`). `MM_AUTH` unset ⇒ refuse to start.
 5. **Errors** are `application/problem+json` bodies `{"code","message","details"}` with stable
    UPPER_SNAKE codes. GET never mutates. No physical deletes via API (status/hidden flags only).
 6. **Money** is integer micro-USD (`int64`). Never floats for money.
