@@ -33,3 +33,20 @@ func TestMaskRating_FormerUser(t *testing.T) {
 		t.Errorf("average = %+v, want the former user's stars counted (n=3)", tr.Average)
 	}
 }
+
+// With no configured users (local/bearer-only setups) nobody can be told apart as former: none is flagged.
+func TestMaskRating_NoConfiguredUsersFlagsNobody(t *testing.T) {
+	t.Parallel()
+	n := 4
+	tr := library.TrackRating{TrackID: "t1", Raters: []library.RaterRow{
+		{Rater: "owner", Row: library.RatingRow{Stars: &n, UpdatedAt: "2026-01-01T00:00:00Z"}},
+		{Rater: "bob", Row: library.RatingRow{Stars: &n, UpdatedAt: "2026-01-01T00:00:00Z"}},
+	}}
+	owner := auth.Principal{Kind: auth.KindHuman, ID: "alice", User: "alice", Role: auth.RoleOwner}
+	maskRating(owner, nil, &tr)
+	for _, o := range tr.Others {
+		if o.Former {
+			t.Errorf("%s flagged former with no configured users", o.User)
+		}
+	}
+}

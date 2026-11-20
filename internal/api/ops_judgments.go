@@ -33,7 +33,7 @@ func maskRating(v auth.Principal, users map[string]config.Role, tr *library.Trac
 	*tr = library.ShapeRating(v, *tr)
 	for i := range tr.Others { // a rater no longer in MM_USERS is a former user; the rating stays in the average
 		_, configured := users[tr.Others[i].User]
-		tr.Others[i].Former = !configured
+		tr.Others[i].Former = len(users) > 0 && !configured // no configured users (local mode): nobody can be told apart
 	}
 	for _, row := range []*library.RatingRow{tr.Mine, tr.Human, tr.Critic} {
 		if row != nil {
