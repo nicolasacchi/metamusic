@@ -142,7 +142,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('worker/uv.lock') }}
+          key: uv-${{ runner.os }}-${{ hashFiles('worker/uv.lock', 'worker/ears/uv.lock') }}
           restore-keys: uv-${{ runner.os }}-
       - run: uv sync --frozen --group dev
       - run: uv run pytest --cov=mmworker --cov-fail-under=90
@@ -156,6 +156,12 @@ jobs:
             echo "::notice::src/mmworker/engines/acestep.py does not exist yet; nothing to gate"
           fi
       # END E2-I1
+      # EARS-P1 (C331.6): the Tier B stage's own uv project; fakes only, no torch, no GPU, no model download.
+      - name: worker-ears
+        working-directory: worker/ears
+        run: |
+          uv sync --frozen --group dev
+          uv run pytest
 
   lint:
     runs-on: ubuntu-24.04
