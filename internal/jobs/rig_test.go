@@ -401,6 +401,9 @@ type batchSpec struct {
 	mutation   string // jobs.mutation_json, default {}
 	rationale  string // batches.rationale
 	engine     string // default yue2 (E2: acestep15)
+	kind       string // jobs.kind, default generate (G1)
+	needs      string // jobs.needs_json, default []
+	specJSON   string // jobs.spec_json, default {}
 }
 
 type seeded struct {
@@ -444,6 +447,15 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 	}
 	if sp.mutation == "" {
 		sp.mutation = "{}"
+	}
+	if sp.kind == "" {
+		sp.kind = "generate"
+	}
+	if sp.needs == "" {
+		sp.needs = "[]"
+	}
+	if sp.specJSON == "" {
+		sp.specJSON = "{}"
 	}
 	var rationale any
 	if sp.rationale != "" {
@@ -491,9 +503,9 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 			draft = sp.draft
 		}
 		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,source_track_id,draft_id,operator,mutation_json,title,expected_audio_s,expected_s,
-			timeout_s,expected_micro_usd,reserved_micro_usd,state,next_attempt_at,queued_at,created_at,updated_at)
-			VALUES(?,?,?,'generate',?,?,?,?,?,?,?,'T',216,96,?,10,?,?,?,?,?,?)`,
-			id, s.Batch, i, sp.engine, sp.backend, sp.recipe, src, draft, sp.operator, sp.mutation, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts)
+			timeout_s,expected_micro_usd,reserved_micro_usd,state,next_attempt_at,queued_at,created_at,updated_at,needs_json,spec_json)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,'T',216,96,?,10,?,?,?,?,?,?,?,?)`,
+			id, s.Batch, i, sp.kind, sp.engine, sp.backend, sp.recipe, src, draft, sp.operator, sp.mutation, sp.timeoutS, int64(take), jobState, ts, queuedAt, ts, ts, sp.needs, sp.specJSON)
 		bid, jid, p := s.Batch, id, sp.principal
 		if err := r.sp.RunTx(r.t.Context(), func(tx *sql.Tx) error {
 			return r.sp.Ledger().Append(r.t.Context(), tx, spend.Entry{Kind: spend.KindReserve, MicroUSD: take, BatchID: &bid, JobID: &jid, PrincipalID: p, Reason: "take"})

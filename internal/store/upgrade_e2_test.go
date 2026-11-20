@@ -61,7 +61,11 @@ func dbSnapshot(t *testing.T, db interface {
 				}
 				fmt.Fprintf(&sb, "%s=%v|", cols[i], v)
 			}
-			out[tb] = append(out[tb], sb.String())
+			row := sb.String()
+			if tb == "jobs" { // 0020 appends needs_json and spec_json (defaults on every old row); TestMigration_JobKinds pins that
+				row = strings.TrimSuffix(row, "needs_json=[]|spec_json={}|")
+			}
+			out[tb] = append(out[tb], row)
 		}
 		r.Close()
 		sort.Strings(out[tb])

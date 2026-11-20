@@ -73,10 +73,18 @@ func jobsJobCost(c jobs.JobCostInfo) *JobCost {
 	return out
 }
 
+// kindOrGenerate is a job's kind for a view; the column is NOT NULL, the fallback is for a view built by hand.
+func kindOrGenerate(k string) string {
+	if k == "" {
+		return jobs.KindGenerate
+	}
+	return k
+}
+
 func jobsSummary(j jobs.Job) JobSummary {
 	return JobSummary{ID: j.ID, BatchID: j.BatchID, TakeIndex: j.TakeIndex, State: j.State, Outcome: j.Outcome, ErrorCode: j.ErrorCode, Title: j.Title,
 		RequestID: j.RequestID, Seed: j.Seed, Operator: j.Operator, ParentTrackID: j.ParentTrackID, DraftID: j.DraftID, TrackID: j.TrackID,
-		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost), Task: j.Task, Stem: j.Stem}
+		CreatedAt: tsOut(j.CreatedAt), UpdatedAt: tsOut(j.UpdatedAt), Cost: jobsJobCost(j.Cost), Task: j.Task, Stem: j.Stem, Kind: kindOrGenerate(j.Kind)}
 }
 
 func jobsFull(j jobs.Job) Job {

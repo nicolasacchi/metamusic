@@ -106,7 +106,8 @@ func loadCreated(ctx context.Context, q lineage.Querier, batchID string) (Create
 		j.track_id, j.created_at, j.updated_at, j.expected_micro_usd,
 		(SELECT SUM(l.micro_usd) FROM ledger l WHERE l.job_id = j.id AND l.kind = 'settle' AND l.reason IN ('execution','execution_unknown')),
 		CASE WHEN j.engine <> 'yue2' THEN json_extract(r.request_json, '$.task') END,
-		CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END
+		CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END,
+		j.kind
 		FROM jobs j JOIN recipes r ON r.id = j.recipe_id WHERE j.batch_id = ? ORDER BY j.take_index`, batchID)
 	if err != nil {
 		return c, fmt.Errorf("generation: batch jobs: %w", err)
@@ -118,7 +119,7 @@ func loadCreated(ctx context.Context, q lineage.Querier, batchID string) (Create
 		var cre, upd string
 		var exp int64
 		var settled sql.NullInt64
-		if err := rows.Scan(&j.ID, &j.TakeIndex, &j.State, &outcome, &ecode, &j.Title, &j.RequestID, &j.Seed, &j.Operator, &parent, &draft, &track, &cre, &upd, &exp, &settled, &task, &stem); err != nil {
+		if err := rows.Scan(&j.ID, &j.TakeIndex, &j.State, &outcome, &ecode, &j.Title, &j.RequestID, &j.Seed, &j.Operator, &parent, &draft, &track, &cre, &upd, &exp, &settled, &task, &stem, &j.Kind); err != nil {
 			return c, err
 		}
 		j.Outcome, j.ErrorCode, j.ParentTrackID, j.DraftID, j.TrackID = nullPtr(outcome), nullPtr(ecode), nullPtr(parent), nullPtr(draft), nullPtr(track)

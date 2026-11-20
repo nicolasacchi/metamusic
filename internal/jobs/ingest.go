@@ -34,6 +34,11 @@ type JobRow struct {
 	SourceTrackID, DraftID                        *string
 	MutationJSON                                  string
 	TakeIndex, TimeoutS, ExpectedAudioS           int
+	// Kind, Needs and SpecJSON are the G1 columns (C323): "generate", "analyze" or "plan"; the capabilities the worker must
+	// have; the job's spec document (jobspec.Spec). A zero Kind means generate.
+	Kind     string
+	Needs    []string
+	SpecJSON string
 }
 
 // AttemptRow is one provider attempt of a job.
@@ -79,6 +84,9 @@ type BridgeOptions struct {
 	// Engines resolves a job's engine for the per-engine ingest bridge (C156): its required artifacts, its IngestPolicy
 	// and (for the RTF learning rule) its caps. nil serves yue2 only, exactly as before E2.
 	Engines engine.Registry
+	// Kinds are the ingesters of the job kinds other than generate (C323.6). "generate" is never in the map: a take takes the
+	// path above. The map is read at every ingest, so internal/app may fill it after the bridge is built (before anything starts).
+	Kinds map[string]KindIngester
 }
 
 // FaultAfterIngest is the bridge's crash point between the pipeline and the take transaction.
@@ -127,6 +135,9 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 	owner := leaseOwnerFrom(ctx)
 	if owner == "" {
 		return "", errors.New("jobs: ingest without a runner lease")
+	}
+	if !isGenerate(job.Kind) {
+		return "", &IngestFailedError{Code: CodeKindUnavailable, Err: fmt.Errorf("jobs: %s jobs are not ingested as takes", job.Kind)}
 	}
 	if b.o.Pipeline == nil || b.o.Data == nil || b.o.Library == nil || b.o.Uploads == nil {
 		return "", errors.New("jobs: ingest bridge is not wired")
@@ -558,7 +569,7 @@ func (b *IngestBridge) commit(ctx context.Context, owner string, job JobRow, att
 		if err != nil {
 			return err
 		}
-		if b.o.Spend != nil && gpu != "" {
+		if b.o.Spend != nil && gpu != "" && LearnsRTF(job.Kind, job.Needs) { // C323.8: only plain renders teach rtf_stats
 			switch {
 			case eng.learnsRTF:
 				if e2e, ok := numberOf(out.Timings["e2e_seconds"]); ok && out.AudioSeconds != nil {

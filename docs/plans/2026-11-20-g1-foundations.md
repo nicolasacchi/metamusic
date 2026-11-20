@@ -641,7 +641,7 @@ track lane that needs it makes the change as a declared serial edit.
 
   These requests come from the night plan (A1–A3) and the desk plan (A4). With these seams, the tracks stop editing `httpserver/server.go`,
   the `app.Build` literals, `audit/system.go` and `types_m3.go:116`.
-- **Ingest kinds and generation sources (accepted, lane G1-F2):** registered per track through `internal/app` (desk A5).
+- **Ingest kinds and generation sources (accepted, lane G1-F2):** registered per track through `internal/app` (desk A5). G1-F2 built the ingest kinds and take hooks only; generation sources are deferred to the Desk lane (Revision 4, C323.7).
 - **RTF learning (accepted, lane G1-F2):** a `generate` job teaches `rtf_stats` when its needs are a subset of
   `{v2, ears, agent, fallback}`. The `/2` `timings.e2e_seconds` covers the render only; Tier B time is reported in `ears.seconds`. This
   covers ears A1 and bulk A3.
@@ -721,3 +721,47 @@ Amended contracts, as built:
   `gen-jobs-ddl.go -check`. `scripts/regen-selftest.sh` (`make regen-selftest`) proves a second run is a no-op and a hand-edited golden is
   repaired; it runs real generators, so it is not in `gate.sh`'s light selftest list. Lanes append their step above the `REGEN-STEPS`
   marker (g1-jobs: DDL profiles; g1-wire: `TestWriteArtifactsV2 -update`).
+
+Revision 4 (2026-11-20, lane G1-F2 `g1-jobs`, built on `origin/main` `87af833`): C323 as built, with the amendments the code forced.
+
+- **C323.1 migration** is `0020_job_kinds.sql`, generated (`-profile job_kinds`). `needs_json` and `spec_json` are appended after
+  `patch_id`, so the old columns keep their order and `INSERT ... SELECT` names the old columns only; the new ones take their
+  defaults. `kind` loses its `Go-validated` comment and gains the CHECK. `TestMigration_JobKinds` (upgrade from 0019, thirteen
+  states, byte-identical old columns), `TestJobs_KindCheck_Table`, `TestJobs_KindCheck_CompletionShapes`, `TestJobs_KindFrozen`.
+  Older upgrade tests compare jobs rows through `dbSnapshot`, which now strips the two default columns (the 0019 precedent).
+- **C323.2 generator**: `-profile engines|job_kinds` (a table in the script; each edit must match exactly once), `-check-all`
+  checks every profile at its default file (what `make regen` runs). `-profile` is required; the old bare `-before 15` form is gone
+  (`TestMigration_JobsRebuild_GeneratorCurrent` uses `-profile engines`). A table renamed by an earlier rebuild is stored with a
+  quoted name; the generator accepts both. A lane that renumbers changes `before` and `file` in the profile table.
+- **C323.3 `internal/jobspec`**: as specified, plus `jobspec.Canonical()`, `ParseNeeds`, the `Cap*` and `Kind*` constants, and
+  validation inside `Parse` (lowercase 64-hex digests, 1 to 16 distinct seeds, ears stages within `separate|asr|transcribe`, at most
+  16 attachments with distinct names). `Needs` returns an empty (non-nil) slice for a plain render, so a plain job stays on `/1`; every
+  non-empty set includes `v2` (C322.1). `WithCaps(needs, caps...)` (bulk A2) is built with that signature.
+- **C323.4 create path**: `planTake` gets `Kind`, `Needs`, `Spec` (omitempty; `TestInsertBatch_DefaultsByteIdentical` pins that a
+  plain estimate has none of the keys). `insertBatch` writes them through `jobKindColumns`, which refuses an unknown kind, needs that
+  are not a sorted set and a spec that does not parse strictly, and stores the spec canonically. Setting `ReuseRecipeID` for an
+  analyze take is the Ears track's expand code; nothing in G1 creates an analyze or plan take yet.
+- **C323.5 pins**: the method is on a **separate interface**, `jobs.PinMinter` (`MintPins`), implemented by the same
+  `NewInputMinter` value, because widening `InputMinter` would have forced edits to three existing jobs test fakes. `takeSpec` is
+  not changed here (lane G1-F3a owns "`takeSpec` from spec" and asks the runner's `Inputs` for a `PinMinter`). A lossy master is signed
+  `<sha>.mp3` (`TestInputs_FromSpecPins`, `_LossyMaster`).
+- **C323.6 ingest by kind**: `KindIngester`, `KindIngest`, `BridgeOptions.Kinds` as specified, plus an optional runner-facing
+  `jobs.KindJobIngester` (`IngestKindJob`), implemented by `IngestBridge`; the runner calls it for every job whose kind is not
+  generate and falls back to `INGEST_FAILED` / `KIND_UNAVAILABLE` for an Ingester that lacks it, so the plain `Ingester` interface and
+  its test stubs are unchanged. `IngestTake` itself refuses a non-generate job with the same code. The bridge verifies only the
+  kind-neutral part of the output (status ok, take id, every reported artifact matches its upload, `mm-result.json` present); the
+  kind's own artifact rules belong to the ingester (and the artifact table per kind to G1-F3a). One fenced transaction writes the
+  environment fingerprint, the ingester's rows, a `kind_ingested` job event (detail `kind`, `outcome`, `track_id`) and the upload
+  consumption. A job whose kind transaction committed but whose row did not follow is completed from that event
+  (`TestIngest_KindCommittedCompletesFromEvent`). The completed job has `outcome` from the ingester ("" means clean), `track_id` only
+  when the ingester returned one, and no truncation columns.
+- **C323.7 hooks**: `jobs.MultiTakeHook`, `TakeInfo.Kind` and `TakeInfo.Needs` as specified. `app.lateTakeHook` keeps its `target`
+  (the M5 callbacks service, always first) and gains `extra`; tracks add through `BuildEnv.AddTakeHook`. Ingest kinds are registered
+  through `BuildEnv.AddKindIngester(kind, ki)` (analyze and plan only, once each; an error aborts Build). The kinds map is created in
+  `m5Late` and shared with the bridge by reference, so a build hook can fill it after `buildM3`. Generation sources have no
+  consumer in G1 and were not built: the Desk adds its own late field (`PlanSource`) next to this seam.
+- **C323.8 RTF**: `jobs.LearnsRTF(kind, needs)` is the rule of Revision 2 (generate with needs within `{v2, ears, agent, fallback}`),
+  applied to both `rtf_stats` (yue2) and `engine_rtf` learning (`TestRTF_OnlyPlainRenders`, `TestRTF_GenerateNeedsDecideLearning`).
+- **Job views** expose `kind` (`jobs.Job.Kind`, `generation.JobView.Kind`, API `JobSummary.kind`, enum `generate|analyze|plan`):
+  `list_jobs`, `get_job`, `get_batch` and the create/estimate batch views. `openapi.json`, `schema.d.ts` and `tools_list.golden.json`
+  were regenerated.

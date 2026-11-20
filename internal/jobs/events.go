@@ -62,8 +62,9 @@ const (
 	EvBatchNoCapacity   = "batch_no_capacity"
 	EvPreflightFailed   = "preflight_failed"
 	EvDurationMismatch  = "duration_mismatch"
-	EvAttached          = "attached"    // E2b: a stem was attached to its source take as an artifact (C166)
-	EvLRCDropped        = "lrc_dropped" // E2b: a delivered lyrics.lrc failed validation and was not kept (C166)
+	EvAttached          = "attached"      // E2b: a stem was attached to its source take as an artifact (C166)
+	EvLRCDropped        = "lrc_dropped"   // E2b: a delivered lyrics.lrc failed validation and was not kept (C166)
+	EvKindIngested      = "kind_ingested" // G1: the ingester of an analyze or plan job committed its result (C323.6)
 )
 
 // common detail keys every event may carry besides its own.
@@ -113,6 +114,7 @@ var eventDetailKeys = map[string][]string{
 	EvPreflightFailed:   {"check"},
 	EvDurationMismatch:  {"task", "expected_s", "audio_s"},
 	EvAttached:          {"track_id", "artifact", "audio_s"},
+	EvKindIngested:      {"kind", "outcome", "track_id", "audio_s"},
 	EvLRCDropped:        {},
 }
 

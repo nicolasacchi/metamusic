@@ -130,6 +130,8 @@ type Job struct {
 	Events                   []JobEventRow
 	// Task and Stem are the engine-native task of a non-yue2 job and, for an extract job, its stem name (E2, C166); nil for yue2.
 	Task, Stem *string
+	// Kind is the job kind (C323): generate, analyze or plan. A plan job completes with a nil TrackID.
+	Kind string
 }
 
 // JobArtifact is one received file of the job.
@@ -318,7 +320,8 @@ const jobSelect = `SELECT j.id, j.batch_id, j.take_index, j.state, j.title, j.ou
 	r.request_id, r.seed, j.operator, j.source_track_id, j.draft_id, j.expected_micro_usd, j.mutation_json, j.engine, j.backend, j.attempts, j.resubmits,
 	j.started_at, j.finished_at, j.state_deadline_at, j.cancel_requested_at, j.timeout_s, j.expected_audio_s, j.audio_s, j.truncated_abc, j.truncated_semantic, j.env_id,
 	CASE WHEN j.engine <> 'yue2' THEN json_extract(r.request_json, '$.task') END,
-	CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END
+	CASE WHEN j.engine <> 'yue2' AND json_extract(r.request_json, '$.task') = 'extract' THEN json_extract(r.request_json, '$.tracks[0]') END,
+	j.kind
 	FROM jobs j JOIN recipes r ON r.id = j.recipe_id`
 
 type jobScan struct {
@@ -337,7 +340,7 @@ func scanJobRead(sc interface{ Scan(...any) error }) (jobScan, error) {
 	j := &s.j
 	if err := sc.Scan(&j.ID, &j.BatchID, &j.TakeIndex, &j.State, &j.Title, &outcome, &errc, &track, &created, &updated,
 		&j.RequestID, &j.Seed, &j.Operator, &src, &draft, &expected, &s.mutJSON, &j.Engine, &j.Backend, &j.Attempts, &j.Resubmits,
-		&started, &finished, &deadline, &cancelAt, &j.TimeoutS, &j.ExpectedAudioS, &audio, &tabc, &tsem, &env, &task, &stem); err != nil {
+		&started, &finished, &deadline, &cancelAt, &j.TimeoutS, &j.ExpectedAudioS, &audio, &tabc, &tsem, &env, &task, &stem, &j.Kind); err != nil {
 		return s, err
 	}
 	str := func(n sql.NullString) *string {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/spend"
@@ -27,6 +28,16 @@ var ErrE2NotImplemented = errors.New("jobs: E2 seam not implemented yet")
 type InputMinter interface {
 	MintInputs(ctx context.Context, request json.RawMessage, expires time.Time) (map[string]provider.InputRef, error)
 }
+
+// PinMinter is the G1 half of the minter (C323.5): it signs the inputs named by the pins of a job's spec_json, for any engine, and
+// leaves the request-derived path of InputMinter untouched. The master is re-read by track id and its sha256 must equal the pin
+// (else ErrInputChanged); a lossy master is signed with its own extension. NewInputMinter's value implements both interfaces, and
+// takeSpec is unchanged here: G1-F3a asks the runner's Inputs for a PinMinter (a minter without it can serve no pinned job).
+type PinMinter interface {
+	MintPins(ctx context.Context, pins jobspec.Inputs, expires time.Time) (map[string]provider.InputRef, error)
+}
+
+var _ PinMinter = (*signedInputs)(nil)
 
 // ProviderStatuses is get_provider_status over every backend: the default backend's M3 object, one object per backend and
 // the global worker bound (C151.3, C151.5).

@@ -57,6 +57,17 @@ type m5Late struct {
 	hook    lateTakeHook
 	patches latePatchSource
 	backlog lateBacklogGate
+	// kinds are the ingesters of the job kinds other than generate (G1 C323.6). The map is created on first use and shared with the
+	// ingest bridge by reference, so a track's build hook may add to it after buildM3 ran.
+	kinds map[string]jobs.KindIngester
+}
+
+// kindIngesters returns the shared kinds map.
+func (l *m5Late) kindIngesters() map[string]jobs.KindIngester {
+	if l.kinds == nil {
+		l.kinds = map[string]jobs.KindIngester{}
+	}
+	return l.kinds
 }
 
 // check refuses a wiring in which generation can create Song PR renders but the other seams are not there: without the take hook a
@@ -76,19 +87,23 @@ func (l *m5Late) check() error {
 	return nil
 }
 
-type lateTakeHook struct{ target jobs.TakeHook }
+// lateTakeHook is the ingest bridge's TakeHook. target is the close-the-loop callbacks service (M5); extra holds the hooks tracks
+// add through BuildEnv.AddTakeHook (G1 C323.7), run after it in registration order. The first error rolls the take back.
+type lateTakeHook struct {
+	target jobs.TakeHook
+	extra  []jobs.TakeHook
+}
+
+func (l *lateTakeHook) chain() jobs.TakeHook {
+	return jobs.MultiTakeHook(append([]jobs.TakeHook{l.target}, l.extra...)...)
+}
 
 func (l *lateTakeHook) AfterTakeTx(ctx context.Context, tx *sql.Tx, t jobs.TakeInfo) error {
-	if l.target == nil {
-		return nil
-	}
-	return l.target.AfterTakeTx(ctx, tx, t)
+	return l.chain().AfterTakeTx(ctx, tx, t)
 }
 
 func (l *lateTakeHook) AfterTakeCommit(ctx context.Context, t jobs.TakeInfo) {
-	if l.target != nil {
-		l.target.AfterTakeCommit(ctx, t)
-	}
+	l.chain().AfterTakeCommit(ctx, t)
 }
 
 type latePatchSource struct{ target generation.PatchSource }

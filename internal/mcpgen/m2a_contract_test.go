@@ -88,7 +88,11 @@ import (
 //
 // U1-F2 merged after U1-R1: whoami's output schema gains role, user and allowed_ops (C304.3). Re-baselined 117300 -> 117406
 // (measured 117306 with both lanes, +100 headroom).
-const toolsCeilingBytes = 117406
+//
+// G1-F2 (C323, Revision 2): the job views (get_job, list_jobs, the get_batch job rows) expose kind, enum generate|analyze|plan.
+// Re-baselined 117406 -> 117772 (measured 117672, +266 over 117406, +100 headroom); the program's 4 000-byte growth budget
+// (Revision 2) is 266 spent by this lane.
+const toolsCeilingBytes = 117772
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

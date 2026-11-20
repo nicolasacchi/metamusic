@@ -234,6 +234,7 @@ type JobView struct {
 	Outcome, ErrorCode                             *string
 	// E2: for ACE-Step takes, the task, its class and the stem name of an extract job (the engine and backend are on the job detail).
 	Task, TaskClass, Stem           string
+	Kind                            string // the job kind (C323): generate, analyze or plan; a plan job has no TrackID
 	ParentTrackID, DraftID, TrackID *string
 	CreatedAt, UpdatedAt            time.Time
 	Expected                        money.MicroUSD

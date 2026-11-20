@@ -287,7 +287,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 				log.Warn("generation ingest unavailable: ffmpeg probe pending; estimate, create and approve answer 503 and no job is submitted until it recovers")
 			}
 			ing = jobs.NewIngestBridge(jobs.BridgeOptions{Data: data, Pipeline: pipe, Library: lib, Ears: ears, Lineage: m.Lineage, Spend: m.Spend,
-				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook, Engines: engines})
+				Uploads: m.Uploads, Store: st, Clock: clk, NewID: newID, Log: log, TakeHook: &late.hook, Engines: engines, Kinds: late.kindIngesters()})
 		}
 		var pre func(context.Context, int64) error
 		if o.Live {
