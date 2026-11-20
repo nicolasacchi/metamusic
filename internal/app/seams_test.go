@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -119,12 +120,16 @@ func TestServe_StartsAndDrainsLoops(t *testing.T) {
 }
 
 func TestServe_LoopPanicRestarts(t *testing.T) {
-	t.Parallel()
+	// not parallel: it swaps the default slog logger to read what the panic handler logs
+	var buf syncBuf
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	defer slog.SetDefault(old)
 	synctest.Test(t, func(t *testing.T) {
 		var runs atomic.Int32
 		loops := []app.Loop{{Name: "p", Run: func(ctx context.Context) {
 			if runs.Add(1) == 1 {
-				panic("token=SECRETVALUE failed")
+				panic("call failed: Authorization: Bearer SECRETVALUE")
 			}
 			<-ctx.Done()
 		}}}
@@ -147,5 +152,17 @@ func TestServe_LoopPanicRestarts(t *testing.T) {
 		}
 		cancel()
 		wg.Wait()
+		out := buf.String()
+		if !strings.Contains(out, `"loop":"p"`) || strings.Contains(out, "SECRETVALUE") {
+			t.Errorf("panic log must name the loop and redact the text: %s", out)
+		}
 	})
 }
+
+type syncBuf struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
+func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }

@@ -1,6 +1,7 @@
 package archtest
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -210,5 +211,17 @@ func TestNoCapWriterOutsideSpend(t *testing.T) {
 	})
 	if len(got) != 3 || !strings.HasPrefix(got[0], "cmd/metamusic/e.go") || !strings.HasPrefix(got[1], "internal/generation/b.go") || !strings.HasPrefix(got[2], "internal/mandates/a.go") {
 		t.Errorf("planted cap writers = %v", got)
+	}
+}
+
+// serve wires the tracks' loops: cmd_serve.go must call app.StartLoops with svc.Loops (no test boots serve itself).
+func TestServeStartsTrackLoops(t *testing.T) {
+	t.Parallel()
+	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "metamusic", "cmd_serve.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`app\.StartLoops\([^)]*svc\.Loops`).Match(b) {
+		t.Error("cmd/metamusic/cmd_serve.go no longer calls app.StartLoops with svc.Loops")
 	}
 }

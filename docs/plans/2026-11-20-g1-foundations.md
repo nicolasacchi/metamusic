@@ -693,7 +693,8 @@ Amended contracts, as built:
   docs lane's. `config check` prints `time zone: <name>` (`Local` for the process zone).
 - **C324.4 loops**: `app.Loop`, `Services.Loops`, `app.StartLoops(ctx, loops, wg)`; serve calls it once, in the prune group. The two named
   tests are `TestServe_StartsAndDrainsLoops` and `TestServe_LoopPanicRestarts` in `internal/app` (the helper lives there, so serve itself
-  needs no test double). The panic text goes through `redact.String`.
+  needs no test double). The panic text goes through `redact.String` (pinned by the log assertion in `TestServe_LoopPanicRestarts`). No test boots
+  `serve`; `TestServeStartsTrackLoops` in `internal/archtest` pins that `cmd_serve.go` calls `app.StartLoops` with `svc.Loops`.
 - **Registration seams (Revision 2), as built**, all init-time and append-only:
   - `api.Deps` pass-through: `httpserver.Options.Deps *api.Deps`; `api.Deps.Fill` copies every field the `Options` fields left zero, so a
     track that adds a `Deps` field adds nothing to `server.go`. `app.Build` sets `Server.Deps = &Services.Deps` (also what `Gated()` uses).

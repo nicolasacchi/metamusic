@@ -32,8 +32,14 @@ func TestSeams_DuplicateRegistrationPanics(t *testing.T) {
 // The tables hold exactly what the in-place maps held (the existing contents moved behind the helpers).
 func TestSeams_BaseTablesMoved(t *testing.T) {
 	t.Parallel()
-	if len(shapeRules) != len(u1ShapeRules) || len(wireNames) != len(baseWireNames) || len(wireNameTaken) != len(baseWireNames) {
-		t.Fatalf("registries hold %d/%d/%d entries, base tables %d/%d", len(shapeRules), len(wireNames), len(wireNameTaken), len(u1ShapeRules), len(baseWireNames))
+	// containment, not equality: track lanes register more entries from their own files.
+	for typ, name := range baseWireNames {
+		if wireNames[typ] != name {
+			t.Errorf("wire name for %s = %q, want %q", typ, wireNames[typ], name)
+		}
+		if wireNameTaken[name] != typ {
+			t.Errorf("wire name %s not taken by %s", name, typ)
+		}
 	}
 	for id, r := range u1ShapeRules {
 		if !reflect.DeepEqual(shapeRules[id], r) {
@@ -48,8 +54,9 @@ func TestSeams_BaseTablesMoved(t *testing.T) {
 // ItemIn.Mode keeps the enum of its struct tag, in the same order, in the document and the validator; a registered mode is appended.
 func TestSeams_ItemModeEnum(t *testing.T) {
 	// not parallel: it registers a mode in the package table
+	n := len(itemModes)
 	addItemModes("g1_selftest_mode")
-	defer func() { itemModes = itemModes[:len(itemModes)-1] }()
+	defer func() { itemModes = itemModes[:n] }()
 	a := New(http.NewServeMux(), Deps{Version: "x"})
 	s := a.OpenAPI().Components.Schemas.Map()["ItemIn"]
 	if s == nil || s.Properties["mode"] == nil {
@@ -59,9 +66,13 @@ func TestSeams_ItemModeEnum(t *testing.T) {
 	for _, e := range s.Properties["mode"].Enum {
 		got = append(got, e.(string))
 	}
-	want := "new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover,g1_selftest_mode"
-	if strings.Join(got, ",") != want {
-		t.Errorf("mode enum = %v", got)
+	base := "new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover,g1_selftest_mode"
+	// the tag modes come first in order; modes registered by track lanes follow, and the test mode is last.
+	if !strings.HasPrefix(strings.Join(got, ",")+",", base+",") {
+		t.Errorf("mode enum %v does not start with the base modes", got)
+	}
+	if len(got) == 0 || got[len(got)-1] != "g1_selftest_mode" {
+		t.Errorf("mode enum %v does not end with the registered test mode", got)
 	}
 }
 

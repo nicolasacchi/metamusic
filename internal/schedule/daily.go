@@ -109,7 +109,7 @@ func (d *Daily) Loop(ctx context.Context) {
 		have     bool
 		lastRan  Key
 		ran      bool
-		lastWake = clk.Now()
+		lastWake time.Time
 	)
 	read := func() {
 		a, en, err := d.At(ctx)
@@ -147,7 +147,7 @@ func (d *Daily) Loop(ctx context.Context) {
 		sleep := maxSleep
 		if enabled {
 			if h, m, ok := parseAt(at); ok {
-				// A slot crossed since the last wake runs now: today's, or (after a long stall) the one that just passed.
+				// A slot crossed since the last wake runs now. Only today's slot is considered; after a stall across midnight the previous day's slot is not replayed (catch-up covers boot only).
 				slot := slotOn(now.In(loc), 0, h, m, loc)
 				if slot.After(lastWake) && !slot.After(now) {
 					fire(keyFor(slot, at, loc))
