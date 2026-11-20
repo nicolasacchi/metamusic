@@ -3,6 +3,7 @@ package abc
 import (
 	"errors"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/nicolasacchi/metamusic/internal/score"
@@ -108,21 +109,15 @@ func (t *Tune) Score(o EventOptions) (*score.Score, error) {
 	addChange := func(tick int64, c Change) {
 		if c.Tempo != nil {
 			e := score.Tempo{Tick: tick, USPerQ: usPerQ(c.Tempo.BPM, c.Tempo.Unit)}
-			for _, x := range s.Tempos {
-				if x == e {
-					return
-				}
+			if !slices.Contains(s.Tempos, e) {
+				s.Tempos = append(s.Tempos, e)
 			}
-			s.Tempos = append(s.Tempos, e)
 		}
 		if c.MeterNum > 0 {
 			e := score.Meter{Tick: tick, Num: c.MeterNum, Den: c.MeterDen}
-			for _, x := range s.Meters {
-				if x == e {
-					return
-				}
+			if !slices.Contains(s.Meters, e) {
+				s.Meters = append(s.Meters, e)
 			}
-			s.Meters = append(s.Meters, e)
 		}
 	}
 	var chordNotes []score.Note

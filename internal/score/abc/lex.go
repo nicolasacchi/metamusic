@@ -135,6 +135,9 @@ func (p *parser) declOf(id string) *decl {
 func (p *parser) run() error {
 	src := p.src
 	pos := 0
+	if bytes.HasPrefix(src, []byte("\xef\xbb\xbf")) {
+		pos = 3 // a UTF-8 byte order mark is not part of the first header line; spans stay source offsets
+	}
 	p.line = 0
 	for pos <= len(src) {
 		end := bytes.IndexByte(src[pos:], '\n')
@@ -576,6 +579,11 @@ func (p *parser) finish() error {
 	}
 	if len(vs) > 16 {
 		return &SyntaxError{Line: 1, Col: 1, Rule: "too_many_voices", Msg: "more than 16 voices"}
+	}
+	for _, v := range vs {
+		if !positionsFit(v.bars) {
+			return p.fail(p.lineStart, "bad_length", "durations are too complex to represent")
+		}
 	}
 	t := p.t
 	if !p.sawKey {

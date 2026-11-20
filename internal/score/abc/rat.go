@@ -4,8 +4,8 @@ import "math"
 
 // Rat is an exact fraction, reduced, with Den > 0. Durations and positions are whole-note fractions.
 //
-// The methods do plain int64 arithmetic: every Rat that Parse returns was built with overflow-checked arithmetic and a
-// tune whose durations do not fit is refused, so sums and differences of values taken from one Tune stay in range.
+// The methods do plain int64 arithmetic that returns 0/1 on overflow. Parse refuses (bad_length) a tune whose bar
+// lengths, cumulative bar starts or note ends do not fit, so sums of positions taken from one Tune stay in range.
 type Rat struct{ Num, Den int64 }
 
 func gcd(a, b int64) int64 {

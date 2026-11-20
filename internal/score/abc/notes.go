@@ -26,6 +26,28 @@ func barStarts(v Voice) []Rat {
 	return out
 }
 
+// positionsFit reports whether every cumulative bar start, note start and note end of a voice is representable, so the
+// unchecked Rat arithmetic in barStarts, Notes, Score and BarSpans cannot wrap.
+func positionsFit(bars []Bar) bool {
+	pos := Rat{0, 1}
+	for _, b := range bars {
+		for _, n := range b.Notes {
+			a, ok := addc(pos, n.At)
+			if !ok {
+				return false
+			}
+			if _, ok = addc(a, n.Dur); !ok {
+				return false
+			}
+		}
+		var ok bool
+		if pos, ok = addc(pos, b.Length); !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // Notes flattens one voice (by index in t.Voices): every note and rest in source order with its time from the tune start.
 // Chord notes appear one per pitch at the same Start. An index out of range returns nil.
 func (t *Tune) Notes(voice int) []TimedNote {
@@ -45,13 +67,18 @@ func (t *Tune) Notes(voice int) []TimedNote {
 
 // BeatUnit is the length of one beat: the unit of Q:, else a quarter note.
 func (t *Tune) BeatUnit() Rat {
+	if t == nil {
+		return Rat{1, 4}
+	}
 	if t.Header.Tempo != nil {
 		return t.Header.Tempo.Unit
 	}
 	return Rat{1, 4}
 }
 
-// BeatNotes is Notes with onset and duration in beats (BeatUnit), for consumers that compare against audio.
+// BeatNotes is Notes with onset and duration in beats (BeatUnit), for consumers that compare against audio. The beat
+// unit is the header Q: unit throughout; mid-tune tempo changes are ignored (such tunes are untimed). A nil Tune or a
+// bad voice index returns nil.
 func (t *Tune) BeatNotes(voice int) []BeatNote {
 	ns := t.Notes(voice)
 	if ns == nil {

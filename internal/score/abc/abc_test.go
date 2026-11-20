@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/score"
 )
@@ -610,6 +611,12 @@ func FuzzParseABC(f *testing.F) {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, b []byte) {
+		began := time.Now()
+		defer func() {
+			if el := time.Since(began); el > 2*time.Second {
+				t.Fatalf("input took %v (limit 2s): %q", el, b)
+			}
+		}()
 		for _, d := range []Dialect{DialectStandard, DialectYuE2} {
 			tu, err := Parse(b, Options{Dialect: d})
 			if err != nil {
@@ -670,4 +677,61 @@ func ruleOf(err error) string {
 		return se.Rule
 	}
 	return ""
+}
+
+func TestParse_CumulativeOverflowRefused(t *testing.T) {
+	t.Parallel()
+	primes := []int{127, 113, 109, 107, 103, 101, 97, 89, 83, 79, 73, 71, 67, 61, 59, 53, 47, 43}
+	var sb strings.Builder
+	sb.WriteString(hdr)
+	for _, p := range primes {
+		fmt.Fprintf(&sb, "C/%d|", p)
+	}
+	_, err := Parse([]byte(sb.String()), Options{})
+	if ruleOf(err) != "bad_length" {
+		t.Fatalf("want bad_length, got %v", err)
+	}
+	// a modest run of the same shape still parses and its onsets never go backwards
+	tu := mustParse(t, hdr+"C/7|C/5|C/3|C|", "")
+	prev := -1.0
+	for _, n := range tu.BeatNotes(0) {
+		if n.Onset < prev {
+			t.Fatalf("onsets went backwards: %+v", tu.BeatNotes(0))
+		}
+		prev = n.Onset
+	}
+}
+
+func TestParse_BOM(t *testing.T) {
+	t.Parallel()
+	a := mustParse(t, hdr+"CDEF|", "")
+	b := mustParse(t, "\xef\xbb\xbf"+hdr+"CDEF|", "")
+	if len(b.Warnings) != 0 || b.Header.MeterNum != 4 || b.Header.Key.Raw != a.Header.Key.Raw || len(b.Voices) != 1 {
+		t.Fatalf("BOM source misread: %+v %v", b.Header, b.Warnings)
+	}
+	if sp := b.BarSpans(); len(sp) == 0 || sp[0].Start < 3 || sp[0].End > len(b.Src) {
+		t.Fatalf("spans %+v", sp)
+	}
+}
+
+func TestChange_TempoDuplicateKeepsMeter(t *testing.T) {
+	t.Parallel()
+	s := mustScore(t, "X:1\nM:4/4\nL:1/4\nQ:1/4=120\nK:C\nCDEF|[Q:1/4=120][M:3/4]CDE|", "", EventOptions{})
+	found := false
+	for _, m := range s.Meters {
+		if m.Num == 3 && m.Den == 4 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("meter change lost: %+v", s.Meters)
+	}
+}
+
+func TestBeatUnit_NilTune(t *testing.T) {
+	t.Parallel()
+	var tu *Tune
+	if tu.BeatUnit() != (Rat{1, 4}) || tu.BeatNotes(0) != nil {
+		t.Error("nil tune")
+	}
 }
