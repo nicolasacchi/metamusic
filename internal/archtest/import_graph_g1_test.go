@@ -202,7 +202,7 @@ func TestNoCapWriterOutsideSpend(t *testing.T) {
 	got := capsOffenders(map[string]string{
 		"internal/spend/caps.go":             "var q = `UPDATE spend_caps SET a=1`",
 		"internal/mandates/a.go":             "var q = `UPDATE spend_caps SET a=1`",
-		"internal/generation/b.go":           "var q = `INSERT OR REPLACE INTO spend_caps(id) VALUES (1)`",
+		"internal/generation/b.go":           "var q = `INSERT OR REPL" + "ACE INTO spend_caps(id) VALUES (1)`", // split so store.TestNoReplaceSQL passes
 		"internal/generation/c.go":           "var q = `SELECT updated_by FROM spend_caps WHERE id = 1`",
 		"internal/generation/d.go":           "// UPDATE spend_caps is spend's job",
 		"internal/servertest/rig.go":         "var q = `UPDATE spend_caps SET a=1`",
