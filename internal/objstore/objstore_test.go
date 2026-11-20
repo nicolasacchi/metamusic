@@ -231,3 +231,85 @@ func TestObjstore_ErrorsRedacted(t *testing.T) {
 	_, _, err = c.Get(ctx, key, 10)
 	check("get closed", err)
 }
+
+func TestObjstore_WrongBucketIsNotMissing(t *testing.T) {
+	ctx := context.Background()
+	s := objstoretest.New(t)
+	cfg := s.Config()
+	cfg.Bucket = "no-such-bucket"
+	c, err := objstore.New(cfg, s.HTTPClient(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oe *objstore.Error
+	if _, _, err := c.Get(ctx, "mm/x", 10); errors.Is(err, objstore.ErrNotFound) || !errors.As(err, &oe) || oe.Code != "NoSuchBucket" {
+		t.Fatalf("get wrong bucket = %v", err)
+	}
+	if err := c.Delete(ctx, "mm/x"); !errors.As(err, &oe) || oe.Code != "NoSuchBucket" {
+		t.Fatalf("delete wrong bucket = %v", err)
+	}
+	good := newClient(t, s)
+	if err := good.Delete(ctx, "mm/absent"); err != nil {
+		t.Fatalf("delete missing key must succeed: %v", err)
+	}
+}
+
+func TestObjstore_PresignScopeVerified(t *testing.T) {
+	s := objstoretest.New(t)
+	cfg := s.Config()
+	cfg.Region = "eu-west-1"
+	c, err := objstore.New(cfg, s.HTTPClient(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := c.PresignPut("mm/x", time.Minute)
+	req, _ := http.NewRequest(http.MethodPut, u, strings.NewReader("z"))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Fatalf("wrong-region presign status %d", resp.StatusCode)
+	}
+}
+
+type headNoLength struct{}
+
+func (headNoLength) RoundTrip(r *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: 200, Header: http.Header{}, Body: http.NoBody, ContentLength: -1, Request: r}, nil
+}
+
+func TestObjstore_HeadUnknownSizeIsError(t *testing.T) {
+	s := objstoretest.New(t)
+	c, err := objstore.New(s.Config(), &http.Client{Transport: headNoLength{}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size, ok, err := c.Head(context.Background(), "mm/x"); err == nil || ok || size != 0 {
+		t.Fatalf("head = %d %v %v", size, ok, err)
+	}
+}
+
+type leakyTransport struct{ msg string }
+
+func (l leakyTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New(l.msg)
+}
+
+func TestObjstore_TransportScrubsCredentials(t *testing.T) {
+	s := objstoretest.New(t)
+	cfg := s.Config()
+	h := &http.Client{Transport: leakyTransport{"dial failed for " + cfg.SecretAccessKey + " and " + cfg.AccessKeyID}}
+	c, err := objstore.New(cfg, h, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Head(context.Background(), "mm/x")
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if strings.Contains(err.Error(), cfg.SecretAccessKey) || strings.Contains(err.Error(), cfg.AccessKeyID) || !strings.Contains(err.Error(), "<redacted>") {
+		t.Fatalf("not scrubbed: %v", err)
+	}
+}

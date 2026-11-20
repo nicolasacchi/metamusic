@@ -119,7 +119,8 @@ func (c *Client) PresignPut(key string, ttl time.Duration) (string, error) {
 	return r.URL.String(), nil
 }
 
-// Head reports an object's size; ok is false for a missing object.
+// Head reports an object's size; ok is false for a 404. HEAD has no body, so a 404 from a wrong bucket cannot be told
+// from a missing key here; callers that must distinguish use Get.
 func (c *Client) Head(ctx context.Context, key string) (size int64, ok bool, err error) {
 	resp, err := c.do(ctx, "head", http.MethodHead, key, nil, -1)
 	if err != nil {
@@ -130,6 +131,9 @@ func (c *Client) Head(ctx context.Context, key string) (size int64, ok bool, err
 	case resp.StatusCode == http.StatusNotFound:
 		return 0, false, nil
 	case resp.StatusCode/100 == 2:
+		if resp.ContentLength < 0 {
+			return 0, false, &Error{Op: "head", Status: resp.StatusCode} // size unknown: never report -1 as a size
+		}
 		return resp.ContentLength, true, nil
 	}
 	return 0, false, c.refusal("head", resp)
@@ -143,7 +147,10 @@ func (c *Client) Get(ctx context.Context, key string, maxBytes int64) (io.ReadCl
 		return nil, 0, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		resp.Body.Close()
+		defer resp.Body.Close()
+		if err := c.notFound("get", resp); err != nil {
+			return nil, 0, err
+		}
 		return nil, 0, ErrNotFound
 	}
 	if resp.StatusCode/100 != 2 {
@@ -201,8 +208,11 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 == 2 || resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode/100 == 2 {
 		return nil
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return c.notFound("delete", resp)
 	}
 	return c.refusal("delete", resp)
 }
@@ -252,6 +262,17 @@ func (c *Client) scrub(s string) string {
 
 type s3Error struct {
 	Code string `xml:"Code"`
+}
+
+// notFound classifies a 404: nil when the key is missing (NoSuchKey, or no parseable code), an *Error for anything
+// else such as NoSuchBucket, so a wrong bucket or endpoint is never mistaken for a missing object.
+func (c *Client) notFound(op string, resp *http.Response) error {
+	e := c.refusal(op, resp)
+	var oe *Error
+	if errors.As(e, &oe) && oe.Code != "" && oe.Code != "NoSuchKey" {
+		return e
+	}
+	return nil
 }
 
 // refusal builds an *Error from an answered non-success response. Only the status and a well-formed code are kept.

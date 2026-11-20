@@ -248,8 +248,18 @@ func (s *Server) verifyQuery(r *http.Request, u url.URL) (string, string) {
 	if err != nil || exp < 1 || exp > 7*24*3600 {
 		return "AuthorizationQueryParametersError", "bad X-Amz-Expires"
 	}
-	if !strings.HasPrefix(q.Get("X-Amz-Credential"), s.cfg.AccessKeyID+"/") {
+	if q.Get("X-Amz-Algorithm") != "AWS4-HMAC-SHA256" {
+		return "AuthorizationQueryParametersError", "bad X-Amz-Algorithm"
+	}
+	if q.Get("X-Amz-SignedHeaders") != "host" {
+		return "AuthorizationQueryParametersError", "bad X-Amz-SignedHeaders"
+	}
+	id, scope, _ := strings.Cut(q.Get("X-Amz-Credential"), "/")
+	if id != s.cfg.AccessKeyID {
 		return "InvalidAccessKeyId", "unknown access key"
+	}
+	if scope != t.UTC().Format("20060102")+"/"+s.cfg.Region+"/s3/aws4_request" {
+		return "AuthorizationQueryParametersError", "bad credential scope"
 	}
 	if time.Now().After(t.Add(time.Duration(exp) * time.Second)) {
 		return "AccessDenied", "request has expired"
