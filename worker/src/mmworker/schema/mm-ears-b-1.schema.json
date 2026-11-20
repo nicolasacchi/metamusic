@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.ears-b/1 analysis.json",
+  "description": "Raw Tier B outputs of the mmears stage (M5b C332). The Go parser tierb.Parse and the Python writer are tested against this file. Rules the schema cannot express (word times non-decreasing within a segment, w0/w1 inside words, cents and conf of equal length, the 4 MiB document limit) are enforced by tierb.Parse.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "status",
+    "code",
+    "stages",
+    "models",
+    "input",
+    "timings",
+    "resources",
+    "asr",
+    "pitch",
+    "vocals",
+    "errors"
+  ],
+  "properties": {
+    "contract": { "const": "mm.ears-b/1" },
+    "status": { "enum": ["ok", "error"] },
+    "code": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/code" }
+      ]
+    },
+    "stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["separate", "asr", "transcribe"],
+      "properties": {
+        "separate": { "$ref": "#/$defs/stage" },
+        "asr": { "$ref": "#/$defs/stage" },
+        "transcribe": { "$ref": "#/$defs/stage" }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["separator", "asr", "pitch"],
+      "properties": {
+        "separator": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/model" }] },
+        "asr": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "sha256", "compute_type"],
+              "properties": {
+                "name": { "$ref": "#/$defs/modelName" },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "compute_type": { "type": "string", "minLength": 1, "maxLength": 32 }
+              }
+            }
+          ]
+        },
+        "pitch": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/model" }] }
+      }
+    },
+    "input": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["duration_s", "sample_rate", "channels", "codec"],
+          "properties": {
+            "duration_s": { "type": "number", "minimum": 0 },
+            "sample_rate": { "type": "integer", "minimum": 1 },
+            "channels": { "type": "integer", "minimum": 1 },
+            "codec": { "type": "string", "minLength": 1, "maxLength": 32 }
+          }
+        }
+      ]
+    },
+    "timings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["load_s", "separate_s", "asr_s", "transcribe_s", "total_s"],
+      "properties": {
+        "load_s": { "type": "number", "minimum": 0 },
+        "separate_s": { "type": "number", "minimum": 0 },
+        "asr_s": { "type": "number", "minimum": 0 },
+        "transcribe_s": { "type": "number", "minimum": 0 },
+        "total_s": { "type": "number", "minimum": 0 }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "peak_vram_mib", "parent_reserved_mib"],
+      "properties": {
+        "device": { "type": "string", "maxLength": 128 },
+        "peak_vram_mib": { "type": "integer", "minimum": 0 },
+        "parent_reserved_mib": {
+          "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+        }
+      }
+    },
+    "asr": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["language", "forced", "segments", "words"],
+          "properties": {
+            "language": { "type": "string", "minLength": 2, "maxLength": 8 },
+            "forced": { "type": "boolean" },
+            "segments": {
+              "type": "array",
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["start", "end", "avg_logprob", "no_speech_p", "w0", "w1"],
+                "properties": {
+                  "start": { "type": "number", "minimum": 0 },
+                  "end": { "type": "number", "minimum": 0 },
+                  "avg_logprob": { "type": "number", "maximum": 0 },
+                  "no_speech_p": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "w0": { "type": "integer", "minimum": 0 },
+                  "w1": { "type": "integer", "minimum": 0 }
+                }
+              }
+            },
+            "words": {
+              "type": "array",
+              "maxItems": 20000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["w", "start", "end", "p"],
+                "properties": {
+                  "w": { "type": "string", "maxLength": 64 },
+                  "start": { "type": "number", "minimum": 0 },
+                  "end": { "type": "number", "minimum": 0 },
+                  "p": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pitch": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hop_s", "cents", "conf"],
+          "properties": {
+            "hop_s": { "const": 0.02 },
+            "cents": {
+              "type": "array",
+              "maxItems": 36000,
+              "items": { "type": "integer", "minimum": 0 }
+            },
+            "conf": {
+              "type": "array",
+              "maxItems": 36000,
+              "items": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
+        }
+      ]
+    },
+    "vocals": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rms_dbfs", "active_s"],
+          "properties": {
+            "rms_dbfs": { "type": "number", "maximum": 0 },
+            "active_s": { "type": "number", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "code", "message"],
+        "properties": {
+          "stage": { "enum": ["load", "input", "separate", "asr", "transcribe"] },
+          "code": { "$ref": "#/$defs/code" },
+          "message": { "type": "string", "maxLength": 300 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "ok" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "code": { "type": "null" },
+          "stages": { "properties": { "asr": { "const": "ok" } } },
+          "asr": { "type": "object" }
+        }
+      },
+      "else": {
+        "properties": { "code": { "$ref": "#/$defs/code" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "stages": { "properties": { "transcribe": { "const": "ok" } }, "required": ["transcribe"] } },
+        "required": ["stages"]
+      },
+      "then": { "properties": { "pitch": { "type": "object" } } },
+      "else": { "properties": { "pitch": { "type": "null" } } }
+    },
+    {
+      "if": {
+        "properties": { "stages": { "properties": { "asr": { "const": "ok" } }, "required": ["asr"] } },
+        "required": ["stages"]
+      },
+      "then": { "properties": { "status": { "const": "ok" } } },
+      "else": { "properties": { "status": { "const": "error" } } }
+    }
+  ],
+  "$defs": {
+    "stage": { "enum": ["ok", "error", "skipped", "not_requested"] },
+    "code": {
+      "enum": [
+        "MODELS_MISSING",
+        "INPUT_DECODE",
+        "SEPARATION_FAILED",
+        "ASR_FAILED",
+        "DEADLINE",
+        "OOM",
+        "SUBPROCESS_FAILED"
+      ]
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "modelName": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": { "$ref": "#/$defs/modelName" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

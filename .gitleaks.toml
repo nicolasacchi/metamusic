@@ -39,3 +39,9 @@ keywords = ["runpod_"]
 [[rules.allowlists]]
 description = "synthetic RunPod key fixtures in Go tests"
 paths = ['''(^|/)[^/]+_test\.go$''']
+
+[[rules]]
+id = "metamusic-r2-key"
+description = "S3/R2 upload-fallback credential assignment (R2_SECRET_ACCESS_KEY=value, r2.env format)"
+regex = '''(?i)R2_(SECRET_ACCESS_KEY|ACCESS_KEY_ID)\s*[=:]\s*\S{8,}'''
+keywords = ["r2_"]

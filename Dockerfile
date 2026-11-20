@@ -13,7 +13,7 @@ COPY web/ ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     if [ -f package.json ]; then bun run build; else mkdir -p dist; fi
 
-FROM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS build
 WORKDIR /src
 # BEGIN T1-I1 toolchain pin (D-T1-3d): the DSP goldens are bit-exact and GOAMD64=v3 lets the compiler emit FMA. v1 is Go's
 # default; it is set explicitly so a base-image change cannot move it, and the build fails below if the binary says otherwise.

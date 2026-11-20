@@ -1,0 +1,23 @@
+X:1
+M:4/4
+L:1/8
+Q:1/4=100
+K:G
+V:1
+% intro
+G8 | G8 |
+V:2
+% intro
+D,8 | D,8 |
+V:1
+% verse
+B2 c2 d4 | d2 c2 B4 |
+V:2
+% verse
+G,8 | D,8 |
+V:1
+% chorus
+g4 d4 | g4 d4 | g8 |
+V:2
+% chorus
+G,8 | G,8 | G,8 |
