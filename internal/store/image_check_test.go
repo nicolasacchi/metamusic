@@ -16,11 +16,11 @@ func TestMigrate_ImageEqualsFromZero(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for _, n := range []int{1, MigrationCount() / 2, MigrationCount()} {
-		real, err := OpenRaw(filepath.Join(t.TempDir(), "real.db"))
+		fromZero, err := OpenRaw(filepath.Join(t.TempDir(), "fromZero.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := migrateTo(ctx, real, n); err != nil { // the unwrapped applier: from zero, every migration
+		if err := migrateTo(ctx, fromZero, n); err != nil { // the unwrapped applier: from zero, every migration
 			t.Fatal(err)
 		}
 		img, err := OpenRaw(filepath.Join(t.TempDir(), "img.db"))
@@ -31,20 +31,20 @@ func TestMigrate_ImageEqualsFromZero(t *testing.T) {
 			t.Fatalf("restore to %d: ok=%v err=%v", n, ok, err)
 		}
 		for _, q := range []string{`PRAGMA user_version`, `PRAGMA journal_mode`, `PRAGMA page_size`, `PRAGMA foreign_keys`} {
-			if a, b := scalar0(t, real, q), scalar0(t, img, q); a != b {
+			if a, b := scalar0(t, fromZero, q), scalar0(t, img, q); a != b {
 				t.Errorf("v%d %s: from zero %q, image %q", n, q, a, b)
 			}
 		}
-		if a, b := masterOf(t, real), masterOf(t, img); !reflect.DeepEqual(a, b) {
+		if a, b := masterOf(t, fromZero), masterOf(t, img); !reflect.DeepEqual(a, b) {
 			t.Errorf("v%d: schema from zero and from the image differ", n)
 		}
-		if a, b := scalar0(t, real, `SELECT COUNT(*) FROM pragma_foreign_key_check`), scalar0(t, img, `SELECT COUNT(*) FROM pragma_foreign_key_check`); a != b {
+		if a, b := scalar0(t, fromZero, `SELECT COUNT(*) FROM pragma_foreign_key_check`), scalar0(t, img, `SELECT COUNT(*) FROM pragma_foreign_key_check`); a != b {
 			t.Errorf("v%d foreign_key_check %s vs %s", n, a, b)
 		}
-		if a, b := rowsOf(t, real), rowsOf(t, img); !reflect.DeepEqual(a, b) {
+		if a, b := rowsOf(t, fromZero), rowsOf(t, img); !reflect.DeepEqual(a, b) {
 			t.Errorf("v%d: the rows the migrations seed differ between from zero and the image", n)
 		}
-		real.Close()
+		fromZero.Close()
 		img.Close()
 	}
 }
