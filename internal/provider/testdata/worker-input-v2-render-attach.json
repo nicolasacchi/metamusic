@@ -1,0 +1,78 @@
+{
+  "contract": "mm.worker/2",
+  "kind": "render",
+  "take_id": "a1",
+  "attempt_id": "a2",
+  "engine": "yue2",
+  "request": {
+    "cot": "melody",
+    "id": "syn-a-s1102",
+    "lyrics": "[verse]\nla la",
+    "seed": 1102,
+    "style": "pop, 100 BPM"
+  },
+  "attach": {
+    "score.abc": {
+      "sha256": "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12",
+      "data_base64": "WDoxCks6QwpDREVGfAo="
+    }
+  },
+  "timeout_s": 296,
+  "upload_budget_s": 60,
+  "deadline_unix": 1760000000,
+  "start": {
+    "url": "https://mm.example.com/worker/v1/attempts/a2/start?exp=1760000000\u0026sig=abc"
+  },
+  "uploads": {
+    "abc_tokens.npy": {
+      "url": "https://mm.example.com/worker/v1/uploads/abc_tokens.npy?sig=abc",
+      "max_bytes": 67108864
+    },
+    "audio.flac": {
+      "url": "https://mm.example.com/worker/v1/uploads/audio.flac?sig=abc",
+      "max_bytes": 167772160
+    },
+    "config.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/config.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "mm-result.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/mm-result.json?sig=abc",
+      "max_bytes": 65536
+    },
+    "plan.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/plan.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "plan_manifest.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/plan_manifest.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "prefix.npy": {
+      "url": "https://mm.example.com/worker/v1/uploads/prefix.npy?sig=abc",
+      "max_bytes": 67108864
+    },
+    "request.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/request.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "result.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/result.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "score.abc": {
+      "url": "https://mm.example.com/worker/v1/uploads/score.abc?sig=abc",
+      "max_bytes": 1048576
+    },
+    "semantic.npy": {
+      "url": "https://mm.example.com/worker/v1/uploads/semantic.npy?sig=abc",
+      "max_bytes": 67108864
+    }
+  },
+  "expect": {
+    "weights": {
+      "m-a-p/YuE2-3B": "0123456789abcdef0123456789abcdef01234567",
+      "m-a-p/YuE2-Vae": "89abcdef0123456789abcdef0123456789abcdef"
+    }
+  }
+}

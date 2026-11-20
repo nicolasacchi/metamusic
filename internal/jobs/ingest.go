@@ -303,8 +303,12 @@ func (b *IngestBridge) engineFor(req recipeInfo) (ingestEngine, error) {
 // artifact, and the truncation shape its IngestPolicy asks for: an object of exactly two booleans for yue2, null for an
 // engine that reports no truncation.
 func (b *IngestBridge) verify(job JobRow, eng ingestEngine, byName map[string]upload.Received, out provider.Output) error {
-	if out.Contract != provider.Contract || out.Status != "ok" || out.TakeID != job.ID {
+	wire, werr := wireOf(eng.name, job.Kind, job.Needs, job.SpecJSON)
+	if werr != nil || out.Contract != wire.Wire || out.Status != "ok" || out.TakeID != job.ID {
 		return violation("WORKER_CONTRACT", "output does not belong to this take")
+	}
+	if code, text := wire.outputProblem(out); code != "" {
+		return violation(code, "%s", text)
 	}
 	if out.AudioSeconds == nil {
 		return violation("WORKER_CONTRACT", "audio_seconds missing")
@@ -317,7 +321,7 @@ func (b *IngestBridge) verify(job JobRow, eng ingestEngine, byName map[string]up
 	case eng.name != provider.EngineYuE2 && out.Env.Engine != eng.name:
 		return violation("WORKER_CONTRACT", "output environment names another engine")
 	}
-	for _, name := range eng.required {
+	for _, name := range wire.kindRequired(true, eng.required, out) {
 		if name == provider.ResultArtifact {
 			continue // checked below; the worker's own output never lists itself
 		}

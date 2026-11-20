@@ -76,6 +76,18 @@ func (r *Runner) attemptArtifacts(ctx context.Context, x q, j *jobRec) (arts map
 		}
 		arts[n] = limit
 	}
+	w, err := wireOf(j.Engine, j.Kind, j.Needs, j.SpecJSON)
+	if err != nil {
+		return nil, "", fmt.Errorf("jobs: spec_json: %w", err)
+	}
+	if w.Wire == provider.ContractV2 { // the kind's own targets: a render keeps the engine's set and adds the stage names
+		if w.Kind != "" {
+			arts = map[string]int64{}
+		}
+		for _, a := range provider.ArtifactsV2(w.Shape) {
+			arts[a.Name] = a.MaxBytes
+		}
+	}
 	return arts, request, nil
 }
 
@@ -478,7 +490,7 @@ func (r *Runner) takeSpec(ctx context.Context, c *claim) (provider.TakeSpec, err
 		}
 		_ = json.Unmarshal([]byte(c.job.MutationJSON), &m) // absent in takes planned before the control: 0 = none
 		spec.MinAudioS = m.MinAudioS
-		return spec, nil
+		return spec, r.applyWire(ctx, c, &spec)
 	}
 	// Another engine: no minimum-render control (C153), its own pinned weights, and the signed fetch URLs of an edit's
 	// source and reference audio, minted now and carried only in this in-memory spec (D-E2-9).

@@ -29,12 +29,26 @@ func (b *IngestBridge) IngestKindJob(ctx context.Context, job JobRow, att Attemp
 	if out.Status != "ok" || out.TakeID != job.ID {
 		return "", "", violation("WORKER_CONTRACT", "output does not belong to this job")
 	}
+	// the artifact rules of the kind (C321.5, Revision 4): the contract, the shape of the output, the allowlist of the kind and
+	// the artifacts it must report. Only yue2 speaks the kinds.
+	wire, werr := wireOf(provider.EngineYuE2, job.Kind, job.Needs, job.SpecJSON)
+	if werr != nil || wire.Wire != provider.ContractV2 || out.Contract != provider.ContractV2 {
+		return "", "", violation("WORKER_CONTRACT", "output does not carry the contract of this job")
+	}
+	if code, text := wire.outputProblem(out); code != "" {
+		return "", "", violation(code, "%s", text)
+	}
 	byName := map[string]upload.Received{}
 	for _, f := range files {
 		byName[f.Artifact] = f
 	}
 	if _, ok := byName[provider.ResultArtifact]; !ok {
 		return "", "", violation("ARTIFACT_MISSING", "%s was not received", provider.ResultArtifact)
+	}
+	for _, name := range wire.kindRequired(false, nil, out) {
+		if _, ok := out.Artifacts[name]; !ok {
+			return "", "", violation("ARTIFACT_MISSING", "required artifact %s is not reported", name)
+		}
 	}
 	for name, rep := range out.Artifacts {
 		u, ok := byName[name]

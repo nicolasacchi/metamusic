@@ -107,7 +107,7 @@ func (r *Runner) handleResult(ctx context.Context, tx *sql.Tx, uploadID, attempt
 	}
 	a := as[0]
 	out, err := r.readOutput(uploadID)
-	if err != nil || out.Contract != provider.Contract || out.TakeID != j.ID || out.AttemptID != a.ID {
+	if err != nil || out.Contract != contractOf(j.Engine, j.JobRow) || out.TakeID != j.ID || out.AttemptID != a.ID {
 		return nil, insertEvent(ctx, tx, f, Event{JobID: j.ID, AttemptID: a.ID, Name: EvStatus, Code: CodeWorkerContract, Detail: map[string]any{"reason": "mm-result.json does not match its attempt"}})
 	}
 	if out.Status != "ok" {
@@ -271,17 +271,27 @@ func (r *Runner) verifyTransfer(ctx context.Context, tx *sql.Tx, jobID string) (
 		return nil, nil
 	}
 	out, err := r.readOutput(res.UploadID)
-	if err != nil || out.Contract != provider.Contract || out.Status != "ok" || out.TakeID != j.ID || out.AttemptID != win ||
-		out.AudioSeconds == nil || !truncatedShapeOK(reportsTruncation(r.o.Engines, j.Engine), out.Truncated) {
+	wire, werr := wireOf(j.Engine, j.Kind, j.Needs, j.SpecJSON)
+	isGen := isGenerate(j.Kind)
+	// a generate job keeps the engine checks of M3 (audio_seconds, the truncation shape); an analyze or plan job has neither
+	// (C321.4), and every /2 job is held to the shape of its own document
+	if werr != nil || err != nil || out.Contract != wire.Wire || out.Status != "ok" || out.TakeID != j.ID || out.AttemptID != win ||
+		(isGen && (out.AudioSeconds == nil || !truncatedShapeOK(reportsTruncation(r.o.Engines, j.Engine), out.Truncated))) {
 		return failJob(CodeWorkerContract, Event{AttemptID: win, Name: EvFailed})
 	}
-	required, err := r.requiredArtifacts(ctx, tx, &j)
-	if err != nil {
-		return nil, err
+	if code, _ := wire.outputProblem(out); code != "" {
+		return failJob(CodeWorkerContract, Event{AttemptID: win, Name: EvFailed})
 	}
+	var engineRequired []string
+	if isGen {
+		if engineRequired, err = r.requiredArtifacts(ctx, tx, &j); err != nil {
+			return nil, err
+		}
+	}
+	required := wire.kindRequired(isGen, engineRequired, out)
 	var missing, mismatched []string
 	for name, dg := range out.Artifacts {
-		if _, allowed := provider.ArtifactMaxBytesFor(j.Engine, name); !allowed || name == provider.ResultArtifact {
+		if name == provider.ResultArtifact || !artifactAllowed(wire, isGen, j.Engine, name) {
 			return failJob(CodeWorkerContract, Event{AttemptID: win, Name: EvFailed})
 		}
 		u, have := byName[name]

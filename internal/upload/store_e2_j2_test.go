@@ -1,6 +1,8 @@
 package upload
 
 import (
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +30,12 @@ func TestOpenAttempt_PerEngineAllowlist(t *testing.T) {
 		{"yue2 has no lyrics.lrc", provider.EngineYuE2, map[string]int64{"lyrics.lrc": 10}, false},
 		{"empty engine is yue2", "", map[string]int64{"config.json": 10}, true},
 		{"empty engine has no lyrics.lrc", "", map[string]int64{"lyrics.lrc": 10}, false},
+		{"yue2 /2 stage artifacts at their limits", provider.EngineYuE2, map[string]int64{"analysis.json": 4 * mib, "stem-vocals.flac": 200 * mib, "plan-00.tar": 2 * mib, "plan-15.tar": 2 * mib}, true},
+		{"yue2 analysis.json above 4 MiB", provider.EngineYuE2, map[string]int64{"analysis.json": 4*mib + 1}, false},
+		{"yue2 plan bundle above 2 MiB", provider.EngineYuE2, map[string]int64{"plan-03.tar": 2*mib + 1}, false},
+		{"yue2 has no plan-16.tar", provider.EngineYuE2, map[string]int64{"plan-16.tar": 10}, false},
+		{"empty engine takes the /2 names too", "", map[string]int64{"analysis.json": 10}, true},
+		{"acestep has no /2 stage artifacts", provider.EngineACEStep, map[string]int64{"analysis.json": 10}, false},
 		{"unknown engine has no allowlist", "nope", map[string]int64{"audio.flac": 10}, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -49,3 +57,19 @@ func TestOpenAttempt_PerEngineAllowlist(t *testing.T) {
 		})
 	}
 }
+
+// TestIdleReader_ClosesItsBody: closing the wrapper closes the request body it wraps.
+func TestIdleReader_ClosesItsBody(t *testing.T) {
+	t.Parallel()
+	body := &closeCounter{Reader: strings.NewReader("x")}
+	if err := (idleReader{r: body}).Close(); err != nil || body.closed != 1 {
+		t.Errorf("Close = %v, closed %d times", err, body.closed)
+	}
+}
+
+type closeCounter struct {
+	io.Reader
+	closed int
+}
+
+func (c *closeCounter) Close() error { c.closed++; return nil }

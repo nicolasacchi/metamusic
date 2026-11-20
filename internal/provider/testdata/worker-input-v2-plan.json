@@ -1,0 +1,52 @@
+{
+  "contract": "mm.worker/2",
+  "kind": "plan",
+  "take_id": "a1",
+  "attempt_id": "a2",
+  "engine": "yue2",
+  "request": {
+    "cot": "melody",
+    "id": "syn-a-s1102",
+    "lyrics": "[verse]\nla la",
+    "seed": 1102,
+    "style": "pop, 100 BPM"
+  },
+  "plan": {
+    "seeds": [
+      1101,
+      1102,
+      1103
+    ],
+    "s_per_seed": 30
+  },
+  "timeout_s": 296,
+  "upload_budget_s": 60,
+  "deadline_unix": 1760000000,
+  "start": {
+    "url": "https://mm.example.com/worker/v1/attempts/a2/start?exp=1760000000\u0026sig=abc"
+  },
+  "uploads": {
+    "mm-result.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/mm-result.json?sig=abc",
+      "max_bytes": 65536
+    },
+    "plan-00.tar": {
+      "url": "https://mm.example.com/worker/v1/uploads/plan-00.tar?sig=abc",
+      "max_bytes": 2097152
+    },
+    "plan-01.tar": {
+      "url": "https://mm.example.com/worker/v1/uploads/plan-01.tar?sig=abc",
+      "max_bytes": 2097152
+    },
+    "plan-02.tar": {
+      "url": "https://mm.example.com/worker/v1/uploads/plan-02.tar?sig=abc",
+      "max_bytes": 2097152
+    }
+  },
+  "expect": {
+    "weights": {
+      "m-a-p/YuE2-3B": "0123456789abcdef0123456789abcdef01234567",
+      "m-a-p/YuE2-Vae": "89abcdef0123456789abcdef0123456789abcdef"
+    }
+  }
+}

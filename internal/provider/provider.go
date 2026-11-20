@@ -89,6 +89,13 @@ type EndpointConfig struct {
 type UploadTarget struct {
 	URL      string `json:"url"`
 	MaxBytes int64  `json:"max_bytes"`
+	// Fallback is the reserved second destination of a /2 upload (C321.3). Nothing sets it before the upload-fallback lane.
+	Fallback *FallbackTarget `json:"fallback,omitempty"`
+}
+
+// FallbackTarget is the reserved fallback destination of one upload (C321.3).
+type FallbackTarget struct {
+	URL string `json:"url"`
 }
 
 // WorkerExpect carries the pinned weight revisions (repo to revision) from yue2.Weights.
@@ -108,6 +115,30 @@ type Output struct {
 	Truncated    map[string]bool           `json:"truncated"`
 	Timings      map[string]*json.Number   `json:"timings"`
 	Env          OutputEnv                 `json:"env"`
+
+	// The mm.worker/2 keys (C321.4). Empty for a /1 output; a /1 output that carries any of them is a decode error.
+	Kind  string    `json:"kind,omitempty"`  // "render" | "analyze" | "plan"
+	Ears  *EarsOut  `json:"ears,omitempty"`  // the Tier B stage of a render or the analyze stage
+	Plans []PlanOut `json:"plans,omitempty"` // one entry per plan seed
+	Caps  []string  `json:"caps,omitempty"`  // what the worker image supports (diagnostic)
+}
+
+// EarsOut is the outcome of the Tier B stage (C321.4): status ok, error or skipped, the reason code for the last two, and the
+// stage's own seconds (Revision 2, ears A2).
+type EarsOut struct {
+	Status  string       `json:"status"`
+	Code    string       `json:"code,omitempty"`
+	Seconds *json.Number `json:"seconds,omitempty"`
+}
+
+// PlanOut is the outcome of one plan seed (C321.4). Bundle names the plan-NN.tar artifact of an ok seed.
+type PlanOut struct {
+	Index     int             `json:"index"`
+	Seed      int64           `json:"seed"`
+	Status    string          `json:"status"` // "ok" | "error"
+	Code      string          `json:"code,omitempty"`
+	Truncated map[string]bool `json:"truncated,omitempty"`
+	Bundle    string          `json:"bundle,omitempty"`
 }
 
 // OutputError is the error object of a failed worker run.
@@ -151,6 +182,41 @@ type TakeSpec struct {
 	// Inputs are the fetchable source and reference audio of an edit (C153.1; keys InputSrcAudio and InputReferenceAudio).
 	// URLs are minted at submit and never persisted, logged or returned. nil for yue2, which serialises byte-identically.
 	Inputs map[string]InputRef
+
+	// The mm.worker/2 fields (C321.2); the zero value of each means "absent" and /1 serialises exactly as before.
+	Kind           string                // "" or "render" | "analyze" | "plan"; "" = render
+	Ears           *EarsSpec             // Tier B on a render, or the analyze stage
+	Plan           *PlanSpec             // kind plan
+	Attach         map[string]AttachFile // small inline files written into the worker's work dir before the stage runs
+	Wire           string                // the contract chosen at submit (D-G1-3); "" = ContractV1
+	FallbackAfterS int                   // reserved (C321.3): 60..600 when an upload carries a fallback target
+}
+
+// The kinds of a /2 document (C321.3).
+const (
+	KindRender  = "render"
+	KindAnalyze = "analyze"
+	KindPlan    = "plan"
+)
+
+// EarsSpec configures the Tier B stage.
+type EarsSpec struct {
+	Lang       string // "" = auto
+	BudgetS    int
+	Stages     []string // a subset of separate, asr, transcribe
+	KeepVocals bool
+}
+
+// PlanSpec configures a plan run: one render per seed.
+type PlanSpec struct {
+	Seeds          []int64 // 1..16
+	SecondsPerSeed int
+}
+
+// AttachFile is one small inline file; the decoded size of all attachments is at most MaxAttachBytes.
+type AttachFile struct {
+	SHA256 string
+	Data   []byte
 }
 
 // Input keys of TakeSpec.Inputs and of the ACE-Step worker input.

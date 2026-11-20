@@ -223,7 +223,7 @@ func TestParseWorkerInput_MatchesSchema(t *testing.T) {
 		"valid http loopback": func(m map[string]any) {
 			m["start"] = map[string]any{"url": "http://127.0.0.1:8080/worker/v1/attempts/a/start"}
 		},
-		"contract v2":      func(m map[string]any) { m["contract"] = "mm.worker/2" },
+		"contract v3":      func(m map[string]any) { m["contract"] = "mm.worker/3" },
 		"contract absent":  func(m map[string]any) { delete(m, "contract") },
 		"extra top-level":  func(m map[string]any) { m["extra"] = true },
 		"extra in start":   func(m map[string]any) { m["start"].(map[string]any)["x"] = 1 },
