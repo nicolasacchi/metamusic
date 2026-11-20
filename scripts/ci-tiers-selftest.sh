@@ -100,7 +100,7 @@ chk "nightly.yml and e2e-extra.yml install flac through scripts/apt-install.sh" 
 chk "ci.yml apt steps use scripts/apt-install.sh and no bare apt-get update; playwright install is bounded" '[ "$(grep -c "scripts/apt-install.sh flac" "$wf/ci.yml")" = 2 ] && ! grep -q "^ *sudo apt-get update" "$wf/ci.yml" && grep -q "timeout 300 bunx playwright install --with-deps firefox" "$wf/ci.yml"'
 (
   fb=$tmp/fakebin; mkdir -p "$fb"; log=$tmp/apt.log
-  printf '#!/bin/sh\necho "apt-get $*" >>"%s"\ncase "$*" in *--no-download*) [ -n "$NODL_OK" ] ;; *update*) [ -z "$UPD_FAIL" ] ;; *) [ -n "$MISSING" ] && echo "E: Unable to locate package flac"; [ -z "$INST_FAIL$MISSING" ] ;; esac\n' "$log" >"$fb/apt-get"
+  printf '#!/bin/sh\necho "apt-get $*" >>"%s"\ncase "$*" in *--no-download*) [ -n "$NODL_OK" ] ;; *update*) [ -n "$UPD_WARN" ] && echo "W: Failed to fetch http://mirror/x"; [ -z "$UPD_FAIL" ] ;; *) [ -n "$MISSING" ] && echo "E: Unable to locate package flac"; [ -z "$INST_FAIL$MISSING" ] ;; esac\n' "$log" >"$fb/apt-get"
   printf '#!/bin/sh\nexec "$@"\n' >"$fb/sudo"; chmod +x "$fb/apt-get" "$fb/sudo"
   run() { : >"$log"; PATH="$fb:$PATH" APT_TIMEOUT=5 APT_ATTEMPTS=3 APT_BACKOFF=0 "$root/scripts/apt-install.sh" flac >/dev/null 2>&1; }
   NODL_OK=1 run && ! grep -q update "$log" || { echo "FAIL: cache hit must not run update"; exit 1; }
@@ -109,6 +109,9 @@ chk "ci.yml apt steps use scripts/apt-install.sh and no bare apt-get update; pla
   [ "$(grep -c "^apt-get update" "$log")" = 3 ] || { echo "FAIL: want exactly 3 attempts"; exit 1; }
   MISSING=1 run && { echo "FAIL: missing package must fail"; exit 1; }
   [ "$(grep -c "^apt-get install" "$log")" = 2 ] || { echo "FAIL: missing package must not be retried (want 1 cache try + 1 install)"; exit 1; }
+  # a partial index (update exits 0 but warns) makes the install report "Unable to locate": that is the flake, so it retries
+  UPD_WARN=1 MISSING=1 run && { echo "FAIL: missing package must fail"; exit 1; }
+  [ "$(grep -c "^apt-get update" "$log")" = 3 ] || { echo "FAIL: missing package after a dirty update must be retried (want 3 attempts)"; exit 1; }
   echo "ok:   apt-install: no-download first, update+install fallback, 3 bounded attempts, no retry of a missing package"
 ) || fail=1
 # END apt steps never hang a job
