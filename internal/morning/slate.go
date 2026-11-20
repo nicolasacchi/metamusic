@@ -39,7 +39,7 @@ func SlatePCM(n int) []byte {
 			env = 0.5 * (1 - math.Cos(math.Pi*float64(tone-1-i)/float64(fade)))
 		}
 		v := int32(math.Round(slateLevel * env * pcm24Max * math.Sin(2*math.Pi*f*float64(i)/SampleRate)))
-		b0, b1, b2 := byte(v), byte(v>>8), byte(v>>16)
+		b0, b1, b2 := byte(v), byte(v>>8), byte(v>>16) // #nosec G115 -- little-endian 24-bit PCM: truncation to the low bytes is the encoding
 		o := i * 6
 		out[o], out[o+1], out[o+2] = b0, b1, b2
 		out[o+3], out[o+4], out[o+5] = b0, b1, b2

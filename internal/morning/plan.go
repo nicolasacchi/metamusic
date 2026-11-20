@@ -163,7 +163,7 @@ func Select(in Input, opts Options, seed uint64) Plan {
 	var elapsed int64 // frames, same measure as the side layout
 
 	// Anchors first; their time is reserved before any candidate.
-	anchorRNG := rand.New(rand.NewPCG(seed, 1))
+	anchorRNG := rand.New(rand.NewPCG(seed, 1)) // #nosec G404 -- deterministic, seeded order (the same crate rebuilds identically); not a secret
 	for _, pool := range [][]Candidate{in.Anchors5, in.AnchorsFinal} {
 		if len(chosen) >= opts.Anchors {
 			break
@@ -225,7 +225,7 @@ func Select(in Input, opts Options, seed uint64) Plan {
 		elapsed += slate + n
 	}
 
-	order, relaxed := blindOrder(chosen, rand.New(rand.NewPCG(seed, 0)))
+	order, relaxed := blindOrder(chosen, rand.New(rand.NewPCG(seed, 0))) // #nosec G404 -- deterministic, seeded blind order; not a secret
 	plan.AdjacencyRelaxed = relaxed
 
 	var side *Side
