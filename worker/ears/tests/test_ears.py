@@ -414,3 +414,32 @@ def test_output_write_is_atomic_and_bounded(tmp_path):
     doc["asr"] = {"blob": "y" * (5 << 20)}
     with pytest.raises(ValueError):
         output.dumps(doc)
+
+
+def test_classify_message_is_type_name_only(model_env, flac, validate):
+    sentinel = "/home/alice/secret-token-XYZ"
+    e = classify(RuntimeError(f"cannot open {sentinel}"), "ASR_FAILED")
+    assert e.message == "RuntimeError" and sentinel not in e.message
+    doc = run_fake(model_env, flac, ("separate", "asr", "transcribe"),
+                   st=fake_stages(fail={"asr": RuntimeError(sentinel), "transcribe": ValueError(sentinel)}))
+    validate(doc)
+    assert sentinel not in json.dumps(doc)
+    assert {e["message"] for e in doc["errors"]} == {"RuntimeError", "ValueError"}
+
+
+def test_failed_stage_reports_no_model(model_env, flac, validate):
+    doc = run_fake(model_env, flac, st=fake_stages(fail={"separate": RuntimeError("bad")}))
+    validate(doc)
+    assert doc["models"]["separator"] is None
+    doc = run_fake(model_env, flac, ("separate", "asr", "transcribe"),
+                   st=fake_stages(fail={"transcribe": RuntimeError("bad")}))
+    validate(doc)
+    assert doc["models"]["pitch"] is None and doc["models"]["separator"] is not None
+
+
+def test_build_unknown_error_code_maps_to_subprocess_failed(validate):
+    stages = {"separate": "ok", "asr": "error", "transcribe": "not_requested"}
+    doc = output.build(stages=stages, models={}, input_info=None, timings={}, resources={"device": "none", "peak_vram_mib": 0, "parent_reserved_mib": None}, asr=None,
+                       pitch=None, vocals=None, errors=[{"stage": "asr", "code": "NOT_A_CODE", "message": "x"}])
+    assert doc["errors"][0]["code"] == "SUBPROCESS_FAILED"
+    validate(doc)

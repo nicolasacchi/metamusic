@@ -82,16 +82,17 @@ def build(
 ) -> dict[str, Any]:
     """Assemble the document. status is ok iff stages.asr is ok; the code is the first error's."""
     ok = stages["asr"] == "ok"
-    code = None
-    if not ok:
-        code = next((e["code"] for e in errors), "SUBPROCESS_FAILED")
     errs = [
-        {"stage": e["stage"], "code": e["code"], "message": e["message"][:MAX_MESSAGE]}
+        {
+            "stage": e["stage"],
+            "code": e["code"] if e["code"] in CODES else "SUBPROCESS_FAILED",
+            "message": e["message"][:MAX_MESSAGE],
+        }
         for e in errors[:MAX_ERRORS]
     ]
-    for e in errs:
-        if e["code"] not in CODES:
-            e["code"] = "SUBPROCESS_FAILED"
+    code = None
+    if not ok:
+        code = errs[0]["code"] if errs else "SUBPROCESS_FAILED"
     t = {k: r2(timings.get(k, 0.0)) for k in ("load_s", "separate_s", "asr_s", "transcribe_s", "total_s")}
     return {
         "contract": CONTRACT,
