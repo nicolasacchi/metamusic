@@ -88,6 +88,7 @@ func configCheck(getenv func(string) string, s streams) error {
 		fmt.Fprintln(s.out, "ntfy: disabled")
 	}
 	fmt.Fprintf(s.out, "backup: %s\n", map[bool]string{true: "disabled", false: "daily at " + cfg.BackupAt}[cfg.BackupAt == "off"])
+	fmt.Fprintf(s.out, "time zone: %s\n", cfg.Zone())
 	fmt.Fprintf(s.out, "trusted proxies: %d\n", len(cfg.TrustedProxies))
 	return nil
 }

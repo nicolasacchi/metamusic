@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	_ "time/tzdata" // MM_TZ resolves without system zoneinfo (the binary is CGO_ENABLED=0; G1 C324.2)
 )
 
 // Set via -ldflags "-X main.version=… -X main.commit=…".
