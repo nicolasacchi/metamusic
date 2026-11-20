@@ -3,6 +3,7 @@ package abc
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,7 @@ func TestEdit_Errors(t *testing.T) {
 		{"field line in abc", []Op{{Op: OpReplaceBars, Voice: "1", BarFrom: 0, BarTo: 0, ABC: "w: a b c d"}}, "bad_abc", nil},
 		{"trailing backslash", []Op{{Op: OpReplaceBars, Voice: "1", BarFrom: 0, BarTo: 0, ABC: "C4\\"}}, "bad_abc", nil},
 		{"inline key change", []Op{{Op: OpTransposeBars, Voice: "1", BarFrom: 0, BarTo: 1, Semitones: 3}}, "unsupported_feature", mustParse(t, "X:1\nM:4/4\nL:1/4\nK:C\n[K:D] dddd|dddd|\n", DialectYuE2)},
+		{"second K: field line", []Op{{Op: OpTransposeBars, Voice: "1", BarFrom: 0, BarTo: 0, Semitones: 3}}, "unsupported_feature", mustParse(t, "X:1\nM:4/4\nL:1/4\nK:C\ndddd|\nK:D\ndddd|\n", DialectYuE2)},
 		{"tempo 39", []Op{{Op: OpSetTempo, BPM: 39}}, "bad_tempo", nil},
 		{"tempo 241", []Op{{Op: OpSetTempo, BPM: 241}}, "bad_tempo", nil},
 	}
@@ -398,4 +400,24 @@ func TestEdit_ReplaceBars_PipeInQuotes(t *testing.T) {
 		}
 	}
 	_ = out
+}
+
+func TestEdit_TransposeUnverified(t *testing.T) {
+	// not parallel: swaps a package-level test seam
+	editVerifyHook = func(nt *Tune) *Tune {
+		cp := *nt
+		cp.Voices = slices.Clone(nt.Voices)
+		cp.Voices[0].Bars = cp.Voices[0].Bars[:0]
+		return &cp
+	}
+	defer func() { editVerifyHook = nil }()
+	tu := mustParse(t, invBase, DialectYuE2)
+	out, _, _, err := Edit(tu.Src, tu, []Op{{Op: OpTransposeBars, Voice: "1", BarFrom: 0, BarTo: 0, Semitones: 2}}, Options{Dialect: DialectYuE2})
+	var ee *EditError
+	if !errors.As(err, &ee) || ee.Rule != "transpose_unverified" {
+		t.Fatalf("err %v, want EditError transpose_unverified", err)
+	}
+	if out != nil {
+		t.Fatalf("output %q with an error", out)
+	}
 }

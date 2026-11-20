@@ -70,6 +70,8 @@ func TestNormalise_Text(t *testing.T) {
 		{"carry to another octave", h + "^Ff F|\n", h + "^F^f F|\n"},
 		{"natural after a sharp elsewhere", h + "^F f|F|\n", h + "^F ^f|F|\n"},
 		{"flat key signature carried", "X:1\nM:4/4\nL:1/4\nK:F\nB b|\n", "X:1\nM:4/4\nL:1/4\nK:F\nB b|\n"},
+		{"second K: field line is skipped", h + "^Ff F|\nK:D\n^Ff F|\n", h + "^Ff F|\nK:D\n^Ff F|\n"},
+		{"inline [K:] is skipped", h + "^Ff F|[K:D]^Ff F|\n", h + "^Ff F|[K:D]^Ff F|\n"},
 		{"explicit natural in another octave", h + "^F =f F|\n", h + "^F =f =F|\n"},
 	}
 	for _, r := range rows {

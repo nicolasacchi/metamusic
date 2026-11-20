@@ -125,7 +125,11 @@ func Edit(src []byte, t *Tune, ops []Op, o Options) (out []byte, edited *Tune, v
 			return nil, nil, nil, parseEditErr(i, "result_unparsable", perr)
 		}
 		if verify != nil {
-			if verr := verify(nt); verr != nil {
+			vt := nt
+			if editVerifyHook != nil {
+				vt = editVerifyHook(nt)
+			}
+			if verr := verify(vt); verr != nil {
 				return nil, nil, nil, editErr(i, "transpose_unverified", "%v", verr)
 			}
 		}
@@ -133,6 +137,9 @@ func Edit(src []byte, t *Tune, ops []Op, o Options) (out []byte, edited *Tune, v
 	}
 	return text, cur, CheckInvariants(base, cur, allow), nil
 }
+
+// editVerifyHook is a test seam: it may substitute the re-parsed tune that a transpose verifier sees. Nil in production.
+var editVerifyHook func(*Tune) *Tune
 
 func parseEditErr(op int, rule string, err error) *EditError {
 	e := editErr(op, rule, "%v", err)
