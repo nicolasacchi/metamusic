@@ -18,6 +18,7 @@ type RatingRow struct {
 // OtherRating is another user's rating of a track, shown to the Owner only (C306.4).
 type OtherRating struct {
 	User      string  `json:"user"` // the rater's name; a name no longer configured is a former user
+	Former    bool    `json:"former,omitempty" doc:"True when this user is no longer configured in MM_USERS; the rating still counts in the average"`
 	Stars     *int    `json:"stars"`
 	Verdict   *string `json:"verdict"`
 	UpdatedAt string  `json:"updated_at"`
