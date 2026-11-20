@@ -34,6 +34,25 @@ export async function loadPendingApprovals(client: ApprovalsClient): Promise<Pen
   }
 }
 
+/** Pause before each retry of a failed load: a phone that has just navigated can drop the first call (aborted by the page
+ * change, starved by other requests); one failure must not leave the Approvals section blank until the 30 s poll. */
+export const APPROVALS_RETRY_MS = [400, 1200];
+
+/** loadPendingApprovals, retried after each pause in `waits` while it answers null. */
+export async function loadPendingApprovalsRetrying(
+  client: ApprovalsClient,
+  waits: number[] = APPROVALS_RETRY_MS,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((ok) => setTimeout(ok, ms)),
+): Promise<Pending | null> {
+  let p = await loadPendingApprovals(client);
+  for (const w of waits) {
+    if (p) break;
+    await sleep(w);
+    p = await loadPendingApprovals(client);
+  }
+  return p;
+}
+
 /** The nav badge text; null (no badge) when nothing waits. */
 export function badgeText(count: number, more: boolean): string | null {
   if (count <= 0) return null;

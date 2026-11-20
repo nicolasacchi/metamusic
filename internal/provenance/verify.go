@@ -318,7 +318,7 @@ func ptrStr(p *string) string {
 // deriveInput loads a Song's takes for picks.Derive (human stars, instants, ladder strengths) and the count of
 // eligible takes.
 func (s *Service) deriveInput(ctx context.Context, tx *sql.Tx, song string) (picks.Input, int, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT t.id, t.status, t.recorded_at, t.created_at, r.stars FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
+	rows, err := tx.QueryContext(ctx, `SELECT t.id, t.status, t.recorded_at, t.created_at, r.stars, t.transform_id IS NOT NULL FROM take_songs ts JOIN tracks t ON t.id = ts.track_id
 		LEFT JOIN owner_ratings r ON r.track_id = t.id WHERE ts.song_id = ?`, song)
 	if err != nil {
 		return picks.Input{}, 0, fmt.Errorf("provenance: verify takes: %w", err)
@@ -330,7 +330,7 @@ func (s *Service) deriveInput(ctx context.Context, tx *sql.Tx, song string) (pic
 		var ti picks.TakeInput
 		var rec, cre string
 		var stars sql.NullInt64
-		if err := rows.Scan(&ti.ID, &ti.Status, &rec, &cre, &stars); err != nil {
+		if err := rows.Scan(&ti.ID, &ti.Status, &rec, &cre, &stars, &ti.Transform); err != nil {
 			_ = rows.Close()
 			return in, 0, err
 		}
