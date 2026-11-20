@@ -125,6 +125,23 @@ func TestParse_SchemaAgreement(t *testing.T) {
 		{"36001 pitch frames", pitched, func(m map[string]any) {
 			obj(m, "pitch")["cents"], obj(m, "pitch")["conf"] = zeros(36001), zeros(36001)
 		}, false},
+		{"case-variant extra member", pitched, func(m map[string]any) { m["Status"] = "ok" }, false},
+		{"case-variant extra nested member", pitched, func(m map[string]any) { obj(m, "stages")["ASR"] = "ok" }, false},
+		{"word of 64 runes", pitched, func(m map[string]any) {
+			obj(m, "asr")["words"].([]any)[0].(map[string]any)["w"] = strings.Repeat("é", 64)
+		}, true},
+		{"word of 65 runes", pitched, func(m map[string]any) {
+			obj(m, "asr")["words"].([]any)[0].(map[string]any)["w"] = strings.Repeat("é", 65)
+		}, false},
+		{"error message of 300 runes", tierbtest.Opts{Status: "error"}, func(m map[string]any) {
+			m["errors"].([]any)[0].(map[string]any)["message"] = strings.Repeat("è", 300)
+		}, true},
+		{"error message of 301 runes", tierbtest.Opts{Status: "error"}, func(m map[string]any) {
+			m["errors"].([]any)[0].(map[string]any)["message"] = strings.Repeat("è", 301)
+		}, false},
+		{"language of 8 runes", pitched, func(m map[string]any) { obj(m, "asr")["language"] = strings.Repeat("é", 8) }, true},
+		{"language of 9 runes", pitched, func(m map[string]any) { obj(m, "asr")["language"] = strings.Repeat("é", 9) }, false},
+		{"language of 1 rune", pitched, func(m map[string]any) { obj(m, "asr")["language"] = "é" }, false},
 		{"21 errors", pitched, func(m map[string]any) {
 			e := make([]any, 21)
 			for i := range e {

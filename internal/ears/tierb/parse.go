@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"unicode/utf8"
 )
 
 // ErrContract is wrapped by every Parse failure.
@@ -64,6 +65,15 @@ func (n *node) check(v any, path string) error {
 	obj, ok := v.(map[string]any)
 	if !ok {
 		return bad("%s is not an object", path)
+	}
+	known := make(map[string]bool, len(n.keys))
+	for _, k := range n.keys {
+		known[k] = true
+	}
+	for k := range obj {
+		if !known[k] {
+			return bad("%s.%s is not a member of the contract", path, k)
+		}
 	}
 	for _, k := range n.keys {
 		m, present := obj[k]
@@ -186,7 +196,7 @@ func validate(r *Raw) error {
 		return bad("%d errors, over %d", len(r.Errors), MaxErrors)
 	}
 	for i, e := range r.Errors {
-		if !validCodes[e.Code] || len(e.Message) > 300 {
+		if !validCodes[e.Code] || utf8.RuneCountInString(e.Message) > 300 {
 			return bad("errors[%d] invalid", i)
 		}
 		switch e.Stage {
@@ -211,7 +221,7 @@ func validateASR(a *ASR) error {
 	if a == nil {
 		return nil
 	}
-	if len(a.Language) < 2 || len(a.Language) > 8 {
+	if n := utf8.RuneCountInString(a.Language); n < 2 || n > 8 {
 		return bad("asr.language %q", a.Language)
 	}
 	if len(a.Words) > MaxWords {
@@ -221,7 +231,7 @@ func validateASR(a *ASR) error {
 		return bad("%d segments, over %d", len(a.Segments), MaxSegments)
 	}
 	for i, w := range a.Words {
-		if w.Start < 0 || w.End < w.Start || w.P < 0 || w.P > 1 || len(w.W) > 64 {
+		if w.Start < 0 || w.End < w.Start || w.P < 0 || w.P > 1 || utf8.RuneCountInString(w.W) > 64 {
 			return bad("words[%d] out of range", i)
 		}
 	}

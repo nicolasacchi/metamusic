@@ -30,7 +30,7 @@ const (
 // Opts tunes FromLyrics. The zero value is a faithful Italian recognition without a pitch contour.
 type Opts struct {
 	Lang         string            // ASR language, default "it"; "auto" means not forced
-	StartS       float64           // start of the first sung word, default 10
+	StartS       float64           // start of the first sung word; 0 means the default 10 (use a small value such as 0.01 for "at once")
 	DurationS    float64           // audio duration; 0 = end of the last word + 12 s
 	Subs         map[string]string // Fold of a reference word -> what the recogniser heard instead
 	Drops        map[string]bool   // Fold of a reference word the recogniser does not hear
@@ -38,6 +38,14 @@ type Opts struct {
 	Transcribe   bool              // include the pitch stage and contour
 	Status       string            // "" or "ok"; "error" writes a failed document
 	Code         string            // error code when Status is "error", default ASR_FAILED
+}
+
+// start resolves the start of the first sung word; 0 means DefaultStartS, in layout and in FromLyrics alike.
+func (o Opts) start() float64 {
+	if o.StartS == 0 {
+		return DefaultStartS
+	}
+	return o.StartS
 }
 
 // Span is where the synthetic performance puts a section (ground truth for tests). Vocal sections start at their
@@ -62,10 +70,7 @@ func layout(lyrics string, o Opts) ([]Span, []wordAt) {
 		k := [2]int{w.Section, w.Line}
 		byLine[k] = append(byLine[k], w)
 	}
-	t := o.StartS
-	if t == 0 {
-		t = DefaultStartS
-	}
+	t := o.start()
 	var spans []Span
 	var words []wordAt
 	for i, s := range secs {
@@ -109,7 +114,7 @@ func FromLyrics(lyrics string, o Opts) []byte {
 	_, placed := layout(lyrics, o)
 	dur := o.DurationS
 	if dur == 0 {
-		end := o.StartS
+		end := o.start()
 		if len(placed) > 0 {
 			end = placed[len(placed)-1].end
 		}
