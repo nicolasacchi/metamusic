@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -38,7 +39,7 @@ func takeInfo(ctx context.Context, x q, job JobRow, trackID string, f store.Leas
 	}
 	ns, err := jobspec.ParseNeeds(needs)
 	if err != nil {
-		ns = []string{}
+		return TakeInfo{}, fmt.Errorf("jobs: job %s needs_json: %w", job.ID, err) // fail closed: the take rolls back
 	}
 	t := TakeInfo{TrackID: trackID, JobID: job.ID, BatchID: job.BatchID, Kind: kind, Needs: ns, Fence: f}
 	if patch.Valid {

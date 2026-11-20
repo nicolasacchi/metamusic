@@ -149,7 +149,7 @@ func TestJobspec_ParseNeeds(t *testing.T) {
 	if got, err := ParseNeeds(`["ears","v2"]`); err != nil || !slices.Equal(got, []string{"ears", "v2"}) {
 		t.Errorf("= %v %v", got, err)
 	}
-	for _, bad := range []string{``, `{}`, `["v2"`, `[1]`} {
+	for _, bad := range []string{``, `{}`, `["v2"`, `[1]`, `[1,2]`, `null`, `[] x`, `[]{}`} {
 		if _, err := ParseNeeds(bad); err == nil {
 			t.Errorf("ParseNeeds(%q) accepted", bad)
 		}

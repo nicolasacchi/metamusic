@@ -233,7 +233,10 @@ func ParseNeeds(raw string) ([]string, error) {
 		return nil, fmt.Errorf("jobspec: needs: %w", err)
 	}
 	if n == nil {
-		n = []string{}
+		return nil, errors.New("jobspec: needs: not a JSON array")
+	}
+	if dec.More() {
+		return nil, errors.New("jobspec: needs: trailing data")
 	}
 	return n, nil
 }

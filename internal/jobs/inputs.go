@@ -149,7 +149,7 @@ func (m *signedInputs) MintInputs(ctx context.Context, request json.RawMessage, 
 	return out, nil
 }
 
-// MintPins implements InputMinter (C323.5): the inputs of a job come from the pins of its spec, for any engine. The master is read
+// MintPins implements PinMinter (C323.5; wiring takeSpec to it is G1-F3a): the inputs of a job come from the pins of its spec, for any engine. The master is read
 // again by track id and its sha256 must equal the pin, else the attempt fails before submit with ErrInputChanged. The link is
 // signed with the master's own extension: a lossy reference (an mp3 master) can be an analyze input, a lossless master is flac.
 // No pin yields a nil map; no URL is ever persisted, logged or returned.

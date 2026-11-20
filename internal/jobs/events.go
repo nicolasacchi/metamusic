@@ -114,7 +114,7 @@ var eventDetailKeys = map[string][]string{
 	EvPreflightFailed:   {"check"},
 	EvDurationMismatch:  {"task", "expected_s", "audio_s"},
 	EvAttached:          {"track_id", "artifact", "audio_s"},
-	EvKindIngested:      {"kind", "outcome", "track_id"},
+	EvKindIngested:      {"kind", "outcome", "track_id", "audio_s"},
 	EvLRCDropped:        {},
 }
 

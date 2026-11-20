@@ -641,7 +641,7 @@ track lane that needs it makes the change as a declared serial edit.
 
   These requests come from the night plan (A1–A3) and the desk plan (A4). With these seams, the tracks stop editing `httpserver/server.go`,
   the `app.Build` literals, `audit/system.go` and `types_m3.go:116`.
-- **Ingest kinds and generation sources (accepted, lane G1-F2):** registered per track through `internal/app` (desk A5).
+- **Ingest kinds and generation sources (accepted, lane G1-F2):** registered per track through `internal/app` (desk A5). G1-F2 built the ingest kinds and take hooks only; generation sources are deferred to the Desk lane (Revision 4, C323.7).
 - **RTF learning (accepted, lane G1-F2):** a `generate` job teaches `rtf_stats` when its needs are a subset of
   `{v2, ears, agent, fallback}`. The `/2` `timings.e2e_seconds` covers the render only; Tier B time is reported in `ears.seconds`. This
   covers ears A1 and bulk A3.

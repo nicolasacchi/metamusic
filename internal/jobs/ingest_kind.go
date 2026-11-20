@@ -57,6 +57,11 @@ func (b *IngestBridge) IngestKindJob(ctx context.Context, job JobRow, att Attemp
 		if _, err := b.putEnv(ctx, tx, f, job, att, out, envID); err != nil {
 			return err
 		}
+		// a plan job has no track to carry the environment: the job row holds it, like an attached stem (C166)
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET env_id = ? WHERE id = ? AND state = 'ingesting' AND lease_owner = ?`+f.And(), //nolint:gosec // G202: fixed C69 predicate
+			append([]any{envID, job.ID, f.Owner}, f.Args()...)...); err != nil {
+			return fmt.Errorf("jobs: kind env: %w", err)
+		}
 		var err error
 		if track, outcome, err = ki.IngestKind(ctx, tx, in); err != nil {
 			return err
@@ -69,6 +74,11 @@ func (b *IngestBridge) IngestKindJob(ctx context.Context, job JobRow, att Attemp
 			return fmt.Errorf("jobs: ingester of %s returned outcome %q", job.Kind, outcome)
 		}
 		detail := map[string]any{"kind": job.Kind, "outcome": outcome}
+		if out.AudioSeconds != nil {
+			if v, err := out.AudioSeconds.Float64(); err == nil && v > 0 {
+				detail["audio_s"] = v
+			}
+		}
 		if track != nil {
 			detail["track_id"] = *track
 		}

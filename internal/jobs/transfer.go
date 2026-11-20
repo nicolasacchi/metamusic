@@ -466,6 +466,13 @@ func (r *Runner) completeCommitted(ctx context.Context, jobID string) (bool, err
 	var track string
 	var abc, sem sql.NullInt64
 	var dur float64
+	var kind string
+	if err := r.o.Store.R.QueryRowContext(ctx, `SELECT kind FROM jobs WHERE id = ?`, jobID).Scan(&kind); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	if kind != "" && !isGenerate(kind) { // the kind_ingested event decides the outcome, whatever rows the ingester wrote
+		return r.completeKinded(ctx, jobID)
+	}
 	err := r.o.Store.R.QueryRowContext(ctx, `SELECT id, truncated_abc, truncated_semantic, duration_s FROM tracks WHERE job_id = ?`, jobID).Scan(&track, &abc, &sem, &dur)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r.completeAttached(ctx, jobID)
@@ -525,8 +532,9 @@ func (r *Runner) completeAttached(ctx context.Context, jobID string) (bool, erro
 // transaction) before the process stopped: the job completes with the track and outcome the event recorded, if any.
 func (r *Runner) completeKinded(ctx context.Context, jobID string) (bool, error) {
 	var track, outcome sql.NullString
-	err := r.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.track_id'), json_extract(detail_json, '$.outcome') FROM job_events
-		WHERE job_id = ? AND event = 'kind_ingested' ORDER BY id DESC LIMIT 1`, jobID).Scan(&track, &outcome)
+	var audio sql.NullFloat64
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.track_id'), json_extract(detail_json, '$.outcome'), json_extract(detail_json, '$.audio_s') FROM job_events
+		WHERE job_id = ? AND event = 'kind_ingested' ORDER BY id DESC LIMIT 1`, jobID).Scan(&track, &outcome, &audio)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -542,7 +550,12 @@ func (r *Runner) completeKinded(ctx context.Context, jobID string) (bool, error)
 		if cur.State != StateIngesting {
 			return nil
 		}
-		return r.completeJobAs(ctx, tx, f, &cur, track.String, outcome.String, provider.Output{})
+		var out provider.Output
+		if audio.Valid && audio.Float64 > 0 {
+			n := json.Number(strconv.FormatFloat(audio.Float64, 'f', -1, 64))
+			out.AudioSeconds = &n
+		}
+		return r.completeJobAs(ctx, tx, f, &cur, track.String, outcome.String, out)
 	})
 	return true, skipStale(err)
 }

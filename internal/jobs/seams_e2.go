@@ -32,7 +32,7 @@ type InputMinter interface {
 // PinMinter is the G1 half of the minter (C323.5): it signs the inputs named by the pins of a job's spec_json, for any engine, and
 // leaves the request-derived path of InputMinter untouched. The master is re-read by track id and its sha256 must equal the pin
 // (else ErrInputChanged); a lossy master is signed with its own extension. NewInputMinter's value implements both interfaces, and
-// takeSpec asks the runner's InputMinter for this one (a minter without it can serve no pinned job).
+// takeSpec is unchanged here: G1-F3a asks the runner's Inputs for a PinMinter (a minter without it can serve no pinned job).
 type PinMinter interface {
 	MintPins(ctx context.Context, pins jobspec.Inputs, expires time.Time) (map[string]provider.InputRef, error)
 }

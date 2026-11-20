@@ -292,7 +292,7 @@ type onlyTakes struct{ Ingester }
 // TestIngest_KindCommittedCompletesFromEvent: the process stops after the kind transaction committed and before the job row
 // followed: a runner that adopts the job completes it from the kind_ingested event instead of ingesting again.
 func TestIngest_KindCommittedCompletesFromEvent(t *testing.T) {
-	pi := &planIngester{}
+	pi := &planIngester{outcome: "truncated"}
 	b := kindBridge(t, map[string]KindIngester{KindPlan: pi})
 	job := b.seed(batchSpec{recipe: b.newRecipe("pop"), kind: KindPlan, needs: `["plan","v2"]`}).Jobs[0]
 	jr, ar, files, out := b.capture(job, []byte("x"))
@@ -314,8 +314,11 @@ func TestIngest_KindCommittedCompletesFromEvent(t *testing.T) {
 	if tx, _ := pi.calls(); tx != 1 {
 		t.Errorf("the ingester ran %d times", tx)
 	}
-	if got := b.str(`SELECT COALESCE(track_id, 'NULL') || '|' || outcome FROM jobs WHERE id = ?`, job); got != "NULL|clean" {
+	if got := b.str(`SELECT COALESCE(track_id, 'NULL') || '|' || outcome FROM jobs WHERE id = ?`, job); got != "NULL|truncated" {
 		t.Errorf("job row = %s", got)
+	}
+	if got := b.str(`SELECT COALESCE(env_id, 'NULL') FROM jobs WHERE id = ?`, job); got == "NULL" {
+		t.Errorf("a completed plan job lost its environment")
 	}
 }
 
