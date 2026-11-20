@@ -1,0 +1,368 @@
+[
+  {
+    "name": "sections yue2",
+    "report": {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/8",
+        "q": "1/4=92",
+        "bpm": 92,
+        "key": "Am"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "vocal",
+          "bars": 16
+        },
+        {
+          "id": "2",
+          "name": "bass",
+          "bars": 16
+        }
+      ],
+      "sections": [
+        {
+          "label": "intro",
+          "kind": "intro",
+          "start_bar": 0,
+          "bars": 2
+        },
+        {
+          "label": "verse 1",
+          "kind": "verse",
+          "start_bar": 2,
+          "bars": 4
+        },
+        {
+          "label": "chorus",
+          "kind": "chorus",
+          "start_bar": 6,
+          "bars": 4
+        },
+        {
+          "label": "verse 2",
+          "kind": "verse",
+          "start_bar": 10,
+          "bars": 4
+        },
+        {
+          "label": "outro",
+          "kind": "outro",
+          "start_bar": 14,
+          "bars": 2
+        }
+      ],
+      "bars": 16,
+      "timed": true,
+      "seconds_per_bar": 2.608696,
+      "duration_s": 41.739136,
+      "events": 52,
+      "chords": 15,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": null
+    }
+  },
+  {
+    "name": "divergent yue2",
+    "report": {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/4",
+        "q": "1/4=100",
+        "bpm": 100,
+        "key": "C"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "",
+          "bars": 2
+        }
+      ],
+      "sections": [],
+      "bars": 2,
+      "timed": true,
+      "seconds_per_bar": 2.4,
+      "duration_s": 2.4,
+      "events": 4,
+      "chords": 0,
+      "divergent_bars": 1,
+      "display_abc": "X:1\nM:4/4\nL:1/4\nQ:1/4=100\nK:C\nV:1\n^F^f F|c|\n",
+      "violations": null
+    }
+  },
+  {
+    "name": "standard untimed",
+    "report": {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "dialect": "standard",
+      "header": {
+        "meter": "3/4",
+        "unit": "1/8",
+        "q": "",
+        "bpm": null,
+        "key": "G"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "",
+          "bars": 1
+        }
+      ],
+      "sections": [],
+      "bars": 1,
+      "timed": false,
+      "seconds_per_bar": null,
+      "duration_s": 3,
+      "events": 12,
+      "chords": 0,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": null
+    }
+  },
+  {
+    "name": "unparsable",
+    "report": {
+      "ok": false,
+      "errors": [
+        {
+          "line": 5,
+          "col": 1,
+          "rule": "unterminated_chord"
+        }
+      ],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": null,
+      "voices": [],
+      "sections": [],
+      "bars": 0,
+      "timed": false,
+      "seconds_per_bar": null,
+      "duration_s": null,
+      "events": 0,
+      "chords": 0,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": null
+    }
+  },
+  {
+    "name": "violations",
+    "report": {
+      "ok": false,
+      "errors": [],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/4",
+        "q": "1/4=100",
+        "bpm": 100,
+        "key": "C"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "vocal",
+          "bars": 8
+        },
+        {
+          "id": "2",
+          "name": "bass",
+          "bars": 8
+        }
+      ],
+      "sections": [
+        {
+          "label": "verse",
+          "kind": "verse",
+          "start_bar": 0,
+          "bars": 4
+        },
+        {
+          "label": "chorus",
+          "kind": "chorus",
+          "start_bar": 4,
+          "bars": 4
+        }
+      ],
+      "bars": 8,
+      "timed": true,
+      "seconds_per_bar": 2.4,
+      "duration_s": 19.8,
+      "events": 41,
+      "chords": 2,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": [
+        {
+          "code": "bar_length",
+          "voice": "1",
+          "bar": 1,
+          "msg": "bar is 5/4 whole notes long, the meter 4/4 is 1/1"
+        }
+      ]
+    }
+  },
+  {
+    "name": "base ok",
+    "report": {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/4",
+        "q": "1/4=100",
+        "bpm": 100,
+        "key": "C"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "vocal",
+          "bars": 8
+        },
+        {
+          "id": "2",
+          "name": "bass",
+          "bars": 8
+        }
+      ],
+      "sections": [
+        {
+          "label": "verse",
+          "kind": "verse",
+          "start_bar": 0,
+          "bars": 4
+        },
+        {
+          "label": "chorus",
+          "kind": "chorus",
+          "start_bar": 4,
+          "bars": 4
+        }
+      ],
+      "bars": 8,
+      "timed": true,
+      "seconds_per_bar": 2.4,
+      "duration_s": 19.2,
+      "events": 40,
+      "chords": 2,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": []
+    }
+  },
+  {
+    "name": "warnings",
+    "report": {
+      "ok": true,
+      "errors": [],
+      "warnings": [
+        {
+          "code": "decoration_ignored",
+          "line": 7
+        }
+      ],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/4",
+        "q": "1/4=100",
+        "bpm": 100,
+        "key": "C"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "",
+          "bars": 1
+        }
+      ],
+      "sections": [],
+      "bars": 1,
+      "timed": true,
+      "seconds_per_bar": 2.4,
+      "duration_s": 2.4,
+      "events": 4,
+      "chords": 0,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": null
+    }
+  },
+  {
+    "name": "bad base",
+    "report": {
+      "ok": false,
+      "errors": [],
+      "warnings": [],
+      "dialect": "yue2",
+      "header": {
+        "meter": "4/4",
+        "unit": "1/4",
+        "q": "1/4=100",
+        "bpm": 100,
+        "key": "C"
+      },
+      "voices": [
+        {
+          "id": "1",
+          "name": "vocal",
+          "bars": 8
+        },
+        {
+          "id": "2",
+          "name": "bass",
+          "bars": 8
+        }
+      ],
+      "sections": [
+        {
+          "label": "verse",
+          "kind": "verse",
+          "start_bar": 0,
+          "bars": 4
+        },
+        {
+          "label": "chorus",
+          "kind": "chorus",
+          "start_bar": 4,
+          "bars": 4
+        }
+      ],
+      "bars": 8,
+      "timed": true,
+      "seconds_per_bar": 2.4,
+      "duration_s": 19.2,
+      "events": 40,
+      "chords": 2,
+      "divergent_bars": 0,
+      "display_abc": null,
+      "violations": [
+        {
+          "code": "base_unparsable",
+          "bar": -1,
+          "msg": "abc: line 1 col 16: unterminated_chord: chord is not closed"
+        }
+      ]
+    }
+  }
+]
