@@ -163,6 +163,9 @@ type l2Builder struct {
 	tx  *sql.Tx
 	out L2Info
 	n   [l2Spaces]int
+	// stmts caches the prepared statements of put for the builder's transaction: the scale fixture runs the same 15 INSERTs
+	// 10 000 times, and parsing them again each time (the triggers' bodies included) was 50% of its CPU, minutes under -race.
+	stmts map[string]*sql.Stmt
 }
 
 func newL2Builder(tb testing.TB, st *store.Store, now time.Time) *l2Builder {
@@ -176,7 +179,18 @@ func (b *l2Builder) ts(d time.Duration) string { return store.FormatTime(b.now.A
 // put runs one statement of the builder's transaction.
 func (b *l2Builder) put(q string, args ...any) {
 	b.tb.Helper()
-	if _, err := b.tx.ExecContext(context.Background(), q, args...); err != nil {
+	st, ok := b.stmts[q]
+	if !ok {
+		var err error
+		if st, err = b.tx.PrepareContext(context.Background(), q); err != nil {
+			b.tb.Fatalf("fixture L2: %v\n%s", err, q)
+		}
+		if b.stmts == nil {
+			b.stmts = map[string]*sql.Stmt{}
+		}
+		b.stmts[q] = st
+	}
+	if _, err := st.ExecContext(context.Background(), args...); err != nil {
 		b.tb.Fatalf("fixture L2: %v\n%s", err, q)
 	}
 }
@@ -186,7 +200,7 @@ func (b *l2Builder) begin() { b.tx = begin(b.tb, b.st) }
 func (b *l2Builder) commit() {
 	b.tb.Helper()
 	check(b.tb, b.tx.Commit())
-	b.tx = nil
+	b.tx, b.stmts = nil, nil
 }
 func (b *l2Builder) abort() {
 	if b.tx != nil {

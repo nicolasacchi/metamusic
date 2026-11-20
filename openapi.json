@@ -12254,6 +12254,10 @@
       "OtherRating": {
         "additionalProperties": false,
         "properties": {
+          "former": {
+            "description": "True when this user is no longer configured in MM_USERS; the rating still counts in the average",
+            "type": "boolean"
+          },
           "stars": {
             "format": "int64",
             "type": [

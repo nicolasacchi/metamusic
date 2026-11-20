@@ -1,0 +1,29 @@
+X:1
+T:synthetic song
+M:4/4
+L:1/8
+Q:1/4=92
+K:Am
+%%MIDI program 53
+V:1 name="vocal"
+% intro
+"Am"z8 | "G"z8 |
+% verse 1
+"Am"A2 B2 c2 e2 | "G"d2 B2 G4 | "F"A2 c2 f4 | "E"e4 z4 |
+% chorus
+"C"e2 e2 g2 e2 | "G"d2 d2 B4 | "Am"c2 B2 A4 | "E"^G2 A2 B4 |
+% verse 2
+"Am"A2 B2 c2 e2 | "G"d2 B2 G4 | "F"A2 c2 f4 | "E"e4 z4 |
+% outro - fade
+"Am"A8 | z8 |
+V:2 name="bass"
+% intro
+A,,8 | G,,8 |
+% verse 1
+A,,8 | G,,8 | F,,8 | E,,8 |
+% chorus
+C,8 | G,,8 | A,,8 | E,,8 |
+% verse 2
+A,,8 | G,,8 | F,,8 | E,,8 |
+% outro - fade
+A,,8 | A,,8 |

@@ -19,7 +19,7 @@ export async function setStatus(owner: APIRequestContext, id: string, status: "d
 
 export interface RatingBody {
   mine: { stars: number | null } | null;
-  others?: { user: string; stars: number | null }[] | null;
+  others?: { user: string; stars: number | null; former?: boolean }[] | null;
   average?: unknown;
 }
 
