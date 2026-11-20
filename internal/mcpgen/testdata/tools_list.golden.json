@@ -6548,6 +6548,9 @@
             "others": {
               "items": {
                 "properties": {
+                  "former": {
+                    "type": "boolean"
+                  },
                   "stars": {
                     "format": "int64",
                     "type": [
@@ -9139,6 +9142,9 @@
         "others": {
           "items": {
             "properties": {
+              "former": {
+                "type": "boolean"
+              },
               "stars": {
                 "format": "int64",
                 "type": [

@@ -23,6 +23,8 @@ test("three users rate one take independently and each sees only what their role
     expect(o.mine?.stars).toBe(5);
     expect(o.others?.map((x) => [x.user, x.stars]).sort()).toEqual([[EDITOR_USER, 4], [LISTENER_USER, 2]]);
     expect(o.average).toBeTruthy();
+    // both raters are configured users: none is flagged former (a removed user gets "former user (name)" in the same list)
+    expect(o.others?.every((x) => !x.former)).toBe(true);
 
     const e = await ratingOf(bob, t.id);
     expect(e.mine?.stars).toBe(4);
@@ -41,6 +43,7 @@ test("three users rate one take independently and each sees only what their role
     await expect(page.getByTestId("rating-other")).toHaveCount(2);
     await expect(page.getByTestId("rating-others")).toContainText(EDITOR_USER);
     await expect(page.getByTestId("rating-others")).toContainText(LISTENER_USER);
+    await expect(page.getByTestId("rating-others")).not.toContainText("former user");
 
     // the Owner re-rates in the UI; the others stay where they were. A Listener clearing theirs leaves the Owner's alone.
     await page.getByTestId("track-judge").getByRole("button", { name: "3 stars", exact: true }).click();

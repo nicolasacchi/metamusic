@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { averageLabel, mineOf, ratingView, starsLabel } from "./ratingView";
+import { averageLabel, mineOf, ratingView, raterLabel, starsLabel } from "./ratingView";
 
 const by = { id: "u1", kind: "human", name: "x" };
 const own = { by, stars: 4, updated_at: "2026-01-01T00:00:00Z", verdict: "keeper" };
@@ -17,8 +17,8 @@ describe("ratingView shapes per role (C306.4)", () => {
     });
     expect(v.mine).toEqual({ stars: 4, verdict: "keeper" });
     expect(v.others).toEqual([
-      { user: "bob", stars: 3, verdict: null },
-      { user: "carol", stars: null, verdict: "slow" },
+      { user: "bob", stars: 3, verdict: null, former: false },
+      { user: "carol", stars: null, verdict: "slow", former: false },
     ]);
     expect(v.average).toEqual({ mean: 3.6666, n: 3 });
     expect(averageLabel(v.average!)).toBe("3.67 from 3 ratings");
@@ -42,7 +42,7 @@ describe("ratingView shapes per role (C306.4)", () => {
       others: [{ user: "", stars: 2 }, { stars: 2 }, null, { user: "bob", stars: null, verdict: null }, { user: "dan", stars: 5, verdict: null }] as never,
       average: { mean: "4", n: 2 } as never,
     });
-    expect(v.others).toEqual([{ user: "dan", stars: 5, verdict: null }]);
+    expect(v.others).toEqual([{ user: "dan", stars: 5, verdict: null, former: false }]);
     expect(v.average).toBeNull();
     expect(ratingView({ ...base, average: { mean: 0, n: 0 } }).average).toBeNull();
     expect(ratingView({ ...base, others: "nope" } as never).others).toBeNull();
@@ -60,5 +60,24 @@ describe("ratingView shapes per role (C306.4)", () => {
   test("labels", () => {
     expect(starsLabel({ stars: 3, verdict: null })).toBe("★3");
     expect(starsLabel({ stars: null, verdict: "x" })).toBe("no stars");
+  });
+});
+
+describe("former users (U1 follow-up)", () => {
+  test("a rater the server marks former is labelled, still listed, and the average is untouched", () => {
+    const v = ratingView({
+      ...base,
+      others: [
+        { user: "bob", stars: 3, verdict: null, updated_at: "x" },
+        { user: "dave", stars: 1, verdict: null, former: true, updated_at: "x" },
+      ],
+      average: { mean: 2.67, n: 3 },
+    });
+    expect(v.others?.map((o) => raterLabel(o))).toEqual(["bob", "former user (dave)"]);
+    expect(v.average).toEqual({ mean: 2.67, n: 3 });
+  });
+  test("a missing or non-boolean former flag never marks a user former", () => {
+    const v = ratingView({ ...base, others: [{ user: "bob", stars: 3, verdict: null, former: "yes" }] as never });
+    expect(v.others?.[0]?.former).toBe(false);
   });
 });

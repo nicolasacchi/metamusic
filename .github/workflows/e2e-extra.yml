@@ -98,9 +98,7 @@ jobs:
           bun install --frozen-lockfile
           bun run build
       - name: apt flac
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flac
+        run: scripts/apt-install.sh flac
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

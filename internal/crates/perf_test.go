@@ -1,3 +1,10 @@
+//go:build !race
+
+// This file is excluded under -race on purpose. A budget test measures the uninstrumented binary (CI runs it in the perf job,
+// no race, no cover; the race shards pass -skip '^TestPerf_'), and under -race the transpiled SQLite costs 30x on this path: the
+// 10 000-Song fixture alone takes more than 3 minutes (it never finished in 9 before its INSERTs were prepared once), and the
+// count plus first page measures 8.7 s CPU against a 300 ms budget. A plain `go test -race ./internal/crates/` (make test) used
+// to run it and look hung. It is not a deadlock: the profile is all sqlite3Parse/checkptr inside FixtureL2Scale.
 package crates_test
 
 import (

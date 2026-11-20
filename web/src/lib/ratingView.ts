@@ -13,6 +13,8 @@ export interface Row {
 
 export interface OtherRow extends Row {
   user: string;
+  /** True when the server says the user is no longer configured in MM_USERS; the rating still counts in the average. */
+  former: boolean;
 }
 
 export interface RatingView {
@@ -48,7 +50,7 @@ export function ratingView(r: Partial<TrackRating> | null | undefined): RatingVi
     for (const o of r.others as unknown[]) {
       const x = row(o);
       const user = (o as { user?: unknown } | null)?.user;
-      if (x && typeof user === "string" && user !== "" && (x.stars !== null || x.verdict !== null)) others.push({ user, ...x });
+      if (x && typeof user === "string" && user !== "" && (x.stars !== null || x.verdict !== null)) others.push({ user, ...x, former: (o as { former?: unknown }).former === true });
     }
   }
   let average: RatingView["average"] = null;
@@ -68,4 +70,9 @@ export function averageLabel(a: { mean: number; n: number }): string {
 /** "★4" or "—" for a rater who gave a verdict but no stars. */
 export function starsLabel(r: Row): string {
   return r.stars === null ? "no stars" : `★${r.stars}`;
+}
+
+/** The Owner's name for a rater: "bob", or "former user (bob)" once bob is no longer configured. */
+export function raterLabel(o: { user: string; former: boolean }): string {
+  return o.former ? `former user (${o.user})` : o.user;
 }
