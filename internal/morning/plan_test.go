@@ -308,3 +308,44 @@ func TestChapterAt(t *testing.T) {
 		}
 	}
 }
+
+func TestSelect_BudgetUsesFrames(t *testing.T) {
+	c := cand("a", "r1", SourceJob, 0, 0)
+	c.DurationS = 0
+	c.TotalSamples = 600 * SampleRate // 10 min, but DurationS says 0
+	d := cand("b", "r2", SourceJob, 1, 0)
+	d.DurationS = 0
+	d.TotalSamples = 600 * SampleRate
+	o := opts()
+	o.Minutes = 15
+	p := Select(Input{Candidates: []Candidate{c, d}}, o, 1)
+	if n := len(chapters(p)); n != 1 {
+		t.Fatalf("chapters = %d, want 1 (budget must use frames)", n)
+	}
+	if len(p.Excluded) != 1 || p.Excluded[0].Reason != ExcludeOverBudget {
+		t.Fatalf("excluded = %+v", p.Excluded)
+	}
+}
+
+func TestSelect_ExcludedOncePerTrack(t *testing.T) {
+	bad := cand("bad", "r1", SourceJob, 0, 100)
+	bad.Truncated = true
+	ok := cand("ok", "r2", SourceJob, 0, 100)
+	in := Input{Candidates: []Candidate{bad, ok}, Anchors5: []Candidate{bad}, AnchorsFinal: []Candidate{bad}}
+	p := Select(in, opts(), 1)
+	if diff := cmp.Diff([]Excluded{{"bad", ExcludeTruncated}}, p.Excluded); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
+func TestSelect_EmptyRootIsUnique(t *testing.T) {
+	var cs []Candidate
+	for i := range 4 {
+		cs = append(cs, cand(fmt.Sprintf("t%d", i), "", SourceJob, i, 100))
+	}
+	for seed := uint64(1); seed <= 20; seed++ {
+		if p := Select(Input{Candidates: cs}, opts(), seed); p.AdjacencyRelaxed {
+			t.Fatalf("seed %d: empty roots treated as siblings", seed)
+		}
+	}
+}

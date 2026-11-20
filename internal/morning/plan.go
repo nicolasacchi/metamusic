@@ -121,7 +121,7 @@ type picked struct {
 func Select(in Input, opts Options, seed uint64) Plan {
 	plan := Plan{Seed: seed}
 	slate := int64(opts.SlateMS) * SampleRate / 1000
-	budgetS := float64(opts.Minutes) * 60
+	budget := int64(opts.Minutes) * 60 * SampleRate
 	sideCap := int64(opts.SideMinutes) * 60 * SampleRate
 
 	usable := func(c Candidate) (int64, string) {
@@ -145,17 +145,22 @@ func Select(in Input, opts Options, seed uint64) Plan {
 	}
 
 	candRoots := map[string]bool{}
-	candIDs := map[string]bool{}
 	for _, c := range in.Candidates {
-		candRoots[c.RootID] = true
-		candIDs[c.TrackID] = true
+		candRoots[rootKey(c)] = true
+	}
+	excluded := map[string]bool{}
+	exclude := func(c Candidate, why string) {
+		if excluded[c.TrackID] {
+			return
+		}
+		excluded[c.TrackID] = true
+		plan.Excluded = append(plan.Excluded, Excluded{c.TrackID, why})
 	}
 
 	var chosen []picked
 	used := map[string]bool{}
 	usedRoots := map[string]bool{}
-	elapsed := 0.0
-	slateS := float64(opts.SlateMS) / 1000
+	var elapsed int64 // frames, same measure as the side layout
 
 	// Anchors first; their time is reserved before any candidate.
 	anchorRNG := rand.New(rand.NewPCG(seed, 1))
@@ -168,27 +173,27 @@ func Select(in Input, opts Options, seed uint64) Plan {
 		anchorRNG.Shuffle(len(ordered), func(i, j int) { ordered[i], ordered[j] = ordered[j], ordered[i] })
 		// Roots absent from the candidates first (stable keeps the shuffle).
 		slices.SortStableFunc(ordered, func(a, b Candidate) int {
-			return cmp.Compare(b2i(candRoots[a.RootID]), b2i(candRoots[b.RootID]))
+			return cmp.Compare(b2i(candRoots[rootKey(a)]), b2i(candRoots[rootKey(b)]))
 		})
 		for _, c := range ordered {
 			if len(chosen) >= opts.Anchors || len(chosen) >= opts.MaxTakes {
 				break
 			}
-			if used[c.TrackID] || usedRoots[c.RootID] {
+			if used[c.TrackID] || excluded[c.TrackID] || usedRoots[rootKey(c)] {
 				continue
 			}
 			n, why := usable(c)
 			if why != "" {
-				plan.Excluded = append(plan.Excluded, Excluded{c.TrackID, why})
+				exclude(c, why)
 				continue
 			}
-			if elapsed+c.DurationS+slateS > budgetS {
-				plan.Excluded = append(plan.Excluded, Excluded{c.TrackID, ExcludeOverBudget})
+			if elapsed+slate+n > budget {
+				exclude(c, ExcludeOverBudget)
 				continue
 			}
 			chosen = append(chosen, picked{c, true, n})
-			used[c.TrackID], usedRoots[c.RootID] = true, true
-			elapsed += c.DurationS + slateS
+			used[c.TrackID], usedRoots[rootKey(c)] = true, true
+			elapsed += slate + n
 		}
 	}
 
@@ -204,20 +209,20 @@ func Select(in Input, opts Options, seed uint64) Plan {
 		return cmp.Compare(a.TrackID, b.TrackID)
 	})
 	for _, c := range cands {
-		if used[c.TrackID] {
+		if used[c.TrackID] || excluded[c.TrackID] {
 			continue
 		}
 		n, why := usable(c)
-		if why == "" && (len(chosen) >= opts.MaxTakes || elapsed+c.DurationS+slateS > budgetS) {
+		if why == "" && (len(chosen) >= opts.MaxTakes || elapsed+slate+n > budget) {
 			why = ExcludeOverBudget
 		}
 		if why != "" {
-			plan.Excluded = append(plan.Excluded, Excluded{c.TrackID, why})
+			exclude(c, why)
 			continue
 		}
 		chosen = append(chosen, picked{c, false, n})
 		used[c.TrackID] = true
-		elapsed += c.DurationS + slateS
+		elapsed += slate + n
 	}
 
 	order, relaxed := blindOrder(chosen, rand.New(rand.NewPCG(seed, 0)))
@@ -275,7 +280,7 @@ func blindOrder(in []picked, rng *rand.Rand) (out []picked, relaxed bool) {
 				if len(seq) == 0 && p.anchor {
 					continue
 				}
-				if len(seq) > 0 && seq[len(seq)-1].c.RootID == p.c.RootID {
+				if len(seq) > 0 && rootKey(seq[len(seq)-1].c) == rootKey(p.c) {
 					continue
 				}
 				idx = i
@@ -292,7 +297,7 @@ func blindOrder(in []picked, rng *rand.Rand) (out []picked, relaxed bool) {
 				if idx < 0 {
 					idx = 0
 				}
-				if len(seq) > 0 && seq[len(seq)-1].c.RootID == rest[idx].c.RootID {
+				if len(seq) > 0 && rootKey(seq[len(seq)-1].c) == rootKey(rest[idx].c) {
 					v++
 				}
 			}
@@ -315,11 +320,19 @@ func blindOrder(in []picked, rng *rand.Rand) (out []picked, relaxed bool) {
 
 func hasAdjacent(s []picked) bool {
 	for i := 1; i < len(s); i++ {
-		if s[i-1].c.RootID == s[i].c.RootID {
+		if rootKey(s[i-1].c) == rootKey(s[i].c) {
 			return true
 		}
 	}
 	return false
+}
+
+// rootKey is the sibling identity of a take; a missing root is its own root.
+func rootKey(c Candidate) string {
+	if c.RootID == "" {
+		return "track:" + c.TrackID
+	}
+	return c.RootID
 }
 
 func noLoudness(c Candidate) bool {
