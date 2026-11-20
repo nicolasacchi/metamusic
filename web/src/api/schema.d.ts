@@ -6079,6 +6079,8 @@ export interface components {
             subsonic_muse_names: boolean;
         };
         OtherRating: {
+            /** @description True when this user is no longer configured in MM_USERS; the rating still counts in the average */
+            former?: boolean;
             /** Format: int64 */
             stars: number | null;
             updated_at: string;

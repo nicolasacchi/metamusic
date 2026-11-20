@@ -8,6 +8,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/reqinfo"
@@ -28,8 +29,12 @@ func judgErr(err error) error {
 
 // maskRating shapes a track's ratings for viewer (C306.4: own row, others, average, critic by role) and renders the
 // rows' principal references for them (D-M2a-19). Every path that returns a TrackRating goes through it.
-func maskRating(v auth.Principal, tr *library.TrackRating) {
+func maskRating(v auth.Principal, users map[string]config.Role, tr *library.TrackRating) {
 	*tr = library.ShapeRating(v, *tr)
+	for i := range tr.Others { // a rater no longer in MM_USERS is a former user; the rating stays in the average
+		_, configured := users[tr.Others[i].User]
+		tr.Others[i].Former = !configured
+	}
 	for _, row := range []*library.RatingRow{tr.Mine, tr.Human, tr.Critic} {
 		if row != nil {
 			row.By = RefFor(v, row.By.ID, row.By.Kind, row.By.Name)
@@ -38,9 +43,9 @@ func maskRating(v auth.Principal, tr *library.TrackRating) {
 }
 
 // maskTrack renders the principal-valued fields of a track detail for viewer.
-func maskTrack(v auth.Principal, t *library.TrackDetail) {
+func maskTrack(v auth.Principal, users map[string]config.Role, t *library.TrackDetail) {
 	t.StatusSetBy = KeyFor(v, t.StatusSetBy)
-	maskRating(v, &t.Rating)
+	maskRating(v, users, &t.Rating)
 }
 
 // renderComment fills the absolute URL and renders the author for viewer.
@@ -83,7 +88,7 @@ func registerJudgments(a huma.API, d Deps) {
 			if err != nil {
 				return nil, judgErr(err)
 			}
-			maskRating(p, &tr)
+			maskRating(p, d.Cfg.Users, &tr)
 			return &ratingOut{Body: tr}, nil
 		})
 
@@ -104,7 +109,7 @@ func registerJudgments(a huma.API, d Deps) {
 			if err != nil {
 				return nil, libErr(err)
 			}
-			maskTrack(p, &t)
+			maskTrack(p, d.Cfg.Users, &t)
 			return &trackDetailOut{Body: t}, nil
 		})
 
