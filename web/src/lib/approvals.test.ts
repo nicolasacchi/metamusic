@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadRecentDecisions, recentDecisions, ageLabel, badgeText, confirmHref, expiryLabel, isPending, loadPendingApprovals, reasonLabel, type ApprovalsClient, type PendingBatch } from "./approvals";
+import { loadRecentDecisions, recentDecisions, ageLabel, badgeText, confirmHref, expiryLabel, isPending, loadPendingApprovals, loadPendingApprovalsRetrying, reasonLabel, type ApprovalsClient, type PendingBatch } from "./approvals";
 
 const mk = (state: PendingBatch["state"], approval: PendingBatch["approval"]["state"]) => ({ state, approval: { state: approval } }) as unknown as PendingBatch;
 
@@ -24,6 +24,27 @@ describe("approvals", () => {
   test("failures yield null, never a stale zero", async () => {
     expect(await loadPendingApprovals({ GET: () => Promise.reject(new Error("x")) })).toBeNull();
     expect(await loadPendingApprovals({ GET: () => Promise.resolve({ error: {} }) })).toBeNull();
+  });
+  test("a failed first call is retried after the pauses, and a good answer stops the retries", async () => {
+    let n = 0;
+    const slept: number[] = [];
+    const client: ApprovalsClient = {
+      GET: () => (++n < 3 ? Promise.reject(new Error("aborted")) : Promise.resolve({ data: { items: [mk("awaiting_confirmation", "pending")], next_cursor: null } })),
+    };
+    const p = await loadPendingApprovalsRetrying(client, [10, 20], (ms) => (slept.push(ms), Promise.resolve()));
+    expect(p?.items).toHaveLength(1);
+    expect(n).toBe(3);
+    expect(slept).toEqual([10, 20]);
+    n = 0;
+    slept.length = 0;
+    expect(await loadPendingApprovalsRetrying({ GET: () => (n++, Promise.resolve({ data: { items: [], next_cursor: null } })) }, [10], (ms) => (slept.push(ms), Promise.resolve()))).toEqual({ items: [], more: false });
+    expect(n).toBe(1);
+    expect(slept).toEqual([]);
+  });
+  test("when every retry fails the answer is still null, never a stale zero", async () => {
+    let n = 0;
+    expect(await loadPendingApprovalsRetrying({ GET: () => (n++, Promise.reject(new Error("x"))) }, [1, 1], () => Promise.resolve())).toBeNull();
+    expect(n).toBe(3);
   });
   test("isPending needs both the batch state and the approval state", () => {
     expect(isPending(mk("awaiting_confirmation", "pending"))).toBe(true);

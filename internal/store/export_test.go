@@ -5,8 +5,19 @@ import (
 	"database/sql"
 )
 
-// MigrateTo is the test hook for partial migration (upgrade tests).
-var MigrateTo = migrateTo
+// MigrateTo is the test hook for partial migration (upgrade tests). On a brand-new database it restores a per-process image
+// of the schema at that version instead of re-applying every migration (see versionImage); on any other database it is
+// migrateTo.
+func MigrateTo(ctx context.Context, db *sql.DB, n int) error {
+	if n > 0 {
+		if ok, err := restoreFreshFromImage(ctx, db, n); err != nil {
+			return err
+		} else if ok {
+			return nil
+		}
+	}
+	return migrateTo(ctx, db, n)
+}
 
 // OpenRaw opens a bare single-connection writer pool without migrating.
 func OpenRaw(path string) (*sql.DB, error) {
