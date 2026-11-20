@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -73,7 +74,8 @@ func applySplices(src []byte, sp []splice) ([]byte, error) {
 
 // Edit applies ops in order to src (t is its parse, or nil) and returns the new text, its parse and the invariant
 // violations of the result against t (CheckInvariants). Bar indexes of each operation refer to the text its predecessors
-// produced; they stay valid because an edit never changes the number of bars. Every byte outside the edited bars' spans
+// produced; replace_bars keeps the bar count by construction (it fixes the segment count; CheckInvariants, not this
+// comment, guards it). Every byte outside the edited bars' spans
 // (and the Q: line of set_tempo) is unchanged. A malformed operation, or a result that does not parse, returns an
 // *EditError and no output; violations return the output with the list. Edit never panics.
 func Edit(src []byte, t *Tune, ops []Op, o Options) (out []byte, edited *Tune, v []Violation, err error) {
@@ -124,7 +126,7 @@ func Edit(src []byte, t *Tune, ops []Op, o Options) (out []byte, edited *Tune, v
 		}
 		if verify != nil {
 			if verr := verify(nt); verr != nil {
-				return nil, nil, nil, editErr(i, "internal", "%v", verr)
+				return nil, nil, nil, editErr(i, "transpose_unverified", "%v", verr)
 			}
 		}
 		text, cur = next, nt
@@ -163,6 +165,26 @@ func sharedSpan(bars []Bar, from, to int) bool {
 	return false
 }
 
+var fieldStartRe = regexp.MustCompile(`^[A-Za-z]:`)
+
+// splitBars splits on '|' outside double-quoted strings (chord symbols, annotations).
+func splitBars(s string) []string {
+	var out []string
+	q, from := false, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '"':
+			q = !q
+		case '|':
+			if !q {
+				out = append(out, s[from:i])
+				from = i + 1
+			}
+		}
+	}
+	return append(out, s[from:])
+}
+
 func replaceSplices(t *Tune, op Op, oi int) ([]splice, error) {
 	vi := -1
 	if op.Voice != "" {
@@ -179,7 +201,10 @@ func replaceSplices(t *Tune, op Op, oi int) ([]splice, error) {
 	if strings.ContainsAny(op.ABC, "\r\n%") {
 		return nil, editErr(oi, "bad_abc", "the replacement must be one line without a comment")
 	}
-	segs := strings.Split(op.ABC, "|")
+	if t := strings.TrimSpace(op.ABC); fieldStartRe.MatchString(t) || strings.HasSuffix(t, "\\") {
+		return nil, editErr(oi, "bad_abc", "the replacement must not be a field line or end in a line continuation")
+	}
+	segs := splitBars(op.ABC)
 	if len(segs) != n {
 		return nil, editErr(oi, "bad_abc", "the replacement holds %d bars, the range %d", len(segs), n)
 	}

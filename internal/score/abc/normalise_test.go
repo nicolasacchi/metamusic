@@ -34,6 +34,7 @@ func TestNormalise_SamePitches(t *testing.T) {
 		h + "^F4-|f4|F4|\n",
 		h + "(3^FfF c|\n",
 		h + "V:1\n^Ff|\nV:2\nF,^F,|\n",
+		h + "[K:D] ^Ff F|\n",
 	}
 	m, _ := filepath.Glob("testdata/*.abc")
 	for _, f := range m {

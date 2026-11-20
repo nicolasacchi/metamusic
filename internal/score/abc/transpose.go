@@ -3,6 +3,7 @@ package abc
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -268,6 +269,9 @@ func transposeSplices(t *Tune, op Op, oi int) ([]splice, func(*Tune) error, erro
 	} else {
 		return nil, nil, editErr(oi, "bad_voice", "no voice %q", op.Voice)
 	}
+	if inlineKeyRe.Match(t.Src) {
+		return nil, nil, editErr(oi, "unsupported_feature", "the tune changes key inside the body, which transpose_bars does not support")
+	}
 	tr := transposer{t: t, semis: op.Semitones, sharp: t.Header.Key.Sharps > 0, dia: t.opts.dialect()}
 	var sp []splice
 	type want struct {
@@ -328,3 +332,6 @@ func transposeSplices(t *Tune, op Op, oi int) ([]splice, func(*Tune) error, erro
 	}
 	return sp, verify, nil
 }
+
+// inlineKeyRe finds a key change in the body: an inline [K:..] field or a K: line that is not the header's.
+var inlineKeyRe = regexp.MustCompile(`\[K:|(?s:\nK:.*\nK:)`)

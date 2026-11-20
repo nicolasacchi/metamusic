@@ -108,6 +108,9 @@ func TestEdit_Errors(t *testing.T) {
 		{"transpose unknown voice", []Op{{Op: OpTransposeBars, Voice: "x", BarFrom: 0, BarTo: 0, Semitones: 2}}, "bad_voice", nil},
 		{"transpose past the end", []Op{{Op: OpTransposeBars, Voice: "", BarFrom: 0, BarTo: 8, Semitones: 2}}, "bad_range", nil},
 		{"transpose out of pitch range", []Op{{Op: OpTransposeBars, Voice: "1", BarFrom: 0, BarTo: 0, Semitones: 12}}, "pitch_range", highTune(t)},
+		{"field line in abc", []Op{{Op: OpReplaceBars, Voice: "1", BarFrom: 0, BarTo: 0, ABC: "w: a b c d"}}, "bad_abc", nil},
+		{"trailing backslash", []Op{{Op: OpReplaceBars, Voice: "1", BarFrom: 0, BarTo: 0, ABC: "C4\\"}}, "bad_abc", nil},
+		{"inline key change", []Op{{Op: OpTransposeBars, Voice: "1", BarFrom: 0, BarTo: 1, Semitones: 3}}, "unsupported_feature", mustParse(t, "X:1\nM:4/4\nL:1/4\nK:C\n[K:D] dddd|dddd|\n", DialectYuE2)},
 		{"tempo 39", []Op{{Op: OpSetTempo, BPM: 39}}, "bad_tempo", nil},
 		{"tempo 241", []Op{{Op: OpSetTempo, BPM: 241}}, "bad_tempo", nil},
 	}
@@ -382,4 +385,17 @@ func FuzzEdit(f *testing.F) {
 			t.Fatalf("slow input: %v", time.Since(start))
 		}
 	})
+}
+
+func TestEdit_ReplaceBars_PipeInQuotes(t *testing.T) {
+	t.Parallel()
+	tu := mustParse(t, invBase, DialectYuE2)
+	out, _, _, err := Edit(tu.Src, tu, []Op{{Op: OpReplaceBars, Voice: "1", BarFrom: 0, BarTo: 0, ABC: "\"A|B\"C4"}}, Options{Dialect: DialectYuE2})
+	if err != nil {
+		var ee *EditError
+		if errors.As(err, &ee) && ee.Rule == "bad_abc" {
+			t.Fatalf("a pipe inside quotes split the bar: %v", err)
+		}
+	}
+	_ = out
 }

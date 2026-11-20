@@ -75,6 +75,9 @@ func Normalise(t *Tune) (text []byte, changed bool) {
 	if t.opts.dialect() != DialectYuE2 {
 		return same, false
 	}
+	if inlineKeyRe.Match(t.Src) {
+		return same, false
+	}
 	ins, _ := normSplices(t)
 	if len(ins) == 0 {
 		return same, false
