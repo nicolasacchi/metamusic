@@ -136,6 +136,15 @@ def _sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def _read_marker(marker: Path, base: Path) -> set[str]:
+    """Roles already sha256-verified for this lock and models dir (per-role marker)."""
+    try:
+        first, *roles = marker.read_text().split("\n")
+    except OSError:
+        return set()
+    return set(roles) if first == str(base.resolve()) else set()
+
+
 def verify(
     lock: Lock,
     models_dir: str | os.PathLike[str],
@@ -145,12 +154,13 @@ def verify(
     """Check the files of `roles`: sizes always, sha256 unless a marker says this lock was verified here."""
     base = Path(models_dir)
     marker = Path(marker_dir or tempfile.gettempdir()) / f"mm-ears-verified-{lock.raw_sha256[:16]}"
-    verified = marker.exists() and marker.read_text() == str(base.resolve())
+    done = _read_marker(marker, base)
     out: dict[str, Model] = {}
     for role in roles:
         model = lock.models.get(role)
         if model is None:
             raise _missing(f"models lock has no {role} model")
+        verified = role in done
         for f in model.files:
             p = base / role / f.path
             try:
@@ -162,9 +172,9 @@ def verify(
             if not verified and _sha256_file(p) != f.sha256:
                 raise _missing(f"{role} file {f.path} does not match its sha256")
         out[role] = model
-    if not verified and set(roles) == set(lock.models):
+    if not set(roles) <= done:
         try:
-            marker.write_text(str(base.resolve()))
+            marker.write_text("\n".join([str(base.resolve()), *sorted(done | set(roles))]))
         except OSError:
             pass  # the marker is an optimisation only
     return out

@@ -39,4 +39,4 @@ def classify(exc: BaseException, default: str) -> EarsError:
     if isinstance(exc, EarsError):
         return exc
     code = "OOM" if is_oom(exc) else default
-    return EarsError(code, f"{type(exc).__name__}: {exc}")
+    return EarsError(code, type(exc).__name__)  # message text may hold paths/URLs; stays out of the document

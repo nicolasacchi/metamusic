@@ -89,7 +89,9 @@ def build(
         {"stage": e["stage"], "code": e["code"], "message": e["message"][:MAX_MESSAGE]}
         for e in errors[:MAX_ERRORS]
     ]
-    assert all(e["code"] in CODES for e in errs)
+    for e in errs:
+        if e["code"] not in CODES:
+            e["code"] = "SUBPROCESS_FAILED"
     t = {k: r2(timings.get(k, 0.0)) for k in ("load_s", "separate_s", "asr_s", "transcribe_s", "total_s")}
     return {
         "contract": CONTRACT,

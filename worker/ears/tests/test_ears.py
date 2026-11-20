@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -95,6 +96,22 @@ def test_models_sha_checked_once_per_process(tmp_path, monkeypatch):
     assert n == 3
     models.verify(lk, mdir)
     assert len(calls) == n
+
+
+def test_models_sha_marker_per_role_subset(tmp_path, monkeypatch):
+    monkeypatch.setattr(models.tempfile, "gettempdir", lambda: str(tmp_path))
+    lock, mdir = make_models(tmp_path)
+    lk = models.load_lock(lock)
+    calls = []
+    real = models._sha256_file
+    monkeypatch.setattr(models, "_sha256_file", lambda p: calls.append(p) or real(p))
+    models.verify(lk, mdir, roles=("separator", "asr"))
+    n = len(calls)
+    assert n >= 1
+    models.verify(lk, mdir, roles=("separator", "asr"))
+    assert len(calls) == n  # second run re-hashes nothing
+    models.verify(lk, mdir)  # only the pitch role is new
+    assert len(calls) == n + 1
 
 
 # test_models_lock_licenses
@@ -294,13 +311,18 @@ def test_frame_count_floating_point():
 def test_mp3_input_decodes(tmp_path):
     import soundfile as sf
 
+    def no_mp3(why):
+        if os.environ.get("CI"):
+            pytest.fail(why)  # never vacuous in CI
+        pytest.skip(why)
+
     if "MP3" not in sf.available_formats():
-        pytest.skip("libsndfile without MP3")
+        no_mp3("libsndfile without MP3")
     p = tmp_path / "in.mp3"
     try:
         write_audio(p, 2.0, 44100)
     except Exception:
-        pytest.skip("libsndfile cannot encode MP3 here")
+        no_mp3("libsndfile cannot encode MP3 here")
     d = audio.decode(str(p))
     assert d.codec == "mp3" and d.channels == 2 and d.sample_rate == 44100
     assert 1.9 < d.duration_s < 2.2

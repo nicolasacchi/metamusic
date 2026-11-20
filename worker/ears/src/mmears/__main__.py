@@ -144,10 +144,10 @@ def run(
 
     # 3. separate
     voc = None
-    used["separator"] = model_entry("separator")
     t0 = time.monotonic()
     try:
         voc = stages.separate(dec, ctx)
+        used["separator"] = model_entry("separator")
         status["separate"] = "ok"
     except Exception as exc:
         fail("separate", "SEPARATION_FAILED", exc)
@@ -176,11 +176,11 @@ def run(
 
         # 5. transcribe (vocal pitch contour)
         if want_pitch:
-            used["pitch"] = model_entry("pitch")
             t0 = time.monotonic()
             try:
                 f0, per = stages.pitch(voc, dec.duration_s, ctx)
                 pitch_block = pitch.to_frames(f0, per, dec.duration_s)
+                used["pitch"] = model_entry("pitch")
                 status["transcribe"] = "ok"
             except Exception as exc:
                 fail("transcribe", "SUBPROCESS_FAILED", exc)
