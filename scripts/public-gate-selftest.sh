@@ -387,6 +387,24 @@ reset
 printf 'the %s variable names the jobs key\n' "$kv" > notes.txt; git add notes.txt
 expect "RunPod key name in prose passes" 0 --staged
 reset
+# M6 R2: upload-fallback credential assignments (values built at runtime) and the r2.env file
+r2k="R2_""SECRET_""ACCESS_""KEY"
+printf '%s=%s\n' "$r2k" "abcdefghijk" > notes.txt; git add notes.txt
+expect "R2 secret assignment (11 chars) blocked" 1 --staged
+contains "R2 key rule" "metamusic-r2-key"
+reset
+printf '%s: %s\n' "r2_access_""key_id" "abcdefghijk" > notes.txt; git add notes.txt
+expect "R2 key id assignment (yaml, lowercase) blocked" 1 --staged
+reset
+printf '%s=%s\n' "$r2k" "short" > notes.txt; git add notes.txt
+expect "R2 key name with a short value passes" 0 --staged
+reset
+printf 'the %s variable names the secret\n' "$r2k" > notes.txt; git add notes.txt
+expect "R2 key name in prose passes" 0 --staged
+reset
+mkdir -p secrets; echo x > secrets/r2.env; git add -f secrets/r2.env
+expect "staged secrets/r2.env blocked" 1 --staged
+reset
 
 # an allow-listed icon is a real PNG; a fake one is not
 mkdir -p web/public/icons
