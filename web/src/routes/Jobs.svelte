@@ -7,6 +7,7 @@
   import JobRow from "../lib/components/JobRow.svelte";
   import PendingApprovals from "../lib/components/PendingApprovals.svelte";
   import { refreshApprovals } from "../lib/approvals.svelte";
+  import { armedWord } from "../lib/armed";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
   import SpendChart from "../lib/components/SpendChart.svelte";
   import { pushToast } from "../lib/judge.svelte";
@@ -216,7 +217,7 @@
   <section aria-label="Provider" data-testid="provider-tab">
     <h2>Provider</h2>
     <p>
-      Backend <b>{status.backend}</b> · {status.generation_enabled ? "enabled" : "disabled"} · {status.armed ? "armed" : "disarmed"}{#if status.trip} · <b>tripped ({status.trip.reason})</b>{/if}
+      Backend <b>{status.backend}</b> · {status.generation_enabled ? "enabled" : "disabled"} · {#if armedWord(status.armed) !== "unknown"}{armedWord(status.armed)}{:else}arming not shown{/if}{#if status.trip} · <b>tripped ({status.trip.reason})</b>{/if}
     </p>
     {#if status.workers}<p>Workers: {status.workers.running} running, {status.workers.idle} idle, {status.workers.initializing} starting, {status.workers.throttled} throttled, {status.workers.unhealthy} unhealthy.</p>{/if}
     {#if status.endpoint}

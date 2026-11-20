@@ -1,4 +1,5 @@
 // The /engines capability matrix: rows are capabilities, columns engines; read-only, from list_engines only.
+import { armedWord } from "./armed";
 import type { EngineList, EngineView } from "./engines";
 
 export type Cell = { kind: "yes" | "no" | "unverified"; text: string };
@@ -69,5 +70,7 @@ export function backendText(e: EngineView): string {
   if (!b) return "No backend";
   if (!b.enabled) return `Disabled${b.disabled_reason ? ` (${b.disabled_reason.replaceAll("_", " ")})` : ""}`;
   if (b.tripped) return `Tripped${b.trip_reason ? ` (${b.trip_reason})` : ""}`;
-  return `${b.armed ? "Armed" : "Disarmed"}, cold start ${b.cold_start_s} s`;
+  // an absent armed flag is unknown, not disarmed (armedWord)
+  const a = armedWord(b.armed);
+  return `${a === "unknown" ? "Cold start" : a === "armed" ? "Armed, cold start" : "Disarmed, cold start"} ${b.cold_start_s} s`;
 }
