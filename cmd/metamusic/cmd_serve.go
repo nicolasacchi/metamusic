@@ -299,6 +299,7 @@ func serve(ctx context.Context, b *booted, s streams) error {
 		pruned.Add(1)
 		go func() { defer pruned.Done(); sch.Loop(pruneCtx) }()
 	}
+	app.StartLoops(pruneCtx, svc.Loops, &pruned) // the tracks' background loops (G1 C324.4): drained with the prune group, restarted after a panic
 	defer func() { stopPrune(); pruned.Wait() }()
 	runCtx, stopRun := context.WithCancel(ctx)
 	var running sync.WaitGroup

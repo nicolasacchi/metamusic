@@ -22,8 +22,9 @@ var listenerCommon = view.Rules{
 	Private:   []string{"**.request_id", "**.seed", "**.critic_stars", "**.status_set_by"},
 }
 
-// shapeRules is the per-operation part, keyed by operation id.
-var shapeRules = map[string]view.Rules{
+// u1ShapeRules is the per-operation part of the U1 milestone, keyed by operation id. Tracks add shape_<track>.go with an init() that
+// calls addShapeRules (D-G1-12); this table is frozen.
+var u1ShapeRules = map[string]view.Rules{
 	"search_tracks": {Private: []string{"items.comments", "items.open_comments"}},
 	"get_track": {
 		Cost: []string{"generation.cost"},
@@ -64,6 +65,8 @@ var shapeRules = map[string]view.Rules{
 	"get_track_context":  {Editor: []string{"muse", "provenance.cost"}, MoneyKeys: true},
 	"get_stats":          {Editor: []string{"generation", "backups", "storage", "imports", "library_model.muses"}},
 }
+
+func init() { addShapeRules(u1ShapeRules) }
 
 // rulesFor returns the shaping rules of an operation: the per-operation rules, plus the common Listener set for an
 // operation of scope listen or rate.
