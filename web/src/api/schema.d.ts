@@ -5188,6 +5188,8 @@ export interface components {
             expected_audio_s: number;
             finished_at: string | null;
             id: string;
+            /** @enum {string} */
+            kind: "generate" | "analyze" | "plan";
             mode: string;
             operator: string;
             /**
@@ -5255,6 +5257,8 @@ export interface components {
             /** @description Failed, cancelled and expired jobs; see the job error codes */
             error_code: string | null;
             id: string;
+            /** @enum {string} */
+            kind: "generate" | "analyze" | "plan";
             operator: string;
             /**
              * @description Completed jobs only

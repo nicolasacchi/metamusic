@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/clock"
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -148,12 +149,55 @@ func (m *signedInputs) MintInputs(ctx context.Context, request json.RawMessage, 
 	return out, nil
 }
 
+// MintPins implements InputMinter (C323.5): the inputs of a job come from the pins of its spec, for any engine. The master is read
+// again by track id and its sha256 must equal the pin, else the attempt fails before submit with ErrInputChanged. The link is
+// signed with the master's own extension: a lossy reference (an mp3 master) can be an analyze input, a lossless master is flac.
+// No pin yields a nil map; no URL is ever persisted, logged or returned.
+func (m *signedInputs) MintPins(ctx context.Context, pins jobspec.Inputs, expires time.Time) (map[string]provider.InputRef, error) {
+	if pins.SrcAudio == nil {
+		return nil, nil
+	}
+	if m.o.Signer == nil || m.o.Store == nil || m.o.PublicURL == "" {
+		return nil, errors.New("jobs: input minter is not wired")
+	}
+	ttl := expires.Sub(m.o.Clock.Now())
+	if ttl < linkBucket {
+		ttl = linkBucket
+	}
+	pin := pins.SrcAudio
+	var sha string
+	var bytes int64
+	var lossy int
+	err := m.o.Store.R.QueryRowContext(ctx, `SELECT master_sha256, master_bytes, lossy FROM tracks WHERE id = ?`, pin.TrackID).Scan(&sha, &bytes, &lossy)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, fmt.Errorf("%w: source track %s", ErrInputChanged, pin.TrackID)
+	case err != nil:
+		return nil, fmt.Errorf("jobs: read pinned master: %w", err)
+	case sha != pin.MasterSHA256:
+		return nil, fmt.Errorf("%w: source track %s", ErrInputChanged, pin.TrackID)
+	}
+	ext := "flac"
+	if lossy == 1 {
+		ext = "mp3"
+	}
+	ref, err := m.signExt(sha, ext, bytes, ttl)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]provider.InputRef{provider.InputSrcAudio: ref}, nil
+}
+
 // sign builds the absolute link of a flac object. The signer refuses nothing itself, so the horizon is checked here against
 // what its verifier accepts (14 h ahead).
 func (m *signedInputs) sign(sha string, bytes int64, ttl time.Duration) (provider.InputRef, error) {
+	return m.signExt(sha, "flac", bytes, ttl)
+}
+
+func (m *signedInputs) signExt(sha, ext string, bytes int64, ttl time.Duration) (provider.InputRef, error) {
 	if ttl+linkBucket > maxLinkHorizon {
 		return provider.InputRef{}, ErrInputHorizon
 	}
-	l := m.o.Signer.Sign(sha, "flac", ttl, linkBucket)
+	l := m.o.Signer.Sign(sha, ext, ttl, linkBucket)
 	return provider.InputRef{URL: strings.TrimRight(m.o.PublicURL, "/") + l.URL, SHA256: sha, Bytes: bytes}, nil
 }

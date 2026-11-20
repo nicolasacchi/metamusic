@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -81,18 +82,23 @@ func mustT(s string) time.Time {
 
 const jobCols = `id, batch_id, take_index, engine, backend, recipe_id, source_track_id, draft_id, operator, mutation_json, title,
 	expected_audio_s, timeout_s, state, outcome, error_code, cancel_requested_at, cancel_requested_by, lease_owner,
-	next_attempt_at, queued_at, first_submitted_at, attempts, queue_expiries, state_deadline_at, started_at, track_id`
+	next_attempt_at, queued_at, first_submitted_at, attempts, queue_expiries, state_deadline_at, started_at, track_id,
+	kind, needs_json, spec_json`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
 func scanJob(sc rowScanner) (jobRec, error) {
 	var j jobRec
 	var src, draft, outcome, errc, cancelAt, cancelBy, lease, queued, first, dl, started, track sql.NullString
-	var next string
+	var next, needs string
 	err := sc.Scan(&j.ID, &j.BatchID, &j.TakeIndex, &j.Engine, &j.Backend, &j.RecipeID, &src, &draft, &j.Operator, &j.MutationJSON, &j.Title,
-		&j.ExpectedAudioS, &j.TimeoutS, &j.State, &outcome, &errc, &cancelAt, &cancelBy, &lease, &next, &queued, &first, &j.Attempts, &j.QueueExpiries, &dl, &started, &track)
+		&j.ExpectedAudioS, &j.TimeoutS, &j.State, &outcome, &errc, &cancelAt, &cancelBy, &lease, &next, &queued, &first, &j.Attempts, &j.QueueExpiries, &dl, &started, &track,
+		&j.Kind, &needs, &j.SpecJSON)
 	if err != nil {
 		return j, err
+	}
+	if j.Needs, err = jobspec.ParseNeeds(needs); err != nil {
+		return j, fmt.Errorf("jobs: job %s: %w", j.ID, err)
 	}
 	if src.Valid {
 		j.SourceTrackID = &src.String

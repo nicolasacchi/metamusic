@@ -7,7 +7,6 @@ import (
 	osexec "os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -168,7 +167,8 @@ func TestMigration_JobsRebuild_ExplicitColumns(t *testing.T) {
 		}
 		cols = append(cols, c)
 	}
-	if got := strings.Join(cols, ", "); got != m[1] {
+	// 0020 appends needs_json and spec_json (C323.1): the columns the engines migration knew are the prefix
+	if got := strings.TrimSuffix(strings.Join(cols, ", "), ", needs_json, spec_json"); got != m[1] {
 		t.Errorf("columns of the head jobs table:\n %s\nin the migration:\n %s", got, m[1])
 	}
 }
@@ -362,7 +362,13 @@ func TestMigration_JobsRebuild_GeneratorCurrent(t *testing.T) {
 		t.Skip("compiles scripts/gen-jobs-ddl.go")
 	}
 	t.Parallel()
-	cmd := osexec.Command("go", "run", "scripts/gen-jobs-ddl.go", "-before", strconv.Itoa(enginesMigration), "-check", "internal/store/migrations/0015_engines.sql")
+	runGen(t, "-profile", "engines", "-check", "internal/store/migrations/0015_engines.sql")
+}
+
+// runGen runs scripts/gen-jobs-ddl.go with args from the repository root.
+func runGen(t *testing.T, args ...string) {
+	t.Helper()
+	cmd := osexec.Command("go", append([]string{"run", "scripts/gen-jobs-ddl.go"}, args...)...)
 	cmd.Dir = filepath.Join("..", "..")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("%v: %s", err, out)

@@ -456,6 +456,14 @@
         "id": {
           "type": "string"
         },
+        "kind": {
+          "enum": [
+            "generate",
+            "analyze",
+            "plan"
+          ],
+          "type": "string"
+        },
         "mode": {
           "type": "string"
         },
@@ -1212,6 +1220,14 @@
                 ]
               },
               "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "generate",
+                  "analyze",
+                  "plan"
+                ],
                 "type": "string"
               },
               "operator": {
@@ -1985,6 +2001,14 @@
                 ]
               },
               "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "generate",
+                  "analyze",
+                  "plan"
+                ],
                 "type": "string"
               },
               "operator": {
@@ -4155,6 +4179,14 @@
           ]
         },
         "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "generate",
+            "analyze",
+            "plan"
+          ],
           "type": "string"
         },
         "mode": {
@@ -10900,6 +10932,14 @@
               ]
             },
             "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "generate",
+                "analyze",
+                "plan"
+              ],
               "type": "string"
             },
             "mode": {

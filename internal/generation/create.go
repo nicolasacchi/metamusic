@@ -14,6 +14,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/engine"
 	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/money"
@@ -394,11 +395,16 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 		if t.DraftID != nil {
 			draft = *t.DraftID
 		}
+		kind, needsJSON, specJSON, err := jobKindColumns(t)
+		if err != nil {
+			return fmt.Errorf("generation: estimate take %d: %w", i, err)
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO jobs(id, batch_id, take_index, kind, engine, backend, recipe_id, source_track_id, draft_id, operator, mutation_json, title,
-			expected_audio_s, expected_s, timeout_s, expected_micro_usd, reserved_micro_usd, state, next_attempt_at, queued_at, created_at, updated_at, patch_id)
-			VALUES (?,?,?,'generate',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			jobID, batchID, t.TakeIndex, e.Engine, e.Backend, recipeIDs[i], parent, draft, t.Operator, string(mut), t.Title,
-			t.ExpectedAudioS, t.ExpectedS, t.TimeoutS, t.ExpectedMicroUSD, t.TakeMicroUSD, jobState, ts, queuedAt, ts, ts, patch); err != nil {
+			expected_audio_s, expected_s, timeout_s, expected_micro_usd, reserved_micro_usd, state, next_attempt_at, queued_at, created_at, updated_at, patch_id,
+			needs_json, spec_json)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			jobID, batchID, t.TakeIndex, kind, e.Engine, e.Backend, recipeIDs[i], parent, draft, t.Operator, string(mut), t.Title,
+			t.ExpectedAudioS, t.ExpectedS, t.TimeoutS, t.ExpectedMicroUSD, t.TakeMicroUSD, jobState, ts, queuedAt, ts, ts, patch, needsJSON, specJSON); err != nil {
 			return fmt.Errorf("generation: insert job: %w", err)
 		}
 		bid, jid := batchID, jobID
@@ -408,4 +414,40 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 		}
 	}
 	return nil
+}
+
+// jobKindColumns are the jobs.kind, needs_json and spec_json of a planned take (C323.4): an empty take is a plain render, so an
+// estimate planned before G1 inserts 'generate', '[]' and '{}'. A kind outside the three, needs that are not a sorted set of
+// capabilities, or a spec that does not parse strictly is an internal error (the estimate is the server's own document).
+func jobKindColumns(t planTake) (kind, needs, spec string, err error) {
+	kind = t.Kind
+	if kind == "" {
+		kind = jobspec.KindGenerate
+	}
+	if kind != jobspec.KindGenerate && kind != jobspec.KindAnalyze && kind != jobspec.KindPlan {
+		return "", "", "", fmt.Errorf("unknown job kind %q", kind)
+	}
+	n := t.Needs
+	if n == nil {
+		n = []string{}
+	}
+	if !slices.IsSorted(n) || len(slices.Compact(slices.Clone(n))) != len(n) {
+		return "", "", "", errors.New("needs are not a sorted set")
+	}
+	nb, err := json.Marshal(n)
+	if err != nil {
+		return "", "", "", err
+	}
+	if len(t.Spec) == 0 {
+		return kind, string(nb), "{}", nil
+	}
+	sp, err := jobspec.Parse(t.Spec)
+	if err != nil {
+		return "", "", "", err
+	}
+	sb, err := sp.Canonical()
+	if err != nil {
+		return "", "", "", err
+	}
+	return kind, string(nb), string(sb), nil
 }

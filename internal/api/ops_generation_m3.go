@@ -183,7 +183,7 @@ func jobSummaryFrom(j generation.JobView) JobSummary {
 	}
 	return JobSummary{ID: j.ID, BatchID: j.BatchID, TakeIndex: j.TakeIndex, State: j.State, Outcome: j.Outcome, ErrorCode: j.ErrorCode, Title: j.Title,
 		RequestID: j.RequestID, Seed: j.Seed, Operator: j.Operator, ParentTrackID: j.ParentTrackID, DraftID: j.DraftID, TrackID: j.TrackID,
-		CreatedAt: store.FormatTime(j.CreatedAt), UpdatedAt: store.FormatTime(j.UpdatedAt), Cost: &c, Task: nonEmpty(j.Task), Stem: nonEmpty(j.Stem)}
+		CreatedAt: store.FormatTime(j.CreatedAt), UpdatedAt: store.FormatTime(j.UpdatedAt), Cost: &c, Task: nonEmpty(j.Task), Stem: nonEmpty(j.Stem), Kind: kindOrGenerate(j.Kind)}
 }
 
 func batchFrom(viewer auth.Principal, c generation.Created) Batch {

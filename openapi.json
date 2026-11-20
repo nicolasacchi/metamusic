@@ -9003,6 +9003,14 @@
           "id": {
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "generate",
+              "analyze",
+              "plan"
+            ],
+            "type": "string"
+          },
           "mode": {
             "type": "string"
           },
@@ -9151,7 +9159,8 @@
           "created_at",
           "updated_at",
           "task",
-          "stem"
+          "stem",
+          "kind"
         ],
         "type": "object"
       },
@@ -9308,6 +9317,14 @@
           "id": {
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "generate",
+              "analyze",
+              "plan"
+            ],
+            "type": "string"
+          },
           "operator": {
             "type": "string"
           },
@@ -9399,7 +9416,8 @@
           "created_at",
           "updated_at",
           "task",
-          "stem"
+          "stem",
+          "kind"
         ],
         "type": "object"
       },

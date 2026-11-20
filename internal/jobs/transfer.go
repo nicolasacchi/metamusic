@@ -421,8 +421,16 @@ func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
 	if err := r.fault(FaultMidIngest); err != nil {
 		return err
 	}
-	track, ierr := r.o.Ingest.IngestTake(WithLeaseOwner(ctx, r.o.Owner), j.JobRow,
-		AttemptRow{ID: att.ID, JobID: att.JobID, State: att.State, N: att.N, WindowEndsAt: att.WindowEndsAt, WorkerKey: att.WorkerKey, ImageDigest: att.ImageDigest}, files, out)
+	ar := AttemptRow{ID: att.ID, JobID: att.JobID, State: att.State, N: att.N, WindowEndsAt: att.WindowEndsAt, WorkerKey: att.WorkerKey, ImageDigest: att.ImageDigest}
+	var track, kindOutcome string
+	var ierr error
+	if isGenerate(j.Kind) {
+		track, ierr = r.o.Ingest.IngestTake(WithLeaseOwner(ctx, r.o.Owner), j.JobRow, ar, files, out)
+	} else if ki, ok := r.o.Ingest.(KindJobIngester); ok { // C323.6: an analyze or plan job goes to the ingester of its kind
+		track, kindOutcome, ierr = ki.IngestKindJob(WithLeaseOwner(ctx, r.o.Owner), j.JobRow, ar, files, out)
+	} else {
+		ierr = &IngestFailedError{Code: CodeKindUnavailable, Err: fmt.Errorf("jobs: the ingester does not handle %s jobs", j.Kind)}
+	}
 	err := r.tx(ctx, func(tx *sql.Tx) error {
 		f := r.fence()
 		cur, err := loadJob(ctx, tx, jobID)
@@ -433,7 +441,7 @@ func (r *Runner) ingestJob(ctx context.Context, jobID string) error {
 			return nil // timed out, or the bridge completed it itself
 		}
 		if ierr == nil {
-			return r.completeJob(ctx, tx, f, &cur, track, out)
+			return r.completeJobAs(ctx, tx, f, &cur, track, kindOutcome, out)
 		}
 		var dup *DuplicateAudioError
 		var ing *IngestFailedError
@@ -489,7 +497,7 @@ func (r *Runner) completeAttached(ctx context.Context, jobID string) (bool, erro
 	err := r.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.track_id'), json_extract(detail_json, '$.audio_s') FROM job_events
 		WHERE job_id = ? AND event = 'attached' ORDER BY id DESC LIMIT 1`, jobID).Scan(&track, &audio)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return r.completeKinded(ctx, jobID)
 	}
 	if err != nil {
 		return false, err
@@ -509,6 +517,32 @@ func (r *Runner) completeAttached(ctx context.Context, jobID string) (bool, erro
 			return nil
 		}
 		return r.completeJob(ctx, tx, f, &cur, track, out)
+	})
+	return true, skipStale(err)
+}
+
+// completeKinded finishes an analyze or plan job whose kind ingester committed (its kind_ingested event is written in that
+// transaction) before the process stopped: the job completes with the track and outcome the event recorded, if any.
+func (r *Runner) completeKinded(ctx context.Context, jobID string) (bool, error) {
+	var track, outcome sql.NullString
+	err := r.o.Store.R.QueryRowContext(ctx, `SELECT json_extract(detail_json, '$.track_id'), json_extract(detail_json, '$.outcome') FROM job_events
+		WHERE job_id = ? AND event = 'kind_ingested' ORDER BY id DESC LIMIT 1`, jobID).Scan(&track, &outcome)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	err = r.tx(ctx, func(tx *sql.Tx) error {
+		f := r.fence()
+		cur, err := loadJob(ctx, tx, jobID)
+		if err != nil {
+			return err
+		}
+		if cur.State != StateIngesting {
+			return nil
+		}
+		return r.completeJobAs(ctx, tx, f, &cur, track.String, outcome.String, provider.Output{})
 	})
 	return true, skipStale(err)
 }
@@ -558,6 +592,13 @@ func (r *Runner) concludeIngests(ctx context.Context) error {
 
 // completeJob is row 20: the take transaction committed, the job completes with the take's facts.
 func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence, j *jobRec, trackID string, out provider.Output) error {
+	return r.completeJobAs(ctx, tx, f, j, trackID, "", out)
+}
+
+// completeJobAs is completeJob for any kind. An analyze or plan job brings its own outcome (empty derives it from the output's
+// truncation, as for a take) and may have no track (a plan job never has one): then track_id stays NULL, no environment is read
+// from a track and the job carries no truncation columns.
+func (r *Runner) completeJobAs(ctx context.Context, tx *sql.Tx, f store.LeaseFence, j *jobRec, trackID, outcome string, out provider.Output) error {
 	var env sql.NullString
 	// an attached stem (E2b, C166) completes the job with its source take; the job row already holds the worker's env
 	// (the attach transaction set it), the take's env is not the job's
@@ -565,23 +606,31 @@ func (r *Runner) completeJob(ctx context.Context, tx *sql.Tx, f store.LeaseFence
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_events WHERE job_id = ? AND event = 'attached'`, j.ID).Scan(&attached); err != nil {
 		return fmt.Errorf("jobs: read attached event: %w", err)
 	}
-	if attached == 0 {
+	if attached == 0 && trackID != "" {
 		if err := tx.QueryRowContext(ctx, `SELECT env_id FROM tracks WHERE id = ?`, trackID).Scan(&env); err != nil {
 			return fmt.Errorf("jobs: read ingested track: %w", err)
 		}
 	}
-	outcome := "clean"
-	if out.Truncated["abc"] || out.Truncated["semantic"] {
-		outcome = "truncated"
+	if outcome == "" {
+		outcome = "clean"
+		if out.Truncated["abc"] || out.Truncated["semantic"] {
+			outcome = "truncated"
+		}
 	}
-	sets := []setCol{set("outcome", outcome), set("track_id", trackID)}
-	if reportsTruncation(r.o.Engines, j.Engine) { // otherwise NULL: an engine that reports no truncation leaves it unknown
+	sets := []setCol{set("outcome", outcome)}
+	if trackID != "" {
+		sets = append(sets, set("track_id", trackID))
+	}
+	if isGenerate(j.Kind) && reportsTruncation(r.o.Engines, j.Engine) { // otherwise NULL: an engine that reports no truncation leaves it unknown
 		sets = append(sets, set("truncated_abc", boolInt(out.Truncated["abc"])), set("truncated_semantic", boolInt(out.Truncated["semantic"])))
 	}
 	if env.Valid {
 		sets = append(sets, set("env_id", env.String))
 	}
-	d := map[string]any{"track_id": trackID, "outcome": outcome}
+	d := map[string]any{"outcome": outcome}
+	if trackID != "" {
+		d["track_id"] = trackID
+	}
 	if out.AudioSeconds != nil {
 		if v, err := out.AudioSeconds.Float64(); err == nil && v > 0 {
 			sets = append(sets, set("audio_s", v))

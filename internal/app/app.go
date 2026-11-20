@@ -376,7 +376,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Engines: e2.Engines, Backends: e2.Backends, Gates: e2.Gates, Adoption: e2.Adoption,
 		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 	}
-	env := &BuildEnv{Ctx: ctx, Cfg: cfg, Sec: sec, Store: st, Data: data, Now: now, NewID: newID, Notifier: notifier, Context: ctxb, Services: s, Options: o}
+	env := &BuildEnv{Ctx: ctx, Cfg: cfg, Sec: sec, Store: st, Data: data, Now: now, NewID: newID, Notifier: notifier, Context: ctxb, Services: s, Options: o, late: late}
 	extra, err := runHooks(env)
 	if err != nil {
 		return nil, err

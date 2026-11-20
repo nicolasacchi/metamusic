@@ -67,6 +67,13 @@ type planTake struct {
 
 	// Ref is the reference clip an E2 take pinned at estimate (C149.3): create renders it again and compares the digest.
 	Ref *frozenRef `json:"ref,omitempty"`
+
+	// G1 (C323.4): the job kind, the capabilities its worker must have and its spec document. All empty for every take planned
+	// before G1 and for a plain render, so an existing estimate is byte-identical and create writes 'generate', '[]' and '{}'.
+	// An analyze take sets ReuseRecipeID to the analysed take's recipe.
+	Kind  string          `json:"kind,omitempty"`
+	Needs []string        `json:"needs,omitempty"`
+	Spec  json.RawMessage `json:"spec,omitempty"`
 }
 
 // paramsDoc is jobs.mutation_json.params (C71.4).

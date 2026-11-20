@@ -336,6 +336,9 @@ type JobSummary struct {
 	// E2 (C149, C166): acestep15 jobs name their task and, for an extract job, the stem; null otherwise.
 	Task *string `json:"task"`
 	Stem *string `json:"stem"`
+	// Kind is what the job does (C323): a generate job renders a take; an analyze job listens to one; a plan job drafts a score and
+	// completes with track_id null.
+	Kind string `json:"kind" enum:"generate,analyze,plan"`
 }
 
 // JobTruncated says which streams hit the token limit.

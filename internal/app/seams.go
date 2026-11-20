@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/redact"
@@ -44,6 +46,7 @@ type BuildEnv struct {
 	Options  Options
 
 	resolvers []mediaserve.Resolver
+	late      *m5Late
 }
 
 // AddLoop appends a background loop to Services.Loops.
@@ -51,6 +54,34 @@ func (e *BuildEnv) AddLoop(l Loop) { e.Services.Loops = append(e.Services.Loops,
 
 // AddResolver appends a media resolver; it is consulted after every built-in resolver, in registration order.
 func (e *BuildEnv) AddResolver(r mediaserve.Resolver) { e.resolvers = append(e.resolvers, r) }
+
+// AddTakeHook appends a take hook run inside the take transaction and after its commit, after the callbacks hook and any added
+// before it (G1 C323.7). The first error rolls the take back.
+func (e *BuildEnv) AddTakeHook(h jobs.TakeHook) {
+	if h != nil && e.late != nil {
+		e.late.hook.extra = append(e.late.hook.extra, h)
+	}
+}
+
+// AddKindIngester registers the ingester of a job kind other than generate (G1 C323.6). The kind must be analyze or plan and may be
+// registered once; a second registration is a wiring error that aborts Build.
+func (e *BuildEnv) AddKindIngester(kind string, ki jobs.KindIngester) error {
+	if kind != jobs.KindAnalyze && kind != jobs.KindPlan {
+		return fmt.Errorf("app: no ingester can be registered for job kind %q", kind)
+	}
+	if ki == nil {
+		return fmt.Errorf("app: nil ingester for job kind %q", kind)
+	}
+	if e.late == nil {
+		return errors.New("app: build environment has no ingest wiring")
+	}
+	m := e.late.kindIngesters()
+	if _, dup := m[kind]; dup {
+		return fmt.Errorf("app: job kind %q already has an ingester", kind)
+	}
+	m[kind] = ki
+	return nil
+}
 
 // BuildHook is one track's wiring step. An error aborts Build.
 type BuildHook func(*BuildEnv) error

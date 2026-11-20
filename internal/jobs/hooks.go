@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -13,7 +14,10 @@ import (
 type TakeInfo struct {
 	TrackID, JobID, BatchID string
 	PatchID                 *string
-	Fence                   store.LeaseFence
+	// Kind and Needs are the job's kind and the capabilities it needed (C323.7); a take is rendered by a generate job today.
+	Kind  string
+	Needs []string
+	Fence store.LeaseFence
 }
 
 // TakeHook is the seam through which a domain package reacts to a new take without jobs importing it (the callbacks
@@ -28,10 +32,15 @@ type TakeHook interface {
 // takeInfo builds the TakeInfo of a take of job; q reads jobs.patch_id (frozen by its own trigger since migration 0013).
 func takeInfo(ctx context.Context, x q, job JobRow, trackID string, f store.LeaseFence) (TakeInfo, error) {
 	var patch sql.NullString
-	if err := x.QueryRowContext(ctx, `SELECT patch_id FROM jobs WHERE id = ?`, job.ID).Scan(&patch); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	var kind, needs string
+	if err := x.QueryRowContext(ctx, `SELECT patch_id, kind, needs_json FROM jobs WHERE id = ?`, job.ID).Scan(&patch, &kind, &needs); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return TakeInfo{}, err
 	}
-	t := TakeInfo{TrackID: trackID, JobID: job.ID, BatchID: job.BatchID, Fence: f}
+	ns, err := jobspec.ParseNeeds(needs)
+	if err != nil {
+		ns = []string{}
+	}
+	t := TakeInfo{TrackID: trackID, JobID: job.ID, BatchID: job.BatchID, Kind: kind, Needs: ns, Fence: f}
 	if patch.Valid {
 		t.PatchID = &patch.String
 	}

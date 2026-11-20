@@ -6,7 +6,7 @@
 #   1. openapi.json and web/src/api/schema.d.ts          (the `make openapi` recipe)
 #   2. internal/api/testdata/role_matrix.golden          (TestRoleMatrixComplete -update)
 #   3. internal/mcpgen/testdata/*.golden.json            (tools, prompts and resource-template goldens, -update)
-#   4. the generated jobs DDL block, checked for every profile (gen-jobs-ddl.go -check; lane g1-jobs adds the profiles)
+#   4. the generated jobs DDL block, checked for every profile (gen-jobs-ddl.go -check-all: every profile, so a new one is checked here)
 #
 # Later G1 lanes append their step where the marker says (g1-wire: TestWriteArtifactsV2 -update).
 set -euo pipefail
@@ -29,7 +29,7 @@ step mcpgen goldens
 go test ./internal/mcpgen -count=1 -run '^(TestToolsListGolden|TestPrompts_ListGolden|TestResources_TemplatesGolden)$' -update >/dev/null
 
 step jobs ddl
-go run scripts/gen-jobs-ddl.go -before 15 -check internal/store/migrations/0015_engines.sql
+go run scripts/gen-jobs-ddl.go -check-all
 
 # REGEN-STEPS: lanes append above this line (one step each, `step <name>` first).
 step done
