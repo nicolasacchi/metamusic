@@ -156,6 +156,12 @@ jobs:
             echo "::notice::src/mmworker/engines/acestep.py does not exist yet; nothing to gate"
           fi
       # END E2-I1
+      # EARS-P1 (C331.6): the Tier B stage's own uv project; fakes only, no torch, no GPU, no model download.
+      - name: worker-ears
+        working-directory: worker/ears
+        run: |
+          uv sync --frozen --group dev
+          uv run pytest
 
   lint:
     runs-on: ubuntu-24.04
