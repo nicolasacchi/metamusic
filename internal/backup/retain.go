@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nicolasacchi/metamusic/internal/schedule"
 )
 
 const (
@@ -132,38 +134,10 @@ func weekStart(t time.Time, loc *time.Location) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day()-off, 0, 0, 0, 0, loc)
 }
 
-var atRE = regexp.MustCompile(`^([01]\d|2[0-3]):([0-5]\d)$`)
-
-func parseAt(at string) (h, m int, ok bool) {
-	g := atRE.FindStringSubmatch(at)
-	if g == nil {
-		return 0, 0, false
-	}
-	h, _ = strconv.Atoi(g[1])
-	m, _ = strconv.Atoi(g[2])
-	return h, m, true
-}
-
-// NextRun returns the first instant after now whose local wall clock is at
-// ("HH:MM"). On the spring change day a time inside the gap (02:30) is
-// normalised by time.Date to 03:30 local; in the autumn overlap the first
-// occurrence counts. A bad or "off" at gives the zero time.
+// NextRun returns the first instant after now whose local wall clock is at ("HH:MM"); it delegates to schedule.NextRun, where the
+// DST rules live. A bad or "off" at gives the zero time.
 func NextRun(now time.Time, at string, loc *time.Location) time.Time {
-	h, m, ok := parseAt(at)
-	if !ok {
-		return time.Time{}
-	}
-	l := now.In(loc)
-	for i := 0; ; i++ {
-		c := time.Date(l.Year(), l.Month(), l.Day()+i, h, m, 0, 0, loc)
-		// Autumn overlap: time.Date may pick the second occurrence; the first counts.
-		if e := c.Add(-time.Hour).In(loc); e.Hour() == h && e.Minute() == m && e.Day() == c.In(loc).Day() {
-			c = e
-		}
-		if c.After(now) {
-			return c
-		}
-	}
+	return schedule.NextRun(now, at, loc)
 }
 
 // Scheduler runs Run daily at At in Loc.

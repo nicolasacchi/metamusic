@@ -676,3 +676,48 @@ track lane that needs it makes the change as a declared serial edit.
   1. capabilities are opened by hand after each canary;
   2. the Morning Crate catches up within 2 h after a late restart (D-M6N-13);
   3. the 4 000-byte MCP growth budget stands and is split ears 1 200, desk ≤ 1 000 and bulk ≈ 300, with the night track taking the rest.
+
+Revision 3 (2026-11-20, lane G1-F1 `g1-seams`, built on `origin/main` `3143050`): the baseline table was re-read against the code. Code is
+unchanged since `aec888b` (only plan documents merged), and every citation this lane touched still holds at the cited line: `retain.go:151-197`
+(`NextRun`, `Scheduler`), `cmd_serve.go:270-301` (the goroutine list) and `:293-301` (the backup scheduler), `app.go:115` (`Services`),
+`types_m3.go:116` (`ItemIn.Mode`), `shape_u1.go:20-90`, `Dockerfile:41` (`tzdata`), 150 operations in `role_matrix.golden`, ceiling 117 406.
+Amended contracts, as built:
+
+- **C324.1 `Daily`** is built as specified, with `Clock` nil meaning the wall clock and `Loc` nil the process zone. A slot is run when it
+  was crossed since the previous wake; the in-process guard is the pair (local day, `HH:MM`) and only stops a repeated wake (the autumn
+  overlap), never a second process. `backup.NextRun` delegates to `schedule.NextRun`; `backup.Scheduler` is unchanged and keeps the process
+  zone (`MM_BACKUP_AT` is documented as such), so setting `MM_TZ` does not move the nightly backup.
+- **C324.2 `MM_TZ`**: `Config.Loc` is **nil when the variable is empty**, and `Config.Zone()` returns `time.Local` for nil (the existing
+  `Config` equality tests stay unmodified). `MM_TZ=Local` is refused (spell the process zone by leaving it empty); errors never echo the
+  value. The config table that `TestDocs_ConfigTableListsEveryEnv` checks is the **README**, not the runbook; the runbook row is the G1-X1
+  docs lane's. `config check` prints `time zone: <name>` (`Local` for the process zone).
+- **C324.4 loops**: `app.Loop`, `Services.Loops`, `app.StartLoops(ctx, loops, wg)`; serve calls it once, in the prune group. The two named
+  tests are `TestServe_StartsAndDrainsLoops` and `TestServe_LoopPanicRestarts` in `internal/app` (the helper lives there, so serve itself
+  needs no test double). The panic text goes through `redact.String` (pinned by the log assertion in `TestServe_LoopPanicRestarts`). No test boots
+  `serve`; `TestServeStartsTrackLoops` in `internal/archtest` pins that `cmd_serve.go` calls `app.StartLoops` with `svc.Loops`.
+- **Registration seams (Revision 2), as built**, all init-time and append-only:
+  - `api.Deps` pass-through: `httpserver.Options.Deps *api.Deps`; `api.Deps.Fill` copies every field the `Options` fields left zero, so a
+    track that adds a `Deps` field adds nothing to `server.go`. `app.Build` sets `Server.Deps = &Services.Deps` (also what `Gated()` uses).
+  - Build hooks: `app.RegisterBuildHook(func(*BuildEnv) error)` (init-time, registration order) and `Options.Hooks` (tests). A hook runs after
+    `Services.Deps` is filled and before `Server` is built; it may set `Deps` fields, `AddLoop`, `AddResolver`. A hook error aborts `Build`.
+  - Media resolvers: `BuildEnv.AddResolver` and `app.RegisterResolvers(func(*BuildEnv) []mediaserve.Resolver)`; they are chained after the
+    built-in resolvers.
+  - `audit.AddSystemOps(ops...)` registers `actor:name` rows (actor `runner`, `reconciler`, `cli` or a lowercase track actor). `audit.SystemOps`
+    stays the 24-row M3 ledger pinned by its own test; `audit.AllSystemOps()` is the union, `IsSystemOp` knows both. A malformed or duplicate
+    registration never panics at init; `app.Build` returns it through `audit.ValidateSystemOps()` (once per start).
+  - `addShapeRules`, `addWireNames` and `addItemModes` (`internal/api/seams_g1.go`) panic on a duplicate (a duplicate wire component name too).
+    The old maps moved behind them: `u1ShapeRules` (`shape_u1.go`) and `baseWireNames` (`wire_base.go`). `ItemIn.Mode` keeps its `enum` struct
+    tag for the 15 modes of today (`TestSchema_E2Enums` reads the tag and stays unmodified); `addItemModes` appends further modes through
+    `ItemIn.TransformSchema` and refuses one already in the tag. `openapi.json` is byte-identical.
+    Tracks add `shape_<track>.go`, `wire_<track>.go` and `item_modes_<track>.go`.
+- **C320.3 import graph**: `TestImportGraph_G1` checks direct imports only (Revision 2). The sentence about what `schedule` and `jobspec`
+  may import was garbled; the rule enforced is: standard library plus `internal/clock` for `schedule`, plus `internal/canonjson` for
+  `jobspec`, no third-party package. The package list adds `internal/objstore`. The token check (`BackendRunPodACEStep`,
+  `BackendFakeACEStep`, `"acestep15"`) also fires on comments.
+- **C327.2** `TestNoCapWriterOutsideSpend` scans `internal/` and `cmd/` for SQL writes to `spend_caps`; `servertest` (a helper subtree) and
+  the migrations are exempt. Today only `internal/spend/caps.go` writes it.
+- **C329.1 `make regen`**: `scripts/regen.sh` (target `regen` added to the `scripts/loop` allowlist, `metrics-row.jq` and the metrics schema)
+  runs the `make openapi` recipe, `TestRoleMatrixComplete -update`, the three mcpgen golden tests with `-update`, and the existing
+  `gen-jobs-ddl.go -check`. `scripts/regen-selftest.sh` (`make regen-selftest`) proves a second run is a no-op and a hand-edited golden is
+  repaired; it runs real generators, so it is not in `gate.sh`'s light selftest list. Lanes append their step above the `REGEN-STEPS`
+  marker (g1-jobs: DDL profiles; g1-wire: `TestWriteArtifactsV2 -update`).

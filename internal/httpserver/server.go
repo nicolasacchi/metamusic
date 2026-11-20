@@ -77,6 +77,9 @@ import (
 
 // Options configures New.
 type Options struct {
+	// Deps is the finished api.Deps of the process (app.Build passes &Services.Deps). Every Deps field the fields below leave zero is
+	// taken from it, so a track that adds a Deps field needs no line here (G1 Revision 2). Nil => only the fields below.
+	Deps     *api.Deps
 	Cfg      config.Config
 	Sec      config.Secrets
 	Store    *store.Store
@@ -215,7 +218,7 @@ func New(o Options) (http.Handler, error) {
 		now = time.Now
 	}
 	inner := http.NewServeMux()
-	a := api.New(inner, api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started, Startup: o.Startup,
+	deps := api.Deps{Store: o.Store, Tokens: o.Tokens, Cfg: o.Cfg, Version: o.Version, Commit: o.Commit, Started: started, Startup: o.Startup,
 		Library: o.Library, Signer: o.Signer, Probe: o.Probe, Now: o.Now, NewID: o.NewID,
 		Judgments: o.Judgments, Drafts: o.Drafts, Playlists: o.Playlists, Exports: o.Exports, Backups: o.Backups,
 		Context: o.Context, Listening: o.Listening, Audit: o.Audit, Devices: o.DeviceStore, Notify: o.Notify,
@@ -226,7 +229,11 @@ func New(o Options) (http.Handler, error) {
 		Records: o.Records, RecordView: o.RecordView, Crates: o.Crates, Tapes: o.Tapes, Curation: o.Curation, Albums: o.Albums,
 		Features: o.Features, Sequence: o.Sequence, NextActions: o.NextActions, Atlas: o.Atlas, Transform: o.Transform,
 		Engines: o.Engines, Backends: o.Backends, Gates: o.Gates, Adoption: o.Adoption,
-		SongPR: o.SongPR, Callbacks: o.Callbacks, Attention: o.Attention, Voice: o.Voice})
+		SongPR: o.SongPR, Callbacks: o.Callbacks, Attention: o.Attention, Voice: o.Voice}
+	if o.Deps != nil {
+		deps = deps.Fill(*o.Deps)
+	}
+	a := api.New(inner, deps)
 	gated := http.Handler(inner)
 	if o.Store != nil {
 		newID := api.Deps{NewID: o.NewID}.NewIDFunc()

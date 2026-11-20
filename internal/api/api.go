@@ -207,64 +207,6 @@ func HumaConfig() huma.Config {
 	return cfg
 }
 
-// wireNames gives schema components of package-local Go names a name that is
-// unambiguous in the one OpenAPI namespace (Go type -> component name).
-var wireNames = map[string]string{
-	"internal/backup.Run":               "BackupRun",
-	"internal/backup.RunStats":          "BackupRunStats",
-	"internal/backup.Listing":           "BackupListing",
-	"internal/backup.Snapshot":          "BackupSnapshot",
-	"internal/backup.Schedule":          "BackupSchedule",
-	"internal/exports.Link":             "DownloadLink",
-	"internal/exports.Rename":           "ExportRename",
-	"internal/exports.ABCFile":          "ExportABCFile",
-	"internal/exports.Validation":       "ExportValidation",
-	"internal/exports.StyleInfo":        "ExportStyle",
-	"internal/exports.JSONLInfo":        "ExportJSONLInfo",
-	"internal/exports.ZIPInfo":          "ExportZIPInfo",
-	"internal/exports.ZIPEntry":         "ExportZIPEntry",
-	"internal/export.Note":              "ExportNote",
-	"internal/playlists.Item":           "PlaylistItem",
-	"internal/trackctx.Bundle":          "ContextBundle",
-	"internal/trackctx.Budget":          "ContextBudget",
-	"internal/engine/yue2.Language":     "LintLanguage",
-	"internal/judgments.SectionRef":     "CommentSection",
-	"internal/judgments.TagSourceCount": "TagSourceCounts",
-	"internal/library.BackupStats":      "BackupStatus",
-	"internal/library.JudgmentStats":    "JudgmentCounters",
-	"internal/drafts.UploadDraft":       "UploadedDraft",
-	"internal/drafts.UploadIssue":       "UploadLineIssue",
-	// M2b: package-local names that are too generic for the one OpenAPI namespace.
-	"internal/duels.Page":         "DuelPage",
-	"internal/duels.NextResult":   "NextDuel",
-	"internal/duels.Window":       "ClipWindow",
-	"internal/duels.Slots":        "DuelSlots",
-	"internal/duels.SlotsSummary": "DuelSlotsSummary",
-	"internal/ladder.Counts":      "VerdictCounts",
-	"internal/ears.Side":          "ComparisonSide",
-	"internal/ears.Deltas":        "ComparisonDeltas",
-	"internal/ears.Flag":          "AnalysisFlag",
-	"internal/ears.Structure":     "TrackStructure",
-	"internal/ears.Provenance":    "AnalysisProvenance",
-	"internal/ears.SeedPair":      "SeedPair",
-	"internal/analysis.Span":      "TimeSpan",
-	// M5: package-local names too generic for the one OpenAPI namespace.
-	"internal/songpr.Diff":              "PatchDiff",
-	"internal/songpr.LineChange":        "PatchLineChange",
-	"internal/songpr.StyleChange":       "PatchStyleChange",
-	"internal/songpr.Scope":             "PatchScope",
-	"internal/songpr.ScopedSection":     "PatchScopedSection",
-	"internal/songpr.Bounds":            "PatchBounds",
-	"internal/attention.Heat":           "ListenHeat",
-	"internal/attention.Hotspot":        "ListenHotspot",
-	"internal/duels.SectionSelector":    "DuelSectionSelector",
-	"internal/duels.SlotWindow":         "DuelSlotWindow",
-	"internal/judgments.VoiceRef":       "VoiceNote",
-	"internal/analysis/tokens.Stream":   "TokenStream",
-	"internal/analysis/tokens.Repeat":   "TokenRepeat",
-	"internal/analysis/tokens.Periodic": "TokenPeriodic",
-}
-
 func schemaNamer(t reflect.Type, hint string) string {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()

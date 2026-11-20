@@ -27,7 +27,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 TEST_TIMEOUT ?= 30m
 TEST_TMPDIR ?= $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm || echo $${TMPDIR:-/tmp})
 
-.PHONY: build web openapi dsp test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary worker-acestep contract-acestep
+.PHONY: build web openapi regen regen-selftest dsp test test-long perf race lint check _check e2e e2e-cover verify gate gate-full hooks tools dev docker metrics clean fixture-db cover seed routing worker contract canary worker-acestep contract-acestep
 
 build:
 	$(LOOP) build -- sh -c 'mkdir -p bin && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/metamusic ./cmd/metamusic'
@@ -37,6 +37,14 @@ web:
 
 openapi:
 	$(LOOP) openapi -- sh -c 'go run ./cmd/metamusic openapi > openapi.json.tmp && mv openapi.json.tmp openapi.json && cd web && bun run gen:api'
+
+# Every generated file in one idempotent pass (G1 C329.1): openapi.json, schema.d.ts, the role matrix and mcpgen goldens, the jobs DDL
+# check. Run it after every rebase; never merge a generated file by hand. regen-selftest proves a second run changes nothing.
+regen:
+	$(LOOP) regen -- scripts/regen.sh
+
+regen-selftest:
+	$(LOOP) regen -- scripts/regen-selftest.sh
 
 # BEGIN T1-I1 make dsp: the DSP and score packages alone, short tier, no -race (the inner loop for the T1 DSP lanes).
 dsp:

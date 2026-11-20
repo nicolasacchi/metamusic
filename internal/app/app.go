@@ -109,6 +109,8 @@ type Options struct {
 	L3 L3Options
 	// T1 (C216.3): test injection points of the transform service; nil-valued in production.
 	T1 T1Options
+	// Hooks run after the registered build hooks (seams.go); tests inject wiring here without touching the global list.
+	Hooks []BuildHook
 }
 
 // Services is everything Build wires.
@@ -197,6 +199,8 @@ type Services struct {
 	ClipsMissing, TierAMissing error
 	// Media carries the background ffmpeg probe (StartProbe) and the degraded report (Degraded).
 	Media *Media
+	// Loops are the background loops serve starts through StartLoops (C324.4); tracks append from a build hook.
+	Loops []Loop
 }
 
 // Build constructs the services over st and data. Every store and service
@@ -205,6 +209,9 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 	now := o.Now
 	if now == nil {
 		now = time.Now
+	}
+	if err := validateSystemOps(); err != nil {
+		return nil, err
 	}
 	newID := api.Deps{NewID: o.NewID}.NewIDFunc()
 	limits := o.Limits
@@ -369,8 +376,15 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Engines: e2.Engines, Backends: e2.Backends, Gates: e2.Gates, Adoption: e2.Adoption,
 		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
 	}
+	env := &BuildEnv{Ctx: ctx, Cfg: cfg, Sec: sec, Store: st, Data: data, Now: now, NewID: newID, Notifier: notifier, Context: ctxb, Services: s, Options: o}
+	extra, err := runHooks(env)
+	if err != nil {
+		return nil, err
+	}
+	resolvers = append(resolvers, extra...)
 	s.Server = httpserver.Options{
-		Cfg: cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
+		Deps: &s.Deps,
+		Cfg:  cfg, Sec: sec, Store: st, Tokens: tokens, Sessions: local,
 		Version: o.Version, Commit: o.Commit, Started: s.Deps.Started,
 		Library: lib, Signer: signer, Probe: o.Probe, Media: mediaserve.Handler(signer, data, mediaserve.Chain(resolvers...), o.Probe), Now: now,
 		Audit: s.Audit, Idem: s.Idem, Limiter: s.Limiter, NewID: o.NewID,

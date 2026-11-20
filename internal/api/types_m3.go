@@ -111,7 +111,8 @@ type Patch struct {
 	DurationS     *float64 `json:"duration_s,omitempty"`
 }
 
-// ItemIn is the one input shape behind every create path; estimate_variant builds one item.
+// ItemIn is the one input shape behind every create path; estimate_variant builds one item. The enum tag lists the modes that exist today; a track
+// adds its own with addItemModes (item_modes.go).
 type ItemIn struct {
 	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover" doc:"How the take list is built; see the modes table"`
 	ParentTrackID  *string    `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`

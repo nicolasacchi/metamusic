@@ -4,8 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -37,8 +40,62 @@ var systemOpSet = func() map[string]bool {
 	return m
 }()
 
-// IsSystemOp reports whether op is one of SystemOps.
-func IsSystemOp(op string) bool { return systemOpSet[op] }
+// Per-track system operations (G1 Revision 2). SystemOps stays the M3 money ledger, pinned by its own test; a track registers its
+// own rows from an init() with AddSystemOps, and Build validates every registration once at startup with ValidateSystemOps.
+type opRegistry struct {
+	mu   sync.Mutex
+	ops  []string
+	set  map[string]bool
+	errs []error
+}
+
+var extra = &opRegistry{set: map[string]bool{}}
+
+var systemOpRE = regexp.MustCompile(`^(runner|reconciler|cli|[a-z][a-z0-9]{1,15}):[a-z][a-z0-9_-]{1,47}$`)
+
+func (r *opRegistry) add(ops []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, op := range ops {
+		switch {
+		case !systemOpRE.MatchString(op):
+			r.errs = append(r.errs, fmt.Errorf("audit: system op %q must look like actor:name", op))
+		case systemOpSet[op] || r.set[op]:
+			r.errs = append(r.errs, fmt.Errorf("audit: system op %q is registered twice", op))
+		default:
+			r.set[op] = true
+			r.ops = append(r.ops, op)
+		}
+	}
+}
+
+// AddSystemOps registers audit system operations of a track, named "<actor>:<name>" (actor runner, reconciler, cli or a track's
+// own lowercase actor such as night). It never panics: a malformed or duplicate op is remembered and ValidateSystemOps reports it.
+func AddSystemOps(ops ...string) { extra.add(ops) }
+
+// ValidateSystemOps reports every bad AddSystemOps registration (nil when all are well formed and unique). app.Build calls it.
+func ValidateSystemOps() error {
+	extra.mu.Lock()
+	defer extra.mu.Unlock()
+	return errors.Join(extra.errs...)
+}
+
+// AllSystemOps is SystemOps followed by the registered per-track ops, in registration order.
+func AllSystemOps() []string {
+	extra.mu.Lock()
+	defer extra.mu.Unlock()
+	return append(append([]string(nil), SystemOps...), extra.ops...)
+}
+
+// IsSystemOp reports whether op is one of SystemOps or a registered per-track op.
+func IsSystemOp(op string) bool {
+	if systemOpSet[op] {
+		return true
+	}
+	extra.mu.Lock()
+	defer extra.mu.Unlock()
+	return extra.set[op]
+}
 
 // SystemEntry builds the audit row of a runner, reconciler or CLI action. details is encoded as JSON, then
 // canonicalised, and only its sha256 is stored (args_sha256), so a row never carries URLs, keys or refs.

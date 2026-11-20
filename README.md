@@ -97,6 +97,7 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_TRUSTED_USERS` | Deprecated alias of `MM_USERS=<name>:owner`, still accepted: it must hold exactly one name (folded to lowercase), setting both variables is refused, and `metamusic config check` warns when it is used. |
 | `MM_BACKUP_DIR` | Backup snapshot directory (default: `backup` next to `MM_DATA_DIR`; must not be inside it). |
 | `MM_BACKUP_AT` | Daily snapshot time `HH:MM` in the process time zone (default `03:30`), or `off`. |
+| `MM_TZ` | IANA time zone name (for example `Europe/Rome`) that scheduled work such as the daily schedules of later tracks runs in; empty (default) means the process zone. An unknown name stops startup. `MM_BACKUP_AT` keeps using the process zone. `metamusic config check` prints the zone. |
 | `MM_NTFY_URL` | Optional ntfy topic URL for notifications; `https://` unless the host is loopback, no credentials or query. Optional secret file `ntfy_token` holds the publisher token. |
 | `MM_RATE_SCALE` | Multiplier (1..1000, default 1) for every rate limit; used by the E2E setup. |
 | `MM_TOKEN` | Access token for `metamusic mcp-stdio`. |

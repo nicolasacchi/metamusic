@@ -44,7 +44,7 @@ chk "test-long and perf rows validate" 'jq -e -f "$root/scripts/metrics-row.jq" 
 chk "test-long and perf are heavy targets" 'grep -Eq "check \\| test \\| test-long \\| perf \\|" "$root/scripts/loop"'
 
 # M3 targets (C85) are accepted, validate, and are in the schema enum
-for t in worker contract canary; do
+for t in worker contract canary regen; do
   "$root/scripts/loop" "$t" -- true >/dev/null
   chk "target $t accepted" 'jq -e "select(.target==\"$t\")" "$MM_METRICS_FILE" >/dev/null'
 done
