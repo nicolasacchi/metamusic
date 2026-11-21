@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -44,6 +45,8 @@ type BuildEnv struct {
 	Context  *trackctx.Builder
 	Services *Services
 	Options  Options
+	// Subsonic is the built Subsonic handler (M5b C348): a hook may attach optional collaborators to it before it serves.
+	Subsonic http.Handler
 
 	resolvers []mediaserve.Resolver
 	late      *m5Late

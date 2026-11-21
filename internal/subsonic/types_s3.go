@@ -73,8 +73,10 @@ type Lyrics struct {
 	Value  string `json:"value" xml:",chardata"`
 }
 
-// LyricLine is one line of structured lyrics (never timed: D-M4a-13).
+// LyricLine is one line of structured lyrics. Start (milliseconds) is set only on a synced answer built from Tier B word
+// timings (C348); every other answer leaves it out, byte for byte as in M4a (D-M4a-13).
 type LyricLine struct {
+	Start *int64 `json:"start,omitempty" xml:"start,attr,omitempty"`
 	Value string `json:"value" xml:",chardata"`
 }
 
