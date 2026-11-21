@@ -19,3 +19,26 @@ THIRD_PARTY_NOTICES.md and the licenses/ directory of the model repository are k
 The image also installs the yue2 inference code (multimodal-art-projection/YuE, pinned commit in
 worker/contract/YUE2_COMMIT, Apache-2.0) and Python packages under their own licences (see
 /opt/venv/freeze.txt for the list).
+
+Tier B listening check ("ears"). The image also bakes in three models for the post-render analysis stage, each at a pinned
+revision and verified byte-for-byte against the SHA-256 in worker/ears/models.lock.json (/opt/mm/ears-models.lock.json in the image);
+none is modified and each is MIT-licensed (licence texts: /opt/mm/licenses/ears/):
+
+  Model:     htdemucs (Hybrid Transformer Demucs, vocal separation)
+  Source:    https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th  (Demucs, Meta Platforms)
+  Licence:   MIT (demucs-LICENSE-MIT.txt)
+
+  Model:     faster-whisper-large-v3 (Whisper large-v3 converted for CTranslate2, speech recognition)
+  Source:    https://huggingface.co/Systran/faster-whisper-large-v3  (pinned revision in the lock)
+  Creators:  OpenAI (Whisper), SYSTRAN (conversion)
+  Licence:   MIT (whisper-LICENSE-MIT.txt, faster-whisper-LICENSE-MIT.txt)
+
+  Model:     torchcrepe "full" (CREPE pitch tracking weights as packaged by torchcrepe)
+  Source:    https://github.com/maxrmorrison/torchcrepe  (pinned commit in the lock)
+  Licence:   MIT (torchcrepe-LICENSE-MIT.txt)
+
+The libraries that run them (demucs, julius, faster-whisper, ctranslate2, torchcrepe and their dependencies) are installed from PyPI
+under /opt/ears-site at hash-pinned versions (worker/requirements-ears.txt) and keep their own licences (MIT, BSD, ISC, Apache-2.0).
+Two of them are LGPL and are used unmodified, as ordinary importable packages that a user may replace: lameenc (LGPL-3.0-or-later,
+a Demucs dependency this image never calls) and soxr (LGPL-2.1-or-later, a librosa dependency). ctranslate2 loads the NVIDIA cuBLAS
+and cuDNN runtime libraries that torch's CUDA wheels already ship in /opt/venv. The CTranslate2 licence is ctranslate2-LICENSE-MIT.txt.

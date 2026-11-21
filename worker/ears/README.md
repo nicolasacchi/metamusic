@@ -16,5 +16,5 @@ fakes only and need no GPU and no model download:
 cd worker/ears && uv sync --frozen --group dev && uv run pytest
 ```
 
-The model lock format is `mm.ears-models/1` (see `models.py`); the pins are filled in by the image lane.
+The model lock format is `mm.ears-models/1` (see `models.py`); the pins are filled in (EARS-P2, `models.lock.json`).
 Only MIT, Apache-2.0 and BSD-3-Clause models are accepted.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
+	"github.com/nicolasacchi/metamusic/internal/diction"
 	"github.com/nicolasacchi/metamusic/internal/ears/tierb"
 	"github.com/nicolasacchi/metamusic/internal/library"
 )
@@ -33,6 +34,14 @@ func (s *Service) wired() error {
 	}
 	return nil
 }
+
+// DictionSource supplies the line classes and risky words /context shows beside the diction CER (*diction.Service implements it).
+type DictionSource interface {
+	ContextSummary(ctx context.Context, trackID string) (diction.ContextSummary, error)
+}
+
+// UseDiction wires the Diction Lab summary of the perception block (C345.5). Without it the block keeps only its CER and WER.
+func (s *Service) UseDiction(d DictionSource) { s.diction = d }
 
 // UseJudgments wires the duels service after both are built (app.Build creates ears first).
 func (s *Service) UseJudgments(j Judgments) { s.o.Judgments = j }

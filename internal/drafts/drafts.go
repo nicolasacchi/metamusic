@@ -121,8 +121,17 @@ type Service struct {
 
 	hashQueries atomic.Int64 // duplicate-check queries issued (tests: one per page)
 
-	sw TargetSource // nil: no duration-target warnings
+	sw TargetSource  // nil: no duration-target warnings
+	dc DictionSource // nil: no diction_risk warnings
 }
+
+// DictionSource supplies the words of a lyric that earlier takes sang badly (*diction.Service implements it).
+type DictionSource interface {
+	Risks(ctx context.Context, lyrics string) ([]yue2.DictionRisk, error)
+}
+
+// UseDiction wires the Diction Lab lexicon the lint warns about (diction_risk, C345.4). Without it nothing changes.
+func (s *Service) UseDiction(d DictionSource) { s.dc = d }
 
 // TargetSource supplies the songwriting duration targets (*songwriting.Service implements it).
 type TargetSource interface {
@@ -134,6 +143,16 @@ func (s *Service) UseSongwriting(t TargetSource) { s.sw = t }
 
 func (s *Service) lintContext(ctx context.Context, known func(hash, selfDraftID, selfRecipeID string) (string, bool)) (yue2.LintContext, error) {
 	lc := yue2.LintContext{KnownHash: known}
+	if s.dc != nil {
+		// A lexicon that cannot be read leaves the warning out; it never fails a lint.
+		lc.Diction = func(lyrics string) []yue2.DictionRisk {
+			r, err := s.dc.Risks(ctx, lyrics)
+			if err != nil {
+				return nil
+			}
+			return r
+		}
+	}
 	if s.sw != nil {
 		t, err := s.sw.Get(ctx)
 		if err != nil {
