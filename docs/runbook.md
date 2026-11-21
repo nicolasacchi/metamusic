@@ -776,7 +776,7 @@ startup and by `metamusic config check`, which prints `pod backend: on|off`, `po
 **The pod key** is the file `runpod-pod.env` in the secrets directory with exactly one variable, `RUNPOD_POD_KEY`, a RunPod key restricted to pods
 (read and write), catalog read and billing read. Mode 0600 or 0400 (any group or other bit is refused), read at every call and never cached, so
 deleting the file closes the backend at once. Any other variable, and an all-access key, is refused. Keep it on the server during a bulk window only.
-`RUNPOD_POD_KEY` and and the six `R2_` variables (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_PREFIX`) in the process environment stop startup: secrets are files, not environment.
+`RUNPOD_POD_KEY` and the six `R2_` variables (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_PREFIX`) in the process environment stop startup: secrets are files, not environment.
 
 ## Listening checks: the quote (M5b Ears)
 
