@@ -64,10 +64,10 @@ type SongwritingSource interface {
 
 // Service owns the create path of generation.
 type Service struct {
-	o    Options
-	e2   e2Seams   // set by UseEngines (seams_e2.go); the zero value keeps the M3 single-backend behaviour
-	ears EarsSeams // set by UseEars (seams_ears.go); the zero value adds no warnings
-		earsQ earsSeams // set by UseEars (seams_ears.go, UseEarsQuote); the zero value plans no listening check
+	o     Options
+	e2    e2Seams   // set by UseEngines (seams_e2.go); the zero value keeps the M3 single-backend behaviour
+	ears  EarsSeams // set by UseEars (seams_ears.go); the zero value adds no warnings
+	earsQ earsSeams // set by UseEars (seams_ears.go, UseEarsQuote); the zero value plans no listening check
 }
 
 // New builds the service.
