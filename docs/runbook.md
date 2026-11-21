@@ -669,8 +669,8 @@ listening has no rewind marks.
 `MM_TZ` is an IANA zone name (for example `Europe/Rome`) in which the daily schedules of later tracks (Morning Crate, Night Shift) read their
 wall-clock times. Empty means the process zone. An unknown name, and the literal `Local`, stop startup (the error does not echo the value).
 The binary embeds the zone database, so a minimal container image needs no `tzdata`. `MM_BACKUP_AT` keeps the process zone. Run
-`metamusic config check` before a deploy: it prints `time zone: <name>` (`Local` for the process zone). A deploy across a scheduled time is
-safe: schedules catch up within their grace window and each run is unique per local day.
+`metamusic config check` before a deploy: it prints `time zone: <name>` (`Local` for the process zone). The scheduler (`internal/schedule`) can catch up a missed slot of the same
+day only when a track sets `CatchUp` and supplies `Done`; no track does yet, and each track enforces one run per local day itself.
 
 ### The capability gate: `metamusic runpod contract`
 
