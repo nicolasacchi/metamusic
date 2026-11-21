@@ -14,6 +14,8 @@ type BlindSpotFacts struct {
 	Tempo         bool     // a tempo estimate is part of the payload (C94)
 	Key           bool     // a key estimate is part of the payload (C136.1)
 	Energy        bool     // an energy estimate is part of the payload (C136.2)
+	Diction       bool     // a Tier B diction measurement is part of the payload (M5b C338.3)
+	Adherence     bool     // a Tier B melody adherence measurement is part of the payload (M5b C336.5)
 }
 
 // BlindSpots is the one list of things the machine cannot judge (D-M2b-21): it
@@ -28,6 +30,12 @@ func BlindSpots(f BlindSpotFacts) []string {
 		"hook catchiness",
 		"diction and intelligibility",
 		"melody and harmony adherence to the score",
+	}
+	if f.Diction {
+		out[4] = "diction measured by speech recognition on the separated vocals (CER per section); the recogniser can mishear sung words"
+	}
+	if f.Adherence {
+		out[5] = "melody adherence measured coarsely (pitch classes per section, from the separated vocals), not note by note; harmony is not judged"
 	}
 	if f.Lossy {
 		out = append(out, "analysed from a lossy MP3 decode: bandwidth, clipping and true peak are not comparable with FLAC takes")

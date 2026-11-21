@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
+	"github.com/nicolasacchi/metamusic/internal/ears/tierb"
 	"github.com/nicolasacchi/metamusic/internal/library"
 )
 
@@ -67,6 +68,10 @@ var defs = map[string]string{
 	anTempo:      analysis.TempoDef,
 	anKey:        analysis.KeyDef,
 	anEnergy:     analysis.EnergyDef,
+
+	anTierBRaw:       tierBRawDef,
+	anTierBDiction:   tierBDictionDef,
+	anTierBAdherence: tierBAdherenceDef,
 }
 
 func r2(v float64) float64 { return math.Round(v*100) / 100 }
@@ -211,6 +216,13 @@ type state struct {
 	key      *analysis.Key    // nil when the analyzer has not run; Key nil when none was set
 	energy   *analysis.Energy // nil when the analyzer has not run; Energy nil when there is none
 
+	// Tier B (M5b): the stored listening check. tbRaw is nil until a tier_b_raw row exists; tbDiction and tbAdherence are nil
+	// without their row; tbState is the state of C337.4.
+	tbRaw       *tierBRawDoc
+	tbDiction   *tierBDictionDoc
+	tbAdherence *TierBAdherence
+	tbState     string
+
 	tier    string
 	missing []string
 	flags   []Flag
@@ -304,6 +316,18 @@ func (s *Service) load(ctx context.Context, trackID string) (*state, error) {
 		st.energy = decode[analysis.Energy](r, true)
 	}
 	st.tier, st.missing = tierOf(st)
+	if r, ok := rows[anTierBRaw]; ok {
+		st.tbRaw = decode[tierBRawDoc](r, true)
+	}
+	if r, ok := rows[anTierBDiction]; ok {
+		st.tbDiction = decode[tierBDictionDoc](r, true)
+	}
+	if r, ok := rows[anTierBAdherence]; ok {
+		st.tbAdherence = decode[TierBAdherence](r, true)
+	}
+	if st.tbState, err = s.tierBStateOf(ctx, trackID, st.tbRaw); err != nil {
+		return nil, err
+	}
 	st.flags = computeFlags(st.flagInput())
 	return st, nil
 }
@@ -338,7 +362,17 @@ func (st *state) flagInput() flagInput {
 	if st.spectrum != nil {
 		in.BandwidthHz = st.spectrum.BandwidthHz
 	}
+	in.TierB = st.tierBFlags()
 	return in
+}
+
+// tierOut is the tier the payloads show: B when Tier A is complete and the listening check succeeded (C338.1), else Tier A's.
+// complete keeps its Tier A meaning, so callers use st.tier for it.
+func (st *state) tierOut() string {
+	if st.tier == "A" && st.tbRaw != nil && st.tbRaw.Status == tierb.StatusOK {
+		return "B"
+	}
+	return st.tier
 }
 
 func (st *state) flagCodes() []string {
@@ -361,7 +395,8 @@ func (st *state) blindFacts(spectrogram bool) analysis.BlindSpotFacts {
 	src, conf := st.sectionSource()
 	return analysis.BlindSpotFacts{TierA: st.tier == "A", HasSemantic: st.hasSemantic, Timed: st.d.Timed,
 		SectionSource: src, Confidence: conf, Spectrogram: spectrogram, Lossy: st.d.Lossy, Tempo: st.tempo != nil && !spectrogram,
-		Key: st.key != nil && !spectrogram, Energy: st.energy != nil && !spectrogram}
+		Key: st.key != nil && !spectrogram, Energy: st.energy != nil && !spectrogram,
+		Diction: st.tbDiction != nil && !spectrogram, Adherence: st.tbAdherence != nil && !spectrogram}
 }
 
 func (st *state) blindSpots(spectrogram bool) []string {

@@ -11,7 +11,7 @@ func (s *Service) Dossier(ctx context.Context, trackID string) (Dossier, error) 
 		return Dossier{}, err
 	}
 	d := Dossier{
-		TrackID: trackID, Tier: st.tier, Complete: st.tier == "A", Missing: st.missing,
+		TrackID: trackID, Tier: st.tierOut(), Complete: st.tier == "A", Missing: st.missing,
 		Summary: summarize(st), Loudness: st.loudness, Spectrum: st.spectrum,
 		Structure: st.structure(), Flags: st.flags, BlindSpots: st.blindSpots(false),
 		Spectrogram: st.spectrogramInfo(), Provenance: st.provenance(),

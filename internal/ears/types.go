@@ -143,7 +143,7 @@ type Provenance struct {
 // Dossier is the get_track_analysis answer (C51.4).
 type Dossier struct {
 	TrackID     string                 `json:"track_id"`
-	Tier        string                 `json:"tier" enum:"0,A"`
+	Tier        string                 `json:"tier" enum:"0,A,B"`
 	Complete    bool                   `json:"complete"`
 	Missing     []string               `json:"missing" nullable:"false" doc:"Applicable analyzers that have not run"`
 	Summary     string                 `json:"summary" maxLength:"300"`
@@ -309,6 +309,36 @@ type Perception struct {
 	// /context perception goldens and the OpenAPI schema unchanged.
 	Key    *PerceptionKey    `json:"key,omitempty"`
 	Energy *PerceptionEnergy `json:"energy,omitempty"`
+	// Diction and Adherence are the Tier B listening check (M5b C338.4); absent (omitempty) until a listening check exists, and
+	// placed after Energy so every existing /context golden stays byte-identical (D-EARS-19).
+	Diction   *PerceptionDiction   `json:"diction,omitempty"`
+	Adherence *PerceptionAdherence `json:"adherence,omitempty"`
+}
+
+// PerceptionDiction is the diction of a take as measured by speech recognition on the separated vocals (Tier B). Lines and
+// RiskyWords are filled by the Diction Lab lane (EARS-D2); until then they stay absent.
+type PerceptionDiction struct {
+	CER          float64                 `json:"cer"`
+	WER          float64                 `json:"wer"`
+	WorstSection *TierBWorstSection      `json:"worst_section,omitempty"`
+	Lines        *PerceptionDictionLines `json:"lines,omitempty"`
+	RiskyWords   []string                `json:"risky_words,omitempty"`
+}
+
+// PerceptionDictionLines counts the lines of a take per human-or-machine class.
+type PerceptionDictionLines struct {
+	Clear   int `json:"clear"`
+	Mixed   int `json:"mixed"`
+	Unclear int `json:"unclear"`
+}
+
+// PerceptionAdherence is the coarse melody adherence of a take against its plan score (Tier B).
+type PerceptionAdherence struct {
+	MelodyChroma *float64 `json:"melody_chroma"`
+	Transpose    *int     `json:"transpose"`
+	TempoRatio   *float64 `json:"tempo_ratio"`
+	KeyRelation  string   `json:"key_relation"`
+	Basis        string   `json:"basis"`
 }
 
 // PerceptionKey is the measured key of a take; Name is for example "A minor" and Camelot "8A".

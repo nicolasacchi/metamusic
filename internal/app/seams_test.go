@@ -42,7 +42,14 @@ func TestBuild_HooksRunInOrderBeforeServer(t *testing.T) {
 	if strings.Join(order, "") != "ab" {
 		t.Errorf("hook order %v", order)
 	}
-	if len(s.Loops) != 2 || s.Loops[0].Name != "one" || s.Loops[1].Name != "two" {
+	// tracks register their own loops from init (earlier); the test's hooks append after them, in order
+	var mine []string
+	for _, l := range s.Loops {
+		if l.Name == "one" || l.Name == "two" {
+			mine = append(mine, l.Name)
+		}
+	}
+	if strings.Join(mine, ",") != "one,two" || len(s.Loops) < 2 {
 		t.Errorf("Loops = %+v", s.Loops)
 	}
 	if s.Server.Deps != &s.Deps {
