@@ -99,7 +99,7 @@ def _run_v2(base: str, sink: _Sink) -> bool:
                   job_id="selftest-job-2")
     doc = json.loads(sink.puts.get("mm-result.json", b"{}"))
     return (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0 and doc.get("kind") == "render"
-            and doc.get("contract") == CONTRACT_V2 and doc.get("caps") == caps.image_caps())
+            and doc.get("contract") == CONTRACT_V2 and doc.get("caps") == caps.advertised())
 
 
 def run(engine: str | None = None) -> bool:
@@ -142,6 +142,6 @@ def main() -> int:
     stages.discover()
     ok = run()
     if ok and (os.environ.get("MM_ENGINE") or os.environ.get("ENGINE") or "yue2") != ACESTEP:
-        print("caps: " + caps.label(caps.image_caps()))  # CI compares this line with LABEL io.metamusic.caps
+        print("caps: " + caps.label(caps.advertised()))  # CI compares this line with LABEL io.metamusic.caps
     print("selftest: " + ("ok" if ok else "FAILED"), file=sys.stderr)
     return 0 if ok else 1

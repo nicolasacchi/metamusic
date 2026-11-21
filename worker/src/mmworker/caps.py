@@ -15,6 +15,10 @@ from . import stages
 V2 = "v2"
 STAGE_CAPS = ("ears", "analyze", "plan")
 TRANSPORT_CAPS = ("fallback", "agent")
+# Transport caps whose code is in every image of this tree: the fallback upload channel (upload.py, C399.7). `agent`
+# is not here until MODE=agent exists. The worker offers it on every /2 document; it only uses it when the document
+# carries a fallback target.
+BUILT_IN_TRANSPORT = ("fallback",)
 VOCABULARY = frozenset({V2, "attach", *STAGE_CAPS, *TRANSPORT_CAPS})
 
 
@@ -41,3 +45,8 @@ def image_caps(transport: Iterable[str] = ()) -> list[str]:
 def label(caps: Iterable[str]) -> str:
     """The text of `LABEL io.metamusic.caps` and of the selftest caps line."""
     return " ".join(caps)
+
+
+def advertised() -> list[str]:
+    """What a running worker (and the selftest) advertises: the stage caps plus the built-in transport caps."""
+    return image_caps(BUILT_IN_TRANSPORT)
