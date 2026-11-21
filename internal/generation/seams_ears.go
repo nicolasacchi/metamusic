@@ -23,6 +23,8 @@ func (s *Service) UseEars(e EarsSeams) { s.ears = e }
 // seconds per 1000 audio seconds.
 type EarsOptions struct {
 	LoadS, RTFMilli, TranscribeRTFMilli int
+	// AnalyzeFetchS is MM_ANALYZE_FETCH_S: the fixed seconds an analyze job spends fetching the pinned master (C340.4). 0 = the default, 20.
+	AnalyzeFetchS int
 	// Language returns the ISO 639-1 code the lyrics are written in, "" when unknown (the engine's detector); LyricLines counts the
 	// sung lines of a lyrics text, section headers excluded. generation imports no engine implementation, so internal/app passes
 	// them; nil means "language unknown" and a plain count of the non-empty lines that are not a [Header].

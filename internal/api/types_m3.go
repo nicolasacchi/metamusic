@@ -128,6 +128,7 @@ type ItemIn struct {
 	Engine         string     `json:"engine,omitempty" enum:"yue2,acestep15"`
 	Edit           *EditIn    `json:"edit,omitempty"`
 	Reference      *RefIn     `json:"reference,omitempty"`
+	TrackIDs       []string   `json:"track_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"analyze: the takes to listen to"`
 }
 
 // ---- money building blocks ----
@@ -216,7 +217,7 @@ type EstimateItem struct {
 // EstimateWarning is a lint or planner warning for one take.
 type EstimateWarning struct {
 	TakeIndex int    `json:"take_index"`
-	Code      string `json:"code" doc:"Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem, tier_b_unavailable, tier_b_no_lyrics, tier_b_exceeds_runtime, tier_b_engine"`
+	Code      string `json:"code" doc:"Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem, tier_b_unavailable, tier_b_no_lyrics, tier_b_exceeds_runtime, tier_b_engine, no_lyrics, lossy_master"`
 	Field     string `json:"field"`
 	Severity  string `json:"severity" enum:"warning,error"`
 	Message   string `json:"message"`

@@ -66,7 +66,7 @@ func TestSeams_ItemModeEnum(t *testing.T) {
 	for _, e := range s.Properties["mode"].Enum {
 		got = append(got, e.(string))
 	}
-	base := "new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover,g1_selftest_mode"
+	base := "new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover"
 	// the tag modes come first in order; modes registered by track lanes follow, and the test mode is last.
 	if !strings.HasPrefix(strings.Join(got, ",")+",", base+",") {
 		t.Errorf("mode enum %v does not start with the base modes", got)

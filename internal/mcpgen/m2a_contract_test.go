@@ -100,7 +100,11 @@ import (
 // EARS-G1 (M5b C339.3/.4, lane ears-quote): estimate_generation gains options.tier_b, the take plans gain tier_b and the warning code
 // list names the four tier_b_* codes (estimate_generation and estimate_variant). Re-baselined 117776 -> 117931 (measured 117831,
 // +155 over 117676, +100 headroom); the Ears track's 1 200-byte share has 159 bytes spent (4 + 155).
-const toolsCeilingBytes = 117931
+//
+// EARS-G2 (M5b C340.1, lane ears-analyze): estimate_generation's item gains the mode analyze and track_ids, and the warning code list
+// names no_lyrics and lossy_master. Re-baselined 117931 -> 118071 (measured 117971, +140 over 117831, +100 headroom); the Ears track's
+// 1 200-byte share has 299 bytes spent (4 + 155 + 140).
+const toolsCeilingBytes = 118071
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

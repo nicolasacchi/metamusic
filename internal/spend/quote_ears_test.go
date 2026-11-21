@@ -130,3 +130,42 @@ func TestDeadlines_TierBKeepsRenderWindow(t *testing.T) {
 		}
 	}
 }
+
+// analyzeIn is the take of an analyze job (C340.4): no render (audio 0), the input fetch as its fixed seconds, and the listening check
+// of the analysed audio on top.
+func analyzeIn(audioS int, transcribe bool) TakeIn {
+	return TakeIn{AudioS: 0, LoadS: 20, EarsS: EarsExpectedS(audioS, earsLoadS, earsRTFMilli, earsTrRTFMilli, transcribe)}
+}
+
+// TestQuoteTakes_Analyze pins the C340.4 goldens: a 216 s track costs the fetch plus the listening check; twelve of them and a 600 s one.
+func TestQuoteTakes_Analyze(t *testing.T) {
+	t.Parallel()
+	q := QuoteTakes(goldenParams, []TakeIn{analyzeIn(216, false)})
+	tc := q.Takes[0]
+	for name, p := range map[string][2]int64{
+		"gen_s": {int64(tc.GenS), 20}, "ears_budget": {int64(tc.EarsBudgetS), 110}, "expected_s": {int64(tc.ExpectedS), 103},
+		"timeout_s": {int64(tc.TimeoutS), 222}, "take": {int64(tc.TakeMicro), 45425}, "max": {int64(tc.MaxMicro), 83759},
+		"expected": {int64(tc.ExpectedMicro), 19742},
+	} {
+		if p[0] != p[1] {
+			t.Errorf("%s = %d, want %d", name, p[0], p[1])
+		}
+	}
+	if earsS := EarsExpectedS(216, earsLoadS, earsRTFMilli, earsTrRTFMilli, false); earsS != 73 {
+		t.Errorf("ears_s = %d, want 73", earsS)
+	}
+	twelve := make([]TakeIn, 12)
+	for i := range twelve {
+		twelve[i] = analyzeIn(216, false)
+	}
+	b := QuoteTakes(goldenParams, twelve)
+	if b.CeilingMicro != 1172626 || b.ExpectedMicro != 275238 {
+		t.Errorf("twelve tracks: ceiling %d expected %d, want 1172626 and 275238", b.CeilingMicro, b.ExpectedMicro)
+	}
+	if long := QuoteTakes(goldenParams, []TakeIn{analyzeIn(600, false)}).Takes[0]; long.TimeoutS != 307 {
+		t.Errorf("a 600 s track: timeout %d, want 307", long.TimeoutS)
+	}
+	if !TierBFits(goldenParams, analyzeIn(600, false)) {
+		t.Error("a 600 s analyze must fit the default runtime cap")
+	}
+}

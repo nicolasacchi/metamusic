@@ -86,7 +86,20 @@ var M5Modes = []ModeSpec{
 	{Mode: ModeSongPR, Seeds: SeedsParentNew, Parent: "required", Engines: []string{EngineYuE2}},
 }
 
-// Spec returns the row of a mode (M3 table first, then the E2 rows).
+// Ears (M5b C340.1): the on-demand analyze of chosen takes. It is an item mode and a job operator, never an Operator Ledger
+// operator: the job attaches a document to an existing take and creates no child, no mutation row.
+const (
+	ModeAnalyze = "analyze"
+	OpAnalyze   = "analyze"
+)
+
+// EarsModes are the rows the Ears track adds (C340.1); kept apart so the M3 table stays as it was. analyze names its takes by
+// track_ids, has no patch, no seeds and no parent: its only engine is yue2 (the only one that speaks mm.worker/2).
+var EarsModes = []ModeSpec{
+	{Mode: ModeAnalyze, Operator: OpAnalyze, Seeds: SeedsParentOnly, Parent: "none", Engines: []string{EngineYuE2}},
+}
+
+// Spec returns the row of a mode (M3 table first, then the E2, M5 and Ears rows).
 func Spec(mode string) (ModeSpec, bool) {
 	for _, m := range Modes {
 		if m.Mode == mode {
@@ -99,6 +112,11 @@ func Spec(mode string) (ModeSpec, bool) {
 		}
 	}
 	for _, m := range M5Modes {
+		if m.Mode == mode {
+			return m, true
+		}
+	}
+	for _, m := range EarsModes {
 		if m.Mode == mode {
 			return m, true
 		}
