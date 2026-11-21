@@ -53,6 +53,9 @@ func (a *AnalyzeIngester) IngestKind(ctx context.Context, tx *sql.Tx, in jobs.Ki
 		return nil, "", errors.New("earsjobs: an analyze job names the take it analyses")
 	}
 	track := *in.Job.SourceTrackID
+	a.mu.Lock()
+	delete(a.dups, in.Job.ID) // each ingest attempt sets the flag afresh: a rolled-back attempt must not leak it into a retry
+	a.mu.Unlock()
 	var doc *struct {
 		path, sha string
 		bytes     int64

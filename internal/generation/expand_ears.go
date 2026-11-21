@@ -254,8 +254,11 @@ func (p *planner) quoteTakeIn(k int, t *planTake, ears earsPlan) spend.TakeIn {
 // analyzeFits refuses an analyze take whose timeout would pass the runtime cap with the listening check on top (the same rule as
 // tier_b_exceeds_runtime of a render).
 func (p *planner) analyzeFits(qp spend.QuoteParams) error {
-	for k, earsS := range p.analyze {
-		t := p.takes[k]
+	for k, t := range p.takes { // slice order: the first offending take is always the one reported
+		earsS, ok := p.analyze[k]
+		if !ok {
+			continue
+		}
 		_, _, _, fetchS := p.s.earsTerms()
 		if !spend.TierBFits(qp, spend.TakeIn{AudioS: 0, LoadS: fetchS, EarsS: earsS}) {
 			return invalidItem(t.ItemIndex, analyzeField, "tier_b_exceeds_runtime")
