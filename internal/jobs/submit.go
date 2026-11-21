@@ -48,6 +48,7 @@ const candidateSQL = `SELECT j.id FROM jobs j JOIN batches b ON b.id = j.batch_i
 	  AND (SELECT COUNT(*) FROM job_attempts a WHERE a.backend = ? AND a.state IN ('pending','submitted','unknown')) < min(?, b.workers_max)
 	  AND NOT EXISTS (SELECT 1 FROM job_attempts g WHERE g.job_id = j.id AND g.state = 'unknown'
 	        AND NOT EXISTS (SELECT 1 FROM ledger l WHERE l.attempt_id = g.id AND l.reason = 'topup_ambiguous'))
+	  AND NOT EXISTS (SELECT 1 FROM json_each(j.needs_json) n WHERE n.value NOT IN (SELECT value FROM json_each(?)))
 	ORDER BY b.created_at, j.take_index LIMIT 1`
 
 // claimSQL is the C69 claim statement up to its lease predicate.
@@ -132,7 +133,7 @@ func (r *Runner) claimOne(ctx context.Context) (bool, error) {
 	}
 	now := r.o.Clock.Now()
 	var candID string
-	err = r.o.Store.R.QueryRowContext(ctx, candidateSQL, backend, store.FormatTime(now), backend, g0.workersMax).Scan(&candID)
+	err = r.o.Store.R.QueryRowContext(ctx, candidateSQL, backend, store.FormatTime(now), backend, g0.workersMax, capsJSON(g0.caps)).Scan(&candID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -204,7 +205,7 @@ func (r *Runner) claimTx(ctx context.Context, tx *sql.Tx, backend string) (*clai
 	var id, batchID string
 	claimQ := claimSQL + f.And() + ` RETURNING id, batch_id` //nolint:gosec // G202: fixed C69 SQL, values are bound
 	row := tx.QueryRowContext(ctx, claimQ,
-		append([]any{r.o.Owner, store.FormatTime(exp), store.FormatTime(f.Now), backend, store.FormatTime(f.Now), backend, g.workersMax}, f.Args()...)...)
+		append([]any{r.o.Owner, store.FormatTime(exp), store.FormatTime(f.Now), backend, store.FormatTime(f.Now), backend, g.workersMax, capsJSON(g.caps)}, f.Args()...)...)
 	if err := row.Scan(&id, &batchID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if cerr := f.Confirm(ctx, tx, 0); cerr != nil {

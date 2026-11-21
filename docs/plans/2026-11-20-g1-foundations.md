@@ -324,7 +324,7 @@ starts with that check.
      reason: "worker_outdated", missing: [caps]}`; no estimate row, no token, no reservation; create re-checks inside its transaction
      (token not consumed on refusal). `TestEstimate_RefusesClosedNeeds`, `TestCreate_RechecksNeeds`.
    - *Claim*: the claim SQL gains `AND NOT EXISTS (SELECT 1 FROM json_each(j.needs_json) n WHERE n.value NOT IN (SELECT value FROM
-     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6),
+     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6; a job whose needs stayed closed ends `WORKER_OUTDATED` after 1 h instead, see Revision 7),
      releasing its reservation. `TestClaim_NeedsSubsetOfOpenCaps`, `TestClaim_DigestChangeClosesCaps`.
    - *Auto-close* (in the attempt's settle transaction): output error `CONTRACT_VERSION` or `BAD_INPUT` on a `/2` input ⇒ a row with
      `caps_json = []`; `KIND_UNAVAILABLE` ⇒ a row without the missing caps; both `via = 'auto'`, `changed_by = 'system:runner'`, only when
@@ -865,3 +865,56 @@ Revision 6 (2026-11-21, lane G1-F4 `g1-worker`, built on `origin/main` `58928da`
 - **Not done here (by design):** no stage module (Ears, Desk), no fallback behaviour, no `MODE=agent`; the GPU image was not built.
 
 Revision 6 supersedes the C321.5 `Required` wording and the C322.1 vocabulary line that lists `attach` as an advertised cap (not advertised). Review fixes: a malformed plan report is `PIPELINE_ERROR`; stage-supplied codes failing `^[A-Z][A-Z0-9_]*$` fall back to `STAGE_FAILED` or `PLAN_FAILED`; `stages.discover()` catches any import error and removes a partial registration.
+
+Revision 7 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`, merged after G1-F4's Revision 6): C322 as built, with the amendments the code forced.
+
+- **C322.3 migration** is `0022_worker_contract.sql` (additive, up-only; `0020` is the job-kinds rebuild, `0021` the EARS-D1 diction tables, which merged first; renumbered at the merge). The table, the index, the two
+  append-only triggers and the view `worker_contract` are as specified, plus `CHECK (length(backend) > 0)`, `CHECK (length(image_digest) > 0)` and
+  `CHECK (length(changed_by) > 0)`. A database at `0021` has no row, so a backend with no row has no open capability and a job with
+  `needs '[]'` never reads the log (`TestMigration_WorkerContract` in `store`, `TestMigration_WorkerContract_PlainYue2Unchanged` in `jobs`, which
+  rebuilds a `0021` database by dropping what `0022` created and re-opens it).
+- **C322.4 `provider.WorkerCaps`** takes the clock: `WorkerCaps(ctx, q, backend, quote *Quote, now time.Time) ([]string, error)`, because "fresh"
+  is `QuoteMaxAge` against `now`. A simulated backend (`BackendFake`, `BackendFakeACEStep`) with **no** row has every capability open (the plan
+  said "always"), and with a row follows the row and does not compare digests; that is what lets `Rig.OpenCaps` and the jobs tests close a
+  capability. Also exported: `provider.Caps` (the vocabulary), `NormalizeCaps`, `MissingCaps`, `LatestContract`, `AppendContract` (the one
+  writer; `TestWorkerContractWriters` pins it), `ReadQuote`, `QuoteImageDigest`.
+- **C322.5 enforcement.**
+  - `generation.requireCaps(ctx, q, st, needs)` is called at estimate (after the plan is expanded, before anything is quoted or stored) and at
+    create (inside the transaction, after the token is validated, so a refusal rolls the consumption back). `details.missing` lists the missing
+    capabilities. A batch with no needs never reads the log.
+  - The claim SQL filter is as specified (`candidateSQL`, so the candidate query and the claim statement agree); `readGate` computes the open set.
+  - *Auto-close* runs in the terminal-status transaction of a failed attempt (`poll.go`), not in a separate settle step. It needs the job to be
+    on `/2` (a `/1` job's `BAD_INPUT` stays `WORKER_ERROR`). The worker's code is read from the provider status (error text, handler return, error
+    output) or from the `worker_error` of the `status` event that the transfer handler recorded. `CONTRACT_VERSION` and `BAD_INPUT` close every
+    capability and end the job `WORKER_CONTRACT`; `KIND_UNAVAILABLE` removes the job's needs beyond `v2` (and any capability the worker's own `caps`
+    list lacks) and ends it `WORKER_OUTDATED`. Rows are `via = 'auto'`, `changed_by = 'system:runner'`, with the attempt id, an audit row
+    `runner:worker_contract_close`, and a priority-5 notification naming the backend and the closed capabilities. A closing that would change
+    nothing writes nothing.
+  - **Amendment:** an attempt whose `image_digest` is not yet known (the worker record has not arrived) is treated as running the gate's image,
+    so it closes; an attempt with a known digest that differs from the gate's row changes nothing (the job still ends with its code). Closing wrongly
+    costs the operator one reopen; not closing costs a paid failure per job.
+  - **WORKER_OUTDATED after one hour** (Revision 2, ears A3) is in `phaseFailQueued`: a queued job with needs that are not open, queued for more than
+    an hour **and** whose gate last changed more than an hour ago (a capability closed a minute ago gives the queued job its own hour) fails
+    `WORKER_OUTDATED` and releases its reservation (`never_ran`). `error_code` message: "The worker image cannot run this job yet."
+- **C322.6 CLI** `metamusic runpod contract status|open|close` (`cmd_runpod_contract.go`; no API operation, MCP tool or SPA route:
+  `TestWorkerContractWriters` bans an `OperationID` containing `contract`). `--backend` defaults to `runpod-serverless`. `open` refuses a stale quote,
+  an unknown cap, a list without `v2` and a missing reason, and **adds** to the capabilities already open for the same digest (a new digest starts
+  from the given list). `close` defaults to every capability, lists the queued jobs that need what it closes, and refuses (exit 3) unless
+  `--strand-queued` (Revision 2). Audit ops `cli:runpod-contract-open` and `cli:runpod-contract-close` are registered with `audit.AddSystemOps`.
+  **Not built:** the check "a cap the image label does not list when the label is known": the server has no way to read the image label in G1
+  (the worker lane's CI smoke asserts label = selftest instead). `get_provider_status` gains `worker: {image_digest, caps, changed_at, via}` on the
+  top-level object and on every `backends[]` entry: `caps` is the open set right now (empty when the digest changed), the other three describe the
+  latest decision (`via` is `none` with null digest and time when there is none). The operation stays Owner-only, so the role matrix is unchanged.
+- **C322.8 canary case `v2-wire`** (`CaseV2Wire`; `NewCanarySpec` builds the plain 8-bar render with request id `mm-canary-<day>-v2-wire-<n>`). A
+  plain render has no spec field that produces `needs [v2]`, so the estimate planner gives takes whose request id is a `v2-wire` canary id the
+  need `[v2]` (`generation.markV2Canary`, canary ids only; yue2 only; every other take is untouched). The case refuses before any spend when the
+  provider status lists no `v2` capability, and checks `completed`, `artifacts_verified`, `artifacts_equal_v1_set` (the engine's /1 required and
+  optional names, nothing beyond), the audio window, and `v2_still_open` read **after** the run. `ParseCanaryCase`'s error text is generated from
+  `CanaryCases` (desk A8). `TestCanary_V2WireCase` runs against the scripted REST stub only.
+- **`servertest.Rig.OpenCaps(tb, backend, caps...)`** takes `tb` (every other `Rig` helper does) and writes a CLI row bound to the quote's digest.
+- **Accepted risk, canary id hook.** `markV2Canary` keys on the request id, which the caller chooses, so any principal that can estimate may
+  force a plain yue2 render onto `/2` with needs `[v2]` by naming it `mm-canary-<day>-v2-wire-<n>`. With `v2` closed that only refuses
+  (`WORKER_OUTDATED`, no spend); with `v2` open it only changes the wire, which the worker accepts. Accepted for G1; a planner flag would need a
+  spec field the plan does not have.
+- **Python half of the transport caps** (`agent`, `fallback` accepted by `caps.py` and the selftest, Revision 2) is **not** in this lane
+  (Go vocabulary only); it belongs to the worker lane.

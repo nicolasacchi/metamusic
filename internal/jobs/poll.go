@@ -372,6 +372,16 @@ func (r *Runner) followTerminal(ctx context.Context, tx *sql.Tx, f store.LeaseFe
 				code = c
 			}
 		}
+		if o.st.State == provider.Failed {
+			// a /2 job the worker image cannot run: the gate closes in this transaction and the job ends with its own code (C322.5)
+			c, err := r.gateCode(ctx, tx, f, o)
+			if err != nil {
+				return err
+			}
+			if c != "" {
+				code = c
+			}
+		}
 		ev := Event{AttemptID: a.ID, Name: EvFailed, Code: code}
 		if o.st.State == provider.Cancelled {
 			ev.Name = EvProviderCancelled

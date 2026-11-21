@@ -71,9 +71,20 @@ func (r *Runner) phaseFailQueued(ctx context.Context, _ *StepReport) error {
 			if err != nil {
 				return err
 			}
+			outdated, err := r.outdatedQueued(ctx, tx, &j, f.Now)
+			if err != nil {
+				return err
+			}
 			switch {
 			case j.CancelRequestedAt != nil:
 				return nil // phaseCancel owns it
+			case outdated:
+				// the needs stayed closed for an hour (C322.5): fail it and release its reservation rather than hold it for 24 h
+				open, err := r.openCapsFor(ctx, tx, j.Backend)
+				if err != nil {
+					return err
+				}
+				return r.failQueuedJob(ctx, tx, f, &j, CodeWorkerOutdated, Event{Name: EvFailed, Code: CodeWorkerOutdated, Detail: workerOutdatedDetail(&j, open)})
 			case j.ErrorCode != "":
 				// a submit refusal remembered while a ghost could still run (row 10 once nothing can spend)
 				return r.failQueuedJob(ctx, tx, f, &j, j.ErrorCode, Event{Name: EvFailed, Code: j.ErrorCode})

@@ -32,6 +32,7 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 		{runpod.CaseTerminate, 32, "melody", 64},
 		{runpod.CaseTimeout, 64, "melody", 128},
 		{runpod.CaseKillSwitch, 64, "melody", 128},
+		{runpod.CaseV2Wire, 8, "melody", 30},
 	}
 	if len(runpod.CanaryCases) != len(rows) {
 		t.Fatalf("cases = %v", runpod.CanaryCases)
@@ -744,4 +745,135 @@ func TestCanary_KillSwitch(t *testing.T) {
 			t.Fatalf("rep %+v err %v", rep, err)
 		}
 	})
+}
+
+// ---- the v2-wire case (C322.8), driven against the scripted REST server only ----
+
+func v2Provider(caps ...string) map[string]any {
+	p := baseProvider()
+	p["worker"] = map[string]any{"image_digest": nil, "caps": caps, "changed_at": nil, "via": "none"}
+	return p
+}
+
+// v2Job is the completed job of a plain render whose artifacts are the engine's /1 set plus extra.
+func v2Job(extra ...string) []map[string]any {
+	required, optional := yue2.Engine{}.Artifacts(mustSpec(runpod.CaseV2Wire).Recipe)
+	var arts []any
+	for _, n := range append(required, extra...) {
+		arts = append(arts, map[string]any{"name": n, "verified": true})
+	}
+	_ = optional
+	return []map[string]any{job("queued", nil), job("starting", nil), job("generating", nil),
+		job("completed", map[string]any{"outcome": "clean", "track_id": "trk-1", "audio_s": 28.5, "artifacts": arts,
+			"timings": map[string]any{"execution_ms": 41000, "cold_start_s": 95}})}
+}
+
+func mustSpec(c runpod.CanaryCase) runpod.CanarySpec {
+	s, err := runpod.NewCanarySpec(c, t0, 1)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+func TestCanary_V2WireCase(t *testing.T) {
+	t.Parallel()
+	run := func(t *testing.T, s *restStub) *runpod.CanaryReport {
+		t.Helper()
+		s.provider, s.providerAfter = withWorkers(1), v2Provider("v2") // one live worker during the run, none after
+		s.provider["worker"] = v2Provider("v2")["worker"]
+		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseV2Wire))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rep
+	}
+	t.Run("pass", func(t *testing.T) {
+		t.Parallel()
+		s := newRestStub(t, v2Job()...)
+		rep := run(t, s)
+		if rep.Exit != runpod.ExitPass {
+			t.Fatalf("rep %+v", rep)
+		}
+		for _, name := range []string{"completed", "artifacts_verified", "artifacts_equal_v1_set", "v2_still_open"} {
+			if c, ok := checkOf(rep, name); !ok || !c.OK {
+				t.Errorf("check %s = %+v", name, c)
+			}
+		}
+		if !strings.Contains(string(s.estimate), "-v2-wire-1") || !strings.Contains(string(s.estimate), "mm-canary-20261014") {
+			t.Errorf("the estimate does not carry the v2-wire request id: %.200s", s.estimate)
+		}
+		if rep.RequestID != "mm-canary-20261014-v2-wire-1" {
+			t.Errorf("request id %q", rep.RequestID)
+		}
+	})
+	t.Run("v2 closed is refused before any spend", func(t *testing.T) {
+		t.Parallel()
+		s := newRestStub(t, v2Job()...)
+		s.provider = v2Provider() // nothing open
+		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseV2Wire))
+		if err != nil || rep.Exit != runpod.ExitRefused || !strings.Contains(rep.Reason, "contract open") {
+			t.Fatalf("rep %+v err %v", rep, err)
+		}
+		if s.count("POST /api/generations/estimate") != 0 || s.count("POST /api/generations") != 0 {
+			t.Error("the canary went past the closed gate")
+		}
+	})
+	t.Run("a server without the worker block is refused", func(t *testing.T) {
+		t.Parallel()
+		s := newRestStub(t, v2Job()...)
+		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseV2Wire))
+		if err != nil || rep.Exit != runpod.ExitRefused {
+			t.Fatalf("rep %+v err %v", rep, err)
+		}
+	})
+	t.Run("an artifact beyond the /1 set fails", func(t *testing.T) {
+		t.Parallel()
+		rep := run(t, newRestStub(t, v2Job("analysis.json")...))
+		if c, _ := checkOf(rep, "artifacts_equal_v1_set"); rep.Exit != runpod.ExitFail || c.OK || !strings.Contains(c.Note, "analysis.json") {
+			t.Fatalf("rep %+v check %+v", rep, c)
+		}
+	})
+	t.Run("a missing artifact fails", func(t *testing.T) {
+		t.Parallel()
+		js := v2Job()
+		last := js[len(js)-1]
+		last["artifacts"] = last["artifacts"].([]any)[1:]
+		rep := run(t, newRestStub(t, js...))
+		if c, _ := checkOf(rep, "artifacts_equal_v1_set"); rep.Exit != runpod.ExitFail || c.OK {
+			t.Fatalf("rep %+v check %+v", rep, c)
+		}
+	})
+	t.Run("v2 closed by the run fails", func(t *testing.T) {
+		t.Parallel()
+		s := newRestStub(t, v2Job()...)
+		s.provider = withWorkers(1)
+		s.provider["worker"] = v2Provider("v2")["worker"]
+		s.providerAfter = v2Provider() // the worker refused /2 and the runner closed the gate
+		rep, err := runpod.RunCanary(context.Background(), canaryOpts(s, runpod.CaseV2Wire))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c, _ := checkOf(rep, "v2_still_open"); rep.Exit != runpod.ExitFail || c.OK {
+			t.Fatalf("rep %+v check %+v", rep, c)
+		}
+	})
+}
+
+// The unknown-case text lists every case of CanaryCases, so appending a case can never leave it stale (desk A8).
+func TestParseCanaryCase_ErrorGenerated(t *testing.T) {
+	t.Parallel()
+	_, err := runpod.ParseCanaryCase("bogus")
+	if err == nil {
+		t.Fatal("accepted")
+	}
+	want := "(want main, cot-full, terminate, timeout, kill-switch or v2-wire)"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("error = %q, want it to contain %q", err, want)
+	}
+	for _, c := range runpod.CanaryCases {
+		if !strings.Contains(err.Error(), string(c)) {
+			t.Errorf("case %s missing from %q", c, err)
+		}
+	}
 }

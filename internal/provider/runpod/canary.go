@@ -46,10 +46,13 @@ const (
 	CaseTerminate  CanaryCase = "terminate"
 	CaseTimeout    CanaryCase = "timeout"
 	CaseKillSwitch CanaryCase = "kill-switch"
+	// CaseV2Wire is a plain render sent as mm.worker/2 (needs [v2], C322.8): the /2 output, the worker's caps and the artifact
+	// set must equal the /1 render's. It needs capability v2 open (`runpod contract open --caps v2`) and spends like case main.
+	CaseV2Wire CanaryCase = "v2-wire"
 )
 
 // CanaryCases lists them in documentation order.
-var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch}
+var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire}
 
 // ParseCanaryCase validates a --case value.
 func ParseCanaryCase(s string) (CanaryCase, error) {
@@ -58,12 +61,24 @@ func ParseCanaryCase(s string) (CanaryCase, error) {
 			return c, nil
 		}
 	}
-	return "", fmt.Errorf("runpod: canary: unknown case %q (want main, cot-full, terminate, timeout or kill-switch)", s)
+	return "", fmt.Errorf("runpod: canary: unknown case %q (want %s)", s, canaryCaseList())
+}
+
+// canaryCaseList is "a, b or c" over CanaryCases, so the error text of ParseCanaryCase can never go stale when a case is appended.
+func canaryCaseList() string {
+	names := make([]string, len(CanaryCases))
+	for i, c := range CanaryCases {
+		names[i] = string(c)
+	}
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }
 
 // canaryBars is the length of each case's score: YuE2 has no duration control, so the explicit ABC score
 // bounds the render (two seconds per bar at the fixed tempo).
-var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64}
+var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8}
 
 // CanarySpec is one case's synthetic take.
 type CanarySpec struct {
@@ -256,6 +271,23 @@ type cProvider struct {
 	ColdStartS  int `json:"cold_start_s"`
 	KillSlackS  int `json:"kill_slack_s"`
 	MaxRuntimeS int `json:"max_runtime_s"`
+	// Worker is the capability gate of the backend's image (C322.6); nil from a server that predates it.
+	Worker *struct {
+		Caps []string `json:"caps"`
+	} `json:"worker"`
+}
+
+// hasCap reports whether the provider status lists capability c as open.
+func (p cProvider) hasCap(c string) bool {
+	if p.Worker == nil {
+		return false
+	}
+	for _, o := range p.Worker.Caps {
+		if o == c {
+			return true
+		}
+	}
+	return false
 }
 
 func (p cProvider) tripped() bool {
@@ -562,6 +594,8 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "the provider is tripped; reset the trip first"), nil
 	case spec.Case == CaseKillSwitch && prov.Endpoint != nil && prov.Endpoint.WorkersMax != nil && *prov.Endpoint.WorkersMax == 0:
 		return c.finish("refused", ExitRefused, "the endpoint is already deactivated (workers_max 0): the kill switch could not be told from the start state"), nil
+	case spec.Case == CaseV2Wire && !prov.hasCap("v2"):
+		return c.finish("refused", ExitRefused, "capability v2 is not open for this backend's image (open it with `metamusic runpod contract open --caps v2` right before this case)"), nil
 	case spec.Case == CaseTimeout && prov.MaxRuntimeS != 30:
 		return c.finish("refused", ExitRefused, "the timeout case needs MM_JOB_MAX_RUNTIME=30s on the server and an endpoint provisioned with --timeout-case (max_runtime_s is %d)", prov.MaxRuntimeS), nil
 	}
@@ -723,6 +757,12 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		meas["cancel_wait_s"] = int(c.o.AfterCancelWait / time.Second)
 	}
 
+	if spec.Case == CaseV2Wire { // the gate after the run: a worker that refused /2 would have closed v2 (C322.5)
+		prov = cProvider{}
+		if p, err := c.status(ctx); err == nil {
+			prov = p
+		}
+	}
 	c.assertOutcome(spec, prov, job, meas)
 	c.checkSettled(ctx, meas)
 	ran := seenGenerating || cancelled || job.State == "completed"
@@ -851,7 +891,7 @@ func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas m
 		return
 	}
 	switch spec.Case {
-	case CaseMain, CaseCotFull:
+	case CaseMain, CaseCotFull, CaseV2Wire:
 		ok := c.check("completed", job.State == "completed" && job.Outcome != nil && *job.Outcome == "clean", "state %s", job.State)
 		if ok {
 			allVerified := len(job.Artifacts) > 0
@@ -865,6 +905,9 @@ func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas m
 				meas["artifact_names"] = names
 			}
 			c.auditAudio(spec, job, meas)
+			if spec.Case == CaseV2Wire {
+				c.checkV2Wire(spec, prov, job, names, meas)
+			}
 		}
 	case CaseTerminate:
 		c.check("cancelled", job.State == "cancelled", "state %s", job.State)
@@ -1020,4 +1063,33 @@ func milliOf(n json.Number) (int64, bool) {
 		return 0, false
 	}
 	return w*1000 + f, true
+}
+
+// checkV2Wire is what v2-wire adds to the plain render's checks (C322.8): the worker image still lists v2 as open after the run (a
+// CONTRACT_VERSION or BAD_INPUT answer would have closed it), and the artifact set equals the /1 render's, with nothing from /2 added.
+func (c *canary) checkV2Wire(spec CanarySpec, prov cProvider, job cJob, names []string, meas map[string]any) {
+	required, optional := yue2.Engine{}.Artifacts(spec.Recipe)
+	have := map[string]bool{}
+	for _, n := range names {
+		have[n] = true
+	}
+	allowed := map[string]bool{}
+	var missing, extra []string
+	for _, n := range required {
+		allowed[n] = true
+		if !have[n] {
+			missing = append(missing, n)
+		}
+	}
+	for _, n := range optional {
+		allowed[n] = true
+	}
+	for _, n := range names {
+		if !allowed[n] {
+			extra = append(extra, n)
+		}
+	}
+	c.check("artifacts_equal_v1_set", len(missing) == 0 && len(extra) == 0, "missing %v, beyond the /1 set %v", missing, extra)
+	meas["artifact_names"] = names
+	c.check("v2_still_open", prov.hasCap("v2") && job.State == "completed", "capability v2 listed in the provider status")
 }
