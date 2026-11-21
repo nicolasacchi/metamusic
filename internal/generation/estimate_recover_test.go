@@ -63,3 +63,13 @@ func TestFromDraft_RecoveredDraftParentRefused(t *testing.T) {
 		t.Errorf("an ordinary draft with a mother: %+v", e.Items)
 	}
 }
+
+// TestFromDraft_RecoveredDraftStoredParentRefused: a parent stored on the recovered draft itself is refused at estimate time.
+func TestFromDraft_RecoveredDraftStoredParentRefused(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.recoverDraft(lt.Draft1)
+	r.exec(`UPDATE recipe_drafts SET parent_track_id = ? WHERE id = ?`, lt.TrackLuna, lt.Draft1)
+	err := r.estimateErr(generation.EstimateIn{Items: []generation.Item{{Mode: lineage.ModeFromDraft, DraftIDs: []string{lt.Draft1}}}})
+	wantRule(t, err, http.StatusUnprocessableEntity, "INVALID_ITEM", "recovered_draft_parent")
+}

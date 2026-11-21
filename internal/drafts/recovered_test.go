@@ -107,3 +107,22 @@ func TestCreateRecovered_Refusals(t *testing.T) {
 		t.Errorf("err = %v, want LINT_FAILED", err)
 	}
 }
+
+// TestUpdate_RecoveredDraftTakesNoParent: update_draft refuses a parent on a recovered draft; clearing stays allowed.
+func TestUpdate_RecoveredDraftTakesNoParent(t *testing.T) {
+	t.Parallel()
+	const id = "01900000-0000-7000-8000-00000000d003"
+	_, svc := recoveredRig(t, id)
+	d, err := svc.CreateRecovered(context.Background(), auth.Principal{}, recoveredIn(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := lt.TrackLuna
+	if _, err := svc.Update(context.Background(), auth.Principal{}, id, drafts.DraftPatch{Revision: d.Revision, ParentTrackID: &parent}); err == nil {
+		t.Fatal("a parent on a recovered draft was accepted")
+	}
+	empty := ""
+	if _, err := svc.Update(context.Background(), auth.Principal{}, id, drafts.DraftPatch{Revision: d.Revision, ParentTrackID: &empty}); err != nil {
+		t.Errorf("clearing the parent: %v", err)
+	}
+}

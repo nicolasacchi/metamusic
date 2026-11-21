@@ -281,8 +281,8 @@ func TestRecoverRecipe_BodyLimits(t *testing.T) {
 	}
 }
 
-// TestPlaceholderStyle: "<language> vocals, <tempo> BPM, <key>", every unknown part left out.
-func TestPlaceholderStyle(t *testing.T) {
+// TestRecoverRecipe_PlaceholderStyle: "<language> vocals, <tempo> BPM, <key>", every unknown part left out.
+func TestRecoverRecipe_PlaceholderStyle(t *testing.T) {
 	t.Parallel()
 	bpm, key := 103.6, "A minor"
 	for _, c := range []struct {
