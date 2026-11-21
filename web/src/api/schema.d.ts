@@ -3057,7 +3057,7 @@ export interface components {
             reasons: string[];
             /** @enum {string} */
             state: "pending" | "approved" | "rejected" | "expired" | "auto";
-            /** @description auto, human_create, web or expiry; null while pending */
+            /** @description auto, human_create, web, mandate or expiry; null while pending */
             via: string | null;
         };
         AssignMuseSongsInBody: {

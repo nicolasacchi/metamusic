@@ -26,6 +26,7 @@ import (
 // estimateRow is what create needs of a stored estimate.
 type estimateRow struct {
 	ID, Backend, Engine, ItemsJSON, QuoteJSON, ApprovalReasons string
+	MandateID                                                  string // "" when the estimate was not quoted under a mandate
 	Takes                                                      int
 	Expected, Max, Retry, Ceiling, PricePPH                    int64
 	WorkersMax, IdleS                                          int
@@ -38,8 +39,8 @@ func loadEstimate(ctx context.Context, q lineage.Querier, id string) (estimateRo
 	e := estimateRow{ID: id}
 	var need int
 	err := q.QueryRowContext(ctx, `SELECT backend, engine, items_json, quote_json, n_takes, expected_micro_usd, max_micro_usd, retry_allowance_micro_usd,
-		ceiling_micro_usd, price_pph_micro_usd, workers_max, idle_s, requires_approval FROM estimates WHERE id = ?`, id).
-		Scan(&e.Backend, &e.Engine, &e.ItemsJSON, &e.QuoteJSON, &e.Takes, &e.Expected, &e.Max, &e.Retry, &e.Ceiling, &e.PricePPH, &e.WorkersMax, &e.IdleS, &need)
+		ceiling_micro_usd, price_pph_micro_usd, workers_max, idle_s, requires_approval, COALESCE(mandate_id, '') FROM estimates WHERE id = ?`, id).
+		Scan(&e.Backend, &e.Engine, &e.ItemsJSON, &e.QuoteJSON, &e.Takes, &e.Expected, &e.Max, &e.Retry, &e.Ceiling, &e.PricePPH, &e.WorkersMax, &e.IdleS, &need, &e.MandateID)
 	if err != nil {
 		return e, fmt.Errorf("generation: load estimate: %w", err)
 	}
@@ -182,6 +183,11 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 		return Created{}, err
 	}
 
+	// 4b. a mandate stands in for the approval only while it still covers the batch (a revoke or another batch may have committed since)
+	if err = s.recheckMandate(ctx, tx, p, est); err != nil {
+		return Created{}, err
+	}
+
 	// 5. what can drift since the estimate
 	if err = s.recheckPatches(ctx, tx, p, est); err != nil { // song_pr comments and render budget, agent backlog (C253.4, C255.5)
 		return Created{}, err
@@ -192,6 +198,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 
 	// 6. insert
 	need := spend.NeedsApproval(p, via, len(est.Items), money.MicroUSD(est.Ceiling), tok, caps)
+	if est.MandateID != "" {
+		need = mandateNeed(est.MandateID)
+	}
 	if err = s.insertBatch(ctx, tx, p, in, est, batchID, via, need, now); err != nil {
 		return Created{}, err
 	}
@@ -371,10 +380,10 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 		recipeIDs[i] = rid
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO batches(id, estimate_id, principal_id, principal_kind, principal_name, via, engine, backend, n_takes, rationale,
-		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, attempt_overhead_s, kill_slack_s, workers_max, idle_s, state, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, attempt_overhead_s, kill_slack_s, workers_max, idle_s, state, created_at, mandate_id)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		batchID, e.ID, p.Key(), principalKind(p), p.Name, via, e.Engine, e.Backend, len(e.Items), nullStr(in.Rationale),
-		e.Expected, e.Max, e.Retry, e.Ceiling, e.PricePPH, e.Quote.AttemptOverheadS, e.Quote.KillSlackS, e.WorkersMax, e.IdleS, state, ts); err != nil {
+		e.Expected, e.Max, e.Retry, e.Ceiling, e.PricePPH, e.Quote.AttemptOverheadS, e.Quote.KillSlackS, e.WorkersMax, e.IdleS, state, ts, nullStr(e.MandateID)); err != nil {
 		return fmt.Errorf("generation: insert batch: %w", err)
 	}
 	if _, err := s.o.Spend.InsertApproval(ctx, tx, batchID, p, via, need); err != nil {
