@@ -13,3 +13,7 @@ Dockerfile
 Dockerfile.dockerignore
 **/*.env
 **/runpod*.env
+ears/.venv
+ears/.pytest_cache
+ears/tests
+ears/uv.lock
