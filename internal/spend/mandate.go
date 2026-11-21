@@ -105,9 +105,6 @@ func (s *Service) MandateUsage(ctx context.Context, q Querier, mandateID string)
 	return u, tr.Err()
 }
 
-// DayKey is the local calendar day (the spend Location) of t, the key of MandateUsage.DayBatches.
-func (s *Service) DayKey(t time.Time) string { return s.localDay(t) }
-
 // Location is the zone of the caps' calendar days and of MandateUsage.DayBatches; coverage must key "per day" in the same zone.
 func (s *Service) Location() *time.Location { return s.loc }
 

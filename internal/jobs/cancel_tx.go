@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
@@ -17,11 +18,11 @@ func (s *Service) CancelIntentsTx(ctx context.Context, tx *sql.Tx, batchIDs []st
 	if err := s.wired(); err != nil {
 		return err
 	}
-	return s.cancelIntentsTx(ctx, tx, batchIDs, by, "")
+	return s.cancelIntentsTx(ctx, tx, batchIDs, by, "", s.o.Clock.Now())
 }
 
-func (s *Service) cancelIntentsTx(ctx context.Context, tx *sql.Tx, batchIDs []string, by, reason string) error {
-	at := store.FormatTime(s.o.Clock.Now())
+func (s *Service) cancelIntentsTx(ctx context.Context, tx *sql.Tx, batchIDs []string, by, reason string, now time.Time) error {
+	at := store.FormatTime(now)
 	for _, id := range batchIDs {
 		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET cancel_requested_at = ?, cancel_requested_by = ? WHERE batch_id = ? AND cancel_requested_at IS NULL AND state NOT IN ('completed','failed','cancelled','expired')`,
 			at, by, id); err != nil {

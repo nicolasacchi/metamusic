@@ -876,7 +876,7 @@ func (s *Service) CancelBatch(ctx context.Context, p auth.Principal, id, reason 
 		return Batch{}, err
 	}
 	err = s.writeTx(ctx, func(tx *sql.Tx) error {
-		if err := s.cancelIntentsTx(ctx, tx, []string{id}, p.Key(), reason); err != nil {
+		if err := s.cancelIntentsTx(ctx, tx, []string{id}, p.Key(), reason, start); err != nil {
 			return err
 		}
 		return completeAudit(ctx, tx, s.o.Clock, start, nil)

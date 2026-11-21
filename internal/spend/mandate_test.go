@@ -174,7 +174,7 @@ func TestMandateFits_Boundary(t *testing.T) {
 	}
 }
 
-func TestDayKey_LocalZone(t *testing.T) {
+func TestLocalDay_Zone(t *testing.T) {
 	t.Parallel()
 	loc, err := time.LoadLocation("Europe/Rome")
 	if err != nil {
@@ -182,8 +182,8 @@ func TestDayKey_LocalZone(t *testing.T) {
 	}
 	r := newRig(t, func(o *Options) { o.Location = loc })
 	at := time.Date(2026, 10, 14, 23, 30, 0, 0, time.UTC) // 01:30 on the 15th in Rome
-	if got := r.s.DayKey(at); got != "2026-10-15" {
-		t.Fatalf("DayKey = %s", got)
+	if got := r.s.localDay(at); got != "2026-10-15" {
+		t.Fatalf("localDay = %s", got)
 	}
 }
 
