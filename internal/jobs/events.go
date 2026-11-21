@@ -85,7 +85,7 @@ var eventDetailKeys = map[string][]string{
 	EvQueueExpired:      {"expiries", "next_attempt_at", "basis"},
 	EvResubmit:          {"next_attempt_at", "queue_expiries"},
 	EvUpload:            {"upload_id", "artifact", "bytes", "via"},
-	EvFallbackMismatch:  {"artifact"},
+	EvFallbackMismatch:  {"artifact", "reason"},
 	EvResultReceived:    {"artifact_count", "status"},
 	EvCompletedRemote:   {"execution_ms"},
 	EvVerified:          {"artifacts", "truncated_abc", "truncated_semantic"},

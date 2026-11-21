@@ -48,6 +48,7 @@ func wireUploadFallback(env *BuildEnv) error {
 	if err != nil {
 		return err
 	}
+	// Options.AfterS stays at fallback.DefaultAfterS until BULK-P1 wires MM_FALLBACK_AFTER_S through here (C399.4).
 	fb, err := fallback.New(fallback.Options{Store: env.Store, Uploads: env.Services.Uploads, Objects: client, Prefix: cfg.Prefix, Log: slog.Default()})
 	if err != nil {
 		return err

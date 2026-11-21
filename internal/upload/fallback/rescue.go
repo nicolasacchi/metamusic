@@ -46,12 +46,26 @@ func (f *Fallback) Rescue(ctx context.Context, attemptID string) (found bool, er
 			result = u
 		}
 	}
-	if result.ID == "" || result.State != "open" || !at.minted[result.ID] {
-		return false, nil // no object was minted for the result, or it was already received
+	if result.ID == "" {
+		return false, nil
 	}
-	raw, ok, err := f.fetchSmall(ctx, result.ID)
-	if err != nil || !ok {
-		return false, err
+	resultOpen := result.State == "open"
+	var raw []byte
+	if resultOpen {
+		if !at.minted[result.ID] {
+			return false, nil // no object was minted for the result
+		}
+		var ok bool
+		if raw, ok, err = f.fetchSmall(ctx, result.ID); err != nil || !ok {
+			return false, err
+		}
+	} else {
+		// the result arrived through the primary route (or an earlier rescue) while artifacts may still sit in the bucket: its
+		// received bytes list the digests to verify them against
+		var rerr error
+		if raw, rerr = f.o.Uploads.ReadFile(result.ID, maxResultBytes); rerr != nil {
+			return false, nil //nolint:nilerr // consumed or gone: nothing left to rescue from
+		}
 	}
 	out, err := provider.DecodeOutput(raw)
 	if err != nil || out.Contract != provider.ContractV2 || out.TakeID != at.jobID || out.AttemptID != attemptID {
@@ -73,7 +87,7 @@ func (f *Fallback) Rescue(ctx context.Context, attemptID string) (found bool, er
 	for _, n := range names {
 		u, listed := have[n]
 		if !listed {
-			return false, f.mismatch(ctx, at, n, "the output lists an artifact this attempt has no upload for")
+			return false, f.mismatch(ctx, at, "unlisted", "the output lists an artifact this attempt has no upload for")
 		}
 		if u.State != "open" {
 			continue // received through the route (the transfer check compares it with the output)
@@ -94,24 +108,32 @@ func (f *Fallback) Rescue(ctx context.Context, attemptID string) (found bool, er
 		switch err := f.receiveObject(ctx, t.u, &t.dg, nil); {
 		case errors.Is(err, errMismatch):
 			return false, f.mismatch(ctx, at, t.u.Artifact, "the bucket object differs from the output's size or sha256")
-		case errors.Is(err, upload.ErrFallbackClosed), errors.Is(err, upload.ErrFallbackReceived):
+		case errors.Is(err, upload.ErrFallbackClosed), errors.Is(err, upload.ErrFallbackReceived), errors.Is(err, upload.ErrFallbackBusy):
 			return false, nil
 		case err != nil:
 			return false, err
 		}
 	}
+	if !resultOpen {
+		return len(fetch) > 0, f.markFetched(ctx, attemptID) // the artifacts completed the attempt; the result was already in
+	}
 	// the result last: its bytes were read and decoded above; commit exactly those bytes
 	if err := f.receiveObject(ctx, result, nil, raw); err != nil {
-		if errors.Is(err, upload.ErrFallbackClosed) || errors.Is(err, upload.ErrFallbackReceived) {
+		if errors.Is(err, upload.ErrFallbackClosed) || errors.Is(err, upload.ErrFallbackReceived) || errors.Is(err, upload.ErrFallbackBusy) {
 			return false, nil
 		}
 		return false, err
 	}
+	return true, f.markFetched(ctx, attemptID)
+}
+
+// markFetched stamps the attempt's fallback objects whose upload was received through the fallback.
+func (f *Fallback) markFetched(ctx context.Context, attemptID string) error {
 	if _, err := f.o.Store.W.ExecContext(ctx, `UPDATE fallback_objects SET fetched_at = ? WHERE attempt_id = ? AND fetched_at IS NULL
 		AND upload_id IN (SELECT id FROM uploads WHERE attempt_id = ? AND via = 'fallback')`, store.FormatTime(f.o.Clock.Now()), attemptID, attemptID); err != nil {
-		return true, fmt.Errorf("fallback: record fetch: %w", err)
+		return fmt.Errorf("fallback: record fetch: %w", err)
 	}
-	return true, nil
+	return nil
 }
 
 var errMismatch = errors.New("fallback: object does not match its digest")
@@ -191,7 +213,7 @@ type attemptInfo struct {
 // loadAttempt reads the attempt's job and its minted objects; ok is false when the attempt has no fallback object at all.
 func (f *Fallback) loadAttempt(ctx context.Context, attemptID string) (attemptInfo, bool, error) {
 	at := attemptInfo{attemptID: attemptID, minted: map[string]bool{}}
-	rows, err := f.o.Store.R.QueryContext(ctx, `SELECT o.upload_id, a.job_id FROM fallback_objects o JOIN job_attempts a ON a.id = o.attempt_id WHERE o.attempt_id = ?`, attemptID)
+	rows, err := f.o.Store.R.QueryContext(ctx, `SELECT o.upload_id, a.job_id FROM fallback_objects o JOIN job_attempts a ON a.id = o.attempt_id WHERE o.attempt_id = ? AND o.deleted_at IS NULL`, attemptID)
 	if err != nil {
 		return at, false, fmt.Errorf("fallback: %w", err)
 	}
@@ -209,17 +231,15 @@ func (f *Fallback) loadAttempt(ctx context.Context, attemptID string) (attemptIn
 	return at, len(at.minted) > 0, nil
 }
 
-// mismatch records a fallback_mismatch event, once per distinct cause, and answers nil: the upload stays open.
+// mismatch records a fallback_mismatch event, once per distinct cause and attempt, and answers nil: the upload stays open. The check
+// and the insert are one statement, so concurrent callers (the sweep and the runner) cannot both write it. artifact is always a name
+// the attempt has an upload for, or the fixed token "unlisted".
 func (f *Fallback) mismatch(ctx context.Context, at attemptInfo, artifact, reason string) error {
 	detail, _ := json.Marshal(map[string]any{"artifact": artifact, "reason": reason})
-	var n int
-	if err := f.o.Store.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM job_events WHERE job_id = ? AND event = ? AND detail_json = ?`, at.jobID, evMismatch, string(detail)).Scan(&n); err != nil {
-		return fmt.Errorf("fallback: %w", err)
-	}
-	if n > 0 {
-		return nil
-	}
-	if err := f.event(ctx, at.jobID, at.attemptID, evMismatch, string(detail)); err != nil {
+	if _, err := f.o.Store.W.ExecContext(ctx, `INSERT INTO job_events(job_id, attempt_id, at, event, detail_json)
+		SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM job_events WHERE job_id = ? AND attempt_id = ? AND event = ? AND detail_json = ?)`,
+		at.jobID, at.attemptID, store.FormatTime(f.o.Clock.Now()), evMismatch, string(detail),
+		at.jobID, at.attemptID, evMismatch, string(detail)); err != nil {
 		return fmt.Errorf("fallback: %w", err)
 	}
 	return nil

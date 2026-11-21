@@ -46,6 +46,11 @@ func (r *Runner) rescue(ctx context.Context, attemptID string, force bool) bool 
 		return false
 	}
 	r.lastRescue[attemptID] = now
+	for id, t := range r.lastRescue { // entries older than the gap rate-limit nothing: keep the map bounded
+		if now.Sub(t) >= rescueMinGap {
+			delete(r.lastRescue, id)
+		}
+	}
 	r.mu.Unlock()
 	found, err := r.o.Rescue.Rescue(ctx, attemptID)
 	if err != nil {

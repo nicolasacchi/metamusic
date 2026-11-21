@@ -684,3 +684,71 @@ func waitFor(t *testing.T, ok func() bool) {
 	}
 	t.Fatal("condition not reached")
 }
+
+// TestRescue_ResultViaPrimaryArtifactsViaBucket: the result got through the app (it came back), but the artifacts were put in the
+// bucket while it was down; the rescue still completes them, against the digests of the received result.
+func TestRescue_ResultViaPrimaryArtifactsViaBucket(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	urls := h.mint()
+	flac, req := []byte("synthetic flac"), []byte(`{"id":"syn-a"}`)
+	raw := h.finishWorker(urls, map[string][]byte{"audio.flac": flac, "request.json": req}, nil)
+	ctx := context.Background()
+	part, err := h.svc.BeginFallback(ctx, h.uploadID("mm-result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ReceiveFallback(ctx, h.uploadID("mm-result.json"), part, shaHex(raw), int64(len(raw))); err != nil {
+		t.Fatal(err)
+	}
+	found, err := h.fb.Rescue(ctx, attemptID)
+	if err != nil || !found {
+		t.Fatalf("rescue = %v %v", found, err)
+	}
+	if got := h.count(`SELECT COUNT(*) FROM uploads WHERE attempt_id = ? AND state = 'received'`, attemptID); got != 3 {
+		t.Fatalf("%d uploads received", got)
+	}
+	if again, err := h.fb.Rescue(ctx, attemptID); again || err != nil {
+		t.Errorf("second rescue = %v %v", again, err)
+	}
+}
+
+// TestRescue_MismatchDedupe: the same cause on the same attempt is one event however often it is seen; the artifact name in the event
+// is never taken from the worker.
+func TestRescue_MismatchDedupe(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	urls := h.mint()
+	raw := h.finishWorker(urls, map[string][]byte{"audio.flac": []byte("f"), "request.json": []byte("{}")}, nil)
+	h.workerPut(urls["mm-result.json"], []byte(strings.Replace(string(raw), `"audio.flac"`, `"secret-looking-name"`, 1)))
+	for range 3 {
+		if found, err := h.fb.Rescue(context.Background(), attemptID); found || err != nil {
+			t.Fatalf("%v %v", found, err)
+		}
+	}
+	if n := h.count(`SELECT COUNT(*) FROM job_events WHERE event = 'fallback_mismatch' AND detail_json LIKE '%"unlisted"%' AND detail_json NOT LIKE '%secret-looking%'`); n != 1 {
+		t.Errorf("%d mismatch events", n)
+	}
+}
+
+// TestMint_PresignFailureRetiresRows: nothing was handed out, so no row keeps the attempt under rescue.
+func TestMint_PresignFailureRetiresRows(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.fb.o.Objects = failingPresign{h.fb.o.Objects}
+	if _, _, err := h.fb.MintFallback(context.Background(), attemptID, h.exp); err == nil {
+		t.Fatal("want an error")
+	}
+	if n := h.count(`SELECT COUNT(*) FROM fallback_objects WHERE deleted_at IS NULL`); n != 0 {
+		t.Errorf("%d live rows", n)
+	}
+}
+
+type failingPresign struct{ Objects }
+
+func (failingPresign) PresignPut(string, time.Duration) (string, error) {
+	return "", errors.New("synthetic")
+}

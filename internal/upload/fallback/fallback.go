@@ -116,18 +116,21 @@ func (f *Fallback) MintFallback(ctx context.Context, attemptID string, exp time.
 	for artifact, id := range ids {
 		u, err := f.o.Objects.PresignPut(f.key(id), ttl)
 		if err != nil {
-			return nil, 0, fmt.Errorf("fallback: presign: %w", err) // the rows stay; the deletion loop treats them like any other
+			f.retire(ctx, ids) // no URL left this function: the rows must not keep the attempt under rescue or drill
+			return nil, 0, fmt.Errorf("fallback: presign: %w", err)
 		}
 		urls[artifact] = u
 	}
 	return urls, f.o.AfterS, nil
 }
 
-// event appends a job event (never a URL, key or signature in detail).
-func (f *Fallback) event(ctx context.Context, jobID, attemptID, name, detail string) error {
-	_, err := f.o.Store.W.ExecContext(ctx, `INSERT INTO job_events(job_id, attempt_id, at, event, detail_json) VALUES (?, ?, ?, ?, ?)`,
-		jobID, attemptID, store.FormatTime(f.o.Clock.Now()), name, detail)
-	return err
+// retire marks the objects of a failed mint deleted (nothing was ever handed out, so there is nothing in the bucket to remove). A
+// database fault here leaves the rows to the deletion loop, which handles them like any other.
+func (f *Fallback) retire(ctx context.Context, ids map[string]string) {
+	at := store.FormatTime(f.o.Clock.Now())
+	for _, id := range ids {
+		_, _ = f.o.Store.W.ExecContext(ctx, `UPDATE fallback_objects SET deleted_at = ? WHERE upload_id = ? AND fetched_at IS NULL AND deleted_at IS NULL`, at, id)
+	}
 }
 
 // Status is the fallback block of get_provider_status: whether it is configured, how many bucket objects are still to be deleted and
