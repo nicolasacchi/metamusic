@@ -67,6 +67,7 @@ type Service struct {
 	o    Options
 	e2   e2Seams   // set by UseEngines (seams_e2.go); the zero value keeps the M3 single-backend behaviour
 	ears EarsSeams // set by UseEars (seams_ears.go); the zero value adds no warnings
+		earsQ earsSeams // set by UseEars (seams_ears.go, UseEarsQuote); the zero value plans no listening check
 }
 
 // New builds the service.
@@ -119,6 +120,9 @@ type EstimateIn struct {
 	// refused with 422 INVALID_ITEM in E2a and E2b.
 	Backend, TrialID string
 	Items            []Item
+	// TierB is options.tier_b (D-EARS-2): nil is auto (a listening check where the take has lyric lines, fits and the worker has
+	// the capabilities), true requires one, false turns it off.
+	TierB *bool
 	// Via is "api" or "human_create" (the path the later create will use, C72.6).
 	Via string
 }
@@ -153,6 +157,7 @@ type TakePlan struct {
 	Edit                    *PlannedEdit
 	Reference               *PlannedRef
 	CrossEngine             bool // D-E2-25: an edit of a parent rendered by the other engine
+	TierB                   bool // the take has a listening check (C339): its budget is in TimeoutS and Max
 }
 
 // PlannedItem groups the takes one item expanded to.

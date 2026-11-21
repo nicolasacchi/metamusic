@@ -32,6 +32,8 @@ type RefIn struct {
 type EstimateOptions struct {
 	Backend string `json:"backend,omitempty"`
 	TrialID string `json:"trial_id,omitempty"`
+	// TierB: absent = a listening check where the take has lyric lines and fits; true requires one; false skips it.
+	TierB *bool `json:"tier_b,omitempty" doc:"Listening check: absent auto, true require, false skip"`
 }
 
 // ---- per-take plan additions (C149.2) ----

@@ -26,7 +26,8 @@ type QuoteParams struct {
 // TakeCost is the quote of one take.
 type TakeCost struct {
 	AudioS, ExpectedS, TimeoutS        int
-	GenS, GenBudgetS                   int            // expected generation seconds; the worker's generation budget (timeout - finish margin - upload budget)
+	GenS, GenBudgetS                   int            // expected generation seconds; the worker's generation budget (timeout - finish margin - upload budget - EarsBudgetS)
+	EarsBudgetS                        int            `json:",omitempty"` // the Tier B budget added on top of the /1 timeout (0 = no listening check, C339.1)
 	ExpectedMicro, TakeMicro, MaxMicro money.MicroUSD // TakeMicro = the `take` reserve; MaxMicro = TakeMicro + one attempt overhead
 }
 
@@ -85,6 +86,8 @@ type TakeIn struct {
 	// site is byte-identical (TestQuoteTakes_YueUnchanged).
 	RTFMilli int // engine and class RTF (milli); 0 = p.RTFMilli
 	LoadS    int // fixed seconds of this take (model load, planner LM, input fetch, VAE encode, lrc_fixed_s); 0 = LoadS
+	// EarsS is the expected Tier B seconds of a take with a listening check (C339.1, quote_ears.go); 0 = none, byte-identical.
+	EarsS int `json:",omitempty"`
 }
 
 // QuoteBatch quotes takes without ABC planning (cot melody or off); see QuoteTakes.
@@ -111,22 +114,17 @@ func QuoteTakes(p QuoteParams, takes []TakeIn) BatchQuote {
 	var maxExpectedS int
 	var sumExpected money.MicroUSD
 	for _, t := range takes {
-		rate := int64(p.RTFMilli)
-		if t.RTFMilli > 0 {
-			rate = int64(t.RTFMilli)
-		}
-		if t.Full {
-			rate += PlanMilli
-		}
-		load := int64(LoadS)
-		if t.LoadS > 0 {
-			load = int64(t.LoadS)
-		}
-		gen := load + ceilDiv(rate*int64(t.AudioS), 1000)
-		exp := int(gen) + ExpectedUploadS
-		to := ceilDiv(headroomNum*gen, headroomDen) + WorkerFinishMarginS + UploadBudgetS + TimeoutSlackS
+		gen, to := baseTimes(p, t)
 		to = min(int64(p.MaxRuntimeS), to)
-		tc := TakeCost{AudioS: t.AudioS, ExpectedS: exp, TimeoutS: int(to), GenS: int(gen), GenBudgetS: int(to) - WorkerFinishMarginS - UploadBudgetS}
+		exp := int(gen) + ExpectedUploadS
+		var budget int
+		if t.EarsS > 0 { // Tier B runs after the render: its budget is added on top of the /1 timeout (D-EARS-3)
+			budget = EarsBudgetS(t.EarsS)
+			to += int64(budget)
+			exp += t.EarsS
+		}
+		tc := TakeCost{AudioS: t.AudioS, ExpectedS: exp, TimeoutS: int(to), GenS: int(gen), EarsBudgetS: budget,
+			GenBudgetS: int(to) - WorkerFinishMarginS - UploadBudgetS - budget}
 		tc.TakeMicro = money.ForSeconds(to+int64(p.KillSlackS), p.PricePPH)
 		tc.MaxMicro = tc.TakeMicro + q.AttemptOverheadMicro
 		tc.ExpectedMicro = money.ForSeconds(int64(min(exp, int(to))), p.PricePPH)
@@ -144,6 +142,24 @@ func QuoteTakes(p QuoteParams, takes []TakeIn) BatchQuote {
 		q.ETAS = p.ColdStartS + int(ceilDiv(int64(n), int64(p.WorkersMax)))*maxExpectedS
 	}
 	return q
+}
+
+// baseTimes are the expected generation seconds and the /1 timeout of a take before the runtime cap and Tier B.
+func baseTimes(p QuoteParams, t TakeIn) (gen, to int64) {
+	rate := int64(p.RTFMilli)
+	if t.RTFMilli > 0 {
+		rate = int64(t.RTFMilli)
+	}
+	if t.Full {
+		rate += PlanMilli
+	}
+	load := int64(LoadS)
+	if t.LoadS > 0 {
+		load = int64(t.LoadS)
+	}
+	gen = load + ceilDiv(rate*int64(t.AudioS), 1000)
+	to = ceilDiv(headroomNum*gen, headroomDen) + WorkerFinishMarginS + UploadBudgetS + TimeoutSlackS
+	return gen, to
 }
 
 // EffectivePrice is the list price with the safety margin (C72.1).

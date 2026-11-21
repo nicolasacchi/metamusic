@@ -148,7 +148,7 @@ func estimateFrom(e generation.Estimate) Estimate {
 func takePlanFrom(batchEngine string, t generation.TakePlan) TakePlan {
 	tp := TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
 		ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, TimeoutS: t.TimeoutS,
-		MaxMicroUSD: int64(t.Max), MaxUSD: usd(t.Max), Engine: t.Engine, Task: nonEmpty(t.Task), TaskClass: nonEmpty(t.TaskClass), CrossEngine: t.CrossEngine}
+		MaxMicroUSD: int64(t.Max), MaxUSD: usd(t.Max), Engine: t.Engine, Task: nonEmpty(t.Task), TaskClass: nonEmpty(t.TaskClass), CrossEngine: t.CrossEngine, TierB: t.TierB}
 	if tp.Engine == "" {
 		tp.Engine = batchEngine
 	}
@@ -277,7 +277,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 			for i, it := range in.Body.Items {
 				items[i] = itemIn(it)
 			}
-			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID})
+			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID, TierB: opts.TierB})
 			if err != nil {
 				return nil, genErr(err)
 			}

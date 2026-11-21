@@ -4944,6 +4944,8 @@ export interface components {
         };
         EstimateOptions: {
             backend?: string;
+            /** @description Listening check: absent auto, true require, false skip */
+            tier_b?: boolean;
             trial_id?: string;
         };
         EstimatePrice: {
@@ -4965,7 +4967,7 @@ export interface components {
             title?: string;
         };
         EstimateWarning: {
-            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem */
+            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem, tier_b_unavailable, tier_b_no_lyrics, tier_b_exceeds_runtime, tier_b_engine */
             code: string;
             field: string;
             message: string;
@@ -8077,6 +8079,7 @@ export interface components {
             task: string | null;
             /** @enum {string|null} */
             task_class: "turbo" | "base" | null;
+            tier_b?: boolean;
             /** Format: int64 */
             timeout_s: number;
             title: string;
