@@ -162,3 +162,21 @@ func TestAdherence_NoSectionsOneWholeSection(t *testing.T) {
 		t.Errorf("nil tune = %+v", r)
 	}
 }
+
+func TestAdherence_MeasuredGapMatchesByIdx(t *testing.T) {
+	t.Parallel()
+	w := measuredWindows()
+	gap := []tierb.Window{w[0], w[2]} // the chorus has no measured window
+	r := tierb.Adherence(tierb.AdherenceInput{Tune: tune(t, planABC), Sung: sing(3, 0, 10), Measured: gap})
+	if len(r.Sections) != 3 {
+		t.Fatalf("sections = %+v", r.Sections)
+	}
+	if s := r.Sections[1]; s.NotesSung != 0 || s.Chroma != nil {
+		t.Errorf("chorus without a window = %+v", s)
+	}
+	for _, i := range []int{0, 2} {
+		if s := r.Sections[i]; !approx(s.Chroma, 1) || s.NotesSung != 8 {
+			t.Errorf("section %d = %+v", i, s)
+		}
+	}
+}

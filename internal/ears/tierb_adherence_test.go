@@ -182,7 +182,7 @@ func TestAnalyzeTierB_AdherenceAbsent(t *testing.T) {
 			t.Errorf("rows = %d", n)
 		}
 	})
-	t.Run("score file missing leaves no row", func(t *testing.T) {
+	t.Run("score file missing stores a settled empty comparison", func(t *testing.T) {
 		t.Parallel()
 		r := newRig(t, withTierARows())
 
@@ -190,8 +190,9 @@ func TestAnalyzeTierB_AdherenceAbsent(t *testing.T) {
 		r.exec(`UPDATE scores SET abc_path = 'takes/nowhere/score.abc' WHERE track_id = ?`, lt.TrackLuna)
 		r.putDoc(lt.TrackLuna, "analysis.json", singDoc(t, 0), time.Hour)
 		r.analyze(lt.TrackLuna)
-		if n := r.count(`SELECT count(*) FROM analyses WHERE analyzer = 'tier_b_adherence'`); n != 0 {
-			t.Errorf("rows = %d", n)
+		_, a := r.adherenceRow(lt.TrackLuna)
+		if a.MelodyChroma != nil || a.TimingSource != "none" || len(a.Sections) != 0 {
+			t.Errorf("adherence = %+v", a)
 		}
 	})
 	t.Run("score that no longer matches its hash stores an empty comparison", func(t *testing.T) {

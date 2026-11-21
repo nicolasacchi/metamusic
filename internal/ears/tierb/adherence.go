@@ -136,8 +136,14 @@ func Adherence(in AdherenceInput) AdherenceResult {
 			case whole:
 				w := Window{Label: "score", StartS: in.Measured[0].StartS, EndS: in.Measured[len(in.Measured)-1].EndS}
 				windows[i] = &w
-			case i < len(in.Measured):
-				windows[i] = &in.Measured[i]
+			default:
+				// by measured index, not by position: a measured section without times is absent from the list
+				for j := range in.Measured {
+					if in.Measured[j].Idx == i {
+						windows[i] = &in.Measured[j]
+						break
+					}
+				}
 			}
 		}
 	case timed:

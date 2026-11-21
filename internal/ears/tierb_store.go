@@ -309,8 +309,9 @@ func adherenceSung(raw tierb.Raw) []tierb.Note {
 }
 
 // planScore reads and parses the take's score.abc. ok is false when the take has no score (no adherence row) or when the
-// score file cannot be read (a transient failure: no row, so the sweep tries again); a score that does not parse is returned
-// as an empty tune, which stores an adherence row with no comparison and so settles the question.
+// score file cannot be read (an I/O error: no row, so the sweep tries again); a score file that is missing, or does not parse,
+// is returned as an empty tune, which stores an adherence row with no comparison and so settles the question (a missing file
+// would otherwise make the sweep re-select the take on every pass).
 func (s *Service) planScore(ctx context.Context, trackID string) (*abc.Tune, bool, error) {
 	var path, sha string
 	switch err := s.o.Store.R.QueryRowContext(ctx, `SELECT abc_path, abc_sha256 FROM scores WHERE track_id = ?`, trackID).Scan(&path, &sha); {
@@ -322,7 +323,7 @@ func (s *Service) planScore(ctx context.Context, trackID string) (*abc.Tune, boo
 	f, err := s.o.Data.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, false, nil
+			return nil, true, nil
 		}
 		return nil, false, fmt.Errorf("ears: tier B score: %w", err)
 	}
