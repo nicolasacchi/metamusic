@@ -445,3 +445,62 @@ func TestIngestKindJob_V2ArtifactRules(t *testing.T) {
 		}
 	})
 }
+
+// TestIngestKindJob_V2Violations calls the kind ingest directly with outputs that break the rules of the job's kind.
+func TestIngestKindJob_V2Violations(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		mutate func(*provider.Output)
+		want   string
+	}{
+		{"a /1 contract", func(o *provider.Output) { o.Contract = provider.ContractV1 }, "WORKER_CONTRACT"},
+		{"one entry for two seeds", func(o *provider.Output) { o.Plans = o.Plans[:1] }, "WORKER_CONTRACT"},
+		{"an ok seed whose bundle is not reported", func(o *provider.Output) { delete(o.Artifacts, "plan-00.tar") }, "ARTIFACT_MISSING"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			pi := &planIngester{}
+			b := kindBridge(t, map[string]KindIngester{KindPlan: pi})
+			job := b.seed(batchSpec{recipe: b.newRecipe("pop"), kind: KindPlan, needs: `["plan","v2"]`, specJSON: `{"plan":{"seeds":[1,2],"seconds_per_seed":10}}`}).Jobs[0]
+			jr, ar, files, out := b.capture(job, []byte("x"))
+			c.mutate(&out)
+			_, _, err := b.bridge.IngestKindJob(WithLeaseOwner(context.Background(), "runner-1"), jr, ar, files, out)
+			var cv *ContractViolation
+			if !errors.As(err, &cv) || cv.Code != c.want {
+				t.Fatalf("err = %v, want violation %s", err, c.want)
+			}
+			if n, _ := pi.calls(); n != 0 {
+				t.Errorf("the ingester ran %d times", n)
+			}
+		})
+	}
+}
+
+// TestApplyWire_Refusals covers the refusals of applyWire and attemptArtifacts that need no runner loop.
+func TestApplyWire_Refusals(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := t.Context()
+	broken := jobRec{JobRow: JobRow{ID: "j", SpecJSON: `{"nope":1}`}, Engine: "yue2"}
+	var spec provider.TakeSpec
+	if err := r.run.applyWire(ctx, &claim{job: broken}, &spec); err == nil || !strings.Contains(err.Error(), "spec_json") {
+		t.Errorf("applyWire on a corrupt spec: %v", err)
+	}
+	broken.RecipeID = testRecipe
+	if _, _, err := r.run.attemptArtifacts(ctx, r.st.R, &broken); err == nil || !strings.Contains(err.Error(), "spec_json") {
+		t.Errorf("attemptArtifacts on a corrupt spec: %v", err)
+	}
+	// attachments past the 1 MiB limit are refused at submit, before anything is sent
+	big := make([]byte, provider.MaxAttachBytes+1)
+	sum := sha256.Sum256(big)
+	r.run.o.Attach = attachSource{"plan:p/big": big}
+	oversize := jobRec{JobRow: JobRow{ID: "j", Needs: []string{"attach", "v2"},
+		SpecJSON: `{"attach":[{"name":"big.bin","sha256":"` + hex.EncodeToString(sum[:]) + `","source":"plan:p/big"}]}`}, Engine: "yue2"}
+	if err := r.run.applyWire(ctx, &claim{job: oversize}, &provider.TakeSpec{Engine: "yue2", Request: []byte(`{"a":1}`)}); err == nil || !strings.Contains(err.Error(), "cannot be built") {
+		t.Errorf("oversized attachments: %v", err)
+	}
+	// a document the parser refuses (a plan job without a plan block) is not sent either
+	noPlan := jobRec{JobRow: JobRow{ID: "j", Kind: KindPlan, Needs: []string{"plan", "v2"}, SpecJSON: `{}`}, Engine: "yue2"}
+	if err := r.run.applyWire(ctx, &claim{job: noPlan}, &provider.TakeSpec{Engine: "yue2", Request: []byte(`{"a":1}`)}); err == nil || !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("a plan job without a plan: %v", err)
+	}
+}
