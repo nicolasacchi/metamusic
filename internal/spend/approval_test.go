@@ -356,6 +356,12 @@ func TestWithdrawBatch(t *testing.T) {
 	if ids, err := r.s.StuckWithdrawn(ctx, r.st.R, 10); err != nil || len(ids) != 0 {
 		t.Fatalf("a live awaiting batch is not stuck: %v %v", ids, err)
 	}
+	// a cancel that predates WithdrawBatch: every job cancelled, the approval still pending
+	stuck := r.awaiting("w-stuck")
+	r.exec(`UPDATE jobs SET state = 'cancelled', finished_at = ? WHERE batch_id = ?`, store.FormatTime(r.clk.Now()), stuck.Batch)
+	if ids, err := r.s.StuckWithdrawn(ctx, r.st.R, 10); err != nil || len(ids) != 1 || ids[0] != stuck.Batch {
+		t.Fatalf("StuckWithdrawn = %v %v, want [%s]", ids, err, stuck.Batch)
+	}
 	if ch, err := withdraw(a.Batch, nil); !ch || err != nil {
 		t.Fatalf("withdraw: %v %v", ch, err)
 	}

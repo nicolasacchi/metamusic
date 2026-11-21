@@ -808,7 +808,8 @@ func yue2Mother(t *testing.T, r *servertest.Rig) string {
 func startYue2Variant(t *testing.T, r *servertest.Rig) string {
 	t.Helper()
 	mother := yue2Mother(t, r)
-	body := map[string]any{"items": []any{map[string]any{"mode": "new_seed", "parent_track_id": mother, "n_seeds": 1}}}
+	// a plain render: the byte-identical golden is of a yue2 run without a listening check
+	body := map[string]any{"items": []any{map[string]any{"mode": "new_seed", "parent_track_id": mother, "n_seeds": 1}}, "options": map[string]any{"tier_b": false}}
 	_, _, jobs := aceRun(t, r, body, "yue-variant-"+mother[len(mother)-6:])
 	if s, code := jobState(t, r, jobs[0]); s != "completed" {
 		t.Fatalf("yue2 variant: %s (%s)", s, code)

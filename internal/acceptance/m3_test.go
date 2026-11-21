@@ -122,7 +122,8 @@ func draftIDs(t *testing.T, r *servertest.Rig) []string {
 func TestAcceptance_M3_V2Batch(t *testing.T) {
 	tpl := archivetest.GenerateArchive(t)
 	est := func(c *servertest.Client, ids []string) map[string]any {
-		return obj(c.OK(t, "POST", "/api/generations/estimate", map[string]any{"items": []any{map[string]any{"mode": "from_draft", "draft_ids": ids}}}))
+		return obj(c.OK(t, "POST", "/api/generations/estimate", map[string]any{"items": []any{map[string]any{"mode": "from_draft", "draft_ids": ids}},
+			"options": map[string]any{"tier_b": false}})) // the M3 price: the listening check is priced by the Ears acceptance test
 	}
 
 	t.Run("human", func(t *testing.T) {

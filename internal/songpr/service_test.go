@@ -372,3 +372,31 @@ func TestList_FiltersAndPaging(t *testing.T) {
 		t.Errorf("summary = %+v", all.Items[0])
 	}
 }
+
+// TestPropose_MeasuredGapFallsBackToPlan: a listening check adds measured sections to the comment's take (they start at the first
+// sung word, so the intro is a gap and the clock may differ from the plan's). Comments the check places in a section keep that
+// section; a comment in a gap of the measured sections is placed by the plan's, instead of turning unscoped.
+func TestPropose_MeasuredGapFallsBackToPlan(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	g0, g2 := r.fx.Lineage[0], r.fx.Lineage[2]
+	// fix_verse sits at 12 s and fix_chorus at 40 s on G0's plan; the measured verse starts at 20 s, so 12 s is before every measured section
+	r.exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', 0, 'verse', 'verse', '[Verse]', 20, 35, 0.9)`, g0)
+	r.exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', 1, 'chorus', 'chorus', '[Chorus]', 35, 80, 0.9)`, g0)
+	// comments made once the check had landed carry no stored label (sectionFor finds a gap), so only the timing can place them
+	late := []string{"01900000-0000-7000-8000-00000000fa01", "01900000-0000-7000-8000-00000000fa02"}
+	for i, from := range []string{"fix_chorus", "fix_verse"} {
+		r.exec(`INSERT INTO comments(id, track_id, body, at_second, kind, state, source, principal_kind, principal_id, principal_name, created_at, updated_at)
+			SELECT ?, track_id, body, at_second, kind, state, source, principal_kind, principal_id, principal_name, created_at, updated_at FROM comments WHERE id = ?`, late[i], r.fx.Comments[from])
+	}
+	got, err := r.svc.Propose(context.Background(), agent, songpr.ProposeInput{
+		BaseTrackID: g2, AddressesCommentIDs: late, Rationale: "land the hook earlier",
+		Ops: []songpr.OpJSON{replace(1, 0, "a brand new hook line"), replace(0, 1, "a calmer second line")},
+	})
+	if err != nil {
+		t.Fatalf("propose after a listening check: %v", err)
+	}
+	if len(got.Bounds.Sections) != 2 {
+		t.Errorf("scoped sections = %+v, want verse and chorus", got.Bounds.Sections)
+	}
+}
