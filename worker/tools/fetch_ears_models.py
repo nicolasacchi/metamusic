@@ -112,7 +112,12 @@ def _urls(model: dict[str, Any]) -> Iterator[tuple[str, str]]:
 def fetch_file(url: str, dest: Path, want_sha: str, want_bytes: int) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     with _open(url) as r, open(dest, "wb") as out:
-        shutil.copyfileobj(r, out, 1 << 20)
+        got = 0
+        while chunk := r.read(1 << 20):
+            got += len(chunk)
+            if got > want_bytes:  # a host serving more than the lock names must not fill the build disk
+                raise VerifyError(f"{dest.name}: body exceeds the locked {want_bytes} bytes")
+            out.write(chunk)
     size = dest.stat().st_size
     if size != want_bytes:
         raise VerifyError(f"{dest.name}: size {size} != {want_bytes}")

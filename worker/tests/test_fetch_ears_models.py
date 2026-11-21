@@ -77,6 +77,7 @@ def test_a_hash_or_size_mismatch_fails_and_removes_the_output(tmp_path: Path, se
     assert not out.exists() and "sha256" in capsys.readouterr().err
     served[url] = served[url] + b"+"
     assert fem.main(["x", str(make_lock(tmp_path)), str(out)]) == 1 and not out.exists()
+    assert "exceeds" in capsys.readouterr().err  # the oversize body is cut off while reading
 
 
 @pytest.mark.parametrize("mutate", [

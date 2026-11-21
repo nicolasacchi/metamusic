@@ -311,6 +311,24 @@ def test_ears_env_only_in_subprocess(env: Path, spawn: Spawner, tmp_path: Path, 
     assert spawn.procs[1].env["PYTHONPATH"] == "/opt/ears-site:/x"
 
 
+def test_ears_env_is_an_allow_list(env: Path, spawn: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for k in ("RUNPOD_API_KEY", "AWS_SECRET_ACCESS_KEY", "UPLOAD_TOKEN", "MM_WORKER_SECRET"):
+        monkeypatch.setenv(k, "sentinel")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    ears.run(ctx_for(tmp_path))
+    child = spawn.procs[0].env
+    assert not any(v == "sentinel" for v in child.values()) and not any(k.startswith("RUNPOD_") for k in child)
+    assert child["PATH"] == "/usr/bin" and child["CUDA_VISIBLE_DEVICES"] == "0" and child[ears.ENV_MODELS]
+
+
+def test_ok_document_is_accepted_even_when_the_process_exits_nonzero(env: Path, spawn: Spawner, tmp_path: Path) -> None:
+    """A crash at interpreter teardown after the document was written does not discard a valid result."""
+    spawn.rc = 139
+    outcome = ears.run(ctx_for(tmp_path))
+    assert outcome.status == "ok"
+
+
 def test_python_interpreter_is_overridable(env: Path, spawn: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(ears.ENV_PYTHON, "/opt/venv/bin/python")
     ears.run(ctx_for(tmp_path))

@@ -86,10 +86,16 @@ def _parent_reserved_mib() -> int | None:
         return None
 
 
+_ENV_KEEP = frozenset({"PATH", "LD_LIBRARY_PATH", "LIBRARY_PATH", "HOME", "TMPDIR", "LANG", "PYTHONPATH", "VIRTUAL_ENV",
+                       "HF_HOME", "TORCH_HOME", "XDG_CACHE_HOME", "OMP_NUM_THREADS"})
+_ENV_KEEP_PREFIX = ("CUDA_", "NVIDIA_", "LC_", "MM_EARS_")
+
+
 def _env(environ: Mapping[str, str]) -> dict[str, str]:
-    """The subprocess's environment: a copy of ours plus the site directory and offline switches. Our own os.environ and
-    sys.path are never touched (the parent must not be able to import mmears)."""
-    env = dict(environ)
+    """The subprocess's environment: an allow-listed copy of ours (never RUNPOD_*, *_KEY, *_SECRET, *_TOKEN) plus the site
+    directory and offline switches. Our own os.environ and sys.path are never touched (the parent must not be able to
+    import mmears)."""
+    env = {k: v for k, v in environ.items() if k in _ENV_KEEP or k.startswith(_ENV_KEEP_PREFIX)}
     site = environ.get(ENV_SITE, "")
     if site:
         env["PYTHONPATH"] = site + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")

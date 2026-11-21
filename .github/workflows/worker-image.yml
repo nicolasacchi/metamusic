@@ -154,8 +154,6 @@ jobs:
           size=$(docker image inspect "$IMAGE:smoke" --format '{{.Size}}')
           echo "image size: $size bytes ($((size / 1048576)) MiB)"
           echo "worker image size: $((size / 1048576)) MiB" >> "$GITHUB_STEP_SUMMARY"
-          # EARS-P2 (C333.5 spike record): the number to compare with the plan's estimate (ears growth is about 4 GiB over the W1 image)
-          echo "ears image: the W1 image plus the ears stage and models; compare with the C333.5 estimate" >> "$GITHUB_STEP_SUMMARY"
       - name: smoke selftest mode
         if: steps.decide.outputs.build == 'true'
         run: docker run --rm -e MODE=selftest "$IMAGE:smoke"

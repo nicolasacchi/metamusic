@@ -772,7 +772,7 @@ def test_dockerfile_labels_equal_selftest_caps(tmp_path: Path, monkeypatch: pyte
 
     monkeypatch.setenv("MM_EARS_MODELS_DIR", str(ears_models_tree(tmp_path / "models")))
     monkeypatch.setenv("MM_EARS_LOCK", str(LOCK))
-    sys.modules.pop("mmworker.stages.ears", None)  # discover() re-imports it under the new environment
+    monkeypatch.delitem(sys.modules, "mmworker.stages.ears", raising=False)  # discover() re-imports it under the new environment
     text = (ROOT / "Dockerfile").read_text()
     m = re.search(r'^LABEL io\.metamusic\.contracts="([^"]*)" io\.metamusic\.caps="([^"]*)"$', text, re.M)
     assert m, "the worker Dockerfile must carry both labels"
