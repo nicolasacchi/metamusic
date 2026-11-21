@@ -185,10 +185,14 @@ func (c *canary) estimateBody(spec CanarySpec) map[string]any {
 	if spec.Item != nil {
 		return map[string]any{"engine": spec.Engine, "items": []any{spec.Item}}
 	}
-	return map[string]any{
+	body := map[string]any{
 		"engine": "yue2",
 		"items":  []any{map[string]any{"mode": "compose_new", "recipe": spec.Recipe, "title": spec.RequestID}},
 	}
+	if spec.Options != nil {
+		body["options"] = spec.Options
+	}
+	return body
 }
 
 // ---- provider status per backend ----------------------------------------------------------------------------------

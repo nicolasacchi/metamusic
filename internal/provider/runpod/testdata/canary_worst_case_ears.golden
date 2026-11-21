@@ -1,0 +1,5 @@
+Ears canary worst case (illustrative price USD 0.69 per hour; the real estimate is checked against --max-usd before any spend)
+case tier-b   ceiling USD 0.238052  needs v2,ears  stages: render with listening check
+case analyze  ceiling USD 0.358804  needs v2,ears,analyze  stages: source render (main), unless --track; analyze
+sum of both cases USD 0.596856; default per-case --max-usd USD 0.5
+These canaries spend real money: run them only with the operator's written approval (case list and --max-usd per case).
