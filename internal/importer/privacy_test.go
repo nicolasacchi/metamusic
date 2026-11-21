@@ -25,6 +25,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/backup"
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/desk"
 	"github.com/nicolasacchi/metamusic/internal/duels"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/exports"
@@ -221,6 +222,10 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 		case strings.HasPrefix(p, "/api/patches/{") || strings.HasPrefix(p, "/api/callbacks/{"):
 			// M5: Song PRs and callbacks hold ids, the patch's own lines and comment text, never recipe reference metadata (a
 			// reference or unknown-engine base is refused with RECIPE_UNKNOWN); lane INT-B's TestOps_M5_LeaksNothing sweeps them
+		case strings.HasPrefix(p, "/api/plans/{"):
+			// DESK-S1: a plan holds a score text, a seed, ids and verdicts, never recipe reference metadata. A reference or imported take
+			// has no plan (FromTake refuses it, PLAN_SOURCE_UNSUPPORTED), so this rig, which wires no Desk into the server, holds no plan
+			// to read; TestPrivacy_ReferenceMetadataConfined asserts the refusal on every imported take below.
 		case p == "/api/duels/suggestions":
 			// M5-D1: the default scope (lineage) needs a root track; the global scope reads ids, titles and ladder numbers only
 			out[op] = append(out[op], p+"?scope=global")
@@ -312,6 +317,26 @@ func TestPrivacy_ReferenceMetadataConfined(t *testing.T) {
 	}
 	if e.count("recipe_refs") != 2 {
 		t.Fatalf("recipe_refs = %d", e.count("recipe_refs"))
+	}
+
+	// DESK-S1: no imported take can become a Desk plan, so get_plan has nothing of the reference to show (the Desk is the Owner's and
+	// the Editors' only); the refusal itself must not echo reference text either
+	dsk := desk.New(desk.Options{Store: e.st, Data: e.data, Now: func() time.Time { return e.now }})
+	owner := auth.Principal{Kind: auth.KindHuman, ID: "alice", Name: "alice", User: "alice", Role: auth.RoleOwner}
+	for _, tr := range e.tracks() {
+		pl, _, err := dsk.FromTake(context.Background(), owner, tr.ID)
+		if err == nil {
+			t.Errorf("FromTake(%s) made plan %s from an imported take", tr.ID, pl.ID)
+			continue
+		}
+		for _, sent := range []string{sentS1, sentS2, sentS3} {
+			if strings.Contains(err.Error(), sent) {
+				t.Errorf("FromTake(%s) error leaks %s", tr.ID, sent)
+			}
+		}
+	}
+	if n := e.count("desk_plans"); n != 0 {
+		t.Errorf("desk_plans = %d after refusing every imported take", n)
 	}
 
 	// every GET operation, as a human and as an agent (REST bearer, then MCP)

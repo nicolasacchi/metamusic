@@ -14,6 +14,14 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "set_diction_marks",
   "get_diction_lexicon",
   "update_lexicon_entry",
+  // DESK-W1 (lane desk-web) adds the Desk pages /desk and /desk/plans/:id and the "Open in the Desk" action on /tracks/:id
+  // (m5b-desk C363); it removes these six.
+  "list_plans",
+  "get_plan",
+  "check_abc",
+  "create_plan_from_take",
+  "edit_plan",
+  "set_plan_verdict",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

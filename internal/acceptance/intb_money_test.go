@@ -59,6 +59,8 @@ func moneyAllowedPath(op, path string) string {
 	switch {
 	case strings.HasPrefix(path, ".sequence.") || op == "suggest_sequence":
 		return "the sequence cost is a unitless transition score of the arrangement, not money"
+	case op == "check_abc" && path == ".display_abc":
+		return "DESK-S1: display_abc is the standard-ABC rewrite of the checked score text (the toolkit's Report field, C352.7), not a money display value"
 	case strings.HasSuffix(op, "_transform") || strings.HasSuffix(op, "_transforms"):
 		return "D-U1-18: transforms never spend (CPU quota only); their cost block is a constant zero, and a Listener holds no transform operation"
 	}
