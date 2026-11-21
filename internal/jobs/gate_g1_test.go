@@ -1,0 +1,258 @@
+package jobs
+
+import (
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/nicolasacchi/metamusic/internal/provider"
+	"github.com/nicolasacchi/metamusic/internal/store"
+)
+
+const gateDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+
+// setCaps appends a CLI row to the gate log of the rig's fake backend (the capabilities the operator has opened).
+func (r *rig) setCaps(digest string, caps ...string) {
+	r.t.Helper()
+	if err := provider.AppendContract(r.t.Context(), r.st.W, provider.WorkerContractRow{Backend: provider.BackendFake, ImageDigest: digest, Caps: caps,
+		Via: provider.ContractViaCLI, ChangedBy: "system:cli", ChangedAt: r.clk.Now(), Reason: "test"}); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *rig) latestContract() provider.WorkerContractRow {
+	r.t.Helper()
+	row, ok, err := provider.LatestContract(r.t.Context(), r.st.R, provider.BackendFake)
+	if err != nil || !ok {
+		r.t.Fatalf("latest contract: ok=%v err=%v", ok, err)
+	}
+	return row
+}
+
+func TestClaim_NeedsSubsetOfOpenCaps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		open  []string // nil: no log row at all (the fake then has every capability)
+		needs string
+		want  bool // claimed
+	}{
+		{"plain job, closed gate", []string{}, `[]`, true},
+		{"plain job, no row", nil, `[]`, true},
+		{"needs v2, no row (fake has them all)", nil, `["v2"]`, true},
+		{"needs v2, closed", []string{}, `["v2"]`, false},
+		{"needs v2, v2 open", []string{"v2"}, `["v2"]`, true},
+		{"needs v2+ears, only v2 open", []string{"v2"}, `["ears","v2"]`, false},
+		{"needs v2+ears, both open", []string{"ears", "v2"}, `["ears","v2"]`, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRig(t)
+			if tc.open != nil {
+				r.setCaps(gateDigest, tc.open...)
+			}
+			spec := `{}`
+			if strings.Contains(tc.needs, "ears") {
+				spec = `{"ears":{"budget_s":60,"stages":["asr"]}}`
+			}
+			job := r.seedBatch(batchSpec{needs: tc.needs, specJSON: spec}).Jobs[0]
+			r.step()
+			got := r.state(job) != StateQueued
+			if got != tc.want {
+				t.Fatalf("job state %s, claimed = %v, want %v", r.state(job), got, tc.want)
+			}
+			if !tc.want && len(r.atts(job)) != 0 {
+				t.Fatalf("a job with closed needs got an attempt")
+			}
+		})
+	}
+}
+
+// TestClaim_ClosedJobStaysClaimableForOthers: a closed need does not block a plain job queued behind it.
+func TestClaim_ClosedJobDoesNotBlockPlainJobs(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest)
+	needy := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	plain := r.seedBatch(batchSpec{}).Jobs[0]
+	r.step()
+	r.wantState(needy, StateQueued)
+	if got := r.state(plain); got == StateQueued {
+		t.Fatalf("the plain job behind a closed one was not claimed")
+	}
+}
+
+// TestMigration_WorkerContract_PlainYue2Unchanged: a database migrated from 0020 has no contract row, and a plain yue2 /1 job is
+// claimed, sent as /1 and kept running exactly as before (production has no open contract).
+func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
+	t.Parallel()
+	p := filepath.Join(t.TempDir(), "s.db")
+	pre, err := store.Open(t.Context(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 0021 is purely additive, so removing what it created and the version stamp is a database exactly as 0020 left it
+	for _, q := range []string{`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 20`} {
+		if _, err := pre.W.ExecContext(t.Context(), q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	if err := pre.Close(); err != nil {
+		t.Fatal(err)
+	}
+	r := newRigAt(t, p, t.TempDir(), true) // store.Open migrates 0020 to the latest
+	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log`); n != 0 {
+		t.Fatalf("%d contract rows after the migration, want 0", n)
+	}
+	job := r.seedBatch(batchSpec{}).Jobs[0]
+	spec := r.submitOne(job)
+	if spec.Wire == provider.ContractV2 {
+		t.Fatalf("a plain job was sent as /2")
+	}
+	// with the fake backend closed explicitly, a plain job still passes (needs [] always does)
+	r.setCaps(gateDigest)
+	job2 := r.seedBatch(batchSpec{}).Jobs[0]
+	r.step()
+	if r.state(job2) == StateQueued {
+		t.Fatalf("a plain job was held by a closed gate")
+	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log WHERE via = 'auto'`); n != 0 {
+		t.Fatalf("a plain job wrote %d auto rows", n)
+	}
+}
+
+// failWith drives a claimed job with needs to a Failed terminal status carrying a worker error text.
+func failWith(t *testing.T, needs, spec, digest, text string, open ...string) (*rig, string) {
+	t.Helper()
+	r := newRig(t)
+	r.setCaps(gateDigest, open...)
+	job := r.seedBatch(batchSpec{needs: needs, specJSON: spec}).Jobs[0]
+	r.submitOne(job)
+	if digest != "" {
+		r.exec(`UPDATE job_attempts SET image_digest = ? WHERE job_id = ?`, digest, job)
+	}
+	r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), ErrorText: text})
+	r.advance(31 * time.Second)
+	r.step()
+	return r, job
+}
+
+func TestSettle_ContractVersionAutoCloses(t *testing.T) {
+	t.Parallel()
+	for _, worker := range []string{"CONTRACT_VERSION", "BAD_INPUT"} {
+		t.Run(worker, func(t *testing.T) {
+			t.Parallel()
+			r, job := failWith(t, `["v2"]`, `{}`, gateDigest, worker+": no", "v2")
+			r.wantState(job, StateFailed)
+			r.wantCode(job, CodeWorkerContract)
+			row := r.latestContract()
+			if row.Via != provider.ContractViaAuto || len(row.Caps) != 0 || row.ChangedBy != "system:runner" || row.AttemptID != r.att(job, 1).ID || row.ImageDigest != gateDigest {
+				t.Fatalf("row = %+v", row)
+			}
+			var titles []string
+			for _, m := range r.notes.all() {
+				titles = append(titles, m.Title)
+			}
+			if !slices.Contains(titles, "Worker capabilities closed: fake") {
+				t.Fatalf("no notification: %v", titles)
+			}
+		})
+	}
+}
+
+// A /1 job's BAD_INPUT is an ordinary worker error and never touches the gate.
+func TestSettle_PlainJobBadInputLeavesGate(t *testing.T) {
+	t.Parallel()
+	r, job := failWith(t, `[]`, `{}`, gateDigest, "BAD_INPUT: x", "v2")
+	r.wantState(job, StateFailed)
+	if c := r.job(job).ErrorCode; c == CodeWorkerContract || c == CodeWorkerOutdated {
+		t.Fatalf("a /1 job ended %s", c)
+	}
+	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log WHERE via = 'auto'`); n != 0 {
+		t.Fatalf("auto rows = %d", n)
+	}
+}
+
+func TestSettle_KindUnavailableRemovesCap(t *testing.T) {
+	t.Parallel()
+	r, job := failWith(t, `["ears","v2"]`, `{"ears":{"budget_s":60,"stages":["asr"]}}`, gateDigest, "KIND_UNAVAILABLE: the ears stage is not available", "ears", "v2")
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerOutdated)
+	row := r.latestContract()
+	if row.Via != provider.ContractViaAuto || !slices.Equal(row.Caps, []string{"v2"}) {
+		t.Fatalf("row = %+v, want auto with caps [v2]", row)
+	}
+	if ErrorMessage(CodeWorkerOutdated) == "" {
+		t.Fatal("no fixed message for WORKER_OUTDATED")
+	}
+}
+
+func TestSettle_StaleDigestChangesNothing(t *testing.T) {
+	t.Parallel()
+	other := "sha256:" + strings.Repeat("2", 64)
+	r, job := failWith(t, `["v2"]`, `{}`, other, "CONTRACT_VERSION: no", "v2")
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerContract)
+	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log`); n != 1 {
+		t.Fatalf("log rows = %d, want only the operator's", n)
+	}
+	if row := r.latestContract(); row.Via != provider.ContractViaCLI || !slices.Equal(row.Caps, []string{"v2"}) {
+		t.Fatalf("an attempt on a stale image changed the gate: %+v", row)
+	}
+}
+
+func TestFailQueued_WorkerOutdatedAfterAnHour(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest) // closed at t0
+	b := r.seedBatch(batchSpec{needs: `["v2"]`})
+	job := b.Jobs[0]
+	plain := r.seedBatch(batchSpec{}).Jobs[0]
+	r.advance(59 * time.Minute)
+	r.step()
+	r.wantState(job, StateQueued)
+	if r.ledger(b.Batch, "release", "never_ran") != 0 {
+		t.Fatal("released before the hour")
+	}
+	r.advance(2 * time.Minute)
+	r.step()
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerOutdated)
+	if r.ledger(b.Batch, "release", "never_ran") != r.ledger(b.Batch, "reserve", "take") {
+		t.Fatal("reservation not released")
+	}
+	if got := r.state(plain); got == StateFailed {
+		t.Fatalf("a plain job failed with the needy one")
+	}
+}
+
+func TestFailQueued_OpenCapsKeepJobQueued(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	r.exec(`UPDATE provider_state SET armed = 0`) // armed off: nothing claims, but needs are open so nothing is outdated
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.advance(3 * time.Hour)
+	r.step()
+	r.wantState(job, StateQueued)
+}
+
+// A capability closed a moment ago gives the queued job its own hour before it fails.
+func TestFailQueued_RecentCloseGivesAnHour(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.exec(`UPDATE provider_state SET armed = 0`)
+	r.advance(3 * time.Hour)
+	r.setCaps(gateDigest) // closed now
+	r.step()
+	r.wantState(job, StateQueued)
+	r.advance(61 * time.Minute)
+	r.step()
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerOutdated)
+}

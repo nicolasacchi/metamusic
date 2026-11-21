@@ -739,6 +739,16 @@ type ProviderStatusBody struct {
 	SkewMS               *int64               `json:"skew_ms"`
 	RestoredUnreconciled bool                 `json:"restored_unreconciled"`
 	Balance              Balance              `json:"balance"`
+	Worker               WorkerStatusView     `json:"worker" doc:"The worker capability gate of this backend's image (C322)"`
+}
+
+// WorkerStatusView is the capability gate of one backend's worker image. caps are the capabilities open right now; image_digest,
+// changed_at and via describe the latest operator or runner decision (null and empty when there is none).
+type WorkerStatusView struct {
+	ImageDigest *string  `json:"image_digest"`
+	Caps        []string `json:"caps" nullable:"false"`
+	ChangedAt   *string  `json:"changed_at"`
+	Via         string   `json:"via" enum:"none,cli,auto"`
 }
 
 // ---- lineage ----

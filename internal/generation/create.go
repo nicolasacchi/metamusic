@@ -155,6 +155,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	if err = s.admitCreate(ctx, tx, est); err != nil { // an engine rejected since the estimate gets no money (D-E2-15)
 		return Created{}, err
 	}
+	if err = s.requireCaps(ctx, tx, st, itemNeeds(est.Items)); err != nil { // the capability may have closed since the estimate; the token is not consumed (C322.5)
+		return Created{}, err
+	}
 	if in.VariantTrackID != nil && !variantShape(est, *in.VariantTrackID) {
 		err = perr(http.StatusConflict, "CONFIRMATION_INVALID", "the confirmation token is not for a variant estimate of this track", map[string]any{"reason": "wrong_shape"})
 		return Created{}, err

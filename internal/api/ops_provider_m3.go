@@ -87,6 +87,11 @@ func providerStatusBody(viewer auth.Principal, s jobs.ProviderStatus) ProviderSt
 	if out.Capabilities.Billing == "" {
 		out.Capabilities.Billing = "none"
 	}
+	out.Worker = WorkerStatusView{Caps: nonNil(s.Worker.Caps), Via: "none", ChangedAt: tsPtr(s.Worker.ChangedAt)}
+	if s.Worker.Via != "" {
+		d := s.Worker.ImageDigest
+		out.Worker.ImageDigest, out.Worker.Via = &d, s.Worker.Via
+	}
 	if st.Reason != "" && !st.Enabled {
 		r := st.Reason
 		out.DisabledReason = &r
