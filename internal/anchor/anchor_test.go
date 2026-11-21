@@ -159,3 +159,14 @@ func TestChain_GapFilledByNextSource(t *testing.T) {
 		t.Errorf("MapChain without sources = %v %v", at, b)
 	}
 }
+
+func TestClampTo(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ at, dur, want float64 }{
+		{5, 10, 5}, {15, 10, 10}, {-1, 10, 0}, {math.NaN(), 10, 0}, {500, 0, 500},
+	} {
+		if got := ClampTo(tc.at, tc.dur); got != tc.want {
+			t.Errorf("ClampTo(%v, %v) = %v, want %v", tc.at, tc.dur, got, tc.want)
+		}
+	}
+}
