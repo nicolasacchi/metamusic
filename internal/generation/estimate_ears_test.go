@@ -340,7 +340,7 @@ func TestCreate_TierBSpecFrozen(t *testing.T) {
 	e := r.est(human, earsRecipe("ears-i", itLyrics, "full", nil), earsRecipe("ears-i2", enLyrics, "melody", nil))
 	stored := r.itemsJSON(e)
 	c := r.mustCreate(human, e, spend.ViaHumanCreate)
-	rows, err := r.st.R.Query(`SELECT take_index, needs_json, spec_json, timeout_s FROM jobs WHERE batch_id = ? ORDER BY take_index`, c.BatchID)
+	rows, err := r.st.R.Query(`SELECT take_index, needs_json, spec_json, timeout_s, reserved_micro_usd FROM jobs WHERE batch_id = ? ORDER BY take_index`, c.BatchID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,8 @@ func TestCreate_TierBSpecFrozen(t *testing.T) {
 		var idx int
 		var needs, spec string
 		var to int
-		if err := rows.Scan(&idx, &needs, &spec, &to); err != nil {
+		var resv int64
+		if err := rows.Scan(&idx, &needs, &spec, &to, &resv); err != nil {
 			t.Fatal(err)
 		}
 		sn, _ := json.Marshal(stored[idx]["needs"])
@@ -362,8 +363,12 @@ func TestCreate_TierBSpecFrozen(t *testing.T) {
 		if err != nil || cmp.Diff(want, got) != "" || needs != string(sn) {
 			t.Errorf("take %d: job needs %s spec %s, estimate needs %s spec %+v (%v)", idx, needs, spec, sn, want, err)
 		}
-		if got.Ears == nil || to != e.Items[0].Takes[0].TimeoutS && to != e.Items[1].Takes[0].TimeoutS {
-			t.Errorf("take %d: ears %+v timeout %d", idx, got.Ears, to)
+		tp := e.Items[idx].Takes[0]
+		if got.Ears == nil || to != tp.TimeoutS {
+			t.Errorf("take %d: ears %+v timeout %d, estimate %d", idx, got.Ears, to, tp.TimeoutS)
+		}
+		if want := int64(money.ForSeconds(int64(tp.TimeoutS+15), 690_000)); resv != want {
+			t.Errorf("take %d: reserved %d, want %d", idx, resv, want)
 		}
 		n++
 	}

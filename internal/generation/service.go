@@ -121,7 +121,7 @@ type EstimateIn struct {
 	Backend, TrialID string
 	Items            []Item
 	// TierB is options.tier_b (D-EARS-2): nil is auto (a listening check where the take has lyric lines, fits and the worker has
-	// the capabilities), true requires one, false turns it off.
+	// the capabilities), true refuses on a closed capability or a runtime-cap miss (a take with no lyric lines only warns), false turns it off.
 	TierB *bool
 	// Via is "api" or "human_create" (the path the later create will use, C72.6).
 	Via string
