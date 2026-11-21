@@ -90,7 +90,7 @@ func (r *Runner) autoClose(ctx context.Context, tx *sql.Tx, f store.LeaseFence, 
 	if err != nil {
 		return err
 	}
-	var open []string
+	var open []string // what is open now; empty for a real backend with no row, so there is nothing to close
 	var digest string
 	switch {
 	case have:
@@ -102,19 +102,14 @@ func (r *Runner) autoClose(ctx context.Context, tx *sql.Tx, f store.LeaseFence, 
 			return nil
 		}
 	case provider.IsFakeBackend(backend):
-		open = slices.Clone(provider.Caps)
-		digest = o.a.ImageDigest
-	default:
-		return nil // nothing is open: nothing to close
+		open, digest = slices.Clone(provider.Caps), o.a.ImageDigest
 	}
 	if digest == "" {
 		digest = "sha256:" + strings.Repeat("0", 64)
 	}
-	var next []string
-	switch workerCode {
-	case workerKindUnavailable:
-		missing := provider.MissingCaps(o.j.Needs, nil)
-		missing = slices.DeleteFunc(missing, func(c string) bool { return c == jobspec.CapV2 })
+	next := []string{}
+	if workerCode == workerKindUnavailable {
+		missing := slices.DeleteFunc(slices.Clone(o.j.Needs), func(c string) bool { return c == jobspec.CapV2 })
 		if out, derr := provider.DecodeOutput(o.st.Output); derr == nil && len(out.Caps) > 0 {
 			for _, c := range open {
 				if !slices.Contains(out.Caps, c) && !slices.Contains(missing, c) {
@@ -127,13 +122,8 @@ func (r *Runner) autoClose(ctx context.Context, tx *sql.Tx, f store.LeaseFence, 
 				next = append(next, c)
 			}
 		}
-	default:
-		next = []string{}
 	}
-	if next == nil {
-		next = []string{}
-	}
-	if slices.Equal(next, open) || (len(next) == 0 && len(open) == 0) {
+	if len(open) == 0 || slices.Equal(next, open) {
 		return nil
 	}
 	closed := provider.MissingCaps(open, next)

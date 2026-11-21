@@ -256,3 +256,166 @@ func TestFailQueued_RecentCloseGivesAnHour(t *testing.T) {
 	r.wantState(job, StateFailed)
 	r.wantCode(job, CodeWorkerOutdated)
 }
+
+func TestGateOutcome_Table(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		worker, code string
+		ok           bool
+	}{
+		{"CONTRACT_VERSION", CodeWorkerContract, true}, {"BAD_INPUT", CodeWorkerContract, true}, {"KIND_UNAVAILABLE", CodeWorkerOutdated, true},
+		{"DEADLINE", "", false}, {"TASK_UNAVAILABLE", "", false}, {"", "", false},
+	} {
+		if code, ok := gateOutcome(tc.worker); code != tc.code || ok != tc.ok {
+			t.Errorf("gateOutcome(%q) = %q %v", tc.worker, code, ok)
+		}
+	}
+}
+
+// The worker's refusal may reach the runner only as the error output the transfer handler recorded; the gate closes from that too.
+func TestSettle_RefusalReportedByEvent(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.submitOne(job)
+	r.exec(`INSERT INTO job_events(job_id, attempt_id, at, event, code, detail_json) VALUES (?, ?, ?, 'status', 'WORKER_ERROR', ?)`,
+		job, r.att(job, 1).ID, "2026-10-15T20:34:00.000Z", `{"reason":"worker reported an error","worker_error":"CONTRACT_VERSION"}`)
+	r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000)})
+	r.advance(31 * time.Second)
+	r.step()
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerContract)
+	if row := r.latestContract(); row.Via != provider.ContractViaAuto || len(row.Caps) != 0 {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestSettle_AutoCloseEdges(t *testing.T) {
+	t.Parallel()
+	t.Run("closed after the claim, a second refusal adds no row", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		r.setCaps(gateDigest, "v2")
+		job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+		r.submitOne(job)
+		r.setCaps(gateDigest) // the operator closed it meanwhile
+		r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), ErrorText: "CONTRACT_VERSION: no"})
+		r.advance(31 * time.Second)
+		r.step()
+		r.wantCode(job, CodeWorkerContract)
+		if n := r.count(`SELECT COUNT(*) FROM worker_contract_log`); n != 2 {
+			t.Fatalf("log rows = %d, want the two operator rows", n)
+		}
+	})
+	t.Run("a simulated backend with no row closes from every capability", func(t *testing.T) {
+		t.Parallel()
+		r := newRig(t)
+		job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+		r.submitOne(job)
+		r.exec(`UPDATE job_attempts SET image_digest = ? WHERE job_id = ?`, gateDigest, job)
+		r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), ErrorText: "BAD_INPUT: x"})
+		r.advance(31 * time.Second)
+		r.step()
+		r.wantCode(job, CodeWorkerContract)
+		if row := r.latestContract(); row.Via != provider.ContractViaAuto || len(row.Caps) != 0 || row.ImageDigest != gateDigest {
+			t.Fatalf("row = %+v", row)
+		}
+	})
+	t.Run("an unknown attempt image closes the gate under the gate's own digest", func(t *testing.T) {
+		t.Parallel()
+		r, job := failWith(t, `["v2"]`, `{}`, "", "CONTRACT_VERSION: no", "v2")
+		r.wantCode(job, CodeWorkerContract)
+		if row := r.latestContract(); row.Via != provider.ContractViaAuto || row.ImageDigest != gateDigest || len(row.Caps) != 0 {
+			t.Fatalf("row = %+v", row)
+		}
+	})
+	t.Run("a worker that lists its caps loses only what it lacks", func(t *testing.T) {
+		t.Parallel()
+		out := `{"contract":"mm.worker/2","take_id":"t","attempt_id":"a","status":"error","error":{"code":"KIND_UNAVAILABLE","message":"m"},"artifacts":{},` +
+			`"audio_seconds":null,"truncated":null,"timings":{},"env":{},"kind":"render","caps":["v2"]}`
+		r := newRig(t)
+		r.setCaps(gateDigest, "ears", "plan", "v2")
+		job := r.seedBatch(batchSpec{needs: `["ears","v2"]`, specJSON: `{"ears":{"budget_s":60,"stages":["asr"]}}`}).Jobs[0]
+		r.submitOne(job)
+		r.exec(`UPDATE job_attempts SET image_digest = ? WHERE job_id = ?`, gateDigest, job)
+		r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), Output: []byte(out)})
+		r.advance(31 * time.Second)
+		r.step()
+		r.wantCode(job, CodeWorkerOutdated)
+		if row := r.latestContract(); !slices.Equal(row.Caps, []string{"v2"}) {
+			t.Fatalf("row = %+v, want only v2 left", row)
+		}
+	})
+}
+
+// TestProviderStatus_WorkerBlock: the status read model carries the gate (C322.6).
+func TestProviderStatus_WorkerBlock(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	adm := r.admin(provider.ModeFake, true)
+	st, err := adm.Status(t.Context(), humanP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(st.Worker.Caps, provider.Caps) || st.Worker.Via != "" || st.Worker.ChangedAt != nil {
+		t.Fatalf("no row: %+v", st.Worker)
+	}
+	r.setCaps(gateDigest, "v2")
+	st, err = adm.Status(t.Context(), humanP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := st.Worker; !slices.Equal(w.Caps, []string{"v2"}) || w.Via != "cli" || w.ImageDigest != gateDigest || w.ChangedAt == nil {
+		t.Fatalf("with a row: %+v", w)
+	}
+}
+
+// A /2 job that fails with no worker code at all is an ordinary lost worker; the gate is not touched.
+func TestSettle_UncodedFailureLeavesGate(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.submitOne(job)
+	r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000)})
+	r.advance(31 * time.Second)
+	r.step()
+	r.wantState(job, StateFailed)
+	r.wantCode(job, CodeWorkerLost)
+	if row := r.latestContract(); row.Via != provider.ContractViaCLI {
+		t.Fatalf("the gate changed: %+v", row)
+	}
+}
+
+// An unreadable gate log stops the step (the transaction rolls back and nothing is decided on a guess) instead of failing the job.
+func TestSettle_UnreadableGateLogStopsTheStep(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.submitOne(job)
+	r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), ErrorText: "CONTRACT_VERSION: no"})
+	r.advance(31 * time.Second)
+	r.exec(`DROP VIEW worker_contract`)
+	r.exec(`ALTER TABLE worker_contract_log RENAME TO worker_contract_log_x`)
+	if _, err := r.run.Step(t.Context()); err == nil {
+		t.Fatal("the step succeeded with an unreadable gate log")
+	}
+	if got := r.state(job); got == StateFailed {
+		t.Fatalf("the job failed on a guess")
+	}
+}
+
+func TestFailQueued_UnreadableGateLogStopsTheStep(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest)
+	r.seedBatch(batchSpec{needs: `["v2"]`})
+	r.advance(2 * time.Hour)
+	r.exec(`DROP VIEW worker_contract`)
+	r.exec(`ALTER TABLE worker_contract_log RENAME TO worker_contract_log_x`)
+	if _, err := r.run.Step(t.Context()); err == nil {
+		t.Fatal("the step succeeded with an unreadable gate log")
+	}
+}
