@@ -51,14 +51,8 @@ func (k sectionKey) canonical() string {
 	return fmt.Sprintf("%s %d", k.kind, k.ordinal)
 }
 
-// find returns the section of t the key names. ok is false when there is none or, for a label, when it names several
-// (the key is then ambiguous on this track and nothing is guessed).
-func (k sectionKey) find(t anchor.Timing) (sec anchor.Section, ok bool) {
-	sec, n := k.count(t)
-	return sec, n == 1
-}
-
-// count is the last match of the key in t and how many sections match.
+// count is the last match of the key in t and how many sections match (a label may name several; the key is then ambiguous on
+// this track and nothing is guessed).
 func (k sectionKey) count(t anchor.Timing) (sec anchor.Section, n int) {
 	for _, s := range t.Sections {
 		if (k.label != "" && strings.EqualFold(s.Label, k.label)) || (k.label == "" && s.Ordinal == k.ordinal && strings.EqualFold(s.Kind, k.kind)) {
