@@ -186,6 +186,10 @@ func TestProperty_RevokeRacingCreate(t *testing.T) {
 			rng := rand.New(rand.NewPCG(seed, 7))
 			e := newMandateEnv(t)
 			m, _ := e.grant(8)
+			// one batch committed before the race, so the cancel check below always has a batch to judge
+			if _, err := e.attempt(m.ID, 5100); err != nil {
+				t.Fatalf("pre-race create: %v", err)
+			}
 			workers := 4 + rng.IntN(4)
 			start := make(chan struct{})
 			var wg sync.WaitGroup
@@ -220,7 +224,9 @@ func TestProperty_RevokeRacingCreate(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer rows.Close()
+			batches := 0
 			for rows.Next() {
+				batches++
 				var id string
 				if err := rows.Scan(&id); err != nil {
 					t.Fatal(err)
@@ -231,6 +237,9 @@ func TestProperty_RevokeRacingCreate(t *testing.T) {
 				if n := e.count(`SELECT COUNT(*) FROM jobs WHERE batch_id = ? AND cancel_requested_by IS NULL AND state NOT IN ('completed','failed','cancelled','expired')`, id); n != 0 {
 					t.Errorf("batch %s has %d jobs the revoke did not cancel", id, n)
 				}
+			}
+			if batches == 0 {
+				t.Error("no batch was committed, the race checked nothing")
 			}
 			// nothing is left to spend: a create after the revoke is refused
 			if _, err := e.attempt(m.ID, 999); !isMandateRefusal(err) {

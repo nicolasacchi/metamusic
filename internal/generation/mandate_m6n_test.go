@@ -399,3 +399,35 @@ func TestPreview_WritesNothing(t *testing.T) {
 		t.Errorf("preview wrote rows:\n%s\n%s", before, after)
 	}
 }
+
+func TestPreview_RevokedMandateReportsNotLive(t *testing.T) {
+	t.Parallel()
+	r := newMandateRig(t, withCaps(noAutoApprove))
+	plain := r.est(night, lunaSeeds(2))
+	m := r.grant(900_000, int64(plain.Cost.Ceiling))
+	if _, err := r.ms.Revoke(context.Background(), human, m.ID, "test"); err != nil {
+		t.Fatal(err)
+	}
+	pv, err := r.svc.Preview(context.Background(), night, generation.EstimateIn{Items: []generation.Item{lunaSeeds(2)}, Via: spend.ViaAPI, MandateID: m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pv.Mandate == nil || pv.Mandate.Covered || !contains(pv.Mandate.Reasons, "not_live") {
+		t.Errorf("preview mandate = %+v", pv.Mandate)
+	}
+}
+
+func TestCreate_MandateBatchViaIsAPI(t *testing.T) {
+	t.Parallel()
+	r := newMandateRig(t, withCaps(noAutoApprove))
+	plain := r.est(night, lunaSeeds(2))
+	m := r.grant(900_000, int64(plain.Cost.Ceiling))
+	e, err := r.svc.Estimate(context.Background(), night, generation.EstimateIn{Items: []generation.Item{lunaSeeds(2)}, Via: spend.ViaHumanCreate, MandateID: m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := r.mustCreate(night, e, spend.ViaHumanCreate)
+	if got := r.str(`SELECT via FROM batches WHERE id = ?`, c.BatchID); got != spend.ViaAPI {
+		t.Errorf("batches.via = %q", got)
+	}
+}

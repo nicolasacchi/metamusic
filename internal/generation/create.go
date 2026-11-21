@@ -199,7 +199,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	// 6. insert
 	need := spend.NeedsApproval(p, via, len(est.Items), money.MicroUSD(est.Ceiling), tok, caps)
 	if est.MandateID != "" {
-		need = mandateNeed(est.MandateID)
+		// all-or-nothing by design: today every NeedsApproval reason is a per-batch limit the mandate stands in for; a future
+		// reason that a mandate must not waive has to be carved out here. A mandate batch is always an api batch.
+		need, via = mandateNeed(est.MandateID), spend.ViaAPI
 	}
 	if err = s.insertBatch(ctx, tx, p, in, est, batchID, via, need, now); err != nil {
 		return Created{}, err

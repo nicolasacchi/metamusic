@@ -19,7 +19,7 @@ import (
 // Cover reads the mandate, its usage and the parents through q and applies the pure Cover. An unknown mandate is a 404.
 func (s *Service) Cover(ctx context.Context, q lineage.Querier, p auth.Principal, mandateID, engine string, takes []spend.MandateTake, ceiling money.MicroUSD, tierB bool) (bool, []string, error) {
 	if s.o.Spend == nil {
-		return false, nil, errors.ErrUnsupported
+		return false, nil, problem.E(503, "UNAVAILABLE", "mandates are not available", nil)
 	}
 	m, err := s.get(ctx, q, mandateID)
 	if err != nil {
