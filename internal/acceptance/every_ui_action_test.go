@@ -150,6 +150,15 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_ladder":         func(*uiState) map[string]any { return nil },
 	"get_track_analysis": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"get_track_tier_b":   func(s *uiState) map[string]any { return map[string]any{"id": s.track} }, // EARS-S1: seeded by seedTierBDocument
+	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
+	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
+	"set_diction_marks": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.track, "marks": []map[string]any{{"section_idx": 0, "line_idx": 0, "mark": "unclear"}}}
+	},
+	"get_diction_lexicon": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"update_lexicon_entry": func(*uiState) map[string]any {
+		return map[string]any{"lang": "it", "word": "sorrinvento", "status": "ignored", "note": "scripted"}
+	},
 	"get_track_spectrogram": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.track, "inline": false}
 	},
@@ -297,7 +306,7 @@ var uiOrder = []string{
 	"list_export_sources", "export_jsonl", "list_import_runs", "get_import_run",
 	"list_device_profiles", "put_device_profile", "get_device_probe", "list_tokens", "list_backups", "create_backup",
 	"create_duel", "next_duel", "get_duel", "list_duels", "submit_duel", "get_ladder",
-	"get_track_analysis", "get_track_tier_b", "get_track_spectrogram", "compare_tracks",
+	"get_track_analysis", "get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry", "get_track_spectrogram", "compare_tracks",
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",

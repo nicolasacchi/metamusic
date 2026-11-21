@@ -2361,6 +2361,39 @@
         ],
         "type": "object"
       },
+      "Calibration": {
+        "additionalProperties": false,
+        "properties": {
+          "clear": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lang": {
+            "description": "The language asked for, or all",
+            "type": "string"
+          },
+          "lines_marked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tracks_marked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unclear": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lines_marked",
+          "tracks_marked",
+          "clear",
+          "unclear",
+          "lang"
+        ],
+        "type": "object"
+      },
       "Callback": {
         "additionalProperties": false,
         "properties": {
@@ -5216,6 +5249,245 @@
           "id",
           "name",
           "revoked_at"
+        ],
+        "type": "object"
+      },
+      "DictionLine": {
+        "additionalProperties": false,
+        "properties": {
+          "cer": {
+            "description": "Character error rate of the line against the recogniser; null without a recogniser",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "class": {
+            "enum": [
+              "clear",
+              "mixed",
+              "unclear",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "class_source": {
+            "enum": [
+              "human",
+              "asr"
+            ],
+            "type": "string"
+          },
+          "end_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "line_idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mark": {
+            "$ref": "#/components/schemas/DictionMark"
+          },
+          "section_idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "timing": {
+            "description": "heard: from recognised words; estimated: the section's time split equally among its lines; null: not timed",
+            "enum": [
+              "heard",
+              "estimated"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "words": {
+            "description": "Empty for an estimated line",
+            "items": {
+              "$ref": "#/components/schemas/DictionWord"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "section_idx",
+          "line_idx",
+          "text",
+          "start_s",
+          "end_s",
+          "timing",
+          "cer",
+          "class",
+          "class_source",
+          "mark",
+          "words"
+        ],
+        "type": "object"
+      },
+      "DictionLines": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "enum": [
+              "asr",
+              "proportional"
+            ],
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "lexicon_hits": {
+            "description": "At most 10, most mangled first; on the first page only",
+            "items": {
+              "$ref": "#/components/schemas/LexiconHit"
+            },
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DictionLine"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "truncated": {
+            "description": "True when next_cursor continues the list",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "track_id",
+          "basis",
+          "lang",
+          "thresholds",
+          "lines",
+          "lexicon_hits",
+          "truncated",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "DictionMark": {
+        "additionalProperties": false,
+        "properties": {
+          "critic": {
+            "enum": [
+              "clear",
+              "unclear",
+              "none"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "human": {
+            "enum": [
+              "clear",
+              "unclear",
+              "none"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "human",
+          "critic"
+        ],
+        "type": "object"
+      },
+      "DictionWord": {
+        "additionalProperties": false,
+        "properties": {
+          "end_s": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "heard": {
+            "description": "What was heard instead (folded); empty when exact or dropped",
+            "type": "string"
+          },
+          "i": {
+            "description": "Index of the word in the line",
+            "format": "int64",
+            "type": "integer"
+          },
+          "match": {
+            "enum": [
+              "exact",
+              "close",
+              "miss",
+              "dropped"
+            ],
+            "type": "string"
+          },
+          "start_s": {
+            "description": "Null when the word has no measured time",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "text": {
+            "description": "The word as written in the lyrics",
+            "type": "string"
+          },
+          "timing": {
+            "description": "heard: from the recogniser; interpolated: between two heard neighbours; null: not timed",
+            "enum": [
+              "heard",
+              "interpolated"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "i",
+          "text",
+          "start_s",
+          "end_s",
+          "timing",
+          "match",
+          "heard"
         ],
         "type": "object"
       },
@@ -8514,6 +8786,23 @@
         ],
         "type": "object"
       },
+      "HeardCount": {
+        "additionalProperties": false,
+        "properties": {
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "n"
+        ],
+        "type": "object"
+      },
       "ImageData": {
         "additionalProperties": false,
         "properties": {
@@ -9910,6 +10199,174 @@
         ],
         "type": "object"
       },
+      "LexiconEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "description": "Times the word was sung in a take with a listening check",
+            "format": "int64",
+            "type": "integer"
+          },
+          "dropped": {
+            "description": "Times it was not heard",
+            "format": "int64",
+            "type": "integer"
+          },
+          "examples": {
+            "description": "At most 3",
+            "items": {
+              "$ref": "#/components/schemas/LexiconExample"
+            },
+            "type": "array"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "type": "string"
+          },
+          "mangled": {
+            "description": "Times it was heard as another word",
+            "format": "int64",
+            "type": "integer"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate": {
+            "description": "mangled / attempts, three decimals",
+            "format": "double",
+            "type": "number"
+          },
+          "risk": {
+            "description": "attempts \u003e= 3, rate \u003e= 0.5 and status active: warned about in lint",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "ignored"
+            ],
+            "type": "string"
+          },
+          "tracks": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "typical_heard": {
+            "description": "At most 3",
+            "items": {
+              "$ref": "#/components/schemas/HeardCount"
+            },
+            "type": "array"
+          },
+          "word": {
+            "description": "Folded: lower case, no accents",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lang",
+          "word",
+          "attempts",
+          "mangled",
+          "dropped",
+          "rate",
+          "typical_heard",
+          "tracks",
+          "last_seen_at",
+          "status",
+          "note",
+          "risk",
+          "examples"
+        ],
+        "type": "object"
+      },
+      "LexiconExample": {
+        "additionalProperties": false,
+        "properties": {
+          "at_second": {
+            "format": "double",
+            "type": "number"
+          },
+          "heard": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "at_second",
+          "heard"
+        ],
+        "type": "object"
+      },
+      "LexiconHit": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mangled": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "typical_heard": {
+            "items": {
+              "$ref": "#/components/schemas/HeardCount"
+            },
+            "type": "array"
+          },
+          "word": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "typical_heard",
+          "attempts",
+          "mangled"
+        ],
+        "type": "object"
+      },
+      "LexiconPage": {
+        "additionalProperties": false,
+        "properties": {
+          "calibration": {
+            "$ref": "#/components/schemas/Calibration"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LexiconEntry"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "description": "Entries matching the filters",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "total",
+          "calibration",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
       "LibraryModel": {
         "additionalProperties": false,
         "properties": {
@@ -10856,6 +11313,75 @@
         },
         "required": [
           "mappings"
+        ],
+        "type": "object"
+      },
+      "MarkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "line_idx": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mark": {
+            "description": "none withdraws the mark",
+            "enum": [
+              "clear",
+              "unclear",
+              "none"
+            ],
+            "type": "string"
+          },
+          "section_idx": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "section_idx",
+          "line_idx",
+          "mark"
+        ],
+        "type": "object"
+      },
+      "MarkRow": {
+        "additionalProperties": false,
+        "properties": {
+          "line_idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mark": {
+            "enum": [
+              "clear",
+              "unclear",
+              "none"
+            ],
+            "type": "string"
+          },
+          "section_idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "human",
+              "critic"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "section_idx",
+          "line_idx",
+          "source",
+          "mark",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -15919,6 +16445,27 @@
         },
         "type": "object"
       },
+      "SetDictionMarksInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "marks": {
+            "description": "Marks on lyric lines; a person's marks override the recogniser, an agent's are kept apart",
+            "items": {
+              "$ref": "#/components/schemas/MarkIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "marks"
+        ],
+        "type": "object"
+      },
       "SetSpendCapsInBody": {
         "additionalProperties": false,
         "properties": {
@@ -19500,6 +20047,24 @@
         ],
         "type": "object"
       },
+      "Thresholds": {
+        "additionalProperties": false,
+        "properties": {
+          "clear": {
+            "format": "double",
+            "type": "number"
+          },
+          "mixed": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "clear",
+          "mixed"
+        ],
+        "type": "object"
+      },
       "TierB": {
         "additionalProperties": false,
         "properties": {
@@ -20786,6 +21351,25 @@
           "expires_at",
           "ttl_s",
           "tags"
+        ],
+        "type": "object"
+      },
+      "TrackMarks": {
+        "additionalProperties": false,
+        "properties": {
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/MarkRow"
+            },
+            "type": "array"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "marks"
         ],
         "type": "object"
       },
@@ -22424,6 +23008,25 @@
         "required": [
           "revision"
         ],
+        "type": "object"
+      },
+      "UpdateLexiconEntryInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "An empty note removes it",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "status": {
+            "description": "ignored takes the word out of the lint warning",
+            "enum": [
+              "active",
+              "ignored"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "UpdateMuseInBody": {
@@ -25348,6 +25951,164 @@
           "mcp": "exclude:device-self-service",
           "ui": "/settings",
           "human_only": false
+        }
+      }
+    },
+    "/api/diction/lexicon": {
+      "get": {
+        "description": "Words the recogniser keeps mishearing in sung Italian, from every take with a listening check: attempts, how often mangled or dropped, what was heard instead, and whether the word is a risk (3 or more attempts, at least half mangled, not ignored). Also the progress of the calibration set (human marks on lines with a recogniser result).",
+        "operationId": "get_diction_lexicon",
+        "parameters": [
+          {
+            "description": "Only this language (ISO 639-1, und when unknown)",
+            "explode": false,
+            "in": "query",
+            "name": "lang",
+            "schema": {
+              "description": "Only this language (ISO 639-1, und when unknown)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: only the risky words; false: only the others",
+            "explode": false,
+            "in": "query",
+            "name": "risk",
+            "schema": {
+              "description": "true: only the risky words; false: only the others",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Substring of the folded word",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Substring of the folded word",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default 50",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Default 50",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LexiconPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List the personal lexicon of mangled words",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/diction",
+          "human_only": false
+        }
+      }
+    },
+    "/api/diction/lexicon/{lang}/{word}": {
+      "patch": {
+        "description": "Sets the status (active or ignored) and/or the note of a word. An ignored word is no longer warned about. The word must be in the lexicon or be at least three letters. Answers the entry.",
+        "operationId": "update_lexicon_entry",
+        "parameters": [
+          {
+            "description": "ISO 639-1 language, und when unknown",
+            "in": "path",
+            "name": "lang",
+            "required": true,
+            "schema": {
+              "description": "ISO 639-1 language, und when unknown",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The word; folded (lower case, no accents) before use",
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "description": "The word; folded (lower case, no accents) before use",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLexiconEntryInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LexiconEntry"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ignore or restore a lexicon word, or annotate it",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/diction",
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
@@ -31668,6 +32429,123 @@
           "mcp": "tool",
           "ui": "/tracks/:id",
           "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/diction": {
+      "get": {
+        "description": "The lyric lines of a take with word-level intelligibility: per line the time, the recogniser's character error rate, a class (clear, mixed, unclear) and the words with what was heard; a human mark replaces the class. basis asr comes from a listening check (word times are measured); basis proportional splits a timed section equally among its lines (times are estimates, words untimed). Pages of at most 60 000 bytes: follow next_cursor. 409 ANALYSIS_UNAVAILABLE when the take has neither.",
+        "operationId": "get_track_diction",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor of the previous page's next_cursor",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor of the previous page's next_cursor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictionLines"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the karaoke lines of a take",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/diction/marks": {
+      "put": {
+        "description": "Says what a listener heard on up to 200 lines: clear, unclear, or none to withdraw a mark. The Owner's marks override the recogniser and feed the lexicon and the calibration set; an agent's marks are stored apart and affect neither. Answers every mark of the take.",
+        "operationId": "set_diction_marks",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDictionMarksInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackMarks"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Mark lyric lines as clear or unclear",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "owner_only": true
         }
       }
     },

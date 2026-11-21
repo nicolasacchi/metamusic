@@ -24,18 +24,19 @@ type SweepReport struct {
 }
 
 // sweepCandidates lists, after the cursor, the tracks that hold an analysis*.json artifact and lack a current result: no current
-// tier_b_raw row, or, with a current raw row, diction rows that exist only under a superseded definition. Each comes with a
-// token naming its newest document. Adherence rows are not considered: AnalyzeTierB does not write them (EARS-F2 adds the writer
-// and the clause together). It reads only artifacts and analyses: a track that never received a document (every import and every
+// tier_b_raw row, or, with a current raw row, diction or adherence rows that exist only under a superseded definition. Each comes
+// with a token naming its newest document. It reads only artifacts and analyses: a track that never received a document (every import and every
 // plain take of the existing library) is never a candidate, so the sweep can never turn into a backfill (D-EARS-OP-5).
 func (s *Service) sweepCandidates(ctx context.Context, after string, limit int) (ids, tokens []string, err error) {
 	rows, err := s.o.Store.R.QueryContext(ctx, `SELECT a.track_id, MAX(a.created_at || '/' || a.name) FROM artifacts a
 		WHERE a.name LIKE 'analysis%.json' AND a.track_id > ?1 AND (
 			NOT EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?2 AND substr(x.version, 1, length(?3)) = ?3)
 			OR (EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?4)
-				AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?4 AND substr(x.version, 1, length(?5)) = ?5)))
-		GROUP BY a.track_id ORDER BY a.track_id LIMIT ?6`,
-		after, anTierBRaw, tierBRawDef+" ", anTierBDiction, tierBDictionDef+" ", limit)
+				AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?4 AND substr(x.version, 1, length(?5)) = ?5))
+			OR (EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?6)
+				AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.track_id = a.track_id AND x.analyzer = ?6 AND substr(x.version, 1, length(?7)) = ?7)))
+		GROUP BY a.track_id ORDER BY a.track_id LIMIT ?8`,
+		after, anTierBRaw, tierBRawDef+" ", anTierBDiction, tierBDictionDef+" ", anTierBAdherence, tierBAdherenceDef+" ", limit)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ears: tier B sweep: %w", err)
 	}

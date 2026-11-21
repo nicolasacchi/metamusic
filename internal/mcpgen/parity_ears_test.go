@@ -21,13 +21,22 @@ import (
 )
 
 // earsParityIDs are the M5b Ears operations that exist on this branch (grows with each lane; all generic: D-EARS-17).
-var earsParityIDs = []string{"get_track_tier_b"}
+var earsParityIDs = []string{"get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry"}
 
 // earsCases are the parity cases of the Ears operations. The shared script runs over a library with no listening check: 409 with
 // the state, and 404; the populated half is TestOps_Ears_ParityMCP.
 var earsCases = []ParityCase{
 	{Op: "get_track_tier_b", Variant: "no listening check", Args: fixedArgs(map[string]any{"id": earstest.ClipTrack}), Status: 409},
 	{Op: "get_track_tier_b", Variant: "unknown take", Args: fixedArgs(map[string]any{"id": "nope"}), Status: 404},
+	// EARS-D1 (C345): Luna has plan timing (proportional basis), the city take has none; marks are non-replayable (the stamp moves)
+	{Op: "get_track_diction", Variant: "proportional basis", Args: fixedArgs(map[string]any{"id": lt.TrackLuna})},
+	{Op: "get_track_diction", Variant: "no timing", Args: fixedArgs(map[string]any{"id": lt.TrackCitta}), Status: 409},
+	{Op: "get_track_diction", Variant: "unknown take", Args: fixedArgs(map[string]any{"id": "nope"}), Status: 404},
+	{Op: "set_diction_marks", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "marks": []map[string]any{{"section_idx": 0, "line_idx": 0, "mark": "unclear"}}}), SkipGeneric: true},
+	{Op: "set_diction_marks", Variant: "unknown line", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "marks": []map[string]any{{"section_idx": 7, "line_idx": 0, "mark": "clear"}}}), Status: 422},
+	{Op: "get_diction_lexicon", Args: fixedArgs(map[string]any{"lang": "it", "limit": 10})},
+	{Op: "update_lexicon_entry", Args: fixedArgs(map[string]any{"lang": "it", "word": "luna", "status": "ignored", "note": "a place"})},
+	{Op: "update_lexicon_entry", Variant: "short unknown word", Args: fixedArgs(map[string]any{"lang": "it", "word": "ab", "status": "ignored"}), Status: 404},
 }
 
 func init() { parityCases = append(parityCases, earsCases...) }
@@ -93,21 +102,27 @@ func TestOps_Ears_ParityMCP(t *testing.T) {
 	for _, op := range api.Operations(ra.API) {
 		ops[op.ID] = op
 	}
-	op := ops["get_track_tier_b"]
-	args := map[string]any{"id": lt.TrackLuna}
-	path, body, headers := restRequest(t, ra.API, op, args)
-	resp := rest.Do(t, op.Method, path, body, headers...)
-	if resp.Status != 200 {
-		t.Fatalf("REST %d: %s", resp.Status, resp.Body)
-	}
-	want := servertest.Normalize(resp.JSON(t))
-	for name, sess := range faces {
-		res, tool := mcpRaw(t, sess, op, args, false)
-		if tool != "call_operation" {
-			t.Errorf("answered as the dedicated tool %s", tool)
+	// the populated reads: the listening check, the karaoke lines with their words, and the lexicon with Luna's mangled word
+	for opID, args := range map[string]map[string]any{
+		"get_track_tier_b":    {"id": lt.TrackLuna},
+		"get_track_diction":   {"id": lt.TrackLuna},
+		"get_diction_lexicon": {"lang": "it"},
+	} {
+		op := ops[opID]
+		path, body, headers := restRequest(t, ra.API, op, args)
+		resp := rest.Do(t, op.Method, path, body, headers...)
+		if resp.Status != 200 {
+			t.Fatalf("%s: REST %d: %s", opID, resp.Status, resp.Body)
 		}
-		if got := normalizeResult(t, res, op, tool, nil, false); !cmp.Equal(want, got) {
-			t.Errorf("REST vs %s (-rest +%s):\n%s", name, name, cmp.Diff(want, got))
+		want := servertest.Normalize(resp.JSON(t))
+		for name, sess := range faces {
+			res, tool := mcpRaw(t, sess, op, args, false)
+			if tool != "call_operation" {
+				t.Errorf("%s answered as the dedicated tool %s", opID, tool)
+			}
+			if got := normalizeResult(t, res, op, tool, nil, false); !cmp.Equal(want, got) {
+				t.Errorf("%s: REST vs %s (-rest +%s):\n%s", opID, name, name, cmp.Diff(want, got))
+			}
 		}
 	}
 }
