@@ -63,6 +63,7 @@
 ./internal/media/tagged 13
 ./internal/mediatool 12
 ./internal/callbacks 12
+./internal/criticbench 12
 ./internal/lineage 10
 ./internal/app 9
 ./internal/attention 9
