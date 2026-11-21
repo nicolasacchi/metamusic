@@ -55,4 +55,23 @@ describe("earsPanel", () => {
     expect(earsPanel(d, null).notice).toContain("clipping");
     expect(earsPanel(dossier, null).notice).toBeNull();
   });
+  test("the listening check flags have readable labels and details", () => {
+    const d = structuredClone(dossier);
+    d.flags = [
+      { code: "diction_poor", severity: "warn", evidence: { section: "chorus", cer: 0.46 } },
+      { code: "melody_off_plan", severity: "warn", evidence: { melody_chroma: 0.31, sections: 3 } },
+      { code: "vocals_not_detected", severity: "info", evidence: { words: 2, lyric_words: 40 } },
+      { code: "listening_check_failed", severity: "info", evidence: { state: "error", code: "ASR_FAILED" } },
+      { code: "sung_transposed", severity: "info", evidence: { transpose_mode: 2, sections: 4 } },
+      { code: "alignment_failed", severity: "info", evidence: { ref_words: 40 } },
+    ];
+    const f = Object.fromEntries(earsPanel(d, null).flags.map((x) => [x.code, x]));
+    expect(f["diction_poor"]!.label).toBe("Diction may be poor");
+    expect(f["diction_poor"]!.detail).toBe("chorus: 46 % of characters wrong");
+    expect(f["melody_off_plan"]!.detail).toBe("melody match 31 %");
+    expect(f["vocals_not_detected"]!.detail).toBe("2 of 40 lyric words heard");
+    expect(f["listening_check_failed"]!.detail).toBe("state error");
+    expect(f["sung_transposed"]!.detail).toBe("2 semitones");
+    expect(f["alignment_failed"]!.label).toBe("Words could not be placed in time");
+  });
 });

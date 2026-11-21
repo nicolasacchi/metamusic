@@ -85,6 +85,8 @@ func TestCLI_EngineFlag_Table(t *testing.T) {
 		{[]string{"canary", "--engine", "acestep15", "--max-usd", "1", "--url", "http://127.0.0.1:1", "--case", "init-fail"}, 2, "--init-fail-confirm"},
 		{[]string{"canary", "--engine", "acestep15", "--max-usd", "1", "--url", "http://127.0.0.1:1", "--case", "t2m", "--max-s", "500"}, 2, "--max-s"},
 		{[]string{"canary", "--url", "http://127.0.0.1:1", "--all"}, 2, "acestep15 flag"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--dry-run"}, 2, "acestep15 flag"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--case", "tier-b", "--source-track", "t"}, 2, "acestep15 flag"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15"}, 2, "--all"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15", "--all", "--case", "t2m"}, 2, "exclude"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15", "--all", "--part", "c"}, 2, "--part"},
@@ -247,5 +249,16 @@ func TestCLI_CanaryDryRun_NoSpendNoServer(t *testing.T) {
 	code, out, _ := rp(t, env, "canary", "--engine", "acestep15", "--dry-run", "--case", "t2m", "--price-usd-hour", "1.38")
 	if code != 0 || !strings.Contains(out, "case t2m") || strings.Contains(out, "ILLUSTRATIVE") || strings.Contains(out, "case repaint") || strings.Contains(out, "init-fail window") {
 		t.Errorf("single case:\n%s", out)
+	}
+}
+
+// M5b Ears (C341.1): the two Ears cases print their worst case without a URL or a token and spend nothing.
+func TestCLI_CanaryEarsDryRun(t *testing.T) {
+	t.Parallel()
+	for _, c := range []string{"tier-b", "analyze"} {
+		code, out, errs := rp(t, map[string]string{}, "canary", "--case", c, "--dry-run")
+		if code != 0 || !strings.Contains(out, "tier-b") || !strings.Contains(out, "analyze") || !strings.Contains(out, "written approval") {
+			t.Errorf("%s: exit %d %s %s", c, code, out, errs)
+		}
 	}
 }

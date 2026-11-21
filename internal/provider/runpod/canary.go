@@ -52,7 +52,7 @@ const (
 )
 
 // CanaryCases lists them in documentation order.
-var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback}
+var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback, CaseTierB, CaseAnalyze}
 
 // ParseCanaryCase validates a --case value.
 func ParseCanaryCase(s string) (CanaryCase, error) {
@@ -78,7 +78,7 @@ func canaryCaseList() string {
 
 // canaryBars is the length of each case's score: YuE2 has no duration control, so the explicit ABC score
 // bounds the render (two seconds per bar at the fixed tempo).
-var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8}
+var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8, CaseTierB: 8, CaseAnalyze: 8}
 
 // CanarySpec is one case's synthetic take.
 type CanarySpec struct {
@@ -95,6 +95,12 @@ type CanarySpec struct {
 	assert func(c *canary, prov cProvider, job cJob, meas map[string]any)
 	// driver, when set, replaces the wait loop after the batch is created (the init-fail case).
 	driver func(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) *CanaryReport
+
+	// M5b Ears (canary_ears.go): the capabilities the case needs open (refused before any spend when the provider status lacks one),
+	// the estimate options and a hook that runs after the gates and before the estimate (the analyze case renders or checks its take).
+	NeedCaps []string
+	Options  map[string]any
+	prepare  func(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) (CanarySpec, *CanaryReport)
 }
 
 // abcScore renders a two-voice score of n 4/4 bars at 120 quarter notes per minute (2 s per bar).
@@ -122,6 +128,9 @@ func NewCanarySpec(c CanaryCase, day time.Time, n int) (CanarySpec, error) {
 	}
 	if n < 1 {
 		n = 1
+	}
+	if isEarsCase(c) {
+		return newEarsSpec(c, day, n, bars)
 	}
 	cot := "melody"
 	if c == CaseCotFull {
@@ -391,8 +400,12 @@ type canary struct {
 	keepStage bool
 	skipIdle  bool
 	lastJob   cJob
-	ceilSum   money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
-	fb        fallbackState  // the fallback case's progress (canary_bulk.go)
+	// pendingDiscard is a kept source take (analyze without --track) that the run discards on every exit unless --keep; the analyze
+	// job's own discard step clears it.
+	pendingDiscard string
+	sourceCeil     money.MicroUSD // analyze: the internal source render's ceiling
+	ceilSum        money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
+	fb             fallbackState  // the fallback case's progress (canary_bulk.go)
 
 	// observation across every provider-status read of the drive phase (the sampler reads concurrently)
 	mu          sync.Mutex
@@ -585,6 +598,7 @@ func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
 }
 
 func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error) {
+	defer c.discardPending()
 	prov, err := c.status(ctx)
 	if err != nil {
 		return nil, err
@@ -604,18 +618,26 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "the endpoint is already deactivated (workers_max 0): the kill switch could not be told from the start state"), nil
 	case spec.Case == CaseV2Wire && !prov.hasCap("v2"):
 		return c.finish("refused", ExitRefused, "capability v2 is not open for this backend's image (open it with `metamusic runpod contract open --caps v2` right before this case)"), nil
+	case earsRefusal(spec, prov) != "":
+		return c.finish("refused", ExitRefused, "%s", earsRefusal(spec, prov)), nil
 	case spec.Case == CaseFallback && c.fallbackRefusal(prov) != "":
 		return c.finish("refused", ExitRefused, "%s", c.fallbackRefusal(prov)), nil
 	case spec.Case == CaseTimeout && prov.MaxRuntimeS != 30:
 		return c.finish("refused", ExitRefused, "the timeout case needs MM_JOB_MAX_RUNTIME=30s on the server and an endpoint provisioned with --timeout-case (max_runtime_s is %d)", prov.MaxRuntimeS), nil
 	}
 
+	if spec.prepare != nil {
+		var early *CanaryReport
+		if spec, early = spec.prepare(ctx, c, spec, prov); early != nil {
+			return early, nil
+		}
+	}
 	var est cEstimate
 	err = c.do(ctx, http.MethodPost, "/api/generations/estimate", nil, c.estimateBody(spec), &est)
 	if err != nil {
 		return nil, err
 	}
-	c.rep.Ceiling = est.Cost.CeilingMicroUSD
+	c.rep.Ceiling = est.Cost.CeilingMicroUSD + int64(c.sourceCeil) // the run's total: analyze adds its source render's
 	if est.Takes != 1 {
 		return c.finish("refused", ExitRefused, "the estimate has %d takes, want 1", est.Takes), nil
 	}
@@ -670,6 +692,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	overall := abortAfter + time.Duration(prov.MaxRuntimeS+prov.KillSlackS)*time.Second + 10*time.Minute
 	started := c.o.Clock.Now()
 	meas := map[string]any{}
+	for k, v := range c.rep.Measured { // analyze's source render facts
+		meas[k] = v
+	}
 	c.rep.Measured = meas
 	c.observing = true
 	waitS := c.o.WaitS
@@ -802,6 +827,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	}
 
 	if !c.o.Keep && !c.keepStage && job.TrackID != nil && *job.TrackID != "" {
+		if *job.TrackID == c.pendingDiscard {
+			c.pendingDiscard = ""
+		}
 		if err := c.do(ctx, http.MethodPatch, "/api/tracks/"+*job.TrackID, nil, map[string]string{"status": "discarded"}, nil); err != nil {
 			c.check("discard_track", false, "%v", err)
 		}
