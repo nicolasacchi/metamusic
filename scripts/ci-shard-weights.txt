@@ -47,6 +47,7 @@
 ./internal/drafts 27
 ./internal/sessions 26
 ./internal/provider/runpod 24
+./internal/mandates 24
 ./internal/board 22
 ./internal/diction 22
 ./internal/ears/tierb 22
