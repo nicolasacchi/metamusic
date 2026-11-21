@@ -35,13 +35,30 @@ type Server struct {
 	delay      time.Duration
 	hideLen    bool
 	requests   int
+	now        func() time.Time
 }
 
 // New starts a server and registers its Close with t. Credentials are synthetic and assembled at run time.
 func New(t testing.TB) *Server {
 	t.Helper()
-	s := &Server{objects: map[string][]byte{}}
-	s.ts = httptest.NewServer(http.HandlerFunc(s.serve))
+	return newServer(t, false)
+}
+
+// NewTLS is New over TLS: the endpoint is an https URL (what config.LoadUploadFallback accepts) and HTTPClient trusts its
+// certificate.
+func NewTLS(t testing.TB) *Server {
+	t.Helper()
+	return newServer(t, true)
+}
+
+func newServer(t testing.TB, tls bool) *Server {
+	t.Helper()
+	s := &Server{objects: map[string][]byte{}, now: time.Now}
+	if tls {
+		s.ts = httptest.NewTLSServer(http.HandlerFunc(s.serve))
+	} else {
+		s.ts = httptest.NewServer(http.HandlerFunc(s.serve))
+	}
 	t.Cleanup(s.Close)
 	s.cfg = objstore.Config{
 		Endpoint:        s.ts.URL,
@@ -51,6 +68,19 @@ func New(t testing.TB) *Server {
 		SecretAccessKey: "mmtestsecret" + "fixture0123456789abcdefghijklmnop",
 	}
 	return s
+}
+
+// UseClock makes the server judge expiry and skew by now instead of the wall clock, for a rig that runs on a virtual clock.
+func (s *Server) UseClock(now func() time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.now = now
+}
+
+func (s *Server) clock() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.now()
 }
 
 // Config is a client configuration that matches this server.
@@ -261,10 +291,10 @@ func (s *Server) verifyQuery(r *http.Request, u url.URL) (string, string) {
 	if scope != t.UTC().Format("20060102")+"/"+s.cfg.Region+"/s3/aws4_request" {
 		return "AuthorizationQueryParametersError", "bad credential scope"
 	}
-	if time.Now().After(t.Add(time.Duration(exp) * time.Second)) {
+	if s.clock().After(t.Add(time.Duration(exp) * time.Second)) {
 		return "AccessDenied", "request has expired"
 	}
-	if time.Now().Before(t.Add(-15 * time.Minute)) {
+	if s.clock().Before(t.Add(-15 * time.Minute)) {
 		return "AccessDenied", "request is not yet valid"
 	}
 	req := &http.Request{Method: r.Method, URL: &u, Header: http.Header{}}
@@ -301,7 +331,7 @@ func (s *Server) verifyHeader(r *http.Request, u url.URL) (string, string) {
 	if err != nil {
 		return "AuthorizationHeaderMalformed", "bad x-amz-date"
 	}
-	if d := time.Since(t); d > 15*time.Minute || d < -15*time.Minute {
+	if d := s.clock().Sub(t); d > 15*time.Minute || d < -15*time.Minute {
 		return "RequestTimeTooSkewed", "clock skew"
 	}
 	req := &http.Request{Method: r.Method, URL: &u, Header: http.Header{}}
