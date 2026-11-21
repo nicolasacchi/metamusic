@@ -3120,6 +3120,8 @@ export interface components {
             trips_recent: components["schemas"]["TripView"][];
             /** Format: int64 */
             ttl_s: number;
+            /** @description The worker capability gate of this backend's image (C322) */
+            worker: components["schemas"]["WorkerStatusView"];
             workers: {
                 /** Format: int64 */
                 idle: number;
@@ -6911,6 +6913,8 @@ export interface components {
             trips_recent: components["schemas"]["TripView"][];
             /** Format: int64 */
             ttl_s: number;
+            /** @description The worker capability gate of this backend's image (C322) */
+            worker: components["schemas"]["WorkerStatusView"];
             workers: {
                 /** Format: int64 */
                 idle: number;
@@ -9339,6 +9343,13 @@ export interface components {
              * @description Step 0.05; gain on the side signal
              */
             width?: number | null;
+        };
+        WorkerStatusView: {
+            caps: string[];
+            changed_at: string | null;
+            image_digest: string | null;
+            /** @enum {string} */
+            via: "none" | "cli" | "auto";
         };
     };
     responses: never;

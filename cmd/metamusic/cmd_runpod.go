@@ -43,7 +43,7 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm [--engine E] --endpoint-name N --reason TEXT [--after-restore]   (N is mm-yue2 or mm-acestep, typed)
   disarm [--engine E] --reason TEXT
   reset-trip [--engine E] --reason TEXT
-  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch]
+` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
   canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
@@ -75,7 +75,7 @@ const maxReasonRunes = 500
 // cmdRunPod dispatches `metamusic runpod ...`.
 func cmdRunPod(ctx context.Context, args []string, getenv func(string) string, s streams) error {
 	if len(args) == 0 {
-		return usageError("runpod: expected probe|provision|status|arm|disarm|reset-trip|canary\n\n" + runpodUsage)
+		return usageError("runpod: expected probe|provision|status|arm|disarm|reset-trip|contract|canary\n\n" + runpodUsage)
 	}
 	rest := args[1:]
 	switch args[0] {
@@ -93,6 +93,8 @@ func cmdRunPod(ctx context.Context, args []string, getenv func(string) string, s
 		return cmdRunPodResetTrip(ctx, rest, getenv, s)
 	case "canary":
 		return cmdRunPodCanary(ctx, rest, getenv, s)
+	case "contract":
+		return cmdRunPodContract(ctx, rest, getenv, s)
 	case "help", "-h", "--help":
 		fmt.Fprint(s.out, runpodUsage)
 		return nil

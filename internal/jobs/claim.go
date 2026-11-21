@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -19,6 +20,17 @@ type gateInfo struct {
 	workersMax int
 	idleS      int
 	price      money.MicroUSD // list price x margin; 0 without a usable quote
+	// caps are the worker capabilities open for this backend's image (C322.4); a job whose needs are not a subset is not claimable.
+	caps []string
+}
+
+// capsJSON is the claim filter's bound parameter: the open capabilities as a JSON array (never "null").
+func capsJSON(caps []string) string {
+	if len(caps) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(caps)
+	return string(b)
 }
 
 // gateConfig is the quote-check configuration of this runner's backend: the backend's own gate when the runner sits over a Set
@@ -85,6 +97,11 @@ func (r *Runner) readGate(ctx context.Context, x q) (gateInfo, error) {
 	if g.reason != "" {
 		return g, nil
 	}
+	caps, err := provider.WorkerCaps(ctx, x, backend, g.quote, now)
+	if err != nil {
+		return g, err
+	}
+	g.caps = caps
 	g.ok = true
 	if g.quote != nil {
 		if g.quote.Endpoint.WorkersMax > 0 {

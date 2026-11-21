@@ -174,7 +174,7 @@ func (p *planner) forceMinimum(t *planTake) error {
 }
 
 // plannerWarnings are the warnings only the planner can raise (M3 lint.go): duplicate_render,
-// parent_discarded and fake_marker.
+// parent_discarded, fake_marker and diction_risk (the Ears seam, C345.6).
 func (p *planner) plannerWarnings(b base, t *planTake, reuse string) ([]Issue, error) {
 	var out []Issue
 	var dup int
@@ -200,6 +200,16 @@ func (p *planner) plannerWarnings(b base, t *planTake, reuse string) ([]Issue, e
 		}
 		if json.Unmarshal([]byte(t.RequestJSON), &req) == nil && strings.Contains(req.Style, "fake:") {
 			out = append(out, Issue{Code: "fake_marker", Field: "style", Severity: "warning", Message: "fake:<fault> markers only act on the fake backend; here they are plain style text"})
+		}
+	}
+	if p.s.ears.DictionRisk != nil {
+		var req struct {
+			Lyrics string `json:"lyrics"`
+		}
+		if json.Unmarshal([]byte(t.RequestJSON), &req) == nil {
+			if is, err := p.s.ears.DictionRisk(p.ctx, req.Lyrics); err == nil {
+				out = append(out, is...)
+			}
 		}
 	}
 	return out, nil

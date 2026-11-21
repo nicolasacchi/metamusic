@@ -765,3 +765,44 @@ func TestDrafts_LintDurationTargets(t *testing.T) {
 		t.Errorf("min lowered to 30 s, yet the draft lint warns: %+v", d.Lint.Warnings)
 	}
 }
+
+type fakeDiction struct {
+	risks []yue2.DictionRisk
+	err   error
+	seen  string
+}
+
+func (f *fakeDiction) Risks(_ context.Context, lyrics string) ([]yue2.DictionRisk, error) {
+	f.seen = lyrics
+	return f.risks, f.err
+}
+
+func TestLint_DictionRiskThroughDrafts(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	item := []yue2.LintItem{{Request: reqJSON("risky", lyricsOf(""))}}
+	count := func() (n int) {
+		rep, err := e.svc.Lint(ctx, item, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range rep.Items[0].Warnings {
+			if w.Code == "diction_risk" {
+				n++
+			}
+		}
+		return n
+	}
+	if n := count(); n != 0 {
+		t.Fatalf("no source wired: %d warnings", n)
+	}
+	f := &fakeDiction{risks: []yue2.DictionRisk{{Word: "chiave", Typical: "kiave", Attempts: 6, Mangled: 4}}}
+	e.svc.UseDiction(f)
+	if n := count(); n != 1 || f.seen != lyricsOf("") {
+		t.Errorf("warnings = %d, lyrics asked = %q", n, f.seen)
+	}
+	f.err = errors.New("boom")
+	if n := count(); n != 0 {
+		t.Errorf("a failing source must leave the warning out, got %d", n)
+	}
+}

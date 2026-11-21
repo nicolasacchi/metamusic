@@ -171,6 +171,10 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
 	}
+	pl.markV2Canary()
+	if err := s.requireCaps(ctx, s.o.Store.R, st, batchNeeds(pl.takes)); err != nil { // before anything is quoted, stored or reserved (C322.5)
+		return Estimate{}, err
+	}
 	var qp spend.QuoteParams
 	var pq provider.Quote
 	var takes []spend.TakeIn

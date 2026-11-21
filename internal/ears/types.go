@@ -50,7 +50,8 @@ type Options struct {
 
 // Service is the Ears service. An unwired Service (Options{}) answers errors.ErrUnsupported.
 type Service struct {
-	o Options
+	o       Options
+	diction DictionSource // nil: no lines or risky_words in perception (UseDiction)
 
 	badMu   sync.Mutex
 	badDocs map[string]string // track id -> document token of a stored document the sweep could not parse (skipped until it changes)
@@ -322,7 +323,7 @@ type Perception struct {
 }
 
 // PerceptionDiction is the diction of a take as measured by speech recognition on the separated vocals (Tier B). Lines and
-// RiskyWords are filled by the Diction Lab lane (EARS-D2); until then they stay absent.
+// RiskyWords come from the Diction Lab (ContextSummary, C345.5) and stay absent until it is wired.
 type PerceptionDiction struct {
 	CER          float64                 `json:"cer"`
 	WER          float64                 `json:"wer"`
