@@ -151,11 +151,14 @@ func TestCreateDuel_Section_Refusals(t *testing.T) {
 	asProblem(t, err, 422, "SECTION_NOT_FOUND")
 	_, err = e.svc.Create(ctx, human, duels.CreateInput{ATrackID: g0, BTrackID: g1, Section: &duels.SectionSelector{Kind: sp("chorus"), Ordinal: sp(3)}})
 	asProblem(t, err, 422, "SECTION_NOT_FOUND")
-	// T2 has no "outro" while G0 does: the track lacking it is named
-	_, err = e.svc.Create(ctx, human, duels.CreateInput{ATrackID: g0, BTrackID: e.info.Takes["T2"], Section: &duels.SectionSelector{Label: sp("outro")}})
-	if pe := asProblem(t, err, 422, "SECTION_NOT_FOUND"); pe.Details["track_id"] != e.info.Takes["T2"] {
-		t.Errorf("details = %v", pe.Details)
+	// T2's manual rows have no "outro" but its plan does: the plan fills the gap (a weaker source fills what a better one lacks), and the
+	// pair is recorded with that weaker source; a section no source of the track has still names the track
+	d := e.section(t, human, g0, e.info.Takes["T2"], lbl("outro"))
+	if _, _, src := e.row(t, d.ID); src != "plan" {
+		t.Errorf("T2 outro source = %q, want plan", src)
 	}
+	_, err = e.svc.Create(ctx, human, duels.CreateInput{ATrackID: g0, BTrackID: e.info.Takes["T2"], Section: &duels.SectionSelector{Kind: sp("chorus"), Ordinal: sp(3)}})
+	asProblem(t, err, 422, "SECTION_NOT_FOUND")
 	for name, in := range map[string]duels.CreateInput{
 		"empty selector":     {Section: &duels.SectionSelector{}},
 		"label and kind":     {Section: &duels.SectionSelector{Label: sp("chorus 1"), Kind: sp("chorus"), Ordinal: sp(1)}},
@@ -171,7 +174,7 @@ func TestCreateDuel_Section_Refusals(t *testing.T) {
 			t.Errorf("%s: details = %v", name, pe.Details)
 		}
 	}
-	if n := e.count(t, `SELECT count(*) FROM duels`); n != 4 {
+	if n := e.count(t, `SELECT count(*) FROM duels`); n != 5 {
 		t.Errorf("a refused call left rows: %d", n)
 	}
 }
@@ -330,5 +333,51 @@ func TestDuel_SectionReveal(t *testing.T) {
 	}
 	if *r.Window.FromS != 34 || *r.Window.ToS != 56 {
 		t.Errorf("duel window = %v..%v, want slot A's", *r.Window.FromS, *r.Window.ToS)
+	}
+}
+
+// seedMeasuredFrom stores measured sections on a track from the chorus on (the listening check aligned no verse 1): the plan
+// still has verse 1, the measured source has a gap there.
+func (e *m5Env) seedMeasuredFromChorus(t *testing.T, track string) {
+	t.Helper()
+	for i, s := range lt.M5PlanSections[1:] {
+		if _, err := e.st.W.Exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', ?, ?, ?, ?, ?, ?, 0.9)`,
+			track, i, s.Kind, s.Label, "["+s.Label+"]", s.From, s.To); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// TestCreateDuel_Section_MeasuredGapFallsBackToPlan: a listening check leaves a gap in the best source of a take (its verse 1 is
+// not in the measured rows); the section is found in the next timed source and recorded as that source, while a section the
+// measured rows do have still comes from them.
+func TestCreateDuel_Section_MeasuredGapFallsBackToPlan(t *testing.T) {
+	t.Parallel()
+	e := newM5Env(t, false)
+	g0, g1 := e.info.Lineage[0], e.info.Lineage[1]
+	e.seedMeasuredFromChorus(t, g0)
+	d := e.section(t, human, g0, g1, lbl("verse 1"))
+	if _, label, src := e.row(t, d.ID); !strings.EqualFold(label, "verse 1") || src != "plan" {
+		t.Errorf("verse 1 section = %q/%q, want verse 1/plan (the measured gap filled by the plan)", label, src)
+	}
+	// G0 measured and G1 manual: the stored source is the weaker of the two
+	d = e.section(t, human, g0, g1, lbl("chorus 1"))
+	if _, _, src := e.row(t, d.ID); src != "measured" {
+		t.Errorf("chorus 1 source = %q, want measured", src)
+	}
+}
+
+// TestSuggest_Section_MeasuredGapFallsBackToPlan: the same gap does not drop the take from a section suggestion.
+func TestSuggest_Section_MeasuredGapFallsBackToPlan(t *testing.T) {
+	t.Parallel()
+	e := newM5Env(t, false)
+	g0, g1 := e.info.Lineage[0], e.info.Lineage[1]
+	e.seedMeasuredFromChorus(t, g0)
+	res, err := e.svc.Suggest(context.Background(), duels.SuggestQuery{Scope: "lineage", RootTrackID: g0, Section: &duels.SectionSelector{Label: sp("verse 1")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Pairs) != 1 || key(res.Pairs[0].ATrackID, res.Pairs[0].BTrackID) != key(g0, g1) {
+		t.Errorf("verse 1 pairs = %+v, want the pair of G0 and G1", res.Pairs)
 	}
 }

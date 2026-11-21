@@ -135,3 +135,38 @@ func TestAnchor_MapIsMonotoneWithinSection(t *testing.T) {
 		prev, prevSec = at, sec
 	}
 }
+
+func TestChain_GapFilledByNextSource(t *testing.T) {
+	t.Parallel()
+	measured := Timing{Source: "measured", DurationS: 100, Sections: []Section{{Kind: "verse", Ordinal: 1, Label: "verse 1", StartS: 20, EndS: 100}}}
+	plan := Timing{Source: "plan", DurationS: 100, Sections: []Section{
+		{Kind: "intro", Ordinal: 1, Label: "intro", StartS: 0, EndS: 20}, {Kind: "verse", Ordinal: 1, Label: "verse 1", StartS: 20, EndS: 100}}}
+	chain := []Timing{measured, plan}
+	if p := ComputeChain(chain, 100, 10); p.Basis != BasisSection || p.Kind != "intro" || p.Confidence != 0.8 {
+		t.Errorf("gap point = %+v, want intro from the plan", p)
+	}
+	if p := ComputeChain(chain, 100, 50); p.Kind != "verse" || p.Confidence != 0.9 {
+		t.Errorf("covered point = %+v, want the measured verse", p)
+	}
+	if p := ComputeChain(nil, 100, 50); p.Basis != BasisProportional || p.DurFraction != 0.5 {
+		t.Errorf("empty chain = %+v", p)
+	}
+	intro := Compute(plan, 10)
+	if at, b, _ := MapChain(intro, chain, 100); b != BasisSection || at != 10 {
+		t.Errorf("MapChain = %v %v, want 10 by section via the plan", at, b)
+	}
+	if at, b, _ := MapChain(intro, nil, 200); b != BasisProportional || at != 20 {
+		t.Errorf("MapChain without sources = %v %v", at, b)
+	}
+}
+
+func TestClampTo(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ at, dur, want float64 }{
+		{5, 10, 5}, {15, 10, 10}, {-1, 10, 0}, {math.NaN(), 10, 0}, {500, 0, 500},
+	} {
+		if got := ClampTo(tc.at, tc.dur); got != tc.want {
+			t.Errorf("ClampTo(%v, %v) = %v, want %v", tc.at, tc.dur, got, tc.want)
+		}
+	}
+}

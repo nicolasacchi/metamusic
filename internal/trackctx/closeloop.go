@@ -22,7 +22,7 @@ import (
 // from an ancestor onto this take), its listening hotspots and the Song PRs still rendering for some comments.
 // *attention.Service implements it; trackctx declares it so the wiring stays in app.
 type CloseLoopReader interface {
-	Timing(ctx context.Context, trackID string) (anchor.Timing, error)
+	TimingWithChain(ctx context.Context, trackID string) (anchor.Timing, []anchor.Timing, error)
 	Hotspots(ctx context.Context, trackID string) ([]attention.Hotspot, error)
 	InFlightPatches(ctx context.Context, commentIDs []string) (map[string][]string, error)
 }
@@ -83,19 +83,27 @@ func roundTo(x float64, decimals int) float64 {
 	return math.Round(x*p) / p
 }
 
+// takeTiming is a take's best timing and every fully timed source, best first. A listening check's measured rows start at the
+// first sung word, so a time in the intro is a gap of the best source and the next one places it.
+type takeTiming struct {
+	best  anchor.Timing
+	chain []anchor.Timing
+}
+
 // spotOf maps the time of a comment onto this take. An own comment keeps its time; an ancestor's is anchored in its own
 // take and mapped (C252). It also returns the lyrics section the spot lands in (kind and ordinal, "" when none).
-func spotOf(c judgments.Comment, own bool, src, tgt anchor.Timing) (spot *omap, kind string, ordinal int) {
+func spotOf(c judgments.Comment, own bool, src, tgt takeTiming) (spot *omap, kind string, ordinal int) {
 	if c.AtSecond == nil {
 		return nil, "", 0
 	}
-	p := anchor.Compute(src, *c.AtSecond)
+	p := anchor.ComputeChain(src.chain, src.best.DurationS, *c.AtSecond)
 	at, basis, conf := *c.AtSecond, p.Basis, p.Confidence
 	if !own {
-		at, basis, conf = anchor.Map(p, tgt)
+		at, basis, conf = anchor.MapChain(p, tgt.chain, tgt.best.DurationS)
+		at = anchor.ClampTo(at, tgt.best.DurationS) // a plan clock can run past the audio
 	}
 	var label any
-	if q := anchor.Compute(tgt, at); q.Basis == anchor.BasisSection {
+	if q := anchor.ComputeChain(tgt.chain, tgt.best.DurationS, at); q.Basis == anchor.BasisSection {
 		label, kind, ordinal = q.Label, q.Kind, q.Ordinal
 	}
 	return newOmap("at_s", roundTo(at, 3), "basis", basis, "confidence", roundTo(conf, 2), "label", label), kind, ordinal
@@ -157,11 +165,11 @@ func (b *Builder) closeLoopComments(ctx context.Context, trackID, lyrics string,
 	if len(ancestors) == 0 && len(flight) == 0 {
 		return items, closeLoop{}, nil
 	}
-	tgt, err := b.cl.Timing(ctx, trackID)
-	if err != nil {
+	tgt := takeTiming{}
+	if tgt.best, tgt.chain, err = b.cl.TimingWithChain(ctx, trackID); err != nil {
 		return nil, closeLoop{}, err
 	}
-	timings := map[string]anchor.Timing{trackID: tgt}
+	timings := map[string]takeTiming{trackID: tgt}
 	var secs []yue2.Section
 	if recipeKnown && lyrics != "" {
 		secs = yue2.LyricsSections(lyrics)
@@ -179,7 +187,7 @@ func (b *Builder) closeLoopComments(ctx context.Context, trackID, lyrics string,
 		}
 		src, ok := timings[c.TrackID]
 		if !ok {
-			if src, err = b.cl.Timing(ctx, c.TrackID); err != nil {
+			if src.best, src.chain, err = b.cl.TimingWithChain(ctx, c.TrackID); err != nil {
 				return nil, closeLoop{}, err
 			}
 			timings[c.TrackID] = src

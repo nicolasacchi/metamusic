@@ -237,14 +237,14 @@ func (s *Service) suggestVerdicts(ctx context.Context, idx map[string]int, sn *s
 func (s *Service) suggestSpans(ctx context.Context, ids []string, key sectionKey) (map[string]clip.SectionSpan, error) {
 	out := map[string]clip.SectionSpan{}
 	for _, id := range ids {
-		t, err := library.Timing(ctx, s.o.Store.R, id)
+		chain, err := library.TimingChain(ctx, s.o.Store.R, id)
 		if errors.Is(err, library.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
-		if sec, ok := key.find(t); ok {
+		if sec, _, ok := key.findChain(chain); ok {
 			out[id] = clip.SectionSpan{StartS: sec.StartS, EndS: sec.EndS}
 		}
 	}

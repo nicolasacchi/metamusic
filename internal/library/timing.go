@@ -55,6 +55,19 @@ func TimingChain(ctx context.Context, q interface {
 	return out, nil
 }
 
+// TimingWithChain is Timing and TimingChain in one read: the best source as Timing returns it (it carries the duration of an
+// untimed take too) and every fully timed source, best first. For callers that map moments with anchor.ComputeChain.
+func TimingWithChain(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, trackID string) (anchor.Timing, []anchor.Timing, error) {
+	best, err := Timing(ctx, q, trackID)
+	if err != nil {
+		return best, nil, err
+	}
+	chain, err := TimingChain(ctx, q, trackID)
+	return best, chain, err
+}
+
 func timingOf(dur float64, src string, sel []SectionOut) anchor.Timing {
 	out := anchor.Timing{DurationS: dur, Source: src}
 	ordinal := map[string]int{}

@@ -3,11 +3,13 @@ package callbacks_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/callbacks"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
@@ -336,5 +338,50 @@ func TestSubmit_Validation(t *testing.T) {
 	}
 	if r, err := l.svc.Submit(ctx, human, l.id(1, "fix_chorus"), callbacks.VerdictInput{Verdict: "not_yet"}); err != nil || !r.Replayed {
 		t.Errorf("blank note replay: %+v %v", r, err)
+	}
+}
+
+// TestSpot_MeasuredGapOnTheSource: the comment's take got a listening check (measured rows start at 15 s, the comment is at 12 s
+// in the gap); the spot still anchors by section through the plan (12 s is 0.4 of verse 1) and lands in G1's manual verse 1.
+func TestSpot_MeasuredGapOnTheSource(t *testing.T) {
+	t.Parallel()
+	l := newLoop(t, 1)
+	for i, s := range lt.M5PlanSections {
+		from := s.From
+		if i == 0 {
+			from = 15
+		}
+		l.exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', ?, ?, ?, ?, ?, ?, 0.9)`,
+			l.info.Lineage[0], i, s.Kind, s.Label, "["+s.Label+"]", from, s.To)
+	}
+	cb, err := l.svc.Get(context.Background(), human, l.id(1, "fix_verse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// G1 manual verse 1 is 4..36: 4 + 0.4*32 = 16.8
+	if cb.Spot.Basis != "section" || math.Abs(cb.Spot.ChildAtS-16.8) > 0.05 || cb.Spot.Label == nil || *cb.Spot.Label != "verse 1" {
+		t.Errorf("spot %+v, want section at 16.8 labelled verse 1", cb.Spot)
+	}
+}
+
+// TestSpot_ClampedToTheChildDuration: the child's plan sections (score-bar clock) run past its audio; the mapped spot is clamped to
+// the stored duration, in the answer and in the link, and reading it writes nothing.
+func TestSpot_ClampedToTheChildDuration(t *testing.T) {
+	t.Parallel()
+	l := newLoop(t, 2)
+	g2 := l.info.Lineage[2]
+	// G2 (lyrics only) gets a plan whose clock runs past its audio: verse 1 at 300..400 s, so the comment (0.4 of G0's verse 1) maps to 340 s
+	l.exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'plan', 0, 'verse', 'verse 1', '[verse 1]', 300, 400, 0.7)`, g2)
+	dur := l.str(`SELECT CAST(duration_s AS TEXT) FROM tracks WHERE id = ?`, g2)
+	before := l.count(`SELECT count(*) FROM sections`) + l.count(`SELECT count(*) FROM comments`) + l.count(`SELECT count(*) FROM callbacks`)
+	cb, err := l.svc.Get(context.Background(), human, l.id(2, "fix_verse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cb.Spot.Basis != "section" || fmt.Sprintf("%.1f", cb.Spot.ChildAtS) != dur || cb.Links.Child != fmt.Sprintf("/tracks/%s?t=%.1f", g2, cb.Spot.ChildAtS) {
+		t.Errorf("spot %+v links %+v, want a section spot clamped to the duration %s", cb.Spot, cb.Links, dur)
+	}
+	if after := l.count(`SELECT count(*) FROM sections`) + l.count(`SELECT count(*) FROM comments`) + l.count(`SELECT count(*) FROM callbacks`); after != before {
+		t.Errorf("a read wrote rows: %d -> %d", before, after)
 	}
 }

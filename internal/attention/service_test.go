@@ -229,3 +229,29 @@ func TestService_InFlightPatches(t *testing.T) {
 		t.Errorf("no ids: %v %v", got, err)
 	}
 }
+
+// TestService_Heat_HotspotLabel_MeasuredGap: a listening check stores measured sections that start at the first sung word, so the
+// take's opening is a gap of the best source; the hotspot there is still labelled by the plan's section.
+func TestService_Heat_HotspotLabel_MeasuredGap(t *testing.T) {
+	t.Parallel()
+	svc, st, info := newEnv(t)
+	g0 := info.Lineage[0]
+	for i, s := range lt.M5PlanSections { // plan: verse 1 0-30 ...; measured: the same rows, the first starting at 5 s
+		from := s.From
+		if i == 0 {
+			from = 5
+		}
+		exec(t, st, `INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', ?, ?, ?, ?, ?, ?, 0.9)`,
+			g0, i, s.Kind, s.Label, "["+s.Label+"]", from, s.To)
+	}
+	for range 3 {
+		addEvent(t, st, g0, "replay-session", "segment", ms(0), ms(4_000), "human")
+	}
+	h, err := svc.Heat(context.Background(), g0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Hotspots) != 1 || h.Hotspots[0].FromS != 0 || h.Hotspots[0].Label == nil || *h.Hotspots[0].Label != "verse 1" {
+		t.Errorf("hotspots = %+v, want one at 0 s labelled verse 1 (plan fills the measured gap)", h.Hotspots)
+	}
+}

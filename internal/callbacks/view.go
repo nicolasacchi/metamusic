@@ -166,20 +166,24 @@ func spotOf(ctx context.Context, q querier, x row) (Spot, error) {
 	if !x.cAt.Valid {
 		return Spot{Basis: anchor.BasisProportional}, nil
 	}
-	src, err := library.Timing(ctx, q, x.cTrack)
+	// every timed source of both takes, best first: a listening check's measured rows start at the first sung word, so a time in the
+	// intro is a gap of the best source and the next one places it
+	src, srcChain, err := library.TimingWithChain(ctx, q, x.cTrack)
 	if err != nil {
 		return Spot{}, err
 	}
-	child, err := library.Timing(ctx, q, x.childID)
+	child, childChain, err := library.TimingWithChain(ctx, q, x.childID)
 	if err != nil {
 		return Spot{}, err
 	}
 	at := x.cAt.Float64
-	pt := anchor.Compute(src, at)
-	childAt, basis, conf := anchor.Map(pt, child)
+	pt := anchor.ComputeChain(srcChain, src.DurationS, at)
+	childAt, basis, conf := anchor.MapChain(pt, childChain, child.DurationS)
+	// a plan clock (score bars) can run past the audio: the spot never lies outside the child take
+	childAt = anchor.ClampTo(childAt, child.DurationS)
 	sp := Spot{ChildAtS: round1(childAt), SourceAtS: &at, Basis: basis, Confidence: conf}
 	if basis == anchor.BasisSection {
-		if l := anchor.Compute(child, childAt).Label; l != "" {
+		if l := anchor.ComputeChain(childChain, child.DurationS, childAt).Label; l != "" {
 			sp.Label = &l
 		}
 	}

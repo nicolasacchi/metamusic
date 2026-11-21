@@ -374,3 +374,35 @@ func commentsOfBundle(t *testing.T, b trackctx.Bundle) []commentView {
 	cs, _ := commentsOf(t, marshal(t, b))
 	return cs
 }
+
+// TestContext_AncestorSpot_MeasuredGap: the ancestor's take got a listening check whose rows start at 15 s; its comment at 12 s lies in
+// that gap, yet the spot maps by section through the plan onto the child's manual verse 1 (4..36 s: 4 + 0.4*32 = 16.8).
+func TestContext_AncestorSpot_MeasuredGap(t *testing.T) {
+	t.Parallel()
+	e := newEnvM5(t, true)
+	for i, s := range lt.M5PlanSections {
+		from := s.From
+		if i == 0 {
+			from = 15
+		}
+		if _, err := e.st.W.Exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', ?, ?, ?, ?, ?, ?, 0.9)`,
+			e.info.Lineage[0], i, s.Kind, s.Label, "["+s.Label+"]", from, s.To); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, raw := e.build(t, e.info.Lineage[1])
+	cs, _ := commentsOf(t, raw)
+	for _, cv := range cs {
+		if cv.ID != e.info.Comments["fix_verse"] {
+			continue
+		}
+		if cv.Spot["basis"] != "section" || cv.Spot["label"] != "verse 1" {
+			t.Fatalf("spot = %v, want section / verse 1", cv.Spot)
+		}
+		if at := cv.Spot["at_s"].(float64); at < 16.79 || at > 16.81 {
+			t.Errorf("at_s = %v, want 16.8", at)
+		}
+		return
+	}
+	t.Fatal("the verse fix is missing")
+}

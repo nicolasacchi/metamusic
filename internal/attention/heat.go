@@ -184,9 +184,13 @@ func (h *Heat) cold() {
 }
 
 // LabelHotspots sets each hotspot's label to the timed section at its start; untimed takes leave it null.
-func (h *Heat) LabelHotspots(t anchor.Timing) {
+func (h *Heat) LabelHotspots(t anchor.Timing) { h.LabelHotspotsChain([]anchor.Timing{t}) }
+
+// LabelHotspotsChain labels with the first timed source (best first) that has a section at the hotspot's start, so a gap of the
+// best source (a measured take starts at its first sung word) is labelled by the next one.
+func (h *Heat) LabelHotspotsChain(chain []anchor.Timing) {
 	for i := range h.Hotspots {
-		if p := anchor.Compute(t, h.Hotspots[i].FromS); p.Basis == anchor.BasisSection {
+		if p := anchor.ComputeChain(chain, 0, h.Hotspots[i].FromS); p.Basis == anchor.BasisSection {
 			l := p.Label
 			h.Hotspots[i].Label = &l
 		}

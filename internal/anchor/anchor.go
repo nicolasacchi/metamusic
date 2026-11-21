@@ -107,3 +107,39 @@ func Map(p Point, to Timing) (atS float64, basis string, conf float64) {
 	}
 	return p.DurFraction * to.DurationS, BasisProportional, ProportionalConfidence
 }
+
+// ComputeChain anchors atS in the first timing of chain (every fully timed source of a take, best first) that has a
+// section covering it, so a gap of the best source (a measured take starts at its first sung word, so its intro is no
+// section of it) is filled by the next source. A time no source covers anchors proportionally on durS, the take's duration.
+func ComputeChain(chain []Timing, durS, atS float64) Point {
+	for _, t := range chain {
+		if p := Compute(t, atS); p.Basis == BasisSection {
+			return p
+		}
+	}
+	return Compute(Timing{DurationS: durS}, atS)
+}
+
+// MapChain is Map onto a take given as its chain: the first source that has the point's section kind and ordinal places it,
+// else the same fraction of durS (proportional), as Map does.
+func MapChain(p Point, chain []Timing, durS float64) (atS float64, basis string, conf float64) {
+	if p.Basis == BasisSection {
+		for _, to := range chain {
+			if at, b, c := Map(p, to); b == BasisSection {
+				return at, b, c
+			}
+		}
+	}
+	return Map(p, Timing{DurationS: durS})
+}
+
+// ClampTo bounds a time to [0, durS] (the take's stored duration); a take without a duration leaves it unbounded above.
+func ClampTo(atS, durS float64) float64 {
+	if math.IsNaN(atS) || atS < 0 {
+		return 0
+	}
+	if durS > 0 && atS > durS {
+		return durS
+	}
+	return atS
+}
