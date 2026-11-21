@@ -8152,7 +8152,7 @@ export interface components {
             cer: number;
             label: string;
             /** Format: int64 */
-            lines: number;
+            line_count: number;
             /** Format: int64 */
             ref_words: number;
             /**

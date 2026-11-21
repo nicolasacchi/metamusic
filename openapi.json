@@ -19906,7 +19906,7 @@
           "label": {
             "type": "string"
           },
-          "lines": {
+          "line_count": {
             "format": "int64",
             "type": "integer"
           },
@@ -19935,7 +19935,7 @@
           "wer",
           "ref_words",
           "word_edits",
-          "lines"
+          "line_count"
         ],
         "type": "object"
       },
