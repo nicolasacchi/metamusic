@@ -165,7 +165,7 @@ func TestCreate_OrderOfChecks(t *testing.T) {
 	if pe := wantProblem(t, err, 503, "UNAVAILABLE"); pe.Details["component"] != "ffmpeg" {
 		t.Errorf("details %v", pe.Details)
 	}
-	// a score render without soundfonts or fluidsynth is unavailable (T1b is not part of this lane)
+	// a score render without soundfonts or fluidsynth is unavailable (T1b, C355.2)
 	r = newRig(t)
 	_, err = r.svc.Create(ctx, human, req(KindScoreRender, `{}`), nil)
 	if pe := wantProblem(t, err, 503, "UNAVAILABLE"); pe.Details["component"] != "soundfont" {

@@ -90,6 +90,7 @@ func buildT1(in t1Inputs) *transform.Service {
 		// create answers 503 UNAVAILABLE {component: ffmpeg|flac} until the probe has succeeded
 		o.ToolStatus = func() transform.ToolStatus { r := in.ready(); return transform.ToolStatus{FFmpeg: r, FLAC: r} }
 	}
+	wireScore(&o, in.cfg, in.lib, in.o.Log) // T1b: fluidsynth, the soundfonts, the score reader (t1b.go)
 	svc = transform.New(o)
 	return svc
 }
