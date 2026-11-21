@@ -274,3 +274,46 @@ func TestLint_DurationTargets(t *testing.T) {
 		}
 	}
 }
+
+func dictionRisks(rs ...DictionRisk) func(string) []DictionRisk {
+	return func(string) []DictionRisk { return rs }
+}
+
+func TestLint_DictionRisk(t *testing.T) {
+	raw := mkReq("d", "italian", "[Verse]\nla chiave del mare\n"+goodVerse)
+	run := func(c LintContext) []Issue {
+		var out []Issue
+		for _, w := range Lint([]LintItem{{Request: raw}}, false, c).Items[0].Warnings {
+			if w.Code == "diction_risk" {
+				out = append(out, w)
+			}
+		}
+		return out
+	}
+	got := run(LintContext{Diction: dictionRisks(DictionRisk{Word: "chiave", Typical: "kiave", Attempts: 6, Mangled: 4})})
+	if len(got) != 1 || got[0].Field != "lyrics" || got[0].Severity != "warning" || got[0].Message != "'chiave' was heard as 'kiave' in 4/6 takes" {
+		t.Fatalf("warnings = %+v", got)
+	}
+	if got := run(LintContext{}); len(got) != 0 {
+		t.Errorf("nil Diction: %+v", got)
+	}
+	if got := run(LintContext{Diction: dictionRisks()}); len(got) != 0 {
+		t.Errorf("no risks: %+v", got)
+	}
+	// most mangled first, ties by word, at most ten
+	var many []DictionRisk
+	for i := range 14 {
+		many = append(many, DictionRisk{Word: string(rune('a'+i)) + "xx", Typical: "y", Attempts: 20, Mangled: 10 + i%3})
+	}
+	got = run(LintContext{Diction: dictionRisks(many...)})
+	if len(got) != 10 || !strings.Contains(got[0].Message, "12/20") || !strings.HasPrefix(got[0].Message, "'cxx'") {
+		t.Errorf("ordering: %d, first %q", len(got), got[0].Message)
+	}
+	// a request with protocol errors is not asked
+	called := false
+	bad := json.RawMessage(`{"id":"b","style":"s","lyrics":"l","seed":9007199254740992}`)
+	Lint([]LintItem{{Request: bad}}, false, LintContext{Diction: func(string) []DictionRisk { called = true; return nil }})
+	if called {
+		t.Error("Diction called for an item with errors")
+	}
+}

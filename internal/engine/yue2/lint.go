@@ -2,8 +2,10 @@ package yue2
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -27,6 +29,36 @@ type LintContext struct {
 	KnownHash func(hash, selfDraftID, selfRecipeID string) (where string, ok bool)
 	// Targets are the operator's duration targets; nil means no duration_under_target / duration_outside_target warnings.
 	Targets *DurationTargets
+	// Diction returns the words of the lyrics that earlier takes sang badly (the Diction Lab lexicon); nil means no diction_risk
+	// warnings, so every caller that does not wire it is unchanged.
+	Diction func(lyrics string) []DictionRisk
+}
+
+// DictionRisk is a word the recogniser often misheard: heard as Typical in Mangled of Attempts earlier sung times.
+type DictionRisk struct {
+	Word, Typical     string
+	Attempts, Mangled int
+}
+
+// maxDictionRisks bounds the diction_risk warnings of one item.
+const maxDictionRisks = 10
+
+// DictionRiskIssues turns risky words into diction_risk warnings: most mangled first, then by word, at most ten. Lint and the
+// estimate planner share it so both say the same thing.
+func DictionRiskIssues(risks []DictionRisk) []Issue {
+	rs := append([]DictionRisk(nil), risks...)
+	sort.SliceStable(rs, func(i, j int) bool {
+		if rs[i].Mangled != rs[j].Mangled {
+			return rs[i].Mangled > rs[j].Mangled
+		}
+		return rs[i].Word < rs[j].Word
+	})
+	out := make([]Issue, 0, min(len(rs), maxDictionRisks))
+	for _, r := range rs[:min(len(rs), maxDictionRisks)] {
+		out = append(out, Issue{Code: "diction_risk", Field: "lyrics", Severity: sevWarning,
+			Message: fmt.Sprintf("'%s' was heard as '%s' in %d/%d takes", r.Word, r.Typical, r.Mangled, r.Attempts)})
+	}
+	return out
 }
 
 // DurationTargets are the songwriting duration targets in seconds (MinS <= TargetMinS <= TargetMaxS).
@@ -102,6 +134,9 @@ func Lint(items []LintItem, batch bool, c LintContext) LintReport {
 		}
 		if perr == nil && len(res.Errors) == 0 {
 			lintSongwriting(&res, p.Request, c.Targets)
+			if c.Diction != nil {
+				res.Warnings = append(res.Warnings, DictionRiskIssues(c.Diction(p.Request.Lyrics))...)
+			}
 			if where, dup := knownOrEarlier(c, p.Hash, it, seenHash); dup {
 				res.Warnings = append(res.Warnings, Issue{Code: "duplicate_recipe", Field: "recipe", Severity: sevWarning,
 					Message: "same canonical request as " + where})

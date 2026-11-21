@@ -31,6 +31,13 @@ func (s *Service) Perception(ctx context.Context, trackID string) (Perception, e
 	}
 	if d := st.tbDiction; d != nil {
 		p.Diction = &PerceptionDiction{CER: d.Overall.CER, WER: d.Overall.WER, WorstSection: worstSection(d.Sections)}
+		if s.diction != nil {
+			// The lab's lines and risky words are an addition: when they cannot be read the block keeps its CER and WER.
+			if sum, err := s.diction.ContextSummary(ctx, trackID); err == nil && sum.HasLines {
+				p.Diction.Lines = &PerceptionDictionLines{Clear: sum.Clear, Mixed: sum.Mixed, Unclear: sum.Unclear}
+				p.Diction.RiskyWords = sum.RiskyWords
+			}
+		}
 	}
 	if a := st.tbAdherence; a != nil {
 		p.Adherence = &PerceptionAdherence{MelodyChroma: a.MelodyChroma, Transpose: a.TransposeMode, TempoRatio: a.TempoRatio,
