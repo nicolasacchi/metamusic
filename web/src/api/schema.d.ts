@@ -536,6 +536,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/diction/lexicon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the personal lexicon of mangled words
+         * @description Words the recogniser keeps mishearing in sung Italian, from every take with a listening check: attempts, how often mangled or dropped, what was heard instead, and whether the word is a risk (3 or more attempts, at least half mangled, not ignored). Also the progress of the calibration set (human marks on lines with a recogniser result).
+         */
+        get: operations["get_diction_lexicon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/diction/lexicon/{lang}/{word}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Ignore or restore a lexicon word, or annotate it
+         * @description Sets the status (active or ignored) and/or the note of a word. An ignored word is no longer warned about. The word must be in the lexicon or be at least three letters. Answers the entry.
+         */
+        patch: operations["update_lexicon_entry"];
+        trace?: never;
+    };
     "/api/drafts": {
         parameters: {
             query?: never;
@@ -2052,6 +2092,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks/{id}/diction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the karaoke lines of a take
+         * @description The lyric lines of a take with word-level intelligibility: per line the time, the recogniser's character error rate, a class (clear, mixed, unclear) and the words with what was heard; a human mark replaces the class. basis asr comes from a listening check (word times are measured); basis proportional splits a timed section equally among its lines (times are estimates, words untimed). Pages of at most 60 000 bytes: follow next_cursor. 409 ANALYSIS_UNAVAILABLE when the take has neither.
+         */
+        get: operations["get_track_diction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/diction/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark lyric lines as clear or unclear
+         * @description Says what a listener heard on up to 200 lines: clear, unclear, or none to withdraw a mark. The Owner's marks override the recogniser and feed the lexicon and the calibration set; an agent's marks are stored apart and affect neither. Answers every mark of the take.
+         */
+        put: operations["set_diction_marks"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/download": {
         parameters: {
             query?: never;
@@ -2210,6 +2290,26 @@ export interface paths {
          * @description Adds and removes free-form tags. Tags normalise to lower case; a human removal wins over agent tags.
          */
         patch: operations["set_tags"];
+        trace?: never;
+    };
+    "/api/tracks/{id}/tier-b": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the listening check of a take
+         * @description What speech recognition and pitch tracking heard on the separated vocals of a take: diction against the lyrics (CER and WER overall and per section, worst section), measured section times, coarse melody adherence to the plan score and the ear-check flags. A recogniser can mishear sung words: these are suspicions, not verdicts; read blind_spots. 409 ANALYSIS_UNAVAILABLE with the state (none, pending, missing) when the take has no listening check.
+         */
+        get: operations["get_track_tier_b"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/tracks/{id}/variants": {
@@ -3359,6 +3459,18 @@ export interface components {
             /** @description RFC 3339, start of the month in the server's time zone */
             start: string;
         };
+        Calibration: {
+            /** Format: int64 */
+            clear: number;
+            /** @description The language asked for, or all */
+            lang: string;
+            /** Format: int64 */
+            lines_marked: number;
+            /** Format: int64 */
+            tracks_marked: number;
+            /** Format: int64 */
+            unclear: number;
+        };
         Callback: {
             child: components["schemas"]["CallbackChild"];
             comment: components["schemas"]["CallbackComment"];
@@ -4158,6 +4270,78 @@ export interface components {
             name: string;
             revoked_at: string | null;
         };
+        DictionLine: {
+            /**
+             * Format: double
+             * @description Character error rate of the line against the recogniser; null without a recogniser
+             */
+            cer: number | null;
+            /** @enum {string} */
+            class: "clear" | "mixed" | "unclear" | "unknown";
+            /** @enum {string} */
+            class_source: "human" | "asr";
+            /** Format: double */
+            end_s: number | null;
+            /** Format: int64 */
+            line_idx: number;
+            mark: components["schemas"]["DictionMark"];
+            /** Format: int64 */
+            section_idx: number;
+            /** Format: double */
+            start_s: number | null;
+            text: string;
+            /**
+             * @description heard: from recognised words; estimated: the section's time split equally among its lines; null: not timed
+             * @enum {string|null}
+             */
+            timing: "heard" | "estimated" | null;
+            /** @description Empty for an estimated line */
+            words: components["schemas"]["DictionWord"][];
+        };
+        DictionLines: {
+            /** @enum {string} */
+            basis: "asr" | "proportional";
+            lang: string;
+            /** @description At most 10, most mangled first; on the first page only */
+            lexicon_hits: components["schemas"]["LexiconHit"][];
+            lines: components["schemas"]["DictionLine"][];
+            next_cursor: string | null;
+            thresholds: components["schemas"]["Thresholds"];
+            track_id: string;
+            /** @description True when next_cursor continues the list */
+            truncated: boolean;
+        };
+        DictionMark: {
+            /** @enum {string|null} */
+            critic: "clear" | "unclear" | "none" | null;
+            /** @enum {string|null} */
+            human: "clear" | "unclear" | "none" | null;
+        };
+        DictionWord: {
+            /** Format: double */
+            end_s: number | null;
+            /** @description What was heard instead (folded); empty when exact or dropped */
+            heard: string;
+            /**
+             * Format: int64
+             * @description Index of the word in the line
+             */
+            i: number;
+            /** @enum {string} */
+            match: "exact" | "close" | "miss" | "dropped";
+            /**
+             * Format: double
+             * @description Null when the word has no measured time
+             */
+            start_s: number | null;
+            /** @description The word as written in the lyrics */
+            text: string;
+            /**
+             * @description heard: from the recogniser; interpolated: between two heard neighbours; null: not timed
+             * @enum {string|null}
+             */
+            timing: "heard" | "interpolated" | null;
+        };
         Dossier: {
             /** @description What the machine cannot judge; read before trusting the numbers */
             blind_spots: string[];
@@ -4237,7 +4421,7 @@ export interface components {
             structure: components["schemas"]["TrackStructure"];
             summary: string;
             /** @enum {string} */
-            tier: "0" | "A";
+            tier: "0" | "A" | "B";
             token_loops: {
                 artifact_sha256: string;
                 dtype: string;
@@ -5045,6 +5229,11 @@ export interface components {
         Guide: {
             kind: string;
         };
+        HeardCount: {
+            /** Format: int64 */
+            n: number;
+            text: string;
+        };
         ImageData: {
             /** @description Base64 image bytes; omitted when the caller asked for a link only */
             data_base64?: string;
@@ -5430,6 +5619,67 @@ export interface components {
             count: number;
             value: string;
         };
+        LexiconEntry: {
+            /**
+             * Format: int64
+             * @description Times the word was sung in a take with a listening check
+             */
+            attempts: number;
+            /**
+             * Format: int64
+             * @description Times it was not heard
+             */
+            dropped: number;
+            /** @description At most 3 */
+            examples: components["schemas"]["LexiconExample"][];
+            lang: string;
+            last_seen_at: string;
+            /**
+             * Format: int64
+             * @description Times it was heard as another word
+             */
+            mangled: number;
+            note: string | null;
+            /**
+             * Format: double
+             * @description mangled / attempts, three decimals
+             */
+            rate: number;
+            /** @description attempts >= 3, rate >= 0.5 and status active: warned about in lint */
+            risk: boolean;
+            /** @enum {string} */
+            status: "active" | "ignored";
+            /** Format: int64 */
+            tracks: number;
+            /** @description At most 3 */
+            typical_heard: components["schemas"]["HeardCount"][];
+            /** @description Folded: lower case, no accents */
+            word: string;
+        };
+        LexiconExample: {
+            /** Format: double */
+            at_second: number;
+            heard: string;
+            track_id: string;
+        };
+        LexiconHit: {
+            /** Format: int64 */
+            attempts: number;
+            /** Format: int64 */
+            mangled: number;
+            typical_heard: components["schemas"]["HeardCount"][];
+            word: string;
+        };
+        LexiconPage: {
+            calibration: components["schemas"]["Calibration"];
+            entries: components["schemas"]["LexiconEntry"][];
+            next_cursor: string | null;
+            /**
+             * Format: int64
+             * @description Entries matching the filters
+             */
+            total: number;
+        };
         LibraryModel: {
             /** Format: int64 */
             muses?: number;
@@ -5688,6 +5938,28 @@ export interface components {
         MapSoundTermInBody: {
             mappings: components["schemas"]["MapEntry"][] | null;
             note?: string;
+        };
+        MarkIn: {
+            /** Format: int64 */
+            line_idx: number;
+            /**
+             * @description none withdraws the mark
+             * @enum {string}
+             */
+            mark: "clear" | "unclear" | "none";
+            /** Format: int64 */
+            section_idx: number;
+        };
+        MarkRow: {
+            /** Format: int64 */
+            line_idx: number;
+            /** @enum {string} */
+            mark: "clear" | "unclear" | "none";
+            /** Format: int64 */
+            section_idx: number;
+            /** @enum {string} */
+            source: "human" | "critic";
+            updated_at: string;
         };
         MasterParams: {
             /**
@@ -7072,6 +7344,10 @@ export interface components {
             export_muse_names?: boolean;
             subsonic_muse_names?: boolean;
         };
+        SetDictionMarksInBody: {
+            /** @description Marks on lyric lines; a person's marks override the recogniser, an agent's are kept apart */
+            marks: components["schemas"]["MarkIn"][] | null;
+        };
         SetSpendCapsInBody: {
             /** Format: int64 */
             agent_daily_micro_usd?: number;
@@ -8012,6 +8288,167 @@ export interface components {
             count: number;
             term: string;
         };
+        Thresholds: {
+            /** Format: double */
+            clear: number;
+            /** Format: double */
+            mixed: number;
+        };
+        TierB: {
+            adherence: components["schemas"]["TierBAdherence"];
+            artifact: components["schemas"]["TierBArtifact"];
+            /** @description What the machine cannot judge; read before trusting the numbers */
+            blind_spots: string[];
+            code: string | null;
+            diction: components["schemas"]["TierBDiction"];
+            flags: components["schemas"]["AnalysisFlag"][];
+            forced: boolean;
+            language: string;
+            /** @description Null when the take has none */
+            measured_sections: components["schemas"]["TierBMeasuredSection"][] | null;
+            models: components["schemas"]["TierBModels"];
+            resources: components["schemas"]["TierBResources"];
+            stages: components["schemas"]["TierBStages"];
+            /** @enum {string} */
+            state: "ok" | "error" | "skipped";
+            /** @enum {string} */
+            status: "ok" | "error";
+            timings: components["schemas"]["TierBTimings"];
+            track_id: string;
+        };
+        TierBASRModel: {
+            compute_type: string;
+            name: string;
+            sha256: string;
+        };
+        TierBAdherence: {
+            /** @example coarse */
+            basis: string;
+            /** @enum {string} */
+            key_relation: "exact" | "relative" | "different" | "unknown";
+            /** Format: double */
+            melody_chroma: number | null;
+            sections: components["schemas"]["TierBAdherenceSection"][];
+            /** Format: double */
+            tempo_ratio: number | null;
+            /** @example measured */
+            timing_source: string;
+            /** Format: int64 */
+            transpose_mode: number | null;
+        };
+        TierBAdherenceSection: {
+            /** Format: double */
+            chroma: number | null;
+            /** Format: double */
+            chroma_best: number | null;
+            /** Format: int64 */
+            idx: number;
+            label: string;
+            /** Format: int64 */
+            notes_plan: number;
+            /** Format: int64 */
+            notes_sung: number;
+            /** Format: int64 */
+            transpose: number | null;
+        };
+        TierBArtifact: {
+            /** Format: int64 */
+            bytes: number;
+            sha256: string;
+        };
+        TierBDiction: {
+            overall: components["schemas"]["TierBDictionOverall"];
+            /** @description At most 30, in song order */
+            sections: components["schemas"]["TierBSection"][];
+            worst_section: components["schemas"]["TierBWorstSection"];
+        };
+        TierBDictionOverall: {
+            /**
+             * Format: double
+             * @description Character error rate of the recognised words against the lyrics, 0 = perfect
+             */
+            cer: number;
+            /** Format: int64 */
+            char_edits: number;
+            /** Format: int64 */
+            ref_runes: number;
+            /** Format: int64 */
+            ref_words: number;
+            /**
+             * Format: double
+             * @description Word error rate
+             */
+            wer: number;
+            /** Format: int64 */
+            word_edits: number;
+        };
+        TierBMeasuredSection: {
+            /** Format: double */
+            confidence: number;
+            /** Format: double */
+            end_s: number;
+            /** Format: int64 */
+            idx: number;
+            label: string;
+            /** Format: double */
+            start_s: number;
+        };
+        TierBModel: {
+            name: string;
+            sha256: string;
+        };
+        TierBModels: {
+            asr: components["schemas"]["TierBASRModel"];
+            pitch: components["schemas"]["TierBModel"];
+            separator: components["schemas"]["TierBModel"];
+        };
+        TierBResources: {
+            device: string;
+            /** Format: int64 */
+            parent_reserved_mib: number | null;
+            /** Format: int64 */
+            peak_vram_mib: number;
+        };
+        TierBSection: {
+            /** Format: double */
+            cer: number;
+            label: string;
+            /** Format: int64 */
+            line_count: number;
+            /** Format: int64 */
+            ref_words: number;
+            /**
+             * Format: int64
+             * @description Index of the lyric section
+             */
+            section: number;
+            /** Format: double */
+            wer: number;
+            /** Format: int64 */
+            word_edits: number;
+        };
+        TierBStages: {
+            asr: string;
+            separate: string;
+            transcribe: string;
+        };
+        TierBTimings: {
+            /** Format: double */
+            asr_s: number;
+            /** Format: double */
+            load_s: number;
+            /** Format: double */
+            separate_s: number;
+            /** Format: double */
+            total_s: number;
+            /** Format: double */
+            transcribe_s: number;
+        };
+        TierBWorstSection: {
+            /** Format: double */
+            cer: number;
+            label: string;
+        };
         TimeRange: {
             max: string | null;
             min: string | null;
@@ -8223,6 +8660,10 @@ export interface components {
             ttl_s: number;
             /** @description Signed, relative URL (/media/<key>.flac, or the master's /media/<sha>.mp3 for a lossy track) */
             url: string;
+        };
+        TrackMarks: {
+            marks: components["schemas"]["MarkRow"][];
+            track_id: string;
         };
         TrackPage: {
             items: components["schemas"]["TrackSummary"][];
@@ -8680,6 +9121,15 @@ export interface components {
             revision: number;
             /** @enum {string} */
             status?: "backlog" | "archived";
+        };
+        UpdateLexiconEntryInBody: {
+            /** @description An empty note removes it */
+            note?: string;
+            /**
+             * @description ignored takes the word out of the lint warning
+             * @enum {string}
+             */
+            status?: "active" | "ignored";
         };
         UpdateMuseInBody: {
             artist?: string;
@@ -9911,6 +10361,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceSelf"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_diction_lexicon: {
+        parameters: {
+            query?: {
+                /** @description Only this language (ISO 639-1, und when unknown) */
+                lang?: string;
+                /** @description true: only the risky words; false: only the others */
+                risk?: boolean;
+                /** @description Substring of the folded word */
+                q?: string;
+                /** @description Default 50 */
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LexiconPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_lexicon_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ISO 639-1 language, und when unknown */
+                lang: string;
+                /** @description The word; folded (lower case, no accents) before use */
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLexiconEntryInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LexiconEntry"];
                 };
             };
             /** @description Error */
@@ -13015,6 +13542,77 @@ export interface operations {
             };
         };
     };
+    get_track_diction: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor of the previous page's next_cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictionLines"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_diction_marks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDictionMarksInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackMarks"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_download_link: {
         parameters: {
             query?: never;
@@ -13273,6 +13871,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackTags"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_track_tier_b: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierB"];
                 };
             };
             /** @description Error */

@@ -18,6 +18,8 @@ type flagInput struct {
 	Timed                           bool
 	DurationS                       float64
 	ExpectedS                       *float64
+	// TierB is the listening check (M5b C338.2); nil when the take has none (states none and pending).
+	TierB *tierBFlagInput
 }
 
 // Flag thresholds (C51.2). Changing one bumps the owning analyzer's definition version.
@@ -34,6 +36,14 @@ const (
 	durationMismatchFrac = 0.15
 	edgeSlackS           = 0.05
 	evidenceSpans        = 5
+
+	// Tier B ear checks (C338.2).
+	dictionPoorCER   = 0.5 // a vocal section with a higher CER is poor
+	dictionPoorWords = 5   // ... when it has at least this many words
+	noVocalsMaxWords = 2   // fewer than 3 recognised words
+	noVocalsMinLyric = 10  // ... for lyrics of at least this many words
+	melodyOffPlanMax = 0.5 // melody_chroma below this ...
+	melodyOffMinSecs = 3   // ... with at least this many compared sections
 )
 
 func truthy(b *bool) bool { return b != nil && *b }
@@ -103,7 +113,7 @@ func computeFlags(in flagInput) []Flag {
 	if in.Timed && in.ExpectedS != nil && *in.ExpectedS > 0 && math.Abs(in.DurationS/(*in.ExpectedS)-1) > durationMismatchFrac+1e-9 {
 		add("duration_mismatch", "info", map[string]any{"duration_s": in.DurationS, "expected_s": *in.ExpectedS})
 	}
-	return out
+	return append(out, tierBFlags(in.TierB)...)
 }
 
 // loopEvidence returns the evidence of the first stream that looks like a loop, or nil.

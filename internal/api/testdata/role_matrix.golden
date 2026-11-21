@@ -45,6 +45,7 @@ get_clip	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_crate	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_curation_settings	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_device_probe	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
+get_diction_lexicon	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_download_link	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_draft	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_duel	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
@@ -76,8 +77,10 @@ get_tape	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_analysis	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_context	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+get_track_diction	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_track_peaks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_spectrogram	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
+get_track_tier_b	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform_capabilities	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 lint_recipe	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -132,6 +135,7 @@ search_sounds	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 search_tracks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 set_connector_grant	admin	-	Y	OO	OO	SC	SC	Y	SC	OO	OO
 set_curation_settings	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
+set_diction_marks	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 set_spend_caps	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 set_tags	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 submit_callback_verdict	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
@@ -141,6 +145,7 @@ suggest_sequence	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 update_comment	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_crate	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_draft	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
+update_lexicon_entry	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_provider_state	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
