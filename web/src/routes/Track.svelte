@@ -23,6 +23,7 @@
   import ContextButton from "../lib/components/ContextButton.svelte";
   import MetricsCard from "../lib/components/MetricsCard.svelte";
   import EarsPanel from "../lib/components/EarsPanel.svelte";
+  import TierBPanel from "../lib/components/TierBPanel.svelte";
   import LineageDuels from "../lib/components/LineageDuels.svelte";
   import TrackBadges from "../lib/components/TrackBadges.svelte";
   import PickBadge from "../lib/components/PickBadge.svelte";
@@ -96,6 +97,14 @@
   const suggestions = createTagSuggestions(api);
   const j = $derived(judge.get(id));
   const pins = $derived(comments.flatMap((c) => (c.at_second === null ? [] : [{ id: c.id, t: c.at_second, kind: c.kind }])));
+
+  // The listening check panel reads the Ears dossier (is a check stored?) before it asks for the check (M5b W1).
+  let dossier = $state<{ tier: string; flags: readonly { code: string }[] } | null>(null);
+  let dossierFailed = $state(false);
+  $effect(() => {
+    void id;
+    dossier = null;
+  });
 
   const isCurrent = $derived(player.state.trackId === id);
   const position = $derived(isCurrent ? player.state.current : 0);
@@ -355,7 +364,11 @@
           <TrackLrc trackId={id} has={true} current={isCurrent ? player.state.current : null} onseek={seek} />
         {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
-        <EarsPanel trackId={id} />
+        <EarsPanel trackId={id} ondossier={(d, why) => {
+          dossier = d ? { tier: d.tier, flags: d.flags } : why === "none" ? { tier: "0", flags: [] } : null;
+          dossierFailed = !d && why !== "none";
+        }} />
+        <TierBPanel trackId={id} {dossier} failed={dossierFailed} go={navigate ?? pushNavigate} />
         <LineageDuels
           trackId={id}
           rootId={track.lineage.root_track_id}
