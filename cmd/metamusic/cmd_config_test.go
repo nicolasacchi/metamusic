@@ -184,3 +184,42 @@ func TestHelpListsConfigCheck(t *testing.T) {
 		t.Error("help does not mention config check")
 	}
 }
+
+func TestConfigCheck_PrintsSoundfonts(t *testing.T) {
+	dir := t.TempDir()
+	sf := filepath.Join(dir, "private-orchestra-name.sf2")
+	if err := os.WriteFile(sf, []byte("xxx"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(dir, "fluidsynth")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho 'FluidSynth runtime version 2.3.4'\necho copyright\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := configEnv(t, map[string]string{
+		"MM_SOUNDFONTS": "orchestra=" + sf + ";gone=" + filepath.Join(dir, "missing-private.sf2"),
+		"MM_FLUIDSYNTH": fake,
+	})
+	code, out, errs := do(t, env, "", "config", "check")
+	if code != 0 {
+		t.Fatalf("exit %d: %s %s", code, out, errs)
+	}
+	for _, w := range []string{
+		"soundfonts: orchestra cd2eb0837c9b 3\n", // sha256("xxx")[:12], 3 bytes
+		"soundfonts: gone unavailable\n",
+		"fluidsynth: FluidSynth runtime version 2.3.4\n",
+	} {
+		if !strings.Contains(out, w) {
+			t.Errorf("stdout lacks %q: %q", w, out)
+		}
+	}
+	if strings.Contains(out, dir) || strings.Contains(out, "private") {
+		t.Errorf("config check printed a path: %q", out)
+	}
+
+	env["MM_FLUIDSYNTH"] = filepath.Join(dir, "nonexistent")
+	delete(env, "MM_SOUNDFONTS")
+	code, out, _ = do(t, env, "", "config", "check")
+	if code != 0 || !strings.Contains(out, "fluidsynth: absent\n") || strings.Contains(out, "soundfonts:") {
+		t.Errorf("absent tool, no soundfonts: exit %d %q", code, out)
+	}
+}

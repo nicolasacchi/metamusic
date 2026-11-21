@@ -51,6 +51,10 @@ func TestImportGraph_T1(t *testing.T) {
 		pure++
 		for _, dep := range p.Deps {
 			d := strings.TrimPrefix(dep, mod)
+			// the synth adapter runs fluidsynth through mediatool (C354, import_graph_desk_test.go allows exactly that edge)
+			if pkg == "internal/score/synth" && d == "internal/mediatool" {
+				continue
+			}
 			if d != dep && !dspAllowed(d) {
 				t.Errorf("%s reaches %s: dsp and score import nothing of the application (only analysis and each other)", pkg, d)
 			}
