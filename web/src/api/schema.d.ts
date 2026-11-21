@@ -1068,6 +1068,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mandates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List spending mandates
+         * @description Mandates newest first with their usage. Filter by the stored state or by effective_state (scheduled, live, ended, revoked; repeat the parameter). Owner side only.
+         */
+        get: operations["list_mandates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mandates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a spending mandate
+         * @description One mandate with its scope and usage: settled, reserved, used, committed (what a running batch still holds), remaining and excess, the takes per lineage. Owner side only.
+         */
+        get: operations["get_mandate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mandates/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a spending mandate
+         * @description Ends a scheduled or live mandate and records a cancel intent on every unfinished job of its batches, in one transaction. It only reduces spend, so an agent and the Owner's paired phone may do it. A revoked or ended mandate is 409 INVALID_TRANSITION.
+         */
+        post: operations["revoke_mandate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -2656,6 +2716,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/human/api/mandates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a spending mandate
+         * @description Human only, Owner only. A mandate lets the night shift spend without a click: a budget (micro-USD, counted against settled plus reserved spend), an expiry up to 31 days away, and a scope (modes, adopted engines, minimum parent stars, lineage roots, takes per lineage and per batch, the largest batch ceiling, batches per day, listening checks). It never raises a spend cap: the global caps are checked first. One scheduled or live mandate per holder (409 MANDATE_ACTIVE); a scope that breaks a rule is 422 MANDATE_SCOPE_INVALID {field, rule}. Needs an Idempotency-Key.
+         */
+        post: operations["create_mandate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/human/api/provider/state": {
         parameters: {
             query?: never;
@@ -4116,6 +4196,31 @@ export interface components {
             section?: components["schemas"]["DuelSectionSelector"];
             /** Format: double */
             to_s?: number;
+        };
+        CreateMandateInBody: {
+            /**
+             * Format: int64
+             * @description 1..100 000 000 micro-USD, counted against settled plus reserved spend
+             */
+            budget_micro_usd: number;
+            /**
+             * @description Who may spend under the mandate; the night shift is the only holder
+             * @enum {string}
+             */
+            holder: "night_shift";
+            scope: components["schemas"]["MandateScope"];
+            /** @description 1..120 characters */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Default now; at most five minutes in the past
+             */
+            valid_from?: string;
+            /**
+             * Format: date-time
+             * @description After valid_from and at most 31 days later
+             */
+            valid_until: string;
         };
         CreateMuseInBody: {
             /** @description Reference Muses only */
@@ -5935,6 +6040,105 @@ export interface components {
             /** @description Signed, relative URL; valid until expires_at */
             url: string;
         };
+        Mandate: {
+            /** Format: int64 */
+            budget_micro_usd: number;
+            budget_usd: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string} */
+            effective_state: "scheduled" | "live" | "ended" | "revoked";
+            /** @enum {string} */
+            holder: "night_shift";
+            id: string;
+            /** @description Set once the mandate is revoked */
+            revoked: {
+                /** Format: date-time */
+                at: string;
+                by: components["schemas"]["PrincipalRef"];
+                reason: string;
+            } | null;
+            scope: components["schemas"]["MandateScope"];
+            title: string;
+            usage: components["schemas"]["MandateUsage"];
+            /** Format: date-time */
+            valid_from: string;
+            /** Format: date-time */
+            valid_until: string;
+        };
+        MandatePage: {
+            items: components["schemas"]["Mandate"][];
+            next_cursor?: string;
+        };
+        MandateRoot: {
+            root_track_id: string;
+            /** Format: int64 */
+            takes: number;
+        };
+        MandateScope: {
+            /** @description Adopted engines only */
+            engines: string[];
+            /**
+             * Format: int64
+             * @description Largest estimate ceiling of one batch, at most the global batch cap and the budget
+             */
+            max_batch_ceiling_micro_usd: number;
+            /**
+             * Format: int64
+             * @description Batches per local day, 1..4
+             */
+            max_batches_per_day: number;
+            /**
+             * Format: int64
+             * @description Takes per batch, 1..12
+             */
+            max_takes_per_batch: number;
+            /**
+             * Format: int64
+             * @description Takes per lineage over the mandate's life, 1..50
+             */
+            max_takes_per_lineage: number;
+            /**
+             * Format: int64
+             * @description The parent's Owner stars, 1..5; an unrated parent never qualifies
+             */
+            min_stars: number;
+            /** @description Planner modes the night may use: new_seed, style_edit */
+            modes: string[];
+            /** @description Lineage roots the night may work on (1..200); null means every lineage */
+            root_track_ids?: string[] | null;
+            /** @description Whether the batch may carry listening checks */
+            tier_b: boolean;
+        };
+        MandateUsage: {
+            /** Format: int64 */
+            batches: number;
+            by_root: components["schemas"]["MandateRoot"][];
+            /** Format: int64 */
+            committed_micro_usd: number;
+            committed_usd: string;
+            /** Format: int64 */
+            excess_micro_usd: number;
+            excess_usd: string;
+            /**
+             * Format: int64
+             * @description Budget minus committed, never below zero
+             */
+            remaining_micro_usd: number;
+            remaining_usd: string;
+            /** Format: int64 */
+            reserved_micro_usd: number;
+            reserved_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+            /** Format: int64 */
+            takes: number;
+            /** Format: int64 */
+            used_micro_usd: number;
+            used_usd: string;
+        };
         MapEntry: {
             /** @enum {string} */
             facet: "genre_family" | "era" | "vocal" | "mood" | "language";
@@ -7277,9 +7481,18 @@ export interface components {
             /** Format: int64 */
             undecided: number;
         };
+        RevokeMandateInBody: {
+            /** @description Why, 1..500 characters */
+            reason: string;
+        };
         ScoreRenderParams: {
             /** Format: double */
             bpm?: number | null;
+            /**
+             * @description block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes
+             * @enum {string|null}
+             */
+            chords?: "none" | "block" | null;
             /** @enum {string|null} */
             dialect?: "standard" | "yue2" | null;
             /** Format: double */
@@ -11492,6 +11705,110 @@ export interface operations {
             };
         };
     };
+    list_mandates: {
+        parameters: {
+            query?: {
+                /** @description The stored state */
+                state?: "approved" | "revoked";
+                effective_state?: ("scheduled" | "live" | "ended" | "revoked")[];
+                holder?: "night_shift";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MandatePage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_mandate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mandate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_mandate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mandate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeMandateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     whoami: {
         parameters: {
             query?: never;
@@ -14635,6 +14952,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_mandate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMandateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
                 };
             };
             /** @description Error */

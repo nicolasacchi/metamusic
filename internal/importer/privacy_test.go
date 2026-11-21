@@ -211,6 +211,8 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// M2b: duels hold track ids and verdicts only, never recipe reference metadata
 		case strings.HasPrefix(p, "/api/batches/{") || strings.HasPrefix(p, "/api/jobs/{"):
 			// M3: batches and jobs hold ids, states and money, never recipe reference metadata
+		case strings.HasPrefix(p, "/api/mandates/{"):
+			// M6N-M1: a mandate holds limits, lineage-root track ids, money and states, never recipe reference metadata
 		case strings.HasPrefix(p, "/api/muses/{") || strings.HasPrefix(p, "/api/songs/{"):
 			// L1: Muse reads hold reference text by design (D-L1-6); their confinement is the L1 canary test (TestMuseText_OnlyInAllowlistedOps)
 		case strings.HasPrefix(p, "/api/records/{") || strings.HasPrefix(p, "/api/crates/{") || strings.HasPrefix(p, "/api/tapes/{"):
