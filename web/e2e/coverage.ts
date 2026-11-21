@@ -9,7 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  "get_track_tier_b", // EARS-W1 adds the Tier B panel on /tracks/:id (m5b-ears C338.5)
   // EARS-W2 (lane ears-web-diction) adds the karaoke view on /tracks/:id and the /diction page (m5b-ears C345); it removes these four.
   "get_track_diction",
   "set_diction_marks",
