@@ -16,7 +16,7 @@ func wireDesk(env *BuildEnv) error {
 		return nil // a Build without a data root (some tests) serves no Desk: its operations answer 503 UNAVAILABLE
 	}
 	svc := desk.New(desk.Options{Store: env.Store, Data: env.Data, Signer: env.Services.Deps.Signer, Now: env.Now, NewID: env.NewID, Log: slog.Default()})
-	// the sweep runs before any request: no write is in flight, so every directory without a row is an orphan (C357.2)
+	// the sweep removes only orphans older than its grace (10 minutes): a CLI that builds the services while the server runs may have a row about to be inserted (C357.2)
 	if n, err := svc.Sweep(env.Ctx); err != nil {
 		slog.Warn("desk sweep failed", "err", redact.Error(err))
 	} else if n > 0 {

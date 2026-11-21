@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -95,7 +94,7 @@ func (s *Service) FromTake(ctx context.Context, p auth.Principal, trackID string
 	}
 	src, err := s.readScore(scorePath.String)
 	if err != nil {
-		if strings.Contains(err.Error(), "is over") {
+		if errors.Is(err, errScoreTooLarge) {
 			return Plan{}, false, unsupported(ReasonTooLarge, "the score is over 64 KiB")
 		}
 		return Plan{}, false, err

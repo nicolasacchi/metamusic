@@ -57,3 +57,17 @@ func TestVerdict_OwnerAndCritic(t *testing.T) {
 	_, err = e.svc.SetVerdict(ctx, alice, "no-such-plan", desk.VerdictIn{Verdict: "liked"})
 	wantProblem(t, err, 404, "NOT_FOUND")
 }
+
+// TestVerdict_ClearNeverJudged: clearing a plan nobody judged records nothing.
+func TestVerdict_ClearNeverJudged(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	pl := e.plan()
+	got, err := e.svc.SetVerdict(context.Background(), alice, pl.ID, desk.VerdictIn{})
+	if err != nil || got.Verdicts.Owner != nil || got.Verdicts.Critic != nil {
+		t.Fatalf("%v %+v", err, got.Verdicts)
+	}
+	if n := e.scalar(`SELECT COUNT(*) FROM desk_plan_verdicts`); n != "0" {
+		t.Errorf("%s verdict rows", n)
+	}
+}

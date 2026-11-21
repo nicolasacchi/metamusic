@@ -43,6 +43,16 @@ func (s *Service) SetVerdict(ctx context.Context, p auth.Principal, id string, i
 	} else if err != nil {
 		return Plan{}, err
 	}
+	if in.Verdict == "" && in.Note == "" {
+		// clearing what nobody judged records nothing: a row would read as a judgement that was cleared
+		var has int
+		err := s.o.Store.R.QueryRowContext(ctx, `SELECT 1 FROM desk_plan_verdicts WHERE plan_id = ? AND rater = ?`, id, Rater(p)).Scan(&has)
+		if errors.Is(err, sql.ErrNoRows) {
+			return s.Get(ctx, p, id, DefaultInclude)
+		} else if err != nil {
+			return Plan{}, err
+		}
+	}
 	var v, note any
 	if in.Verdict != "" {
 		v = in.Verdict

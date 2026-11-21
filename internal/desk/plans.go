@@ -255,6 +255,9 @@ func load(ctx context.Context, q queryer, id string) (row, error) {
 	return out, nil
 }
 
+// errScoreTooLarge marks a stored score over MaxScoreBytes.
+var errScoreTooLarge = errors.New("score too large")
+
 // readScore reads a stored score file, refusing one over the limit.
 func (s *Service) readScore(rel string) ([]byte, error) {
 	f, err := s.o.Data.Open(rel)
@@ -267,7 +270,7 @@ func (s *Service) readScore(rel string) ([]byte, error) {
 		return nil, fmt.Errorf("desk: read %s: %w", rel, unwrapPath(err))
 	}
 	if len(b) > MaxScoreBytes {
-		return nil, fmt.Errorf("desk: %s is over %d bytes", rel, MaxScoreBytes)
+		return nil, fmt.Errorf("desk: %s is over %d bytes: %w", rel, MaxScoreBytes, errScoreTooLarge)
 	}
 	return b, nil
 }

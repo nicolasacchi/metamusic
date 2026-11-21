@@ -3,6 +3,7 @@ package desk_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -278,5 +279,18 @@ func (e *env) dropJobTriggers() {
 	_ = rows.Close()
 	for _, n := range names {
 		e.exec(`DROP TRIGGER ` + n)
+	}
+}
+
+// TestCheck_TooLarge: check_abc refuses what a plan could not store.
+func TestCheck_TooLarge(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	big := "X:1\nK:C\n" + strings.Repeat("C", desk.MaxScoreBytes)
+	if _, err := e.svc.Check(context.Background(), desk.CheckIn{ABC: big}); err == nil {
+		t.Error("an abc over 64 KiB was checked")
+	}
+	if _, err := e.svc.Check(context.Background(), desk.CheckIn{ABC: aligned, BaseABC: big}); err == nil {
+		t.Error("a base_abc over 64 KiB was checked")
 	}
 }

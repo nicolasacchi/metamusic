@@ -365,6 +365,9 @@ func (s *Service) Check(_ context.Context, in CheckIn) (abc.Report, error) {
 	if in.ABC == "" {
 		return abc.Report{}, invalid("abc", "abc is empty")
 	}
+	if len(in.ABC) > MaxScoreBytes || len(in.BaseABC) > MaxScoreBytes {
+		return abc.Report{}, invalid("abc", "abc and base_abc are at most 64 KiB, the largest score a plan holds")
+	}
 	var base []byte
 	if in.BaseABC != "" {
 		base = []byte(in.BaseABC)
