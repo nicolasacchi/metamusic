@@ -5478,7 +5478,8 @@
           "tier": {
             "enum": [
               "0",
-              "A"
+              "A",
+              "B"
             ],
             "type": "string"
           },
@@ -19489,6 +19490,525 @@
         ],
         "type": "object"
       },
+      "TierB": {
+        "additionalProperties": false,
+        "properties": {
+          "adherence": {
+            "$ref": "#/components/schemas/TierBAdherence"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/TierBArtifact"
+          },
+          "blind_spots": {
+            "description": "What the machine cannot judge; read before trusting the numbers",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "diction": {
+            "$ref": "#/components/schemas/TierBDiction"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisFlag"
+            },
+            "type": "array"
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "measured_sections": {
+            "description": "Null when the take has none",
+            "items": {
+              "$ref": "#/components/schemas/TierBMeasuredSection"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "models": {
+            "$ref": "#/components/schemas/TierBModels"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/TierBResources"
+          },
+          "stages": {
+            "$ref": "#/components/schemas/TierBStages"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "error",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "type": "string"
+          },
+          "timings": {
+            "$ref": "#/components/schemas/TierBTimings"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "state",
+          "status",
+          "code",
+          "language",
+          "forced",
+          "stages",
+          "models",
+          "timings",
+          "resources",
+          "diction",
+          "measured_sections",
+          "adherence",
+          "flags",
+          "blind_spots",
+          "artifact"
+        ],
+        "type": "object"
+      },
+      "TierBASRModel": {
+        "additionalProperties": false,
+        "properties": {
+          "compute_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256",
+          "compute_type"
+        ],
+        "type": "object"
+      },
+      "TierBAdherence": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "examples": [
+              "coarse"
+            ],
+            "type": "string"
+          },
+          "key_relation": {
+            "enum": [
+              "exact",
+              "relative",
+              "different",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "melody_chroma": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/TierBAdherenceSection"
+            },
+            "type": "array"
+          },
+          "tempo_ratio": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "timing_source": {
+            "examples": [
+              "measured"
+            ],
+            "type": "string"
+          },
+          "transpose_mode": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "basis",
+          "melody_chroma",
+          "transpose_mode",
+          "tempo_ratio",
+          "key_relation",
+          "timing_source",
+          "sections"
+        ],
+        "type": "object"
+      },
+      "TierBAdherenceSection": {
+        "additionalProperties": false,
+        "properties": {
+          "chroma": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "chroma_best": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "notes_plan": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "notes_sung": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "transpose": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "idx",
+          "label",
+          "chroma",
+          "chroma_best",
+          "transpose",
+          "notes_plan",
+          "notes_sung"
+        ],
+        "type": "object"
+      },
+      "TierBArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "TierBDiction": {
+        "additionalProperties": false,
+        "properties": {
+          "overall": {
+            "$ref": "#/components/schemas/TierBDictionOverall"
+          },
+          "sections": {
+            "description": "At most 30, in song order",
+            "items": {
+              "$ref": "#/components/schemas/TierBSection"
+            },
+            "type": "array"
+          },
+          "worst_section": {
+            "$ref": "#/components/schemas/TierBWorstSection"
+          }
+        },
+        "required": [
+          "overall",
+          "sections",
+          "worst_section"
+        ],
+        "type": "object"
+      },
+      "TierBDictionOverall": {
+        "additionalProperties": false,
+        "properties": {
+          "cer": {
+            "description": "Character error rate of the recognised words against the lyrics, 0 = perfect",
+            "format": "double",
+            "type": "number"
+          },
+          "char_edits": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ref_runes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ref_words": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "wer": {
+            "description": "Word error rate",
+            "format": "double",
+            "type": "number"
+          },
+          "word_edits": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cer",
+          "wer",
+          "ref_runes",
+          "char_edits",
+          "ref_words",
+          "word_edits"
+        ],
+        "type": "object"
+      },
+      "TierBMeasuredSection": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "format": "double",
+            "type": "number"
+          },
+          "end_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "idx": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "start_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "idx",
+          "label",
+          "start_s",
+          "end_s",
+          "confidence"
+        ],
+        "type": "object"
+      },
+      "TierBModel": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "TierBModels": {
+        "additionalProperties": false,
+        "properties": {
+          "asr": {
+            "$ref": "#/components/schemas/TierBASRModel"
+          },
+          "pitch": {
+            "$ref": "#/components/schemas/TierBModel"
+          },
+          "separator": {
+            "$ref": "#/components/schemas/TierBModel"
+          }
+        },
+        "required": [
+          "separator",
+          "asr",
+          "pitch"
+        ],
+        "type": "object"
+      },
+      "TierBResources": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "type": "string"
+          },
+          "parent_reserved_mib": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "peak_vram_mib": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "device",
+          "peak_vram_mib",
+          "parent_reserved_mib"
+        ],
+        "type": "object"
+      },
+      "TierBSection": {
+        "additionalProperties": false,
+        "properties": {
+          "cer": {
+            "format": "double",
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          },
+          "line_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ref_words": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "section": {
+            "description": "Index of the lyric section",
+            "format": "int64",
+            "type": "integer"
+          },
+          "wer": {
+            "format": "double",
+            "type": "number"
+          },
+          "word_edits": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "section",
+          "label",
+          "cer",
+          "wer",
+          "ref_words",
+          "word_edits",
+          "line_count"
+        ],
+        "type": "object"
+      },
+      "TierBStages": {
+        "additionalProperties": false,
+        "properties": {
+          "asr": {
+            "type": "string"
+          },
+          "separate": {
+            "type": "string"
+          },
+          "transcribe": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "separate",
+          "asr",
+          "transcribe"
+        ],
+        "type": "object"
+      },
+      "TierBTimings": {
+        "additionalProperties": false,
+        "properties": {
+          "asr_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "load_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "separate_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "total_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "transcribe_s": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "load_s",
+          "separate_s",
+          "asr_s",
+          "transcribe_s",
+          "total_s"
+        ],
+        "type": "object"
+      },
+      "TierBWorstSection": {
+        "additionalProperties": false,
+        "properties": {
+          "cer": {
+            "format": "double",
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "cer"
+        ],
+        "type": "object"
+      },
       "TimeRange": {
         "additionalProperties": false,
         "properties": {
@@ -31542,6 +32062,54 @@
           "scope": "write",
           "cost": "free",
           "mcp": "tool",
+          "ui": "/tracks/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/tracks/{id}/tier-b": {
+      "get": {
+        "description": "What speech recognition and pitch tracking heard on the separated vocals of a take: diction against the lyrics (CER and WER overall and per section, worst section), measured section times, coarse melody adherence to the plan score and the ear-check flags. A recogniser can mishear sung words: these are suspicions, not verdicts; read blind_spots. 409 ANALYSIS_UNAVAILABLE with the state (none, pending, missing) when the take has no listening check.",
+        "operationId": "get_track_tier_b",
+        "parameters": [
+          {
+            "description": "Track id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierB"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the listening check of a take",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
           "ui": "/tracks/:id",
           "human_only": false
         }

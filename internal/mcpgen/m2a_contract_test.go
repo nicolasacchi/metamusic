@@ -92,7 +92,11 @@ import (
 // G1-F2 (C323, Revision 2): the job views (get_job, list_jobs, the get_batch job rows) expose kind, enum generate|analyze|plan.
 // Re-baselined 117406 -> 117772 (measured 117672, +266 over 117406, +100 headroom); the program's 4 000-byte growth budget
 // (Revision 2) is 266 spent by this lane.
-const toolsCeilingBytes = 117772
+//
+// EARS-S1 (M5b C338.1, D-EARS-17): the dossier's tier enum gains B (get_track_analysis output schema). Re-baselined 117772 -> 117776
+// (measured 117676, +4 over 117672, +100 headroom); the Ears track's 1 200-byte share of the program budget has 4 bytes spent.
+// get_track_tier_b is generic and adds nothing to tools/list.
+const toolsCeilingBytes = 117776
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

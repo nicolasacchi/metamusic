@@ -10,7 +10,7 @@ func (s *Service) Perception(ctx context.Context, trackID string) (Perception, e
 	if err != nil {
 		return Perception{}, err
 	}
-	p := Perception{Tier: st.tier, Timed: st.d.Timed, Flags: st.flagCodes(), BlindSpots: st.blindSpots(false)}
+	p := Perception{Tier: st.tierOut(), Timed: st.d.Timed, Flags: st.flagCodes(), BlindSpots: st.blindSpots(false)}
 	if l := st.d.Analysis.Loudness; l != nil {
 		lufs, tp, lra := l.IntegratedLUFS, l.TruePeakDBTP, l.LRA
 		p.LUFSI, p.TruePeakDB, p.LRALU = &lufs, &tp, &lra
@@ -28,6 +28,13 @@ func (s *Service) Perception(ctx context.Context, trackID string) (Perception, e
 	}
 	if e := st.energy; e != nil && e.Energy != nil {
 		p.Energy = &PerceptionEnergy{Value: *e.Energy, OnsetRate: e.OnsetRate, CentroidHz: e.CentroidHz}
+	}
+	if d := st.tbDiction; d != nil {
+		p.Diction = &PerceptionDiction{CER: d.Overall.CER, WER: d.Overall.WER, WorstSection: worstSection(d.Sections)}
+	}
+	if a := st.tbAdherence; a != nil {
+		p.Adherence = &PerceptionAdherence{MelodyChroma: a.MelodyChroma, Transpose: a.TransposeMode, TempoRatio: a.TempoRatio,
+			KeyRelation: a.KeyRelation, Basis: a.Basis}
 	}
 	p.Sections = make([]PerceptionSection, len(st.d.Sections))
 	for i, sec := range st.d.Sections {

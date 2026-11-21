@@ -149,6 +149,7 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	},
 	"get_ladder":         func(*uiState) map[string]any { return nil },
 	"get_track_analysis": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
+	"get_track_tier_b":   func(s *uiState) map[string]any { return map[string]any{"id": s.track} }, // EARS-S1: seeded by seedTierBDocument
 	"get_track_spectrogram": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.track, "inline": false}
 	},
@@ -296,7 +297,7 @@ var uiOrder = []string{
 	"list_export_sources", "export_jsonl", "list_import_runs", "get_import_run",
 	"list_device_profiles", "put_device_profile", "get_device_probe", "list_tokens", "list_backups", "create_backup",
 	"create_duel", "next_duel", "get_duel", "list_duels", "submit_duel", "get_ladder",
-	"get_track_analysis", "get_track_spectrogram", "compare_tracks",
+	"get_track_analysis", "get_track_tier_b", "get_track_spectrogram", "compare_tracks",
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
@@ -418,6 +419,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	st.grant = g.ID
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
+	seedTierBDocument(t, r, st.track) // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
 		t.Fatal(err)
 	}

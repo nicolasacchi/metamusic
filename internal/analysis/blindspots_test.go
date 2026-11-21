@@ -82,3 +82,47 @@ func TestBlindSpots_FirstFiveAreM2aWording(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+// TestBlindSpots_UnchangedWithoutTierB: the two Tier B facts default to false and change nothing, whatever the other facts are.
+func TestBlindSpots_UnchangedWithoutTierB(t *testing.T) {
+	t.Parallel()
+	conf := 0.7
+	for _, f := range []analysis.BlindSpotFacts{
+		{}, {TierA: true}, {TierA: true, HasSemantic: true, Timed: true, SectionSource: "plan", Confidence: &conf},
+		{TierA: true, Lossy: true, Tempo: true, Key: true, Energy: true, Spectrogram: true},
+	} {
+		got := analysis.BlindSpots(f)
+		if got[4] != "diction and intelligibility" || got[5] != "melody and harmony adherence to the score" {
+			t.Errorf("%+v: fixed entries moved: %q", f, got[:6])
+		}
+	}
+}
+
+// TestBlindSpots_TierBWording: with Tier B facts the two fixed entries are reworded in place, nothing else moves.
+func TestBlindSpots_TierBWording(t *testing.T) {
+	t.Parallel()
+	base := analysis.BlindSpots(analysis.BlindSpotFacts{TierA: true, HasSemantic: true})
+	for _, c := range []struct {
+		name         string
+		facts        analysis.BlindSpotFacts
+		diction, adh string
+	}{
+		{"diction", analysis.BlindSpotFacts{TierA: true, HasSemantic: true, Diction: true},
+			"diction measured by speech recognition on the separated vocals (CER per section); the recogniser can mishear sung words",
+			"melody and harmony adherence to the score"},
+		{"adherence", analysis.BlindSpotFacts{TierA: true, HasSemantic: true, Adherence: true},
+			"diction and intelligibility",
+			"melody adherence measured coarsely (pitch classes per section, from the separated vocals), not note by note; harmony is not judged"},
+	} {
+		got := analysis.BlindSpots(c.facts)
+		if got[4] != c.diction || got[5] != c.adh {
+			t.Errorf("%s: entries = %q, %q", c.name, got[4], got[5])
+		}
+		if diff := cmp.Diff(base[:4], got[:4]); diff != "" {
+			t.Errorf("%s: first four moved (-want +got):\n%s", c.name, diff)
+		}
+		if diff := cmp.Diff(base[6:], got[6:]); diff != "" {
+			t.Errorf("%s: conditional entries moved (-want +got):\n%s", c.name, diff)
+		}
+	}
+}

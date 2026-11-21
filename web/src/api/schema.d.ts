@@ -2212,6 +2212,26 @@ export interface paths {
         patch: operations["set_tags"];
         trace?: never;
     };
+    "/api/tracks/{id}/tier-b": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the listening check of a take
+         * @description What speech recognition and pitch tracking heard on the separated vocals of a take: diction against the lyrics (CER and WER overall and per section, worst section), measured section times, coarse melody adherence to the plan score and the ear-check flags. A recogniser can mishear sung words: these are suspicions, not verdicts; read blind_spots. 409 ANALYSIS_UNAVAILABLE with the state (none, pending, missing) when the take has no listening check.
+         */
+        get: operations["get_track_tier_b"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/variants": {
         parameters: {
             query?: never;
@@ -4237,7 +4257,7 @@ export interface components {
             structure: components["schemas"]["TrackStructure"];
             summary: string;
             /** @enum {string} */
-            tier: "0" | "A";
+            tier: "0" | "A" | "B";
             token_loops: {
                 artifact_sha256: string;
                 dtype: string;
@@ -8011,6 +8031,161 @@ export interface components {
             /** Format: int64 */
             count: number;
             term: string;
+        };
+        TierB: {
+            adherence: components["schemas"]["TierBAdherence"];
+            artifact: components["schemas"]["TierBArtifact"];
+            /** @description What the machine cannot judge; read before trusting the numbers */
+            blind_spots: string[];
+            code: string | null;
+            diction: components["schemas"]["TierBDiction"];
+            flags: components["schemas"]["AnalysisFlag"][];
+            forced: boolean;
+            language: string;
+            /** @description Null when the take has none */
+            measured_sections: components["schemas"]["TierBMeasuredSection"][] | null;
+            models: components["schemas"]["TierBModels"];
+            resources: components["schemas"]["TierBResources"];
+            stages: components["schemas"]["TierBStages"];
+            /** @enum {string} */
+            state: "ok" | "error" | "skipped";
+            /** @enum {string} */
+            status: "ok" | "error";
+            timings: components["schemas"]["TierBTimings"];
+            track_id: string;
+        };
+        TierBASRModel: {
+            compute_type: string;
+            name: string;
+            sha256: string;
+        };
+        TierBAdherence: {
+            /** @example coarse */
+            basis: string;
+            /** @enum {string} */
+            key_relation: "exact" | "relative" | "different" | "unknown";
+            /** Format: double */
+            melody_chroma: number | null;
+            sections: components["schemas"]["TierBAdherenceSection"][];
+            /** Format: double */
+            tempo_ratio: number | null;
+            /** @example measured */
+            timing_source: string;
+            /** Format: int64 */
+            transpose_mode: number | null;
+        };
+        TierBAdherenceSection: {
+            /** Format: double */
+            chroma: number | null;
+            /** Format: double */
+            chroma_best: number | null;
+            /** Format: int64 */
+            idx: number;
+            label: string;
+            /** Format: int64 */
+            notes_plan: number;
+            /** Format: int64 */
+            notes_sung: number;
+            /** Format: int64 */
+            transpose: number | null;
+        };
+        TierBArtifact: {
+            /** Format: int64 */
+            bytes: number;
+            sha256: string;
+        };
+        TierBDiction: {
+            overall: components["schemas"]["TierBDictionOverall"];
+            /** @description At most 30, in song order */
+            sections: components["schemas"]["TierBSection"][];
+            worst_section: components["schemas"]["TierBWorstSection"];
+        };
+        TierBDictionOverall: {
+            /**
+             * Format: double
+             * @description Character error rate of the recognised words against the lyrics, 0 = perfect
+             */
+            cer: number;
+            /** Format: int64 */
+            char_edits: number;
+            /** Format: int64 */
+            ref_runes: number;
+            /** Format: int64 */
+            ref_words: number;
+            /**
+             * Format: double
+             * @description Word error rate
+             */
+            wer: number;
+            /** Format: int64 */
+            word_edits: number;
+        };
+        TierBMeasuredSection: {
+            /** Format: double */
+            confidence: number;
+            /** Format: double */
+            end_s: number;
+            /** Format: int64 */
+            idx: number;
+            label: string;
+            /** Format: double */
+            start_s: number;
+        };
+        TierBModel: {
+            name: string;
+            sha256: string;
+        };
+        TierBModels: {
+            asr: components["schemas"]["TierBASRModel"];
+            pitch: components["schemas"]["TierBModel"];
+            separator: components["schemas"]["TierBModel"];
+        };
+        TierBResources: {
+            device: string;
+            /** Format: int64 */
+            parent_reserved_mib: number | null;
+            /** Format: int64 */
+            peak_vram_mib: number;
+        };
+        TierBSection: {
+            /** Format: double */
+            cer: number;
+            label: string;
+            /** Format: int64 */
+            line_count: number;
+            /** Format: int64 */
+            ref_words: number;
+            /**
+             * Format: int64
+             * @description Index of the lyric section
+             */
+            section: number;
+            /** Format: double */
+            wer: number;
+            /** Format: int64 */
+            word_edits: number;
+        };
+        TierBStages: {
+            asr: string;
+            separate: string;
+            transcribe: string;
+        };
+        TierBTimings: {
+            /** Format: double */
+            asr_s: number;
+            /** Format: double */
+            load_s: number;
+            /** Format: double */
+            separate_s: number;
+            /** Format: double */
+            total_s: number;
+            /** Format: double */
+            transcribe_s: number;
+        };
+        TierBWorstSection: {
+            /** Format: double */
+            cer: number;
+            label: string;
         };
         TimeRange: {
             max: string | null;
@@ -13273,6 +13448,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackTags"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_track_tier_b: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierB"];
                 };
             };
             /** @description Error */

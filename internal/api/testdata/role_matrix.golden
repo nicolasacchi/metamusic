@@ -78,6 +78,7 @@ get_track_analysis	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_context	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_track_peaks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_spectrogram	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
+get_track_tier_b	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform_capabilities	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 lint_recipe	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC

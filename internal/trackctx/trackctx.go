@@ -153,7 +153,7 @@ var order = map[string][]string{
 	"transform":   {"kind", "transform_id", "spec_hash", "title", "params", "inputs", "alignment", "safety"},
 	"lineage":     {"path", "operator", "inferred", "rule", "rationale", "children", "siblings"},
 	"judgments":   {"comments", "comments_total", "open_fix", "ancestor_open_fix", "ladder"},
-	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence", "key", "energy"},
+	"perception":  {"tier", "lufs_i", "true_peak_db", "lra_lu", "bandwidth_hz", "sections", "timed", "flags", "blind_spots", "tempo_bpm", "tempo_confidence", "key", "energy", "diction", "adherence"},
 	"listening":   {"plays", "completion_rate", "last_played_at", "hotspots"},
 	"_links":      {"stream", "spectrogram", "comments", "track"},
 	"songwriting": {"min_duration_s", "target_min_duration_s", "target_max_duration_s", "guidance"},
@@ -860,6 +860,13 @@ func (b *Builder) Build(ctx context.Context, p auth.Principal, trackID string, i
 		}
 		if p.Energy != nil {
 			out.Perception["energy"] = p.Energy
+		}
+		// diction and adherence are present only when a Tier B listening check exists (M5b C338.4)
+		if p.Diction != nil {
+			out.Perception["diction"] = p.Diction
+		}
+		if p.Adherence != nil {
+			out.Perception["adherence"] = p.Adherence
 		}
 	}
 
