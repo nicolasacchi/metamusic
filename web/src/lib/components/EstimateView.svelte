@@ -3,12 +3,22 @@
   import { can } from "../me.svelte";
   import { formatMicroUSD, formatMicroUSDCeil } from "../money";
   import { takeDetail, taskClasses, warningHint } from "../engines";
+  import { checkCostLine, hasListeningCheckChoice, takeBadge, tierBSummary, tierBWarningText } from "../estimateTierB";
   import BudgetBar from "./BudgetBar.svelte";
 
   interface Props {
     estimate: EstimateLike;
+    /** The same estimate with the listening check skipped, when the page has priced it: the check's cost is the difference. */
+    without?: EstimateLike | null;
+    /** "Skip the listening check" (default off). The page re-estimates with options.tier_b false. */
+    skipTierB?: boolean;
+    onskip?: (skip: boolean) => void;
   }
-  let { estimate: e }: Props = $props();
+  let { estimate: e, without = null, skipTierB = false, onskip }: Props = $props();
+
+  const tb = $derived(tierBSummary(e));
+  const costLine = $derived(can("get_spend") ? checkCostLine(e, without) : "");
+  const choice = $derived(hasListeningCheckChoice(e) && onskip !== undefined);
 
   const reasons = $derived(confirmDisabledReasons(e));
   const allTakes = $derived(e.items.flatMap((it) => it.takes));
@@ -33,10 +43,33 @@
     </tbody>
   </table>
 
+  {#if tb.analyze || choice || tb.checked > 0}
+    <div class="check" data-testid="tierb-estimate">
+      <h3>Listening check</h3>
+      <p data-testid="tierb-summary">
+        {#if tb.analyze}
+          Listens to the vocals of {tb.total} take{tb.total === 1 ? "" : "s"}: speech recognition and pitch tracking, no new audio.
+        {:else if skipTierB}
+          Skipped: no take gets a listening check.
+        {:else}
+          {tb.checked} of {tb.total} take{tb.total === 1 ? "" : "s"} get{tb.total === 1 && tb.checked === 1 ? "s" : ""} a listening check after the render.
+        {/if}
+      </p>
+      {#if costLine}<p data-testid="tierb-cost">{costLine}</p>{/if}
+      {#if choice}
+        <label class="skip"><input type="checkbox" checked={skipTierB} onchange={(ev) => onskip?.(ev.currentTarget.checked)} data-testid="skip-tierb" /> Skip the listening check</label>
+      {/if}
+    </div>
+  {/if}
+
   {#if e.warnings.length}
     <ul class="warnings" data-testid="estimate-warnings">
       {#each e.warnings as w, i (i)}
+        {#if tierBWarningText(w.code)}
+          <li data-severity={w.severity} data-testid="tierb-warning"><b>note</b> {tierBWarningText(w.code)}{#if w.take_index >= 0} <span class="muted">(take {w.take_index + 1})</span>{/if}</li>
+        {:else}
         <li data-severity={w.severity}><b>{w.severity}</b> <code>{w.code}</code> {w.message}{#if warningHint(w.code)} <span class="muted" data-testid="hint-{w.code}">{warningHint(w.code)}</span>{/if}{#if w.take_index >= 0} <span class="muted">(take {w.take_index + 1}{w.field ? `, ${w.field}` : ""})</span>{/if}</li>
+        {/if}
       {/each}
     </ul>
   {/if}
@@ -64,11 +97,11 @@
     <summary>Takes</summary>
     <div class="scroll">
     <table data-testid="estimate-takes">
-      <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Seed</th><th scope="col">Operator</th>{#if e.engine !== "yue2"}<th scope="col">Task</th>{/if}<th scope="col">Up to</th></tr></thead>
+      <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Seed</th><th scope="col">Operator</th>{#if e.engine !== "yue2"}<th scope="col">Task</th>{/if}{#if e.engine === "yue2"}<th scope="col">Check</th>{/if}<th scope="col">Up to</th></tr></thead>
       <tbody>
         {#each e.items as it (it.index)}
           {#each it.takes as t (t.take_index)}
-            <tr><td>{t.take_index + 1}</td><td>{t.title}</td><td>{t.seed}</td><td>{t.operator}</td>{#if e.engine !== "yue2"}<td data-testid="take-detail">{takeDetail(t)}</td>{/if}<td>{formatMicroUSDCeil(t.max_micro_usd)}</td></tr>
+            <tr><td>{t.take_index + 1}</td><td>{t.title}</td><td>{t.seed}</td><td>{t.operator}</td>{#if e.engine !== "yue2"}<td data-testid="take-detail">{takeDetail(t)}</td>{/if}{#if e.engine === "yue2"}{@const b = takeBadge(t, it.mode, e.warnings)}<td data-testid="take-check" data-on={b.on}><span class="badge" class:off={!b.on} title={b.reason}>{b.label}</span></td>{/if}<td>{formatMicroUSDCeil(t.max_micro_usd)}</td></tr>
           {/each}
         {/each}
       </tbody>
@@ -96,6 +129,36 @@
   }
   .warnings {
     overflow-wrap: anywhere;
+  }
+  .check {
+    border-left: 3px solid #6a8caf;
+    padding-left: 0.6rem;
+    margin: 0.6rem 0;
+  }
+  .check h3 {
+    margin: 0 0 0.2rem;
+    font-size: 0.9rem;
+  }
+  .check p {
+    margin: 0.2rem 0;
+    overflow-wrap: anywhere;
+  }
+  .skip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: var(--hit, 2rem);
+  }
+  .badge {
+    border: 1px solid #6a8caf;
+    border-radius: 0.8rem;
+    padding: 0 0.5rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .badge.off {
+    border-color: #8a7f74;
+    opacity: 0.75;
   }
   .note {
     border-left: 3px solid #f2a65a;

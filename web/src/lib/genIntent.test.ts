@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INTENT_KEY, MAX_TAKES, clearIntent, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, type GenerationIntent } from "./genIntent";
+import { INTENT_KEY, MAX_TAKES, analyzeIntent, clearIntent, engineIntent, engineSwitchable, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, variantIntent, withSkipTierB, type GenerationIntent } from "./genIntent";
 
 function store() {
   const m = new Map<string, string>();
@@ -199,5 +199,46 @@ describe("complete from a stem", () => {
   });
   test("only complete may name a stem source", () => {
     expect(validateIntent({ ...remix, mode: "stems" })).toMatch(/Only complete/);
+  });
+});
+
+describe("analyze intent and the listening check option (M5b W1)", () => {
+  test("analyzeIntent estimates one analyze item and nothing else", () => {
+    const i = analyzeIntent(["t1", "t2"]);
+    expect(validateIntent(i)).toBeNull();
+    expect(intentToEstimate(i)).toEqual({ kind: "generation", body: { items: [{ mode: "analyze", track_ids: ["t1", "t2"] }] } });
+  });
+  test("analyze needs 1..50 takes", () => {
+    expect(validateIntent(analyzeIntent([]))).toContain("at least one");
+    expect(validateIntent(analyzeIntent(Array.from({ length: 51 }, (_, k) => `t${k}`)))).toContain("at most 50");
+  });
+  test("an analyze intent survives the sessionStorage round trip, a malformed one does not load", () => {
+    const m = new Map<string, string>();
+    const s = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+    saveIntent(s, analyzeIntent(["t1"]));
+    expect(loadIntent(s)).toEqual({ mode: "analyze", track_ids: ["t1"] });
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "analyze", track_ids: [] }));
+    expect(loadIntent(s)).toBeNull();
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "analyze", track_ids: ["t"], skip_tier_b: "yes" }));
+    expect(loadIntent(s)).toBeNull();
+  });
+  test("skipping the check sends options.tier_b false and keeps the field out of the item", () => {
+    const i = withSkipTierB({ mode: "from_draft", draft_ids: ["d1"] }, true);
+    expect(intentToEstimate(i)).toEqual({ kind: "generation", body: { items: [{ mode: "from_draft", draft_ids: ["d1"] }], options: { tier_b: false } } });
+  });
+  test("a variant that skips the check is estimated as a generation item, one that does not stays a variant estimate", () => {
+    const v = variantIntent("t1", "new_seed");
+    expect(intentToEstimate(v).kind).toBe("variant");
+    const s = intentToEstimate(withSkipTierB(v, true));
+    expect(s).toEqual({ kind: "generation", body: { items: [{ mode: "new_seed", parent_track_id: "t1", n_seeds: 3 }], options: { tier_b: false } } });
+  });
+  test("skip is not sent on another engine, and withSkipTierB(false) drops it", () => {
+    const e = withSkipTierB(engineIntent("extend", "t1"), true);
+    const call = intentToEstimate(e);
+    expect(call.kind === "generation" && call.body.options).toBeUndefined();
+    expect(withSkipTierB(withSkipTierB(variantIntent("t1", "new_seed"), true), false)).toEqual(variantIntent("t1", "new_seed"));
+  });
+  test("analyze is not engine-switchable", () => {
+    expect(engineSwitchable(analyzeIntent(["t1"]))).toBe(false);
   });
 });

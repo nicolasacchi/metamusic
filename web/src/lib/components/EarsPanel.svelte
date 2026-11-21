@@ -6,8 +6,10 @@
 
   interface Props {
     trackId: string;
+    /** Called with each dossier that loads (null when there is none), so the listening check panel can tell whether it has a check to read (M5b W1). */
+    ondossier?: (d: components["schemas"]["Dossier"] | null) => void;
   }
-  let { trackId }: Props = $props();
+  let { trackId, ondossier }: Props = $props();
 
   let model = $state<EarsModel | null>(null);
   let message = $state("");
@@ -24,6 +26,7 @@
         if (mine !== trackId) return;
         if (!d.data) {
           message = d.error?.message ?? "No analysis yet";
+          ondossier?.(null);
           return;
         }
         let spec: components["schemas"]["SpectrogramView"] | null = null;
@@ -31,9 +34,15 @@
           const s = await api.GET("/api/tracks/{id}/spectrogram", { params: { path: { id: mine }, query: { inline: false } } });
           spec = s.data ?? null;
         }
-        if (mine === trackId) model = earsPanel(d.data, spec);
+        if (mine === trackId) {
+          model = earsPanel(d.data, spec);
+          ondossier?.(d.data);
+        }
       } catch {
-        if (mine === trackId) message = "Failed to load the analysis";
+        if (mine === trackId) {
+          message = "Failed to load the analysis";
+          ondossier?.(null);
+        }
       } finally {
         if (mine === trackId) loading = false;
       }

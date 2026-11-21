@@ -32,6 +32,13 @@ const LABELS: Record<string, string> = {
   clipping: "Clipping",
   internal_silence: "Internal silence",
   token_loop_suspected: "Token loop suspected",
+  // the listening check's ear flags (M5b C338.2): suspicions from a recogniser that can mishear sung words
+  diction_poor: "Diction may be poor",
+  alignment_failed: "Words could not be placed in time",
+  vocals_not_detected: "No vocals heard",
+  listening_check_failed: "Listening check did not run",
+  melody_off_plan: "Melody may be off the plan",
+  sung_transposed: "Sung in another key than planned",
 };
 
 function label(code: string): string {
@@ -53,6 +60,18 @@ function detail(f: Dossier["flags"][number]): string {
   if (span !== null) parts.push(`for ${span.toFixed(1)} s`);
   const period = num(e["period_s"]);
   if (period !== null) parts.push(`period ${period.toFixed(2)} s`);
+  const section = typeof e["section"] === "string" ? e["section"] : null;
+  const cer = num(e["cer"]);
+  if (section !== null) parts.push(cer !== null ? `${section}: ${Math.round(cer * 100)} % of characters wrong` : section);
+  const chroma = num(e["melody_chroma"]);
+  if (chroma !== null) parts.push(`melody match ${Math.round(chroma * 100)} %`);
+  const words = num(e["words"]);
+  const lyricWords = num(e["lyric_words"]);
+  if (words !== null && lyricWords !== null) parts.push(`${words} of ${lyricWords} lyric words heard`);
+  const shift = num(e["transpose_mode"]);
+  if (shift !== null) parts.push(`${shift} semitones`);
+  const state = typeof e["state"] === "string" ? e["state"] : null;
+  if (state !== null) parts.push(`state ${state}`);
   return parts.join(", ");
 }
 
