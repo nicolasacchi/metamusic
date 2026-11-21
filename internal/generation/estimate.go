@@ -172,6 +172,10 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		return Estimate{}, err
 	}
 	pl.markV2Canary()
+	ears, err := s.resolveEars(ctx, pl, st, in.TierB) // the listening check: spec, needs and budget of the takes that have one (C339.3)
+	if err != nil {
+		return Estimate{}, err
+	}
 	if err := s.requireCaps(ctx, s.o.Store.R, st, batchNeeds(pl.takes)); err != nil { // before anything is quoted, stored or reserved (C322.5)
 		return Estimate{}, err
 	}
@@ -184,7 +188,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		qp, pq, err = s.quoteInputs(ctx, s.o.Store.R, st)
 		takes = make([]spend.TakeIn, len(pl.takes))
 		for i, t := range pl.takes {
-			takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON)}
+			takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON), EarsS: ears.secs(i)}
 		}
 	}
 	if err != nil {
@@ -246,6 +250,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 			t := pl.takes[k]
 			tp := TakePlan{TakeIndex: t.TakeIndex, RequestID: t.RequestID, Seed: t.Seed, Title: t.Title, Operator: t.Operator,
 				ParentTrackID: t.ParentTrackID, DraftID: t.DraftID, ExpectedAudioS: t.ExpectedAudioS, MinAudioS: t.MinAudioS, TimeoutS: t.TimeoutS, Max: money.MicroUSD(t.MaxMicroUSD)}
+			tp.TierB = ears.secs(k) > 0
 			if e := pl.e2[k]; e != nil {
 				tp.Engine, tp.Task, tp.TaskClass, tp.Edit, tp.Reference, tp.CrossEngine = name, e.Task, e.Class, e.Edit, e.Ref, e.Cross
 			}

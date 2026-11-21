@@ -70,6 +70,7 @@ type Options struct {
 	Rand       func() uint64 // getRandomSongs / getAlbumList type=random; tests inject a fixed sequence
 	FailDelay  time.Duration // default 1 s
 	Sleep      func(ctx context.Context, d time.Duration) error
+	Diction    LineTimes // optional synced lyrics (C348); nil => getLyricsBySongId answers as in M4a, byte for byte
 }
 
 // limiter is the part of *ratelimit.Limiter the handler uses (an interface so tests can spy on the call order).

@@ -724,6 +724,34 @@ The `jobs` table was rebuilt once for the whole program (new columns `kind`, `ne
 of `jobs`, `job_attempts` and `job_events` are equal before and after, `metamusic library verify` is clean; delete the copy. Existing jobs get
 kind `generate`, needs `[]`, spec `{}`. Then deploy attended as in step 1 above. Downgrading is a restore from the pre-deploy snapshot.
 
+## Listening checks: the quote (M5b Ears)
+
+A new yue2 render with at least one lyric line gets a listening check (Tier B: vocal separation, speech recognition and, for a take
+with a plan score, a pitch contour) by default. The check runs on the GPU worker after the render, so the estimate prices it on top:
+the take's timeout grows by the check's budget and the reservation covers that timeout, so the ceiling of a typical take grows by
+about a fifth. Caps are unchanged; fewer takes fit a batch.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MM_EARS_LOAD_S` | 40 (0..600) | model load seconds |
+| `MM_EARS_RTF_MILLI` | 150 (10..2000) | separation plus recognition seconds per 1000 s of audio |
+| `MM_EARS_TRANSCRIBE_RTF_MILLI` | 40 (0..2000) | the pitch contour, only when the take has a plan score |
+| `MM_ANALYZE_FETCH_S` | 20 (5..300) | fetch seconds of an on-demand analyze job |
+
+The defaults are placeholders; the wave W2 canary report calibrates them (an attended env change, checked with `metamusic config check`).
+`ears_s = load + ceil(rtf x audio / 1000)` (plus the pitch term), the budget is `ceil(3 x ears_s / 2)`, the timeout is the plain timeout
+plus the budget; the render's own window on the worker is unchanged.
+
+The option `options.tier_b` of `estimate_generation` is tri-state. Absent (auto): on when the take has lyric lines, its check fits
+`MM_JOB_MAX_RUNTIME` and the routed backend has the `v2` and `ears` capabilities open; otherwise off, with a warning on the take
+(`tier_b_unavailable`, `tier_b_no_lyrics`, `tier_b_exceeds_runtime`, `tier_b_engine`). `true` requires the check: a closed capability is
+503 `GENERATION_DISABLED` (`worker_outdated`), a take that does not fit is 422 `INVALID_ITEM` rule `tier_b_exceeds_runtime`, another
+engine is 422 `VALIDATION_FAILED`. `false` skips it. Canary renders (`mm-canary-` request ids) stay plain unless `true`.
+
+Until the operator has opened the capabilities (`metamusic runpod contract open --caps v2,ears` after a passing canary) every
+estimate on the real backend runs auto-off with `tier_b_unavailable`, quotes and creates exactly as before, and an explicit `true`
+is refused. `runpod contract close --caps ears` stops the default without a deploy.
+
 ## Migrations 0013 to 0016
 
 Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):
