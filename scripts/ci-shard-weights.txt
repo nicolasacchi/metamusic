@@ -47,12 +47,12 @@
 ./internal/drafts 27
 ./internal/sessions 26
 ./internal/provider/runpod 24
+./internal/mandates 24
 ./internal/board 22
 ./internal/diction 22
 ./internal/ears/tierb 22
 ./internal/auth 21
 ./internal/upload/fallback 20
-./internal/mandates 20
 ./internal/songpr 19
 ./internal/archivetest 18
 ./internal/voice 18
