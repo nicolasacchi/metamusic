@@ -100,6 +100,7 @@ func spotOf(c judgments.Comment, own bool, src, tgt takeTiming) (spot *omap, kin
 	at, basis, conf := *c.AtSecond, p.Basis, p.Confidence
 	if !own {
 		at, basis, conf = anchor.MapChain(p, tgt.chain, tgt.best.DurationS)
+		at = anchor.ClampTo(at, tgt.best.DurationS) // a plan clock can run past the audio
 	}
 	var label any
 	if q := anchor.ComputeChain(tgt.chain, tgt.best.DurationS, at); q.Basis == anchor.BasisSection {

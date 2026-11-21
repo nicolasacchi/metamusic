@@ -132,3 +132,14 @@ func MapChain(p Point, chain []Timing, durS float64) (atS float64, basis string,
 	}
 	return Map(p, Timing{DurationS: durS})
 }
+
+// ClampTo bounds a time to [0, durS] (the take's stored duration); a take without a duration leaves it unbounded above.
+func ClampTo(atS, durS float64) float64 {
+	if math.IsNaN(atS) || atS < 0 {
+		return 0
+	}
+	if durS > 0 && atS > durS {
+		return durS
+	}
+	return atS
+}

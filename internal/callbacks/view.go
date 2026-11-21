@@ -179,6 +179,8 @@ func spotOf(ctx context.Context, q querier, x row) (Spot, error) {
 	at := x.cAt.Float64
 	pt := anchor.ComputeChain(srcChain, src.DurationS, at)
 	childAt, basis, conf := anchor.MapChain(pt, childChain, child.DurationS)
+	// a plan clock (score bars) can run past the audio: the spot never lies outside the child take
+	childAt = anchor.ClampTo(childAt, child.DurationS)
 	sp := Spot{ChildAtS: round1(childAt), SourceAtS: &at, Basis: basis, Confidence: conf}
 	if basis == anchor.BasisSection {
 		if l := anchor.ComputeChain(childChain, child.DurationS, childAt).Label; l != "" {

@@ -5,7 +5,7 @@
 // serves the tests in order; the callbacks are found by comment id, so no test depends on a total.
 import { expect, test, type Page } from "./fixtures";
 import { audioTime } from "./helpers";
-import { callbacksOf, closeTheLoop, commentById, comments, pendingTotal, trackDetail, watchM5, type CallbackOut, type ClosedLoop } from "./m5Api";
+import { callbacksOf, closeTheLoop, commentById, comments, pendingTotal, watchM5, type CallbackOut, type ClosedLoop } from "./m5Api";
 import type { APIRequestContext } from "@playwright/test";
 
 test.describe.configure({ mode: "serial", timeout: 300_000 });
@@ -93,9 +93,7 @@ test("a fix card: the comment, the spot, hearing the new take, Not yet puts the 
 
   // hearing the new take starts it at the spot
   await page.getByTestId("callback-hear").click();
-  // the fake worker's plan clock (score bars) runs past its 6 s of audio, so the spot can lie beyond the take's end: the player then stops at the end
-  const childLen = (await trackDetail(request, first.child.id)).duration_s;
-  await expect.poll(() => audioTime(page), { timeout: 10_000 }).toBeGreaterThanOrEqual(Math.max(0, Math.min(first.spot.child_at_s, childLen) - 0.5));
+  await expect.poll(() => audioTime(page), { timeout: 10_000 }).toBeGreaterThanOrEqual(Math.max(0, first.spot.child_at_s - 0.5));
 
   await page.getByLabel(/Note \(optional\)/).fill("still drags a little");
   await answer(page, "not_yet").click();
