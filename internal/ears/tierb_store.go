@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
+	"github.com/nicolasacchi/metamusic/internal/analysis"
 	"github.com/nicolasacchi/metamusic/internal/ears/tierb"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/library"
+	"github.com/nicolasacchi/metamusic/internal/score/abc"
 )
 
 // Tier B analyzers (M5b C337.1) and their current definitions. A stored row is current when its version starts with
@@ -177,7 +180,8 @@ func (s *Service) readTierBDocument(ctx context.Context, trackID string) (librar
 
 // AnalyzeTierB computes and stores the listening check of one track from its stored analysis*.json (C337.1). It writes, in one
 // transaction and with ON CONFLICT DO NOTHING, the tier_b_raw row, the tier_b_diction row (only for a document with status ok
-// and a recipe with lyric lines) and, once per track, the measured sections. A document with status error writes the raw row
+// and a recipe with lyric lines), the tier_b_adherence row (a document with a pitch contour and a take with a plan score, C336) and,
+// once per track, the measured sections. A document with status error writes the raw row
 // only. It never creates GPU work and is idempotent. GET paths never call it.
 func (s *Service) AnalyzeTierB(ctx context.Context, trackID string) (TierBOutcome, error) {
 	out := TierBOutcome{TrackID: trackID, Measured: measuredNone}
@@ -275,8 +279,112 @@ func (s *Service) AnalyzeTierB(ctx context.Context, trackID string) (TierBOutcom
 			return out, err
 		}
 	}
+	if sung := adherenceSung(raw); sung != nil {
+		if tune, ok, err := s.planScore(ctx, trackID); err != nil {
+			return out, err
+		} else if ok {
+			in, err := s.adherenceInput(ctx, tx, trackID, tune, sung)
+			if err != nil {
+				return out, err
+			}
+			ad := adherenceDocOf(tierb.Adherence(in))
+			if err := insert(anTierBAdherence, tierBAdherenceDef+" "+tierBGoTag+" "+short12(art.SHA256), ad); err != nil {
+				return out, err
+			}
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return out, fmt.Errorf("ears: tier B commit: %w", err)
 	}
 	return out, nil
+}
+
+// adherenceSung returns the sung notes of a document that carries a pitch contour (status ok, transcribe stage ok); nil when it has
+// none. A contour with no note in it still gives a non-nil slice: the take has a plan to compare with an empty performance.
+func adherenceSung(raw tierb.Raw) []tierb.Note {
+	if raw.Status != tierb.StatusOK || raw.Pitch == nil || raw.Stages.Transcribe != tierb.StageOK {
+		return nil
+	}
+	return append([]tierb.Note{}, tierb.SungNotes(*raw.Pitch)...)
+}
+
+// planScore reads and parses the take's score.abc. ok is false when the take has no score (no adherence row) or when the
+// score file cannot be read (a transient failure: no row, so the sweep tries again); a score that does not parse is returned
+// as an empty tune, which stores an adherence row with no comparison and so settles the question.
+func (s *Service) planScore(ctx context.Context, trackID string) (*abc.Tune, bool, error) {
+	var path, sha string
+	switch err := s.o.Store.R.QueryRowContext(ctx, `SELECT abc_path, abc_sha256 FROM scores WHERE track_id = ?`, trackID).Scan(&path, &sha); {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, fmt.Errorf("ears: tier B score: %w", err)
+	}
+	f, err := s.o.Data.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("ears: tier B score: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, abc.MaxBytes+1))
+	if err != nil {
+		return nil, false, fmt.Errorf("ears: tier B score: %w", err)
+	}
+	sum := sha256.Sum256(b)
+	if len(b) > abc.MaxBytes || hex.EncodeToString(sum[:]) != sha {
+		return nil, true, nil
+	}
+	tune, err := abc.Parse(b, abc.Options{Dialect: abc.DialectYuE2})
+	if err != nil {
+		return nil, true, nil
+	}
+	return tune, true, nil
+}
+
+// adherenceInput gathers the comparison's inputs: the take's measured sections (read inside the transaction, so sections this
+// analysis just wrote count), Tier A's tempo and key when current rows exist.
+func (s *Service) adherenceInput(ctx context.Context, tx *sql.Tx, trackID string, tune *abc.Tune, sung []tierb.Note) (tierb.AdherenceInput, error) {
+	in := tierb.AdherenceInput{Tune: tune, Sung: sung}
+	rows, err := tx.QueryContext(ctx, `SELECT idx, label, start_s, end_s FROM sections WHERE track_id = ? AND source = 'measured'
+		AND start_s IS NOT NULL AND end_s IS NOT NULL ORDER BY idx`, trackID)
+	if err != nil {
+		return in, fmt.Errorf("ears: tier B measured sections: %w", err)
+	}
+	for rows.Next() {
+		var w tierb.Window
+		if err := rows.Scan(&w.Idx, &w.Label, &w.StartS, &w.EndS); err != nil {
+			_ = rows.Close()
+			return in, fmt.Errorf("ears: tier B measured sections: %w", err)
+		}
+		in.Measured = append(in.Measured, w)
+	}
+	if err := rows.Close(); err != nil {
+		return in, fmt.Errorf("ears: tier B measured sections: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return in, fmt.Errorf("ears: tier B measured sections: %w", err)
+	}
+	ar, _, err := s.loadRows(ctx, trackID)
+	if err != nil {
+		return in, err
+	}
+	if t := decode[analysis.Tempo](ar[anTempo], ar[anTempo].Version != ""); t != nil {
+		in.TempoBPM = t.BPM
+	}
+	if k := decode[analysis.Key](ar[anKey], ar[anKey].Version != ""); k != nil && k.Tonic != nil && k.Mode != nil {
+		in.Key = &tierb.KeyFact{Tonic: *k.Tonic, Mode: *k.Mode}
+	}
+	return in, nil
+}
+
+// adherenceDocOf is the metrics_json of a tier_b_adherence row; the path $.melody_chroma is frozen (C346.3).
+func adherenceDocOf(r tierb.AdherenceResult) TierBAdherence {
+	d := TierBAdherence{Basis: r.Basis, MelodyChroma: r.MelodyChroma, TransposeMode: r.TransposeMode, TempoRatio: r.TempoRatio,
+		KeyRelation: r.KeyRelation, TimingSource: r.TimingSource, Sections: make([]TierBAdherenceSection, 0, len(r.Sections))}
+	for _, s := range r.Sections {
+		d.Sections = append(d.Sections, TierBAdherenceSection{Idx: s.Idx, Label: s.Label, Chroma: s.Chroma, ChromaBest: s.ChromaBest,
+			Transpose: s.Transpose, NotesPlan: s.NotesPlan, NotesSung: s.NotesSung})
+	}
+	return d
 }
