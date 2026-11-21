@@ -154,6 +154,7 @@ func (b *IngestBridge) IngestTake(ctx context.Context, job JobRow, att AttemptRo
 	if err != nil {
 		return "", err
 	}
+	eng.fallbackAttempt = b.o.Store != nil && onFallbackAttempt(ctx, b.o.Store.R, att.ID) // bulk R2: a plain job on /2 because of its fallback
 	if err := b.verify(job, eng, byName, out); err != nil {
 		return "", err
 	}
@@ -278,6 +279,7 @@ type ingestEngine struct {
 	reportsTruncation bool          // engine.IngestPolicy: the output carries truncated{abc,semantic}
 	learnsRTF         bool          // engine.IngestPolicy: the take teaches yue2's rtf_stats
 	required          []string      // the artifacts the take needs besides mm-result.json
+	fallbackAttempt   bool          // the attempt was given fallback objects: a plain job then went out (and answers) on /2
 }
 
 // engineFor resolves the engine of a recipe. yue2 keeps its fixed required set, so a bridge without a registry is
@@ -304,6 +306,9 @@ func (b *IngestBridge) engineFor(req recipeInfo) (ingestEngine, error) {
 // engine that reports no truncation.
 func (b *IngestBridge) verify(job JobRow, eng ingestEngine, byName map[string]upload.Received, out provider.Output) error {
 	wire, werr := wireOf(eng.name, job.Kind, job.Needs, job.SpecJSON)
+	if werr == nil {
+		wire.Wire = outputWire(wire.Wire, out.Contract, eng.fallbackAttempt)
+	}
 	if werr != nil || out.Contract != wire.Wire || out.Status != "ok" || out.TakeID != job.ID {
 		return violation("WORKER_CONTRACT", "output does not belong to this take")
 	}

@@ -210,8 +210,7 @@ func TestUploadFileSystemFailures(t *testing.T) {
 		r := newRig(t)
 		id, _ := r.target("audio.flac")
 		r.exec(`UPDATE uploads SET state = 'closed' WHERE id = ?`, id)
-		req := httptest.NewRequest(http.MethodPut, "/x", nil)
-		err := r.svc.commit(req, uploadRow{ID: id, JobID: jobID, AttemptID: attemptID, Artifact: "audio.flac"}, "00", 1)
+		err := r.svc.commit(context.Background(), uploadRow{ID: id, JobID: jobID, AttemptID: attemptID, Artifact: "audio.flac"}, "00", 1, viaPrimary, nil)
 		if !errors.Is(err, errClosed) {
 			t.Errorf("%v", err)
 		}

@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
@@ -8,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"regexp"
@@ -185,6 +187,15 @@ func (s *Service) serveUpload(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, "UPLOAD_LINK_INVALID", "upload link invalid", nil)
 		return
 	}
+	if drilling, err := s.drilling(r.Context(), row.AttemptID); err != nil {
+		fail(w, http.StatusInternalServerError, "INTERNAL", "internal error", nil)
+		return
+	} else if drilling {
+		// an operator's outage drill (C399.8): the body is never read, so the worker sees a server error and may fall back
+		w.Header().Set("Retry-After", "5")
+		fail(w, http.StatusServiceUnavailable, "UPLOAD_DRILL", "uploads for this attempt are paused for a drill", nil)
+		return
+	}
 	other, err := s.otherDelivered(r, row.JobID, row.AttemptID)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "INTERNAL", "internal error", nil)
@@ -331,7 +342,7 @@ func (s *Service) receive(w http.ResponseWriter, r *http.Request, row uploadRow,
 		fail(w, http.StatusInternalServerError, "INTERNAL", "internal error", nil)
 		return
 	}
-	switch err := s.commit(r, row, got, n); {
+	switch err := s.commit(r.Context(), row, got, n, viaPrimary, nil); {
 	case errors.Is(err, errClosed):
 		_ = root.Remove(final)
 		fail(w, http.StatusGone, "UPLOAD_CLOSED", "uploads for this attempt are closed", nil)
@@ -348,23 +359,31 @@ func (s *Service) receive(w http.ResponseWriter, r *http.Request, row uploadRow,
 
 var errClosed = errors.New("upload: closed")
 
-// commit records the received upload and its event in one transaction.
-func (s *Service) commit(r *http.Request, row uploadRow, sha string, n int64) error {
-	ctx := r.Context()
+// The routes an upload can arrive by (uploads.via).
+const (
+	viaPrimary  = "primary"
+	viaFallback = "fallback"
+)
+
+// commit records the received upload and its event in one transaction. extra is added to the event detail (the fallback receipt
+// names its route there; the primary route's event stays as it always was).
+func (s *Service) commit(ctx context.Context, row uploadRow, sha string, n int64, via string, extra map[string]any) error {
 	tx, err := s.o.Store.W.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	now := store.FormatTime(s.o.Clock.Now())
-	res, err := tx.ExecContext(ctx, `UPDATE uploads SET state = 'received', sha256 = ?, bytes = ?, received_at = ? WHERE id = ? AND state = 'open'`, sha, n, now, row.ID)
+	res, err := tx.ExecContext(ctx, `UPDATE uploads SET state = 'received', sha256 = ?, bytes = ?, received_at = ?, via = ? WHERE id = ? AND state = 'open'`, sha, n, now, via, row.ID)
 	if err != nil {
 		return err
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
 		return errClosed
 	}
-	detail, _ := json.Marshal(map[string]any{"upload_id": row.ID, "artifact": row.Artifact, "bytes": n})
+	d := map[string]any{"upload_id": row.ID, "artifact": row.Artifact, "bytes": n}
+	maps.Copy(d, extra)
+	detail, _ := json.Marshal(d)
 	if _, err := tx.ExecContext(ctx, `INSERT INTO job_events(job_id, attempt_id, at, event, detail_json) VALUES (?, ?, ?, 'upload', ?)`,
 		row.JobID, row.AttemptID, now, string(detail)); err != nil {
 		return err

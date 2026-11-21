@@ -136,6 +136,11 @@ func (r *Runner) phaseCloseWindows(ctx context.Context, rep *StepReport) error {
 		return err
 	}
 	for _, c := range atts {
+		if r.rescue(ctx, c.ID, true) { // bulk A5: the bucket may hold what the app never saw, before a time bound decides
+			if err := r.phaseResults(ctx, rep); err != nil {
+				return err
+			}
+		}
 		err := r.tx(ctx, func(tx *sql.Tx) error {
 			f := r.fence()
 			as, err := queryAtts(ctx, tx, `id = ?`, c.ID)

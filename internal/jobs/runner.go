@@ -77,6 +77,10 @@ type RunnerOptions struct {
 	// Attach reads the attachments named by a /2 job's spec at submit (C321.3); nil serves no job that carries attachments.
 	// A job that pins input audio needs Inputs to implement PinMinter as well (applyWire).
 	Attach AttachSource
+
+	// Upload fallback seams (bulk A4, A5; see seams_bulk.go). Both nil keep today's behaviour exactly.
+	Fallback FallbackMinter
+	Rescue   Rescuer
 }
 
 func (r *Runner) ingestReady() bool { return r.o.IngestReady == nil || r.o.IngestReady() }
@@ -125,6 +129,7 @@ type rstate struct {
 	preflightAt  time.Time
 	preflightErr error
 	preflightMsg map[string]time.Time // check -> last ntfy
+	lastRescue   map[string]time.Time // attempt id -> last rescue (seams_bulk.go)
 	notes        []notify.Message
 	reserved     bool         // a top-up reserve was written by the transaction in progress
 	settled      atomic.Int64 // attempts finished (and settled) since the runner started
@@ -153,7 +158,7 @@ func NewRunner(o RunnerOptions) *Runner {
 	return &Runner{o: o, rstate: &rstate{
 		wakeCh: make(chan struct{}, 1), pool: newPool(o.IngestWorkers),
 		lastPoll: map[string]time.Time{}, holdPoll: map[string]time.Time{}, lastCancel: map[string]time.Time{}, cancelWarned: map[string]bool{},
-		seenResult: map[string]bool{}, promoted: map[string]bool{}, idleWarned: map[string]bool{}, preflightMsg: map[string]time.Time{},
+		seenResult: map[string]bool{}, promoted: map[string]bool{}, idleWarned: map[string]bool{}, preflightMsg: map[string]time.Time{}, lastRescue: map[string]time.Time{},
 	}}
 }
 

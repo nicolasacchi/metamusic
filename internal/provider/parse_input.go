@@ -242,6 +242,7 @@ func BuildWorkerInput(t TakeSpec) ([]byte, error) {
 	}
 	uploads := make(map[string]UploadTarget, len(t.Uploads))
 	for k, v := range t.Uploads {
+		v.Fallback = nil // /1 has no fallback: the /1 builder never sees one (C399.4)
 		uploads[k] = v
 	}
 	return json.Marshal(WorkerInput{

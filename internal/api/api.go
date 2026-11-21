@@ -176,6 +176,10 @@ type Deps struct {
 	Gates    *provider.GateSet
 	Adoption *engineadopt.Service
 
+	// BULK-R2 (C399): the upload fallback's read side for get_provider_status; nil reads as unconfigured with nothing pending. Set by
+	// the build hook in internal/app/bulk_r2.go.
+	UploadFallback UploadFallbackReader
+
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
 }

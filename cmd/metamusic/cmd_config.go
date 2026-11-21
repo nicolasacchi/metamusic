@@ -35,6 +35,11 @@ func configCheck(getenv func(string) string, s streams) error {
 			errs = append(errs, err)
 		}
 	}
+	// BULK-R2: r2.env is read as serve reads it (once, mode checked); only presence is ever printed
+	_, haveR2, r2err := config.LoadUploadFallback(cfg.SecretsDir)
+	if r2err != nil {
+		errs = append(errs, r2err)
+	}
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintln(s.err, e)
@@ -90,6 +95,7 @@ func configCheck(getenv func(string) string, s streams) error {
 	fmt.Fprintf(s.out, "backup: %s\n", map[bool]string{true: "disabled", false: "daily at " + cfg.BackupAt}[cfg.BackupAt == "off"])
 	fmt.Fprintf(s.out, "time zone: %s\n", cfg.Zone())
 	fmt.Fprintf(s.out, "trusted proxies: %d\n", len(cfg.TrustedProxies))
+	fmt.Fprintf(s.out, "upload fallback: %s\n", map[bool]string{true: "configured", false: "not configured"}[haveR2])
 	return nil
 }
 

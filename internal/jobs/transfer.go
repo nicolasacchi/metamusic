@@ -108,6 +108,7 @@ func (r *Runner) handleResult(ctx context.Context, tx *sql.Tx, uploadID, attempt
 	a := as[0]
 	out, err := r.readOutput(uploadID)
 	want := contractOf(j.Engine, j.JobRow)
+	want = outputWire(want, out.Contract, err == nil && onFallbackAttempt(ctx, tx, a.ID))
 	// A /2 job whose worker image only speaks /1 answers BAD_INPUT or an unknown-kind error as a /1 error output; keep its code.
 	v1Error := err == nil && want == provider.ContractV2 && out.Contract == provider.ContractV1 && out.Status == "error"
 	if err != nil || (out.Contract != want && !v1Error) || out.TakeID != j.ID || out.AttemptID != a.ID {
@@ -188,6 +189,9 @@ func (r *Runner) phaseTransfer(ctx context.Context, _ *StepReport) error {
 		return err
 	}
 	for _, c := range js {
+		if win, err := r.winner(ctx, r.o.Store.R, c.ID); err == nil && win != "" {
+			r.rescue(ctx, win, false) // bulk A5: a completed attempt waiting for uploads may have put them in the bucket
+		}
 		var cancels []attRec
 		err := r.tx(ctx, func(tx *sql.Tx) error {
 			var err error
@@ -276,6 +280,9 @@ func (r *Runner) verifyTransfer(ctx context.Context, tx *sql.Tx, jobID string) (
 	out, err := r.readOutput(res.UploadID)
 	wire, werr := wireOf(j.Engine, j.Kind, j.Needs, j.SpecJSON)
 	isGen := isGenerate(j.Kind)
+	if werr == nil && err == nil {
+		wire.Wire = outputWire(wire.Wire, out.Contract, onFallbackAttempt(ctx, tx, win))
+	}
 	// a generate job keeps the engine checks of M3 (audio_seconds, the truncation shape); an analyze or plan job has neither
 	// (C321.4), and every /2 job is held to the shape of its own document
 	if werr != nil || err != nil || out.Contract != wire.Wire || out.Status != "ok" || out.TakeID != j.ID || out.AttemptID != win ||

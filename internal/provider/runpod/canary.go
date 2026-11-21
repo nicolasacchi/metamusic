@@ -52,7 +52,7 @@ const (
 )
 
 // CanaryCases lists them in documentation order.
-var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire}
+var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback}
 
 // ParseCanaryCase validates a --case value.
 func ParseCanaryCase(s string) (CanaryCase, error) {
@@ -78,7 +78,7 @@ func canaryCaseList() string {
 
 // canaryBars is the length of each case's score: YuE2 has no duration control, so the explicit ABC score
 // bounds the render (two seconds per bar at the fixed tempo).
-var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8}
+var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8}
 
 // CanarySpec is one case's synthetic take.
 type CanarySpec struct {
@@ -198,6 +198,9 @@ type CanaryOptions struct {
 	MaxS int
 	// InitFailConfirm: the operator has provisioned the endpoint with `provision --engine acestep15 --init-fail`.
 	InitFailConfirm bool
+
+	// Fallback is the host-side half of the fallback case (canary_bulk.go); nil refuses that case before any spend.
+	Fallback FallbackHooks
 }
 
 // ErrMaxUSDRequired reports that an ACE-Step canary case spends real money and has no default ceiling.
@@ -271,6 +274,10 @@ type cProvider struct {
 	ColdStartS  int `json:"cold_start_s"`
 	KillSlackS  int `json:"kill_slack_s"`
 	MaxRuntimeS int `json:"max_runtime_s"`
+	// UploadFallback is the private-bucket fallback block (BULK-R2); nil from a server that predates it.
+	UploadFallback *struct {
+		Configured bool `json:"configured"`
+	} `json:"upload_fallback"`
 	// Worker is the capability gate of the backend's image (C322.6); nil from a server that predates it.
 	Worker *struct {
 		Caps []string `json:"caps"`
@@ -385,6 +392,7 @@ type canary struct {
 	skipIdle  bool
 	lastJob   cJob
 	ceilSum   money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
+	fb        fallbackState  // the fallback case's progress (canary_bulk.go)
 
 	// observation across every provider-status read of the drive phase (the sampler reads concurrently)
 	mu          sync.Mutex
@@ -596,6 +604,8 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "the endpoint is already deactivated (workers_max 0): the kill switch could not be told from the start state"), nil
 	case spec.Case == CaseV2Wire && !prov.hasCap("v2"):
 		return c.finish("refused", ExitRefused, "capability v2 is not open for this backend's image (open it with `metamusic runpod contract open --caps v2` right before this case)"), nil
+	case spec.Case == CaseFallback && c.fallbackRefusal(prov) != "":
+		return c.finish("refused", ExitRefused, "%s", c.fallbackRefusal(prov)), nil
 	case spec.Case == CaseTimeout && prov.MaxRuntimeS != 30:
 		return c.finish("refused", ExitRefused, "the timeout case needs MM_JOB_MAX_RUNTIME=30s on the server and an endpoint provisioned with --timeout-case (max_runtime_s is %d)", prov.MaxRuntimeS), nil
 	}
@@ -709,6 +719,7 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		if job.State == "generating" {
 			seenGenerating = true
 		}
+		c.maybeDrill(ctx, spec, job) // the fallback case writes its drill row once the job is generating
 		if job.terminal() {
 			endSampler()
 			break
@@ -764,6 +775,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 		}
 	}
 	c.assertOutcome(spec, prov, job, meas)
+	if spec.Case == CaseFallback {
+		c.checkFallback(ctx, job, meas)
+	}
 	c.checkSettled(ctx, meas)
 	ran := seenGenerating || cancelled || job.State == "completed"
 	if !c.skipIdle {
@@ -891,7 +905,7 @@ func (c *canary) assertOutcome(spec CanarySpec, prov cProvider, job cJob, meas m
 		return
 	}
 	switch spec.Case {
-	case CaseMain, CaseCotFull, CaseV2Wire:
+	case CaseMain, CaseCotFull, CaseV2Wire, CaseFallback:
 		ok := c.check("completed", job.State == "completed" && job.Outcome != nil && *job.Outcome == "clean", "state %s", job.State)
 		if ok {
 			allVerified := len(job.Artifacts) > 0

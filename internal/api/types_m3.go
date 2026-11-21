@@ -712,6 +712,8 @@ type ProviderStatus struct {
 	Engine      string          `json:"engine"`
 	Backends    []BackendStatus `json:"backends" nullable:"false"`
 	GlobalBound GlobalBound     `json:"global_bound"`
+	// UploadFallback is the private-bucket upload fallback (BULK-R2): never the endpoint, bucket or prefix.
+	UploadFallback UploadFallbackStatus `json:"upload_fallback"`
 }
 
 // ProviderStatusBody is the status of one backend.
