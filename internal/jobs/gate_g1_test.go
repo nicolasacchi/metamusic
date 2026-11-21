@@ -85,7 +85,7 @@ func TestClaim_ClosedJobDoesNotBlockPlainJobs(t *testing.T) {
 	}
 }
 
-// TestMigration_WorkerContract_PlainYue2Unchanged: a database migrated from 0020 has no contract row, and a plain yue2 /1 job is
+// TestMigration_WorkerContract_PlainYue2Unchanged: a database migrated from 0021 has no contract row, and a plain yue2 /1 job is
 // claimed, sent as /1 and kept running exactly as before (production has no open contract).
 func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
 	t.Parallel()
@@ -94,8 +94,8 @@ func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 0021 is purely additive, so removing what it created and the version stamp is a database exactly as 0020 left it
-	for _, q := range []string{`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 20`} {
+	// 0022 is purely additive, so removing what it created and the version stamp is a database exactly as 0021 left it
+	for _, q := range []string{`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 21`} {
 		if _, err := pre.W.ExecContext(t.Context(), q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
@@ -103,7 +103,7 @@ func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
 	if err := pre.Close(); err != nil {
 		t.Fatal(err)
 	}
-	r := newRigAt(t, p, t.TempDir(), true) // store.Open migrates 0020 to the latest
+	r := newRigAt(t, p, t.TempDir(), true) // store.Open migrates 0021 to the latest
 	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log`); n != 0 {
 		t.Fatalf("%d contract rows after the migration, want 0", n)
 	}

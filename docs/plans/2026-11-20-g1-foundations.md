@@ -827,11 +827,11 @@ verification, with the amendments the code forced.
 
 Revision 6 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`): C322 as built, with the amendments the code forced.
 
-- **C322.3 migration** is `0021_worker_contract.sql` (additive, up-only; `0020` is the job-kinds rebuild). The table, the index, the two
+- **C322.3 migration** is `0022_worker_contract.sql` (additive, up-only; `0020` is the job-kinds rebuild, `0021` the EARS-D1 diction tables, which merged first; renumbered at the merge). The table, the index, the two
   append-only triggers and the view `worker_contract` are as specified, plus `CHECK (length(backend) > 0)`, `CHECK (length(image_digest) > 0)` and
-  `CHECK (length(changed_by) > 0)`. A database at `0020` has no row, so a backend with no row has no open capability and a job with
+  `CHECK (length(changed_by) > 0)`. A database at `0021` has no row, so a backend with no row has no open capability and a job with
   `needs '[]'` never reads the log (`TestMigration_WorkerContract` in `store`, `TestMigration_WorkerContract_PlainYue2Unchanged` in `jobs`, which
-  rebuilds a `0020` database by dropping what `0021` created and re-opens it).
+  rebuilds a `0021` database by dropping what `0022` created and re-opens it).
 - **C322.4 `provider.WorkerCaps`** takes the clock: `WorkerCaps(ctx, q, backend, quote *Quote, now time.Time) ([]string, error)`, because "fresh"
   is `QuoteMaxAge` against `now`. A simulated backend (`BackendFake`, `BackendFakeACEStep`) with **no** row has every capability open (the plan
   said "always"), and with a row follows the row and does not compare digests; that is what lets `Rig.OpenCaps` and the jobs tests close a

@@ -9,10 +9,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// workerContractMigration is the position of 0021_worker_contract.sql (G1 C322.3); renumber here if main moved.
-const workerContractMigration = 21
+// workerContractMigration is the position of 0022_worker_contract.sql (G1 C322.3); renumber here if main moved.
+const workerContractMigration = 22
 
-// TestMigration_WorkerContract: a database at 0020 with jobs migrates to 0021 additively: the new table is empty, every other table
+// TestMigration_WorkerContract: a database at 0021 with jobs migrates to 0022 additively: the new table is empty, every other table
 // is byte-identical, the log is append-only and its view answers the latest row per backend.
 func TestMigration_WorkerContract(t *testing.T) {
 	t.Parallel()
@@ -24,7 +24,7 @@ func TestMigration_WorkerContract(t *testing.T) {
 		t.Fatal("the fixture has no jobs")
 	}
 	if n := scalar(t, prev.R, `SELECT COUNT(*) FROM sqlite_master WHERE name = 'worker_contract_log'`); n != "0" {
-		t.Fatalf("0020 already has the table")
+		t.Fatalf("0021 already has the table")
 	}
 	if err := store.MigrateTo(ctx, prev.W, workerContractMigration); err != nil {
 		t.Fatal(err)

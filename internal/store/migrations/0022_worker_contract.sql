@@ -1,4 +1,4 @@
--- 0021_worker_contract.sql: G1-F3b (C322.3). The worker capability gate: which wire capabilities the operator has opened for one
+-- 0022_worker_contract.sql: G1-F3b (C322.3). The worker capability gate: which wire capabilities the operator has opened for one
 -- backend's worker image, as an append-only log. A backend with no row has no open capability, so a job with needs is not claimable
 -- and not estimable; a job with no needs (every job that exists today) never consults the log. Additive: no existing table changes.
 CREATE TABLE worker_contract_log (
