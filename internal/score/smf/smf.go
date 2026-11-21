@@ -100,8 +100,8 @@ func tailTicks(s *score.Score, last int64, tailS float64) int64 {
 func tempoTrack(s *score.Score) []ev {
 	evs := []ev{{order: orderMeta, data: meta(0x03, []byte(trackZeroName))}}
 	for _, t := range s.Tempos {
-		us := t.USPerQ & 0xFFFFFF
-		evs = append(evs, ev{tick: t.Tick, order: orderMeta, data: meta(0x51, []byte{byte(us >> 16 & 0xff), byte(us >> 8 & 0xff), byte(us & 0xff)})})
+		us := min(max(t.USPerQ, 1), 0xFFFFFF)
+		evs = append(evs, ev{tick: max(t.Tick, 0), order: orderMeta, data: meta(0x51, []byte{byte(us >> 16 & 0xff), byte(us >> 8 & 0xff), byte(us & 0xff)})})
 	}
 	for _, m := range s.Meters {
 		den := max(m.Den, 1)
@@ -110,7 +110,7 @@ func tempoTrack(s *score.Score) []ev {
 			dd++
 		}
 		num := byte(min(max(m.Num, 1), 255)) // #nosec G115 -- clamped to 1..255
-		evs = append(evs, ev{tick: m.Tick, order: orderMeta + 1, data: meta(0x58, []byte{num, byte(dd), 24, 8})})
+		evs = append(evs, ev{tick: max(m.Tick, 0), order: orderMeta + 1, data: meta(0x58, []byte{num, byte(dd), 24, 8})})
 	}
 	return evs
 }
@@ -129,8 +129,8 @@ func voiceTrack(v *score.Voice) []ev {
 		p := byte(min(max(n.Pitch, 0), 127))
 		vel := byte(min(max(n.Vel, 1), 127))
 		evs = append(evs,
-			ev{tick: n.Tick, order: orderOn, pitch: int(p), data: []byte{0x90 | ch, p, vel}},
-			ev{tick: n.Tick + dur(n), order: orderOff, pitch: int(p), data: []byte{0x80 | ch, p, 0x40}})
+			ev{tick: max(n.Tick, 0), order: orderOn, pitch: int(p), data: []byte{0x90 | ch, p, vel}},
+			ev{tick: max(n.Tick, 0) + dur(n), order: orderOff, pitch: int(p), data: []byte{0x80 | ch, p, 0x40}})
 	}
 	return evs
 }

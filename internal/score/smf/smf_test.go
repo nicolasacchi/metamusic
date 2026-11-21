@@ -260,3 +260,20 @@ func TestSMF_ClampsAndEmpty(t *testing.T) {
 		t.Errorf("empty score: %+v %v", d, err)
 	}
 }
+
+func TestSMF_ClampsTempoAndNegativeTicks(t *testing.T) {
+	s := &score.Score{
+		Tempos: []score.Tempo{{Tick: -50, USPerQ: 0}, {Tick: 480, USPerQ: 0xFFFFFFFF}},
+		Voices: []score.Voice{{ID: "A", Notes: []score.Note{{Pitch: 60, Vel: 80, Tick: -100, Dur: 480}}}},
+	}
+	d, err := decode(Write(s, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Score.Tempos) != 2 || d.Score.Tempos[0].USPerQ != 1 || d.Score.Tempos[0].Tick != 0 || d.Score.Tempos[1].USPerQ != 0xFFFFFF {
+		t.Errorf("tempos %+v", d.Score.Tempos)
+	}
+	if n := d.Score.Voices[0].Notes[0]; n.Tick != 0 || n.Dur != 480 {
+		t.Errorf("note %+v", n)
+	}
+}

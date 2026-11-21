@@ -102,6 +102,18 @@ func (r Request) validate() error {
 	return nil
 }
 
+// RenderError is a failed fluidsynth run. It carries the exit code and the context error only, never stderr (which names
+// paths).
+type RenderError struct {
+	ExitCode int
+	Err      error
+}
+
+func (e *RenderError) Error() string { return fmt.Sprintf("synth: fluidsynth failed: exit %d", e.ExitCode) }
+
+// Unwrap exposes the context error so errors.Is(err, context.DeadlineExceeded) works.
+func (e *RenderError) Unwrap() error { return e.Err }
+
 // Fluidsynth is the fluidsynth adapter. Build it with NewFluidsynth.
 type Fluidsynth struct {
 	bin  string
@@ -155,6 +167,11 @@ func (f *Fluidsynth) Render(ctx context.Context, r Request) (Info, error) {
 		ExtraEnv: []string{"HOME=" + filepath.Dir(r.Out)},
 	})
 	if err != nil {
+		// fluidsynth names the soundfont, SMF and output paths on stderr; keep only the exit code and the context cause.
+		var te *mediatool.ToolError
+		if errors.As(err, &te) {
+			return Info{}, &RenderError{ExitCode: te.ExitCode, Err: te.Err}
+		}
 		return Info{}, err
 	}
 	if st, err := os.Stat(r.Out); err != nil || st.Size() == 0 {

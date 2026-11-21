@@ -110,10 +110,16 @@ while [ $# -gt 0 ]; do if [ "$1" = -F ]; then printf RIFF > "$2"; fi; shift; don
 	}
 
 	failing := fake(t, `[ "$1" = --version ] && echo v1 && exit 0
-echo "secret detail $2" >&2; exit 3`)
+for a in "$@"; do echo "failed on $a" >&2; done; exit 3`)
 	ff, _ := NewFluidsynth(context.Background(), failing)
 	if _, err := ff.Render(context.Background(), ok); err == nil || !strings.Contains(err.Error(), "exit 3") {
 		t.Errorf("exit status: %v", err)
+	} else {
+		for _, p := range []string{ok.SMF, ok.Soundfont, ok.Out, work} {
+			if strings.Contains(err.Error(), p) {
+				t.Errorf("error carries path %q: %v", p, err)
+			}
+		}
 	}
 
 	silent := fake(t, `[ "$1" = --version ] && echo v1 && exit 0
