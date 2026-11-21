@@ -339,3 +339,29 @@ func TestGETNeverWritesDB_Diction(t *testing.T) {
 		t.Errorf("rows changed: %s -> %s", before, after)
 	}
 }
+
+// TestLines_UnmeasuredLineHasNoWords: a line the recogniser never scored shows unknown with no word verdicts or invented times.
+func TestLines_UnmeasuredLineHasNoWords(t *testing.T) {
+	t.Parallel()
+	lyrics := "[Verse]\nla chiave del mare\nsotto il cielo\nla la luna"
+	raw, err := tierb.Parse(tierbtest.FromLyrics(lyrics, tierbtest.Opts{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := tierb.Diction(tierb.RefWords(lyrics), raw)
+	var results []tierb.LineResult
+	for i, l := range res.Sections[0].Lines {
+		if i != 1 {
+			results = append(results, l)
+		}
+	}
+	_, lines := diction.BuildLines(diction.LinesInput{Sections: yue2.LyricsSections(lyrics), Ref: tierb.RefWords(lyrics), Results: results})
+	if len(lines) != 3 || lines[1].Class != diction.ClassUnknown || len(lines[1].Words) != 0 || lines[1].StartS != nil {
+		t.Errorf("line 1 = %+v", lines[1])
+	}
+	for _, w := range lines[2].Words {
+		if w.Match == "dropped" {
+			t.Errorf("heard line has a dropped word: %+v", w)
+		}
+	}
+}

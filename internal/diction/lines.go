@@ -107,6 +107,9 @@ func asrLines(in LinesInput, th Thresholds) []DictionLine {
 				outcome[o.Word] = o
 			}
 			for _, w := range words[k] {
+				if !ok {
+					break // an unmeasured line has no word verdicts and takes no interpolated times
+				}
 				dw := DictionWord{I: w.Word, Text: w.Text, Match: "dropped"}
 				if o, ok := outcome[w.Word]; ok {
 					switch o.Op {

@@ -203,3 +203,26 @@ func TestBuildLexicon_Deterministic(t *testing.T) {
 		t.Errorf("risk entries sort first: %+v", a.Entries)
 	}
 }
+
+// TestLexicon_RewriteOlderMarkWithFrozenClock: rewriting an older mark while a newer one exists must still invalidate the cache.
+func TestLexicon_RewriteOlderMarkWithFrozenClock(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ids := e.sixTakes()
+	ctx := context.Background()
+	if _, err := e.svc.SetMarks(ctx, alice, ids[0], []diction.MarkIn{{SectionIdx: 0, LineIdx: 0, Mark: "clear"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.SetMarks(ctx, alice, ids[1], []diction.MarkIn{{SectionIdx: 0, LineIdx: 0, Mark: "clear"}}); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := entry(t, e, "chiave"); c.Attempts != 4 {
+		t.Fatalf("attempts = %d, want 4", c.Attempts)
+	}
+	if _, err := e.svc.SetMarks(ctx, alice, ids[0], []diction.MarkIn{{SectionIdx: 0, LineIdx: 0, Mark: "none"}}); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := entry(t, e, "chiave"); c.Attempts != 5 {
+		t.Errorf("after rewriting the older mark: attempts = %d, want 5", c.Attempts)
+	}
+}

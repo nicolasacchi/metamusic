@@ -93,7 +93,7 @@ func (s *Service) lexicon(ctx context.Context) (*snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.o.Now()
-	if s.snap != nil && s.snap.key == key {
+	if s.snap != nil && !s.dirty && s.snap.key == key {
 		return s.snap, nil
 	}
 	if s.snap != nil && !s.dirty && now.Sub(s.snap.builtAt) < rebuildEvery {
