@@ -263,7 +263,7 @@ func variantShape(e estimateRow, track string) bool {
 
 // revalidate re-checks, through tx, only what can change between estimate and create (C72.4 step 5).
 func (s *Service) revalidate(ctx context.Context, tx *sql.Tx, e estimateRow) error {
-	var reqIDs, draftIDs []string
+	var reqIDs, draftIDs, analyzeIDs []string
 	drafts := map[string]bool{}
 	for _, t := range e.Items {
 		if t.ParentTrackID != nil {
@@ -274,6 +274,10 @@ func (s *Service) revalidate(ctx context.Context, tx *sql.Tx, e estimateRow) err
 			if n == 0 {
 				return staleErr(map[string]any{"reason": "parent_missing", "track_id": *t.ParentTrackID})
 			}
+		}
+		if t.Kind == jobspec.KindAnalyze { // the analysed take's own recipe is reused; only the take's analysis state can drift (C340.2)
+			analyzeIDs = append(analyzeIDs, *t.ParentTrackID)
+			continue
 		}
 		if t.DraftID != nil && !drafts[*t.DraftID] {
 			drafts[*t.DraftID] = true
@@ -311,6 +315,9 @@ func (s *Service) revalidate(ctx context.Context, tx *sql.Tx, e estimateRow) err
 		if taken {
 			reqIDs = append(reqIDs, t.RequestID)
 		}
+	}
+	if err := s.recheckAnalyze(ctx, tx, analyzeIDs); err != nil {
+		return err
 	}
 	if len(reqIDs) > 0 || len(draftIDs) > 0 {
 		d := map[string]any{"reason": "library_changed"}

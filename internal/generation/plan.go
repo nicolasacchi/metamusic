@@ -40,6 +40,8 @@ func itemTakeCount(it Item) int {
 		}
 	}
 	switch it.Mode {
+	case lineage.ModeAnalyze:
+		return len(it.TrackIDs) // one job per track (C340.3)
 	case lineage.ModeStems:
 		return stemCount(it) // one job per name (D-E2-11)
 	case lineage.ModeComplete:
@@ -63,6 +65,12 @@ func validateItem(i int, it Item, eng engine.Engine) error {
 	}
 	if err := checkModeCaps(eng, it.Mode); err != nil {
 		return err
+	}
+	if it.Mode == lineage.ModeAnalyze {
+		return validateAnalyzeItem(i, it)
+	}
+	if len(it.TrackIDs) > 0 {
+		return invalidItem(i, "track_ids", "not_allowed_for_"+it.Mode)
 	}
 	notAllowed := func(field string, present bool) error {
 		if present {
@@ -349,6 +357,8 @@ type planner struct {
 	e2   map[int]*takeE2             // per take index: the engine facts the estimate reports (expand_e2.go)
 
 	canary *canarySwitch // non-nil: this batch is planned with MM_ACESTEP_CANARY_CAPS on (canary_caps.go)
+
+	analyze map[int]int // analyze takes (expand_ears.go): take index -> expected Tier B seconds
 }
 
 type lintFailure struct {
@@ -491,6 +501,8 @@ func (p *planner) expandAll(items []Item) error {
 			}
 		case lineage.ModePort, lineage.ModeExtend, lineage.ModeRepaint, lineage.ModeReference, lineage.ModeComplete, lineage.ModeStems, lineage.ModeCover:
 			err = p.expandE2(i, it)
+		case lineage.ModeAnalyze:
+			err = p.expandAnalyze(i, it)
 		case lineage.ModeComposeNew:
 			err = p.expandCompose(i, it)
 		case lineage.ModeFromTemplate:

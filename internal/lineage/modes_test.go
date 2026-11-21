@@ -183,3 +183,27 @@ func TestIsEmptyAndLint(t *testing.T) {
 	errs, _ := Lint(p.Canonical)
 	_ = errs
 }
+
+// TestEarsModes_Analyze: analyze is an item mode and a job operator of the yue2 engine only; it is no Operator Ledger operator (the
+// job attaches a document to an existing take and writes no mutation row), and the M3 table keeps its seven rows (C340.1).
+func TestEarsModes_Analyze(t *testing.T) {
+	t.Parallel()
+	m, ok := Spec(ModeAnalyze)
+	if !ok || m.Operator != OpAnalyze || m.Patch || m.Parent != "none" {
+		t.Fatalf("analyze row = %+v", m)
+	}
+	if !ModeAllowed(ModeAnalyze, EngineYuE2) || ModeAllowed(ModeAnalyze, EngineACEStep) {
+		t.Error("analyze must be a yue2-only mode")
+	}
+	if ValidOperator(OpAnalyze) {
+		t.Error("analyze must not be an Operator Ledger operator")
+	}
+	if IsTemplateMode(ModeAnalyze) {
+		t.Error("analyze is not a template mode")
+	}
+	for _, row := range Modes {
+		if row.Mode == ModeAnalyze {
+			t.Error("analyze leaked into the M3 table")
+		}
+	}
+}

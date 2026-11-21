@@ -90,6 +90,9 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	if err := s.ingestReady(); err != nil {
 		return Estimate{}, err
 	}
+	if err := analyzeBatchShape(in); err != nil { // analyze items stand alone, on yue2 (C340.1)
+		return Estimate{}, err
+	}
 	name := in.Engine
 	if name == "" {
 		name = DefaultEngine
@@ -188,10 +191,13 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		qp, pq, err = s.quoteInputs(ctx, s.o.Store.R, st)
 		takes = make([]spend.TakeIn, len(pl.takes))
 		for i, t := range pl.takes {
-			takes[i] = spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON), EarsS: ears.secs(i)}
+			takes[i] = pl.quoteTakeIn(i, t, ears)
 		}
 	}
 	if err != nil {
+		return Estimate{}, err
+	}
+	if err := pl.analyzeFits(qp); err != nil {
 		return Estimate{}, err
 	}
 	bq := spend.QuoteTakes(qp, takes)

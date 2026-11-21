@@ -111,6 +111,8 @@ type Item struct {
 	Reference   *Reference
 	EnginePatch *EnginePatch
 	PatchID     *string // song_pr: the stored Song PR to render (C253.4)
+	// TrackIDs are the takes an analyze item listens to (M5b C340.1): 1..50, unique, never combined with another field.
+	TrackIDs []string
 }
 
 // EstimateIn is an estimate request; Engine "" means the default engine.
