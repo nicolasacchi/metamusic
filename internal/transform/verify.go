@@ -105,6 +105,12 @@ func (s *Service) Verify(ctx context.Context, takeID string) (VerifyReport, erro
 	defer func() { _ = s.o.Data.RemoveAll(st.rel) }()
 	var out childReport
 	if row.Kind == KindScoreRender {
+		// a score re-render is CPU work like a runner attempt: it shares the render slot (C355.3)
+		release, serr := s.takeSlot(ctx)
+		if serr != nil {
+			return rep, fmt.Errorf("transform: verify: %w", serr)
+		}
+		defer release()
 		if _, out, f = s.scoreStaged(ctx, st, &acct, row.MaxCPUMS, row.MemMBEst, nil, nil); f != nil {
 			return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
 		}

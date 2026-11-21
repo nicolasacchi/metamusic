@@ -277,8 +277,12 @@ type scoreRow struct {
 func (r scoreRow) seconds(override *float64) float64 {
 	if r.secPerBar.Valid && r.secPerBar.Float64 > 0 {
 		sec := float64(r.bars) * r.secPerBar.Float64
-		if override != nil && r.bpm.Valid && r.bpm.Float64 > 0 {
-			sec *= r.bpm.Float64 / *override
+		if override != nil {
+			from := 120.0 // an untempoed score runs at the default tempo
+			if r.bpm.Valid && r.bpm.Float64 > 0 {
+				from = r.bpm.Float64
+			}
+			sec *= from / *override
 		}
 		return sec
 	}

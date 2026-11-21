@@ -378,3 +378,15 @@ func TestExclusive_BusyAfterWait(t *testing.T) {
 		t.Errorf("err %v", err)
 	}
 }
+
+func TestScoreRow_SecondsNullBPMOverride(t *testing.T) {
+	r := scoreRow{bars: 4, meter: "4/4"}
+	r.secPerBar.Valid, r.secPerBar.Float64 = true, 2 // timed, tempo unknown: the source ran at the default 120
+	bpm := 240.0
+	if got := r.seconds(&bpm); got < 3.99 || got > 4.01 {
+		t.Errorf("override with a null bpm: %v s, want 4 (8 s halved)", got)
+	}
+	if got := r.seconds(nil); got != 8 {
+		t.Errorf("no override: %v s, want 8", got)
+	}
+}
