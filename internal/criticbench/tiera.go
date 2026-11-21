@@ -124,6 +124,9 @@ func (tierA) Critics(ctx context.Context, q Reader, ref *Reference) ([]Critic, e
 				vals[tr] = v
 			}
 		}
+		if len(vals) == 0 {
+			continue // no readable value for any take in the reference windows: the critic is absent
+		}
 		dir, md := d.direction, d.minDelta
 		rt, du := Metric(dir, md, vals, ref.RatingPairs), Metric(dir, md, vals, ref.DuelPairs)
 		c := Critic{ID: d.id, Label: d.label, Kind: KindMetric, Tier: TierA, Direction: &dir, MinDelta: &md,

@@ -81,18 +81,22 @@ func TestBench_TierAExtractors(t *testing.T) {
 		e.analysis(tk, "energy", "e", fmt.Sprintf(`{"energy":%g}`, v/10))
 		e.analysis(tk, "token_loops", "t", fmt.Sprintf(`{"streams":[{"longest_repeat":{"s":%g}},{"longest_repeat":{"s":%g}}]}`, v, v+1))
 	}
-	e.analysis(root, "loudness", "l", `"oops"`) // unreadable rows are skipped
+	e.analysis(root, "loudness", "l", `"oops"`)        // unreadable rows are skipped
+	e.analysis(other, "loudness", "l", `{"lra_lu":3}`) // a row without the true_peak key
 	b := e.bench(criticbench.Query{IncludeUnknown: true})
+	if find(b, "tier_a.true_peak") != nil {
+		t.Error("a row lacking the metric key must not create the critic")
+	}
 	for _, id := range []string{"tier_a.bandwidth", "tier_a.clipped_s", "tier_a.silence_internal_s", "tier_a.energy", "tier_a.token_loop_s", "tier_a.true_peak"} {
 		c := find(b, id)
+		if c == nil && id == "tier_a.true_peak" {
+			continue
+		}
 		if c == nil {
 			t.Fatalf("%s absent", id)
 		}
 		if id == "tier_a.true_peak" {
-			if c.Scores.Ratings.Pairs != 0 {
-				t.Errorf("unreadable row counted: %+v", c.Scores.Ratings)
-			}
-			continue
+			t.Fatalf("a critic whose only row is unreadable must be absent: %+v", c)
 		}
 		if c.Scores.Ratings.Pairs != 1 || c.Scores.Ratings.Predicted != 1 {
 			t.Errorf("%s: %+v", id, c.Scores.Ratings)
@@ -376,7 +380,11 @@ func TestBench_SourcesSortedByTier(t *testing.T) {
 	e := newEnv(t)
 	e.svc.Use(&spySource{version: "v"})
 	r := e.take("")
+	o := e.take(r)
+	e.ownerStars(r, 2)
+	e.ownerStars(o, 4)
 	e.analysis(r, "energy", "e", `{"energy":1}`)
+	e.analysis(o, "energy", "e", `{"energy":2}`)
 	e.agentStars(r, "x", 3)
 	b := e.bench(criticbench.Query{IncludeUnknown: true})
 	var tiers []string
