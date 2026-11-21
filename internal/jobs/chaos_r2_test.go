@@ -145,7 +145,7 @@ func TestChaos_AppDownPastRetentionRescuedByR2(t *testing.T) {
 		t.Errorf("%d tracks, want exactly one", n)
 	}
 	primary, fb := e.r.viaCounts(job)
-	if primary != 0 || fb < 5 {
+	if primary != 0 || fb < 5 || fb != len(w.bkt.Keys()) {
 		t.Errorf("uploads: %d primary, %d fallback", primary, fb)
 	}
 	if w.link.puts.Load() != 0 {
@@ -182,8 +182,8 @@ func TestChaos_AppDiesMidUploadMixedRoutes(t *testing.T) {
 		t.Fatalf("job %s (%v)", got, e.r.events(job))
 	}
 	primary, fb := e.r.viaCounts(job)
-	if primary != 3 || fb < 2 {
-		t.Errorf("uploads: %d primary, %d fallback", primary, fb)
+	if primary != 3 || fb < 2 || primary+fb != len(w.bkt.Keys())+3 {
+		t.Errorf("uploads: %d primary, %d fallback, %d objects in the bucket", primary, fb, len(w.bkt.Keys()))
 	}
 	if n := e.tracks(); n != 1 {
 		t.Errorf("%d tracks", n)
@@ -191,7 +191,7 @@ func TestChaos_AppDiesMidUploadMixedRoutes(t *testing.T) {
 	e.noFallbackSecrets(w)
 }
 
-// TestChaos_AppAndBucketDown: with both routes dead the worker fails honestly (UPLOAD_FAILED): nothing is received, no track appears
+// TestChaos_AppAndBucketDown: with both routes dead the take fails (WORKER_LOST: the sim worker reports no result): nothing is received, no track appears
 // and no result is invented.
 func TestChaos_AppAndBucketDown(t *testing.T) {
 	t.Parallel()
@@ -200,8 +200,17 @@ func TestChaos_AppAndBucketDown(t *testing.T) {
 	w.bkt.FailNext(1_000_000, 503)
 	job := e.seedBatch("", 1, 120).Jobs[0]
 	e.drive(200, 20*time.Second, e.jobTerminal(job))
+	if !e.jobTerminal(job)() {
+		t.Fatalf("job still %s after the drive (%v)", e.r.state(job), e.r.events(job))
+	}
 	if got := e.r.state(job); got == StateCompleted {
 		t.Fatalf("job completed with both routes dead (%v)", e.r.events(job))
+	}
+	if got := e.r.state(job); got != StateFailed {
+		t.Fatalf("job %s, want failed (%v)", got, e.r.events(job))
+	}
+	if ev := e.r.events(job); ev[len(ev)-1] != "failed:WORKER_LOST" {
+		t.Errorf("last event %q (%v)", ev[len(ev)-1], ev)
 	}
 	if n := e.tracks(); n != 0 {
 		t.Fatalf("%d tracks while both routes were dead", n)
