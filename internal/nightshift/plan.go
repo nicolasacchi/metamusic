@@ -88,7 +88,8 @@ func Plan(in Input) (planned []Planned, dropped []Dropped) {
 	if n <= 0 || len(cands) == 0 {
 		return nil, dropped
 	}
-	explore := int((int64(n)*in.ExplorePPM + 500_000) / 1_000_000)
+	ppm := min(max(in.ExplorePPM, 0), 1_000_000) // fail closed on a bad config value
+	explore := int((int64(n)*ppm + 500_000) / 1_000_000)
 	exploit := n - explore
 
 	exploitPool := slices.DeleteFunc(slices.Clone(cands), func(c *cand) bool { return !stars(c.l, in.MinStars) })
@@ -274,8 +275,8 @@ func shiftBPM(style string, seed uint64, root string) (string, int, int, bool) {
 
 func rootHash(seed uint64, root string) uint64 { return fnvOf(seed, root, "") }
 
-// coinPlus is the seeded coin of the BPM shift: true shifts up.
-func coinPlus(seed uint64, root string) bool { return fnvOf(seed, root, "bpm")&1 == 1 }
+// coinPlus is the seeded coin of the BPM shift: true shifts up. It reads a high bit: the low bit of FNV-1a only tracks byte parity.
+func coinPlus(seed uint64, root string) bool { return fnvOf(seed, root, "bpm")>>63 == 1 }
 
 func fnvOf(seed uint64, root, salt string) uint64 {
 	h := fnv.New64a()

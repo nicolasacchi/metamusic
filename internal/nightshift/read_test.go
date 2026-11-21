@@ -244,6 +244,8 @@ func TestReadLineages_RecentUnjudged(t *testing.T) {
 	w.sc.Rate(judged, 3)                               // rated: does not block other
 	night(HolderKey, t0.Add(-5*24*time.Hour), old)     // older than 3 nights: does not block
 	night("agent:someone", t0.Add(-24*time.Hour), old) // another principal: does not block
+	gone := night(HolderKey, t0.Add(-24*time.Hour), old)
+	w.sc.Status(gone, "discarded") // a discarded unrated take can no longer be judged: does not block
 
 	got := lineagesOf(t, w, &Reader{Strengths: fakeStrengths{}})
 	if !got[root].RecentUnjudged || got[other].RecentUnjudged || got[old].RecentUnjudged {
@@ -317,4 +319,23 @@ func TestReadThenPlan(t *testing.T) {
 		}
 	}
 	_ = rs
+}
+
+func TestReadLineages_RecentWindowIs72Hours(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	rec := w.recipe("ra", "pop")
+	in := w.sc.Track(rec, "alice song", "", w.sc.At(1))
+	w.sc.Rate(in, 5)
+	out := w.sc.Track(rec, "bob song", "", w.sc.At(2))
+	w.sc.Rate(out, 5)
+	for parent, at := range map[string]time.Time{in: t0.Add(-72*time.Hour + time.Minute), out: t0.Add(-72*time.Hour - time.Minute)} {
+		take := w.sc.Track(rec, "night take", parent, w.sc.At(4))
+		j := w.sc.Job(w.batch(HolderKey, at), 0, "", parent, rec)
+		w.sc.JobProduced(j, take)
+	}
+	got := lineagesOf(t, w, &Reader{Strengths: fakeStrengths{}})
+	if !got[in].RecentUnjudged || got[out].RecentUnjudged {
+		t.Errorf("inside %v outside %v", got[in].RecentUnjudged, got[out].RecentUnjudged)
+	}
 }

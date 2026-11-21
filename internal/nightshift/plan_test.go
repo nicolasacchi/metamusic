@@ -506,3 +506,15 @@ func TestPlan_Deterministic(t *testing.T) {
 		t.Error("NightSeed")
 	}
 }
+
+func TestPlan_ExplorePPMOutOfRangeNeverExceedsCap(t *testing.T) {
+	t.Parallel()
+	for _, ppm := range []int64{-1_000_000, -1, 1_000_001, 5_000_000} {
+		in := baseInput(lin("a", 5, "pop"), lin("b", 5, "pop"), lin("c", 5, "pop"), lin("d", 5, "pop"))
+		in.MaxTakes, in.ExplorePPM = 2, ppm
+		planned, _ := Plan(in)
+		if len(planned) > 2 {
+			t.Errorf("ppm %d: %d takes, cap 2", ppm, len(planned))
+		}
+	}
+}

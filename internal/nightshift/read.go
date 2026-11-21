@@ -62,7 +62,7 @@ func (r *Reader) Lineages(ctx context.Context, q lineage.Querier, scope mandates
 		byRoot[t.root] = append(byRoot[t.root], t)
 	}
 	sort.Strings(roots)
-	unjudged, err := recentUnjudged(ctx, q, now.AddDate(0, 0, -RecentNights))
+	unjudged, err := recentUnjudged(ctx, q, now.Add(-RecentNights*24*time.Hour))
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func readTakes(ctx context.Context, q lineage.Querier, engines []string) ([]take
 func recentUnjudged(ctx context.Context, q lineage.Querier, since time.Time) (map[string]bool, error) {
 	rows, err := q.QueryContext(ctx, `SELECT DISTINCT t.root_track_id
 		FROM batches b JOIN jobs j ON j.batch_id = b.id JOIN tracks t ON t.id = j.track_id
-		WHERE b.principal_id = ? AND b.created_at >= ?
+		WHERE b.principal_id = ? AND b.created_at >= ? AND t.status <> 'discarded'
 		AND NOT EXISTS (SELECT 1 FROM owner_ratings o WHERE o.track_id = t.id)`, HolderKey, store.FormatTime(since))
 	if err != nil {
 		return nil, fmt.Errorf("nightshift: recent unjudged: %w", err)
