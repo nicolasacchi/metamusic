@@ -93,6 +93,11 @@ const (
 	OpAnalyze   = "analyze"
 )
 
+// OpRecover is the Operator Ledger operator of a take rendered from a recovered draft (M5b C343.4): the take is a new root, and its
+// mutation names the imported reference the draft was recovered from as its parent. It is not an item mode: the item is
+// from_draft, and the planner picks the operator from the draft.
+const OpRecover = "recover"
+
 // EarsModes are the rows the Ears track adds (C340.1); kept apart so the M3 table stays as it was. analyze names its takes by
 // track_ids, has no patch, no seeds and no parent: its only engine is yue2 (the only one that speaks mm.worker/2).
 var EarsModes = []ModeSpec{
@@ -169,7 +174,7 @@ func (m ModeSpec) CheckPatch(p *Patch) (field, rule string) {
 
 var operators = map[string]bool{
 	OpInferredSibling: true, OpRerollSeed: true, OpSameSeedEdit: true, OpLyricEdit: true, OpStyleEdit: true,
-	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true,
+	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true, OpRecover: true,
 	// E2 (C149.1)
 	OpEnginePort: true, OpExtend: true, OpRepaint: true, OpReferenceRender: true, OpCompleteTracks: true, OpExtractStems: true, OpCover: true,
 }

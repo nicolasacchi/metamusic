@@ -15837,6 +15837,170 @@
         ],
         "type": "object"
       },
+      "RecoverEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "energy": {
+            "description": "0..1 energy proxy",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "key": {
+            "description": "Estimated key, null when none was set",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lufs_i": {
+            "description": "Integrated loudness",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tempo_bpm": {
+            "description": "Estimated tempo, null when none was found",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tempo_bpm",
+          "key",
+          "lufs_i",
+          "energy",
+          "duration_s"
+        ],
+        "type": "object"
+      },
+      "RecoverRecipeInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "cot": {
+            "default": "melody",
+            "enum": [
+              "melody",
+              "full",
+              "off"
+            ],
+            "type": "string"
+          },
+          "rationale": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "style": {
+            "description": "Style text of the new draft; omitted: a placeholder from the measured tempo and key",
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "description": "Label of the draft; cut to 40 characters",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RecoverResult": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/DraftDetail"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/RecoverEvidence"
+          },
+          "style_source": {
+            "description": "placeholder: the style was built from the measurements",
+            "enum": [
+              "caller",
+              "placeholder"
+            ],
+            "type": "string"
+          },
+          "transcript": {
+            "$ref": "#/components/schemas/RecoverTranscript"
+          }
+        },
+        "required": [
+          "draft",
+          "transcript",
+          "evidence",
+          "style_source"
+        ],
+        "type": "object"
+      },
+      "RecoverTranscript": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "description": "Duration-weighted mean word probability, 0..1; low means the recogniser was unsure",
+            "format": "double",
+            "type": "number"
+          },
+          "language": {
+            "description": "Language the recogniser heard",
+            "type": "string"
+          },
+          "lines": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sections": {
+            "description": "The sections of the recovered lyric, in order",
+            "items": {
+              "$ref": "#/components/schemas/RecoveredSection"
+            },
+            "type": "array"
+          },
+          "words": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "language",
+          "words",
+          "lines",
+          "sections",
+          "confidence"
+        ],
+        "type": "object"
+      },
+      "RecoveredSection": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "intro, verse, chorus, bridge or outro",
+            "type": "string"
+          },
+          "lines": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "lines"
+        ],
+        "type": "object"
+      },
       "RefIn": {
         "additionalProperties": false,
         "properties": {
@@ -26159,7 +26323,7 @@
     },
     "/api/drafts": {
       "get": {
-        "description": "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.",
+        "description": "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload, recovered). Each row carries its lint counts.",
         "operationId": "list_drafts",
         "parameters": [
           {
@@ -32917,6 +33081,78 @@
           "ui": "/tracks/:id",
           "human_only": false,
           "rate": "listen"
+        }
+      }
+    },
+    "/api/tracks/{id}/recover": {
+      "post": {
+        "description": "Turns the stored listening check of an imported reference (a track whose recipe is unknown) into a NEW draft: the lyric is rebuilt from what the recogniser heard, so it is a starting point to edit, not the singer's text; read the transcript confidence. The style is yours, or a placeholder from the measured tempo and key. Free: nothing is rendered and the reference never changes; render the draft with an ordinary estimate. Each call makes a new draft. 409 ANALYSIS_UNAVAILABLE until an analyze of the reference has completed (estimate an analyze item); 422 RECIPE_KNOWN for a track whose recipe is known; 422 TRANSCRIPT_EMPTY when nothing sung was heard.",
+        "operationId": "recover_recipe",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Track id of the imported reference",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Track id of the imported reference",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverRecipeInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoverResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Recover a draft from an imported reference",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/tracks/:id",
+          "human_only": false,
+          "idempotency": "create"
         }
       }
     },

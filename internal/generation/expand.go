@@ -15,6 +15,9 @@ import (
 // planner warnings and the sizes the quote needs.
 func (p *planner) expandBase(b base) error {
 	op := b.spec.Operator
+	if b.draft != nil && b.draft.RecoveredFrom != "" {
+		op = lineage.OpRecover // a recovered draft renders as a recover, not as a plain from_draft (C343.4)
+	}
 	probe, err := p.derive(b, lineage.Params{Mode: b.mode, Seed: b.rec.Seed, ID: b.rec.ID})
 	if err != nil {
 		p.failures = append(p.failures, lintFailure{Item: b.item, TakeIndex: -1, RequestID: b.rec.ID, Errors: []Issue{parseIssue(err)}})
@@ -73,6 +76,9 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 		RequestJSON: string(parsed.Canonical), RecipeHash: parsed.Hash, ContentHash: content, RenderHash: render,
 		RequestID: id, Seed: sp.seed, Params: paramsDoc{Mode: b.mode, SeedPolicy: sp.policy, NSeeds: nSeeds, Via: b.via},
 		Patch: patchDoc(b.patch), Warnings: []Issue{},
+	}
+	if op == lineage.OpRecover && b.draft != nil {
+		t.Params.RecoveredFrom = b.draft.RecoveredFrom
 	}
 	if b.song != nil {
 		pid := b.song.ID

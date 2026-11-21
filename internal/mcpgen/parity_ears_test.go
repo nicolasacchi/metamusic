@@ -21,7 +21,7 @@ import (
 )
 
 // earsParityIDs are the M5b Ears operations that exist on this branch (grows with each lane; all generic: D-EARS-17).
-var earsParityIDs = []string{"get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry"}
+var earsParityIDs = []string{"get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry", "recover_recipe"}
 
 // earsCases are the parity cases of the Ears operations. The shared script runs over a library with no listening check: 409 with
 // the state, and 404; the populated half is TestOps_Ears_ParityMCP.
@@ -45,6 +45,10 @@ var earsCases = []ParityCase{
 	{Op: "estimate_generation", Variant: "analyze", Masks: estimateMasks, Args: fixedArgs(map[string]any{"items": []map[string]any{{"mode": "analyze", "track_ids": []string{lt.TrackLuna}}}})},
 	{Op: "estimate_generation", Variant: "analyze mixed with another mode", Args: fixedArgs(map[string]any{"items": []map[string]any{
 		{"mode": "analyze", "track_ids": []string{lt.TrackLuna}}, {"mode": "new_seed", "parent_track_id": lt.TrackLuna}}}), Status: 422},
+	// EARS-R1 (C343): the refusals are the same on every face; the populated create is REST-tested (ops_recover_ears_test.go) because a draft id is fresh on every call
+	{Op: "recover_recipe", Variant: "known recipe", Args: fixedArgs(map[string]any{"id": lt.TrackLuna}), Status: 422},
+	{Op: "recover_recipe", Variant: "no listening check", Args: fixedArgs(map[string]any{"id": lt.TrackRefFlac}), Status: 409},
+	{Op: "recover_recipe", Variant: "unknown track", Args: fixedArgs(map[string]any{"id": "nope"}), Status: 404},
 	{Op: "update_lexicon_entry", Variant: "short unknown word", Args: fixedArgs(map[string]any{"lang": "it", "word": "ab", "status": "ignored"}), Status: 404},
 }
 

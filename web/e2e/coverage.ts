@@ -15,6 +15,8 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "set_diction_marks",
   "get_diction_lexicon",
   "update_lexicon_entry",
+  // EARS-W2 also adds the "Create draft from transcript" button of the reference panel on /tracks/:id (m5b-ears C343.2, C347.5); it removes this one.
+  "recover_recipe",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

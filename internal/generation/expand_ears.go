@@ -295,3 +295,12 @@ func (s *Service) recheckAnalyze(ctx context.Context, tx lineage.Querier, ids []
 	}
 	return nil
 }
+
+// recoveredDraftRule refuses a mother override on an item that renders a recovered draft (C343.4, rule recovered_draft_parent): the
+// take is a new root whose ledger parent is the reference, and a reference can never be a mother.
+func recoveredDraftRule(item int, it Item, d draftInfo) error {
+	if d.RecoveredFrom != "" && it.ParentTrackID != nil && *it.ParentTrackID != "" {
+		return invalidItem(item, "parent_track_id", "recovered_draft_parent")
+	}
+	return nil
+}

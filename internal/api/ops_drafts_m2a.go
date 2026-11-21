@@ -36,7 +36,7 @@ func registerDraftsM2a(a huma.API, d Deps) {
 	Register(a, huma.Operation{
 		OperationID: "list_drafts", Method: "GET", Path: "/api/drafts",
 		Summary:     "List backlog drafts",
-		Description: "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.",
+		Description: "Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload, recovered). Each row carries its lint counts.",
 	}, Meta{Scope: auth.ScopeRead, Cost: "free", MCP: "tool", UI: "/backlog"},
 		func(ctx context.Context, in *listDraftsIn) (*draftPageOut, error) {
 			if d.Library == nil {
