@@ -161,9 +161,9 @@ func TestTierBSweep_RecomputesFromArtifact(t *testing.T) {
 	if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND analyzer = 'tier_b_diction'`, lt.TrackLuna); n != 2 {
 		t.Errorf("diction rows = %d, want the old and the new", n)
 	}
-	// an adherence row of a superseded definition is not a candidate while no writer exists (EARS-F2)
+	// an adherence row of a superseded definition is a candidate (EARS-F2); this take has no score, so the pass writes no row
 	r.exec(`INSERT INTO analyses(track_id, analyzer, version, tier, metrics_json, created_at) VALUES (?, 'tier_b_adherence', 'mm-adherence/0 go0', 'B', '{}', ?)`, lt.TrackLuna, storeNow(r))
-	if rep, _ := r.svc.TierBSweep(ctx); rep.Candidates != 0 {
+	if rep, _ := r.svc.TierBSweep(ctx); rep.Candidates != 1 || rep.Analysed != 1 {
 		t.Errorf("superseded adherence is a candidate: %+v", rep)
 	}
 	// the raw row is gone entirely (a restore without derived rows)
