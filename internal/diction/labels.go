@@ -54,7 +54,8 @@ func (s *Service) Version(ctx context.Context) (string, error) {
 	var key string
 	err := s.o.Store.R.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) || '/' || coalesce(max(created_at), '') || '/' || coalesce(max(version), '') FROM analyses WHERE analyzer = 'tier_b_diction') || ' ' ||
-		(SELECT count(*) || '/' || coalesce(max(updated_at), '') FROM diction_marks)`).Scan(&key)
+		(SELECT count(*) || '/' || coalesce(group_concat(track_id || ':' || section_idx || ':' || line_idx || ':' || source || ':' || mark || ':' || updated_at, ','), '')
+			FROM (SELECT * FROM diction_marks ORDER BY track_id, section_idx, line_idx, source))`).Scan(&key)
 	if err != nil {
 		return "", fmt.Errorf("diction: version: %w", err)
 	}

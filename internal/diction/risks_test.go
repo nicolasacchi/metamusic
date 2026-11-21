@@ -183,6 +183,14 @@ func TestLabelSource_VersionChanges(t *testing.T) {
 	if v2 == v1 {
 		t.Error("changing a mark did not change the version")
 	}
+	// a rewrite at the same timestamp still changes the version
+	if _, err := e.svc.SetMarks(ctx, alice, ids[0], []diction.MarkIn{{SectionIdx: 0, LineIdx: 0, Mark: "clear"}}); err != nil {
+		t.Fatal(err)
+	}
+	if v() == v2 {
+		t.Error("a same-timestamp mark change did not change the version")
+	}
+	v2 = v()
 	e.advance(10)
 	id := e.addTake(chiave)
 	e.addDiction(id, chiave, tierbtest.Opts{})

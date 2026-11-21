@@ -294,6 +294,10 @@ func TestLint_DictionRisk(t *testing.T) {
 	if len(got) != 1 || got[0].Field != "lyrics" || got[0].Severity != "warning" || got[0].Message != "'chiave' was heard as 'kiave' in 4/6 takes" {
 		t.Fatalf("warnings = %+v", got)
 	}
+	got = run(LintContext{Diction: dictionRisks(DictionRisk{Word: "chiave", Attempts: 4, Mangled: 3})})
+	if len(got) != 1 || got[0].Message != "'chiave' was often misheard (3/4 takes)" {
+		t.Errorf("empty typical: %+v", got)
+	}
 	if got := run(LintContext{}); len(got) != 0 {
 		t.Errorf("nil Diction: %+v", got)
 	}

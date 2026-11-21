@@ -55,8 +55,11 @@ func DictionRiskIssues(risks []DictionRisk) []Issue {
 	})
 	out := make([]Issue, 0, min(len(rs), maxDictionRisks))
 	for _, r := range rs[:min(len(rs), maxDictionRisks)] {
-		out = append(out, Issue{Code: "diction_risk", Field: "lyrics", Severity: sevWarning,
-			Message: fmt.Sprintf("'%s' was heard as '%s' in %d/%d takes", r.Word, r.Typical, r.Mangled, r.Attempts)})
+		msg := fmt.Sprintf("'%s' was heard as '%s' in %d/%d takes", r.Word, r.Typical, r.Mangled, r.Attempts)
+		if r.Typical == "" {
+			msg = fmt.Sprintf("'%s' was often misheard (%d/%d takes)", r.Word, r.Mangled, r.Attempts)
+		}
+		out = append(out, Issue{Code: "diction_risk", Field: "lyrics", Severity: sevWarning, Message: msg})
 	}
 	return out
 }
