@@ -8,6 +8,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/callbacks"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 )
 
@@ -336,5 +337,28 @@ func TestSubmit_Validation(t *testing.T) {
 	}
 	if r, err := l.svc.Submit(ctx, human, l.id(1, "fix_chorus"), callbacks.VerdictInput{Verdict: "not_yet"}); err != nil || !r.Replayed {
 		t.Errorf("blank note replay: %+v %v", r, err)
+	}
+}
+
+// TestSpot_MeasuredGapOnTheSource: the comment's take got a listening check (measured rows start at 15 s, the comment is at 12 s
+// in the gap); the spot still anchors by section through the plan (12 s is 0.4 of verse 1) and lands in G1's manual verse 1.
+func TestSpot_MeasuredGapOnTheSource(t *testing.T) {
+	t.Parallel()
+	l := newLoop(t, 1)
+	for i, s := range lt.M5PlanSections {
+		from := s.From
+		if i == 0 {
+			from = 15
+		}
+		l.exec(`INSERT INTO sections(track_id, source, idx, kind, label, raw_label, start_s, end_s, confidence) VALUES (?, 'measured', ?, ?, ?, ?, ?, ?, 0.9)`,
+			l.info.Lineage[0], i, s.Kind, s.Label, "["+s.Label+"]", from, s.To)
+	}
+	cb, err := l.svc.Get(context.Background(), human, l.id(1, "fix_verse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// G1 manual verse 1 is 4..36: 4 + 0.4*32 = 16.8
+	if cb.Spot.Basis != "section" || math.Abs(cb.Spot.ChildAtS-16.8) > 0.05 || cb.Spot.Label == nil || *cb.Spot.Label != "verse 1" {
+		t.Errorf("spot %+v, want section at 16.8 labelled verse 1", cb.Spot)
 	}
 }

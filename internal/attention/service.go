@@ -29,7 +29,7 @@ func New(o Options) *Service { return &Service{st: o.Store} }
 // human and device principals count (agents never listen); diagnostic kinds are not read at all. library.ErrNotFound
 // for an unknown track.
 func (s *Service) Heat(ctx context.Context, trackID string) (Heat, error) {
-	t, err := library.Timing(ctx, s.st.R, trackID)
+	t, chain, err := library.TimingWithChain(ctx, s.st.R, trackID)
 	if err != nil {
 		return Heat{}, err
 	}
@@ -39,7 +39,7 @@ func (s *Service) Heat(ctx context.Context, trackID string) (Heat, error) {
 	}
 	h := ComputeHeat(int64(t.DurationS*1000+0.5), ev, Bins)
 	h.TrackID = trackID
-	h.LabelHotspots(t)
+	h.LabelHotspotsChain(chain)
 	return h, nil
 }
 
@@ -55,6 +55,12 @@ func (s *Service) Hotspots(ctx context.Context, trackID string) ([]Hotspot, erro
 // Timing returns the best timed sections of a take (library.Timing); the /context bundle maps comment spots with it.
 func (s *Service) Timing(ctx context.Context, trackID string) (anchor.Timing, error) {
 	return library.Timing(ctx, s.st.R, trackID)
+}
+
+// TimingWithChain is Timing plus every fully timed source, best first (library.TimingWithChain): the bundle maps a comment's time
+// with the first source that covers it, so a measured take's intro is not lost to the gap of the best source.
+func (s *Service) TimingWithChain(ctx context.Context, trackID string) (anchor.Timing, []anchor.Timing, error) {
+	return library.TimingWithChain(ctx, s.st.R, trackID)
 }
 
 func (s *Service) events(ctx context.Context, trackID string) ([]listening.Event, error) {
