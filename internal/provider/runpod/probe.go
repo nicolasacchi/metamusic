@@ -27,7 +27,7 @@ import (
 //go:embed testdata/openapi.snapshot.json
 var snapshotJSON []byte
 
-// Snapshot returns the committed OpenAPI snapshot (fetched 2026-10-12) the client's field table is
+// Snapshot returns the committed OpenAPI snapshot (fetched 2026-10-12, refreshed 2026-11-21 for the pod API) the client's field table is
 // pinned against.
 func Snapshot() []byte { return append([]byte(nil), snapshotJSON...) }
 

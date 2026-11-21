@@ -223,3 +223,31 @@ func TestConfigCheck_PrintsSoundfonts(t *testing.T) {
 		t.Errorf("absent tool, no soundfonts: exit %d %q", code, out)
 	}
 }
+
+func TestConfigCheck_PrintsBulk(t *testing.T) {
+	t.Parallel()
+	env := testEnv(t, "local")
+	code, out, errs := do(t, env, "", "config", "check")
+	if code != 0 || !strings.Contains(out, "pod backend: off") || !strings.Contains(out, "pod key: absent") || strings.Contains(out, "pod image digest") {
+		t.Fatalf("defaults: exit %d out %q err %q", code, out, errs)
+	}
+	digest := "0123456789ab" + strings.Repeat("c", 52)
+	image := "ghcr.io/example/mm-worker@sha256:" + digest
+	env["MM_POD_BACKEND"], env["MM_POD_IMAGE"], env["MM_POD_GPU_TYPES"] = "1", image, "NVIDIA L4"
+	sec := filepath.Join(env["MM_DATA_DIR"], "secrets")
+	podVal := "synthetic-pod-0001-" + strings.Repeat("z", 12)
+	writeFile(t, filepath.Join(sec, "runpod-pod.env"), "RUNPOD_"+"POD_KEY="+podVal+"\n", 0o600)
+	code, out, errs = do(t, env, "", "config", "check")
+	if code != 0 || !strings.Contains(out, "pod backend: on") || !strings.Contains(out, "pod image digest: 0123456789ab\n") || !strings.Contains(out, "pod key: present") {
+		t.Fatalf("on: exit %d out %q err %q", code, out, errs)
+	}
+	for _, v := range []string{podVal, digest, "ghcr.io", "NVIDIA"} {
+		if strings.Contains(out+errs, v) {
+			t.Errorf("config check printed %q", v)
+		}
+	}
+	writeFile(t, filepath.Join(sec, "runpod-pod.env"), "RUNPOD_"+"POD_KEY="+podVal+"\n", 0o644)
+	if code, _, errs = do(t, env, "", "config", "check"); code != 1 || !strings.Contains(errs, "runpod-pod.env") || strings.Contains(errs, podVal) {
+		t.Errorf("a loose key file: exit %d %q", code, errs)
+	}
+}

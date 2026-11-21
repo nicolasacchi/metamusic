@@ -1,0 +1,23 @@
+{
+  "name": "mm-0190abcd1234",
+  "image": "ghcr.io/example/mm-worker@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "gpu": {
+    "id": "NVIDIA GeForce RTX 4090",
+    "count": 1,
+    "minCudaVersion": "12.8"
+  },
+  "cloud": "SECURE",
+  "disk": 40,
+  "ports": [],
+  "startSsh": false,
+  "startJupyter": false,
+  "globalNetworking": false,
+  "env": {
+    "MM_DEADLINE_UNIX": "1760018552",
+    "MM_DEADMAN_S": "600",
+    "MM_POLL_URL": "https://mm.example.com/worker/v1/pods/PODID/poll?exp=1760018552\u0026sig=canary-sig-xxxxxxxxxxxx",
+    "MM_YUE2_3B_DIR": "/opt/mm/pod-cache/hub",
+    "MM_YUE2_3B_REVISION": "0123456789abcdef0123456789abcdef01234567",
+    "MODE": "agent"
+  }
+}

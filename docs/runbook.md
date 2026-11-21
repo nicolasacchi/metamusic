@@ -751,6 +751,33 @@ The `jobs` table was rebuilt once for the whole program (new columns `kind`, `ne
 of `jobs`, `job_attempts` and `job_events` are equal before and after, `metamusic library verify` is clean; delete the copy. Existing jobs get
 kind `generate`, needs `[]`, spec `{}`. Then deploy attended as in step 1 above. Downgrading is a restore from the pre-deploy snapshot.
 
+## Bulk pods: configuration and the pod key (BULK)
+
+The pod backend is off until the operator turns it on (`MM_POD_BACKEND=1`). These rows are the whole configuration; every value is checked at
+startup and by `metamusic config check`, which prints `pod backend: on|off`, `pod image digest: <12 hex>`, `pod key: present|absent` and
+`upload fallback: configured|not configured`, never a value.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MM_POD_BACKEND` | `0` | build the backend (needs `MM_POD_IMAGE`, `MM_POD_GPU_TYPES`) |
+| `MM_POD_IMAGE` | none | `<ref>@sha256:<64 hex>`, the yue2 digest the serverless endpoint runs |
+| `MM_POD_GPU_TYPES` | none | ordered catalog GPU type ids, 1..4 (the cheapest 24 GB type; an extra type makes the quote dearer the quote) |
+| `MM_POD_MIN_TAKES` / `MM_POD_MAX_TAKES` | 30 (10..100) / 100 (30..100) | batch size bounds |
+| `MM_POD_BOOT_S` | 1200 (300..3600) | boot allowance; `MM_JOB_TTL` must be at least this plus 10 minutes |
+| `MM_POD_IDLE_S` | 120 (30..600) | idle seconds before the pod is deleted |
+| `MM_POD_SLACK_S` | 300 (60..1800) | reserved slack |
+| `MM_POD_MAX_RUNTIME` | `6h` (`1h..12h`) | absolute deadline from the first create |
+| `MM_POD_DEADMAN` | `10m` (`2m..30m`) | failed-poll time after which the pod ends itself |
+| `MM_POD_ORPHAN_AFTER` | `180s` (`60s..900s`) | silence after which the server deletes the pod |
+| `MM_POD_WINDOW_MAX` | `8h` (`1h..24h`) | bulk window length (also 30 minutes idle, fixed) |
+| `MM_POD_DISK_GB` | 40 (20..200) | container disk |
+| `MM_FALLBACK_AFTER_S` | 120 (60..600) | worker switch-over to the upload fallback |
+
+**The pod key** is the file `runpod-pod.env` in the secrets directory with exactly one variable, `RUNPOD_POD_KEY`, a RunPod key restricted to pods
+(read and write), catalog read and billing read. Mode 0600 or 0400 (any group or other bit is refused), read at every call and never cached, so
+deleting the file closes the backend at once. Any other variable, and an all-access key, is refused. Keep it on the server during a bulk window only.
+`RUNPOD_POD_KEY` and every `R2_*` variable in the process environment stop startup: secrets are files, not environment.
+
 ## Listening checks: the quote (M5b Ears)
 
 A new yue2 render with at least one lyric line gets a listening check (Tier B: vocal separation, speech recognition and, for a take
