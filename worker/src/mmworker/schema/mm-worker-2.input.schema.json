@@ -183,7 +183,7 @@
       "type": "integer",
       "minimum": 60,
       "maximum": 600,
-      "description": "Reserved (C321.3): the worker ignores it until it advertises capability fallback."
+      "description": "C399.7: seconds of primary upload transport failure after which the worker uploads to uploads.*.fallback; present exactly when a fallback is."
     },
     "start": {
       "type": "object",

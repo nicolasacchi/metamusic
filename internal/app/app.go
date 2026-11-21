@@ -85,6 +85,8 @@ type Options struct {
 	Probe  *mediaserve.Object // what cmd's ensureProbe returns for serve/dev; nil => probe ops answer 503
 	Notify notify.Notifier    // nil => ntfy (MM_NTFY_URL) or Nop, wrapped in notify.Async
 	HTTP   *http.Client       // ntfy client; nil => 10 s timeout client
+	// FallbackHTTP is the bucket client of the upload fallback (BULK-R4 test seam: a rig's TLS bucket); nil => the production client.
+	FallbackHTTP *http.Client
 	// Version and Commit are reported by the system operations.
 	Version, Commit string
 	// M2b (C51.7). Media injects the clip and Tier A inputs (nil => probe cfg.FFmpeg).

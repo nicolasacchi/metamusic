@@ -63,6 +63,9 @@ type SimWorkerOptions struct {
 	// "analyze" and "plan". They are added to the init-time table RegisterSimKind fills, and win over it. A /2 document whose
 	// kind or stage has no hook is answered KIND_UNAVAILABLE before any render, as the real worker does until a stage registers.
 	Kinds map[string]SimKindHook
+	// Fallback is the worker's second upload channel (BULK-R3/R4, C399.7): it carries an artifact to the fallback URL of its upload
+	// target when the primary route is unreachable. Nil is a worker image without the `fallback` capability.
+	Fallback FallbackPutter
 }
 
 // SimWorker simulates the worker handler of C83.2: it validates the input, announces itself through the
@@ -114,6 +117,7 @@ type Session struct {
 	elapsed time.Duration
 	closed  bool
 	ace     bool // the input's engine is acestep15 (C153.4)
+	fbSwap  bool // the primary route failed in transport and the fallback is sticky (C399.7); see simworker_bulk.go
 }
 
 type requestFields struct {
@@ -370,6 +374,9 @@ func (s *Session) put(ctx context.Context, name string, t provider.UploadTarget,
 	if s.mk.uploadClosed {
 		return http.StatusGone, nil
 	}
+	if s.fbSwap && s.fallbackFor(t) {
+		return s.putFallback(ctx, t, body)
+	}
 	var code int
 	var err error
 	for i := 0; i < putTries; i++ {
@@ -381,6 +388,10 @@ func (s *Session) put(ctx context.Context, name string, t provider.UploadTarget,
 		if !retry {
 			break
 		}
+	}
+	if transportFailure(code, err) && s.fallbackFor(t) {
+		s.fbSwap = true
+		return s.putFallback(ctx, t, body)
 	}
 	return code, err
 }

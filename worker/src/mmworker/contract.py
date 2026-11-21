@@ -84,6 +84,10 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 class Target:
     url: str
     max_bytes: int
+    # mm.worker/2 only (C399.7): a second presigned PUT URL, a secret like `url`, and the seconds of primary transport
+    # failure after which the uploader switches to it. Both stay empty on /1 and when the app minted no fallback.
+    fallback_url: str = field(default="", repr=False)
+    fallback_after_s: int = 0
 
     def __repr__(self) -> str:  # never print the capability URL
         return f"Target(max_bytes={self.max_bytes})"
@@ -141,7 +145,7 @@ class TakeInput:
     ears: EarsSpec | None = None
     plan: PlanSpec | None = None
     attach: dict[str, AttachFile] = field(default_factory=dict, repr=False)
-    fallback_after_s: int = 0  # reserved: ignored until the worker advertises capability fallback
+    fallback_after_s: int = 0  # /2: seconds of primary transport failure before the fallback route (C399.7)
 
 
 def _bad(msg: str) -> WorkerError:
@@ -451,13 +455,15 @@ def parse_v2(job_input: Any) -> TakeInput:
     for name, t in ups.items():
         t = _obj(t, f"uploads.{name}")
         _only(t, {"url", "max_bytes", "fallback"}, {"url", "max_bytes"}, f"uploads.{name}")
-        if "fallback" in t:  # reserved (C321.3): validated, then ignored
+        fb_url = ""
+        if "fallback" in t:  # C399.7: the worker advertises capability fallback and honours it
             f = _obj(t["fallback"], f"uploads.{name}.fallback")
             _only(f, {"url"}, {"url"}, f"uploads.{name}.fallback")
-            _url(f["url"], f"uploads.{name}.fallback.url")
+            fb_url = _url(f["url"], f"uploads.{name}.fallback.url")
             any_fallback = True
         targets[name] = Target(_url(t["url"], f"uploads.{name}.url"),
-                               _int(t["max_bytes"], f"uploads.{name}.max_bytes", 1, MAX_BYTES_V2[name]))
+                               _int(t["max_bytes"], f"uploads.{name}.max_bytes", 1, MAX_BYTES_V2[name]),
+                               fb_url, fb_after if fb_url else 0)
     if any_fallback != bool(fb_after):
         raise _bad("fallback_after_s and uploads.*.fallback must appear together")
 

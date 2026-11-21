@@ -52,9 +52,15 @@ class Uploader:
         self._clock = clock
         self._sleep = sleep
         self._timeout = timeout
+        # Per Uploader, and serverless builds one per attempt (C399.7): when the primary route first failed at the
+        # transport level (None = healthy), and whether this attempt has switched to the fallback for good.
+        self._first_failure: float | None = None
+        self._on_fallback = False
 
-    def _once(self, path: Path, target: Target, digest_b64: str, size: int) -> tuple[int, float | None, str | None]:
-        u = urlsplit(target.url)
+    def _once(self, path: Path, target: Target, digest_b64: str, size: int, *, fallback: bool = False,
+              ) -> tuple[int, float | None, str | None]:
+        """One PUT. The fallback route is a plain presigned PUT: no Content-Digest (it is not in the signature)."""
+        u = urlsplit(target.fallback_url if fallback else target.url)
         if u.scheme == "https":
             conn: http.client.HTTPConnection = http.client.HTTPSConnection(
                 u.netloc, timeout=self._timeout, context=ssl.create_default_context())
@@ -62,12 +68,14 @@ class Uploader:
             conn = http.client.HTTPConnection(u.netloc, timeout=self._timeout)
         try:
             with open(path, "rb") as f:
-                conn.request("PUT", u.path + (f"?{u.query}" if u.query else ""), body=f, headers={
+                headers = {
                     "Content-Length": str(size),
                     "Content-Type": "application/octet-stream",
-                    "Content-Digest": f"sha-256=:{digest_b64}:",
                     "User-Agent": f"metamusic-worker/{__version__}",
-                })
+                }
+                if not fallback:
+                    headers["Content-Digest"] = f"sha-256=:{digest_b64}:"
+                conn.request("PUT", u.path + (f"?{u.query}" if u.query else ""), body=f, headers=headers)
                 resp = conn.getresponse()
                 raw = resp.read(_PROBLEM_MAX)
                 ra = resp.getheader("Retry-After")
@@ -78,6 +86,35 @@ class Uploader:
                 return resp.status, retry_after, _problem_code(raw) if resp.status == 409 else None
         finally:
             conn.close()
+
+    def _should_switch(self, target: Target) -> bool:
+        """C399.7: use the fallback once the primary has failed at the transport level for fallback_after_s."""
+        if not target.fallback_url:
+            return False
+        if self._on_fallback:
+            return True
+        return (self._first_failure is not None and target.fallback_after_s > 0
+                and self._clock() - self._first_failure >= target.fallback_after_s)
+
+    def _put_fallback(self, name: str, path: Path, target: Target, deadline: float | None, size: int) -> None:
+        """PUT to the fallback until it answers 2xx. Retried with backoff until the upload deadline; an answered
+        4xx (other than 408/429) is final: a presigned URL that is refused will not become valid. Messages never
+        carry the URL."""
+        attempt = 0
+        while True:
+            try:
+                status, _, _ = self._once(path, target, "", size, fallback=True)
+            except (OSError, http.client.HTTPException, socket.timeout, ssl.SSLError):
+                status = 0
+            if status in (200, 201):
+                return
+            if not (status == 0 or status >= 500 or status in _RETRY_STATUS):
+                raise WorkerError("UPLOAD_FAILED", f"{name}: fallback upload refused (status {status})")
+            delay = BACKOFF[min(attempt, len(BACKOFF) - 1)]
+            attempt += 1
+            if deadline is not None and self._clock() + delay > deadline:
+                raise WorkerError("DEADLINE", f"{name}: fallback upload retries would pass the upload deadline")
+            self._sleep(delay)
 
     def put(self, name: str, path: Path, target: Target, deadline: float | None,
             sha256: str | None = None) -> None:
@@ -92,6 +129,10 @@ class Uploader:
         attempt = 0
         n422 = 0
         while True:
+            if self._should_switch(target):
+                self._on_fallback = True  # sticky: this artifact and every later one of the attempt
+                self._put_fallback(name, path, target, deadline, size)
+                return
             retry_after: float | None = None
             problem_code: str | None = None
             try:
@@ -99,7 +140,15 @@ class Uploader:
             except (OSError, http.client.HTTPException, socket.timeout, ssl.SSLError):
                 status = 0
             if status in (200, 201):
+                self._first_failure = None
                 return
+            if status == 0 or status >= 500 or status in _RETRY_STATUS:
+                if self._first_failure is None:
+                    self._first_failure = self._clock()
+                if self._should_switch(target):
+                    continue  # no backoff sleep: the window is over, go straight to the fallback
+            else:
+                self._first_failure = None  # the primary answered: it is alive, the transport window restarts
             if status == 403:
                 raise WorkerError("UPLOAD_FAILED", f"{name}: upload link refused (403)")
             # 409 UPLOAD_IN_PROGRESS: the server still holds the lock of an earlier, stalled PUT of this same
@@ -119,6 +168,9 @@ class Uploader:
             attempt += 1
             if retry_after is not None:
                 delay = retry_after
+            if target.fallback_url and self._first_failure is not None and target.fallback_after_s > 0:
+                # never sleep past the end of the fallback window: wake at its end and let the switch run
+                delay = min(delay, max(0.0, self._first_failure + target.fallback_after_s - self._clock()))
             if deadline is not None and self._clock() + delay > deadline:
                 raise WorkerError("DEADLINE", f"{name}: upload retries would pass the upload deadline")
             self._sleep(delay)

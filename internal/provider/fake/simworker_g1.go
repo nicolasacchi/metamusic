@@ -83,6 +83,9 @@ func (w *SimWorker) caps() []string {
 			caps = append(caps, c[1])
 		}
 	}
+	if w.o.Fallback != nil {
+		caps = append(caps, "fallback")
+	}
 	slices.Sort(caps)
 	return caps
 }
