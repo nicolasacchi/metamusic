@@ -172,12 +172,18 @@ func lineageIDs(ctx context.Context, x q, id string) (map[string]bool, error) {
 
 // spotOf maps a comment onto the lyrics sections: the section kind and ordinal of its time on its own track (the best timed
 // source at read time, D-M5-7), else the stored section label, else nothing (the proposer must name extra sections).
-func spotOf(t anchor.Timing, at *float64, label sql.NullString) *Spot {
+//
+// The chain is every timed source, best first. A listening check adds measured sections that start at the first sung word, so
+// a moment in the intro (or a take whose measured clock is off the plan's) lies in a gap of the best source: the next source
+// that does cover the moment places it, so a comment the proposer could always address does not turn unscoped when the check lands.
+func spotOf(chain []anchor.Timing, at *float64, label sql.NullString) *Spot {
 	if at == nil {
 		return nil
 	}
-	if pt := anchor.Compute(t, *at); pt.Basis == anchor.BasisSection {
-		return &Spot{Kind: pt.Kind, Ordinal: pt.Ordinal, Label: label.String}
+	for _, t := range chain {
+		if pt := anchor.Compute(t, *at); pt.Basis == anchor.BasisSection {
+			return &Spot{Kind: pt.Kind, Ordinal: pt.Ordinal, Label: label.String}
+		}
 	}
 	if label.Valid && label.String != "" {
 		return &Spot{Label: label.String}
@@ -280,7 +286,7 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, in ProposeInput
 	if err != nil {
 		return SongPR{}, err
 	}
-	timings := map[string]anchor.Timing{}
+	timings := map[string][]anchor.Timing{}
 	for _, cid := range in.AddressesCommentIDs {
 		var track, kind, state, label sql.NullString
 		var hidden int
@@ -297,7 +303,7 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, in ProposeInput
 			if a.OnLineage {
 				t, ok := timings[track.String]
 				if !ok {
-					if t, err = library.Timing(ctx, tx, track.String); err != nil {
+					if t, err = library.TimingChain(ctx, tx, track.String); err != nil {
 						return SongPR{}, fmt.Errorf("songpr: timing: %w", err)
 					}
 					timings[track.String] = t
