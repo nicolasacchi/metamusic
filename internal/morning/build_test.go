@@ -150,6 +150,9 @@ func TestBuildSide_ToolFailureAndCancel(t *testing.T) {
 	if _, err := b.BuildSide(ctx, in); !errors.As(err, &be) || be.Code != CodeInterrupted || !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled build err = %v, want INTERRUPTED", err)
 	}
+	if ents, _ := os.ReadDir(filepath.Join(dir, "incoming")); len(ents) != 0 {
+		t.Errorf("work dirs left behind: %v", ents)
+	}
 }
 
 // ---- media tier: real ffmpeg and flac on synthetic audio in t.TempDir() ----
@@ -303,6 +306,17 @@ func TestBuildSide_SyntheticCrate(t *testing.T) {
 	}
 	if len(info.SeekPoints) < len(side.Chapters) {
 		t.Errorf("seek points = %d", len(info.SeekPoints))
+	}
+	for _, c := range side.Chapters { // flac snaps a point to a frame boundary at or before the take start
+		near := false
+		for _, p := range info.SeekPoints {
+			if p.Sample <= uint64(c.Start) && uint64(c.Start)-p.Sample < 16384 { // #nosec G115 -- non-negative sample index
+				near = true
+			}
+		}
+		if !near {
+			t.Errorf("no seek point at or just before the start of take %d (%d): %+v", c.N, c.Start, info.SeekPoints)
+		}
 	}
 	for i, c := range side.Chapters {
 		tag := fmt.Sprintf("CHAPTER%03d", i+1)
