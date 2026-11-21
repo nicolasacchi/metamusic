@@ -582,20 +582,38 @@ func (c *Client) CatalogSecurePrices(ctx context.Context, typeIDs []string) (map
 	return out, nil
 }
 
-// PodBilling reads hourly pod billing and sums the buckets of the given pods only: billing is account-wide, and a pod this
+// PodBilling reads hourly pod billing and sums the buckets of the given pods only: billing is account-wide (one request per own pod, with the `podId` filter), and a pod this
 // process did not create is never counted. Compute is gpu plus cpu.
 func (c *Client) PodBilling(ctx context.Context, from, to time.Time, podIDs []string) ([]provider.BillBucket, error) {
 	if len(podIDs) == 0 {
 		return nil, nil
 	}
-	own := make(map[string]bool, len(podIDs))
+	seen := make(map[string]bool, len(podIDs))
+	byStart := map[time.Time]*provider.BillBucket{}
+	// One request per own pod (the v2 `podId` filter) keeps every reply far below MaxResponse however busy the account is.
 	for _, id := range podIDs {
-		own[id] = true
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if err := c.podBillingOne(ctx, from, to, id, byStart); err != nil {
+			return nil, err
+		}
 	}
-	q := url.Values{"bucketSize": {"hour"}, "startTime": {from.UTC().Format(time.RFC3339)}, "endTime": {to.UTC().Format(time.RFC3339)}}
+	out := make([]provider.BillBucket, 0, len(byStart))
+	for _, b := range byStart {
+		out = append(out, *b)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
+	return out, nil
+}
+
+// podBillingOne adds the hourly buckets of one pod to byStart.
+func (c *Client) podBillingOne(ctx context.Context, from, to time.Time, podID string, byStart map[time.Time]*provider.BillBucket) error {
+	q := url.Values{"bucketSize": {"hour"}, "startTime": {from.UTC().Format(time.RFC3339)}, "endTime": {to.UTC().Format(time.RFC3339)}, "podId": {podID}}
 	rep, err := c.do(ctx, call{op: "pod_billing", method: http.MethodGet, path: "/v2/billing/pods", query: q, timeout: OtherTimeout, retry: true})
 	if err != nil || !rep.ok() {
-		return nil, failure("pod_billing", rep, err)
+		return failure("pod_billing", rep, err)
 	}
 	var r struct {
 		Records []struct {
@@ -609,11 +627,10 @@ func (c *Client) PodBilling(ctx context.Context, from, to time.Time, podIDs []st
 		} `json:"records"`
 	}
 	if decodeJSON(rep.body, &r) != nil {
-		return nil, &APIError{Op: "pod_billing", Status: rep.status, Detail: "unreadable reply"}
+		return &APIError{Op: "pod_billing", Status: rep.status, Detail: "unreadable reply"}
 	}
-	byStart := map[time.Time]*provider.BillBucket{}
 	for _, rec := range r.Records {
-		if !own[rec.PodID] {
+		if rec.PodID != podID {
 			continue
 		}
 		var amt [4]money.MicroUSD
@@ -623,7 +640,7 @@ func (c *Client) PodBilling(ctx context.Context, from, to time.Time, podIDs []st
 			}
 			m, perr := money.ParseUSD(n.String())
 			if perr != nil {
-				return nil, &APIError{Op: "pod_billing", Status: rep.status, Detail: "unreadable amount"}
+				return &APIError{Op: "pod_billing", Status: rep.status, Detail: "unreadable amount"}
 			}
 			amt[i] = m
 		}
@@ -636,10 +653,5 @@ func (c *Client) PodBilling(ctx context.Context, from, to time.Time, podIDs []st
 		b.Compute += amt[1] + amt[2]
 		b.Disk += amt[3]
 	}
-	out := make([]provider.BillBucket, 0, len(byStart))
-	for _, b := range byStart {
-		out = append(out, *b)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
-	return out, nil
+	return nil
 }

@@ -44,9 +44,11 @@ const (
 	StatusTerminated   = "TERMINATED"
 )
 
-// Pod is the part of a v2 pod the lifecycle reads. CostPPH is the hourly rate in micro-USD (zero when RunPod gave none).
+// Pod is the part of a v2 pod the lifecycle reads. CostPPH is the hourly rate in micro-USD; Priced is false when RunPod gave
+// none, and then CostPPH (zero) must never be read as a free pod: estimates and reservations use CatalogSecurePrices.
 type Pod struct {
 	ID, Name, Status, Image string
+	Priced                  bool
 	CostPPH                 money.MicroUSD
 	CreatedAt, StartedAt    *time.Time
 }
@@ -146,6 +148,7 @@ func (w podWire) pod() (Pod, error) {
 			return Pod{}, errors.New("pods: unreadable pod cost")
 		}
 		p.CostPPH = c
+		p.Priced = true
 	}
 	return p, nil
 }

@@ -761,7 +761,7 @@ startup and by `metamusic config check`, which prints `pod backend: on|off`, `po
 |---|---|---|
 | `MM_POD_BACKEND` | `0` | build the backend (needs `MM_POD_IMAGE`, `MM_POD_GPU_TYPES`) |
 | `MM_POD_IMAGE` | none | `<ref>@sha256:<64 hex>`, the yue2 digest the serverless endpoint runs |
-| `MM_POD_GPU_TYPES` | none | ordered catalog GPU type ids, 1..4 (the cheapest 24 GB type; an extra type makes the quote dearer the quote) |
+| `MM_POD_GPU_TYPES` | none | ordered catalog GPU type ids, 1..4 (the cheapest 24 GB type; an extra type makes the quote dearer) |
 | `MM_POD_MIN_TAKES` / `MM_POD_MAX_TAKES` | 30 (10..100) / 100 (30..100) | batch size bounds |
 | `MM_POD_BOOT_S` | 1200 (300..3600) | boot allowance; `MM_JOB_TTL` must be at least this plus 10 minutes |
 | `MM_POD_IDLE_S` | 120 (30..600) | idle seconds before the pod is deleted |
@@ -776,7 +776,7 @@ startup and by `metamusic config check`, which prints `pod backend: on|off`, `po
 **The pod key** is the file `runpod-pod.env` in the secrets directory with exactly one variable, `RUNPOD_POD_KEY`, a RunPod key restricted to pods
 (read and write), catalog read and billing read. Mode 0600 or 0400 (any group or other bit is refused), read at every call and never cached, so
 deleting the file closes the backend at once. Any other variable, and an all-access key, is refused. Keep it on the server during a bulk window only.
-`RUNPOD_POD_KEY` and every `R2_*` variable in the process environment stop startup: secrets are files, not environment.
+`RUNPOD_POD_KEY` and and the six `R2_` variables (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_PREFIX`) in the process environment stop startup: secrets are files, not environment.
 
 ## Listening checks: the quote (M5b Ears)
 

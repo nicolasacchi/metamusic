@@ -232,7 +232,7 @@ func TestPodClient_CostWithoutFloat(t *testing.T) {
 	for lit, want := range map[string]int64{"0.44": 440000, "0.1234565": 123457, "1.5e-1": 150000, "2": 2000000, "0.30000000000000004": 300001} {
 		e.srv.Fault(podtest.OpGet, podtest.Fault{Status: 200, Body: `{"id":"p1","name":"x","status":"RUNNING","cost":` + lit + `}`})
 		p, err := e.cl.GetPod(bg(), "p1")
-		if err != nil || int64(p.CostPPH) != want {
+		if err != nil || int64(p.CostPPH) != want || !p.Priced {
 			t.Errorf("cost %s: %d %v, want %d", lit, p.CostPPH, err, want)
 		}
 	}
@@ -243,7 +243,7 @@ func TestPodClient_CostWithoutFloat(t *testing.T) {
 		}
 	}
 	e.srv.Fault(podtest.OpGet, podtest.Fault{Status: 200, Body: `{"id":"p1","name":"x","status":"RUNNING"}`})
-	if p, err := e.cl.GetPod(bg(), "p1"); err != nil || p.CostPPH != 0 {
+	if p, err := e.cl.GetPod(bg(), "p1"); err != nil || p.CostPPH != 0 || p.Priced {
 		t.Errorf("no cost: %+v %v", p, err)
 	}
 
@@ -307,8 +307,11 @@ func TestPodClient_BillingOwnPodsHourly(t *testing.T) {
 	if !got[1].Start.Equal(h(1)) || got[1].Total != 123457 || got[1].Compute != 123457 || got[1].Disk != 0 {
 		t.Errorf("bucket 1 = %+v", got[1])
 	}
+	if n := e.srv.Calls(podtest.OpBilling); n != 2 {
+		t.Errorf("billing calls = %d, want one per own pod", n)
+	}
 	r, _ := e.srv.Last(podtest.OpBilling)
-	for _, want := range []string{"bucketSize=hour", "startTime=2026-11-21T12%3A00%3A00Z", "endTime=2026-11-21T15%3A00%3A00Z"} {
+	for _, want := range []string{"podId=mine2", "bucketSize=hour", "startTime=2026-11-21T12%3A00%3A00Z", "endTime=2026-11-21T15%3A00%3A00Z"} {
 		if !strings.Contains(r.Query, want) {
 			t.Errorf("query %q lacks %s", r.Query, want)
 		}
