@@ -717,6 +717,33 @@ image second, capability third**: a server that decodes strictly must understand
 Rollback: `contract close` stops new `/2` work at once; to return to the previous image, provision the previous digest (the gate closes by
 itself on the digest change). Plain jobs are unaffected throughout.
 
+### Wave W2 (M5b Ears): canary cases `tier-b` and `analyze`
+
+Wave W2 ships the listening check: the image carries capabilities `v2 ears analyze`. Order (C341.2, the checklist above): server release with
+every server lane of the track deployed, CI image, digest PR, attended provision, regression canary `main`, then the two Ears cases.
+
+**These canaries spend real money and need the operator's written approval**: the case list and `--max-usd` per case, in writing, before the
+first command. They are never run by an agent on its own, unattended or in CI. Print the worst case first, it spends nothing and needs no
+token: `metamusic runpod canary --case tier-b --dry-run` (the same text for `analyze`). The figures are illustrative; the real estimate is
+compared with `--max-usd` before any spend.
+
+1. `metamusic runpod canary --url URL --case main --max-usd N` (plain `/1` regression).
+2. Open the capabilities **only right before the approved canary**: `metamusic runpod contract open --caps v2,ears,analyze --reason "canary W2: <approval ref>"`.
+3. `metamusic runpod canary --url URL --case tier-b --max-usd N`: a render with synthetic sung lyrics, a score and `options.tier_b: true`.
+   Passes when the take completes, the stored document has status `ok` and three `ok` stages, `get_track_tier_b` answers, measured sections exist
+   (or the flag is `alignment_failed`), and the report's `measured` carries `ears_seconds`, `ears_timings`, `peak_vram_mib` and the suggested
+   `ears_load_s` and `ears_rtf_milli`.
+4. `metamusic runpod canary --url URL --case analyze --max-usd N [--source-track ID]`: an analyze item for a take. Without `--source-track` it
+   first renders one `main` take (its checks are listed as `source.*`), and `--max-usd` then bounds the **sum** of both estimate ceilings, so
+   approve the sum. With `--source-track` the operator's take is analyzed and never discarded.
+5. **On any failure** (exit other than 0, a trip, a closed capability in `get_provider_status`): `metamusic runpod contract close --caps ears,analyze --reason TEXT`
+   (add `v2` only when the plain `/2` wire is in doubt), find the cause, and do not reopen until a case passes again.
+6. After both pass, the measured seconds calibrate the quote: set `MM_EARS_LOAD_S` and `MM_EARS_RTF_MILLI` (attended env change, then
+   `metamusic config check`), see "Listening checks: the quote".
+
+Each case refuses before any spend (exit 3) when the provider status does not list the capabilities it needs (`v2` and `ears`; `analyze` also
+needs `analyze`), exactly like `v2-wire`.
+
 ### Rebuild deploy (`0020_job_kinds`)
 
 The `jobs` table was rebuilt once for the whole program (new columns `kind`, `needs_json`, `spec_json`). As for `0015`, run it first on a

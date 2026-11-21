@@ -34,6 +34,8 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 		{runpod.CaseKillSwitch, 64, "melody", 128},
 		{runpod.CaseV2Wire, 8, "melody", 30},
 		{runpod.CaseFallback, 8, "melody", 30},
+		{runpod.CaseTierB, 8, "melody", 30},   // sung recipe: canary_ears_test.go
+		{runpod.CaseAnalyze, 8, "melody", 30}, // sung recipe: canary_ears_test.go
 	}
 	if len(runpod.CanaryCases) != len(rows) {
 		t.Fatalf("cases = %v", runpod.CanaryCases)
@@ -47,6 +49,9 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 			}
 			if want := "mm-canary-20261014-" + string(r.c) + "-3"; s.RequestID != want {
 				t.Errorf("id = %q want %q", s.RequestID, want)
+			}
+			if r.c == runpod.CaseTierB || r.c == runpod.CaseAnalyze {
+				return
 			}
 			p, err := yue2.ParseRequest(s.Recipe, yue2.ParseOptions{})
 			if err != nil {
@@ -868,7 +873,7 @@ func TestParseCanaryCase_ErrorGenerated(t *testing.T) {
 	if err == nil {
 		t.Fatal("accepted")
 	}
-	want := "(want main, cot-full, terminate, timeout, kill-switch, v2-wire or fallback)"
+	want := "(want main, cot-full, terminate, timeout, kill-switch, v2-wire, fallback, tier-b or analyze)"
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("error = %q, want it to contain %q", err, want)
 	}
