@@ -7,7 +7,7 @@
   interface Props {
     trackId: string;
     /** Called with each dossier that loads (null when there is none), so the listening check panel can tell whether it has a check to read (M5b W1). */
-    ondossier?: (d: components["schemas"]["Dossier"] | null) => void;
+    ondossier?: (d: components["schemas"]["Dossier"] | null, why?: "none" | "failed") => void;
   }
   let { trackId, ondossier }: Props = $props();
 
@@ -26,7 +26,7 @@
         if (mine !== trackId) return;
         if (!d.data) {
           message = d.error?.message ?? "No analysis yet";
-          ondossier?.(null);
+          ondossier?.(null, d.response.status === 404 ? "none" : "failed");
           return;
         }
         let spec: components["schemas"]["SpectrogramView"] | null = null;
@@ -41,7 +41,7 @@
       } catch {
         if (mine === trackId) {
           message = "Failed to load the analysis";
-          ondossier?.(null);
+          ondossier?.(null, "failed");
         }
       } finally {
         if (mine === trackId) loading = false;

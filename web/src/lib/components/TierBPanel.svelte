@@ -12,9 +12,11 @@
     trackId: string;
     /** The dossier (EarsPanel's); null while it loads or when there is none. */
     dossier: { tier: string; flags: readonly { code: string }[] } | null;
+    /** The dossier request failed (not "no analysis"): the panel cannot say whether a check exists. */
+    failed?: boolean;
     go: (to: string) => void;
   }
-  let { trackId, dossier, go }: Props = $props();
+  let { trackId, dossier, failed = false, go }: Props = $props();
 
   let data = $state<TierB | null>(null);
   let checkState = $state("");
@@ -63,7 +65,9 @@
 
 <section class="card" aria-label="Listening check" data-testid="tierb-panel">
   <h2>Listening check</h2>
-  {#if loading}
+  {#if failed && !dossier}
+    <p class="muted" role="status" data-testid="tierb-failed">Could not tell whether this take has a listening check.</p>
+  {:else if loading}
     <p class="muted">Loading…</p>
   {:else if message}
     <p class="muted" role="status">{message}</p>

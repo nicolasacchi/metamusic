@@ -44,6 +44,16 @@ describe("EstimateView listening check", () => {
     expect(h).toContain('data-testid="skip-tierb"');
     expect(h).not.toMatch(/data-testid="skip-tierb"[^>]*checked/);
   });
+  test("when no take gets a check there is no Skip box and the summary says so", () => {
+    const e = base([take(0), take(1)], "new_seed", { warnings: [{ code: "tier_b_unavailable", field: "options.tier_b", message: "m", severity: "warning", take_index: 0 }] });
+    const h = view(e, { onskip: () => {} });
+    expect(h).toContain("No take gets a listening check after the render.");
+    expect(h).not.toContain('data-testid="skip-tierb"');
+    expect(h).toContain('data-testid="skip-tierb"'.length ? "No listening check: the worker image" : "");
+  });
+  test("a ticked Skip box stays so it can be un-ticked", () => {
+    expect(view(base([take(0)]), { skipTierB: true, onskip: () => {} })).toContain('data-testid="skip-tierb"');
+  });
   test("a closed worker image is said in plain words, not as a code", () => {
     const e = base([take(0)], "new_seed", { warnings: [{ code: "tier_b_unavailable", field: "options.tier_b", message: "m", severity: "warning", take_index: 0 }] });
     const h = view(e, { onskip: () => {} });
@@ -102,5 +112,11 @@ describe("AnalyzeButton and TierBPanel", () => {
     const h = clean(render(TierBPanel as never, { props: { trackId: "t1", dossier: null, go: () => {} } } as never).body);
     expect(h).toContain('data-testid="tierb-panel"');
     expect(h).toContain("Loading");
+  });
+  test("a failed dossier load does not claim there is no check and offers no Analyze", () => {
+    const h = clean(render(TierBPanel as never, { props: { trackId: "t1", dossier: null, failed: true, go: () => {} } } as never).body);
+    expect(h).toContain("Could not tell whether");
+    expect(h).not.toContain("not rendered with one");
+    expect(h).not.toContain("analyze-button");
   });
 });

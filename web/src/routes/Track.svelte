@@ -100,6 +100,7 @@
 
   // The listening check panel reads the Ears dossier (is a check stored?) before it asks for the check (M5b W1).
   let dossier = $state<{ tier: string; flags: readonly { code: string }[] } | null>(null);
+  let dossierFailed = $state(false);
   $effect(() => {
     void id;
     dossier = null;
@@ -363,8 +364,11 @@
           <TrackLrc trackId={id} has={true} current={isCurrent ? player.state.current : null} onseek={seek} />
         {/if}
         <MetricsCard analysis={track.analysis} truncated={track.truncated} />
-        <EarsPanel trackId={id} ondossier={(d) => (dossier = d ? { tier: d.tier, flags: d.flags } : { tier: "0", flags: [] })} />
-        <TierBPanel trackId={id} {dossier} go={navigate ?? pushNavigate} />
+        <EarsPanel trackId={id} ondossier={(d, why) => {
+          dossier = d ? { tier: d.tier, flags: d.flags } : why === "none" ? { tier: "0", flags: [] } : null;
+          dossierFailed = !d && why !== "none";
+        }} />
+        <TierBPanel trackId={id} {dossier} failed={dossierFailed} go={navigate ?? pushNavigate} />
         <LineageDuels
           trackId={id}
           rootId={track.lineage.root_track_id}

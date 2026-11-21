@@ -18,7 +18,9 @@
 
   const tb = $derived(tierBSummary(e));
   const costLine = $derived(can("get_spend") ? checkCostLine(e, without) : "");
-  const choice = $derived(hasListeningCheckChoice(e) && onskip !== undefined);
+  const offered = $derived(hasListeningCheckChoice(e) && onskip !== undefined);
+  // with no take getting a check (the worker image closed) a Skip box is pointless, unless it is already ticked and must be un-tickable
+  const choice = $derived(offered && (tb.checked > 0 || skipTierB));
 
   const reasons = $derived(confirmDisabledReasons(e));
   const allTakes = $derived(e.items.flatMap((it) => it.takes));
@@ -43,7 +45,7 @@
     </tbody>
   </table>
 
-  {#if tb.analyze || choice || tb.checked > 0}
+  {#if tb.analyze || offered || tb.checked > 0}
     <div class="check" data-testid="tierb-estimate">
       <h3>Listening check</h3>
       <p data-testid="tierb-summary">
@@ -51,6 +53,8 @@
           Listens to the vocals of {tb.total} take{tb.total === 1 ? "" : "s"}: speech recognition and pitch tracking, no new audio.
         {:else if skipTierB}
           Skipped: no take gets a listening check.
+        {:else if tb.checked === 0}
+          No take gets a listening check after the render.
         {:else}
           {tb.checked} of {tb.total} take{tb.total === 1 ? "" : "s"} get{tb.total === 1 && tb.checked === 1 ? "s" : ""} a listening check after the render.
         {/if}

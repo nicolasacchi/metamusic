@@ -57,7 +57,6 @@ test("with the worker image closed for it, Analyze is disabled and says why", as
   const panel = page.getByTestId("tierb-panel");
   await expect(panel.getByTestId("analyze-unavailable")).toContainText("the worker image is not open for it (missing: ears, analyze)");
   await expect(panel.getByTestId("analyze-button")).toBeDisabled();
-  await panel.getByTestId("analyze-button").click({ force: true, trial: true }).catch(() => undefined);
   await expect(page).toHaveURL(new RegExp(`/tracks/${other.id}$`));
 });
 
