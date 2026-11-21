@@ -58,10 +58,16 @@ func TestBench_REST(t *testing.T) {
 	r := servertest.New(t, servertest.Options{Fixture: true})
 	r.Settle(t)
 	owner := r.Human(t)
-	for i, tk := range []string{lt.TrackLuna, lt.TrackCitta} {
+	for i, tk := range []string{lt.TrackTwinA, lt.TrackTwinB} {
 		if _, err := r.Store.W.Exec(`INSERT INTO analyses(track_id, analyzer, version, tier, metrics_json, created_at) VALUES (?, 'energy', 'mm-energy/1 x', 'A', ?, ?)`,
 			tk, fmt.Sprintf(`{"energy":0.%d}`, i+1), "2026-11-21T10:00:00.000Z"); err != nil {
 			t.Fatal(err)
+		}
+	}
+	// Tier A critics are listed only with reference pairs: two takes of one lineage, rated differently by the Owner (C385.1)
+	for tk, stars := range map[string]int{lt.TrackTwinA: 2, lt.TrackTwinB: 4} {
+		if resp := put(t, owner, "/api/tracks/"+tk+"/rating", map[string]any{"stars": stars}); resp.Status != 200 {
+			t.Fatalf("rate: %d %s", resp.Status, resp.Body)
 		}
 	}
 	count := func() (n int) {

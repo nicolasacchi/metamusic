@@ -395,3 +395,23 @@ func TestBench_SourcesSortedByTier(t *testing.T) {
 		t.Errorf("order %s", got)
 	}
 }
+
+// Rule pinned (amendment M6N-B1): a Tier A critic is listed only when a readable value exists for some take in the reference
+// windows. Values on takes outside any pair, with no pairs at all, do not list it; the moment a pair exists it is listed.
+func TestBench_TierAValuesWithoutPairsAbsent(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	root := e.take("")
+	other := e.take(root)
+	e.analysis(root, "energy", "e", `{"energy":0.2}`)
+	e.analysis(other, "energy", "e", `{"energy":0.8}`)
+	if b := e.bench(criticbench.Query{IncludeUnknown: true}); find(b, "tier_a.energy") != nil {
+		t.Fatalf("values but no reference pairs must not list the critic: %+v", b.Critics)
+	}
+	e.ownerStars(root, 2)
+	e.ownerStars(other, 4)
+	c := find(e.bench(criticbench.Query{IncludeUnknown: true}), "tier_a.energy")
+	if c == nil || c.Scores.Ratings.Pairs != 1 {
+		t.Fatalf("with a pair the critic is listed: %+v", c)
+	}
+}
