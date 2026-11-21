@@ -3,16 +3,22 @@ package app
 import (
 	"context"
 
+	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/diction"
 	"github.com/nicolasacchi/metamusic/internal/ears"
 	"github.com/nicolasacchi/metamusic/internal/ears/earsjobs"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 )
 
 // The M5b Ears track wires itself here (G1 C328: tracks add internal/app/<track>.go and never edit Build): the Tier B take
 // hook and the CPU-only sweep that recomputes listening checks from the stored documents.
-func init() { RegisterBuildHook(wireEars) }
+func init() {
+	RegisterBuildHook(wireEars)
+	// The simulated worker's Tier B stage of a render (C329.2): the fake backend then reports the ears capability.
+	fake.RegisterSimKind(fake.SimKindEars, fake.EarsRenderHook)
+}
 
 func wireEars(env *BuildEnv) error {
 	svc := env.Services.Ears
@@ -41,6 +47,30 @@ func wireEars(env *BuildEnv) error {
 		}})
 	}
 	env.AddTakeHook(earsjobs.TierBHook{Ears: svc})
+	// Quote and plan the listening check (C339): renders with lyric lines get one by default, priced on top of the render's timeout.
+	if g := env.Services.Generation; g != nil {
+		g.UseEarsQuote(earsOptions(env.Cfg))
+	}
 	env.AddLoop(Loop{Name: "ears-tierb-sweep", Run: func(ctx context.Context) { svc.RunTierBSweep(ctx, ears.TierBSweepInterval) }})
 	return nil
+}
+
+// yue2LyricLines counts the sung lines of a lyrics text (section headers excluded), as the engine reads them.
+func yue2LyricLines(lyrics string) int {
+	n := 0
+	for _, s := range yue2.LyricsSections(lyrics) {
+		n += len(s.Lines)
+	}
+	return n
+}
+
+// earsOptions maps the config to the quote seam. A Config built by hand rather than by config.Load (tests, tools) has the three
+// values at zero, which no valid configuration has (MM_EARS_RTF_MILLI is at least 10): the defaults apply then.
+func earsOptions(c config.Config) generation.EarsOptions {
+	o := generation.EarsOptions{LoadS: c.EarsLoadS, RTFMilli: c.EarsRTFMilli, TranscribeRTFMilli: c.EarsTranscribeRTFMilli,
+		Language: yue2.DetectLanguage, LyricLines: yue2LyricLines}
+	if c.EarsRTFMilli == 0 {
+		o.LoadS, o.RTFMilli, o.TranscribeRTFMilli = 40, 150, 40
+	}
+	return o
 }

@@ -2418,6 +2418,10 @@
             "backend": {
               "type": "string"
             },
+            "tier_b": {
+              "description": "Listening check: absent auto, true require, false skip",
+              "type": "boolean"
+            },
             "trial_id": {
               "type": "string"
             }
@@ -2715,6 +2719,9 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "tier_b": {
+                      "type": "boolean"
                     },
                     "timeout_s": {
                       "format": "int64",
@@ -3217,6 +3224,9 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "tier_b": {
+                      "type": "boolean"
                     },
                     "timeout_s": {
                       "format": "int64",

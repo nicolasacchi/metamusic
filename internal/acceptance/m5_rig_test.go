@@ -70,7 +70,7 @@ func (l *m5Loop) proposeChorus(t *testing.T, comments []string, text string) map
 // batch (nil otherwise: the create result is returned as tool result for refusals).
 func (l *m5Loop) estimateAgent(t *testing.T, patch string, n int) *mcp.CallToolResult {
 	t.Helper()
-	return rawTool(t, l.agent, "estimate_generation", map[string]any{"items": []any{map[string]any{"mode": "song_pr", "patch_id": patch, "n_seeds": n}}}, false)
+	return rawTool(t, l.agent, "estimate_generation", map[string]any{"items": []any{map[string]any{"mode": "song_pr", "patch_id": patch, "n_seeds": n}}, "options": map[string]any{"tier_b": false}}, false)
 }
 
 func (l *m5Loop) createAgent(t *testing.T, est map[string]any) *mcp.CallToolResult {

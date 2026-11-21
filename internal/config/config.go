@@ -84,6 +84,12 @@ type Config struct {
 	Soundfonts              []Soundfont    // MM_SOUNDFONTS (T1b): empty => score_render disabled
 	FluidsynthPath          string         // MM_FLUIDSYNTH (T1b): absolute path override, "" => PATH lookup
 	Loc                     *time.Location // MM_TZ (G1 C324.2): the zone scheduled work runs in; nil (empty) => process zone; use Zone()
+
+	// M5b Ears (C330.5): the quote of a listening check, calibrated by the W2 canary. See config_ears.go.
+	EarsLoadS              int // MM_EARS_LOAD_S, default 40, 0..600 (model load seconds of the Tier B stage)
+	EarsRTFMilli           int // MM_EARS_RTF_MILLI, default 150, 10..2000 (separation + ASR seconds per 1000 s of audio)
+	EarsTranscribeRTFMilli int // MM_EARS_TRANSCRIBE_RTF_MILLI, default 40, 0..2000 (the pitch-contour stage)
+	AnalyzeFetchS          int // MM_ANALYZE_FETCH_S, default 20, 5..300 (fetch seconds of an analyze job)
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -148,7 +154,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 	} else if uerr = checkUsersAuth(&c); uerr != nil {
 		errs = append(errs, uerr)
 	}
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2, loadG1} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2, loadG1, loadEars} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}

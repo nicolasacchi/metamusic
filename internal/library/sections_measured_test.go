@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/nicolasacchi/metamusic/internal/anchor"
 	"github.com/nicolasacchi/metamusic/internal/library"
 	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -117,4 +118,43 @@ func TestMeasuredSections_TakeOverPlanTiming(t *testing.T) {
 	if after.Timeline[0].StartS != 1.5 || after.Confidence == nil || *after.Confidence != 0.8 {
 		t.Errorf("start %v confidence %v, want 1.5 and 0.8", after.Timeline[0].StartS, after.Confidence)
 	}
+}
+
+// TestTimingChain_BestFirst: Timing answers with the best source alone; the chain lists every fully timed source, best first, and
+// its head is Timing's answer.
+func TestTimingChain_BestFirst(t *testing.T) {
+	t.Parallel()
+	st, svc := measuredRig(t)
+	id := lt.TrackLuna
+	ctx := context.Background()
+	before, err := library.TimingChain(ctx, st.R, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addMeasured(t, st, svc, id, measuredSecs)
+	chain, err := library.TimingChain(ctx, st.R, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chain) != len(before)+1 || chain[0].Source != "measured" {
+		t.Fatalf("chain sources = %v (before %v)", sources(chain), sources(before))
+	}
+	best, err := library.Timing(ctx, st.R, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := cmp.Diff(best, chain[0]); d != "" {
+		t.Errorf("Timing != chain head (-timing +chain):\n%s", d)
+	}
+	if _, err := library.TimingChain(ctx, st.R, "no-such-track"); err == nil {
+		t.Error("unknown track: no error")
+	}
+}
+
+func sources(c []anchor.Timing) []string {
+	out := []string{}
+	for _, t := range c {
+		out = append(out, t.Source)
+	}
+	return out
 }

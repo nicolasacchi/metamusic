@@ -36,6 +36,11 @@ var earsCases = []ParityCase{
 	{Op: "set_diction_marks", Variant: "unknown line", Args: fixedArgs(map[string]any{"id": lt.TrackLuna, "marks": []map[string]any{{"section_idx": 7, "line_idx": 0, "mark": "clear"}}}), Status: 422},
 	{Op: "get_diction_lexicon", Args: fixedArgs(map[string]any{"lang": "it", "limit": 10})},
 	{Op: "update_lexicon_entry", Args: fixedArgs(map[string]any{"lang": "it", "word": "luna", "status": "ignored", "note": "a place"})},
+	// EARS-G1 (C339): the amended estimate answers the same body over REST and call_operation, with the listening check on, off and refused
+	{Op: "estimate_generation", Variant: "tier_b true", Masks: estimateMasks, Args: fixedArgs(map[string]any{"options": map[string]any{"tier_b": true},
+		"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 2}}})},
+	{Op: "estimate_generation", Variant: "tier_b false", Masks: estimateMasks, Args: fixedArgs(map[string]any{"options": map[string]any{"tier_b": false},
+		"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 2}}})},
 	{Op: "update_lexicon_entry", Variant: "short unknown word", Args: fixedArgs(map[string]any{"lang": "it", "word": "ab", "status": "ignored"}), Status: 404},
 }
 
