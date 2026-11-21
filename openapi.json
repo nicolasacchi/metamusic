@@ -1850,6 +1850,38 @@
         ],
         "type": "object"
       },
+      "Bench": {
+        "additionalProperties": false,
+        "properties": {
+          "critics": {
+            "items": {
+              "$ref": "#/components/schemas/Critic"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/Rule"
+          },
+          "window": {
+            "$ref": "#/components/schemas/Window"
+          }
+        },
+        "required": [
+          "generated_at",
+          "window",
+          "rule",
+          "critics",
+          "note"
+        ],
+        "type": "object"
+      },
       "BinauralParams": {
         "additionalProperties": false,
         "properties": {
@@ -4912,6 +4944,96 @@
           "last_used_at",
           "revoked_at",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "Critic": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "description": "+1 when a larger value is hypothesised to be better, -1 when smaller; null for a critic that names winners",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Stable id, e.g. tier_a.true_peak or agent.stars:agent:\u003ctoken\u003e",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "metric",
+              "pairwise",
+              "labels"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "min_delta": {
+            "description": "The smallest difference of values that counts as a call; null for a critic that names winners",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "provenance": {
+            "description": "Where the values come from, and that a direction is a hypothesis",
+            "type": "string"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/Scores"
+          },
+          "slot_bias": {
+            "$ref": "#/components/schemas/SlotBiasOf",
+            "description": "A duel critic's share of verdicts that named slot A; else null"
+          },
+          "state": {
+            "description": "The ratings state, or the duels state when ratings is insufficient (lines for a label critic)",
+            "enum": [
+              "insufficient",
+              "unknown",
+              "trusted",
+              "contrary"
+            ],
+            "type": "string"
+          },
+          "thresholds": {
+            "description": "Label critics: agreement with the Owner's marks at each CER threshold; else null",
+            "items": {
+              "$ref": "#/components/schemas/Threshold"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tier": {
+            "enum": [
+              "A",
+              "B",
+              "agent",
+              "diction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "tier",
+          "direction",
+          "min_delta",
+          "provenance",
+          "scores",
+          "state",
+          "thresholds",
+          "slot_bias"
         ],
         "type": "object"
       },
@@ -16054,6 +16176,105 @@
         ],
         "type": "object"
       },
+      "Rule": {
+        "additionalProperties": false,
+        "properties": {
+          "contrary_upper": {
+            "format": "double",
+            "type": "number"
+          },
+          "min_n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "trusted_lower": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_n",
+          "trusted_lower",
+          "contrary_upper"
+        ],
+        "type": "object"
+      },
+      "Score": {
+        "additionalProperties": false,
+        "properties": {
+          "agree": {
+            "description": "Pairs the critic called the way the operator did",
+            "format": "int64",
+            "type": "integer"
+          },
+          "coverage": {
+            "description": "Pairs on which the critic has a value, over the pairs of the window",
+            "format": "double",
+            "type": "number"
+          },
+          "disagreements": {
+            "description": "Newest 10 pair keys (a|b) or duel ids the critic called the other way; only when one critic is requested",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "hi": {
+            "description": "Wilson 95 % upper bound at n_eff",
+            "format": "double",
+            "type": "number"
+          },
+          "lo": {
+            "description": "Wilson 95 % lower bound at n_eff",
+            "format": "double",
+            "type": "number"
+          },
+          "n_eff": {
+            "description": "Effective sample size: the smaller of the pairs the critic called and the distinct takes in them",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pairs": {
+            "description": "Pairs of the reference on which the critic has a value",
+            "format": "int64",
+            "type": "integer"
+          },
+          "predicted": {
+            "description": "Pairs on which the critic called a winner",
+            "format": "int64",
+            "type": "integer"
+          },
+          "rate": {
+            "description": "agree / predicted",
+            "format": "double",
+            "type": "number"
+          },
+          "state": {
+            "enum": [
+              "insufficient",
+              "unknown",
+              "trusted",
+              "contrary"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairs",
+          "n_eff",
+          "agree",
+          "predicted",
+          "rate",
+          "lo",
+          "hi",
+          "state",
+          "coverage"
+        ],
+        "type": "object"
+      },
       "ScoreRenderParams": {
         "additionalProperties": false,
         "properties": {
@@ -16128,6 +16349,26 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "Scores": {
+        "additionalProperties": false,
+        "properties": {
+          "duels": {
+            "$ref": "#/components/schemas/Score"
+          },
+          "lines": {
+            "$ref": "#/components/schemas/Score"
+          },
+          "ratings": {
+            "$ref": "#/components/schemas/Score"
+          }
+        },
+        "required": [
+          "ratings",
+          "duels",
+          "lines"
+        ],
         "type": "object"
       },
       "SectionOut": {
@@ -16906,6 +17147,41 @@
           "track",
           "gain_db",
           "window_lufs"
+        ],
+        "type": "object"
+      },
+      "SlotBiasOf": {
+        "additionalProperties": false,
+        "properties": {
+          "biased": {
+            "description": "At least 20 verdicts and 0.5 is outside the interval",
+            "type": "boolean"
+          },
+          "hi": {
+            "format": "double",
+            "type": "number"
+          },
+          "lo": {
+            "format": "double",
+            "type": "number"
+          },
+          "n": {
+            "description": "Verdicts that named a slot",
+            "format": "int64",
+            "type": "integer"
+          },
+          "share": {
+            "description": "Share that named slot A",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "n",
+          "share",
+          "lo",
+          "hi",
+          "biased"
         ],
         "type": "object"
       },
@@ -20229,6 +20505,47 @@
         "required": [
           "term",
           "count"
+        ],
+        "type": "object"
+      },
+      "Threshold": {
+        "additionalProperties": false,
+        "properties": {
+          "agree": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ci95": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "mixed": {
+            "format": "double",
+            "type": "number"
+          },
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rate": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "mixed",
+          "n",
+          "agree",
+          "rate",
+          "ci95"
         ],
         "type": "object"
       },
@@ -23930,6 +24247,37 @@
         ],
         "type": "object"
       },
+      "Window": {
+        "additionalProperties": false,
+        "properties": {
+          "duel_pairs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lines": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rating_pairs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "since": {
+            "description": "The oldest pair in either window; null when there are none",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rating_pairs",
+          "duel_pairs",
+          "lines",
+          "since"
+        ],
+        "type": "object"
+      },
       "WorkerStatusView": {
         "additionalProperties": false,
         "properties": {
@@ -25925,6 +26273,67 @@
           "mcp": "generic",
           "ui": "/crates/:id",
           "human_only": false
+        }
+      }
+    },
+    "/api/critic-bench": {
+      "get": {
+        "description": "Every critic (Tier A measurements such as true peak, the stars and duel verdicts of each agent, later the listening-check scalars and the diction classifier) against the Owner's own judgement: pairs of takes in the same lineage with different Owner stars, and the Owner's blind duel verdicts. Per critic and reference: pairs, effective sample size, agreement rate and its Wilson 95 % interval, and a state: trusted (n_eff at least 30 and lower bound above 0.55), contrary (n_eff at least 30 and upper bound below 0.45), insufficient (n_eff under 30) or unknown. A direction is a hypothesis, not a finding. Nothing is discarded or acted on automatically. Pass critic for one critic and its disagreements. Reads only.",
+        "operationId": "get_critic_bench",
+        "parameters": [
+          {
+            "description": "One critic id (see the ids in the answer): only that critic is returned, with the newest ten pairs it called the other way",
+            "explode": false,
+            "in": "query",
+            "name": "critic",
+            "schema": {
+              "description": "One critic id (see the ids in the answer): only that critic is returned, with the newest ten pairs it called the other way",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "description": "false drops the critics that say nothing yet (state unknown or insufficient)",
+            "explode": false,
+            "in": "query",
+            "name": "include_unknown",
+            "schema": {
+              "default": true,
+              "description": "false drops the critics that say nothing yet (state unknown or insufficient)",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bench"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Measure how well each critic agrees with the Owner",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/critics",
+          "human_only": false,
+          "owner_only": true
         }
       }
     },
