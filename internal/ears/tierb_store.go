@@ -131,14 +131,18 @@ func dictionDocOf(res tierb.DictionResult, secs []yue2.Section) tierBDictionDoc 
 	return d
 }
 
-// rawVersion is "mm-tierb-raw/1 <asr model>@<sha12>": a different model gives a different row.
-func rawVersion(r tierb.Raw) string {
+// short12 is the first twelve characters of a hex digest.
+func short12(sha string) string { return sha[:min(12, len(sha))] }
+
+// rawVersion is "mm-tierb-raw/1 <asr model>@<sha12> <document sha12>": a different model or a different document gives a
+// different row, so a later document is never shadowed by an earlier row.
+func rawVersion(r tierb.Raw, art library.ArtifactRef) string {
 	m := "none"
 	if r.Models.ASR != nil {
 		sha := r.Models.ASR.SHA256
 		m = r.Models.ASR.Name + "@" + sha[:min(12, len(sha))]
 	}
-	return tierBRawDef + " " + m
+	return tierBRawDef + " " + m + " " + short12(art.SHA256)
 }
 
 // readTierBDocument returns the newest analysis*.json artifact of the track with its bytes, checked against its row.
@@ -235,7 +239,7 @@ func (s *Service) AnalyzeTierB(ctx context.Context, trackID string) (TierBOutcom
 		}
 		return nil
 	}
-	if err := insert(anTierBRaw, rawVersion(raw), rd); err != nil {
+	if err := insert(anTierBRaw, rawVersion(raw, art), rd); err != nil {
 		return out, err
 	}
 	if diction != nil {
@@ -260,10 +264,14 @@ func (s *Service) AnalyzeTierB(ctx context.Context, trackID string) (TierBOutcom
 			if err != nil {
 				return out, err
 			}
+			if n == 0 {
+				diction.Measured = tierBMeasuredNote{Status: measuredNone} // aligned, but nothing to place
+				break
+			}
 			diction.Measured = tierBMeasuredNote{Status: measuredWritten, Sections: n}
 		}
 		out.Measured, out.Sections = diction.Measured.Status, diction.Measured.Sections
-		if err := insert(anTierBDiction, tierBDictionDef+" "+tierBGoTag, diction); err != nil {
+		if err := insert(anTierBDiction, tierBDictionDef+" "+tierBGoTag+" "+short12(art.SHA256), diction); err != nil {
 			return out, err
 		}
 	}

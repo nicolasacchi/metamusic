@@ -6,6 +6,7 @@ package ears
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/analysis"
@@ -48,7 +49,12 @@ type Options struct {
 }
 
 // Service is the Ears service. An unwired Service (Options{}) answers errors.ErrUnsupported.
-type Service struct{ o Options }
+type Service struct {
+	o Options
+
+	badMu   sync.Mutex
+	badDocs map[string]string // track id -> document token of a stored document the sweep could not parse (skipped until it changes)
+}
 
 // AnalyzeOptions tunes AnalyzeTrack.
 type AnalyzeOptions struct{ Force bool }

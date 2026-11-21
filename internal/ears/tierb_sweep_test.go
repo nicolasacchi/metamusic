@@ -161,10 +161,10 @@ func TestTierBSweep_RecomputesFromArtifact(t *testing.T) {
 	if n := r.count(`SELECT count(*) FROM analyses WHERE track_id = ? AND analyzer = 'tier_b_diction'`, lt.TrackLuna); n != 2 {
 		t.Errorf("diction rows = %d, want the old and the new", n)
 	}
-	// an adherence row of a superseded definition is a candidate too
+	// an adherence row of a superseded definition is not a candidate while no writer exists (EARS-F2)
 	r.exec(`INSERT INTO analyses(track_id, analyzer, version, tier, metrics_json, created_at) VALUES (?, 'tier_b_adherence', 'mm-adherence/0 go0', 'B', '{}', ?)`, lt.TrackLuna, storeNow(r))
-	if rep, _ := r.svc.TierBSweep(ctx); rep.Candidates != 1 {
-		t.Errorf("superseded adherence is not a candidate: %+v", rep)
+	if rep, _ := r.svc.TierBSweep(ctx); rep.Candidates != 0 {
+		t.Errorf("superseded adherence is a candidate: %+v", rep)
 	}
 	// the raw row is gone entirely (a restore without derived rows)
 	r.dropTriggers("analyses_no_delete")
@@ -205,6 +205,7 @@ func TestTierB_NoAnalysisOfOldTakes(t *testing.T) {
 	t.Parallel()
 	r := newRig(t, withTierARows())
 	r.seedJob("plain", "generate", `["v2"]`, "", lt.TrackLuna, "completed")
+	r.seedJob("ears-no-doc", "generate", `["ears","v2"]`, "", lt.TrackCitta, "completed") // needs ears, no document arrived
 	jobs, rows := r.count(`SELECT count(*) FROM jobs`), r.count(`SELECT count(*) FROM analyses`)
 	rep, err := r.svc.TierBSweep(context.Background())
 	if err != nil || rep.Candidates != 0 || rep.Analysed != 0 {
@@ -248,4 +249,38 @@ func TestRunTierBSweep_RunsAtStartAndEveryInterval(t *testing.T) {
 			t.Error("the loop did not return after its context ended")
 		}
 	})
+}
+
+// TestTierBSweep_BadDocumentsDoNotStarve: more than a pass worth of unparseable documents neither repeat every pass nor hide the
+// good track behind them.
+func TestTierBSweep_BadDocumentsDoNotStarve(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r := newRig(t, withTierARows())
+	// Luna and Citta sort first or last by id; the bad ones are the tracks before the good one.
+	r.putDoc(lt.TrackCitta, "analysis.json", []byte("{}"), time.Hour)
+	r.putDoc(lt.TrackLuna, "analysis.json", tierbtest.FromLyrics(lunaLyrics, tierbtest.Opts{}), time.Hour)
+	rep, _ := r.svc.TierBSweep(ctx)
+	if rep.Analysed != 1 || len(rep.Failed) != 1 {
+		t.Fatalf("first pass = %+v", rep)
+	}
+	if rep, _ := r.svc.TierBSweep(ctx); rep.Candidates != 0 || len(rep.Failed) != 0 {
+		t.Errorf("a known-bad document is retried: %+v", rep)
+	}
+	// a newer document of the same track is tried again
+	r.putDoc(lt.TrackCitta, "analysis-2.json", []byte("{}"), time.Minute)
+	if rep, _ := r.svc.TierBSweep(ctx); len(rep.Failed) != 1 {
+		t.Errorf("a new document was not retried: %+v", rep)
+	}
+}
+
+// TestTierBState_RunningRenderIsNotMissing: a render that has not completed is not yet a missing document (C337.4).
+func TestTierBState_RunningRenderIsNotMissing(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, withTierARows())
+	id := r.seedJob("ears-running", "generate", `["ears","v2"]`, "", lt.TrackLuna, "queued")
+	r.exec(`UPDATE jobs SET track_id = ? WHERE id = ?`, lt.TrackLuna, id)
+	if got, err := r.svc.TierBState(context.Background(), lt.TrackLuna); err != nil || got != "none" {
+		t.Errorf("state = %q, %v, want none", got, err)
+	}
 }

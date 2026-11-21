@@ -80,7 +80,7 @@ func TestAnalyzeTierB_Stores(t *testing.T) {
 	}
 	rows := r.tierBRows(lt.TrackLuna)
 	if len(rows) != 2 || !strings.HasPrefix(rows[0], "tier_b_diction mm-diction/1 go1") ||
-		rows[1] != "tier_b_raw mm-tierb-raw/1 faster-whisper-large-v3@bbbbbbbbbbbb" {
+		!strings.HasPrefix(rows[1], "tier_b_raw mm-tierb-raw/1 faster-whisper-large-v3@bbbbbbbbbbbb ") {
 		t.Fatalf("rows = %q", rows)
 	}
 	ctx := context.Background()
@@ -360,5 +360,25 @@ func TestGETNeverWritesDB_TierB(t *testing.T) {
 	}
 	if after := snap(); after != before {
 		t.Errorf("a read wrote: %v -> %v", before, after)
+	}
+}
+
+// TestAnalyzeTierB_LaterDocumentNotShadowed: a second document (another model or other content) gets its own raw and diction
+// rows and the read side shows it whole, not the new counts over the old diction.
+func TestAnalyzeTierB_LaterDocumentNotShadowed(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, withTierARows())
+	r.putDoc(lt.TrackLuna, "analysis.json", tierbtest.FromLyrics(lunaLyrics, tierbtest.Opts{Lang: "auto"}), 2*time.Hour)
+	r.analyze(lt.TrackLuna)
+	r.dropTriggers("analyses_immutable")
+	r.exec(`UPDATE analyses SET created_at = ? WHERE track_id = ? AND tier = 'B'`, store.FormatTime(r.now.Add(-time.Hour)), lt.TrackLuna)
+	r.putDoc(lt.TrackLuna, "analysis-2.json", tierbtest.FromLyrics(lunaLyrics, tierbtest.Opts{Lang: "it"}), time.Hour)
+	r.analyze(lt.TrackLuna)
+	if n := len(r.tierBRows(lt.TrackLuna)); n != 4 {
+		t.Fatalf("rows = %d (%v), want raw and diction of each document", n, r.tierBRows(lt.TrackLuna))
+	}
+	tb, err := r.svc.TierB(context.Background(), lt.TrackLuna)
+	if err != nil || tb.Language != "it" {
+		t.Errorf("TierB language %q (%v), want the later document", tb.Language, err)
 	}
 }

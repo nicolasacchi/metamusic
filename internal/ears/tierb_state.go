@@ -27,7 +27,7 @@ func (s *Service) tierBProgress(ctx context.Context, trackID string) (doc, analy
 	err = s.o.Store.R.QueryRowContext(ctx, `SELECT
 		EXISTS (SELECT 1 FROM artifacts WHERE track_id = ?1 AND name LIKE 'analysis%.json'),
 		EXISTS (SELECT 1 FROM jobs WHERE kind = 'analyze' AND source_track_id = ?1 AND state NOT IN ('completed','failed','cancelled','expired')),
-		EXISTS (SELECT 1 FROM jobs WHERE kind = 'generate' AND track_id = ?1 AND EXISTS (SELECT 1 FROM json_each(jobs.needs_json) WHERE value = 'ears'))`,
+		EXISTS (SELECT 1 FROM jobs WHERE kind = 'generate' AND state = 'completed' AND track_id = ?1 AND EXISTS (SELECT 1 FROM json_each(jobs.needs_json) WHERE value = 'ears'))`,
 		trackID).Scan(&doc, &analyzing, &rendered)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, false, false, fmt.Errorf("ears: tier B state: %w", err)

@@ -101,6 +101,6 @@ func (r *rig) str(q string, a ...any) (s string) {
 func (r *rig) dropTriggers(names ...string) {
 	r.t.Helper()
 	for _, n := range names {
-		r.exec(`DROP TRIGGER ` + n)
+		r.exec(`DROP TRIGGER IF EXISTS ` + n)
 	}
 }
