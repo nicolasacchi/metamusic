@@ -2,6 +2,7 @@ package subsonic
 
 import (
 	"context"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/albums"
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -41,4 +42,11 @@ type albumSource interface {
 	ListWithSongs(ctx context.Context, kinds ...albums.Kind) ([]albums.Entry, error)
 	Get(ctx context.Context, id string) (albums.Album, []albums.Song, error)
 	Token(ctx context.Context) (string, error)
+}
+
+// LineTimes is the part of *diction.Service the synced lyrics use (C348). LineStarts answers one start per lyric line (section
+// separators excluded, in order; a negative duration marks a line without a measured time) and ok=true only when the starts come
+// from ASR word timings. A track the principal cannot read answers an error that wraps library.ErrNotFound.
+type LineTimes interface {
+	LineStarts(ctx context.Context, p auth.Principal, trackID string) (starts []time.Duration, ok bool, err error)
 }

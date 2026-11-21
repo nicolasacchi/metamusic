@@ -8,6 +8,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears/earsjobs"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/subsonic"
 )
 
 // The M5b Ears track wires itself here (G1 C328: tracks add internal/app/<track>.go and never edit Build): the Tier B take
@@ -24,6 +25,8 @@ func wireEars(env *BuildEnv) error {
 	env.Services.Deps.Diction = lab
 	// The lab feeds /context (C345.5), the draft lint (C345.4) and the estimate planner (C345.6).
 	svc.UseDiction(lab)
+	// Synced Subsonic lyrics (C348): optional, and only for takes with Tier B word timings.
+	subsonic.UseDiction(env.Subsonic, lab)
 	if d := env.Services.Deps.Drafts; d != nil {
 		d.UseDiction(lab)
 	}

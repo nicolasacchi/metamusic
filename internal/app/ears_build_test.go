@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears/tierb/tierbtest"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/store"
+	"github.com/nicolasacchi/metamusic/internal/subsonic"
 )
 
 // TestWireEars_RegisteredAtInit: a real Build carries the Tier B sweep loop (the build hook is registered at init).
@@ -77,5 +79,22 @@ func TestWireEars_DictionReachesLintAndContext(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("warnings = %+v", rep.Items[0].Warnings)
+	}
+}
+
+// TestWireEars_SubsonicHandlerReachable: a build hook sees the built Subsonic handler, and the Ears hook has attached the
+// Diction Lab to it (C348): UseDiction accepts that handler and refuses any other.
+func TestWireEars_SubsonicHandlerReachable(t *testing.T) {
+	t.Parallel()
+	var seen bool
+	build(t, app.Options{Hooks: []app.BuildHook{func(env *app.BuildEnv) error {
+		seen = env.Subsonic != nil && subsonic.UseDiction(env.Subsonic, nil)
+		return nil
+	}}})
+	if !seen {
+		t.Error("BuildEnv.Subsonic is not the Subsonic handler")
+	}
+	if subsonic.UseDiction(http.NotFoundHandler(), nil) {
+		t.Error("UseDiction accepted a foreign handler")
 	}
 }
