@@ -88,14 +88,20 @@ func TestCoverSeam_ResolvesRootsAndOwnerStars(t *testing.T) {
 	if _, _, err := r.svc.Cover(ctx, r.st.R, night, "no-such-mandate", "yue2", nil, 1, false); !isStatus(err, 404) {
 		t.Errorf("unknown mandate: %v", err)
 	}
-	if _, _, err := New(Options{Store: r.st}).Cover(ctx, r.st.R, night, focused.ID, "yue2", nil, 1, false); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("no spend service: %v", err)
+	// without a spend service the seam is unavailable: a 503 UNAVAILABLE problem, never a silent pass
+	if _, _, err := New(Options{Store: r.st}).Cover(ctx, r.st.R, night, focused.ID, "yue2", nil, 1, false); !isProblem(err, 503, "UNAVAILABLE") {
+		t.Errorf("no spend service: %v, want 503 UNAVAILABLE", err)
 	}
 }
 
 func isStatus(err error, status int) bool {
 	var pe *problem.Error
 	return errors.As(err, &pe) && pe.Status == status
+}
+
+func isProblem(err error, status int, code string) bool {
+	var pe *problem.Error
+	return errors.As(err, &pe) && pe.Status == status && pe.Code == code
 }
 
 func TestRecheck_ReadsThroughTheTransaction(t *testing.T) {
