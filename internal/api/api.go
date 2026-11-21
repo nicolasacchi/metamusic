@@ -252,6 +252,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerEars(a, d)
 	registerEarsB(a, d)
 	registerDiction(a, d)
+	registerRecoverEars(a, d)
 	registerGenerationM3(a, d)
 	registerBudgetM3(a, d)
 	registerSongwriting(a, d)

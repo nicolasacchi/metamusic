@@ -7,6 +7,7 @@
   import ModeForm from "../lib/components/ModeForm.svelte";
   import ModePanel from "../lib/components/ModePanel.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
+  import { estimateFailureText, hasListeningCheckChoice, tierBSummary } from "../lib/estimateTierB";
   import { capsOf, engineLabel, fetchEngines, modeUnavailable, pickerChoices, type EnginesResult } from "../lib/engines";
   import {
     ACESTEP,
@@ -20,6 +21,7 @@
     saveIntent,
     validateIntent,
     withEngine,
+    withSkipTierB,
     type EngineName,
     type GenerationIntent,
   } from "../lib/genIntent";
@@ -34,6 +36,9 @@
   let error = $state("");
   let busy = $state(false);
   let seq = 0;
+  // The same estimate with the listening check skipped: priced only to show what the check costs (M5b W1).
+  let without = $state<Estimate | null>(null);
+  let withoutSeq = 0;
 
   /** Edit modes, templates and compose need the user's input before there is anything to price. */
   function needsForm(i: GenerationIntent): boolean {
@@ -74,6 +79,8 @@
     const bad = validateIntent(i);
     error = bad ?? "";
     estimate = null;
+    without = null;
+    ++withoutSeq;
     if (bad) return;
     const mine = ++seq;
     busy = true;
@@ -84,13 +91,34 @@
           ? await api.POST("/api/tracks/{id}/variants/estimate", { params: { path: { id: call.trackId } }, body: call.body })
           : await api.POST("/api/generations/estimate", { body: call.body });
       if (mine !== seq) return;
-      if (r.data) estimate = r.data;
-      else error = r.error?.message ? `${r.error.code}: ${r.error.message}` : "Could not estimate.";
+      if (r.data) {
+        estimate = r.data;
+        void priceWithout(i, r.data);
+      } else error = estimateFailureText(r.response.status, r.error?.code ?? "", r.error?.message ?? "", r.error?.details as Record<string, unknown> | undefined);
     } catch {
       if (mine === seq) error = "Network error while estimating.";
     } finally {
       if (mine === seq) busy = false;
     }
+  }
+
+  /** What the listening check costs is the difference to the same batch without it: a second estimate, never confirmed. */
+  async function priceWithout(i: GenerationIntent, e: Estimate) {
+    if (i.skip_tier_b || !hasListeningCheckChoice(e) || tierBSummary(e).checked === 0) return;
+    const mine = withoutSeq;
+    try {
+      const call = intentToEstimate(withSkipTierB(i, true));
+      const r = call.kind === "variant" ? null : await api.POST("/api/generations/estimate", { body: call.body });
+      if (mine === withoutSeq && r?.data) without = r.data;
+    } catch {
+      // the cost line is optional
+    }
+  }
+  function skipTierB(skip: boolean) {
+    if (!intent) return;
+    intent = withSkipTierB(intent, skip);
+    saveIntent(sessionStorage, intent);
+    void run(intent);
   }
 
   /* svelte-ignore state_referenced_locally */
@@ -125,6 +153,7 @@
     {#if isVariantMode(intent.mode) && intent.parent_track_id}of <a href="/tracks/{intent.parent_track_id}">{intent.parent_track_id}</a>{/if}
     {#if intent.draft_ids}· {intent.draft_ids.length} draft{intent.draft_ids.length === 1 ? "" : "s"}{/if}
     {#if intent.mode === "from_template"}· {intent.parent_track_ids?.length ?? 0} tracks{/if}
+    {#if intent.mode === "analyze"}· listening check of {intent.track_ids?.length ?? 0} take{intent.track_ids?.length === 1 ? "" : "s"}{/if}
   </p>
   <ProviderBanner provider={estimate?.provider ?? null} />
   {#if engineSwitchable(intent)}
@@ -152,10 +181,12 @@
     {#if busy}<p class="muted" aria-busy="true">Estimating…</p>{/if}
     {#if error}<p role="alert" data-testid="estimate-error">{error}</p>{/if}
     {#if estimate}
-      <EstimateView {estimate} />
+      <EstimateView {estimate} {without} skipTierB={intent.skip_tier_b === true} onskip={skipTierB} />
       <ConfirmSpend {estimate} onbatch={opened} onreestimate={reestimate} />
     {/if}
-    <p><button type="button" onclick={() => (editing = true)} data-testid="change-options">Change options</button></p>
+    {#if intent.mode !== "analyze"}
+      <p><button type="button" onclick={() => (editing = true)} data-testid="change-options">Change options</button></p>
+    {/if}
   {/if}
 {/if}
 

@@ -2,6 +2,7 @@
   import { api } from "../../api/client";
   import { confirmButtonLabel, confirmDisabledReasons, confirmViaFor, createConfirmAction, describeConfirmFailure, type ConfirmOutcome, type EstimateLike } from "../confirm";
   import { can } from "../me.svelte";
+  import { isAnalyzeEstimate } from "../estimateTierB";
 
   interface Props {
     estimate: EstimateLike;
@@ -22,6 +23,8 @@
 
   const blocked = $derived(confirmDisabledReasons(estimate).length > 0);
   const view = $derived(failure ? describeConfirmFailure(failure) : null);
+  // an analyze batch is a listening check and nothing else: the button says what the money is for
+  const forCheck = $derived(isAnalyzeEstimate(estimate));
 
   async function click() {
     if (busy || blocked) return;
@@ -48,7 +51,7 @@
   {#if via === "request"}<p class="muted" data-testid="request-note">Nothing runs or is spent until the owner approves this request.</p>{/if}
   <p>
     <button type="button" class="primary" disabled={busy || blocked} onclick={click} data-testid="confirm-button">
-      {networkError ? "Retry: " : ""}{confirmButtonLabel(estimate, via)}
+      {networkError ? "Retry: " : ""}{confirmButtonLabel(estimate, via)}{forCheck ? " for the listening check" : ""}
     </button>
   </p>
   {#if networkError}<p role="alert" data-testid="confirm-network">Network error. Your request may have gone through: retrying is safe, it cannot spend twice.</p>{/if}

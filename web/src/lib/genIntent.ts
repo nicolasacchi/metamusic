@@ -27,7 +27,7 @@ export const MAX_COMPLETE_TRACKS = 4;
 /** The most stem names one item carries (EditIn.tracks maxItems). */
 export const MAX_STEM_TRACKS = 6;
 
-export type IntentMode = VariantMode | EngineMode | "from_draft" | "from_template" | "compose_new" | "song_pr";
+export type IntentMode = VariantMode | EngineMode | "from_draft" | "from_template" | "compose_new" | "song_pr" | "analyze";
 
 export function isEngineMode(m: string): m is EngineMode {
   return (ENGINE_MODES as readonly string[]).includes(m);
@@ -64,6 +64,10 @@ export interface GenerationIntent {
   edit?: EditIn;
   /** E2 reference: the take window the render follows. */
   reference?: RefIn;
+  /** analyze (M5b): the takes to listen to; priced and confirmed like any generation item. */
+  track_ids?: string[];
+  /** "Skip the listening check" on the estimate (options.tier_b false); never sent inside the item. */
+  skip_tier_b?: boolean;
 }
 
 export interface IntentStorage {
@@ -74,7 +78,7 @@ export interface IntentStorage {
 
 export type EstimateCall =
   | { kind: "variant"; trackId: string; body: VariantBody }
-  | { kind: "generation"; body: { items: ItemIn[]; engine?: EngineName } };
+  | { kind: "generation"; body: { items: ItemIn[]; engine?: EngineName; options?: { tier_b: false } } };
 
 export function isVariantMode(m: string): m is VariantMode {
   return VARIANT_MODES.includes(m);
@@ -84,6 +88,7 @@ function takesOf(i: GenerationIntent): number {
   const per = i.seeds?.length || i.n_seeds || 1;
   if (i.mode === "from_draft") return (i.draft_ids?.length ?? 0) * per;
   if (i.mode === "from_template") return (i.parent_track_ids?.length ?? 0) * per;
+  if (i.mode === "analyze") return i.track_ids?.length ?? 0;
   return per;
 }
 
@@ -96,6 +101,11 @@ export function validateIntent(i: GenerationIntent): string | null {
   if (i.mode === "from_template") {
     if ((i.parent_track_ids?.length ?? 0) < 2) return "A template edit needs at least two tracks.";
     if ((i.parent_track_ids?.length ?? 0) > MAX_TAKES) return `Too many tracks: generate in batches of at most ${MAX_TAKES}.`;
+  }
+  if (i.mode === "analyze") {
+    if (!i.track_ids?.length) return "Pick at least one take to listen to.";
+    if (i.track_ids.length > MAX_TAKES) return `Too many takes: check at most ${MAX_TAKES} at a time.`;
+    return null;
   }
   if (isVariantMode(i.mode) && !i.parent_track_id) return "Pick a track to vary.";
   const engineBad = validateEngineIntent(i);
@@ -151,6 +161,8 @@ function isIntent(v: unknown): v is GenerationIntent {
   const mode = o.mode;
   if (typeof mode !== "string") return false;
   if (o.engine !== undefined && (typeof o.engine !== "string" || !ENGINE_NAMES.includes(o.engine))) return false;
+  if (o.skip_tier_b !== undefined && typeof o.skip_tier_b !== "boolean") return false;
+  if (mode === "analyze") return Array.isArray(o.track_ids) && o.track_ids.length > 0 && o.track_ids.every((x) => typeof x === "string");
   if (mode === "reference") return typeof o.reference === "object" && o.reference !== null && typeof (o.reference as Record<string, unknown>).track_id === "string";
   if (isEngineMode(mode)) return typeof o.parent_track_id === "string";
   if (isVariantMode(mode)) return typeof o.parent_track_id === "string";
@@ -173,9 +185,13 @@ export function loadIntent(s: IntentStorage): GenerationIntent | null {
   }
 }
 
-/** A single variant of one mother goes to estimate_variant; everything else to estimate_generation. */
+/**
+ * A single variant of one mother goes to estimate_variant; everything else to estimate_generation. A variant that skips the
+ * listening check goes to estimate_generation too: only that estimate has options.
+ */
 export function intentToEstimate(i: GenerationIntent): EstimateCall {
-  if (isVariantMode(i.mode) && engineOf(i) === "yue2") {
+  const skip = i.skip_tier_b === true && i.mode !== "analyze" && engineOf(i) === "yue2";
+  if (isVariantMode(i.mode) && engineOf(i) === "yue2" && !skip) {
     const body: VariantBody = { mode: i.mode };
     if (i.n_seeds !== undefined) body.n_seeds = i.n_seeds;
     if (i.seeds !== undefined) body.seeds = i.seeds;
@@ -183,10 +199,14 @@ export function intentToEstimate(i: GenerationIntent): EstimateCall {
     if (i.title !== undefined) body.title = i.title;
     return { kind: "variant", trackId: i.parent_track_id ?? "", body };
   }
-  const { engine: _engine, ...item } = i;
+  const { engine: _engine, skip_tier_b: _skip, ...item } = i;
   void _engine;
+  void _skip;
   const engine = engineOf(i);
-  return { kind: "generation", body: { items: [{ ...item, mode: i.mode } as ItemIn], ...(engine === "yue2" ? {} : { engine }) } };
+  return {
+    kind: "generation",
+    body: { items: [{ ...item, mode: i.mode } as ItemIn], ...(engine === "yue2" ? {} : { engine }), ...(skip ? { options: { tier_b: false as const } } : {}) },
+  };
 }
 
 /** "1, 2 3" ⇒ [1,2,3]; null when any token is not a safe non-negative integer or one repeats; [] for blank. */
@@ -201,6 +221,18 @@ export function parseSeeds(text: string): number[] | null {
     out.push(n);
   }
   return out;
+}
+
+/** "Analyze" on the Track page (M5b): a listening check of chosen takes, through the ordinary estimate and approval flow. */
+export function analyzeIntent(trackIds: string[]): GenerationIntent {
+  return { mode: "analyze", track_ids: [...trackIds] };
+}
+
+/** The intent with the listening check skipped (true) or back on (false: the field is dropped, the default is auto). */
+export function withSkipTierB(i: GenerationIntent, skip: boolean): GenerationIntent {
+  const { skip_tier_b: _old, ...rest } = i;
+  void _old;
+  return skip ? { ...rest, skip_tier_b: true } : rest;
 }
 
 /** The take (variant) intent for the Track page menu: "New seed" asks for three seeds; edits open the form first. */

@@ -127,6 +127,7 @@ propose_taxonomy	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 publish_record	write	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 put_device_profile	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
 rate_track	rate	-	Y	Y	Y	SC	Y	Y	Y	Y	Y
+recover_recipe	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 reject_batch	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 request_approval	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 revoke_device	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO

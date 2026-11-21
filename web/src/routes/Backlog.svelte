@@ -22,7 +22,7 @@
   const params = $derived(new SvelteURLSearchParams(search));
   const q = $derived(params.get("q") ?? "");
   const collection = $derived(params.get("collection") ?? "");
-  const ORIGINS = ["import_backlog", "varianti_import", "editor", "agent", "jsonl_upload"] as const;
+  const ORIGINS = ["import_backlog", "varianti_import", "editor", "agent", "jsonl_upload", "recovered"] as const;
   const origin = $derived(params.get("origin") ?? "");
   const rawStatus = $derived(params.get("status"));
   const status = $derived<Status>(rawStatus === "fulfilled" || rawStatus === "archived" ? rawStatus : "backlog");

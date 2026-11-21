@@ -8037,7 +8037,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "List backlog drafts\n\nRecipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.",
+    "description": "List backlog drafts\n\nRecipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload, recovered). Each row carries its lint counts.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

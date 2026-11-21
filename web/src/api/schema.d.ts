@@ -585,7 +585,7 @@ export interface paths {
         };
         /**
          * List backlog drafts
-         * @description Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.
+         * @description Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload, recovered). Each row carries its lint counts.
          */
         get: operations["list_drafts"];
         put?: never;
@@ -2306,6 +2306,26 @@ export interface paths {
          */
         put: operations["rate_track"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tracks/{id}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recover a draft from an imported reference
+         * @description Turns the stored listening check of an imported reference (a track whose recipe is unknown) into a NEW draft: the lyric is rebuilt from what the recogniser heard, so it is a starting point to edit, not the singer's text; read the transcript confidence. The style is yours, or a placeholder from the measured tempo and key. Free: nothing is rendered and the reference never changes; render the draft with an ordinary estimate. Each call makes a new draft. 409 ANALYSIS_UNAVAILABLE until an analyze of the reference has completed (estimate an analyze item); 422 RECIPE_KNOWN for a track whose recipe is known; 422 TRANSCRIPT_EMPTY when nothing sung was heard.
+         */
+        post: operations["recover_recipe"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7379,6 +7399,70 @@ export interface components {
             next_cursor: string | null;
             /** Format: int64 */
             total: number;
+        };
+        RecoverEvidence: {
+            /** Format: double */
+            duration_s: number;
+            /**
+             * Format: double
+             * @description 0..1 energy proxy
+             */
+            energy: number | null;
+            /** @description Estimated key, null when none was set */
+            key: string | null;
+            /**
+             * Format: double
+             * @description Integrated loudness
+             */
+            lufs_i: number | null;
+            /**
+             * Format: double
+             * @description Estimated tempo, null when none was found
+             */
+            tempo_bpm: number | null;
+        };
+        RecoverRecipeInBody: {
+            /**
+             * @default melody
+             * @enum {string}
+             */
+            cot: "melody" | "full" | "off";
+            rationale?: string;
+            /** @description Style text of the new draft; omitted: a placeholder from the measured tempo and key */
+            style?: string;
+            /** @description Label of the draft; cut to 40 characters */
+            title?: string;
+        };
+        RecoverResult: {
+            draft: components["schemas"]["DraftDetail"];
+            evidence: components["schemas"]["RecoverEvidence"];
+            /**
+             * @description placeholder: the style was built from the measurements
+             * @enum {string}
+             */
+            style_source: "caller" | "placeholder";
+            transcript: components["schemas"]["RecoverTranscript"];
+        };
+        RecoverTranscript: {
+            /**
+             * Format: double
+             * @description Duration-weighted mean word probability, 0..1; low means the recogniser was unsure
+             */
+            confidence: number;
+            /** @description Language the recogniser heard */
+            language: string;
+            /** Format: int64 */
+            lines: number;
+            /** @description The sections of the recovered lyric, in order */
+            sections: components["schemas"]["RecoveredSection"][];
+            /** Format: int64 */
+            words: number;
+        };
+        RecoveredSection: {
+            /** @description intro, verse, chorus, bridge or outro */
+            kind: string;
+            /** Format: int64 */
+            lines: number;
         };
         RefIn: {
             /** Format: double */
@@ -14135,6 +14219,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackRating"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    recover_recipe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Track id of the imported reference */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverRecipeInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoverResult"];
                 };
             };
             /** @description Error */

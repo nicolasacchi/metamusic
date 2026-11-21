@@ -20,7 +20,7 @@ import (
 )
 
 // Tools holds tool paths; shared by ingest, analysis and synth.
-type Tools struct{ FFmpeg, FLAC, Metaflac string }
+type Tools struct{ FFmpeg, FLAC, Metaflac, Fluidsynth string }
 
 // RunOpts configures Run.
 type RunOpts struct {
@@ -33,6 +33,9 @@ type RunOpts struct {
 	// tool forked die with it. Opt-in (T1: fluidsynth and long ffmpeg runs of a cancellable transform); every other caller
 	// keeps the single-process behaviour.
 	Group bool
+	// ExtraEnv holds additional KEY=VALUE entries appended to the minimal environment (LC_ALL and PATH). Nothing else is
+	// inherited. Used by the synth adapter to point HOME at its work directory so no user config is read (T1b).
+	ExtraEnv []string
 }
 
 // ErrOutputLimit is returned when captured stdout exceeds RunOpts.MaxStdout.
@@ -116,7 +119,7 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 }
 
 // Run executes bin with args under a timeout. Stdin is /dev/null unless RunOpts.Stdin is set, and the
-// environment is LC_ALL=C plus PATH only.
+// environment is LC_ALL=C plus PATH, plus RunOpts.ExtraEnv.
 func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, error) {
 	if o.Timeout <= 0 {
 		return nil, errors.New("mediatool: Timeout is required")
@@ -163,7 +166,7 @@ func Run(ctx context.Context, bin string, args []string, o RunOpts) ([]byte, err
 			_ = pw.Close()
 		}()
 	}
-	cmd.Env = []string{"LC_ALL=C", "PATH=" + os.Getenv("PATH")}
+	cmd.Env = append([]string{"LC_ALL=C", "PATH=" + os.Getenv("PATH")}, o.ExtraEnv...)
 	size := o.MaxStderr
 	if size <= 0 {
 		size = defaultStderr

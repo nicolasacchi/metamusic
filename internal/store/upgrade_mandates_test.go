@@ -9,8 +9,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// mandatesMigration is the position of 0024_mandates.sql (M6N-M1, C370); renumber here and rename the file if main moved.
-const mandatesMigration = 24
+// mandatesMigration is the position of 0025_mandates.sql (M6N-M1, C370); renumber here and rename the file if main moved.
+const mandatesMigration = 25
 
 // TestMigration_Mandates: a database one step before the mandates migration upgrades additively: the table is new and empty, every
 // existing estimate and batch keeps a NULL mandate_id and every other table is untouched.

@@ -1,4 +1,4 @@
--- 0024_mandates.sql: M6N-M1 (C370). Spending mandates: a standing approval the Owner creates in the app for one holder (the night
+-- 0025_mandates.sql: M6N-M1 (C370). Spending mandates: a standing approval the Owner creates in the app for one holder (the night
 -- shift). Additive and up-only: one new table, two nullable columns on estimates and batches (existing rows keep NULL), and the
 -- triggers that keep them honest. A mandate is never deleted: revoking it is a state.
 

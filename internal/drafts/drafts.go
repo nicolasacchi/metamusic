@@ -593,6 +593,15 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, id string, in Dr
 	if live > 0 {
 		return library.DraftDetail{}, &Error{Status: 409, Code: "DRAFT_IN_FLIGHT", Msg: "a job is rendering this draft; wait for it to end", Details: map[string]any{}}
 	}
+	if in.ParentTrackID != nil && *in.ParentTrackID != "" {
+		var rec int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM draft_recoveries WHERE draft_id = ?`, id).Scan(&rec); err != nil {
+			return library.DraftDetail{}, fmt.Errorf("drafts: recovery lookup: %w", err)
+		}
+		if rec > 0 {
+			return library.DraftDetail{}, invalid("parent_track_id", "a recovered draft is a new root and takes no parent")
+		}
+	}
 	reqID, reqJSON, groupKey := cur.requestID, cur.reqJSON, cur.groupKey
 	if hasReq {
 		reqID, reqJSON = parsed.Request.ID, string(parsed.Canonical)

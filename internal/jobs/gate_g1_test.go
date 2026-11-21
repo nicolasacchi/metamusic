@@ -90,27 +90,11 @@ func TestClaim_ClosedJobDoesNotBlockPlainJobs(t *testing.T) {
 func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
 	t.Parallel()
 	p := filepath.Join(t.TempDir(), "s.db")
-	pre, err := store.Open(t.Context(), p)
-	if err != nil {
+	// a database exactly as 0021 left it: migrated only up to the migration before 0022 (never latest-then-DROP, which breaks on every later migration)
+	if err := store.CreateBefore(t.Context(), p, "0022_worker_contract.sql"); err != nil {
 		t.Fatal(err)
 	}
-	// 0022 is purely additive, so removing what it created and the version stamp is a database exactly as 0021 left it (0024, the mandates, and 0023, the upload
-	// fallback, are removed first: both are additive too)
-	for _, q := range []string{
-		`DROP TRIGGER estimates_mandate_frozen`, `DROP TRIGGER batches_mandate_frozen`, `DROP INDEX batches_mandate`,
-		`ALTER TABLE estimates DROP COLUMN mandate_id`, `ALTER TABLE batches DROP COLUMN mandate_id`, `DROP TABLE mandates`,
-		`DROP TRIGGER uploads_via_on_insert`, `DROP TRIGGER uploads_via_set_once`, `DROP TRIGGER uploads_via_when_received`,
-		`DROP TABLE fallback_objects`, `DROP TABLE upload_drills`, `ALTER TABLE uploads DROP COLUMN via`,
-		`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 21`,
-	} {
-		if _, err := pre.W.ExecContext(t.Context(), q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	if err := pre.Close(); err != nil {
-		t.Fatal(err)
-	}
-	r := newRigAt(t, p, t.TempDir(), true) // store.Open migrates 0021 to the latest
+	r := newRigAt(t, p, t.TempDir(), true) // store.Open migrates it to the latest
 	if n := r.count(`SELECT COUNT(*) FROM worker_contract_log`); n != 0 {
 		t.Fatalf("%d contract rows after the migration, want 0", n)
 	}

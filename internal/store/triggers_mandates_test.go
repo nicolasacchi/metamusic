@@ -5,7 +5,7 @@ import "testing"
 const mandateIns = `INSERT INTO mandates(id,holder_key,title,budget_micro_usd,valid_from,valid_until,scope_json,state,created_by,created_at,
 	revoked_by,revoked_at,revoke_reason) VALUES(?,?,?,?,?,?,?,?,'human:owner',?,?,?,?)`
 
-// TestMigration_Mandates_Constraints pins the constraints and triggers of 0024_mandates.sql (C370): every CHECK refuses, a mandate is
+// TestMigration_Mandates_Constraints pins the constraints and triggers of 0025_mandates.sql (C370): every CHECK refuses, a mandate is
 // never deleted, only approved -> revoked is a transition, a revoked row is immutable, and mandate_id on estimates and batches is
 // set at insert and never changes.
 func TestMigration_Mandates_Constraints(t *testing.T) {
