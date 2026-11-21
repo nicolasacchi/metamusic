@@ -400,8 +400,12 @@ type canary struct {
 	keepStage bool
 	skipIdle  bool
 	lastJob   cJob
-	ceilSum   money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
-	fb        fallbackState  // the fallback case's progress (canary_bulk.go)
+	// pendingDiscard is a kept source take (analyze without --track) that the run discards on every exit unless --keep; the analyze
+	// job's own discard step clears it.
+	pendingDiscard string
+	sourceCeil     money.MicroUSD // analyze: the internal source render's ceiling
+	ceilSum        money.MicroUSD // ACE-Step: the estimate ceilings of the case's stages so far
+	fb             fallbackState  // the fallback case's progress (canary_bulk.go)
 
 	// observation across every provider-status read of the drive phase (the sampler reads concurrently)
 	mu          sync.Mutex
@@ -594,6 +598,7 @@ func RunCanary(ctx context.Context, o CanaryOptions) (*CanaryReport, error) {
 }
 
 func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error) {
+	defer c.discardPending()
 	prov, err := c.status(ctx)
 	if err != nil {
 		return nil, err
@@ -632,7 +637,7 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 	if err != nil {
 		return nil, err
 	}
-	c.rep.Ceiling = est.Cost.CeilingMicroUSD
+	c.rep.Ceiling = est.Cost.CeilingMicroUSD + int64(c.sourceCeil) // the run's total: analyze adds its source render's
 	if est.Takes != 1 {
 		return c.finish("refused", ExitRefused, "the estimate has %d takes, want 1", est.Takes), nil
 	}
@@ -687,6 +692,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	overall := abortAfter + time.Duration(prov.MaxRuntimeS+prov.KillSlackS)*time.Second + 10*time.Minute
 	started := c.o.Clock.Now()
 	meas := map[string]any{}
+	for k, v := range c.rep.Measured { // analyze's source render facts
+		meas[k] = v
+	}
 	c.rep.Measured = meas
 	c.observing = true
 	waitS := c.o.WaitS
@@ -819,6 +827,9 @@ func (c *canary) drive(ctx context.Context, spec CanarySpec, prov cProvider) *Ca
 	}
 
 	if !c.o.Keep && !c.keepStage && job.TrackID != nil && *job.TrackID != "" {
+		if *job.TrackID == c.pendingDiscard {
+			c.pendingDiscard = ""
+		}
 		if err := c.do(ctx, http.MethodPatch, "/api/tracks/"+*job.TrackID, nil, map[string]string{"status": "discarded"}, nil); err != nil {
 			c.check("discard_track", false, "%v", err)
 		}

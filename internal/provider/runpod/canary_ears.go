@@ -59,7 +59,7 @@ func newEarsSpec(c CanaryCase, day time.Time, n, bars int) (CanarySpec, error) {
 	switch c {
 	case CaseTierB:
 		s.Options = map[string]any{"tier_b": true}
-		s.assert = assertTierB
+		s.assert = func(c *canary, _ cProvider, j cJob, m map[string]any) { assertTierB(c, s, j, m) }
 	case CaseAnalyze:
 		s.prepare = prepareAnalyze
 	}
@@ -85,6 +85,7 @@ func earsRefusal(spec CanarySpec, prov cProvider) string {
 // --max-usd bounds the sum of the estimate ceilings, so the analyze estimate is compared with what the main render left.
 func prepareAnalyze(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) (CanarySpec, *CanaryReport) {
 	track := c.o.SourceTrack
+	var srcAudio json.Number // the source render's audio length, for the analyze run's calibration
 	if track != "" {
 		c.keepStage = true // the operator's own take is never discarded
 	} else {
@@ -100,10 +101,16 @@ func prepareAnalyze(ctx context.Context, c *canary, spec CanarySpec, prov cProvi
 			return spec, c.finish("fail", ExitFail, "the source render (case main) failed before it finished: %v", err)
 		}
 		c.rep.Checks = append(c.rep.Checks, rep.Checks...)
+		c.recordSource(rep)
+		if sub.lastJob.TrackID != nil && *sub.lastJob.TrackID != "" && !c.o.Keep {
+			c.pendingDiscard = *sub.lastJob.TrackID // even a failed render may have created its track
+		}
 		if rep.Exit != ExitPass || sub.lastJob.TrackID == nil || *sub.lastJob.TrackID == "" {
 			return spec, c.finish(rep.Outcome, max(rep.Exit, ExitFail), "the source render (case main) did not pass: %s", rep.Reason)
 		}
 		track = *sub.lastJob.TrackID
+		c.sourceCeil = money.MicroUSD(rep.Ceiling)
+		srcAudio = audioNumber(sub.lastJob)
 		c.o.MaxUSD -= money.MicroUSD(rep.Ceiling)
 		if c.o.MaxUSD <= 0 {
 			return spec, c.finish("refused", ExitRefused, "the source render's ceiling %s used up --max-usd; nothing more was spent", money.MicroUSD(rep.Ceiling).USD())
@@ -112,7 +119,9 @@ func prepareAnalyze(ctx context.Context, c *canary, spec CanarySpec, prov cProvi
 	}
 	spec.Engine = "yue2"
 	spec.Item = map[string]any{"mode": "analyze", "track_ids": []string{track}}
-	spec.assert = func(c *canary, _ cProvider, job cJob, meas map[string]any) { assertAnalyze(c, track, job, meas) }
+	spec.assert = func(c *canary, _ cProvider, job cJob, meas map[string]any) {
+		assertAnalyze(c, track, job, srcAudio, meas)
+	}
 	return spec, nil
 }
 
@@ -192,13 +201,13 @@ func audioNumber(job cJob) json.Number {
 }
 
 // assertTierB is the outcome of case tier-b (C341.1).
-func assertTierB(c *canary, _ cProvider, job cJob, meas map[string]any) {
+func assertTierB(c *canary, spec CanarySpec, job cJob, meas map[string]any) {
 	if !c.check("completed", job.State == "completed" && job.Outcome != nil && *job.Outcome == "clean", "state %s", job.State) {
 		return
 	}
 	c.check("artifacts_verified", allVerified(job), "%d artifacts", len(job.Artifacts))
 	c.check("analysis_artifact", hasArtifact(job, "analysis.json"), "analysis.json among the verified artifacts")
-	c.auditAudio(CanarySpec{}, job, meas)
+	c.auditAudio(spec, job, meas)
 	if job.TrackID == nil || *job.TrackID == "" {
 		c.check("tier_b_raw", false, "the job has no track")
 		return
@@ -222,7 +231,7 @@ func assertTierB(c *canary, _ cProvider, job cJob, meas map[string]any) {
 }
 
 // assertAnalyze is the outcome of case analyze (C341.1): the job completed on the chosen take with a document and a stored raw row.
-func assertAnalyze(c *canary, track string, job cJob, meas map[string]any) {
+func assertAnalyze(c *canary, track string, job cJob, srcAudio json.Number, meas map[string]any) {
 	if !c.check("completed", job.State == "completed" && job.Outcome != nil && *job.Outcome == "clean", "state %s", job.State) {
 		return
 	}
@@ -233,7 +242,13 @@ func assertAnalyze(c *canary, track string, job cJob, meas map[string]any) {
 		return
 	}
 	c.check("analysis_ok", v.Status == "ok", "status %s", v.Status)
-	recordEars(meas, v, "")
+	audio := audioNumber(job)
+	if audio == "" {
+		audio = srcAudio
+	}
+	c.check("stages_ok", v.Stages.Separate == tierb.StageOK && v.Stages.ASR == tierb.StageOK && v.Stages.Transcribe == tierb.StageOK,
+		"separate %s, asr %s, transcribe %s", v.Stages.Separate, v.Stages.ASR, v.Stages.Transcribe)
+	recordEars(meas, v, audio)
 }
 
 func errText(err error) string {
@@ -314,4 +329,28 @@ func orMoney(m money.MicroUSD) money.MicroUSD {
 		return IllustrativePricePPH
 	}
 	return m
+}
+
+// recordSource puts the source render's batch and ceiling into the report: its money was spent for real, and --verify-billing needs the batch.
+func (c *canary) recordSource(rep *CanaryReport) {
+	if c.rep.Measured == nil {
+		c.rep.Measured = map[string]any{}
+	}
+	c.rep.Measured["source_batch_id"] = rep.BatchID
+	c.rep.Measured["source_job_id"] = rep.JobID
+	c.rep.Measured["source_ceiling_micro_usd"] = rep.Ceiling
+}
+
+// discardPending discards the kept source take of an analyze run that ends before the analyze job's own discard step.
+func (c *canary) discardPending() {
+	if c.pendingDiscard == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	track := c.pendingDiscard
+	c.pendingDiscard = ""
+	if err := c.do(ctx, http.MethodPatch, "/api/tracks/"+url.PathEscape(track), nil, map[string]string{"status": "discarded"}, nil); err != nil {
+		c.rep.Reason += fmt.Sprintf(" (the source take %s could not be discarded: discard it by hand)", track)
+	}
 }

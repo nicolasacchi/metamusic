@@ -728,16 +728,16 @@ token: `metamusic runpod canary --case tier-b --dry-run` (the same text for `ana
 compared with `--max-usd` before any spend.
 
 1. `metamusic runpod canary --url URL --case main --max-usd N` (plain `/1` regression).
-2. Open the capabilities **only right before the approved canary**: `metamusic runpod contract open --caps v2,ears,analyze --reason "canary W2: <approval ref>"`.
+2. Open the capabilities **only right before the approved canary**: `metamusic runpod contract open --caps v2,ears,analyze --reason "canary W2: <approval ref>"` (add `--backend B` unless it is the default `runpod-serverless`).
 3. `metamusic runpod canary --url URL --case tier-b --max-usd N`: a render with synthetic sung lyrics, a score and `options.tier_b: true`.
    Passes when the take completes, the stored document has status `ok` and three `ok` stages, `get_track_tier_b` answers, measured sections exist
    (or the flag is `alignment_failed`), and the report's `measured` carries `ears_seconds`, `ears_timings`, `peak_vram_mib` and the suggested
    `ears_load_s` and `ears_rtf_milli`.
 4. `metamusic runpod canary --url URL --case analyze --max-usd N [--source-track ID]`: an analyze item for a take. Without `--source-track` it
    first renders one `main` take (its checks are listed as `source.*`), and `--max-usd` then bounds the **sum** of both estimate ceilings, so
-   approve the sum. With `--source-track` the operator's take is analyzed and never discarded.
+   approve the sum; the report's `measured` names the source batch (`source_batch_id`) and `ceiling_micro_usd` is the sum. The source take is discarded on every exit unless `--keep`. With `--source-track` the operator's take is analyzed and never discarded.
 5. **On any failure** (exit other than 0, a trip, a closed capability in `get_provider_status`): `metamusic runpod contract close --caps ears,analyze --reason TEXT`
-   (add `v2` only when the plain `/2` wire is in doubt), find the cause, and do not reopen until a case passes again.
+   (add `--backend B` unless it is the default `runpod-serverless`, and `--strand-queued` when Ears jobs are queued: close refuses with exit 3 otherwise; add `v2` only when the plain `/2` wire is in doubt), find the cause, and do not reopen until a case passes again.
 6. After both pass, the measured seconds calibrate the quote: set `MM_EARS_LOAD_S` and `MM_EARS_RTF_MILLI` (attended env change, then
    `metamusic config check`), see "Listening checks: the quote".
 

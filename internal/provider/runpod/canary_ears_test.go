@@ -144,6 +144,9 @@ func TestCanary_TierBCase(t *testing.T) {
 		if rep.Measured["ears_rtf_milli"] != int64(119) || rep.Measured["ears_load_s"] != int64(32) {
 			t.Errorf("calibration numbers %+v", rep.Measured)
 		}
+		if e, ok := rep.Measured["audio_expected_s"]; !ok || e == nil || e == 0 {
+			t.Errorf("audio_expected_s missing: %+v", rep.Measured)
+		}
 		if len(s.patches) != 1 {
 			t.Errorf("the canary take was not discarded: %v", s.patches)
 		}
@@ -267,6 +270,12 @@ func TestCanary_AnalyzeCase(t *testing.T) {
 		if rep.Exit != runpod.ExitRefused || s.count("POST /api/generations") != 1 {
 			t.Fatalf("rep %+v generations %d", rep, s.count("POST /api/generations"))
 		}
+		if len(s.patches) != 1 || !strings.Contains(s.patches[0], "trk-1") {
+			t.Errorf("the kept source take was not discarded: %v", s.patches)
+		}
+		if rep.Ceiling != 600_000 || rep.Measured["source_batch_id"] == nil {
+			t.Errorf("ceiling %d measured %v", rep.Ceiling, rep.Measured)
+		}
 	})
 	t.Run("a main render that used up the budget stops", func(t *testing.T) {
 		t.Parallel()
@@ -275,6 +284,9 @@ func TestCanary_AnalyzeCase(t *testing.T) {
 		rep := runEars(t, s, runpod.CaseAnalyze, func(o *runpod.CanaryOptions) { o.MaxUSD = runpod.DefaultCanaryMaxUSD })
 		if rep.Exit != runpod.ExitRefused || s.count("POST /api/generations") != 1 {
 			t.Fatalf("rep %+v", rep)
+		}
+		if len(s.patches) != 1 || !strings.Contains(s.patches[0], "trk-1") {
+			t.Errorf("the kept source take was not discarded: %v", s.patches)
 		}
 	})
 	for name, caps := range map[string][]string{"nothing open": nil, "analyze closed": {"v2", "ears"}} {
