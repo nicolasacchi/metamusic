@@ -121,6 +121,14 @@ jobs:
       - name: smoke selftest mode
         if: steps.decide.outputs.build == 'true'
         run: docker run --rm -e MODE=selftest "$IMAGE:smoke"
+      - name: smoke image caps label equals selftest caps
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          label=$(docker image inspect "$IMAGE:smoke" --format '{{ index .Config.Labels "io.metamusic.caps" }}')
+          [ "$(docker image inspect "$IMAGE:smoke" --format '{{ index .Config.Labels "io.metamusic.contracts" }}')" = "mm.worker/1 mm.worker/2" ]
+          selftest=$(docker run --rm -e MODE=selftest "$IMAGE:smoke" 2>/dev/null | sed -n 's/^caps: //p')
+          echo "label caps: $label; selftest caps: $selftest"
+          [ -n "$label" ] && [ "$label" = "$selftest" ]
 
   publish:
     needs: build-smoke

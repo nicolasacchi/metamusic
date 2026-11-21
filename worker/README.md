@@ -12,6 +12,18 @@ cd worker && uv run pytest --cov=mmworker --cov-fail-under=90
 ```
 
 Modes (`python -m mmworker`, env `MODE`): `serverless`, `selftest`; `agent` exits 2 (arrives in M6).
+
+## mm.worker/2
+
+`contract.parse_job` dispatches on `contract`: `mm.worker/1` goes through the unchanged `parse_input`, `mm.worker/2`
+through `parse_v2` (yue2 only; ACE-Step stays on `/1`), both validated against `schema/mm-worker-{1,2}.*.schema.json`.
+Kinds are `render`, `analyze` and `plan`; `analyze` and `plan` raise `KIND_UNAVAILABLE` (before any fetch or GPU work)
+until a stage registers. A stage is one module `src/mmworker/stages/<name>.py` that calls `stages.register("ears" |
+"analyze" | "plan", fn)` at import; `stages.discover()` imports them all at startup, and a module whose libraries are
+missing registers nothing. `caps.py` is the capability vocabulary; the image advertises `v2` plus one cap per registered
+stage. `LABEL io.metamusic.caps` in the Dockerfile must equal the `caps:` line printed by `MODE=selftest` (a test and the
+CI smoke check it). Attachments are written to `<work dir>/attach/` after a sha256 check (`ATTACH_MISMATCH`) and are never
+collected as artifacts.
 The runtime dependency set contains no torch and no yue2: the image installs `yue2-infer` explicitly.
 
 ## Contract job and image

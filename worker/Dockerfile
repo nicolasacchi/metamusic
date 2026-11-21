@@ -43,4 +43,7 @@ RUN apt-get update \
 ENV PATH=/opt/venv/bin:$PATH HF_HUB_OFFLINE=1 MODE=serverless PYTHONUNBUFFERED=1 MM_YUE2_VAE_DIR=/opt/mm/hf-cache/hub
 ARG YUE2_COMMIT GIT_SHA
 ENV MM_YUE2_COMMIT=$YUE2_COMMIT MM_WORKER_BUILD=$GIT_SHA
+# C322.2: what this image speaks. io.metamusic.caps must equal the `caps:` line of MODE=selftest (CI asserts it;
+# a stage lane adds its cap here in the same commit that adds the stage module and its models).
+LABEL io.metamusic.contracts="mm.worker/1 mm.worker/2" io.metamusic.caps="v2"
 ENTRYPOINT ["python", "-m", "mmworker"]
