@@ -4590,6 +4590,48 @@
         ],
         "type": "object"
       },
+      "CreateMandateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_micro_usd": {
+            "description": "1..100 000 000 micro-USD, counted against settled plus reserved spend",
+            "format": "int64",
+            "type": "integer"
+          },
+          "holder": {
+            "description": "Who may spend under the mandate; the night shift is the only holder",
+            "enum": [
+              "night_shift"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/MandateScope"
+          },
+          "title": {
+            "description": "1..120 characters",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "Default now; at most five minutes in the past",
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_until": {
+            "description": "After valid_from and at most 31 days later",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "holder",
+          "title",
+          "budget_micro_usd",
+          "valid_until",
+          "scope"
+        ],
+        "type": "object"
+      },
       "CreateMuseInBody": {
         "additionalProperties": false,
         "properties": {
@@ -11217,6 +11259,285 @@
         ],
         "type": "object"
       },
+      "Mandate": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "budget_usd": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "effective_state": {
+            "enum": [
+              "scheduled",
+              "live",
+              "ended",
+              "revoked"
+            ],
+            "type": "string"
+          },
+          "holder": {
+            "enum": [
+              "night_shift"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "revoked": {
+            "additionalProperties": false,
+            "description": "Set once the mandate is revoked",
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "at",
+              "reason"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/MandateScope"
+          },
+          "title": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/MandateUsage"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "holder",
+          "title",
+          "budget_micro_usd",
+          "budget_usd",
+          "valid_from",
+          "valid_until",
+          "effective_state",
+          "scope",
+          "usage",
+          "created_by",
+          "created_at",
+          "revoked"
+        ],
+        "type": "object"
+      },
+      "MandatePage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Mandate"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MandateRoot": {
+        "additionalProperties": false,
+        "properties": {
+          "root_track_id": {
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "root_track_id",
+          "takes"
+        ],
+        "type": "object"
+      },
+      "MandateScope": {
+        "additionalProperties": false,
+        "properties": {
+          "engines": {
+            "description": "Adopted engines only",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_batch_ceiling_micro_usd": {
+            "description": "Largest estimate ceiling of one batch, at most the global batch cap and the budget",
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_batches_per_day": {
+            "description": "Batches per local day, 1..4",
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_takes_per_batch": {
+            "description": "Takes per batch, 1..12",
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_takes_per_lineage": {
+            "description": "Takes per lineage over the mandate's life, 1..50",
+            "format": "int64",
+            "type": "integer"
+          },
+          "min_stars": {
+            "description": "The parent's Owner stars, 1..5; an unrated parent never qualifies",
+            "format": "int64",
+            "type": "integer"
+          },
+          "modes": {
+            "description": "Planner modes the night may use: new_seed, style_edit",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "root_track_ids": {
+            "description": "Lineage roots the night may work on (1..200); null means every lineage",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tier_b": {
+            "description": "Whether the batch may carry listening checks",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "modes",
+          "engines",
+          "min_stars",
+          "max_takes_per_lineage",
+          "max_takes_per_batch",
+          "max_batch_ceiling_micro_usd",
+          "max_batches_per_day",
+          "tier_b"
+        ],
+        "type": "object"
+      },
+      "MandateUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "batches": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "by_root": {
+            "items": {
+              "$ref": "#/components/schemas/MandateRoot"
+            },
+            "type": "array"
+          },
+          "committed_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "committed_usd": {
+            "type": "string"
+          },
+          "excess_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "excess_usd": {
+            "type": "string"
+          },
+          "remaining_micro_usd": {
+            "description": "Budget minus committed, never below zero",
+            "format": "int64",
+            "type": "integer"
+          },
+          "remaining_usd": {
+            "type": "string"
+          },
+          "reserved_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_usd": {
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "used_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "used_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "settled_micro_usd",
+          "settled_usd",
+          "reserved_micro_usd",
+          "reserved_usd",
+          "used_micro_usd",
+          "used_usd",
+          "committed_micro_usd",
+          "committed_usd",
+          "remaining_micro_usd",
+          "remaining_usd",
+          "excess_micro_usd",
+          "excess_usd",
+          "batches",
+          "takes",
+          "by_root"
+        ],
+        "type": "object"
+      },
       "MapEntry": {
         "additionalProperties": false,
         "properties": {
@@ -16054,6 +16375,19 @@
         ],
         "type": "object"
       },
+      "RevokeMandateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Why, 1..500 characters",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "ScoreRenderParams": {
         "additionalProperties": false,
         "properties": {
@@ -16063,6 +16397,17 @@
             "minimum": 20,
             "type": [
               "number",
+              "null"
+            ]
+          },
+          "chords": {
+            "description": "block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes",
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": [
+              "string",
               "null"
             ]
           },
@@ -28119,6 +28464,215 @@
         }
       }
     },
+    "/api/mandates": {
+      "get": {
+        "description": "Mandates newest first with their usage. Filter by the stored state or by effective_state (scheduled, live, ended, revoked; repeat the parameter). Owner side only.",
+        "operationId": "list_mandates",
+        "parameters": [
+          {
+            "description": "The stored state",
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "description": "The stored state",
+              "enum": [
+                "approved",
+                "revoked"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "effective_state",
+            "schema": {
+              "items": {
+                "enum": [
+                  "scheduled",
+                  "live",
+                  "ended",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "holder",
+            "schema": {
+              "enum": [
+                "night_shift"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MandatePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List spending mandates",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/mandates",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/mandates/{id}": {
+      "get": {
+        "description": "One mandate with its scope and usage: settled, reserved, used, committed (what a running batch still holds), remaining and excess, the takes per lineage. Owner side only.",
+        "operationId": "get_mandate",
+        "parameters": [
+          {
+            "description": "Mandate id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Mandate id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mandate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a spending mandate",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/mandates/:id",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/mandates/{id}/revoke": {
+      "post": {
+        "description": "Ends a scheduled or live mandate and records a cancel intent on every unfinished job of its batches, in one transaction. It only reduces spend, so an agent and the Owner's paired phone may do it. A revoked or ended mandate is 409 INVALID_TRANSITION.",
+        "operationId": "revoke_mandate",
+        "parameters": [
+          {
+            "description": "Mandate id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Mandate id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeMandateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mandate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a spending mandate",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/mandates/:id",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "description": "Returns the identity, scopes and authentication path of the caller.",
@@ -34325,6 +34879,69 @@
           "idempotency": "create",
           "rate": "heavy",
           "alias_of": "create_generation"
+        }
+      }
+    },
+    "/human/api/mandates": {
+      "post": {
+        "description": "Human only, Owner only. A mandate lets the night shift spend without a click: a budget (micro-USD, counted against settled plus reserved spend), an expiry up to 31 days away, and a scope (modes, adopted engines, minimum parent stars, lineage roots, takes per lineage and per batch, the largest batch ceiling, batches per day, listening checks). It never raises a spend cap: the global caps are checked first. One scheduled or live mandate per holder (409 MANDATE_ACTIVE); a scope that breaks a rule is 422 MANDATE_SCOPE_INVALID {field, rule}. Needs an Idempotency-Key.",
+        "operationId": "create_mandate",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMandateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mandate"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a spending mandate",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "approve",
+          "mcp": "exclude:human-only",
+          "ui": "/human/mandates/new",
+          "human_only": true,
+          "owner_only": true,
+          "idempotency": "create"
         }
       }
     },

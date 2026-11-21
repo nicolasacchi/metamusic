@@ -16,6 +16,7 @@ create_draft	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_duel	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_generation	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 create_generation_human	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
+create_mandate	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_pairing_code	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
 create_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
@@ -56,6 +57,7 @@ get_ladder	listen	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_library_facets	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_lineage	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_listen_heat	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
+get_mandate	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_media_links	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_muse	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_muse_board	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -99,6 +101,7 @@ list_export_sources	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_import_runs	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 list_jobs	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_ledger	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
+list_mandates	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 list_muses	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_next_actions	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_patches	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -128,6 +131,7 @@ recover_recipe	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 reject_batch	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 request_approval	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 revoke_device	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
+revoke_mandate	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 revoke_own_device	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 revoke_own_token	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 revoke_subsonic_client	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO

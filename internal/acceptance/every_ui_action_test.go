@@ -58,6 +58,8 @@ type uiState struct {
 	transform string
 	// M5: the Song PR propose_patch made
 	patch string
+	// M6N-M1: the live mandate the operator created (seeded; an agent never creates one)
+	mandate string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -152,6 +154,12 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_ladder":         func(*uiState) map[string]any { return nil },
 	"get_track_analysis": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"get_track_tier_b":   func(s *uiState) map[string]any { return map[string]any{"id": s.track} }, // EARS-S1: seeded by seedTierBDocument
+	// M6N-M1: create_mandate is human-only (the Owner in the app), so only the reads and the revoke are scripted
+	"list_mandates": func(*uiState) map[string]any { return map[string]any{"effective_state": []string{"live"}} },
+	"get_mandate":   func(s *uiState) map[string]any { return map[string]any{"id": s.mandate} },
+	"revoke_mandate": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.mandate, "reason": "scripted: an agent may only reduce spend"}
+	},
 	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
 	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"set_diction_marks": func(s *uiState) map[string]any {
@@ -330,6 +338,8 @@ var uiOrder = []string{
 	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
 	// E2: the engine matrix
 	"list_engines",
+	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
+	"list_mandates", "get_mandate", "revoke_mandate",
 }
 
 // afterStep records the ids later steps need.
@@ -437,6 +447,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	seedTierBDocument(t, r, st.track)                        // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
 	st.reference = seedReference(t, r, "scripted-reference") // EARS-R1: recover_recipe needs a reference with a stored listening check
 	seedRecoverDocument(t, r, st.reference, knownSungLyric)
+	st.mandate = seedMandateM6N(t, r) // M6N-M1: the mandate reads and the revoke need a live mandate
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +544,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	// Spend, cancel and transform-create operations write their audit row inside their own transaction (C80), with an id
 	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
 	// compared without them; their presence is compared as a set.
-	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true}
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true}
 	split := func(ops []string) (rest, tx []string) {
 		for _, o := range ops {
 			if inTx[o] {

@@ -118,13 +118,13 @@ func TestSQL_LeasePredicate(t *testing.T) {
 	writes := 0
 	// Operations record intents from any request (D-M3-3): cancel intents and provider state changes are not
 	// runner writes, run in the operation's own transaction and are applied by the lease holder.
-	intents := map[string]bool{"CancelJob": true, "CancelBatch": true, "Update": true}
+	intents := map[string]bool{"CancelJob": true, "CancelBatch": true, "Update": true, "cancelIntentsTx": true} // cancelIntentsTx: the body of CancelBatch and of a mandate revoke (cancel_tx.go)
 	for _, w := range scanWrites(t, ".") {
 		writes += w.writes
 		if w.mentionsLease {
 			continue // acquire, heartbeat (also renews job leases under the predicate) and releaseLease
 		}
-		if intents[w.fn] && (w.file == "service.go" || w.file == "provider.go") {
+		if intents[w.fn] && (w.file == "service.go" || w.file == "provider.go" || w.file == "cancel_tx.go") {
 			continue
 		}
 		if w.fenc < w.writes {

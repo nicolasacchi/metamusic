@@ -42,6 +42,10 @@ var (
 type runState struct {
 	once sync.Once
 	wake chan struct{}
+	// slot is the one-slot semaphore of Exclusive (C355.3): the runner holds it around every attempt, so an audition never
+	// runs beside a transform.
+	slotOnce sync.Once
+	slot     chan struct{}
 }
 
 func (s *Service) wakeCh() chan struct{} {
@@ -159,6 +163,12 @@ func (s *Service) RunOne(ctx context.Context) (bool, error) {
 	if !s.runnable() {
 		return false, nil
 	}
+	// the render slot comes before the claim: a claimed row would sit running (its lease ticking) while an audition holds it
+	release, err := s.takeSlot(ctx)
+	if err != nil {
+		return false, nil // shutdown while waiting
+	}
+	defer release()
 	row, ok, err := s.claim(ctx)
 	if err != nil || !ok {
 		return false, err
