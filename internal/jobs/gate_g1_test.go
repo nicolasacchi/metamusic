@@ -419,3 +419,46 @@ func TestFailQueued_UnreadableGateLogStopsTheStep(t *testing.T) {
 		t.Fatal("the step succeeded with an unreadable gate log")
 	}
 }
+
+// failedContractAttempt seeds a /2 job whose worker answered CONTRACT_VERSION, advanced to the point where the next Step settles it.
+func failedContractAttempt(t *testing.T) (*rig, string) {
+	t.Helper()
+	r := newRig(t)
+	r.setCaps(gateDigest, "v2")
+	job := r.seedBatch(batchSpec{needs: `["v2"]`}).Jobs[0]
+	r.submitOne(job)
+	r.setStatus(r.refOf(job, 1), provider.RemoteStatus{State: provider.Failed, Raw: "FAILED", ExecutionMS: ms(1_000), ErrorText: "CONTRACT_VERSION: no"})
+	r.advance(31 * time.Second)
+	return r, job
+}
+
+func TestSettle_AutoCloseWriteFailuresStopTheStep(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, ddl string }{
+		{"log append", `CREATE TRIGGER no_log BEFORE INSERT ON worker_contract_log BEGIN SELECT RAISE(ABORT, 'no log'); END`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, job := failedContractAttempt(t)
+			r.exec(tc.ddl)
+			if _, err := r.run.Step(t.Context()); err == nil {
+				t.Fatal("the step succeeded although the auto-close could not be written")
+			}
+			if got := r.state(job); got == StateFailed {
+				t.Fatalf("the job failed without its gate update")
+			}
+		})
+	}
+}
+
+func TestFailQueued_UnreadableProviderStateStopsTheStep(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.setCaps(gateDigest)
+	r.seedBatch(batchSpec{needs: `["v2"]`})
+	r.advance(2 * time.Hour)
+	r.exec(`ALTER TABLE provider_state RENAME TO provider_state_x`)
+	if _, err := r.run.Step(t.Context()); err == nil {
+		t.Fatal("the step succeeded with unreadable provider state")
+	}
+}

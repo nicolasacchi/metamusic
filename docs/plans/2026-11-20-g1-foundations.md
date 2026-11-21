@@ -324,7 +324,7 @@ starts with that check.
      reason: "worker_outdated", missing: [caps]}`; no estimate row, no token, no reservation; create re-checks inside its transaction
      (token not consumed on refusal). `TestEstimate_RefusesClosedNeeds`, `TestCreate_RechecksNeeds`.
    - *Claim*: the claim SQL gains `AND NOT EXISTS (SELECT 1 FROM json_each(j.needs_json) n WHERE n.value NOT IN (SELECT value FROM
-     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6),
+     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6; a job whose needs stayed closed ends `WORKER_OUTDATED` after 1 h instead, see Revision 6),
      releasing its reservation. `TestClaim_NeedsSubsetOfOpenCaps`, `TestClaim_DigestChangeClosesCaps`.
    - *Auto-close* (in the attempt's settle transaction): output error `CONTRACT_VERSION` or `BAD_INPUT` on a `/2` input ⇒ a row with
      `caps_json = []`; `KIND_UNAVAILABLE` ⇒ a row without the missing caps; both `via = 'auto'`, `changed_by = 'system:runner'`, only when
@@ -871,3 +871,9 @@ Revision 6 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`)
   optional names, nothing beyond), the audio window, and `v2_still_open` read **after** the run. `ParseCanaryCase`'s error text is generated from
   `CanaryCases` (desk A8). `TestCanary_V2WireCase` runs against the scripted REST stub only.
 - **`servertest.Rig.OpenCaps(tb, backend, caps...)`** takes `tb` (every other `Rig` helper does) and writes a CLI row bound to the quote's digest.
+- **Accepted risk, canary id hook.** `markV2Canary` keys on the request id, which the caller chooses, so any principal that can estimate may
+  force a plain yue2 render onto `/2` with needs `[v2]` by naming it `mm-canary-<day>-v2-wire-<n>`. With `v2` closed that only refuses
+  (`WORKER_OUTDATED`, no spend); with `v2` open it only changes the wire, which the worker accepts. Accepted for G1; a planner flag would need a
+  spec field the plan does not have.
+- **Python half of the transport caps** (`agent`, `fallback` accepted by `caps.py` and the selftest, Revision 2) is **not** in this lane
+  (Go vocabulary only); it belongs to the worker lane.
