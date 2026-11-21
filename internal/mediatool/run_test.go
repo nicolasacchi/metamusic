@@ -237,3 +237,11 @@ wait`)
 	}
 	_ = syscall.Kill(orphan, syscall.SIGKILL)
 }
+
+func TestRun_ExtraEnv(t *testing.T) {
+	out, err := Run(context.Background(), script(t, `printf '%s|%s|%s' "$HOME" "$LC_ALL" "$USER"`), nil,
+		RunOpts{Timeout: 5 * time.Second, MaxStdout: 1 << 10, ExtraEnv: []string{"HOME=/work"}})
+	if err != nil || string(out) != "/work|C|" {
+		t.Fatalf("out=%q err=%v: only LC_ALL, PATH and ExtraEnv may reach the tool", out, err)
+	}
+}

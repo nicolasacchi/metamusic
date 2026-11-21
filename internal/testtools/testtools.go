@@ -41,7 +41,7 @@ func Tools() mediatool.Tools {
 		}
 		return n
 	}
-	return mediatool.Tools{FFmpeg: pick("ffmpeg"), FLAC: pick("flac"), Metaflac: pick("metaflac")}
+	return mediatool.Tools{FFmpeg: pick("ffmpeg"), FLAC: pick("flac"), Metaflac: pick("metaflac"), Fluidsynth: pick("fluidsynth")}
 }
 
 // Require skips the test under -short, and when a named tool is missing,
