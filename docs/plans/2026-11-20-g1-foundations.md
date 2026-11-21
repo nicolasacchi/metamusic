@@ -324,7 +324,7 @@ starts with that check.
      reason: "worker_outdated", missing: [caps]}`; no estimate row, no token, no reservation; create re-checks inside its transaction
      (token not consumed on refusal). `TestEstimate_RefusesClosedNeeds`, `TestCreate_RechecksNeeds`.
    - *Claim*: the claim SQL gains `AND NOT EXISTS (SELECT 1 FROM json_each(j.needs_json) n WHERE n.value NOT IN (SELECT value FROM
-     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6; a job whose needs stayed closed ends `WORKER_OUTDATED` after 1 h instead, see Revision 6),
+     json_each(?)))` with the backend's open caps. A job that loses its caps stays `queued` and ends `NOT_SUBMITTED` after 24 h (M3 row 6; a job whose needs stayed closed ends `WORKER_OUTDATED` after 1 h instead, see Revision 7),
      releasing its reservation. `TestClaim_NeedsSubsetOfOpenCaps`, `TestClaim_DigestChangeClosesCaps`.
    - *Auto-close* (in the attempt's settle transaction): output error `CONTRACT_VERSION` or `BAD_INPUT` on a `/2` input ⇒ a row with
      `caps_json = []`; `KIND_UNAVAILABLE` ⇒ a row without the missing caps; both `via = 'auto'`, `changed_by = 'system:runner'`, only when
@@ -784,7 +784,7 @@ verification, with the amendments the code forced.
   1 MiB decoded together; `fallback_after_s` is present exactly when an upload carries a `fallback` (60..600); no `null` anywhere outside `request`.
   `ParseWorkerInput` and `BuildWorkerInputV2` refuse a document over `MaxRunBody`; the schema cannot state that, nor the attachment total
   (`parserOnly` rows in the tests).
-- **C321.5 artifact table** (`internal/provider/artifacts_v2.go`; `KindShape{Kind, Ears, KeepVocals, Seeds}`): `ArtifactsV2(shape)` lists the upload
+- **C321.5 artifact table** (the `Required` flag means "needs an upload target"; what the worker must produce is narrower, see Revision 6) (`internal/provider/artifacts_v2.go`; `KindShape{Kind, Ears, KeepVocals, Seeds}`): `ArtifactsV2(shape)` lists the upload
   targets of a document and `Required` marks the mandatory ones. A target exists exactly when its condition holds, and the document must carry it:
   `analysis.json` for `ears`, `stem-vocals.flac` for `keep_vocals`, `plan-00..plan-(n-1).tar` for n seeds. `ExtraRequiredV2(shape, output)` lists what
   a finished output must report beyond the engine's own set (`analysis.json` once `ears.status = ok`, the bundle of each ok plan). **Amendment:
@@ -825,7 +825,48 @@ verification, with the amendments the code forced.
   retry of transient submit-side faults is a separate, cross-engine change). `ears.budget_s` is not yet added to `timeout_s` or the reservation:
   that belongs to the Ears track, and no ears-bearing job can be created before it lands.
 
-Revision 6 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`): C322 as built, with the amendments the code forced.
+Revision 6 (2026-11-21, lane G1-F4 `g1-worker`, built on `origin/main` `58928da`): the Python half of C321/C322 as built. The code is the contract where it differs.
+
+- **Parsers.** `contract.parse_input` stays the `/1` parser, byte for byte (it still answers `CONTRACT_VERSION` to a `/2` document, as the existing tests pin).
+  `contract.parse_job` dispatches on `contract` (`/2` to `parse_v2`, anything else to `parse_input`); `serverless.make_handler` uses it. `TakeInput` gains
+  defaulted fields `contract`, `kind`, `ears`, `plan`, `attach`, `fallback_after_s`. `parse_v2` refuses `engine` other than `yue2` (ACE-Step stays `/1`),
+  applies the schema's per-kind key and upload-name rules, and checks what the schema cannot state (decoded attachments at most 1 MiB, bool seeds). A test row
+  table runs every document through `parse_v2` and the `/2` input schema and requires the same verdict. `fallback` targets are validated and ignored.
+- **Tables.** `contract.artifacts_v2(kind, ears, keep_vocals, seeds)` equals `worker/contract/testdata/artifacts-v2.json` shape by shape (name, max bytes,
+  order, required). Its `required` flag is the document's (every listed name needs an upload target); what the worker must *produce* is narrower: `analysis.json`
+  only once `ears.status = ok`, `stem-vocals.flac` never, each `plan-NN.tar` of an `ok` plan. Error codes gain `KIND_UNAVAILABLE`, `ATTACH_MISMATCH`,
+  `ANALYZE_FAILED`, `PLANS_FAILED`; a test pins `CODES` to the `/2` output schema enum (minus `TASK_UNAVAILABLE`, ACE-only).
+- **Stage registry** (`mmworker/stages/__init__.py`). A stage is one module that calls `stages.register(name, fn)` at import, with `name` one of `ears`, `analyze`,
+  `plan` (the cap name). `stages.discover()` imports every non-underscore module of the package at startup (serverless `main`, selftest), so a stage lane adds
+  a file and edits nothing shared; a module whose libraries or models are missing raises `ImportError` and registers nothing, so its cap stays closed.
+  `ears` and `analyze` return `EarsOutcome(status, code, seconds, audio_seconds)`; `plan` returns `[PlanOutcome(index, seed, status, code, truncated)]`.
+  Every stage receives a `StageContext` (take, work dir, verified fetched inputs, attach files, `cancelled`, clock, `timeout_s`, adapter and validated params
+  for plan, the audio to analyze) and writes its files into the work dir under allowlisted names; the handler collects and uploads them. `register(...,
+  ears_stages=...)` narrows the Tier B stages (`separate`, `asr`, `transcribe`) a registration supports; a request for another one is `KIND_UNAVAILABLE`.
+- **Handler order of a `/2` run** is C321.7: 1a handshake, 2 engine, **1c** kind and stage availability (`KIND_UNAVAILABLE` before any fetch or GPU work),
+  1b fetch, weights, 3 request validation (not for analyze), **3b** attach, stage run, save, truncation, **6b** Tier B, collect against the kind's table,
+  upload (table order, `mm-result.json` last). Attachments are written to `<work dir>/attach/` after a sha256 check and are never collected as artifacts.
+  A `/1` run takes none of the new branches.
+- **Tier B (render).** Skipped (`ears = {status: skipped, code: DEADLINE}`) when generation ends after `ears_deadline - budget_s/3`; otherwise the stage runs under
+  `min(budget_s, ears_deadline - now)`. Any stage fault (exception, bad return, `analysis.json` missing after `ok`, the stage's own error) becomes the `ears` block
+  (`STAGE_FAILED`, `NO_DOCUMENT`, the `WorkerError` code, or the stage's code) and the take completes; the app stopping the attempt (`ATTEMPT_CLOSED`) still ends it.
+  The `ears` output block always carries `seconds`.
+- **Analyze.** After the verified fetch (counted against `ears_deadline - budget_s`, the generation deadline of an ears take) the `analyze` stage runs on
+  `inputs.src_audio`; `audio_seconds` is the stage's value, else the FLAC duration (an input with neither is `PIPELINE_ERROR`). A stage that does not end `ok` still
+  uploads `analysis.json` when it wrote one, then ends `ANALYZE_FAILED` with the `ears` block in `mm-result.json`.
+- **Plan.** The `plan` stage runs once with the generation deadline watch; the handler checks that every seed is reported exactly once with its seed value, builds
+  `plans[]` (bundle `plan-NN.tar` for `ok`, `code` for errors; per-plan `truncated` is passed through as the schema's boolean map), and ends `PLANS_FAILED` when no seed
+  is `ok`. Seed ordering, per-seed cancellation and the bundle contents are the Desk lane's stage (desk A2).
+- **Caps and image.** `caps.py` holds the vocabulary; the image advertises `v2` plus one cap per registered stage (sorted); `attach` stays reserved and is not
+  advertised (desk A3); `caps.compose(stage_caps, transport)` accepts the transport caps `agent` and `fallback` for the C390s track. The yue2 Dockerfile carries
+  `LABEL io.metamusic.contracts="mm.worker/1 mm.worker/2"` and `io.metamusic.caps="v2"`. `MODE=selftest` also runs a plain `/2` render against the fake pipeline and
+  prints `caps: <list>` on stdout (not for the ACE-Step engine); a test pins label = caps of the stage modules in the tree (a stage lane edits the label in its own
+  commit) and `worker-image.yml` asserts label = selftest output on the built image. Rendering over `/1` is untouched: the existing worker suites pass unchanged.
+- **Not done here (by design):** no stage module (Ears, Desk), no fallback behaviour, no `MODE=agent`; the GPU image was not built.
+
+Revision 6 supersedes the C321.5 `Required` wording and the C322.1 vocabulary line that lists `attach` as an advertised cap (not advertised). Review fixes: a malformed plan report is `PIPELINE_ERROR`; stage-supplied codes failing `^[A-Z][A-Z0-9_]*$` fall back to `STAGE_FAILED` or `PLAN_FAILED`; `stages.discover()` catches any import error and removes a partial registration.
+
+Revision 7 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`, merged after G1-F4's Revision 6): C322 as built, with the amendments the code forced.
 
 - **C322.3 migration** is `0022_worker_contract.sql` (additive, up-only; `0020` is the job-kinds rebuild, `0021` the EARS-D1 diction tables, which merged first; renumbered at the merge). The table, the index, the two
   append-only triggers and the view `worker_contract` are as specified, plus `CHECK (length(backend) > 0)`, `CHECK (length(image_digest) > 0)` and

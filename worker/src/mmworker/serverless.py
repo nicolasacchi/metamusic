@@ -9,8 +9,8 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from . import engines, redact
-from .contract import parse_input
+from . import engines, redact, stages
+from .contract import parse_job
 from .errors import InitError, WorkerError
 from .handler import process
 from .models import init_line
@@ -28,7 +28,7 @@ def make_handler(pipe: Pipeline | engines.Adapter, *, environ: Mapping[str, str]
 
     def handle(job: dict[str, Any]) -> dict[str, Any]:
         try:
-            take = parse_input(job.get("input"))
+            take = parse_job(job.get("input"))  # /1 or /2 by `contract`
         except WorkerError as e:
             return {"error": f"{e.code}: {redact.message(e.message)}"}
         job_id = str(job.get("id", ""))
@@ -112,5 +112,6 @@ def main(environ: Mapping[str, str] | None = None,
             timer.join(5)
     if state["printed"]:  # the watchdog fired while the loader was finishing: do not start serving
         return 1
+    stages.discover()  # a stage whose libraries or models are absent registers nothing, so its cap stays closed
     runner(make_handler(adapter, environ=env))
     return 0

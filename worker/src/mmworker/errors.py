@@ -20,6 +20,11 @@ CODES = (
     "INPUT_FAILED",
     "INPUT_MISMATCH",
     "TASK_UNAVAILABLE",
+    # mm.worker/2 (C321.8).
+    "KIND_UNAVAILABLE",
+    "ATTACH_MISMATCH",
+    "ANALYZE_FAILED",
+    "PLANS_FAILED",
 )
 
 # Why a worker could not initialise (C154.5). Only ever seen in the one stderr line and the reconciler event,
