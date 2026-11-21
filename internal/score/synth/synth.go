@@ -109,7 +109,9 @@ type RenderError struct {
 	Err      error
 }
 
-func (e *RenderError) Error() string { return fmt.Sprintf("synth: fluidsynth failed: exit %d", e.ExitCode) }
+func (e *RenderError) Error() string {
+	return fmt.Sprintf("synth: fluidsynth failed: exit %d", e.ExitCode)
+}
 
 // Unwrap exposes the context error so errors.Is(err, context.DeadlineExceeded) works.
 func (e *RenderError) Unwrap() error { return e.Err }
