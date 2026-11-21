@@ -65,6 +65,9 @@ func dbSnapshot(t *testing.T, db interface {
 			if tb == "jobs" { // 0020 appends needs_json and spec_json (defaults on every old row); TestMigration_JobKinds pins that
 				row = strings.TrimSuffix(row, "needs_json=[]|spec_json={}|")
 			}
+			if tb == "estimates" || tb == "batches" { // 0024 appends a NULL mandate_id; TestMigration_Mandates pins that
+				row = strings.TrimSuffix(row, "mandate_id=<nil>|")
+			}
 			out[tb] = append(out[tb], row)
 		}
 		r.Close()
