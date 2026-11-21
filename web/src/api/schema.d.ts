@@ -6913,6 +6913,7 @@ export interface components {
             trips_recent: components["schemas"]["TripView"][];
             /** Format: int64 */
             ttl_s: number;
+            upload_fallback: components["schemas"]["UploadFallbackStatus"];
             /** @description The worker capability gate of this backend's image (C322) */
             worker: components["schemas"]["WorkerStatusView"];
             workers: {
@@ -9220,6 +9221,12 @@ export interface components {
             /** @description songs.jsonl text, one request per line (at most 1000 lines, 4 MiB) */
             jsonl: string;
             parent_track_id?: string;
+        };
+        UploadFallbackStatus: {
+            configured: boolean;
+            last_used_at: string | null;
+            /** Format: int64 */
+            objects_pending: number;
         };
         UploadLineIssue: {
             code: string;

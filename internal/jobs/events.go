@@ -62,9 +62,10 @@ const (
 	EvBatchNoCapacity   = "batch_no_capacity"
 	EvPreflightFailed   = "preflight_failed"
 	EvDurationMismatch  = "duration_mismatch"
-	EvAttached          = "attached"      // E2b: a stem was attached to its source take as an artifact (C166)
-	EvLRCDropped        = "lrc_dropped"   // E2b: a delivered lyrics.lrc failed validation and was not kept (C166)
-	EvKindIngested      = "kind_ingested" // G1: the ingester of an analyze or plan job committed its result (C323.6)
+	EvAttached          = "attached"          // E2b: a stem was attached to its source take as an artifact (C166)
+	EvLRCDropped        = "lrc_dropped"       // E2b: a delivered lyrics.lrc failed validation and was not kept (C166)
+	EvFallbackMismatch  = "fallback_mismatch" // BULK-R2: a bucket object or result failed verification and was not received (C399.6)
+	EvKindIngested      = "kind_ingested"     // G1: the ingester of an analyze or plan job committed its result (C323.6)
 )
 
 // common detail keys every event may carry besides its own.
@@ -83,7 +84,8 @@ var eventDetailKeys = map[string][]string{
 	EvRunning:           {"status", "announced"},
 	EvQueueExpired:      {"expiries", "next_attempt_at", "basis"},
 	EvResubmit:          {"next_attempt_at", "queue_expiries"},
-	EvUpload:            {"upload_id", "artifact", "bytes"},
+	EvUpload:            {"upload_id", "artifact", "bytes", "via"},
+	EvFallbackMismatch:  {"artifact"},
 	EvResultReceived:    {"artifact_count", "status"},
 	EvCompletedRemote:   {"execution_ms"},
 	EvVerified:          {"artifacts", "truncated_abc", "truncated_semantic"},

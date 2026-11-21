@@ -152,7 +152,9 @@ func registerProviderM3(a huma.API, d Deps) {
 			if err != nil {
 				return nil, providerErr(err)
 			}
-			return &providerStatusOut{Body: providerStatusAll(p, all.Default, all)}, nil
+			body := providerStatusAll(p, all.Default, all)
+			body.UploadFallback = d.uploadFallbackStatus(ctx)
+			return &providerStatusOut{Body: body}, nil
 		})
 
 	Register(a, withBody(huma.Operation{
@@ -178,6 +180,8 @@ func registerProviderM3(a huma.API, d Deps) {
 				return nil, providerErr(err)
 			}
 			// the answer's top level is the backend that changed (the default one when none is named)
-			return &providerStatusOut{Body: providerStatusAll(p, s, all)}, nil
+			body := providerStatusAll(p, s, all)
+			body.UploadFallback = d.uploadFallbackStatus(ctx)
+			return &providerStatusOut{Body: body}, nil
 		})
 }

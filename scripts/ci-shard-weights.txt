@@ -51,6 +51,7 @@
 ./internal/diction 22
 ./internal/ears/tierb 22
 ./internal/auth 21
+./internal/upload/fallback 20
 ./internal/songpr 19
 ./internal/archivetest 18
 ./internal/voice 18

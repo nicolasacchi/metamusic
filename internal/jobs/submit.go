@@ -495,7 +495,11 @@ func (r *Runner) takeSpec(ctx context.Context, c *claim) (provider.TakeSpec, err
 		}
 		_ = json.Unmarshal([]byte(c.job.MutationJSON), &m) // absent in takes planned before the control: 0 = none
 		spec.MinAudioS = m.MinAudioS
-		return spec, r.applyWire(ctx, c, &spec)
+		if err := r.applyWire(ctx, c, &spec); err != nil {
+			return spec, err
+		}
+		r.applyFallback(ctx, c, &spec) // bulk A4: nil-safe, off unless an upload fallback is wired and its capability is open
+		return spec, nil
 	}
 	// Another engine: no minimum-render control (C153), its own pinned weights, and the signed fetch URLs of an edit's
 	// source and reference audio, minted now and carried only in this in-memory spec (D-E2-9).

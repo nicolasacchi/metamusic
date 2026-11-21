@@ -79,6 +79,11 @@ func (r *Runner) phasePoll(ctx context.Context, rep *StepReport) error {
 			r.mu.Lock()
 			r.lastPoll[a.ID] = now
 			r.mu.Unlock()
+			if st.State == provider.NotFound && r.rescue(ctx, a.ID, false) { // bulk A5: a lost status is not a lost result
+				if err := r.phaseResults(ctx, rep); err != nil {
+					return err
+				}
+			}
 			post, err := r.observe(ctx, j.ID, a.ID, st)
 			if err := skipStale(err); err != nil {
 				return err

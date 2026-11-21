@@ -94,8 +94,13 @@ func TestMigration_WorkerContract_PlainYue2Unchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 0022 is purely additive, so removing what it created and the version stamp is a database exactly as 0021 left it
-	for _, q := range []string{`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 21`} {
+	// 0022 is purely additive, so removing what it created and the version stamp is a database exactly as 0021 left it (0023, the upload
+	// fallback, is removed first: it is additive too)
+	for _, q := range []string{
+		`DROP TRIGGER uploads_via_on_insert`, `DROP TRIGGER uploads_via_set_once`, `DROP TRIGGER uploads_via_when_received`,
+		`DROP TABLE fallback_objects`, `DROP TABLE upload_drills`, `ALTER TABLE uploads DROP COLUMN via`,
+		`DROP VIEW worker_contract`, `DROP TABLE worker_contract_log`, `PRAGMA user_version = 21`,
+	} {
 		if _, err := pre.W.ExecContext(t.Context(), q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}

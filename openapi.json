@@ -14878,6 +14878,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "upload_fallback": {
+            "$ref": "#/components/schemas/UploadFallbackStatus"
+          },
           "worker": {
             "$ref": "#/components/schemas/WorkerStatusView",
             "description": "The worker capability gate of this backend's image (C322)"
@@ -14935,6 +14938,7 @@
           "engine",
           "backends",
           "global_bound",
+          "upload_fallback",
           "backend",
           "generation_enabled",
           "disabled_reason",
@@ -23301,6 +23305,30 @@
         },
         "required": [
           "jsonl"
+        ],
+        "type": "object"
+      },
+      "UploadFallbackStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objects_pending": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "objects_pending",
+          "last_used_at"
         ],
         "type": "object"
       },

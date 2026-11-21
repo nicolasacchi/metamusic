@@ -35,17 +35,18 @@ const (
 )
 
 type rig struct {
-	t      *testing.T
-	st     *store.Store
-	clk    *clocktest.Manual
-	svc    *Service
-	sig    *Signer
-	data   *os.Root
-	wakes  atomic.Int32
-	logs   *syncBuf
-	exp    int64
-	n      int
-	dbPath string
+	t        *testing.T
+	st       *store.Store
+	clk      *clocktest.Manual
+	svc      *Service
+	sig      *Signer
+	data     *os.Root
+	wakes    atomic.Int32
+	logs     *syncBuf
+	exp      int64
+	n        int
+	dbPath   string
+	dataPath string
 }
 
 type syncBuf struct {
@@ -60,18 +61,30 @@ func newRig(t *testing.T) *rig { return newRigWith(t, "starting", "submitted") }
 
 func newRigWith(t *testing.T, jobState, attState string) *rig {
 	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "s.db")
+	return newRigAt(t, filepath.Join(t.TempDir(), "s.db"), jobState, attState)
+}
+
+// newRigAtPath is the rig over an existing (possibly older) database file.
+func newRigAtPath(t *testing.T, dbPath string) *rig {
+	return newRigAt(t, dbPath, "starting", "submitted")
+}
+
+func (r *rig) dataDir() string { return r.dataPath }
+
+func newRigAt(t *testing.T, dbPath, jobState, attState string) *rig {
+	t.Helper()
 	st, err := store.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	root, err := os.OpenRoot(t.TempDir())
+	dataPath := t.TempDir()
+	root, err := os.OpenRoot(dataPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { root.Close() })
-	r := &rig{t: t, dbPath: dbPath, st: st, clk: clocktest.NewManual(t0), sig: NewSigner([]byte("synthetic-secret-key-for-tests-0001")), data: root, logs: &syncBuf{}}
+	r := &rig{t: t, dbPath: dbPath, st: st, clk: clocktest.NewManual(t0), sig: NewSigner([]byte("synthetic-secret-key-for-tests-0001")), data: root, dataPath: dataPath, logs: &syncBuf{}}
 	r.exp = t0.Add(3 * time.Hour).Unix()
 	r.svc = NewService(ServiceOptions{Data: root, Signer: r.sig, Store: st, Clock: r.clk, PublicURL: publicURL,
 		Wake: func() { r.wakes.Add(1) }, Log: slog.New(slog.NewJSONHandler(r.logs, nil)),
