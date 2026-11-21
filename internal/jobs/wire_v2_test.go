@@ -56,7 +56,7 @@ func TestWireOf_Table(t *testing.T) {
 	if got := contractOf("yue2", JobRow{Kind: KindPlan, Needs: []string{"plan", "v2"}, SpecJSON: defaultSpec(KindPlan)}); got != provider.ContractV2 {
 		t.Errorf("contractOf plan = %q", got)
 	}
-	if got := contractOf("yue2", JobRow{SpecJSON: `{"bad":1}`}); got != provider.ContractV1 {
+	if got := contractOf("yue2", JobRow{SpecJSON: `{"bad":1}`}); got != "" {
 		t.Errorf("contractOf of a corrupt spec = %q", got)
 	}
 }
@@ -267,13 +267,14 @@ func TestTakeSpec_V2RefusedBeforeSubmit(t *testing.T) {
 	for _, c := range []struct {
 		name, kind, needs, spec string
 		pins                    InputMinter
+		code                    string // the failure code, SUBMIT_REJECTED unless set
 	}{
 		{"analyze without a pin minter", KindAnalyze, `["analyze","ears","v2"]`, defaultSpec(KindAnalyze), minterFunc(func(context.Context, json.RawMessage, time.Time) (map[string]provider.InputRef, error) {
 			return nil, nil
-		})},
-		{"analyze without inputs", KindAnalyze, `["analyze","ears","v2"]`, `{"ears":{"budget_s":60,"stages":["asr"]}}`, nil},
-		{"plan without a plan block", KindPlan, `["plan","v2"]`, `{}`, nil},
-		{"pins that no longer match", KindAnalyze, `["analyze","ears","v2"]`, defaultSpec(KindAnalyze), changedPins{}},
+		}), ""},
+		{"analyze without inputs", KindAnalyze, `["analyze","ears","v2"]`, `{"ears":{"budget_s":60,"stages":["asr"]}}`, nil, ""},
+		{"plan without a plan block", KindPlan, `["plan","v2"]`, `{}`, nil, ""},
+		{"pins that no longer match", KindAnalyze, `["analyze","ears","v2"]`, defaultSpec(KindAnalyze), changedPins{}, CodeInputMismatch},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := newBridgeRig(t, false)
@@ -290,7 +291,11 @@ func TestTakeSpec_V2RefusedBeforeSubmit(t *testing.T) {
 				b.advance(3e9)
 			}
 			b.wantState(job, StateFailed)
-			b.wantCode(job, CodeSubmitRejected)
+			want := c.code
+			if want == "" {
+				want = CodeSubmitRejected
+			}
+			b.wantCode(job, want)
 			if got := b.str(`SELECT COALESCE(MAX(detail_json), '') FROM job_events WHERE job_id = ?`, job); strings.Contains(got, "sig=") {
 				t.Errorf("an event carries a link: %s", got)
 			}
@@ -502,5 +507,43 @@ func TestApplyWire_Refusals(t *testing.T) {
 	noPlan := jobRec{JobRow: JobRow{ID: "j", Kind: KindPlan, Needs: []string{"plan", "v2"}, SpecJSON: `{}`}, Engine: "yue2"}
 	if err := r.run.applyWire(ctx, &claim{job: noPlan}, &provider.TakeSpec{Engine: "yue2", Request: []byte(`{"a":1}`)}); err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Errorf("a plan job without a plan: %v", err)
+	}
+}
+
+// TestContractOf_FailsClosed: a job whose spec_json does not parse matches no contract, so its result is a WORKER_CONTRACT.
+func TestContractOf_FailsClosed(t *testing.T) {
+	t.Parallel()
+	if got := contractOf("yue2", JobRow{SpecJSON: `{"nope":1}`}); got != "" {
+		t.Errorf("contractOf on a corrupt spec = %q", got)
+	}
+}
+
+// TestApplyWire_InputChangedKeepsChain: a pin whose master changed keeps ErrInputChanged so submit can classify it (C323.5).
+func TestApplyWire_InputChangedKeepsChain(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.run.o.Inputs = changedPins{}
+	job := jobRec{JobRow: JobRow{ID: "j", Kind: KindAnalyze, Needs: []string{"analyze", "ears", "v2"},
+		SpecJSON: `{"ears":{"budget_s":60,"stages":["asr"]},"inputs":{"src_audio":{"track_id":"t","master_sha256":"` + strings.Repeat("a", 64) + `","bytes":5}}}`}, Engine: "yue2"}
+	err := r.run.applyWire(t.Context(), &claim{job: job}, &provider.TakeSpec{Engine: "yue2"})
+	if !errors.Is(err, ErrInputChanged) {
+		t.Errorf("applyWire error %v does not wrap ErrInputChanged", err)
+	}
+}
+
+// TestHandleResult_V1ErrorOnV2Job: a /1 worker answering a /2 job with an error output keeps its error code.
+func TestHandleResult_V1ErrorOnV2Job(t *testing.T) {
+	b := newBridgeRig(t, false)
+	job := b.seed(batchSpec{kind: KindGenerate, needs: `["ears","v2"]`, specJSON: `{"ears":{"budget_s":30,"stages":["asr"]}}`, recipe: b.newRecipe("pop")}).Jobs[0]
+	spec := b.specOf(job)
+	b.deliver(spec, deliverOpts{errorOut: true, mutateOut: func(o *provider.Output) {
+		o.Contract, o.Kind, o.Ears = provider.ContractV1, "", nil
+	}})
+	for range 6 {
+		b.step()
+		b.advance(3e9)
+	}
+	if n := b.count(`SELECT COUNT(*) FROM job_events WHERE job_id = ? AND code = ? AND json_extract(detail_json, '$.worker_error') = 'PIPELINE_ERROR'`, job, CodeWorkerError); n == 0 {
+		t.Errorf("the /1 error output lost its code: %v", b.events(job))
 	}
 }

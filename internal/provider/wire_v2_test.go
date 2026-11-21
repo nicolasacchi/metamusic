@@ -919,3 +919,13 @@ func TestUploadTarget_V1Bytes(t *testing.T) {
 		t.Errorf("target = %s", got)
 	}
 }
+
+// TestBuildWorkerInput_V2FeaturesNeedV2Wire: a spec that carries /2 features but no /2 wire is refused, never silently built as /1.
+func TestBuildWorkerInput_V2FeaturesNeedV2Wire(t *testing.T) {
+	t.Parallel()
+	spec := specV2(KindRender, &EarsSpec{Lang: "en", BudgetS: 30, Stages: []string{"asr"}}, nil)
+	spec.Wire = ""
+	if _, err := BuildWorkerInput(spec); !errors.Is(err, ErrWorkerInput) {
+		t.Errorf("err = %v, want ErrWorkerInput", err)
+	}
+}

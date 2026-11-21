@@ -69,7 +69,7 @@ func takeKindOf(kind string) string {
 func contractOf(engine string, j JobRow) string {
 	w, err := wireOf(engine, j.Kind, j.Needs, j.SpecJSON)
 	if err != nil {
-		return provider.ContractV1
+		return "" // fails closed: no contract matches a job whose spec_json does not parse
 	}
 	return w.Wire
 }
@@ -146,7 +146,7 @@ func (r *Runner) applyWire(ctx context.Context, c *claim, spec *provider.TakeSpe
 		}
 		inputs, err := pm.MintPins(ctx, *in, time.Unix(c.exp, 0).UTC())
 		if err != nil {
-			return fmt.Errorf("jobs: mint pinned inputs: %s", redact.Error(err))
+			return fmt.Errorf("jobs: mint pinned inputs: %w", redactedErr{err})
 		}
 		spec.Inputs = inputs
 	}
@@ -176,3 +176,9 @@ func (r *Runner) applyWire(ctx context.Context, c *claim, spec *provider.TakeSpe
 	}
 	return nil
 }
+
+// redactedErr keeps the chain of an error (errors.Is) while its text passes through redact.
+type redactedErr struct{ err error }
+
+func (e redactedErr) Error() string { return redact.Error(e.err) }
+func (e redactedErr) Unwrap() error { return e.err }

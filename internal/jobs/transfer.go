@@ -107,7 +107,10 @@ func (r *Runner) handleResult(ctx context.Context, tx *sql.Tx, uploadID, attempt
 	}
 	a := as[0]
 	out, err := r.readOutput(uploadID)
-	if err != nil || out.Contract != contractOf(j.Engine, j.JobRow) || out.TakeID != j.ID || out.AttemptID != a.ID {
+	want := contractOf(j.Engine, j.JobRow)
+	// A /2 job whose worker image only speaks /1 answers BAD_INPUT or an unknown-kind error as a /1 error output; keep its code.
+	v1Error := err == nil && want == provider.ContractV2 && out.Contract == provider.ContractV1 && out.Status == "error"
+	if err != nil || (out.Contract != want && !v1Error) || out.TakeID != j.ID || out.AttemptID != a.ID {
 		return nil, insertEvent(ctx, tx, f, Event{JobID: j.ID, AttemptID: a.ID, Name: EvStatus, Code: CodeWorkerContract, Detail: map[string]any{"reason": "mm-result.json does not match its attempt"}})
 	}
 	if out.Status != "ok" {

@@ -457,7 +457,11 @@ func (r *Runner) submit(ctx context.Context, c *claim) error {
 	spec, err := r.takeSpec(ctx, c)
 	if err != nil {
 		// nothing was sent: the attempt is rejected like a client-side refusal
-		return r.submitOutcome(ctx, c, provider.Ref{}, &submitFailure{kind: failRefused, code: CodeSubmitRejected, text: err.Error()})
+		code := CodeSubmitRejected
+		if errors.Is(err, ErrInputChanged) {
+			code = CodeInputMismatch // C323.5: a pinned master changed since the estimate
+		}
+		return r.submitOutcome(ctx, c, provider.Ref{}, &submitFailure{kind: failRefused, code: code, text: err.Error()})
 	}
 	sctx, cancel := context.WithTimeout(ctx, submitTimeout)
 	ref, serr := r.o.Backend.Submit(sctx, spec)

@@ -237,6 +237,9 @@ func BuildWorkerInput(t TakeSpec) ([]byte, error) {
 	if t.Wire == ContractV2 {
 		return BuildWorkerInputV2(t)
 	}
+	if usesV2(t) {
+		return nil, fmt.Errorf("%w: the take spec carries /2 features but its wire is %q", ErrWorkerInput, t.Wire)
+	}
 	uploads := make(map[string]UploadTarget, len(t.Uploads))
 	for k, v := range t.Uploads {
 		uploads[k] = v

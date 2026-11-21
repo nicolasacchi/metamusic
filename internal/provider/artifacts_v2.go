@@ -65,7 +65,8 @@ func (s KindShape) kind() string {
 }
 
 // ArtifactsV2 is the upload allowlist of a /2 document of the given shape, in upload order with mm-result.json last. Required
-// marks the targets the document must carry. A render keeps the /1 yue2 set and its conditional members; an unknown kind has
+// marks the targets the document must carry (an upload target must exist in the document); it does not mean the worker must
+// report the artifact: that is ExtraRequiredV2, and stem-vocals.flac is verified when reported but never required. A render keeps the /1 yue2 set and its conditional members; an unknown kind has
 // none (nil).
 func ArtifactsV2(s KindShape) []Artifact {
 	result := Artifact{ResultArtifact, 64 * kib, true}
