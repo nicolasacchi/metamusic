@@ -169,7 +169,7 @@ func TestReserveTopUp_Errors(t *testing.T) {
 		t.Errorf("bad reason: %v", err)
 	}
 	bad = ok
-	bad.Amount = 0
+	bad.Reason, bad.Amount = "topup_price", 0 // a zero attempt_overhead is a no-op (C393.4); every other reason refuses it
 	if _, err := try(bad); !errors.Is(err, ErrBadEntry) {
 		t.Errorf("zero amount: %v", err)
 	}
