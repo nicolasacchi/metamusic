@@ -59,6 +59,10 @@ type SimWorkerOptions struct {
 	// AudioScale, when positive, caps the seconds of audio an ACE-Step render really synthesises while the accounted
 	// length stays the request's. Zero reads MM_FAKE_AUDIO_SCALE (tests only; unset or invalid means no cap).
 	AudioScale float64
+	// Kinds are the stage hooks of the /2 kinds this worker image "has" (C321, D-G1-3): "ears" (the Tier B stage of a render),
+	// "analyze" and "plan". They are added to the init-time table RegisterSimKind fills, and win over it. A /2 document whose
+	// kind or stage has no hook is answered KIND_UNAVAILABLE before any render, as the real worker does until a stage registers.
+	Kinds map[string]SimKindHook
 }
 
 // SimWorker simulates the worker handler of C83.2: it validates the input, announces itself through the
@@ -154,7 +158,7 @@ func (w *SimWorker) Begin(ctx context.Context, rawInput []byte, ref string, virt
 		return nil, &r
 	}
 	s.in = in
-	_ = json.Unmarshal(in.Request, &s.req)
+	_ = json.Unmarshal(in.Request, &s.req) // absent for kind analyze
 	if s.req.Cot == "" {
 		s.req.Cot = "full"
 	}
@@ -174,8 +178,20 @@ func (w *SimWorker) Begin(ctx context.Context, rawInput []byte, ref string, virt
 			return s, &r
 		}
 	}
-	if s.ace {
+	if in.Contract == provider.ContractV2 {
+		if code, msg := s.checkKindV2(); code != "" { // C321.7 step 1c: before any fetch, weights or render
+			r := s.fail(code, msg, true)
+			return s, &r
+		}
+	}
+	if s.ace || in.Kind == provider.KindAnalyze {
 		if code, msg := s.fetchInputs(ctx); code != "" { // C153.3 step 1b: before the weights check
+			r := s.fail(code, msg, true)
+			return s, &r
+		}
+	}
+	if in.Contract == provider.ContractV2 {
+		if code, msg := s.checkAttach(); code != "" { // step 3b: sha256 of every attachment
 			r := s.fail(code, msg, true)
 			return s, &r
 		}
@@ -291,7 +307,7 @@ func (s *Session) baseOutput() provider.Output {
 		weights[k] = v
 	}
 	return provider.Output{
-		Contract: provider.Contract, TakeID: s.in.TakeID, AttemptID: s.in.AttemptID, Status: "ok",
+		Contract: s.contract(), TakeID: s.in.TakeID, AttemptID: s.in.AttemptID, Status: "ok",
 		Artifacts: map[string]provider.ArtifactDigest{},
 		Timings:   map[string]*json.Number{},
 		Env: provider.OutputEnv{Engine: s.in.Engine, PkgVersion: "0.1.6", CodeCommit: workerBuild, Weights: weights,
@@ -301,9 +317,12 @@ func (s *Session) baseOutput() provider.Output {
 
 // errorResult builds a failed run's Result; the message never contains a URL.
 func (s *Session) errorResult(id ids, code, msg string, _ bool) Result {
-	out := provider.Output{Contract: provider.Contract, TakeID: id.take, AttemptID: id.attempt, Status: "error",
+	out := provider.Output{Contract: s.contract(), TakeID: id.take, AttemptID: id.attempt, Status: "error",
 		Error: &provider.OutputError{Code: code, Message: truncate(msg, 500)}, Artifacts: map[string]provider.ArtifactDigest{},
 		Timings: map[string]*json.Number{}}
+	if s.in.Contract == provider.ContractV2 {
+		out.Kind = s.in.Kind
+	}
 	if s.in.Engine != "" {
 		out = mergeEnv(out, s.baseOutput())
 	}
@@ -380,7 +399,17 @@ func (s *Session) Finish(ctx context.Context) Result {
 	if s.ace {
 		render = s.renderACE
 	}
-	arts, audioSecs, err := render(ctx)
+	var (
+		arts      []artifact
+		audioSecs float64
+		err       error
+	)
+	v2 := s.in.Contract == provider.ContractV2
+	if v2 && s.in.Kind != provider.KindRender {
+		arts, audioSecs, err = nil, 0, nil // analyze and plan render nothing; their stage hook produces the artifacts below
+	} else {
+		arts, audioSecs, err = render(ctx)
+	}
 	if err != nil {
 		return s.fail("PIPELINE_ERROR", "render failed: "+err.Error(), true)
 	}
@@ -390,6 +419,12 @@ func (s *Session) Finish(ctx context.Context) Result {
 	}
 	secs := json.Number(strconv.FormatFloat(audioSecs, 'f', -1, 64))
 	out.AudioSeconds = &secs
+	if v2 {
+		var fail *Result
+		if arts, fail = s.stageV2(ctx, arts, &out); fail != nil {
+			return *fail
+		}
+	}
 	gen := s.w.o.RenderDuration.Seconds()
 	if gen <= 0 {
 		gen = 1

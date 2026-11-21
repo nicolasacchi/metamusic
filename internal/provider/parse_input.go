@@ -9,8 +9,12 @@ import (
 	"regexp"
 )
 
-// Contract is the worker contract version carried by every input and output.
-const Contract = "mm.worker/1"
+// The worker contract versions (C321.1). Contract is ContractV1, kept for the callers that predate /2.
+const (
+	ContractV1 = "mm.worker/1"
+	ContractV2 = "mm.worker/2"
+	Contract   = ContractV1
+)
 
 // MaxRunBody is the largest /run body the app sends (C73.3); estimates refuse takes whose input would
 // exceed it, so a submit never discovers the limit after reserving.
@@ -18,14 +22,21 @@ const MaxRunBody = 2 << 20
 
 // WorkerInput is the decoded job input (C73.3).
 type WorkerInput struct {
-	Contract      string          `json:"contract"`
-	TakeID        string          `json:"take_id"`
-	AttemptID     string          `json:"attempt_id"`
-	Engine        string          `json:"engine"`
-	Request       json.RawMessage `json:"request"`
-	TimeoutS      int             `json:"timeout_s"`
-	UploadBudgetS int             `json:"upload_budget_s"`
-	DeadlineUnix  int64           `json:"deadline_unix"`
+	Contract string `json:"contract"`
+	// Kind, Ears, Plan, Attach and FallbackAfterS are the mm.worker/2 keys (C321.3); all are omitted from a /1 document and
+	// refused when a /1 document carries one. A parsed /2 document always has Kind set ("render" when the key was absent).
+	Kind          string              `json:"kind,omitempty"`
+	TakeID        string              `json:"take_id"`
+	AttemptID     string              `json:"attempt_id"`
+	Engine        string              `json:"engine"`
+	Request       json.RawMessage     `json:"request,omitempty"` // absent only for kind analyze
+	Ears          *EarsIn             `json:"ears,omitempty"`
+	Plan          *PlanIn             `json:"plan,omitempty"`
+	Attach        map[string]AttachIn `json:"attach,omitempty"`
+	TimeoutS      int                 `json:"timeout_s"`
+	UploadBudgetS int                 `json:"upload_budget_s"`
+	DeadlineUnix  int64               `json:"deadline_unix"`
+	FallbackAfter int                 `json:"fallback_after_s,omitempty"`
 	// MinAudioS is the forced minimum render length in seconds (X4); 0 is omitted. A worker image that predates
 	// the field rejects the input (BAD_INPUT), so a forced minimum is never silently dropped.
 	MinAudioS int                     `json:"min_audio_s,omitempty"`
@@ -62,7 +73,16 @@ var ErrWorkerInput = errors.New("provider: invalid worker input")
 // ParseWorkerInput is the hand-written production validator of mm-worker-1.input.schema.json: it accepts
 // exactly the documents the schema accepts (TestParseWorkerInput_MatchesSchema checks both over a table
 // with the test-only jsonschema-go). It decodes strictly: unknown keys at any level are errors.
+//
+// A document whose contract is mm.worker/2 is validated by parseV2 (wire_v2.go); every other document by the /1 rules below,
+// which also refuse the /2 keys.
 func ParseWorkerInput(raw []byte) (WorkerInput, error) {
+	var peek struct {
+		Contract string `json:"contract"`
+	}
+	if json.Unmarshal(raw, &peek) == nil && peek.Contract == ContractV2 {
+		return parseV2(raw)
+	}
 	var in WorkerInput
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
@@ -78,6 +98,11 @@ func ParseWorkerInput(raw []byte) (WorkerInput, error) {
 	var top map[string]json.RawMessage // encoding/json reads null into an int as "absent"; the schema forbids it
 	if json.Unmarshal(raw, &top) == nil && bytes.Equal(bytes.TrimSpace(top["min_audio_s"]), []byte("null")) {
 		return bad("min_audio_s", "must be an integer")
+	}
+	for _, k := range v2OnlyKeys {
+		if _, ok := top[k]; ok {
+			return bad(k, "is not part of mm.worker/1")
+		}
 	}
 	switch {
 	case in.Contract != Contract:
@@ -209,6 +234,12 @@ func shapeErr(err error) string {
 // BuildWorkerInput renders the job input of a TakeSpec (C73.3). Backends call it; the result always passes
 // ParseWorkerInput for a well-formed TakeSpec.
 func BuildWorkerInput(t TakeSpec) ([]byte, error) {
+	if t.Wire == ContractV2 {
+		return BuildWorkerInputV2(t)
+	}
+	if usesV2(t) {
+		return nil, fmt.Errorf("%w: the take spec carries /2 features but its wire is %q", ErrWorkerInput, t.Wire)
+	}
 	uploads := make(map[string]UploadTarget, len(t.Uploads))
 	for k, v := range t.Uploads {
 		uploads[k] = v
@@ -231,6 +262,9 @@ func DecodeOutput(raw []byte) (Output, error) {
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return Output{}, fmt.Errorf("%w: output: trailing data", ErrWorkerInput)
+	}
+	if err := checkOutputKeys(raw, o); err != nil {
+		return Output{}, err
 	}
 	return o, nil
 }

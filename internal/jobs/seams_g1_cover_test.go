@@ -183,8 +183,14 @@ func TestIngestKindJob_Refusals(t *testing.T) {
 	})
 	t.Run("a reported artifact that was not received", func(t *testing.T) {
 		b, pi, jr, ar, files, out := setup(t, nil)
-		out.Artifacts = map[string]provider.ArtifactDigest{"ghost.bin": {SHA256: strings.Repeat("a", 64), Bytes: 3}}
-		_, _, err := b.bridge.IngestKindJob(ctx(), jr, ar, files, out)
+		out.Artifacts = map[string]provider.ArtifactDigest{"plan-00.tar": {SHA256: strings.Repeat("a", 64), Bytes: 3}}
+		var rest []upload.Received // the bundle is reported (it is in the plan's allowlist) but was never uploaded
+		for _, f := range files {
+			if f.Artifact != "plan-00.tar" {
+				rest = append(rest, f)
+			}
+		}
+		_, _, err := b.bridge.IngestKindJob(ctx(), jr, ar, rest, out)
 		violationCode(t, err, "ARTIFACT_MISSING")
 		nothingWritten(t, b, pi, jr.ID)
 	})

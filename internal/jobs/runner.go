@@ -74,6 +74,9 @@ type RunnerOptions struct {
 	Gates    *provider.GateSet
 	Expects  map[string]provider.WorkerExpect
 	Inputs   InputMinter
+	// Attach reads the attachments named by a /2 job's spec at submit (C321.3); nil serves no job that carries attachments.
+	// A job that pins input audio needs Inputs to implement PinMinter as well (applyWire).
+	Attach AttachSource
 }
 
 func (r *Runner) ingestReady() bool { return r.o.IngestReady == nil || r.o.IngestReady() }

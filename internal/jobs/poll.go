@@ -491,7 +491,7 @@ func validOutput(raw []byte) bool {
 		return false
 	}
 	out, err := provider.DecodeOutput(raw)
-	return err == nil && out.Contract == provider.Contract && out.Status == "ok"
+	return err == nil && (out.Contract == provider.ContractV1 || out.Contract == provider.ContractV2) && out.Status == "ok"
 }
 
 // onNeverRan handles rule 4/5's never-ran shapes: the attempt is done without a charge.

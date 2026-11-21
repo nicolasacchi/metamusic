@@ -31,5 +31,8 @@ go test ./internal/mcpgen -count=1 -run '^(TestToolsListGolden|TestPrompts_ListG
 step jobs ddl
 go run scripts/gen-jobs-ddl.go -check-all
 
+step worker artifact table v2
+go test ./internal/provider -count=1 -run '^TestWriteArtifactsV2$' -update >/dev/null
+
 # REGEN-STEPS: lanes append above this line (one step each, `step <name>` first).
 step done
