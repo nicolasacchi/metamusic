@@ -82,6 +82,8 @@ func (s *Service) itemEngine(ctx context.Context, i int, it Item, body string) (
 		}
 	}
 	switch {
+	case it.Mode == lineage.ModeAnalyze:
+		return DefaultEngine, nil // only the yue2 worker image listens (analyzeBatchShape refuses another engine first)
 	case it.Mode == lineage.ModeFromDraft:
 		if explicit != "" && explicit != DefaultEngine {
 			return "", engineCapabilityErr(explicit, it.Mode, "mode")

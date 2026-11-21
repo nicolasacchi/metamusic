@@ -4967,7 +4967,7 @@ export interface components {
             title?: string;
         };
         EstimateWarning: {
-            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem, tier_b_unavailable, tier_b_no_lyrics, tier_b_exceeds_runtime, tier_b_engine */
+            /** @description Lint codes and, from E2: cross_engine_edit, abc_dropped, cot_ignored, duration_estimated, caption_truncated, extend_seam_experimental, reference_window_short, reference_not_reproducible, base_class_cost, params_version_changed, stem_exists, ab_window_truncated, source_is_stem, tier_b_unavailable, tier_b_no_lyrics, tier_b_exceeds_runtime, tier_b_engine, no_lyrics, lossy_master */
             code: string;
             field: string;
             message: string;
@@ -5304,7 +5304,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "analyze";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
@@ -5329,6 +5329,8 @@ export interface components {
             template_mode?: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit";
             /** @description compose_new, single-take items */
             title?: string;
+            /** @description analyze: the takes to listen to */
+            track_ids?: string[];
         };
         ItemsResult: {
             /** Format: int64 */

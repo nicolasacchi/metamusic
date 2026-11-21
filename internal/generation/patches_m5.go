@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 )
 
@@ -171,7 +172,7 @@ func (s *Service) recheckPatches(ctx context.Context, tx lineage.Querier, p auth
 				return err
 			}
 		}
-		if t.ParentTrackID != nil {
+		if t.ParentTrackID != nil && t.Kind != jobspec.KindAnalyze { // an analyze adds no sibling to a root's backlog
 			parents = append(parents, *t.ParentTrackID)
 		}
 	}

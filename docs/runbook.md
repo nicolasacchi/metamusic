@@ -752,6 +752,17 @@ Until the operator has opened the capabilities (`metamusic runpod contract open 
 estimate on the real backend runs auto-off with `tier_b_unavailable`, quotes and creates exactly as before, and an explicit `true`
 is refused. `runpod contract close --caps ears` stops the default without a deploy.
 
+### Analyzing chosen takes
+
+`estimate_generation` item `{mode: "analyze", track_ids: [...]}` (1 to 50 takes, an estimate of analyze items alone) listens to takes that
+already exist: one job of kind `analyze` per take, which attaches the document to that take (artifact `analysis.json`, the Tier B rows,
+measured sections) and creates no track and no mutation. It is an ordinary spend: the estimate prices the input fetch
+(`MM_ANALYZE_FETCH_S`) plus the check in integer micro-USD, the Owner approves it like a render (an Editor's batch always awaits the
+Owner), and it needs the `analyze`, `ears` and `v2` capabilities, so with the capabilities closed it is 503 `GENERATION_DISABLED`
+(`worker_outdated`) before anything is reserved. Nothing creates analyze work on its own: the library is never backfilled. A take is
+analysed once (`already_analyzed`), at most 600 s long (`audio_too_long`), and only one analyze job per take runs at a time
+(409 `ANALYSIS_IN_PROGRESS`). A reference or a lossy master is allowed (warnings `lossy_master`, `no_lyrics`).
+
 ## Migrations 0013 to 0016
 
 Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):

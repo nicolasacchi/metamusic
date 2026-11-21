@@ -34,14 +34,13 @@ func TestBuildEnv_KindIngesterRegistration(t *testing.T) {
 		hook func(*app.BuildEnv) error
 		want string // "" = Build succeeds
 	}{
-		{"analyze and plan", func(e *app.BuildEnv) error {
+		// analyze belongs to the Ears track (internal/app/ears.go registers it in every Build); plan is the Desk's, still free
+		{"plan", func(e *app.BuildEnv) error {
 			e.AddTakeHook(nopTake{})
 			e.AddTakeHook(nil)
-			if err := e.AddKindIngester(jobs.KindAnalyze, nopKind{}); err != nil {
-				return err
-			}
 			return e.AddKindIngester(jobs.KindPlan, nopKind{})
 		}, ""},
+		{"analyze is registered by the Ears track", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindAnalyze, nopKind{}) }, "already has an ingester"},
 		{"generate is not registrable", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindGenerate, nopKind{}) }, "no ingester can be registered"},
 		{"unknown kind", func(e *app.BuildEnv) error { return e.AddKindIngester("render", nopKind{}) }, "no ingester can be registered"},
 		{"nil ingester", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindPlan, nil) }, "nil ingester"},

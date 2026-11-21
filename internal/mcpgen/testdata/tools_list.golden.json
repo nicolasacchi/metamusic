@@ -2259,7 +2259,8 @@
                   "reference",
                   "complete",
                   "stems",
-                  "cover"
+                  "cover",
+                  "analyze"
                 ],
                 "type": "string"
               },
@@ -2398,6 +2399,15 @@
                 "maxLength": 200,
                 "minLength": 1,
                 "type": "string"
+              },
+              "track_ids": {
+                "description": "analyze: the takes to listen to",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
               }
             },
             "required": [

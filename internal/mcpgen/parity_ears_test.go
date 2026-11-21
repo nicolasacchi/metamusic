@@ -41,6 +41,10 @@ var earsCases = []ParityCase{
 		"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 2}}})},
 	{Op: "estimate_generation", Variant: "tier_b false", Masks: estimateMasks, Args: fixedArgs(map[string]any{"options": map[string]any{"tier_b": false},
 		"items": []map[string]any{{"mode": "new_seed", "parent_track_id": lt.TrackLuna, "n_seeds": 2}}})},
+	// EARS-G2 (C340): the analyze item mode answers the same body over REST and call_operation, priced and refused
+	{Op: "estimate_generation", Variant: "analyze", Masks: estimateMasks, Args: fixedArgs(map[string]any{"items": []map[string]any{{"mode": "analyze", "track_ids": []string{lt.TrackLuna}}}})},
+	{Op: "estimate_generation", Variant: "analyze mixed with another mode", Args: fixedArgs(map[string]any{"items": []map[string]any{
+		{"mode": "analyze", "track_ids": []string{lt.TrackLuna}}, {"mode": "new_seed", "parent_track_id": lt.TrackLuna}}}), Status: 422},
 	{Op: "update_lexicon_entry", Variant: "short unknown word", Args: fixedArgs(map[string]any{"lang": "it", "word": "ab", "status": "ignored"}), Status: 404},
 }
 

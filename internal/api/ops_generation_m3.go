@@ -76,7 +76,7 @@ func patchIn(p *Patch) *lineage.Patch {
 func itemIn(it ItemIn) generation.Item {
 	g := generation.Item{Mode: it.Mode, ParentTrackID: it.ParentTrackID, ParentTrackIDs: it.ParentTrackIDs, DraftIDs: it.DraftIDs,
 		Recipe: []byte(it.Recipe), Patch: patchIn(it.Patch), TemplateMode: it.TemplateMode, NSeeds: it.NSeeds, Seeds: it.Seeds, Title: it.Title,
-		Engine: it.Engine, PatchID: it.PatchID}
+		Engine: it.Engine, PatchID: it.PatchID, TrackIDs: it.TrackIDs}
 	if e := it.Edit; e != nil {
 		g.Edit = &generation.Edit{FromS: e.FromS, ToS: e.ToS, ExtendS: e.ExtendS, Tracks: e.Tracks, Strength: e.Strength, SourceStem: e.SourceStem}
 	}

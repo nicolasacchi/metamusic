@@ -293,14 +293,14 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		if o.Live {
 			pre = livePreflight(cfg, bi, m.Uploads, mediaH)
 		}
-		var inputs jobs.InputMinter // signed fetch URLs for an edit's source and reference audio: ACE-Step only
-		if cfg.ACEStep {
-			var cr mediaserve.Resolver // never a typed-nil *clip.Service
-			if clips != nil {
-				cr = refClipResolver{st: st, clips: clips}
-			}
-			inputs = jobs.NewInputMinter(jobs.InputMinterOptions{Signer: signer, Store: st, Data: data, Clips: cr, PublicURL: cfg.PublicURL, Clock: clk})
+		// Signed fetch URLs for the audio a job fetches: an ACE-Step edit's source and reference (the clips are ACE-Step's only), and the
+		// master an analyze job listens to (M5b C340, MintPins; a yue2 job mints nothing unless its spec pins an input). The minter is
+		// built whatever MM_ACESTEP says: an analyze job of a yue2-only deployment would otherwise be SUBMIT_REJECTED.
+		var cr mediaserve.Resolver // never a typed-nil *clip.Service
+		if cfg.ACEStep && clips != nil {
+			cr = refClipResolver{st: st, clips: clips}
 		}
+		inputs := jobs.NewInputMinter(jobs.InputMinterOptions{Signer: signer, Store: st, Data: data, Clips: cr, PublicURL: cfg.PublicURL, Clock: clk})
 		owner := instanceID(rnd)
 		m.Runner = jobs.NewRunner(jobs.RunnerOptions{
 			Store: st, Backend: bi.b, Engines: engines, Spend: m.Spend, Uploads: m.Uploads, Ingest: ing, Notify: notifier, Hub: m.Hub,

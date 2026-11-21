@@ -10,6 +10,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/ears/earsjobs"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/subsonic"
 )
@@ -20,6 +21,8 @@ func init() {
 	RegisterBuildHook(wireEars)
 	// The simulated worker's Tier B stage of a render (C329.2): the fake backend then reports the ears capability.
 	fake.RegisterSimKind(fake.SimKindEars, fake.EarsRenderHook)
+	// and its analyze kind (C340.6): the fake backend then reports the analyze capability too.
+	fake.RegisterSimKind(fake.SimKindAnalyze, fake.AnalyzeHook)
 }
 
 func wireEars(env *BuildEnv) error {
@@ -53,6 +56,10 @@ func wireEars(env *BuildEnv) error {
 		}})
 	}
 	env.AddTakeHook(earsjobs.TierBHook{Ears: svc})
+	// An analyze job attaches its document to the existing take it listened to (C340.5).
+	if err := env.AddKindIngester(jobs.KindAnalyze, earsjobs.NewAnalyzeIngester(svc)); err != nil {
+		return err
+	}
 	// Quote and plan the listening check (C339): renders with lyric lines get one by default, priced on top of the render's timeout.
 	if g := env.Services.Generation; g != nil {
 		g.UseEarsQuote(earsOptions(env.Cfg))
@@ -73,10 +80,10 @@ func yue2LyricLines(lyrics string) int {
 // earsOptions maps the config to the quote seam. A Config built by hand rather than by config.Load (tests, tools) has the three
 // values at zero, which no valid configuration has (MM_EARS_RTF_MILLI is at least 10): the defaults apply then.
 func earsOptions(c config.Config) generation.EarsOptions {
-	o := generation.EarsOptions{LoadS: c.EarsLoadS, RTFMilli: c.EarsRTFMilli, TranscribeRTFMilli: c.EarsTranscribeRTFMilli,
+	o := generation.EarsOptions{LoadS: c.EarsLoadS, RTFMilli: c.EarsRTFMilli, TranscribeRTFMilli: c.EarsTranscribeRTFMilli, AnalyzeFetchS: c.AnalyzeFetchS,
 		Language: yue2.DetectLanguage, LyricLines: yue2LyricLines}
 	if c.EarsRTFMilli == 0 {
-		o.LoadS, o.RTFMilli, o.TranscribeRTFMilli = 40, 150, 40
+		o.LoadS, o.RTFMilli, o.TranscribeRTFMilli, o.AnalyzeFetchS = 40, 150, 40, 20
 	}
 	return o
 }

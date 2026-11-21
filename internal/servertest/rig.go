@@ -41,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/objstore/objstoretest"
 	"github.com/nicolasacchi/metamusic/internal/oidc/oidctest"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -83,6 +84,10 @@ type Options struct {
 	// RunPod selects the serverless backend over a runpodtest server (Backend must be "" or "runpod"): the rig
 	// writes a synthetic runpod.env, points the backend at the server and arms the provider. Rig.Fake is nil.
 	RunPod *RunPodOptions
+	// ObjStore (BULK-R4, C399.13) starts an objstoretest TLS bucket on the rig clock, writes a synthetic r2.env for it and gives the
+	// app its HTTP client, so the upload fallback is built exactly as production builds it. Rig.ObjStore is the bucket. Capability
+	// `fallback` is still closed until the test opens it (Rig.OpenCaps).
+	ObjStore bool
 
 	// M4a (C117.1). M4a adds the M4a rows of librarytest.FixtureM4a (an offline set of two tracks, a connector grant, a
 	// Subsonic client, a bookmark and a play queue); it requires Fixture, M2c and M3 like M3 does. OIDC starts an
@@ -193,6 +198,8 @@ type Rig struct {
 
 	// M3 (C86.1). Fake is the in-process backend when Options.Backend is "fake"; Runner and Reconciler are
 	// built whenever a backend exists (started only with Options.Runner).
+	// ObjStore is the bucket of an Options.ObjStore rig (nil otherwise).
+	ObjStore   *objstoretest.Server
 	Fake       *fake.Backend
 	Backend    provider.Backend
 	Runner     *jobs.Runner
@@ -485,6 +492,19 @@ func New(tb testing.TB, o Options) *Rig {
 			tb.Fatal(err)
 		}
 		ao.M3.RunPod = &runpod.BackendOptions{MgmtBase: rp.Server.URL, JobsBase: rp.Server.URL}
+	}
+	if o.ObjStore {
+		bkt := objstoretest.NewTLS(tb)
+		bkt.UseClock(clock.Now)
+		bc := bkt.Config()
+		env := "R2_ENDPOINT=" + bc.Endpoint + "\nR2_BUCKET=" + bc.Bucket + "\nR2_ACCESS_KEY_ID=" + bc.AccessKeyID + "\nR2_SECRET_ACCESS_KEY=" + bc.SecretAccessKey + "\nR2_REGION=" + bc.Region + "\n"
+		if err := os.MkdirAll(cfg.SecretsDir, 0o700); err != nil {
+			tb.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(cfg.SecretsDir, "r2.env"), []byte(env), 0o600); err != nil {
+			tb.Fatal(err)
+		}
+		ao.FallbackHTTP, r.ObjStore = bkt.HTTPClient(), bkt
 	}
 	if ao.SlotCoin == nil {
 		ao.SlotCoin = Alternating()
