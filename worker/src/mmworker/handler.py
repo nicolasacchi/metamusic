@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 import time
 from collections.abc import Callable, Mapping
@@ -310,10 +311,18 @@ def _run_stage(ctx: _Ctx, name: str, audio: Path | None, budget_s: int) -> tuple
     return stages.EarsOutcome(out.status, out.code, seconds, out.audio_seconds), watch.closed
 
 
+_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+
+
+def _code(code: Any, default: str) -> str:
+    """A stage-supplied error code that the output schema accepts (UPPER_SNAKE), else the fallback."""
+    return code if isinstance(code, str) and len(code) <= 64 and _CODE_RE.match(code) else default
+
+
 def _ears_block(o: stages.EarsOutcome) -> dict[str, Any]:
     b: dict[str, Any] = {"status": o.status, "seconds": round(max(o.seconds, 0.0), 3)}
     if o.code:
-        b["code"] = o.code
+        b["code"] = _code(o.code, "STAGE_FAILED")
     return b
 
 
@@ -372,6 +381,10 @@ def _run_plan(ctx: _Ctx, uploader, timings, uploaded, state, output, put_result)
     timings["generate_s"] = round(ctx.clock() - g0, 3)
     _stopped(watch)
     seeds = take.plan.seeds
+    if not isinstance(outcomes, list) or not all(
+            isinstance(o, stages.PlanOutcome) and isinstance(o.index, int) and isinstance(o.seed, int)
+            and o.status in ("ok", "error") for o in outcomes):
+        raise WorkerError("PIPELINE_ERROR", "the plan stage returned no valid report")
     plans: list[dict[str, Any]] = []
     for o in sorted(outcomes, key=lambda x: x.index):
         if not (0 <= o.index < len(seeds)) or o.seed != seeds[o.index] or any(p["index"] == o.index for p in plans):
@@ -382,7 +395,7 @@ def _run_plan(ctx: _Ctx, uploader, timings, uploaded, state, output, put_result)
             if o.truncated:
                 p["truncated"] = {str(k): bool(v) for k, v in o.truncated.items()}
         else:
-            p["code"] = o.code or "PLAN_FAILED"
+            p["code"] = _code(o.code, "PLAN_FAILED")
         plans.append(p)
     if len(plans) != len(seeds):
         raise WorkerError("PIPELINE_ERROR", "the plan stage did not report every seed")

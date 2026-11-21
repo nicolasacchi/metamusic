@@ -615,6 +615,10 @@ def test_v2_plan_all_failed(sink: Sink) -> None:
     [stages.PlanOutcome(0, 9, "ok"), stages.PlanOutcome(1, 2, "ok")],  # wrong seed
     [stages.PlanOutcome(0, 1, "ok"), stages.PlanOutcome(0, 1, "ok")],  # duplicate index
     [stages.PlanOutcome(5, 1, "ok"), stages.PlanOutcome(1, 2, "ok")],  # index out of range
+    None,  # type: ignore[list-item]
+    "junk",  # type: ignore[list-item]
+    [object(), object()],  # type: ignore[list-item]
+    [stages.PlanOutcome(0, 1, "weird"), stages.PlanOutcome(1, 2, "ok")],  # unknown status
 ])
 def test_v2_plan_bad_stage_report(sink: Sink, outcomes: list[stages.PlanOutcome]) -> None:
     def stage(ctx: stages.StageContext) -> list[stages.PlanOutcome]:
@@ -624,6 +628,18 @@ def test_v2_plan_bad_stage_report(sink: Sink, outcomes: list[stages.PlanOutcome]
 
     stages.register("plan", stage)
     assert err(run2(sink, plan_raw(sink.base))) == "PIPELINE_ERROR"
+
+
+def test_v2_stage_codes_are_normalised_to_the_schema(sink: Sink) -> None:
+    stages.register("ears", lambda ctx: stages.EarsOutcome("error", "boom: /x y"))
+    out = run2(sink, raw2(sink.base, ears=dict(EARS)))
+    OUT2.validate(out)
+    assert out["ears"]["code"] == "STAGE_FAILED"
+    stages._REGISTRY.clear()
+    stages.register("plan", lambda ctx: [stages.PlanOutcome(0, 1, "error", "lower case"),
+                                         stages.PlanOutcome(1, 2, "error", "OOM")])
+    out = run2(sink, plan_raw(sink.base))
+    assert [p["code"] for p in out["mm"]["plans"]] == ["PLAN_FAILED", "OOM"]
 
 
 def test_v2_plan_missing_bundle_and_crash(sink: Sink) -> None:
@@ -697,6 +713,20 @@ def test_stage_discover_imports_modules_and_skips_broken(tmp_path: Path, monkeyp
     (d / "_private.py").write_text("raise SystemExit('never imported')\n")
     monkeypatch.setattr(stages, "__path__", [str(d)])
     monkeypatch.setattr(stages, "__name__", "stages_pkg")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    stages.discover()
+    assert stages.caps() == ["plan"]
+
+
+def test_stage_discover_survives_any_import_error_and_drops_partial_registration(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = tmp_path / "stages_pkg2"
+    d.mkdir()
+    (d / "half.py").write_text("from mmworker import stages\nstages.register('ears', lambda c: None)\n"
+                               "raise RuntimeError('cuda init failed')\n")
+    (d / "ok.py").write_text("from mmworker import stages\nstages.register('plan', lambda c: [])\n")
+    monkeypatch.setattr(stages, "__path__", [str(d)])
+    monkeypatch.setattr(stages, "__name__", "stages_pkg2")
     monkeypatch.syspath_prepend(str(tmp_path))
     stages.discover()
     assert stages.caps() == ["plan"]

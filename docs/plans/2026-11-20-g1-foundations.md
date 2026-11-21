@@ -784,7 +784,7 @@ verification, with the amendments the code forced.
   1 MiB decoded together; `fallback_after_s` is present exactly when an upload carries a `fallback` (60..600); no `null` anywhere outside `request`.
   `ParseWorkerInput` and `BuildWorkerInputV2` refuse a document over `MaxRunBody`; the schema cannot state that, nor the attachment total
   (`parserOnly` rows in the tests).
-- **C321.5 artifact table** (`internal/provider/artifacts_v2.go`; `KindShape{Kind, Ears, KeepVocals, Seeds}`): `ArtifactsV2(shape)` lists the upload
+- **C321.5 artifact table** (the `Required` flag means "needs an upload target"; what the worker must produce is narrower, see Revision 6) (`internal/provider/artifacts_v2.go`; `KindShape{Kind, Ears, KeepVocals, Seeds}`): `ArtifactsV2(shape)` lists the upload
   targets of a document and `Required` marks the mandatory ones. A target exists exactly when its condition holds, and the document must carry it:
   `analysis.json` for `ears`, `stem-vocals.flac` for `keep_vocals`, `plan-00..plan-(n-1).tar` for n seeds. `ExtraRequiredV2(shape, output)` lists what
   a finished output must report beyond the engine's own set (`analysis.json` once `ears.status = ok`, the bundle of each ok plan). **Amendment:
@@ -863,3 +863,5 @@ Revision 6 (2026-11-21, lane G1-F4 `g1-worker`, built on `origin/main` `58928da`
   prints `caps: <list>` on stdout (not for the ACE-Step engine); a test pins label = caps of the stage modules in the tree (a stage lane edits the label in its own
   commit) and `worker-image.yml` asserts label = selftest output on the built image. Rendering over `/1` is untouched: the existing worker suites pass unchanged.
 - **Not done here (by design):** no stage module (Ears, Desk), no fallback behaviour, no `MODE=agent`; the GPU image was not built.
+
+Revision 6 supersedes the C321.5 `Required` wording and the C322.1 vocabulary line that lists `attach` as an advertised cap (not advertised). Review fixes: a malformed plan report is `PIPELINE_ERROR`; stage-supplied codes failing `^[A-Z][A-Z0-9_]*$` fall back to `STAGE_FAILED` or `PLAN_FAILED`; `stages.discover()` catches any import error and removes a partial registration.

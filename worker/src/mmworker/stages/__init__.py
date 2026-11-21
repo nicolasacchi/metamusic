@@ -1,7 +1,7 @@
 """The stage registry (C321.7, C322.2): optional worker stages that a later lane adds as one module each.
 
 A stage module (`mmworker/stages/<name>.py`) calls `register(...)` at import. `discover()` imports every module
-of this package, so adding a stage never edits this file. A module whose imports fail (the models or libraries are
+of this package, so adding a stage never edits this file. A module that fails to import (any error) (the models or libraries are
 not in this image) registers nothing, and the capability stays closed: a stage's cap exists only when its code and
 its models are present.
 
@@ -97,7 +97,9 @@ def discover() -> None:
     for m in pkgutil.iter_modules(__path__):
         if m.name.startswith("_"):
             continue
+        before = set(_REGISTRY)
         try:
             importlib.import_module(f"{__name__}.{m.name}")
-        except ImportError:
-            continue
+        except Exception:  # noqa: BLE001 - any import-time fault (missing model, CUDA init) leaves the cap closed
+            for n in set(_REGISTRY) - before:
+                del _REGISTRY[n]
