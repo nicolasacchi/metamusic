@@ -16066,6 +16066,17 @@
               "null"
             ]
           },
+          "chords": {
+            "description": "block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes",
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "dialect": {
             "enum": [
               "standard",

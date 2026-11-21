@@ -103,12 +103,18 @@ func (s *Service) Verify(ctx context.Context, takeID string) (VerifyReport, erro
 		return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
 	}
 	defer func() { _ = s.o.Data.RemoveAll(st.rel) }()
-	if f := s.render(ctx, row, st, &acct, nil); f != nil {
-		return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
-	}
-	out, f := s.readReport(st)
-	if f != nil {
-		return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
+	var out childReport
+	if row.Kind == KindScoreRender {
+		if _, out, f = s.scoreStaged(ctx, st, &acct, row.MaxCPUMS, row.MemMBEst, nil, nil); f != nil {
+			return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
+		}
+	} else {
+		if f := s.render(ctx, row, st, &acct, nil); f != nil {
+			return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
+		}
+		if out, f = s.readReport(st); f != nil {
+			return rep, fmt.Errorf("transform: verify: %s: %s", f.code, s.clean(f.msg))
+		}
 	}
 	rep.Got = out.PCMSHA256
 	rep.Match = rep.Got == rep.Expected
@@ -128,9 +134,9 @@ func (s *Service) toolchainDiff(rec recorded) string {
 	case rec.DSPVersion != DSPVersion:
 		return fmt.Sprintf("dsp_version differs (recorded %s, running %s)", rec.DSPVersion, DSPVersion)
 	case rec.Synth != nil:
-		// The synth of a score render (T1b) is reproducible only for the same fluidsynth major.minor and the same soundfont;
-		// this build carries no synth, so a recorded one can never be confirmed.
-		return fmt.Sprintf("the recorded synth %s %s is not available in this build", rec.Synth.Name, majorMinor(rec.Synth.Version))
+		// The synth of a score render (T1b) is reproducible only for the same fluidsynth major.minor and the same soundfont
+		// (C355.5).
+		return s.synthDiff(rec.Synth)
 	}
 	return ""
 }

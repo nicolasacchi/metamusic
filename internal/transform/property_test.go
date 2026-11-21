@@ -136,6 +136,9 @@ func buildCase(t *testing.T, kind string, r *rand.Rand) propCase {
 	case "binaural":
 		member = map[string]any{"source_id": "x", "model": []string{"hrtf", "parametric"}[r.IntN(2)], "preset": []string{"studio", "wide", "near"}[r.IntN(3)],
 			"room": []string{"none", "studio", "hall"}[r.IntN(3)], "room_mix_db": -12 - r.IntN(20), "tail_s": uniformStep(r, 0, 2, 0.5)}
+	case "score_render":
+		// the child runs the identity operator on audio the parent synthesised; the input stands for that audio
+		member = map[string]any{"score": map[string]any{"abc": "X:1\nK:C\nCDEF|"}, "tail_s": uniformStep(r, 0, 4, 0.5), "gain": uniformStep(r, 0.2, 1.2, 0.1)}
 	case "widen":
 		c.rho = uniform(r, -0.8, 0.99)
 		l, rr := dsptest.Correlated(r.Uint64(), dsptest.Frames(propRate, secs), uniform(r, 0.05, 0.2), c.rho)
@@ -157,7 +160,7 @@ func buildCase(t *testing.T, kind string, r *rand.Rand) propCase {
 	c.inputs = []ops.Input{{Role: "source", Buf: in, BeatsPerBar: 4}}
 	c.minLen = in.Frames()
 	switch kind {
-	case "master", "widen":
+	case "master", "widen", "score_render":
 		c.wantLen = in.Frames()
 	case "glacier":
 		var p struct{ Factor, LengthS float64 }

@@ -21,6 +21,8 @@ import (
 type d5Fixture struct {
 	params, align string
 	pair          bool
+	// gain scales the input (0 = as is): an identity operator needs an input the safety stage actually changes.
+	gain float64
 }
 
 var d5Jobs = map[string]d5Fixture{
@@ -55,8 +57,22 @@ func d5Job(t testing.TB, kind string) Job {
 	if !ok {
 		t.Fatalf("kind %q is registered but has no dispatcher fixture: add a row to d5Jobs from a test file's init", kind)
 	}
+	in := d5Inputs(f.pair)
+	if f.gain != 0 {
+		for i := range in {
+			b := in[i].Buf
+			for c := range b.Ch {
+				x := make([]float64, len(b.Ch[c]))
+				for k, v := range b.Ch[c] {
+					x[k] = v * f.gain
+				}
+				b.Ch[c] = x
+			}
+			in[i].Buf = b
+		}
+	}
 	return Job{Kind: kind, Rate: d5Rate, Seed: 7, Params: json.RawMessage(f.params), Alignment: json.RawMessage(f.align),
-		Inputs: d5Inputs(f.pair), TargetLUFS: -16, RefLUFS: -15.2}
+		Inputs: in, TargetLUFS: -16, RefLUFS: -15.2}
 }
 
 func d5Hash(t testing.TB, b pcm.Buffer) string {

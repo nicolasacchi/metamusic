@@ -222,9 +222,9 @@ func TestCapabilities_Content(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%+v", c), "secret-name") || strings.Contains(fmt.Sprintf("%+v", c), dir) {
 		t.Error("capabilities leak a soundfont path")
 	}
-	// score_render is listed only when T1b is enabled: the kind is not registered here, so it is absent even with a soundfont
-	if _, ok := kindCaps(c, KindScoreRender); ok {
-		t.Error("score_render listed")
+	// score_render is listed only when T1b is enabled: here a soundfont is configured and fluidsynth is present
+	if sc, ok := kindCaps(c, KindScoreRender); !ok || sc.Inputs != 0 || len(sc.Params) == 0 {
+		t.Errorf("score_render not listed with a soundfont and fluidsynth: %+v", sc)
 	}
 	// the hi-fi fields pass through for whichever binaural entry is registered
 	if bn, ok := kindCaps(c, KindBinaural); ok && bn.Listening != "headphones" {
