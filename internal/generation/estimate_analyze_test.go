@@ -342,3 +342,45 @@ func TestEstimate_AnalyzeProductionStateRefused(t *testing.T) {
 		t.Errorf("a plain render was refused: %v", err)
 	}
 }
+
+// TestEstimate_AnalyzeRuntimeRefusalNamesFirstItem: when several analyze items pass MM_JOB_MAX_RUNTIME with the listening check on top,
+// the 422 names the FIRST of them in request order (analyzeFits walks the takes in slice order, not a map), whichever order Go would
+// have iterated. Item 0 fits; items 1..3 do not; item 1 must be reported, every time.
+func TestEstimate_AnalyzeRuntimeRefusalNamesFirstItem(t *testing.T) {
+	t.Parallel()
+	r := earsRig(t)
+	long := []string{lt.TrackCitta, lt.TrackShort, lt.TrackRefFlac}
+	r.exec(`DROP TRIGGER tracks_frozen`)
+	for _, id := range long {
+		r.exec(`UPDATE tracks SET duration_s = 600 WHERE id = ?`, id)
+	}
+	items := []generation.Item{analyzeItem(lt.TrackLuna)}
+	for _, id := range long {
+		items = append(items, analyzeItem(id))
+	}
+	// a cap between the short take's timeout plus its budget and the long ones'
+	base := r.estWith(human, nil, items[0])
+	longE := r.estWith(human, nil, items[1])
+	shortNeed := firstTake(base).TimeoutS + spend.EarsBudgetS(spend.EarsExpectedS(12, 40, 150, 40, true))
+	if longNeed := firstTake(longE).TimeoutS; shortNeed >= longNeed {
+		t.Fatalf("fixture: short need %d is not below the long timeout %d", shortNeed, longNeed)
+	}
+	o := r.opts
+	o.MaxRuntime = durS(shortNeed + 10)
+	svc := generation.New(o)
+	svc.UseEarsQuote(earsCfg)
+	if _, err := svc.Estimate(context.Background(), human, generation.EstimateIn{Items: items[:1], Via: spend.ViaHumanCreate}); err != nil {
+		t.Fatalf("the short item must fit the cap: %v", err)
+	}
+	for range 10 { // a map would pick another offender on some of these
+		_, err := svc.Estimate(context.Background(), human, generation.EstimateIn{Items: items, Via: spend.ViaHumanCreate})
+		if err == nil {
+			t.Fatal("the long items were accepted")
+		}
+		wantRule(t, err, http.StatusUnprocessableEntity, "INVALID_ITEM", "tier_b_exceeds_runtime")
+		pe, _ := asProblem(err)
+		if got := pe.Details["item"]; got != 1 {
+			t.Fatalf("reported item = %v (%T), want 1, the first offender (%v)", got, got, pe.Details)
+		}
+	}
+}

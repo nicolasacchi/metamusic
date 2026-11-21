@@ -236,6 +236,34 @@ func TestAnalyzeIngest_DuplicateRace(t *testing.T) {
 	}
 }
 
+// TestAnalyzeIngest_RolledBackDuplicateLeavesNoStaleFlag: an ingest attempt that detects the duplicate and then rolls back sets the
+// per-job duplicate flag; the NEXT attempt of the same job (here on a take with no document yet, so no duplicate) must start with the
+// flag cleared and be analysed after its commit, not skipped as if it were the rolled-back duplicate.
+func TestAnalyzeIngest_RolledBackDuplicateLeavesNoStaleFlag(t *testing.T) {
+	t.Parallel()
+	r := newIngestRig(t)
+	if _, _, err := r.ingest(lt.TrackLuna, tierbtest.FromLyrics(lunaLyrics, tierbtest.Opts{}), true); err != nil {
+		t.Fatal(err)
+	}
+	// the loser of the race: the duplicate is detected (flag set), the transaction rolls back, AfterKindCommit never runs
+	if _, outcome, err := r.ingest(lt.TrackLuna, tierbtest.FromLyrics(lunaLyrics, tierbtest.Opts{StartS: 2}), false); err != nil || outcome != "clean" {
+		t.Fatalf("rolled-back duplicate = %q %v", outcome, err)
+	}
+	if r.count(`SELECT COUNT(*) FROM artifacts WHERE track_id = ? AND name = 'analysis-2.json'`, lt.TrackLuna) != 0 {
+		t.Fatal("the rolled-back duplicate left an artifact")
+	}
+	// the retry of the same job (same job id) on a take that has no document: a normal ingest
+	if err := os.RemoveAll(filepath.Join(r.dir, "takes", lt.TrackRefFlac)); err != nil {
+		t.Fatal(err)
+	}
+	if _, outcome, err := r.ingest(lt.TrackRefFlac, tierbtest.FromLyrics("[Verse]\nsotto il cielo di sera", tierbtest.Opts{}), true); err != nil || outcome != "clean" {
+		t.Fatalf("next ingest = %q %v", outcome, err)
+	}
+	if r.count(`SELECT COUNT(*) FROM analyses WHERE track_id = ? AND analyzer = 'tier_b_raw'`, lt.TrackRefFlac) != 1 {
+		t.Error("the next attempt was not analysed: a stale duplicate flag survived the rollback")
+	}
+}
+
 // TestAnalyzeJob_NoTrackNoMutation: the ingester never creates a track, a mutation, a recipe or a song, and refuses a job with no source
 // take or one for another kind.
 func TestAnalyzeJob_NoTrackNoMutation(t *testing.T) {
