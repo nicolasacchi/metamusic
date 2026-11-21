@@ -43,7 +43,7 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm [--engine E] --endpoint-name N --reason TEXT [--after-restore]   (N is mm-yue2 or mm-acestep, typed)
   disarm [--engine E] --reason TEXT
   reset-trip [--engine E] --reason TEXT
-` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire]
+` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
   canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
@@ -1140,6 +1140,14 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 		o.Case = c
 		if c == runpod.CaseKillSwitch && !*killConfirm {
 			return usage("--case kill-switch needs --kill-switch-confirm: an operator must run `metamusic runpod provision --deactivate` while the job is generating, or the case fails")
+		}
+		if c == runpod.CaseFallback { // BULK-R2: the drill row and the receipts live in the host's own database
+			hooks, closeDB, herr := newFallbackHooks(ctx, getenv)
+			if herr != nil {
+				return herr
+			}
+			defer closeDB()
+			o.Fallback = hooks
 		}
 		rep, err = runpod.RunCanary(ctx, o)
 	}

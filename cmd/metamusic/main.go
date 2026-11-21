@@ -55,6 +55,8 @@ commands:
   dsp-run --work DIR             render child of the transform runner (started by the server; not for humans)
   runpod probe|provision|status|arm|disarm|reset-trip|canary
                                  operate the RunPod serverless backend (see ` + "`metamusic runpod help`" + `)
+  upload fallback check | drill --attempt ID --seconds N --reason "..."
+                                 check the private-bucket upload fallback, or take one attempt's upload route down for a drill (operator only)
   engines list|adopt ENGINE --reason "..."|reject ENGINE --reason "..."
                                  show or change which engines may receive money (adopting is the operator's act; it is audited)
   config check                   validate the MM_* environment exactly as serve does, without touching data, ports or network
@@ -132,6 +134,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, in io.R
 		err = cmdDspRun(ctx, rest, s)
 	case "runpod":
 		err = cmdRunPod(ctx, rest, getenv, s)
+	case "upload":
+		err = cmdUpload(ctx, rest, getenv, s)
 	case "engines":
 		err = cmdEngines(ctx, rest, getenv, s)
 	case "config":
