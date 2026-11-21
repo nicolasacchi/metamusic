@@ -292,6 +292,65 @@ func TestVerify_ScoreRenderMatch(t *testing.T) {
 	}
 }
 
+// TestVerify_ScoreRenderTakesRenderSlot: a score re-render is CPU work like a runner attempt, so Verify waits for the render slot
+// (C355.3). While an audition holds it the synth is not called; a cancelled context ends the wait with the context error; once the
+// slot is free the verify completes. The fake synth seam (scoreRunRig) is used, so no fluidsynth is needed: the slot is taken
+// after staging and before the synth, and the synth call count shows nothing rendered while it was held.
+func TestVerify_ScoreRenderTakesRenderSlot(t *testing.T) {
+	r, fs := scoreRunRig(t)
+	id := r.createScore(runTune, "")
+	r.runOne()
+	calls := fs.count()
+
+	held, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- r.svc.Exclusive(context.Background(), time.Second, func(context.Context) error { close(held); <-release; return nil })
+	}()
+	<-held
+
+	// a cancelled context ends the wait with the context error, before any synth work
+	cctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := r.svc.Verify(cctx, id); !errors.Is(err, context.Canceled) {
+		t.Errorf("Verify with a cancelled context while the slot is held: %v, want context.Canceled", err)
+	}
+	if fs.count() != calls {
+		t.Errorf("synth ran while the slot was held: calls %d -> %d", calls, fs.count())
+	}
+
+	// a live context blocks until the slot is released
+	type res struct {
+		rep transform.VerifyReport
+		err error
+	}
+	out := make(chan res, 1)
+	go func() {
+		rep, err := r.svc.Verify(context.Background(), id)
+		out <- res{rep, err}
+	}()
+	select {
+	case v := <-out:
+		t.Fatalf("Verify finished while an audition held the slot: %+v", v)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if fs.count() != calls {
+		t.Errorf("synth ran while the slot was held: calls %d -> %d", calls, fs.count())
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case v := <-out:
+		if v.err != nil || !v.rep.Match || fs.count() != calls+1 {
+			t.Errorf("after release: %+v err %v, synth calls %d -> %d", v.rep, v.err, calls, fs.count())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Verify did not finish after the slot was released")
+	}
+}
+
 // TestVerify_ScoreRenderInconclusiveOnVersion: a different fluidsynth major.minor, or a soundfont that is not configured, cannot
 // confirm a render, and nothing is rendered.
 func TestVerify_ScoreRenderInconclusiveOnVersion(t *testing.T) {
