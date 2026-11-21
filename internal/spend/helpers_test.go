@@ -127,6 +127,8 @@ type seedSpec struct {
 	created    time.Time
 	timeoutS   int // default 186
 	noApproval bool
+	sources    []string // source_track_id per job (default none)
+	mandate    string   // mandate id of the estimate and the batch (the row must exist)
 }
 
 // seedBatch inserts an estimate, a batch, its approval and jobs, with no ledger rows.
@@ -163,13 +165,13 @@ func (r *rig) seedBatch(sp seedSpec) seeded {
 	exp := store.FormatTime(sp.created.Add(10 * time.Minute))
 	r.exec(`INSERT INTO estimates(id,principal_id,principal_kind,engine,backend,items_json,recipe_hashes,n_takes,quote_json,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,workers_max,idle_s,
-		requires_approval,approval_reasons,token_hash,created_at,expires_at,consumed_at,consumed_batch_id)
-		VALUES(?,?,?,'yue2','fake','[]','[]',?,'{}',10,?,?,?,690000,2,20,0,'[]',?,?,?,?,?)`,
-		s.Estimate, sp.principal, kind, sp.jobs, sp.max, sp.retry, sp.max+sp.retry, "hash-"+sp.name, ts, exp, ts, s.Batch)
+		requires_approval,approval_reasons,token_hash,created_at,expires_at,consumed_at,consumed_batch_id,mandate_id)
+		VALUES(?,?,?,'yue2','fake','[]','[]',?,'{}',10,?,?,?,690000,2,20,0,'[]',?,?,?,?,?,?)`,
+		s.Estimate, sp.principal, kind, sp.jobs, sp.max, sp.retry, sp.max+sp.retry, "hash-"+sp.name, ts, exp, ts, s.Batch, nullIfEmpty(sp.mandate))
 	r.exec(`INSERT INTO batches(id,estimate_id,principal_id,principal_kind,principal_name,via,engine,backend,n_takes,rationale,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,attempt_overhead_s,kill_slack_s,
-		workers_max,idle_s,state,created_at) VALUES(?,?,?,?,?,'api','yue2','fake',?,NULL,10,?,?,?,690000,200,15,2,20,?,?)`,
-		s.Batch, s.Estimate, sp.principal, kind, sp.name, sp.jobs, sp.max, sp.retry, sp.max+sp.retry, sp.state, ts)
+		workers_max,idle_s,state,created_at,mandate_id) VALUES(?,?,?,?,?,'api','yue2','fake',?,NULL,10,?,?,?,690000,200,15,2,20,?,?,?)`,
+		s.Batch, s.Estimate, sp.principal, kind, sp.name, sp.jobs, sp.max, sp.retry, sp.max+sp.retry, sp.state, ts, nullIfEmpty(sp.mandate))
 	if !sp.noApproval && sp.state == "awaiting_confirmation" {
 		r.exec(`INSERT INTO approvals(batch_id,state,reasons,created_at,expires_at) VALUES(?,'pending','["takes_over_limit"]',?,?)`,
 			s.Batch, ts, store.FormatTime(sp.created.Add(24*time.Hour)))
@@ -183,10 +185,14 @@ func (r *rig) seedBatch(sp seedSpec) seeded {
 		if sp.state == "awaiting_confirmation" {
 			state = "awaiting_confirmation"
 		}
-		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,operator,mutation_json,title,expected_audio_s,expected_s,
+		var src any
+		if i < len(sp.sources) {
+			src = sp.sources[i]
+		}
+		r.exec(`INSERT INTO jobs(id,batch_id,take_index,kind,engine,backend,recipe_id,source_track_id,operator,mutation_json,title,expected_audio_s,expected_s,
 			timeout_s,expected_micro_usd,reserved_micro_usd,state,next_attempt_at,created_at,updated_at)
-			VALUES(?,?,?,'generate','yue2','fake',?,'reroll_seed','{}','T',216,96,?,10,20,?,?,?,?)`,
-			id, s.Batch, i, r.recipe, sp.timeoutS, state, ts, ts, ts)
+			VALUES(?,?,?,'generate','yue2','fake',?,?,'reroll_seed','{}','T',216,96,?,10,20,?,?,?,?)`,
+			id, s.Batch, i, r.recipe, src, sp.timeoutS, state, ts, ts, ts)
 		s.Jobs = append(s.Jobs, id)
 	}
 	return s
@@ -220,4 +226,11 @@ func (r *rig) raw(at time.Time, kind string, micro int64, batch, job, principal,
 	}
 	r.exec(`INSERT INTO ledger(at,kind,micro_usd,batch_id,job_id,window_start,principal_id,reason) VALUES(?,?,?,?,?,?,?,?)`,
 		store.FormatTime(at), kind, micro, b, j, window, principal, reason)
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

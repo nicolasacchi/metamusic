@@ -15,6 +15,11 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "set_diction_marks",
   "get_diction_lexicon",
   "update_lexicon_entry",
+  // M6N-W1 (lane loop-web-a) adds the /mandates and /mandates/:id pages and the secure /human/mandates/new form (m6-night C388.1); it removes these four.
+  "create_mandate",
+  "list_mandates",
+  "get_mandate",
+  "revoke_mandate",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */
