@@ -36,6 +36,19 @@ def test_lazy_imports():
     assert out.strip() == "[]"
 
 
+# test_blocks_opportunistic_transformers
+def test_blocks_opportunistic_transformers():
+    """ctranslate2.converters does `try: import transformers except ImportError`; mmears must make that import fail (C333)."""
+    code = (
+        "import sys, mmears\n"
+        "assert sys.modules.get('transformers', 0) is None\n"
+        "try:\n import transformers\nexcept ImportError:\n print('blocked')"
+    )
+    out = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True,
+                         env={"PYTHONPATH": str(SRC.parent)}).stdout
+    assert out.strip() == "blocked"
+
+
 # test_output_schema
 @pytest.mark.parametrize("stages", [("separate", "asr"), ("separate", "asr", "transcribe")])
 def test_output_schema(model_env, flac, validate, stages):

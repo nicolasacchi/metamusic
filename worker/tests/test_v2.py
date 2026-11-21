@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import re
+import sys
 from collections.abc import Callable, Iterator
 from importlib import resources
 from pathlib import Path
@@ -764,8 +765,14 @@ def test_selftest_acestep_prints_no_caps(capsys: pytest.CaptureFixture[str], mon
     assert capsys.readouterr().out == ""
 
 
-def test_dockerfile_labels_equal_selftest_caps() -> None:
-    """C322.2: the label a stage lane must edit equals what the selftest prints, for the stages in this tree."""
+def test_dockerfile_labels_equal_selftest_caps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """C322.2: the label a stage lane must edit equals what the selftest prints, for the stages in this tree.
+    The ears stage registers only next to its models (C333.3), so the test lays out the image's models directory."""
+    from .test_ears_stage import LOCK, ears_models_tree
+
+    monkeypatch.setenv("MM_EARS_MODELS_DIR", str(ears_models_tree(tmp_path / "models")))
+    monkeypatch.setenv("MM_EARS_LOCK", str(LOCK))
+    monkeypatch.delitem(sys.modules, "mmworker.stages.ears", raising=False)  # discover() re-imports it under the new environment
     text = (ROOT / "Dockerfile").read_text()
     m = re.search(r'^LABEL io\.metamusic\.contracts="([^"]*)" io\.metamusic\.caps="([^"]*)"$', text, re.M)
     assert m, "the worker Dockerfile must carry both labels"

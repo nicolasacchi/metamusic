@@ -1,0 +1,71 @@
+{
+  "format": "mm.ears-models/1",
+  "models": [
+    {
+      "role": "separator",
+      "name": "htdemucs",
+      "source": {
+        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
+      },
+      "license": "MIT",
+      "files": [
+        {
+          "path": "955717e8-8726e21a.th",
+          "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+          "bytes": 84141911
+        }
+      ]
+    },
+    {
+      "role": "asr",
+      "name": "faster-whisper-large-v3",
+      "source": {
+        "repo": "Systran/faster-whisper-large-v3",
+        "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478"
+      },
+      "license": "MIT",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+          "bytes": 2394
+        },
+        {
+          "path": "model.bin",
+          "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+          "bytes": 3087284237
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "bytes": 340
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+          "bytes": 2480617
+        },
+        {
+          "path": "vocabulary.json",
+          "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "bytes": 1068114
+        }
+      ]
+    },
+    {
+      "role": "pitch",
+      "name": "torchcrepe-full",
+      "source": {
+        "url": "https://raw.githubusercontent.com/maxrmorrison/torchcrepe/19e2ec3d494c0797a5ff2a11408ec5838fba6681/torchcrepe/assets/full.pth"
+      },
+      "license": "MIT",
+      "files": [
+        {
+          "path": "full.pth",
+          "sha256": "133225604dedd2e4005f8bbd1bd0a2ec073ba8b7a6cd31ff6d5edbbfa3539986",
+          "bytes": 88991291
+        }
+      ]
+    }
+  ]
+}
