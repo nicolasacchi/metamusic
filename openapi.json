@@ -1134,6 +1134,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerStatusView",
+            "description": "The worker capability gate of this backend's image (C322)"
+          },
           "workers": {
             "additionalProperties": false,
             "properties": {
@@ -1208,7 +1212,8 @@
           "quote_observed_at",
           "skew_ms",
           "restored_unreconciled",
-          "balance"
+          "balance",
+          "worker"
         ],
         "type": "object"
       },
@@ -14873,6 +14878,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerStatusView",
+            "description": "The worker capability gate of this backend's image (C322)"
+          },
           "workers": {
             "additionalProperties": false,
             "properties": {
@@ -14949,7 +14958,8 @@
           "quote_observed_at",
           "skew_ms",
           "restored_unreconciled",
-          "balance"
+          "balance",
+          "worker"
         ],
         "type": "object"
       },
@@ -23708,6 +23718,44 @@
         },
         "required": [
           "source_id"
+        ],
+        "type": "object"
+      },
+      "WorkerStatusView": {
+        "additionalProperties": false,
+        "properties": {
+          "caps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "changed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_digest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "via": {
+            "enum": [
+              "none",
+              "cli",
+              "auto"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "image_digest",
+          "caps",
+          "changed_at",
+          "via"
         ],
         "type": "object"
       }

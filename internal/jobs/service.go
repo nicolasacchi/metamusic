@@ -251,6 +251,8 @@ func ErrorMessage(code string) string {
 		return "A delivered file did not match the worker's report."
 	case CodeWorkerContract:
 		return "The worker output broke the contract."
+	case CodeWorkerOutdated:
+		return "The worker image cannot run this job yet."
 	case CodeIngestFailed:
 		return "The audio could not be added to the library."
 	case CodeDuplicateAudio:

@@ -164,6 +164,17 @@ type ProviderStatus struct {
 	Meter                                     *MeterStats
 	SkewMS                                    *int64
 	RestoredUnreconciled                      bool
+	// Worker is the capability gate of the backend's image (C322.6).
+	Worker WorkerStatus
+}
+
+// WorkerStatus is the worker capability gate of one backend: the capabilities open right now (empty when the gate is closed, the
+// image changed since the last decision, or the quote is stale) and the latest log row that decided them.
+type WorkerStatus struct {
+	ImageDigest string
+	Caps        []string
+	ChangedAt   *time.Time
+	Via         string // "cli", "auto" or "" when the backend has no log row
 }
 
 // UpdateIn is a provider-state change: arm/disarm and/or reset the open trip.
@@ -259,6 +270,9 @@ func (a *ProviderAdmin) statusOf(ctx context.Context, gate *provider.Gate, sweep
 		return ProviderStatus{}, err
 	}
 	if st.Backend != "" {
+		if err := a.loadWorker(ctx, st, a.o.Clock.Now(), &out); err != nil {
+			return ProviderStatus{}, err
+		}
 		g, err := ArmGate(ctx, a.o.Store.R, st.Backend)
 		if err != nil {
 			return ProviderStatus{}, err
@@ -467,4 +481,21 @@ func (a *ProviderAdmin) tx(ctx context.Context, fn func(tx *sql.Tx) error) error
 		return err
 	}
 	return tx.Commit()
+}
+
+// loadWorker fills ProviderStatus.Worker from the gate log and the fresh quote (C322.4).
+func (a *ProviderAdmin) loadWorker(ctx context.Context, st provider.State, now time.Time, out *ProviderStatus) error {
+	caps, err := provider.WorkerCaps(ctx, a.o.Store.R, st.Backend, st.Quote, now)
+	if err != nil {
+		return err
+	}
+	out.Worker = WorkerStatus{Caps: caps}
+	row, ok, err := provider.LatestContract(ctx, a.o.Store.R, st.Backend)
+	if err != nil || !ok {
+		return err
+	}
+	out.Worker.ImageDigest, out.Worker.Via = row.ImageDigest, row.Via
+	t := row.ChangedAt
+	out.Worker.ChangedAt = &t
+	return nil
 }
