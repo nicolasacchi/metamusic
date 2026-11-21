@@ -918,3 +918,9 @@ Revision 7 (2026-11-21, lane G1-F3b `g1-gate`, built on `origin/main` `58928da`,
   spec field the plan does not have.
 - **Python half of the transport caps** (`agent`, `fallback` accepted by `caps.py` and the selftest, Revision 2) is **not** in this lane
   (Go vocabulary only); it belongs to the worker lane.
+
+Revision 8 (2026-11-21, lane G1-X1 `g1-docs`, docs only): architecture ("Shared foundations for the M5b, M6 and T1b program (G1)"), runbook ("Worker
+waves, the capability gate and the time zone (G1)": `MM_TZ`, `runpod contract`, the worker wave checklist, the rebuild deploy, the migration
+list) and the roadmap (G1 status line) now describe the code as built in Revisions 3 to 7. Contract differences made explicit in the runbook: the
+gate also closes on `BAD_INPUT` of a `/2` job; `close` needs `--strand-queued` when jobs are queued; the "label lists the capability" check of
+`open` does not exist (Revision 7); the runbook (not the README, which owns the config table) carries the `MM_TZ` section. No code changed.
