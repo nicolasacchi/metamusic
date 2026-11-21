@@ -12,7 +12,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from .contract import ACESTEP, ARTIFACTS, MAX_BYTES, artifacts_for, parse_input
+from . import caps, stages
+from .contract import ACESTEP, ARTIFACTS, CONTRACT_V2, MAX_BYTES, artifacts_for, artifacts_v2, parse_input, parse_job
 from .handler import process
 from .pipeline import FakePipeline
 from .start import StartClient
@@ -80,6 +81,27 @@ def _acestep_job(base: str) -> tuple[dict[str, Any], Any]:
     return raw, adapter
 
 
+def _run_v2(base: str, sink: _Sink) -> bool:
+    """A plain /2 render against the fake pipeline: the /2 output must carry kind render and this image's caps."""
+    sink.puts.clear()
+    sink.starts = 0
+    raw = {
+        "contract": CONTRACT_V2, "kind": "render", "take_id": "selftest-take-2", "attempt_id": "selftest-attempt-2",
+        "engine": "yue2",
+        "request": {"cot": "off", "id": "selftest", "lyrics": "[Verse]\nla la", "seed": 1, "style": "pop"},
+        "timeout_s": 120, "upload_budget_s": 60, "deadline_unix": int(time.time()) + 600,
+        "start": {"url": f"{base}/start"},
+        "uploads": {n: {"url": f"{base}/{n}", "max_bytes": m} for n, m, _ in artifacts_v2("render")},
+        "expect": {"weights": _WEIGHTS},
+    }
+    take = parse_job(raw)
+    out = process(take, FakePipeline(weights=_WEIGHTS), Uploader(), time.time, start=StartClient(take.start_url),
+                  job_id="selftest-job-2")
+    doc = json.loads(sink.puts.get("mm-result.json", b"{}"))
+    return (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0 and doc.get("kind") == "render"
+            and doc.get("contract") == CONTRACT_V2 and doc.get("caps") == caps.image_caps())
+
+
 def run(engine: str | None = None) -> bool:
     engine = engine or os.environ.get("MM_ENGINE") or os.environ.get("ENGINE") or "yue2"
     sink = _Sink()
@@ -110,13 +132,16 @@ def run(engine: str | None = None) -> bool:
         ok = (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0
               and "mm-result.json" in sink.puts and "audio.flac" in sink.puts
               and json.loads(sink.puts["mm-result.json"])["take_id"] == "selftest-take")
-        return ok
+        return ok and _run_v2(base, sink)
     finally:
         sink.shutdown()
         sink.server_close()
 
 
 def main() -> int:
+    stages.discover()
     ok = run()
+    if ok and (os.environ.get("MM_ENGINE") or os.environ.get("ENGINE") or "yue2") != ACESTEP:
+        print("caps: " + caps.label(caps.image_caps()))  # CI compares this line with LABEL io.metamusic.caps
     print("selftest: " + ("ok" if ok else "FAILED"), file=sys.stderr)
     return 0 if ok else 1
