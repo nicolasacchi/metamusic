@@ -1,0 +1,368 @@
+{
+  "contract": "mm.worker/2",
+  "shapes": [
+    {
+      "name": "render",
+      "kind": "render",
+      "ears": false,
+      "keep_vocals": false,
+      "seeds": 0,
+      "artifacts": [
+        {
+          "name": "request.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "config.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "result.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "score.abc",
+          "max_bytes": 1048576,
+          "required": false
+        },
+        {
+          "name": "plan.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "plan_manifest.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "abc_tokens.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "prefix.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "semantic.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "audio.flac",
+          "max_bytes": 167772160,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "render-ears",
+      "kind": "render",
+      "ears": true,
+      "keep_vocals": false,
+      "seeds": 0,
+      "artifacts": [
+        {
+          "name": "request.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "config.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "result.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "score.abc",
+          "max_bytes": 1048576,
+          "required": false
+        },
+        {
+          "name": "plan.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "plan_manifest.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "abc_tokens.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "prefix.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "semantic.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "audio.flac",
+          "max_bytes": 167772160,
+          "required": true
+        },
+        {
+          "name": "analysis.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "render-ears-keep",
+      "kind": "render",
+      "ears": true,
+      "keep_vocals": true,
+      "seeds": 0,
+      "artifacts": [
+        {
+          "name": "request.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "config.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "result.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "score.abc",
+          "max_bytes": 1048576,
+          "required": false
+        },
+        {
+          "name": "plan.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "plan_manifest.json",
+          "max_bytes": 4194304,
+          "required": false
+        },
+        {
+          "name": "abc_tokens.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "prefix.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "semantic.npy",
+          "max_bytes": 67108864,
+          "required": false
+        },
+        {
+          "name": "audio.flac",
+          "max_bytes": 167772160,
+          "required": true
+        },
+        {
+          "name": "stem-vocals.flac",
+          "max_bytes": 209715200,
+          "required": true
+        },
+        {
+          "name": "analysis.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "analyze",
+      "kind": "analyze",
+      "ears": true,
+      "keep_vocals": false,
+      "seeds": 0,
+      "artifacts": [
+        {
+          "name": "analysis.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "analyze-keep",
+      "kind": "analyze",
+      "ears": true,
+      "keep_vocals": true,
+      "seeds": 0,
+      "artifacts": [
+        {
+          "name": "analysis.json",
+          "max_bytes": 4194304,
+          "required": true
+        },
+        {
+          "name": "stem-vocals.flac",
+          "max_bytes": 209715200,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "plan-1",
+      "kind": "plan",
+      "ears": false,
+      "keep_vocals": false,
+      "seeds": 1,
+      "artifacts": [
+        {
+          "name": "plan-00.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "plan-16",
+      "kind": "plan",
+      "ears": false,
+      "keep_vocals": false,
+      "seeds": 16,
+      "artifacts": [
+        {
+          "name": "plan-00.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-01.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-02.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-03.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-04.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-05.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-06.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-07.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-08.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-09.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-10.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-11.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-12.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-13.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-14.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "plan-15.tar",
+          "max_bytes": 2097152,
+          "required": true
+        },
+        {
+          "name": "mm-result.json",
+          "max_bytes": 65536,
+          "required": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.worker/2 job input",
+  "description": "The `input` of a RunPod job for the metamusic worker (C321). Mirrored by provider.ParseWorkerInput (Go, contract mm.worker/2) and mmworker.contract.parse_input (Python); tests keep the three in agreement. Limits the schema cannot state (the decoded size of all attachments, the /run body) are checked by the parsers only. mm-worker-1.*.schema.json are unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "take_id",
+    "attempt_id",
+    "engine",
+    "timeout_s",
+    "upload_budget_s",
+    "deadline_unix",
+    "start",
+    "uploads",
+    "expect"
+  ],
+  "properties": {
+    "contract": {
+      "const": "mm.worker/2"
+    },
+    "kind": {
+      "enum": [
+        "render",
+        "analyze",
+        "plan"
+      ]
+    },
+    "take_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "engine": {
+      "const": "yue2"
+    },
+    "request": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "ears": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "budget_s",
+        "stages"
+      ],
+      "properties": {
+        "lang": {
+          "type": "string",
+          "pattern": "^(auto|[a-z]{2,3})$"
+        },
+        "budget_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2700
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "separate",
+              "asr",
+              "transcribe"
+            ]
+          }
+        },
+        "keep_vocals": {
+          "type": "boolean"
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seeds",
+        "s_per_seed"
+      ],
+      "properties": {
+        "seeds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "s_per_seed": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360
+        }
+      }
+    },
+    "attach": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "data_base64"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "data_base64": {
+            "type": "string",
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src_audio"
+      ],
+      "properties": {
+        "src_audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 201326592
+            }
+          }
+        }
+      }
+    },
+    "timeout_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "upload_budget_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2700
+    },
+    "deadline_unix": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "min_audio_s": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 360
+    },
+    "fallback_after_s": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 600,
+      "description": "Reserved (C321.3): the worker ignores it until it advertises capability fallback."
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://[^\\s]+$",
+          "maxLength": 2048
+        }
+      }
+    },
+    "uploads": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "audio.flac": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 167772160
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "request.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "config.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "score.abc": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan_manifest.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "abc_tokens.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "prefix.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "semantic.npy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "analysis.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "stem-vocals.flac": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 209715200
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-00.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-01.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-02.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-03.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-04.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-05.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-06.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-07.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-08.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-09.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-10.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-11.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-12.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-13.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-14.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "plan-15.tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2097152
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        },
+        "mm-result.json": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_bytes"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://[^\\s]+$",
+              "maxLength": 2048
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65536
+            },
+            "fallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://[^\\s]+$",
+                  "maxLength": 2048
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weights"
+      ],
+      "properties": {
+        "weights": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "analyze",
+              "plan"
+            ]
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "request"
+        ],
+        "properties": {
+          "plan": false,
+          "inputs": false,
+          "uploads": {
+            "required": [
+              "audio.flac",
+              "request.json",
+              "config.json",
+              "result.json",
+              "mm-result.json"
+            ],
+            "properties": {
+              "plan-00.tar": false,
+              "plan-01.tar": false,
+              "plan-02.tar": false,
+              "plan-03.tar": false,
+              "plan-04.tar": false,
+              "plan-05.tar": false,
+              "plan-06.tar": false,
+              "plan-07.tar": false,
+              "plan-08.tar": false,
+              "plan-09.tar": false,
+              "plan-10.tar": false,
+              "plan-11.tar": false,
+              "plan-12.tar": false,
+              "plan-13.tar": false,
+              "plan-14.tar": false,
+              "plan-15.tar": false
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "ears"
+              ]
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "analysis.json"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "analysis.json": false,
+                    "stem-vocals.flac": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "ears"
+              ],
+              "properties": {
+                "ears": {
+                  "required": [
+                    "keep_vocals"
+                  ],
+                  "properties": {
+                    "keep_vocals": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "stem-vocals.flac"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "stem-vocals.flac": false
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "analyze"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "ears",
+          "inputs"
+        ],
+        "properties": {
+          "request": false,
+          "plan": false,
+          "min_audio_s": false,
+          "uploads": {
+            "required": [
+              "analysis.json",
+              "mm-result.json"
+            ],
+            "properties": {
+              "audio.flac": false,
+              "request.json": false,
+              "config.json": false,
+              "result.json": false,
+              "score.abc": false,
+              "plan.json": false,
+              "plan_manifest.json": false,
+              "abc_tokens.npy": false,
+              "prefix.npy": false,
+              "semantic.npy": false,
+              "plan-00.tar": false,
+              "plan-01.tar": false,
+              "plan-02.tar": false,
+              "plan-03.tar": false,
+              "plan-04.tar": false,
+              "plan-05.tar": false,
+              "plan-06.tar": false,
+              "plan-07.tar": false,
+              "plan-08.tar": false,
+              "plan-09.tar": false,
+              "plan-10.tar": false,
+              "plan-11.tar": false,
+              "plan-12.tar": false,
+              "plan-13.tar": false,
+              "plan-14.tar": false,
+              "plan-15.tar": false
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "ears"
+              ],
+              "properties": {
+                "ears": {
+                  "required": [
+                    "keep_vocals"
+                  ],
+                  "properties": {
+                    "keep_vocals": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "stem-vocals.flac"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "stem-vocals.flac": false
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "plan"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "request",
+          "plan"
+        ],
+        "properties": {
+          "ears": false,
+          "inputs": false,
+          "attach": false,
+          "min_audio_s": false,
+          "uploads": {
+            "required": [
+              "mm-result.json"
+            ],
+            "properties": {
+              "audio.flac": false,
+              "request.json": false,
+              "config.json": false,
+              "result.json": false,
+              "score.abc": false,
+              "plan.json": false,
+              "plan_manifest.json": false,
+              "abc_tokens.npy": false,
+              "prefix.npy": false,
+              "semantic.npy": false,
+              "analysis.json": false,
+              "stem-vocals.flac": false
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-00.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-00.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 2
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-01.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-01.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 3
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-02.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-02.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 4
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-03.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-03.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 5
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-04.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-04.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 6
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-05.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-05.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 7
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-06.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-06.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 8
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-07.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-07.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 9
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-08.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-08.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 10
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-09.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-09.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 11
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-10.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-10.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 12
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-11.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-11.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 13
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-12.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-12.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 14
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-13.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-13.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 15
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-14.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-14.tar": false
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "required": [
+                    "seeds"
+                  ],
+                  "properties": {
+                    "seeds": {
+                      "minItems": 16
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "uploads": {
+                  "required": [
+                    "plan-15.tar"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "uploads": {
+                  "properties": {
+                    "plan-15.tar": false
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "fallback_after_s"
+        ]
+      },
+      "then": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "anyOf": [
+              {
+                "required": [
+                  "audio.flac"
+                ],
+                "properties": {
+                  "audio.flac": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "request.json"
+                ],
+                "properties": {
+                  "request.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "config.json"
+                ],
+                "properties": {
+                  "config.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "result.json"
+                ],
+                "properties": {
+                  "result.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "score.abc"
+                ],
+                "properties": {
+                  "score.abc": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan.json"
+                ],
+                "properties": {
+                  "plan.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan_manifest.json"
+                ],
+                "properties": {
+                  "plan_manifest.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "abc_tokens.npy"
+                ],
+                "properties": {
+                  "abc_tokens.npy": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "prefix.npy"
+                ],
+                "properties": {
+                  "prefix.npy": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "semantic.npy"
+                ],
+                "properties": {
+                  "semantic.npy": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "analysis.json"
+                ],
+                "properties": {
+                  "analysis.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "stem-vocals.flac"
+                ],
+                "properties": {
+                  "stem-vocals.flac": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-00.tar"
+                ],
+                "properties": {
+                  "plan-00.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-01.tar"
+                ],
+                "properties": {
+                  "plan-01.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-02.tar"
+                ],
+                "properties": {
+                  "plan-02.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-03.tar"
+                ],
+                "properties": {
+                  "plan-03.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-04.tar"
+                ],
+                "properties": {
+                  "plan-04.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-05.tar"
+                ],
+                "properties": {
+                  "plan-05.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-06.tar"
+                ],
+                "properties": {
+                  "plan-06.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-07.tar"
+                ],
+                "properties": {
+                  "plan-07.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-08.tar"
+                ],
+                "properties": {
+                  "plan-08.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-09.tar"
+                ],
+                "properties": {
+                  "plan-09.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-10.tar"
+                ],
+                "properties": {
+                  "plan-10.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-11.tar"
+                ],
+                "properties": {
+                  "plan-11.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-12.tar"
+                ],
+                "properties": {
+                  "plan-12.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-13.tar"
+                ],
+                "properties": {
+                  "plan-13.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-14.tar"
+                ],
+                "properties": {
+                  "plan-14.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "plan-15.tar"
+                ],
+                "properties": {
+                  "plan-15.tar": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "mm-result.json"
+                ],
+                "properties": {
+                  "mm-result.json": {
+                    "required": [
+                      "fallback"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "audio.flac"
+            ],
+            "properties": {
+              "audio.flac": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "request.json"
+            ],
+            "properties": {
+              "request.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "config.json"
+            ],
+            "properties": {
+              "config.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "result.json"
+            ],
+            "properties": {
+              "result.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "score.abc"
+            ],
+            "properties": {
+              "score.abc": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan.json"
+            ],
+            "properties": {
+              "plan.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan_manifest.json"
+            ],
+            "properties": {
+              "plan_manifest.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "abc_tokens.npy"
+            ],
+            "properties": {
+              "abc_tokens.npy": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "prefix.npy"
+            ],
+            "properties": {
+              "prefix.npy": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "semantic.npy"
+            ],
+            "properties": {
+              "semantic.npy": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "analysis.json"
+            ],
+            "properties": {
+              "analysis.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "stem-vocals.flac"
+            ],
+            "properties": {
+              "stem-vocals.flac": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-00.tar"
+            ],
+            "properties": {
+              "plan-00.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-01.tar"
+            ],
+            "properties": {
+              "plan-01.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-02.tar"
+            ],
+            "properties": {
+              "plan-02.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-03.tar"
+            ],
+            "properties": {
+              "plan-03.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-04.tar"
+            ],
+            "properties": {
+              "plan-04.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-05.tar"
+            ],
+            "properties": {
+              "plan-05.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-06.tar"
+            ],
+            "properties": {
+              "plan-06.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-07.tar"
+            ],
+            "properties": {
+              "plan-07.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-08.tar"
+            ],
+            "properties": {
+              "plan-08.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-09.tar"
+            ],
+            "properties": {
+              "plan-09.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-10.tar"
+            ],
+            "properties": {
+              "plan-10.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-11.tar"
+            ],
+            "properties": {
+              "plan-11.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-12.tar"
+            ],
+            "properties": {
+              "plan-12.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-13.tar"
+            ],
+            "properties": {
+              "plan-13.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-14.tar"
+            ],
+            "properties": {
+              "plan-14.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "plan-15.tar"
+            ],
+            "properties": {
+              "plan-15.tar": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "required": [
+              "mm-result.json"
+            ],
+            "properties": {
+              "mm-result.json": {
+                "required": [
+                  "fallback"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallback_after_s"
+        ]
+      }
+    }
+  ]
+}

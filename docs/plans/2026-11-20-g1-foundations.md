@@ -765,3 +765,62 @@ Revision 4 (2026-11-20, lane G1-F2 `g1-jobs`, built on `origin/main` `87af833`):
 - **Job views** expose `kind` (`jobs.Job.Kind`, `generation.JobView.Kind`, API `JobSummary.kind`, enum `generate|analyze|plan`):
   `list_jobs`, `get_job`, `get_batch` and the create/estimate batch views. `openapi.json`, `schema.d.ts` and `tools_list.golden.json`
   were regenerated.
+
+Revision 5 (2026-11-21, lane G1-F3a `g1-wire`, built on `origin/main` `d8bc577`): C321 as built, and C323.5 / Revision 4 per-kind
+verification, with the amendments the code forced.
+
+- **C321.1 / C321.2 constants and types**: `provider.ContractV1`, `ContractV2` and `Contract = ContractV1` (an alias constant). `TakeSpec` gains
+  `Kind`, `Ears`, `Plan`, `Attach`, `Wire` and one more field, `FallbackAfterS` (reserved, C321.3); `UploadTarget` gains the reserved
+  `Fallback *FallbackTarget`. `Output` gains `Kind`, `Ears`, `Plans`, `Caps`; `EarsOut` is `{status, code, seconds}` (Revision 2, ears A2) and
+  `PlanOut` is `{index, seed, status, code, truncated, bundle}` where `bundle` names the seed's `plan-NN.tar` (the plan did not say what it held).
+  `WorkerInput` gains the `/2` keys (all `omitempty`; `request` too, since `analyze` has none). `BuildWorkerInput` dispatches on `Wire`.
+- **ParseWorkerInput** dispatches on `contract`: `/2` goes to `parseV2` (`internal/provider/wire_v2.go`), everything else to the unchanged `/1`
+  rules, which now also refuse the `/2` keys (`kind`, `ears`, `plan`, `attach`, `fallback_after_s`). One existing test row changed: in
+  `TestParseWorkerInput_MatchesSchema` the row "contract v2" became "contract v3", because a `/1`-shaped document with contract `/2` is now a valid
+  `/2` render. No `/1` schema, golden or document changed.
+- **/2 rules the plan left open**: the engine must be `yue2`; `inputs` is part of `analyze` only (a `plan` refuses it, as `render` does) and holds
+  exactly `src_audio`; `min_audio_s` is part of `render` only; `attach` is refused on `plan`; `ears` needs `budget_s` (1..2700) and 1..3 distinct
+  `stages`, `lang` is `auto` or a 2-3 letter code; `plan.s_per_seed` is 1..360; attachment names match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, at most 16,
+  1 MiB decoded together; `fallback_after_s` is present exactly when an upload carries a `fallback` (60..600); no `null` anywhere outside `request`.
+  `ParseWorkerInput` and `BuildWorkerInputV2` refuse a document over `MaxRunBody`; the schema cannot state that, nor the attachment total
+  (`parserOnly` rows in the tests).
+- **C321.5 artifact table** (`internal/provider/artifacts_v2.go`; `KindShape{Kind, Ears, KeepVocals, Seeds}`): `ArtifactsV2(shape)` lists the upload
+  targets of a document and `Required` marks the mandatory ones. A target exists exactly when its condition holds, and the document must carry it:
+  `analysis.json` for `ears`, `stem-vocals.flac` for `keep_vocals`, `plan-00..plan-(n-1).tar` for n seeds. `ExtraRequiredV2(shape, output)` lists what
+  a finished output must report beyond the engine's own set (`analysis.json` once `ears.status = ok`, the bundle of each ok plan). **Amendment:
+  `plan-NN.tar` is at most 2 MiB** (Revision 2, desk A1), not the 160 MiB of C321.5. `UploadLimitV2(name)` serves the upload service, which opens
+  rows before it knows the document (`upload.OpenAttempt` accepts the `/2` names for yue2 only); `ArtifactMaxBytesFor` (the `/1` allowlist) is
+  unchanged. The table is exported to `worker/contract/testdata/artifacts-v2.json` by `TestWriteArtifactsV2` (`make regen` runs it with `-update`).
+- **Output decoding**: `DecodeOutput` refuses a `/1` output that carries `kind`, `ears`, `plans` or `caps`, and checks a `/2` output's kind, blocks, caps
+  vocabulary and null shapes (render: `audio_seconds` and `truncated` set on ok; analyze: ok ears block, `truncated` null; plan: no ears,
+  `audio_seconds` and `truncated` null, one ok seed on an ok output). `CheckOutputV2(shape, out)` adds what depends on the document (ears asked
+  iff reported, one plan entry per seed in order).
+- **Schemas**: `mm-worker-2.input.schema.json` and `mm-worker-2.output.schema.json` (generated once from a script, then hand-maintained);
+  `TestWorkerSchemasV2_MatchParser` and `TestWorkerSchemasV2_OutputMatchesDecoder` run about a hundred rows through schema and Go and require the
+  same verdict.
+- **C323.5 takeSpec from spec**: `Runner.applyWire` (`internal/jobs/wire_v2.go`) fills kind, ears, plan, attachments and the signed input of the
+  spec's pins (`RunnerOptions.Inputs` must implement `PinMinter`; `RunnerOptions.Attach` is a new `AttachSource` that reads and sha-checks each
+  `attach` ref at submit). It then builds and parses the `/2` document, so **a document the worker would refuse is rejected at submit
+  (`SUBMIT_REJECTED`) and never sent**: a worker `BAD_INPUT` would close the capability gate (C322.5) for a fault of one job. A plain job and a job
+  with only `needs: [v2]` and no spec are handled as before (`WireFor`: `/1` for an empty needs, a non-yue2 engine always `/1`).
+- **Per-kind verification** (Revision 4's "artifact table per kind"): the transfer verifier, the ingest bridge (`verify`) and `IngestKindJob` take
+  the contract from the job (`contractOf`), hold the output to its kind (`jobWire.outputProblem`), allow only the kind's artifacts and require
+  `engineRequired + ExtraRequiredV2`. An analyze or plan job no longer needs `audio_seconds` or a truncation object. Attempt uploads are opened from
+  `ArtifactsV2` (an analyze or plan job gets only its own targets; a render keeps the engine's set and adds the stage names).
+- **Fake worker** (`internal/provider/fake/simworker_g1.go`): speaks `/2` for yue2; `RegisterSimKind(name, hook)` (init-time, names `ears`, `analyze`,
+  `plan`) and `SimWorkerOptions.Kinds` are the hook table; a kind or stage with no hook answers `KIND_UNAVAILABLE` before any fetch or render, an
+  attachment checks its sha256 (`ATTACH_MISMATCH`), an `analyze` fetches and digest-checks its input. The process-wide table means
+  `internal/app/m3.go` needed no edit and tracks add hooks from `simworker_<track>.go` as C328 says.
+- **Tests added to existing fixtures** (jobs rig): `deliver` builds the `/2` output of a `/2` spec, seeded `plan` and `analyze` jobs get the smallest
+  valid `spec_json` by default, the rig's default `Inputs` is a fake pin minter, and `TestIngestKindJob_Refusals` reports an allowlisted bundle that
+  was not received (an unlisted name is now a `WORKER_CONTRACT` violation first).
+
+- **Review follow-ups (same lane)**: `ArtifactsV2.Required` (and the exported `required` in `artifacts-v2.json`) means "the upload target must exist in
+  the document", not "the worker must report it"; reporting is `ExtraRequiredV2` (`analysis.json` once ears are ok, each ok plan bundle), and
+  `stem-vocals.flac` is verified when reported but never required. `BuildWorkerInput` refuses (`ErrWorkerInput`) a take spec that carries `/2`
+  features with a `Wire` other than `/2`. `contractOf` fails closed (a job whose `spec_json` does not parse matches no contract, so its result is
+  `WORKER_CONTRACT`). `handleResult` accepts a `/1` error output for a `/2` job, so a `/1`-only worker's `BAD_INPUT` keeps its code (the poll path
+  already did). `applyWire` wraps minter errors with `%w`, and `submit` maps `ErrInputChanged` to `INPUT_MISMATCH` (C323.5); every other
+  `takeSpec` failure, including a transient attachment read or pin mint failure, stays `SUBMIT_REJECTED` (as the ACE `mintInputs` path already does;
+  retry of transient submit-side faults is a separate, cross-engine change). `ears.budget_s` is not yet added to `timeout_s` or the reservation:
+  that belongs to the Ears track, and no ears-bearing job can be created before it lands.

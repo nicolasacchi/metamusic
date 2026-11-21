@@ -23,6 +23,7 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/clock/clocktest"
 	"github.com/nicolasacchi/metamusic/internal/engine/registry"
+	"github.com/nicolasacchi/metamusic/internal/jobspec"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -305,6 +306,7 @@ func newRigAt(t *testing.T, dbPath, dataDir string, fresh bool, mods ...rigOpt) 
 		Store: st, Backend: r.be, Engines: registry.Default(registry.Options{}), Spend: r.sp, Ingest: r.ing, Notify: r.notes, Hub: r.hub,
 		Clock: r.clk, NewID: r.newID, Owner: "runner-1", PublicURL: testPublicURL, TTL: 2 * time.Hour, MaxRuntime: 15 * time.Minute,
 		ColdStartS: 180, KillSlackS: 15, Expect: provider.WorkerExpect{Weights: map[string]string{"m-a-p/YuE2-3B": "8f24312f187763b9854adeec87e437e2b03bbff1"}},
+		Inputs: fakePins{},
 	}
 	r.up = upload.NewService(upload.ServiceOptions{Data: root, Signer: r.sig, Store: st, Clock: r.clk, PublicURL: testPublicURL, NewID: r.newID,
 		Log: slog.New(slog.DiscardHandler), Wake: func() {
@@ -455,7 +457,7 @@ func (r *rig) seedBatch(sp batchSpec) seeded {
 		sp.needs = "[]"
 	}
 	if sp.specJSON == "" {
-		sp.specJSON = "{}"
+		sp.specJSON = defaultSpec(sp.kind)
 	}
 	var rationale any
 	if sp.rationale != "" {
@@ -656,12 +658,13 @@ type deliverOpts struct {
 	truncated   [2]bool
 	badTrunc    bool // truncated dict with a wrong key set
 	noAudioSec  bool
-	allOptional bool              // also upload the optional artifacts
-	claim       map[string]bool   // artifacts reported in the output but never uploaded
-	forgeTake   bool              // the output names another take
-	unreported  map[string]bool   // artifacts uploaded but left out of the output
-	bodies      map[string][]byte // artifact bodies (default: a synthetic text)
-	e2e         float64           // timings.e2e_seconds of the output
+	allOptional bool                   // also upload the optional artifacts
+	claim       map[string]bool        // artifacts reported in the output but never uploaded
+	forgeTake   bool                   // the output names another take
+	unreported  map[string]bool        // artifacts uploaded but left out of the output
+	bodies      map[string][]byte      // artifact bodies (default: a synthetic text)
+	e2e         float64                // timings.e2e_seconds of the output
+	mutateOut   func(*provider.Output) // last edit of the output before it is uploaded (G1: a /2 shape the rig does not build)
 }
 
 func digestHeader(b []byte) string {
@@ -720,8 +723,12 @@ func (r *rig) deliver(spec provider.TakeSpec, o deliverOpts) provider.Output {
 		out.Status = "error"
 		out.Error = &provider.OutputError{Code: "PIPELINE_ERROR", Message: "synthetic failure"}
 	}
+	v2 := spec.Wire == provider.ContractV2
+	if v2 {
+		shapeV2Output(&out, spec)
+	}
 	for _, name := range sortedKeys(spec.Uploads) {
-		if name == provider.ResultArtifact || o.skip[name] || (!o.allOptional && !requiredName(name)) {
+		if name == provider.ResultArtifact || o.skip[name] || (!o.allOptional && !requiredName(name) && !(v2 && isStageName(name))) {
 			continue
 		}
 		body := []byte("synthetic " + name + " " + spec.AttemptID)
@@ -748,6 +755,9 @@ func (r *rig) deliver(spec provider.TakeSpec, o deliverOpts) provider.Output {
 	if o.forgeTake {
 		out.TakeID = "some-other-take"
 	}
+	if o.mutateOut != nil {
+		o.mutateOut(&out)
+	}
 	if !o.noResult {
 		raw, err := json.Marshal(out)
 		if err != nil {
@@ -758,6 +768,60 @@ func (r *rig) deliver(spec provider.TakeSpec, o deliverOpts) provider.Output {
 		}
 	}
 	return out
+}
+
+// shapeV2Output turns the /1 output the rig builds into the /2 output of the spec's kind (C321.4): contract, kind, and the nulls
+// and blocks that kind carries.
+func shapeV2Output(out *provider.Output, spec provider.TakeSpec) {
+	out.Contract = provider.ContractV2
+	out.Kind = spec.Kind
+	if out.Kind == "" {
+		out.Kind = provider.KindRender
+	}
+	switch out.Kind {
+	case provider.KindRender:
+		if spec.Ears != nil {
+			out.Ears = &provider.EarsOut{Status: "ok"}
+		}
+	case provider.KindAnalyze:
+		out.Truncated = nil
+		out.Ears = &provider.EarsOut{Status: "ok"}
+	case provider.KindPlan:
+		out.Truncated, out.AudioSeconds = nil, nil
+		for i, seed := range spec.Plan.Seeds {
+			out.Plans = append(out.Plans, provider.PlanOut{Index: i, Seed: seed, Status: "ok", Bundle: provider.PlanBundleName(i)})
+		}
+	}
+}
+
+// isStageName: the names only a /2 document adds to the /1 set.
+func isStageName(n string) bool {
+	_, ok := provider.UploadLimitV2(n)
+	return ok
+}
+
+// defaultSpec is the spec_json a seeded job of the kind carries when the test names none: the smallest document its /2 shape
+// accepts (a plan with one seed; an analyze with a pinned source and an ears block).
+func defaultSpec(kind string) string {
+	switch kind {
+	case KindPlan:
+		return `{"plan":{"seeds":[1101],"seconds_per_seed":30}}`
+	case KindAnalyze:
+		return `{"ears":{"budget_s":60,"stages":["asr"]},"inputs":{"src_audio":{"track_id":"trk-pin","master_sha256":"` + strings.Repeat("a", 64) + `","bytes":1048576}}}`
+	}
+	return "{}"
+}
+
+// fakePins is the rig's default input minter: it signs nothing and answers the pins of a spec with a link on the documentation
+// host. A request-derived mint (ACE-Step) returns no inputs, as an unconfigured one would.
+type fakePins struct{}
+
+func (fakePins) MintInputs(context.Context, json.RawMessage, time.Time) (map[string]provider.InputRef, error) {
+	return nil, nil
+}
+
+func (fakePins) MintPins(_ context.Context, p jobspec.Inputs, _ time.Time) (map[string]provider.InputRef, error) {
+	return map[string]provider.InputRef{provider.InputSrcAudio: {URL: "https://mm.example.com/media/" + p.SrcAudio.MasterSHA256 + ".flac?exp=1&sig=t", SHA256: p.SrcAudio.MasterSHA256, Bytes: p.SrcAudio.Bytes}}, nil
 }
 
 func requiredName(n string) bool {

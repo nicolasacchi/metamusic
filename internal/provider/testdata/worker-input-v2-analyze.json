@@ -1,0 +1,49 @@
+{
+  "contract": "mm.worker/2",
+  "kind": "analyze",
+  "take_id": "a1",
+  "attempt_id": "a2",
+  "engine": "yue2",
+  "ears": {
+    "lang": "it",
+    "budget_s": 60,
+    "stages": [
+      "separate",
+      "asr"
+    ],
+    "keep_vocals": true
+  },
+  "timeout_s": 296,
+  "upload_budget_s": 60,
+  "deadline_unix": 1760000000,
+  "start": {
+    "url": "https://mm.example.com/worker/v1/attempts/a2/start?exp=1760000000\u0026sig=abc"
+  },
+  "uploads": {
+    "analysis.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/analysis.json?sig=abc",
+      "max_bytes": 4194304
+    },
+    "mm-result.json": {
+      "url": "https://mm.example.com/worker/v1/uploads/mm-result.json?sig=abc",
+      "max_bytes": 65536
+    },
+    "stem-vocals.flac": {
+      "url": "https://mm.example.com/worker/v1/uploads/stem-vocals.flac?sig=abc",
+      "max_bytes": 209715200
+    }
+  },
+  "expect": {
+    "weights": {
+      "m-a-p/YuE2-3B": "0123456789abcdef0123456789abcdef01234567",
+      "m-a-p/YuE2-Vae": "89abcdef0123456789abcdef0123456789abcdef"
+    }
+  },
+  "inputs": {
+    "src_audio": {
+      "url": "https://mm.example.com/media/x.flac?sig=abc",
+      "sha256": "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12",
+      "bytes": 1048576
+    }
+  }
+}
