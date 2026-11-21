@@ -49,6 +49,7 @@
 ./internal/provider/runpod 24
 ./internal/board 22
 ./internal/diction 22
+./internal/ears/tierb 22
 ./internal/auth 21
 ./internal/songpr 19
 ./internal/archivetest 18

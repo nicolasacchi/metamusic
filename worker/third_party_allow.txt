@@ -32,3 +32,7 @@ LGPL-3.0-only
 # is MIT, Copyright (c) 2020 Fergal Cotter; only the DTCWT part carries the Kingsbury MATLAB toolbox terms, which this
 # image never calls. Accepted by name, not by licence; revisit if DTCWT is ever used.
 dist:pytorch-wavelets
+# The Tier B ears packages of the yue2 image (worker/requirements-ears.txt; that image does not run gen_notices.py) add two LGPL
+# distributions, both unmodified and replaceable: soxr (LGPL-2.1-or-later, allowed above) and lameenc (LGPL-3.0-or-later, a Demucs
+# dependency that is never called), accepted by name only.
+dist:lameenc
