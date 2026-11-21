@@ -202,3 +202,42 @@ def test_caps_fallback_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     # Dockerfile label equals the advertised list (the stage lane's label test covers the stage part)
     text = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text()
     assert 'io.metamusic.caps="analyze ears fallback v2"' in text
+
+
+def test_window_clamps_long_retry_after(sink: Sink, data: Path) -> None:
+    c = Clock()
+    up = Uploader(clock=c, sleep=c.sleep)
+    real = up._once
+
+    def once(*a: Any, **k: Any) -> tuple[int, float | None, str | None]:
+        return real(*a, **k) if k.get("fallback") else (429, 900.0, None)
+
+    up._once = once  # type: ignore[method-assign]
+    up.put("a", data, tgt(sink, after=60), c.now + 100)  # Retry-After 900 would pass the deadline; the window ends first
+    assert len(sink.puts("/fb")) == 1 and c.sleeps == [60]
+
+
+def test_answered_422_restarts_window(sink: Sink, data: Path) -> None:
+    c = Clock()
+    up = Uploader(clock=c, sleep=c.sleep)
+    seq = iter([(503, None, None), (422, 100.0, None), (422, 100.0, None), (422, 100.0, None)])
+    real = up._once
+    up._once = lambda *a, **k: real(*a, **k) if k.get("fallback") else next(seq)  # type: ignore[method-assign]
+    with pytest.raises(WorkerError) as e:
+        up.put("a", data, tgt(sink, after=60), c.now + 3600)
+    assert e.value.code == "UPLOAD_FAILED" and sink.puts("/fb") == []
+
+
+def test_process_v2_dead_primary_uses_fallback(sink: Sink) -> None:
+    from .test_v2 import run2
+
+    raw = raw2(dead_url().rsplit("/", 1)[0])
+    raw["fallback_after_s"] = 60
+    for n, u in raw["uploads"].items():
+        u["fallback"] = {"url": f"{sink.base}/fb/{n}?X-Amz-Signature={SECRET}"}
+    out = run2(sink, raw)
+    assert out["status"] == "ok", out.get("error")
+    paths = [r.path for r in sink.puts()]
+    assert paths and all(p.startswith("/fb/") for p in paths)
+    assert "/fb/mm-result.json" in paths
+    assert SECRET not in repr(out)

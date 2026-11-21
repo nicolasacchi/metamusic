@@ -147,6 +147,8 @@ class Uploader:
                     self._first_failure = self._clock()
                 if self._should_switch(target):
                     continue  # no backoff sleep: the window is over, go straight to the fallback
+            else:
+                self._first_failure = None  # the primary answered: it is alive, the transport window restarts
             if status == 403:
                 raise WorkerError("UPLOAD_FAILED", f"{name}: upload link refused (403)")
             # 409 UPLOAD_IN_PROGRESS: the server still holds the lock of an earlier, stalled PUT of this same
@@ -166,6 +168,9 @@ class Uploader:
             attempt += 1
             if retry_after is not None:
                 delay = retry_after
+            if target.fallback_url and self._first_failure is not None and target.fallback_after_s > 0:
+                # never sleep past the end of the fallback window: wake at its end and let the switch run
+                delay = min(delay, max(0.0, self._first_failure + target.fallback_after_s - self._clock()))
             if deadline is not None and self._clock() + delay > deadline:
                 raise WorkerError("DEADLINE", f"{name}: upload retries would pass the upload deadline")
             self._sleep(delay)
