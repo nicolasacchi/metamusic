@@ -115,10 +115,11 @@ jobs:
           docker run --rm --entrypoint sh "$IMAGE:smoke" -c 'echo "MM_YUE2_VAE_DIR=$MM_YUE2_VAE_DIR HF_HUB_OFFLINE=$HF_HUB_OFFLINE"'
       # EARS-P2 (C333.4): the Tier B stage. mmears runs in the same interpreter with /opt/ears-site on its PYTHONPATH only (layout S-prime,
       # C333.5), so the checks put that directory on the path explicitly and also prove that /opt/venv alone does not see it.
+      # mmears blocks the opportunistic transformers import of ctranslate2.converters on import, so the check goes through mmears first and treats a None sys.modules entry as absent.
       - name: smoke ears imports (mmears, demucs, faster_whisper, torchcrepe), isolation from yue2
         if: steps.decide.outputs.build == 'true'
         run: |
-          docker run --rm --entrypoint python -e PYTHONPATH=/opt/ears-site "$IMAGE:smoke" -c "import sys, mmears, demucs, faster_whisper, torchcrepe, julius, ctranslate2; bad = [m for m in ('yue2', 'transformers') if m in sys.modules]; sys.exit('ears interpreter pulled in ' + ','.join(bad) if bad else 0)"
+          docker run --rm --entrypoint python -e PYTHONPATH=/opt/ears-site "$IMAGE:smoke" -c "import sys, mmears.__main__, mmears.asr, demucs, faster_whisper, torchcrepe, julius, ctranslate2; bad = [m for m in ('yue2', 'transformers') if sys.modules.get(m) is not None]; sys.exit('ears interpreter pulled in ' + ','.join(bad) if bad else 0)"
           for m in mmears demucs faster_whisper torchcrepe; do
             if docker run --rm --entrypoint python "$IMAGE:smoke" -c "import $m" 2>/dev/null; then echo "$m must not be importable without /opt/ears-site"; exit 1; fi
           done
