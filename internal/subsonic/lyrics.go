@@ -108,7 +108,8 @@ func (c *call) syncedLines(trackID string, lines []string) ([]LyricLine, error) 
 	prev := -time.Millisecond
 	for i, l := range text {
 		at := starts[i]
-		if at < 0 {
+		// Clients assume lines sorted by start: an untimed line, or a measured start not after the previous one, is placed 1 ms later.
+		if at <= prev {
 			at = prev + time.Millisecond
 		}
 		prev = at
@@ -155,4 +156,10 @@ func UseDiction(h http.Handler, d LineTimes) bool {
 		s.o.Diction = d
 	}
 	return ok
+}
+
+// HasDiction reports whether h is a Subsonic handler with a synced-lyrics source attached (C348).
+func HasDiction(h http.Handler) bool {
+	s, ok := h.(*server)
+	return ok && s.o.Diction != nil
 }

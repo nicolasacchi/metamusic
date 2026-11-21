@@ -210,3 +210,15 @@ func TestSubsonic_LyricsSyncedHiddenTrack(t *testing.T) {
 		t.Error("a listener got line starts of a discarded take")
 	}
 }
+
+// TestSubsonic_LyricsSyncedStartsIncrease: consecutive untimed lines and an early measured start never break the order.
+func TestSubsonic_LyricsSyncedStartsIncrease(t *testing.T) {
+	t.Parallel()
+	x := newS3Rig(t)
+	x.setLyrics(syncedLyrics + "\nuna riga in più\nun'altra riga\nancora una riga\nl'ultima riga")
+	x.srv.o.Diction = &fakeTimes{ok: true, starts: ms(1000, -1, -1, 1002, 900, 2000, 3000, 4000)}
+	sl := structured(t, x.call("getLyricsBySongId", "id", luna))
+	eq(t, "synced", sl["synced"], true)
+	_, starts := lineStartsOf(t, sl)
+	eq(t, "starts", fmt.Sprint(starts), "[1000 1001 1002 1003 1004 2000 3000 4000]")
+}
