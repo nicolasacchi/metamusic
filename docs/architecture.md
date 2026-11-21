@@ -358,6 +358,52 @@ Owner-side delegates, and only the Owner mints or grants them. Editors and Liste
   upload is stored content-addressed and read-only under `voice/`; only a 64 kbps mono MP3 rendition is served. Voice storage
   is a media root of the backup.
 
+## Shared foundations for the M5b, M6 and T1b program (G1)
+
+Plan: [plans/2026-11-20-g1-foundations.md](plans/2026-11-20-g1-foundations.md) (contracts C320 to C329, revisions 3 to 7 record what each
+lane built). G1 adds seams only; no track feature is built here, and nothing in G1 opens a GPU capability.
+
+- **Worker protocol `mm.worker/2`.** A strict superset of `mm.worker/1`: every `/1` field keeps its name and meaning, `/2` adds optional
+  fields (`kind`, `ears`, `plan`, `attach`, and the reserved `fallback` upload targets). `/1` is frozen; a job with no needs is sent as `/1`,
+  byte-identical to before. The contract is chosen per attempt at submit by `provider.WireFor` (`internal/provider/wire_v2.go`): `/2` only for
+  a yue2 job whose needs are non-empty (or, later, when the upload fallback is open); ACE-Step always stays on its `/1` variant. Input and output documents are parsed strictly in Go
+  (`ParseWorkerInput`, `DecodeOutput`) and in Python (`worker/src/mmworker/contract.py`), and agree with the schemas
+  `mm-worker-2.input.schema.json` and `mm-worker-2.output.schema.json`; a `/1` output that carries a `/2` key is a decode error.
+  `Runner.applyWire` (`internal/jobs/wire_v2.go`) fills a `/2` document from the job's frozen spec and builds and re-parses it before sending,
+  so a document the worker would refuse is rejected at submit (`SUBMIT_REJECTED`) and never reaches the worker.
+- **Artifacts per kind.** One table (`internal/provider/artifacts_v2.go`, mirrored in `contract.py`, both schema enums and
+  `worker/contract/testdata/artifacts-v2.json`) lists the upload targets of a document: `analysis.json` for Tier B, `stem-vocals.flac` for
+  `keep_vocals`, `plan-NN.tar` (at most 2 MiB) per planned seed. Verification is per kind: an analyze or plan job needs neither audio
+  seconds nor a truncation object. The deadlines of a `/2` run put the Tier B budget on top of the render's `/1` window.
+- **Job kinds.** `jobs` was rebuilt once (migration `0020_job_kinds`, generated DDL) and gained `kind` (`generate | analyze | plan`),
+  `needs_json` (the worker capabilities the job requires; empty for every job that existed before) and `spec_json` (frozen options: input pins,
+  Tier B settings, plan seeds, attachment references), all three frozen by trigger (`internal/jobspec` is the strict parser and the canonical
+  needs). `recipe_id` stays NOT NULL; only a `plan` job may complete without a take. Input audio is minted from pins on the master by
+  sha256 (`jobs.PinMinter`), so a master that changed since the estimate fails `INPUT_MISMATCH` before submit. Ingest dispatches by kind
+  through `jobs.KindIngester` (`internal/jobs/seams_g1.go`): a completed analyze or plan job with no registered ingester fails
+  `INGEST_FAILED` with `KIND_UNAVAILABLE`. Take hooks chain through `jobs.MultiTakeHook`. Round-trip-factor learning only counts
+  plain renders (`jobs.LearnsRTF`).
+- **Capability gate.** The worker image declares what it can run (`LABEL io.metamusic.caps`, printed by `MODE=selftest`; vocabulary `v2`,
+  `ears`, `analyze`, `plan`, `attach`, `fallback`, `agent` in `internal/provider/workercaps.go` and `caps.py`). A backend's open capabilities are
+  the latest row of the append-only `worker_contract_log` (migration `0022_worker_contract`) if its image digest equals the digest in the
+  backend's fresh quote, else none; a simulated backend with no row has every capability open. Enforcement is three-fold and fails closed:
+  an estimate or create that needs a closed capability is refused with 503 `GENERATION_DISABLED` (reason `worker_outdated`, the missing
+  capabilities in `details`) before anything is quoted or reserved; the claim query skips a job whose needs are not a subset of the open set;
+  and a worker answer of `CONTRACT_VERSION`, `BAD_INPUT` (on a `/2` job) or `KIND_UNAVAILABLE` closes the capability automatically
+  (`via = 'auto'`, only when the attempt ran the gate's digest). A queued job whose needs stay closed fails `WORKER_OUTDATED` after one
+  hour and releases its reservation. Only the operator CLI opens capabilities (`metamusic runpod contract`); there is no REST, MCP or SPA
+  path. `get_provider_status` reports `worker: {image_digest, caps, changed_at, via}` per backend.
+- **Scheduler and time zone.** `internal/schedule.Daily` runs a function once per local day at an editable time, in the zone `MM_TZ`
+  (IANA name; empty means the process zone; the binary embeds `time/tzdata`). Each run carries a local-day key; at-most-once per key is the
+  consumer's unique constraint, never the scheduler's memory. DST: a nonexistent local time runs at the first valid instant after it, a
+  repeated one once. The nightly backup keeps the process zone. Background loops register through `app.Services.Loops` (`app.StartLoops`
+  starts them in the prune group; a panicking loop is logged and restarted after a minute).
+- **Registration seams.** Tracks do not edit shared hot spots: build hooks (`app.RegisterBuildHook`), media resolvers, system audit ops
+  (`audit.AddSystemOps`), shape rules, wire names and item modes (`internal/api/seams_g1.go`) are per-file, init-time and append-only.
+  Generated files (`openapi.json`, `schema.d.ts`, goldens, the jobs DDL block) are regenerated with `make regen`, never by hand.
+- **Spend rules unchanged.** Every new GPU feature is a new item mode or option of the existing estimate and create pair, so caps, the
+  Editor approval rule and parity apply as before. ACE-Step was rejected on 2026-11-20; no new package may depend on it (archtest).
+
 ## Documented parity exceptions
 
 CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registry operation". They are:
@@ -377,7 +423,7 @@ CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registr
 
 ## GPU work
 
-Rendering runs on a RunPod Serverless endpoint per engine (YuE2 and, when enabled, ACE-Step); the server submits jobs and ingests results. Transforms run on the application host.
+Rendering runs on a RunPod Serverless endpoint per engine (YuE2 and, when enabled, ACE-Step); the server submits jobs and ingests results. A yue2 job speaks `mm.worker/1`, or `mm.worker/2` when it needs a capability the operator has opened for the running image (see "Shared foundations"). Transforms run on the application host.
 
 ## Build and delivery
 

@@ -15,7 +15,7 @@ Secrets (`secret_key`, optional `ntfy_token`) are never part of a snapshot.
 
 ## Taking a backup
 
-- Scheduled: daily at `MM_BACKUP_AT` (`HH:MM`, process time zone; `off` disables the schedule).
+- Scheduled: daily at `MM_BACKUP_AT` (`HH:MM`, process time zone, not `MM_TZ`; `off` disables the schedule).
 - On demand: `metamusic backup`, the UI, or the `create_backup` operation. Only one backup runs at a
   time across processes (`BACKUP_IN_PROGRESS` otherwise).
 - A snapshot appears as a dot-prefixed `.partial` directory while it is written and is renamed
@@ -662,6 +662,68 @@ If the MP3 encoder is missing, saving answers 503 `UNAVAILABLE` for `voice` and 
 Rewind (backward seek) listening events are stored only from this version on; earlier ones were dropped, so the heat strip of old
 listening has no rewind marks.
 
+## Worker waves, the capability gate and the time zone (G1)
+
+### Time zone: `MM_TZ`
+
+`MM_TZ` is an IANA zone name (for example `Europe/Rome`) in which the daily schedules of later tracks (Morning Crate, Night Shift) read their
+wall-clock times. Empty means the process zone. An unknown name, and the literal `Local`, stop startup (the error does not echo the value).
+The binary embeds the zone database, so a minimal container image needs no `tzdata`. `MM_BACKUP_AT` keeps the process zone. Run
+`metamusic config check` before a deploy: it prints `time zone: <name>` (`Local` for the process zone). A deploy across a scheduled time is
+safe: schedules catch up within their grace window and each run is unique per local day.
+
+### The capability gate: `metamusic runpod contract`
+
+A job that needs `mm.worker/2` features (kind, Tier B, plan, attachments) can only be estimated, created or claimed when its needs are a
+subset of the capabilities **the operator has opened** for that backend **and** for the exact image digest the backend's fresh quote reports.
+A new image digest therefore starts closed. Otherwise a job is refused with 503 `GENERATION_DISABLED` (reason `worker_outdated`, the missing
+capabilities in `details`) before anything is reserved. Plain jobs (no needs) never consult the gate and keep running on `mm.worker/1`.
+
+- `metamusic runpod contract status [--backend B] [--json]` shows the open capabilities and the log row behind them
+  (`get_provider_status` shows the same per backend). `--backend` defaults to `runpod-serverless`.
+- `metamusic runpod contract open --backend B --caps v2,... --reason TEXT` records the capabilities as open for the quote's digest. It
+  refuses a stale quote, an unknown capability, a list without `v2` and a missing reason, and adds to what is already open for the same digest.
+- `metamusic runpod contract close --backend B [--caps ...] --reason TEXT [--strand-queued]` closes capabilities (all by default). It lists
+  the queued jobs that need them and refuses (exit 3) unless `--strand-queued` is given; those jobs then fail `WORKER_OUTDATED` after one
+  hour and release their reservations.
+- **Opening a capability is an operator action**, taken only after an attended provision of the image and a passing canary. No agent, no
+  REST or MCP call and no SPA page can open one. Every change is a log row (`worker_contract_log`, append-only) and an audit row.
+- The server **closes** capabilities by itself on evidence: a worker answer `CONTRACT_VERSION` or `BAD_INPUT` on a `/2` job closes all of
+  them (the job ends `WORKER_CONTRACT`), `KIND_UNAVAILABLE` removes the missing ones (the job ends `WORKER_OUTDATED`), each with a critical
+  notification naming the backend and the capabilities. After an auto-close, find the cause (usually a wrong image) before reopening.
+
+### Worker wave checklist
+
+A worker wave is one new worker image revision, built from the worker lanes merged since the last wave. Order is always **server first,
+image second, capability third**: a server that decodes strictly must understand the new outputs before any image can emit them.
+
+1. **Server deploy, attended.** A deploy that carries a migration (a table rebuild such as `0020_job_kinds`, or an additive one such as
+   `0022_worker_contract`) is never unattended. Take a backup first, then: `metamusic runpod disarm --reason TEXT`; drain (wait until
+   `scripts/deploy-preflight.sh` and `metamusic runpod status` show no live attempt); deploy; check the startup log and
+   `metamusic library verify`; then arm again with `metamusic runpod arm --endpoint-name <name> --reason TEXT`.
+2. **Image.** CI (`worker-image.yml`) builds and smokes the image from `main` (the smoke asserts that the `io.metamusic.caps` label equals
+   the `MODE=selftest` output) and publishes it. The operator commits the digest to `deploy/worker-image.digest` in a one-line PR.
+3. **Provision, attended.** Disarm and drain, then `metamusic runpod provision --image <ref@sha256:...> --dry-run`, review, provision from an
+   admin key file (deleted afterwards, see "Order of a first activation"), arm. A new digest means the gate is closed: nothing `/2` is
+   estimable yet. A long first start on a larger image is not a hang; check `status` and the worker meter before assuming a failure.
+4. **Regression canary.** `make canary` prints the command; case `main` (a plain `/1` render) under its per-case ceiling.
+5. **Open and canary the wave's capabilities.** Run `metamusic runpod contract open --caps v2` (and the wave's other capabilities) right
+   before the wave's canary cases, with a reason naming the approved canary, then each case (`v2-wire` for `v2`; tracks add `tier-b`,
+   `analyze`, `plan`, ...). On any failure run `contract close` for the capabilities that case covers. Only after all pass do agents and the
+   SPA see the features as estimable.
+6. **Canaries spend real money and need the operator's written approval** (case list and `--max-usd` per case). They are never run
+   unattended, by an agent, or in CI.
+
+Rollback: `contract close` stops new `/2` work at once; to return to the previous image, provision the previous digest (the gate closes by
+itself on the digest change). Plain jobs are unaffected throughout.
+
+### Rebuild deploy (`0020_job_kinds`)
+
+The `jobs` table was rebuilt once for the whole program (new columns `kind`, `needs_json`, `spec_json`). As for `0015`, run it first on a
+**copy**: `VACUUM INTO` a private path outside the repo, start the new binary against it, check `PRAGMA foreign_key_check` is empty, row counts
+of `jobs`, `job_attempts` and `job_events` are equal before and after, `metamusic library verify` is clean; delete the copy. Existing jobs get
+kind `generate`, needs `[]`, spec `{}`. Then deploy attended as in step 1 above. Downgrading is a restore from the pre-deploy snapshot.
+
 ## Migrations 0013 to 0016
 
 Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):
@@ -677,3 +739,6 @@ Before deploying this set to a production database, run the migrations on a **co
 repo tree) and check: `PRAGMA foreign_key_check` is empty, row counts of the rebuilt and altered tables are equal before and
 after, `metamusic library verify` is clean, and the YuE2 path still generates. Delete the copy afterwards. Downgrading is a
 restore from a snapshot taken before the deploy; a restored database is always disarmed (see "Restore rule").
+
+Later migrations: `0020_job_kinds` (G1, the one `jobs` rebuild), `0021_diction` (the Diction Lab tables) and `0022_worker_contract` (G1, additive:
+the append-only `worker_contract_log` and its view). See "Worker waves, the capability gate and the time zone (G1)".
