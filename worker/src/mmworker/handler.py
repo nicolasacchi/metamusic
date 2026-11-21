@@ -85,7 +85,7 @@ def process(take: TakeInput, pipe: Pipeline | Adapter, uploader: Uploader, clock
         }
         if take.contract == CONTRACT_V2:  # C321.4: the /1 object plus kind, ears, plans, caps
             doc["kind"] = take.kind
-            doc["caps"] = caps_mod.image_caps()
+            doc["caps"] = caps_mod.advertised()
             if state["ears"] is not None:
                 doc["ears"] = state["ears"]
             if state["plans"] is not None:
