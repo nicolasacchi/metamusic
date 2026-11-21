@@ -27,6 +27,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/crates"
 	"github.com/nicolasacchi/metamusic/internal/curation"
+	"github.com/nicolasacchi/metamusic/internal/desk"
 	"github.com/nicolasacchi/metamusic/internal/diction"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
@@ -110,6 +111,8 @@ type Deps struct {
 	Clips *clip.Service
 	// M5b EARS-D1 (C345): the Diction Lab; nil makes its operations answer 503 UNAVAILABLE {component: diction}. Set by the build hook in internal/app/ears.go.
 	Diction *diction.Service
+	// M5b DESK-S1 (C359): the Composer's Desk; nil makes its operations answer 503 UNAVAILABLE {component: desk}. Set by the build hook in internal/app/desk.go.
+	Desk *desk.Service
 
 	// M3 (C81). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
 	// (the component names are generation, spend, jobs, provider and lineage).
@@ -247,6 +250,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerEars(a, d)
 	registerEarsB(a, d)
 	registerDiction(a, d)
+	registerDesk(a, d)
 	registerGenerationM3(a, d)
 	registerBudgetM3(a, d)
 	registerSongwriting(a, d)

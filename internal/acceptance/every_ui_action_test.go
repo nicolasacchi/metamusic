@@ -56,6 +56,8 @@ type uiState struct {
 	transform string
 	// M5: the Song PR propose_patch made
 	patch string
+	// DESK-S1: the plan create_plan_from_take opened and the child plan edit_plan made
+	plan, planChild string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -275,6 +277,19 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 
 	// E2 (C160): the engine matrix, a generic MCP operation with the /engines route
 	"list_engines": func(*uiState) map[string]any { return nil },
+	// DESK-S1: the Composer's Desk. The timed archive take has a score of its own; a tempo edit is valid for any score.
+	"check_abc": func(*uiState) map[string]any {
+		return map[string]any{"abc": "X:1\nT:scripted\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\n% verse\nCDEFGABc|cBAGFEDC|\n"}
+	},
+	"create_plan_from_take": func(s *uiState) map[string]any { return map[string]any{"id": s.timed} },
+	"get_plan":              func(s *uiState) map[string]any { return map[string]any{"id": s.plan} },
+	"edit_plan": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.plan, "rationale": "scripted", "ops": []map[string]any{{"op": "set_tempo", "bpm": 77}}}
+	},
+	"set_plan_verdict": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.planChild, "verdict": "liked", "note": "scripted"}
+	},
+	"list_plans": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -324,6 +339,8 @@ var uiOrder = []string{
 	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
 	// E2: the engine matrix
 	"list_engines",
+	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
+	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
 }
 
 // afterStep records the ids later steps need.
@@ -353,6 +370,10 @@ func (s *uiState) afterStep(op string, res any) {
 		}
 	case "create_transform":
 		s.transform, _ = m["id"].(string)
+	case "create_plan_from_take":
+		s.plan, _ = m["id"].(string)
+	case "edit_plan":
+		s.planChild, _ = m["id"].(string)
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
