@@ -35,6 +35,9 @@ const (
 
 // Options configures New. Key is the bearer token every call must carry (empty: any non-empty token is accepted).
 type Options struct {
+	// NoListen never starts the listener: the caller reaches the handler (Config.Handler) in-process. Inside a
+	// testing/synctest bubble this leaves every goroutine durably blocked, so time can advance.
+	NoListen bool
 	Key      string
 	Clock    clock.Clock // default clock.Real
 	PageSize int         // list page size, default 1000
@@ -121,7 +124,12 @@ func New(t testing.TB, o Options) *Server {
 	for k, v := range o.Prices {
 		s.prices[k] = v
 	}
-	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
+	if o.NoListen {
+		s.Server = httptest.NewUnstartedServer(http.HandlerFunc(s.serve))
+		s.URL = "http://podtest.invalid"
+	} else {
+		s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
+	}
 	t.Cleanup(s.Close)
 	return s
 }
