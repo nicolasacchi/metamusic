@@ -13,7 +13,7 @@ import (
 )
 
 // deskParityIDs are the Composer's Desk operations that exist on this branch (grows with each Desk lane; all generic: D-DESK-14).
-var deskParityIDs = []string{"list_plans", "get_plan", "check_abc", "create_plan_from_take", "edit_plan", "set_plan_verdict"}
+var deskParityIDs = []string{"list_plans", "get_plan", "check_abc", "create_plan_from_take", "edit_plan", "set_plan_verdict", "create_plan_audition", "get_plan_audition"}
 
 // deskScore is the synthetic aligned score of the fixture take lt.TrackLuna (the library fixture records its hash but writes no file).
 const deskScore = "X:1\nT:t\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\n% verse\nCDEF|CDEF|\n% chorus\nCDEF|CDEF|\n% outro\nCDEF|CDEF|]\n"
@@ -72,6 +72,9 @@ var deskCases = []ParityCase{
 		}
 		return map[string]any{"id": id, "ops": []map[string]any{{"op": "replace_bars", "voice": "1", "bar_from": 1, "bar_to": 1, "abc": "CDEF"}}}
 	}, Status: 422},
+	// DESK-S2: the parity rig has no soundfont or fluidsynth, so an audition answers the same 503 on every face; a missing audition is 404
+	{Op: "create_plan_audition", Variant: "pipeline unavailable", Args: fixedArgs(map[string]any{"id": "nope"}), Status: 503},
+	{Op: "get_plan_audition", Variant: "unknown audition", Args: fixedArgs(map[string]any{"id": "nope", "aid": "nope"}), Status: 404},
 }
 
 func init() { parityCases = append(parityCases, deskCases...) }

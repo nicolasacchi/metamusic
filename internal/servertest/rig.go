@@ -72,6 +72,9 @@ type Options struct {
 	// M3 (C86.1). Backend selects the generation backend: "none" (default) | "fake". The serverless
 	// backend over runpodtest arrives with M3-B8.
 	Backend string
+	// AppHooks are build hooks run after every registered one (app.Options.Hooks): a test swaps a service for one built on test
+	// doubles, e.g. the Desk over desktest's renderer.
+	AppHooks []app.BuildHook
 	// Runner starts the runner and the reconciler. The default (false) leaves them built but idle: tests drive
 	// Rig.Runner.Step / Drain and Rig.Reconciler.Pass themselves, so parity rigs never run a job.
 	Runner    bool
@@ -450,6 +453,7 @@ func New(tb testing.TB, o Options) *Rig {
 		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
 		L3:       app.L3Options{RealFeatures: o.RealFeatures},
 		T1:       o.T1,
+		Hooks:    o.AppHooks,
 		// M4a: no real waiting after a failed Subsonic authentication; the OIDC verifier uses a plain client (loopback).
 		M4a: app.M4aOptions{SubsonicSleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() }},
 	}

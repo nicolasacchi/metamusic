@@ -307,3 +307,11 @@ internal/engineadopt/*	e2-engine-picker e2-engines
 #internal/enginetrial/*	e2-trial
 #internal/suites/*	e2-suite
 # END E2-I1
+# DESK-W1 (the Desk pages)
+web/src/routes/Desk.svelte	desk-w1
+web/src/routes/DeskPlan.svelte	desk-w1
+web/src/lib/components/ScoreView.svelte	desk-w1
+web/src/lib/components/BarEditor.svelte	desk-w1
+web/src/lib/components/OpenInDesk.svelte	desk-w1
+web/src/lib/abcRender.ts	desk-w1
+web/src/lib/desk*.ts	desk-w1

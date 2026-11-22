@@ -24,6 +24,7 @@ const (
 	OpStyleEdit       = "style_edit"
 	OpFromDraft       = "from_draft"
 	OpComposeNew      = "compose_new"
+	OpABCEdit         = "abc_edit"   // Desk (D-DESK-13): a Song PR that replaces score bars only
 	OpMultiEdit       = "multi_edit" // M5: a Song PR that changes lyrics and style together (lyric_edit and style_edit are its single-field forms)
 )
 
@@ -179,7 +180,7 @@ func (m ModeSpec) CheckPatch(p *Patch) (field, rule string) {
 
 var operators = map[string]bool{
 	OpInferredSibling: true, OpRerollSeed: true, OpSameSeedEdit: true, OpLyricEdit: true, OpStyleEdit: true,
-	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true, OpRecover: true,
+	OpFromDraft: true, OpComposeNew: true, OpMultiEdit: true, OpABCEdit: true, OpRecover: true,
 	// E2 (C149.1)
 	OpEnginePort: true, OpExtend: true, OpRepaint: true, OpReferenceRender: true, OpCompleteTracks: true, OpExtractStems: true, OpCover: true,
 }

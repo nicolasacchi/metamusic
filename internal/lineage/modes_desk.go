@@ -6,9 +6,7 @@ package lineage
 const (
 	ModeRenderPlan = "render_plan"
 	OpRenderPlan   = "render_plan"
-	// OpABCEdit is the operator of a Song PR that edits bars of the score (C362, DESK-R1); it is listed here so the one registration
-	// of Desk operators lives in one file.
-	OpABCEdit = "abc_edit"
+	// OpABCEdit (the Song PR bar-edit operator, C362, DESK-R1) is declared in modes.go; init below registers it with the Desk operators.
 )
 
 // DeskModes are the rows the Desk adds, kept apart from the M3 table like M5Modes and EarsModes; Spec reads them. render_plan names

@@ -74,6 +74,9 @@ func QuoteCheck(q Quote, now time.Time, c GateConfig) string {
 		return ReasonSweepUnreadable
 	}
 	e := q.Endpoint
+	if e.Type == EndpointTypePod {
+		return podQuoteCheck(q)
+	}
 	if e.WorkersMax == 0 {
 		return ReasonEndpointInactive
 	}
@@ -87,6 +90,19 @@ func QuoteCheck(q Quote, now time.Time, c GateConfig) string {
 		if err != nil || u.Hostname() != jobsHost {
 			return ReasonEndpointConfig
 		}
+	}
+	if q.ListPricePPH <= 0 {
+		return ReasonCatalogUnreadable
+	}
+	return ""
+}
+
+// podQuoteCheck is QuoteCheck for a pod backend's quote (C396.2): one worker at a time, the image digest present and a usable price. The
+// quote was already checked for age and sweep readability. The pod has no queue, scaler, timeout or request URLs to compare.
+func podQuoteCheck(q Quote) string {
+	e := q.Endpoint
+	if e.WorkersMax != 1 || e.GPUCount != 1 || e.ImageDigest == "" {
+		return ReasonEndpointConfig
 	}
 	if q.ListPricePPH <= 0 {
 		return ReasonCatalogUnreadable

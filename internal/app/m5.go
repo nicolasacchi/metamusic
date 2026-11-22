@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/songpr"
@@ -30,6 +31,7 @@ type m5Services struct {
 // m5Inputs is what the M5 wiring files draw on.
 type m5Inputs struct {
 	st       *store.Store
+	lib      *library.Service // nil in tests: replace_bars then finds no score
 	now      func() time.Time
 	newID    func() string
 	notifier notify.Notifier

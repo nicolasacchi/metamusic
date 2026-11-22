@@ -49,7 +49,21 @@ const (
 	// BackendRunPodACEStep and BackendFakeACEStep are the ACE-Step 1.5 backends of E2 (one endpoint per engine, D-E2-1).
 	BackendRunPodACEStep = "runpod-serverless-acestep"
 	BackendFakeACEStep   = "fake-acestep"
+	// BackendRunPodPod and BackendFakePod are the second yue2 backend of the bulk track (C390.1): one RunPod pod per batch, pulled
+	// over the poll route. Only an explicit options.backend routes there; default routing never does.
+	BackendRunPodPod = "runpod-pod"
+	BackendFakePod   = "fake-pod"
 )
+
+// IsPodBackend reports whether a backend name is a pod backend (real or simulated).
+func IsPodBackend(name string) bool { return name == BackendRunPodPod || name == BackendFakePod }
+
+// ShapePinner is an optional Backend interface: a backend that knows its own provider-terminal shapes says whether Cancelled
+// without any execution proves an attempt never ran (C73.2 rule 4). The runner reads it per backend; a backend without it uses the
+// runner-wide pinned shapes of the serverless probe.
+type ShapePinner interface {
+	CancelledWhileQueuedIsNeverRan() bool
+}
 
 // Engine names (the engine packages own the same strings).
 const (
@@ -67,6 +81,9 @@ type Quote struct {
 	// SweepUnreadable: the read key could not GET the endpoint or list workers (C68 reason sweep_unreadable).
 	SweepUnreadable bool
 }
+
+// EndpointTypePod is EndpointConfig.Type of a pod backend's quote (C396.2); a serverless endpoint is "QUEUE".
+const EndpointTypePod = "POD"
 
 // EndpointConfig is the endpoint as read from the provider (C77.5); the desired values live in
 // runpod.DesiredSpec.

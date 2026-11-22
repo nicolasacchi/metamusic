@@ -252,7 +252,7 @@ func (s *Service) PatchForEstimate(ctx context.Context, x lineage.Querier, id st
 	if err := json.Unmarshal([]byte(compiled), &c); err != nil {
 		return row, fmt.Errorf("songpr: compiled patch %s: %w", id, err)
 	}
-	row.Lyrics, row.Style = c.Lyrics, c.Style
+	row.Lyrics, row.Style, row.ABC = c.Lyrics, c.Style, c.ABC
 	ids, err := patchCommentIDs(ctx, x, id)
 	row.CommentIDs = ids
 	return row, err
