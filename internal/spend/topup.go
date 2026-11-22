@@ -32,45 +32,58 @@ func (s *Service) ReserveTopUp(ctx context.Context, tx *sql.Tx, t TopUp) (*CapEr
 	if !topUpReasons[t.Reason] {
 		return nil, fmt.Errorf("%w: %q is not a top-up reason", ErrBadEntry, t.Reason)
 	}
+	if t.Amount == 0 && t.Reason == "attempt_overhead" {
+		return nil, nil // a pod backend has no per-attempt overhead: a true no-op, no row (C393.4)
+	}
 	if t.Amount <= 0 {
 		return nil, fmt.Errorf("%w: top-up amount", ErrBadEntry)
 	}
-	var owner string
-	var ceiling, reserved int64
-	err := tx.QueryRowContext(ctx, `SELECT b.principal_id, b.ceiling_micro_usd,
-		COALESCE((SELECT SUM(micro_usd) FROM ledger l WHERE l.batch_id = b.id AND l.kind = 'reserve'), 0)
-		FROM batches b WHERE b.id = ?`, t.BatchID).Scan(&owner, &ceiling, &reserved)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	if money.MicroUSD(reserved)+t.Amount > money.MicroUSD(ceiling) {
-		return &CapError{Cap: CapBatchCeiling, Limit: money.MicroUSD(ceiling), Used: money.MicroUSD(reserved), Requested: t.Amount}, nil
-	}
-	caps, err := s.LoadCaps(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-	u, err := s.Usage(ctx, tx, owner, s.now())
-	if err != nil {
-		return nil, err
-	}
-	tok, err := s.TokenLimitsFor(ctx, tx, owner)
-	if err != nil {
-		return nil, err
-	}
-	daily := caps.HumanDailyMicro
-	if strings.HasPrefix(owner, "agent:") {
-		daily = agentDaily(tok, caps)
-	}
-	if ce := checkMonthDay(u, caps, daily, t.Amount); ce != nil {
-		return ce, nil
+	owner, ce, err := s.checkReserve(ctx, tx, t.BatchID, t.Amount)
+	if err != nil || ce != nil {
+		return ce, err
 	}
 	e := Entry{Kind: KindReserve, MicroUSD: t.Amount, BatchID: &t.BatchID, JobID: &t.JobID, AttemptID: t.AttemptID, PrincipalID: owner, Reason: t.Reason}
 	if err := s.ledger.append(ctx, tx, &t.Lease, []Entry{e}); err != nil {
 		return nil, err
 	}
 	return nil, nil
+}
+
+// checkReserve is the shared cap check of a later reserve: the batch ceiling, the month and the batch owner's day, in that
+// order, all read through tx. It returns the batch owner; a refusal is the CapError with a nil error.
+func (s *Service) checkReserve(ctx context.Context, tx *sql.Tx, batchID string, amount money.MicroUSD) (string, *CapError, error) {
+	var owner string
+	var ceiling, reserved int64
+	err := tx.QueryRowContext(ctx, `SELECT b.principal_id, b.ceiling_micro_usd,
+		COALESCE((SELECT SUM(micro_usd) FROM ledger l WHERE l.batch_id = b.id AND l.kind = 'reserve'), 0)
+		FROM batches b WHERE b.id = ?`, batchID).Scan(&owner, &ceiling, &reserved)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil, ErrNotFound
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	if money.MicroUSD(reserved)+amount > money.MicroUSD(ceiling) {
+		return "", &CapError{Cap: CapBatchCeiling, Limit: money.MicroUSD(ceiling), Used: money.MicroUSD(reserved), Requested: amount}, nil
+	}
+	caps, err := s.LoadCaps(ctx, tx)
+	if err != nil {
+		return "", nil, err
+	}
+	u, err := s.Usage(ctx, tx, owner, s.now())
+	if err != nil {
+		return "", nil, err
+	}
+	tok, err := s.TokenLimitsFor(ctx, tx, owner)
+	if err != nil {
+		return "", nil, err
+	}
+	daily := caps.HumanDailyMicro
+	if strings.HasPrefix(owner, "agent:") {
+		daily = agentDaily(tok, caps)
+	}
+	if ce := checkMonthDay(u, caps, daily, amount); ce != nil {
+		return "", ce, nil
+	}
+	return owner, nil, nil
 }

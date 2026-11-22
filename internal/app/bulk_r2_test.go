@@ -91,3 +91,18 @@ func TestApp_UploadFallback_BrokenFileStopsStartupWithoutValues(t *testing.T) {
 		})
 	}
 }
+
+// MM_FALLBACK_AFTER_S reaches fallback.New (BULK-P1): an out-of-range value, which only the fallback itself checks, stops the build.
+func TestApp_UploadFallback_AfterSIsWired(t *testing.T) {
+	t.Parallel()
+	bad := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake; c.FallbackAfterS = 5 })
+	bad.writeR2Env(t, 0o600, "")
+	if _, err := app.Build(t.Context(), bad.cfg, config.Secrets{Key: key}, bad.st, bad.root, app.Options{}); err == nil || !strings.Contains(err.Error(), "after_s") {
+		t.Fatalf("err = %v, want the fallback's after_s range error", err)
+	}
+	ok := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake; c.FallbackAfterS = 300 })
+	ok.writeR2Env(t, 0o600, "")
+	if got := strings.Join(loopNames(ok.build(t, app.Options{})), ","); !strings.Contains(got, "upload-fallback") {
+		t.Errorf("loops = %s", got)
+	}
+}

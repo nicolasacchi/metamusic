@@ -7488,6 +7488,11 @@ export interface components {
         ScoreRenderParams: {
             /** Format: double */
             bpm?: number | null;
+            /**
+             * @description block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes
+             * @enum {string|null}
+             */
+            chords?: "none" | "block" | null;
             /** @enum {string|null} */
             dialect?: "standard" | "yue2" | null;
             /** Format: double */
