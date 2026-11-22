@@ -529,6 +529,10 @@ func (s *Service) synthDiff(rec *synthDoc) string {
 	return ""
 }
 
+// ScoreSupport is the configured synth, its identity and the soundfont set (nil when T1b is not built in). The Desk reads it to
+// resolve an audition's soundfont and to key its cache by the soundfont hash and the synth version.
+func (s *Service) ScoreSupport() *ScoreSupport { return s.o.Score }
+
 // ---- Exclusive ----
 
 // slotCh is the one-slot semaphore the runner and the Desk's auditions share, so an audition never runs beside a transform.

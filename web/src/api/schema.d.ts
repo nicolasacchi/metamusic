@@ -1440,6 +1440,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{id}/auditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Audition a plan
+         * @description Renders the plan's score on the server through a General MIDI soundfont (CPU only, free, up to 90 s) and returns an MP3 preview with a signed url. The same plan and settings return the stored audition (200 instead of 201) at no cost. Options: soundfont, chords (none or block, default block), tail_s, gain. An audition is a preview, never a take; keep one as a take with create_transform kind score_render. 409 AUDITION_BUSY (retry after retry_after_s), 429 AUDITION_LIMIT, 422 AUDITION_TOO_LONG or SCORE_INVALID, 503 UNAVAILABLE naming transform, soundfont or fluidsynth. Needs an Idempotency-Key.
+         */
+        post: operations["create_plan_audition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}/auditions/{aid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a plan's audition
+         * @description One stored audition of a plan: its soundfont, synth version, chords, seconds, CPU time and a signed playback url for you.
+         */
+        get: operations["get_plan_audition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{id}/edits": {
         parameters: {
             query?: never;
@@ -4394,6 +4434,25 @@ export interface components {
             /** @description Label of the device being paired */
             name: string;
         };
+        CreatePlanAuditionInBody: {
+            /**
+             * @description How chord symbols sound; default block
+             * @enum {string}
+             */
+            chords?: "none" | "block";
+            /**
+             * Format: double
+             * @description Synth gain; default 0.6
+             */
+            gain?: number;
+            /** @description A configured soundfont name; default the first */
+            soundfont?: string;
+            /**
+             * Format: double
+             * @description Seconds of tail after the last note; default 3
+             */
+            tail_s?: number;
+        };
         CreatePlaylistInBody: {
             description?: string;
             name: string;
@@ -7118,6 +7177,21 @@ export interface components {
             /** Format: double */
             seconds: number;
             soundfont: string;
+            url: string;
+        };
+        PlanAuditionDetail: {
+            /** @enum {string} */
+            chords: "none" | "block";
+            /** Format: int64 */
+            cpu_ms: number;
+            created_at: string;
+            id: string;
+            plan_id: string;
+            /** Format: double */
+            seconds: number;
+            soundfont: string;
+            soundfont_sha256_12: string;
+            synth_version: string;
             url: string;
         };
         PlanBarSpan: {
@@ -12977,6 +13051,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_plan_audition: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Plan id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlanAuditionInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAuditionDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_audition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan id */
+                id: string;
+                /** @description Audition id */
+                aid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAuditionDetail"];
                 };
             };
             /** @description Error */

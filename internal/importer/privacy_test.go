@@ -227,7 +227,8 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 		case strings.HasPrefix(p, "/api/plans/{"):
 			// DESK-S1: a plan holds a score text, a seed, ids and verdicts, never recipe reference metadata. A reference or imported take
 			// has no plan (FromTake refuses it, PLAN_SOURCE_UNSUPPORTED), so this rig, which wires no Desk into the server, holds no plan
-			// to read; TestPrivacy_ReferenceMetadataConfined asserts the refusal on every imported take below.
+			// to read; TestPrivacy_ReferenceMetadataConfined asserts the refusal on every imported take below. DESK-S2: an audition hangs off a
+			// plan (/api/plans/{id}/auditions/{aid}) and holds only a soundfont name, a synth version and a signed link, so the same holds.
 		case p == "/api/duels/suggestions":
 			// M5-D1: the default scope (lineage) needs a root track; the global scope reads ids, titles and ladder numbers only
 			out[op] = append(out[op], p+"?scope=global")
