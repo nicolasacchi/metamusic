@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -140,7 +141,7 @@ func quarterNotes(pitches []int, dur int64) *score.Score {
 }
 
 func window(x []float64, rate int, from, to float64) []float64 {
-	a, b := int(from*float64(rate)), min(int(to*float64(rate)), len(x))
+	a, b := max(int(from*float64(rate)), 0), min(int(to*float64(rate)), len(x))
 	if a >= b {
 		return nil
 	}
@@ -179,7 +180,8 @@ func TestSynth_TestSoundfont_Pitch(t *testing.T) {
 			t.Errorf("note %d: %.2f Hz, want %.2f (%.1f cents)", i, got, want, cents)
 		}
 		first := -1
-		for j, v := range window(x, rate, onset-0.05, onset+0.3) {
+		from := max(onset-0.05, 0)
+		for j, v := range window(x, rate, from, onset+0.3) {
 			if math.Abs(v) >= thr {
 				first = j
 				break
@@ -188,7 +190,7 @@ func TestSynth_TestSoundfont_Pitch(t *testing.T) {
 		if first < 0 {
 			t.Fatalf("note %d: no onset", i)
 		}
-		at := onset - 0.05 + float64(first)/float64(rate)
+		at := from + float64(first)/float64(rate)
 		if math.Abs(at-onset) > 0.025 {
 			t.Errorf("note %d: onset at %.4f s, want %.4f +- 25 ms", i, at, onset)
 		}
@@ -198,26 +200,35 @@ func TestSynth_TestSoundfont_Pitch(t *testing.T) {
 func TestSynth_Deterministic(t *testing.T) {
 	g := newRig(t, dsptest.SF2Options{})
 	s := quarterNotes([]int{60, 64, 67, 72}, 400)
-	_, _, p1 := g.render(t, s, 1, 30*time.Second)
-	_, _, p2 := g.render(t, s, 1, 30*time.Second)
-	a, _ := os.ReadFile(p1)
-	b, _ := os.ReadFile(p2)
-	if len(a) == 0 || string(a) != string(b) {
-		t.Errorf("two renders differ (%d and %d bytes)", len(a), len(b))
+	x1, _, _ := g.render(t, s, 1, 30*time.Second)
+	x2, _, _ := g.render(t, s, 1, 30*time.Second)
+	if len(x1) == 0 || !slices.Equal(x1, x2) {
+		t.Errorf("two renders differ (%d and %d frames)", len(x1), len(x2))
 	}
+}
+
+// sameAudio compares the decoded samples of two WAV files. The files themselves are NOT byte-stable: libsndfile writes a PEAK
+// chunk with a wall-clock timestamp into a float WAV (found by DESK-T3 on fluidsynth 2.3.4 and 2.5.4), so a byte comparison
+// flakes about one run in twenty. The pipeline hashes the decoded PCM, which is stable.
+func sameAudio(t *testing.T, a, b string) (bool, int, int) {
+	t.Helper()
+	xa, _ := readWAV(t, a)
+	xb, _ := readWAV(t, b)
+	return len(xa) > 0 && slices.Equal(xa, xb), len(xa), len(xb)
 }
 
 func TestSynth_TailRendered(t *testing.T) {
 	g := newRig(t, dsptest.SF2Options{Release: time.Second})
-	s := quarterNotes([]int{69}, 480) // one note, 1.0 s
-	const tail = 1.0
-	x, rate, _ := g.render(t, s, tail, 30*time.Second)
-	if got, want := float64(len(x))/float64(rate), 1.0+tail; math.Abs(got-want) > 0.010 {
-		t.Errorf("output is %.3f s, want %.3f +- 10 ms (score seconds + tail)", got, want)
+	// One note of 480 ticks is 0.5 s at 120 BPM. The release (about a second to silence) must be in the file after the note-off.
+	const noteEnd, tail = 0.5, 1.0
+	x, rate, _ := g.render(t, quarterNotes([]int{69}, 480), tail, 30*time.Second)
+	// Measured on fluidsynth 2.3.4 (Ubuntu 24.04) and 2.5.4 (Alpine 3.24): the file is at least the SMF end (score + tail) long;
+	// the engine appends trailing digital silence, so the length is a lower bound, never an exact value.
+	if got, want := float64(len(x))/float64(rate), noteEnd+tail; got < want-0.010 {
+		t.Errorf("output is %.3f s, want at least %.3f (score seconds + tail)", got, want)
 	}
-	rms := dsptest.RMS(window(x, rate, 1.0, 1.0+tail))
-	if db := dsptest.DBFS(rms); db < -60 {
-		t.Errorf("release tail RMS %.1f dBFS, want above -60", db)
+	if db := dsptest.DBFS(dsptest.RMS(window(x, rate, noteEnd+0.05, noteEnd+0.55))); db < -60 {
+		t.Errorf("release RMS just after the note-off is %.1f dBFS, want above -60 (the release was cut)", db)
 	}
 }
 
@@ -251,10 +262,21 @@ func TestSynth_NoUserConfig(t *testing.T) {
 	t.Setenv("HOME", decoy)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(decoy, ".config"))
 	_, _, hostileOut := g.render(t, s, 0.5, 30*time.Second)
-	a, _ := os.ReadFile(clean)
-	b, _ := os.ReadFile(hostileOut)
-	if len(a) == 0 || string(a) != string(b) {
-		t.Errorf("a decoy user config changed the render (%d vs %d bytes)", len(a), len(b))
+	if same, na, nb := sameAudio(t, clean, hostileOut); !same {
+		t.Errorf("a decoy user config changed the render (%d vs %d frames)", na, nb)
+	}
+
+	// Control (real engine): the same argv started WITHOUT the adapter's minimal environment, with HOME at the decoy, does read
+	// ~/.fluidsynth. Without this the equality above could hold because the engine ignores the decoy anyway.
+	mid := filepath.Join(g.dir, "s.mid")
+	raw := filepath.Join(g.dir, "raw.wav")
+	cmd := exec.Command(requireFluidsynth(t), Argv(Request{SMF: mid, Soundfont: g.sf, Out: raw})...) // #nosec G204 -- test control, fixed argv
+	cmd.Env = []string{"HOME=" + decoy, "LC_ALL=C", "PATH=" + os.Getenv("PATH")}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("control run: %v\n%.300s", err, out)
+	}
+	if same, nc, na := sameAudio(t, raw, clean); same {
+		t.Fatalf("control: the decoy ~/.fluidsynth did not change a render with an inherited HOME (%d vs %d frames); this test would be vacuous", nc, na)
 	}
 }
 

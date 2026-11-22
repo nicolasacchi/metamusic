@@ -64,10 +64,10 @@ jobs:
             ~/apt-archives
             !~/apt-archives/partial
             !~/apt-archives/lock
-          key: apt-ubuntu-24.04-v1-flac
-      - name: apt flac
+          key: apt-ubuntu-24.04-v2-flac-fluidsynth
+      - name: apt flac fluidsynth
         run: |
-          scripts/apt-install.sh flac
+          scripts/apt-install.sh flac fluidsynth
           sudo chown -R "$USER" "$HOME/apt-archives"
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -84,7 +84,10 @@ jobs:
           metaflac --version
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          command -v fluidsynth
+          fluidsynth --version
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+          echo "MM_REQUIRE_FLUIDSYNTH=1" >> "$GITHUB_ENV"
       - name: test (shard ${{ matrix.shard }} of 6)
         # the full tier; MM_REQUIRE_MEDIA_TOOLS=1 makes a missing media tool fail
         # TestPerf_* run in the perf job, not here; MM_GO_TIMINGS keeps each go test -json stream for the weights refresh
@@ -328,10 +331,10 @@ jobs:
             ~/apt-archives
             !~/apt-archives/partial
             !~/apt-archives/lock
-          key: apt-ubuntu-24.04-v1-${{ hashFiles('web/bun.lock') }}
-      - name: apt flac
+          key: apt-ubuntu-24.04-v2-${{ hashFiles('web/bun.lock') }}
+      - name: apt flac fluidsynth
         run: |
-          scripts/apt-install.sh flac
+          scripts/apt-install.sh flac fluidsynth
           sudo chown -R "$USER" "$HOME/apt-archives"
       - name: cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -348,7 +351,10 @@ jobs:
           metaflac --version
           v=$(metaflac --version | awk '{print $2}')
           [ "$(printf '1.4\n%s\n' "$v" | sort -V | head -n1)" = 1.4 ] || { echo "metaflac $v < 1.4"; exit 1; }
+          command -v fluidsynth
+          fluidsynth --version
           echo "MM_REQUIRE_MEDIA_TOOLS=1" >> "$GITHUB_ENV"
+          echo "MM_REQUIRE_FLUIDSYNTH=1" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: e2e-bin
