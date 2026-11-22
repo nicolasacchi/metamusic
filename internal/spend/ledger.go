@@ -47,6 +47,7 @@ type ReasonInfo struct {
 var ledgerReasons = []ReasonInfo{
 	{KindReserve, "take", PotExecution, SignPositive},
 	{KindReserve, "attempt_overhead", PotOverhead, SignPositive},
+	{KindReserve, "pod_overhead", PotOverhead, SignPositive},
 	{KindReserve, "topup_ambiguous", PotExecution, SignPositive},
 	{KindReserve, "topup_requeue", PotExecution, SignPositive},
 	{KindReserve, "topup_price", PotExecution, SignPositive},
@@ -269,7 +270,7 @@ func executionRemaining(ctx context.Context, q Querier, jobID string) (money.Mic
 func overheadRemaining(ctx context.Context, q Querier, batchID string) (money.MicroUSD, error) {
 	var v int64
 	err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE
-		WHEN kind = 'reserve' AND reason = 'attempt_overhead' THEN micro_usd
+		WHEN kind = 'reserve' AND reason IN ('attempt_overhead','pod_overhead') THEN micro_usd
 		WHEN kind = 'settle' AND reason = 'overhead' THEN -micro_usd
 		WHEN kind = 'release' AND reason = 'not_accepted' THEN -micro_usd ELSE 0 END), 0)
 		FROM ledger WHERE batch_id = ?`, batchID).Scan(&v)

@@ -102,6 +102,20 @@ Snapshots run daily at `MM_BACKUP_AT` and can be started from the UI or by an ag
 | `MM_EARS_RTF_MILLI` | Expected listening-check seconds per 1000 s of audio for separation plus recognition (default 150, 10..2000). |
 | `MM_EARS_TRANSCRIBE_RTF_MILLI` | The same for the vocal pitch contour, added only for takes that have a plan score (default 40, 0..2000). |
 | `MM_ANALYZE_FETCH_S` | Seconds an analyze job spends fetching its input audio (default 20, 5..300); used by the quote of an on-demand analyze. |
+| `MM_POD_BACKEND` | `0` (default) or `1`: build the bulk pod backend `runpod-pod`. It stays disarmed until the operator arms it, and `runpod-pod.env` (the pod key) must exist during a bulk window only. Needs `MM_POD_IMAGE` and `MM_POD_GPU_TYPES`. |
+| `MM_POD_IMAGE` | The worker image of a pod, `<ref>@sha256:<64 hex>` (the digest the serverless endpoint runs). Required with `MM_POD_BACKEND=1`; a tag is refused. |
+| `MM_POD_GPU_TYPES` | Ordered RunPod catalog GPU type ids a pod may use (1 to 4, comma separated, the cheapest 24 GB type first). Required with `MM_POD_BACKEND=1`. The pod quote prices the most expensive listed type. |
+| `MM_POD_MIN_TAKES` | Smallest pod batch in takes (default 30, 10..100): a smaller batch is not worth a boot. |
+| `MM_POD_MAX_TAKES` | Largest pod batch in takes (default 100, 30..100); never below `MM_POD_MIN_TAKES`. |
+| `MM_POD_BOOT_S` | Seconds a pod may take to boot before it is deleted (default 1200, 300..3600). With the backend on, `MM_JOB_TTL` must be at least this plus 10 minutes. |
+| `MM_POD_IDLE_S` | Seconds an idle pod waits for a take before it is deleted (default 120, 30..600). |
+| `MM_POD_SLACK_S` | Slack seconds added to a pod's reserved lifetime (default 300, 60..1800). |
+| `MM_POD_MAX_RUNTIME` | Longest a pod may live from its first create, a duration (default `6h`, `1h..12h`); the pod's own absolute deadline. |
+| `MM_POD_DEADMAN` | How long a pod may go without a successful poll before it terminates itself (default `10m`, `2m..30m`). |
+| `MM_POD_ORPHAN_AFTER` | How long after its first poll a silent pod is considered orphaned and deleted by the server (default `180s`, `60s..900s`). |
+| `MM_POD_WINDOW_MAX` | Longest a bulk window stays armed, from arming (default `8h`, `1h..24h`); the backend also disarms itself after 30 minutes with no pod batch in progress. |
+| `MM_POD_DISK_GB` | Container disk of a pod in GB (default 40, 20..200). |
+| `MM_FALLBACK_AFTER_S` | Seconds of upload transport failures after which the worker switches to the upload fallback bucket (default 120, 60..600). Only used when `r2.env` is configured. |
 | `MM_NTFY_URL` | Optional ntfy topic URL for notifications; `https://` unless the host is loopback, no credentials or query. Optional secret file `ntfy_token` holds the publisher token. |
 | `MM_RATE_SCALE` | Multiplier (1..1000, default 1) for every rate limit; used by the E2E setup. |
 | `MM_TOKEN` | Access token for `metamusic mcp-stdio`. |

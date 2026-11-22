@@ -256,6 +256,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Now: now, NewID: newID, Version: o.Version, Notify: notifier})
 	ctxb := trackctx.New(lib, judg, listen, signer, cfg.PublicURL, now)
 	ctxb.UseSongwriting(sw)
+	ctxb.UseScoreABC(scoreText(lib)) // get_track_context include=score reads score.abc (D-DESK-16)
 
 	// M2b: the clip cache pins the clips of open duels, which only the duels service knows;
 	// the closure resolves it after construction (clip must not import duels, C43).
