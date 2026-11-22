@@ -47,6 +47,8 @@ type Options struct {
 	// M5 seams (C253.4, C255.5); both nil-safe, see seams_m5.go.
 	PatchSource PatchSource
 	BacklogGate BacklogGate
+	// PlanSource reads the Desk plans a render_plan item renders (C360.4); nil refuses render_plan with 503 UNAVAILABLE {component: desk}.
+	PlanSource PlanSource
 	// IngestReady reports whether a finished take can be stored (the media tool probe has succeeded). While it returns
 	// false, estimate, create and approve answer 503 UNAVAILABLE {component: ingest}: no GPU money is spent on a result
 	// that would fail INGEST_FAILED. nil means always ready.
@@ -115,6 +117,8 @@ type Item struct {
 	PatchID     *string // song_pr: the stored Song PR to render (C253.4)
 	// TrackIDs are the takes an analyze item listens to (M5b C340.1): 1..50, unique, never combined with another field.
 	TrackIDs []string
+	// Desk is the Desk part of a render_plan item (C360.2); nil for every other mode.
+	Desk *DeskItem
 }
 
 // EstimateIn is an estimate request; Engine "" means the default engine.

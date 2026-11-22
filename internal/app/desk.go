@@ -1,9 +1,13 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/nicolasacchi/metamusic/internal/desk"
+	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 )
 
@@ -23,5 +27,18 @@ func wireDesk(env *BuildEnv) error {
 		slog.Info("desk sweep removed orphans", "paths", n)
 	}
 	env.Services.Deps.Desk = svc
+	if env.late != nil {
+		env.late.plans.target = svc // render_plan estimates read plans through this seam (C360.4)
+	}
 	return nil
+}
+
+// latePlanSource is generation's PlanSource before the Desk exists: a seam with no target behaves as if the Desk were not wired.
+type latePlanSource struct{ target generation.PlanSource }
+
+func (l *latePlanSource) PlansForEstimate(ctx context.Context, q lineage.Querier, ids []string) ([]generation.PlanRow, error) {
+	if l.target == nil {
+		return nil, errors.ErrUnsupported
+	}
+	return l.target.PlansForEstimate(ctx, q, ids)
 }

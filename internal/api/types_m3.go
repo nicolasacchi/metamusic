@@ -114,21 +114,22 @@ type Patch struct {
 // ItemIn is the one input shape behind every create path; estimate_variant builds one item. The enum tag lists the modes that exist today; a track
 // adds its own with addItemModes (item_modes.go).
 type ItemIn struct {
-	Mode           string     `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover" doc:"How the take list is built; see the modes table"`
-	ParentTrackID  *string    `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`
-	ParentTrackIDs []string   `json:"parent_track_ids,omitempty" nullable:"false" minItems:"2" maxItems:"50" doc:"from_template: the mothers"`
-	DraftIDs       []string   `json:"draft_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"from_draft: the drafts to render"`
-	Recipe         RawRequest `json:"recipe,omitempty" doc:"compose_new: the song request, as sent"`
-	Patch          *Patch     `json:"patch,omitempty" doc:"*_edit modes and from_template"`
-	TemplateMode   string     `json:"template_mode,omitempty" enum:"new_seed,same_seed_edit,lyric_edit,style_edit" doc:"from_template: the mode applied to every mother"`
-	NSeeds         int        `json:"n_seeds,omitempty" minimum:"1" maximum:"10" doc:"Seeds per base recipe (default 1)"`
-	Seeds          []int64    `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10" doc:"Explicit seeds (unique, 0..2^53-1); override n_seeds"`
-	Title          *string    `json:"title,omitempty" minLength:"1" maxLength:"200" doc:"compose_new, single-take items"`
-	PatchID        *string    `json:"patch_id,omitempty"`
-	Engine         string     `json:"engine,omitempty" enum:"yue2,acestep15"`
-	Edit           *EditIn    `json:"edit,omitempty"`
-	Reference      *RefIn     `json:"reference,omitempty"`
-	TrackIDs       []string   `json:"track_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"analyze: the takes to listen to"`
+	Mode           string      `json:"mode" enum:"new_seed,same_seed_edit,lyric_edit,style_edit,from_draft,compose_new,from_template,song_pr,port,extend,repaint,reference,complete,stems,cover" doc:"How the take list is built; see the modes table"`
+	ParentTrackID  *string     `json:"parent_track_id,omitempty" doc:"Variants: the mother (required). from_draft: optional mother override"`
+	ParentTrackIDs []string    `json:"parent_track_ids,omitempty" nullable:"false" minItems:"2" maxItems:"50" doc:"from_template: the mothers"`
+	DraftIDs       []string    `json:"draft_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"from_draft: the drafts to render"`
+	Recipe         RawRequest  `json:"recipe,omitempty" doc:"compose_new: the song request, as sent"`
+	Patch          *Patch      `json:"patch,omitempty" doc:"*_edit modes and from_template"`
+	TemplateMode   string      `json:"template_mode,omitempty" enum:"new_seed,same_seed_edit,lyric_edit,style_edit" doc:"from_template: the mode applied to every mother"`
+	NSeeds         int         `json:"n_seeds,omitempty" minimum:"1" maximum:"10" doc:"Seeds per base recipe (default 1)"`
+	Seeds          []int64     `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"10" doc:"Explicit seeds (unique, 0..2^53-1); override n_seeds"`
+	Title          *string     `json:"title,omitempty" minLength:"1" maxLength:"200" doc:"compose_new, single-take items"`
+	PatchID        *string     `json:"patch_id,omitempty"`
+	Engine         string      `json:"engine,omitempty" enum:"yue2,acestep15"`
+	Edit           *EditIn     `json:"edit,omitempty"`
+	Reference      *RefIn      `json:"reference,omitempty"`
+	TrackIDs       []string    `json:"track_ids,omitempty" nullable:"false" minItems:"1" maxItems:"50" doc:"analyze: the takes to listen to"`
+	Desk           *DeskItemIn `json:"desk,omitempty" doc:"render_plan: the Desk plans to render (the Desk's own modes only; any other mode refuses it)"`
 }
 
 // ---- money building blocks ----

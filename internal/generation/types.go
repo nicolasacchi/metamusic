@@ -88,6 +88,7 @@ type paramsDoc struct {
 	Stem        string  `json:"stem,omitempty"`         // extract_stems: the stem name of this job
 	SourceStem  string  `json:"source_stem,omitempty"`  // complete: the stem of the parent used as the source audio
 	PatchID     *string `json:"patch_id,omitempty"`     // song_pr: the Song PR (C253.4)
+	PlanID      *string `json:"plan_id,omitempty"`      // render_plan: the Desk plan whose score this take renders (C360.1)
 	// RecoveredFrom is the reference track a recovered draft was made from (C343.4); absent for every other take, so their
 	// stored documents are byte-identical. The ledger writes it as the mutation's parent.
 	RecoveredFrom string `json:"recovered_from,omitempty"`

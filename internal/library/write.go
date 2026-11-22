@@ -502,7 +502,7 @@ var TransformKinds = []string{"morph", "shepard", "glacier", "polytempo", "ensem
 
 // enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import. The nine transform
 // kinds follow the original operators; multi_edit is M5's Song PR operator (C253.4).
-var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new", "multi_edit", OperatorRecover}, E2Operators...), TransformKinds...)
+var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new", "multi_edit", OperatorRecover, OperatorRenderPlan, OperatorABCEdit}, E2Operators...), TransformKinds...)
 
 // E2Operators are the Operator Ledger operators of ACE-Step modes (C149.1): engine_port (port), extend, repaint,
 // reference_render (reference), complete_tracks (complete) and extract_stems (stems; E2b records it against the parent take
@@ -510,7 +510,14 @@ var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "sa
 var E2Operators = []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems", "cover_restyle"}
 
 // rootlessOperators may record an edge without a parent (a draft with no mother, a composed song, a score render).
-var rootlessOperators = []string{"from_draft", "compose_new", "score_render", OperatorRecover}
+var rootlessOperators = []string{"from_draft", "compose_new", "score_render", OperatorRecover, OperatorRenderPlan}
+
+// The Composer's Desk operators (M5b C360.1; lineage.OpRenderPlan and lineage.OpABCEdit are the same words). A render_plan take is a
+// child of its plan's base take, or a root when the plan has none; an abc_edit always has a parent.
+const (
+	OperatorRenderPlan = "render_plan"
+	OperatorABCEdit    = "abc_edit"
+)
 
 // OperatorRecover is the Operator Ledger operator of a take rendered from a recovered draft (M5b C343.4; lineage.OpRecover is the
 // same word). The take is a new root with no parent: its mutation row names the imported reference the draft was recovered from

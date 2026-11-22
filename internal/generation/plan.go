@@ -40,6 +40,10 @@ func itemTakeCount(it Item) int {
 		}
 	}
 	switch it.Mode {
+	case lineage.ModeRenderPlan:
+		if it.Desk != nil {
+			return per * len(it.Desk.PlanIDs) // per seed, per plan (C360.1)
+		}
 	case lineage.ModeAnalyze:
 		return len(it.TrackIDs) // one job per track (C340.3)
 	case lineage.ModeStems:
@@ -64,6 +68,9 @@ func validateItem(i int, it Item, eng engine.Engine) error {
 		return engineCapabilityErr(engineName, it.Mode, "mode")
 	}
 	if err := checkModeCaps(eng, it.Mode); err != nil {
+		return err
+	}
+	if err := validateDeskShape(i, it, eng); err != nil {
 		return err
 	}
 	if it.Mode == lineage.ModeAnalyze {
@@ -362,6 +369,8 @@ type planner struct {
 	canary *canarySwitch // non-nil: this batch is planned with MM_ACESTEP_CANARY_CAPS on (canary_caps.go)
 
 	analyze map[int]int // analyze takes (expand_ears.go): take index -> expected Tier B seconds
+
+	plans map[string]PlanRow // render_plan: the Desk plans of the items (resolvePlans)
 }
 
 type lintFailure struct {
@@ -445,6 +454,7 @@ type base struct {
 	label  string
 	ace    *aceCtx   // the ACE-Step facts of an E2 base (expand_e2.go); nil for yue2
 	song   *PatchRow // song_pr: the stored Song PR this base renders
+	plan   *PlanRow  // render_plan: the Desk plan whose score this base renders (expand_desk.go)
 }
 
 // codec is the engine's recipe codec (C163); an engine without one cannot be planned.
@@ -506,6 +516,8 @@ func (p *planner) expandAll(items []Item) error {
 			err = p.expandE2(i, it)
 		case lineage.ModeAnalyze:
 			err = p.expandAnalyze(i, it)
+		case lineage.ModeRenderPlan:
+			err = p.expandRenderPlan(i, it)
 		case lineage.ModeComposeNew:
 			err = p.expandCompose(i, it)
 		case lineage.ModeFromTemplate:
