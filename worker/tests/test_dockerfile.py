@@ -71,7 +71,7 @@ def test_ears_stage_layout() -> None:
     last = DOCKERFILE.split("\nFROM ")[-1]
     for needle in ("COPY --from=ears-models /opt/mm/ears-models /opt/mm/ears-models", "COPY --from=build /opt/ears-site /opt/ears-site",
                    "MM_EARS_MODELS_DIR=/opt/mm/ears-models", "MM_EARS_LOCK=/opt/mm/ears-models.lock.json",
-                   "MM_EARS_SITE=/opt/ears-site", 'io.metamusic.caps="analyze ears fallback v2"'):
+                   "MM_EARS_SITE=/opt/ears-site", 'io.metamusic.caps="agent analyze ears fallback v2"'):
         assert needle in last, needle
     # the worker's own interpreter path never sees the site dir, and torchaudio stays out of /opt/venv
     env_lines = [ln for ln in DOCKERFILE.splitlines() if ln.startswith("ENV ")]

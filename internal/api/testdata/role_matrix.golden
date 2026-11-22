@@ -21,6 +21,7 @@ create_generation_human	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_mandate	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_pairing_code	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
+create_plan_audition	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_plan_from_take	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
@@ -71,6 +72,7 @@ get_muse_board	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_offline_set	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_patch	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_plan	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+get_plan_audition	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_playlist	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_prompt	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_provider_status	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO

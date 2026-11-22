@@ -52,17 +52,21 @@ def test_output_matches_schema(sink: Sink) -> None:
     validate_output(h({"id": "j", "input": make_raw(sink.base)}))
 
 
-def test_mode_agent_refused(capsys: pytest.CaptureFixture[str]) -> None:
-    assert entry.run("agent") == 2
-    assert "M6" in capsys.readouterr().err
+def test_mode_agent_starts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """MODE=agent runs agent.main (it used to exit 2 with "arrives in M6"); unknown modes still exit 2."""
+    from mmworker import agent
+
+    monkeypatch.setattr(agent, "main", lambda: 7)
+    assert entry.run("agent") == 7
     assert entry.run("") == 2 and entry.run("bogus") == 2
 
 
 def test_mode_agent_subprocess() -> None:
+    """A real process with no configuration terminates itself (exit 3), it never idles on a bare pod."""
     src = Path(__file__).parents[1] / "src"
     p = subprocess.run([sys.executable, "-m", "mmworker"], env={"MODE": "agent", "PYTHONPATH": str(src)},
                        capture_output=True, text=True, timeout=30)
-    assert p.returncode == 2
+    assert p.returncode == 3 and "MM_POLL_URL" in p.stderr
 
 
 def test_mode_dispatch_serverless_needs_offline(monkeypatch: pytest.MonkeyPatch) -> None:

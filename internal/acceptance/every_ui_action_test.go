@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -12,7 +13,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/desk"
+	"github.com/nicolasacchi/metamusic/internal/desk/desktest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
@@ -60,6 +64,8 @@ type uiState struct {
 	patch string
 	// DESK-S1: the plan create_plan_from_take opened and the child plan edit_plan made
 	plan, planChild string
+	// DESK-S2: the audition create_plan_audition rendered
+	audition string
 	// M6N-M1: the live mandate the operator created (seeded; an agent never creates one)
 	mandate string
 	// M6N-C4: a ready, unrevealed Morning Crate (seeded; the rig has no media tools to build one)
@@ -315,6 +321,9 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"id": s.planChild, "verdict": "liked", "note": "scripted"}
 	},
 	"list_plans": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	// DESK-S2: an audition of the opened plan (the rig's Desk renders through desktest's fake pipeline), then read back
+	"create_plan_audition": func(s *uiState) map[string]any { return map[string]any{"id": s.plan, "chords": "block"} },
+	"get_plan_audition":    func(s *uiState) map[string]any { return map[string]any{"id": s.plan, "aid": s.audition} },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -367,7 +376,7 @@ var uiOrder = []string{
 	// E2: the engine matrix
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
-	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
+	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans", "create_plan_audition", "get_plan_audition",
 	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
 	"list_mandates", "get_mandate", "revoke_mandate",
 	// M6N-C4: the Morning Crate settings, the list and the seeded crate, then a build (last: it starts a background build)
@@ -405,6 +414,8 @@ func (s *uiState) afterStep(op string, res any) {
 		s.plan, _ = m["id"].(string)
 	case "edit_plan":
 		s.planChild, _ = m["id"].(string)
+	case "create_plan_audition":
+		s.audition, _ = m["id"].(string)
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
@@ -437,7 +448,8 @@ func (s *uiState) afterStep(op string, res any) {
 // TestAcceptance_M2a_AgentPerformsEveryUIAction: an agent with a read+write PAT
 // does, over streamable HTTP MCP, everything the web UI does.
 func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
-	r := archiveRig(t, servertest.Options{Backend: "fake", RealFeatures: true, M2b: servertest.M2bOptions{Media: true, Backfill: true}})
+	r := archiveRig(t, servertest.Options{Backend: "fake", RealFeatures: true, M2b: servertest.M2bOptions{Media: true, Backfill: true},
+		AppHooks: []app.BuildHook{deskFakeAudition(t)}})
 	var required []api.OpInfo
 	for _, op := range api.Operations(r.API) {
 		m := op.Meta
@@ -664,4 +676,18 @@ func m4aStubOf(res *mcp.CallToolResult) string {
 		return ""
 	}
 	return p.Details.Task
+}
+
+// deskFakeAudition swaps the rig's Desk for one whose audition pipeline is desktest's fake (no fluidsynth, soundfont or ffmpeg in
+// the acceptance rig); the real pipeline is covered by the go-media tests.
+func deskFakeAudition(t *testing.T) app.BuildHook {
+	return func(env *app.BuildEnv) error {
+		dir, err := filepath.Abs(env.Cfg.DataDir)
+		if err != nil {
+			return err
+		}
+		env.Services.Deps.Desk = desk.New(desk.Options{Store: env.Store, Data: env.Data, Signer: env.Services.Deps.Signer, Now: env.Now, NewID: env.NewID,
+			DataDir: dir, Transform: desktest.New(t, dir), Encode: desktest.Encode})
+		return nil
+	}
 }
