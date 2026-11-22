@@ -9,6 +9,7 @@ assign_muse_songs	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 cancel_batch	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 cancel_job	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 cancel_transform	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
+check_abc	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 compare_tracks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 create_backup	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_crate	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
@@ -19,6 +20,7 @@ create_generation_human	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_mandate	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 create_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 create_pairing_code	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
+create_plan_from_take	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 create_subsonic_client	listen	-	Y	Y	Y	HO	HO	HO	HO	HO	HO
@@ -29,6 +31,7 @@ create_voice_note	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 decide_taxonomy_proposal	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 dismiss_pick_proposal	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 edit_crate_items	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
+edit_plan	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 edit_record_slots	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 estimate_generation	generate	-	Y	Y	SC	SC	SC	Y	SC	SC	SC
 estimate_transform	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
@@ -64,6 +67,7 @@ get_muse	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_muse_board	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_offline_set	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_patch	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+get_plan	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_playlist	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_prompt	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_provider_status	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
@@ -107,6 +111,7 @@ list_muses	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_next_actions	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_patches	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_pick_events	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+list_plans	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_playlists	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_records	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_sessions	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -142,6 +147,7 @@ search_tracks	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 set_connector_grant	admin	-	Y	OO	OO	SC	SC	Y	SC	OO	OO
 set_curation_settings	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 set_diction_marks	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
+set_plan_verdict	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 set_spend_caps	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 set_tags	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 submit_callback_verdict	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO

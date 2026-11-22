@@ -50,6 +50,8 @@ var (
 type ApprovalNeed struct {
 	Needed  bool
 	Reasons []string
+	// Mandate is the id of the spending mandate that stands in for the approval (M6N C368.5); "" for every other batch.
+	Mandate string
 }
 
 // NeedsApproval decides C72.6: via human_create never needs one; any other human path always does;
@@ -87,7 +89,8 @@ func NeedsApproval(p auth.Principal, via string, takes int, ceiling money.MicroU
 }
 
 // InsertApproval writes the approval row of a new batch and returns its state: 'pending' (expires in
-// 24 h), 'approved' (human_create) or 'auto' (an agent within its limits), the latter two decided now.
+// 24 h), 'approved' (human_create), 'auto' (an agent within its limits) or 'auto' via 'mandate' (a spending mandate covers the batch,
+// decided by system:mandate:<id>), the last three decided now.
 func (s *Service) InsertApproval(ctx context.Context, tx *sql.Tx, batchID string, p auth.Principal, via string, need ApprovalNeed) (string, error) {
 	now := s.now()
 	reasons := need.Reasons
@@ -97,6 +100,9 @@ func (s *Service) InsertApproval(ctx context.Context, tx *sql.Tx, batchID string
 	rj, _ := json.Marshal(reasons)
 	state, viaCol, by, at := "pending", any(nil), any(nil), any(nil)
 	switch {
+	case need.Mandate != "" && !need.Needed: // a mandate covers the batch: auto, decided by the mandate itself
+		state, viaCol, by, at = "auto", "mandate", "system:mandate:"+need.Mandate, store.FormatTime(now)
+		rj = []byte(`["mandate"]`)
 	case need.Needed:
 	case via == ViaHumanCreate && !p.IsAgent() && p.IsOwnerSide():
 		state, viaCol, by, at = "approved", ViaHumanCreate, p.Key(), store.FormatTime(now)

@@ -68,6 +68,8 @@ type Service struct {
 	e2    e2Seams   // set by UseEngines (seams_e2.go); the zero value keeps the M3 single-backend behaviour
 	ears  EarsSeams // set by UseEars (seams_ears.go); the zero value adds no warnings
 	earsQ earsSeams // set by UseEars (seams_ears.go, UseEarsQuote); the zero value plans no listening check
+	// mandates is set by UseMandates (seams_m6n.go); nil refuses an EstimateIn that names a mandate
+	mandates MandateCover
 }
 
 // New builds the service.
@@ -127,6 +129,9 @@ type EstimateIn struct {
 	TierB *bool
 	// Via is "api" or "human_create" (the path the later create will use, C72.6).
 	Via string
+	// MandateID (M6N C368, Go-only: the REST and MCP estimate input has no such field) quotes the estimate under a spending mandate
+	// that stands in for the per-batch approval. Strict: a plan the mandate does not cover is 409 MANDATE_UNAVAILABLE and no row is written.
+	MandateID string
 }
 
 // Warning is one estimate warning for a take.
@@ -197,6 +202,8 @@ type Estimate struct {
 	Month, Day       Pot
 	BatchCap         money.MicroUSD
 	Provider         provider.State
+	// Mandate is set by Preview when EstimateIn.MandateID is (Go-only); Estimate sets it only for a covered plan.
+	Mandate *MandateCoverage
 }
 
 // CreateIn is a create request (C72.4). VariantTrackID is set by create_variant.

@@ -318,6 +318,7 @@ func TestRoutingContract(t *testing.T) {
 			{"/worker/x", nil, "mm-media"},
 			{"/worker/v1/uploads/x", nil, "mm-media"},
 			{"/worker/v1/attempts/x/start", nil, "mm-media"},
+			{"/worker/v1/pods/x/poll", nil, "mm-media"},
 			{"/mcp", nil, "mm-agent"},
 			{"/mcp/x", nil, "mm-agent"},
 			{"/.well-known/oauth-protected-resource/mcp", nil, "mm-agent"},
@@ -458,7 +459,7 @@ func TestRoutingContract(t *testing.T) {
 			hdr  http.Header
 		}{
 			{"/media/x", nil}, {"/rest/x", nil}, {"/worker/x", nil}, {"/mcp", nil},
-			{"/worker/v1/uploads/x", nil}, {"/worker/v1/attempts/x/start", nil},
+			{"/worker/v1/uploads/x", nil}, {"/worker/v1/attempts/x/start", nil}, {"/worker/v1/pods/x/poll", nil},
 			{"/oauth/token", nil}, {"/.well-known/x", nil}, {"/api/openapi.json", nil},
 			{"/api/tracks", bearer()}, {"/manifest.webmanifest", nil}, {"/icons/a.png", nil},
 			{"/sw.js", nil}, {"/rest/ping.view?u=x&t=y&s=z", nil},
@@ -581,7 +582,7 @@ func TestRoutingContract(t *testing.T) {
 	})
 
 	t.Run("worker routes skip forward-auth and are not logged or compressed", func(t *testing.T) {
-		for _, path := range []string{"/worker/v1/uploads/x", "/worker/v1/attempts/x/start"} {
+		for _, path := range []string{"/worker/v1/uploads/x", "/worker/v1/attempts/x/start", "/worker/v1/pods/x/poll"} {
 			before := e.stubCalls()
 			r := e.do(http.MethodPost, path+"?size=5000", http.Header{"Accept-Encoding": {"gzip"}})
 			if r.router() != "mm-media" || r.Status != http.StatusOK {
@@ -630,6 +631,7 @@ func TestRoutingContract(t *testing.T) {
 	t.Run("media access log is off", func(t *testing.T) {
 		e.do(http.MethodGet, "/media/canary-path?sig=canary-sig", nil)
 		e.do(http.MethodPost, "/worker/v1/attempts/canary-attempt/start?sig=canary-wsig", nil)
+		e.do(http.MethodPost, "/worker/v1/pods/canary-pod/poll?sig=canary-psig", nil)
 		e.do(http.MethodGet, "/rest/ping.view?u=canary-ruser&t=canary-rtoken&s=canary-rsalt", nil)
 		e.do(http.MethodGet, "/poscontrol-ui", session("two"))
 		deadline := time.Now().Add(10 * time.Second)
@@ -644,7 +646,7 @@ func TestRoutingContract(t *testing.T) {
 			t.Fatal("positive control: mm-ui request missing from the access log")
 		}
 		if strings.Contains(logs, "canary-sig") || strings.Contains(logs, "canary-path") ||
-			strings.Contains(logs, "canary-wsig") || strings.Contains(logs, "canary-attempt") ||
+			strings.Contains(logs, "canary-wsig") || strings.Contains(logs, "canary-attempt") || strings.Contains(logs, "canary-psig") || strings.Contains(logs, "canary-pod") ||
 			strings.Contains(logs, "canary-rtoken") || strings.Contains(logs, "canary-ruser") || strings.Contains(logs, "canary-rsalt") {
 			t.Error("a /media/ request was access-logged")
 		}

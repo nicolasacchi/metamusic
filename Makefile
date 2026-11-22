@@ -176,7 +176,9 @@ tools:
 fixture-db:
 	$(LOOP) fixture-db -- sh -c 'rm -rf data/fixture && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/library/librarytest -run TestWriteFixtureDB -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M2b -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M3 -count=1 && MM_FIXTURE_DB="$$PWD/data/fixture/metamusic.db" go test ./internal/servertest -run TestWriteFixtureDB_M4a -count=1'
 
+# Sets MM_SOUNDFONTS=gm=<abs path> when `scripts/tools.sh soundfont` installed the soundfont (score renders; opt-in, never in CI).
 dev:
+	@if [ -f "$(CURDIR)/bin/soundfonts/FluidR3_GM.sf2" ]; then export MM_SOUNDFONTS="gm=$(CURDIR)/bin/soundfonts/FluidR3_GM.sf2"; fi; \
 	go run ./cmd/metamusic dev --data-dir ./data/dev
 
 docker:
