@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,5 +48,47 @@ func TestWireCriticBench_SourcesFollowTheEarsTrack(t *testing.T) {
 	got, err := BenchTrust{Bench: s.Deps.CriticBench}.TrustedMetrics(context.Background(), []string{"x"})
 	if err != nil || len(got) != 0 {
 		t.Errorf("no trusted critic on an empty library: %v %v", got, err)
+	}
+}
+
+func TestWireCriticBench_EarsWithoutDictionFailsLoudly(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	st, err := store.Open(context.Background(), dir+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	cfg := config.Config{AuthMode: "local", PublicURL: "http://mm.example.com", RateScale: 100, DataDir: dir}
+	s, err := Build(context.Background(), cfg, config.Secrets{Key: make([]byte, 32)}, st, root, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Ears == nil {
+		t.Fatal("precondition: a full build wires the Ears track")
+	}
+
+	// Ears set, Diction nil: the hook order broke, so the label source would be dropped silently
+	svcs := &Services{Ears: s.Ears}
+	err = wireCriticBench(&BuildEnv{Store: st, Now: time.Now, Services: svcs})
+	if err == nil || !strings.Contains(err.Error(), "before the Ears hook set Deps.Diction") {
+		t.Fatalf("Ears without Diction must fail loudly, got %v", err)
+	}
+	if svcs.Deps.CriticBench != nil {
+		t.Error("a failed wiring must not leave a bench behind")
+	}
+
+	// no Ears track: the bench still wires, with no Tier B or label source
+	bare := &Services{}
+	if err := wireCriticBench(&BuildEnv{Store: st, Now: time.Now, Services: bare}); err != nil {
+		t.Fatalf("a build without Ears wires the bench: %v", err)
+	}
+	if bare.Deps.CriticBench == nil {
+		t.Error("bench not wired without Ears")
 	}
 }
