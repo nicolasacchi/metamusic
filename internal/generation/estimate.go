@@ -190,6 +190,9 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
 	}
+	if len(pl.takes) > MaxTakes { // a plan_seeds item counts as one take before expansion; its real jobs are counted here
+		return Estimate{}, tooLarge(len(pl.takes), 0)
+	}
 	pl.markV2Canary()
 	ears, err := s.resolveEars(ctx, pl, st, in.TierB) // the listening check: spec, needs and budget of the takes that have one (C339.3)
 	if err != nil {

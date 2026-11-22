@@ -483,3 +483,15 @@ func TestEstimate_PlanSeeds_MixedWithRenders(t *testing.T) {
 		t.Errorf("kinds = %s", got)
 	}
 }
+
+// TestEstimate_PlanSeeds_RealJobsCountAgainstMaxTakes: an item counts as one take before expansion, but the jobs it splits into
+// count against the batch cap afterwards.
+func TestEstimate_PlanSeeds_RealJobsCountAgainstMaxTakes(t *testing.T) {
+	t.Parallel()
+	r := planRig(t)
+	var items []generation.Item
+	for range 20 {
+		items = append(items, composePlanItem(composeLines("long-song", 60, ""), 16))
+	}
+	wantProblem(t, r.estErr(human, items...), 422, "BATCH_TOO_LARGE")
+}

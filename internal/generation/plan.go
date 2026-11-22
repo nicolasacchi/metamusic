@@ -45,7 +45,7 @@ func itemTakeCount(it Item) int {
 			return per * len(it.Desk.PlanIDs) // per seed, per plan (C360.1)
 		}
 	case lineage.ModePlanSeeds:
-		return 1 // the jobs of an item depend on the engine's length (C360.5); the estimate counts the real ones afterwards
+		return 1 // the jobs of an item depend on the engine's length (C360.5); the estimate re-checks MaxTakes against the real jobs after expansion
 	case lineage.ModeAnalyze:
 		return len(it.TrackIDs) // one job per track (C340.3)
 	case lineage.ModeStems:
