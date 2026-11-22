@@ -100,6 +100,13 @@ type LineCounter interface {
 	Lines(ctx context.Context) (int, error)
 }
 
+// MetricValuer is the optional part of a Source of metric critics: the value of one of its critics for the given takes, which
+// need not be in the reference windows. ok is false when the source does not own the critic. The night planner's tie-break reads
+// it (C387.4).
+type MetricValuer interface {
+	MetricValues(ctx context.Context, q Reader, id string, tracks []string) (vals map[string]float64, ok bool, err error)
+}
+
 var tierRank = map[string]int{TierA: 0, TierAgent: 1, TierB: 2, TierDiction: 3}
 
 func sortCritics(cs []Critic) {
