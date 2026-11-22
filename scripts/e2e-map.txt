@@ -280,6 +280,8 @@ internal/voice/*	m5-voice m5-voice-save
 # file is missing, and verify would hand Playwright a path that is not there. W3 owns web/e2e/t1-*.spec.ts; the lines below are
 # live since T1-W3 added the spec files (t1-hifi joins the Go lines: the hi-fi kinds are DSP). A
 # changed t1-*.spec.ts already runs itself (see the header), and unmapped web/src paths already fall back to @core.
+web/src/routes/TransformScore.svelte	desk-t4-score
+web/src/lib/transformScore.ts	desk-t4-score
 web/src/routes/Transforms.svelte	t1-transforms t1-quota
 web/src/lib/components/Transform*	t1-transforms t1-quota
 web/src/lib/transform*.ts	t1-transforms t1-quota
