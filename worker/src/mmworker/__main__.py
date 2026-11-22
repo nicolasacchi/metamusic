@@ -1,4 +1,4 @@
-"""python -m mmworker: MODE=serverless | selftest; agent arrives in M6."""
+"""python -m mmworker: MODE=serverless | selftest | agent."""
 
 from __future__ import annotations
 
@@ -16,9 +16,10 @@ def run(mode: str) -> int:
 
         return selftest.main()
     if mode == "agent":
-        print("mmworker: MODE=agent arrives in M6", file=sys.stderr)
-        return 2
-    print(f"mmworker: unknown MODE {mode!r} (serverless | selftest)", file=sys.stderr)
+        from . import agent  # noqa: PLC0415
+
+        return agent.main()
+    print(f"mmworker: unknown MODE {mode!r} (serverless | selftest | agent)", file=sys.stderr)
     return 2
 
 

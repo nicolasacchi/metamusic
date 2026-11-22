@@ -12,7 +12,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from . import caps, stages
+from . import agent, caps, stages
 from .contract import ACESTEP, ARTIFACTS, CONTRACT_V2, MAX_BYTES, artifacts_for, artifacts_v2, parse_input, parse_job
 from .handler import process
 from .pipeline import FakePipeline
@@ -102,6 +102,52 @@ def _run_v2(base: str, sink: _Sink) -> bool:
             and doc.get("contract") == CONTRACT_V2 and doc.get("caps") == caps.advertised())
 
 
+class _StubTerminator:
+    """Stands in for the Terminator: the selftest never calls the RunPod API."""
+
+    def __init__(self) -> None:
+        self.runs = 0
+
+    def run(self) -> None:
+        self.runs += 1
+
+
+def _run_agent() -> bool:
+    """MODE=agent against a local fake app that answers `stop` to the first poll: the agent must terminate at once,
+    having fetched and loaded nothing (poll first, D-BULK-15)."""
+    polls: list[dict[str, Any]] = []
+
+    class App(BaseHTTPRequestHandler):
+        def log_message(self, *a: Any) -> None:
+            pass
+
+        def do_POST(self) -> None:
+            polls.append(json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0")))))
+            body = json.dumps({"action": "stop", "wait_s": 0, "take": None, "cancel": [],
+                               "deadline_unix": int(time.time()) + 600}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), App)
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
+    try:
+        env = {"MM_POLL_URL": f"http://127.0.0.1:{srv.server_address[1]}/worker/v1/pods/selftest/poll?exp=1&sig=x",
+               "MM_DEADLINE_UNIX": str(int(time.time()) + 600), "MM_YUE2_3B_REVISION": "a" * 40}
+        term = _StubTerminator()
+
+        def never(*a: Any, **k: Any) -> Any:
+            raise AssertionError("weights fetched before the first poll answered")
+
+        code = agent.Agent(env, terminator=term, fetch=never, loader=never,  # type: ignore[arg-type]
+                           hard_exit=lambda c: None).run(supervise=False)
+        return code == agent.EXIT_TERMINATOR and term.runs == 1 and len(polls) == 1 and polls[0]["state"] == "booting"
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def run(engine: str | None = None) -> bool:
     engine = engine or os.environ.get("MM_ENGINE") or os.environ.get("ENGINE") or "yue2"
     sink = _Sink()
@@ -132,7 +178,7 @@ def run(engine: str | None = None) -> bool:
         ok = (out.get("status") == "ok" and sink.starts == 1 and sink.bad_digest == 0
               and "mm-result.json" in sink.puts and "audio.flac" in sink.puts
               and json.loads(sink.puts["mm-result.json"])["take_id"] == "selftest-take")
-        return ok and _run_v2(base, sink)
+        return ok and _run_v2(base, sink) and _run_agent()
     finally:
         sink.shutdown()
         sink.server_close()
