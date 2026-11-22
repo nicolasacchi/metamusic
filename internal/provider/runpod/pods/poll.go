@@ -340,24 +340,39 @@ func (p *Poller) observe(ctx context.Context, row Row, req *PollRequest, now tim
 		return obs, err
 	}
 	obs.changed = row.FirstPollAt == nil
+	var closed []string // attempts closed by this request: their cancel requests are forgotten after the commit
 	if d := req.Done; d != nil {
 		res, err := recordDone(ctx, tx, row.ID, d, now)
 		if err != nil {
 			return obs, err
 		}
 		obs.doneRecorded, obs.changed = res.known, obs.changed || res.fresh
+		if res.known {
+			closed = append(closed, d.AttemptID)
+		}
 	}
 	if req.State == "booting" && (row.State == StateReady || row.State == StateBusy) {
-		obs.restarted, obs.changed = true, true
+		obs.restarted = true
 		lost, err := MarkLost(ctx, tx, row.ID, codeWorkerReboot, now)
 		if err != nil {
 			return obs, err
 		}
-		if err := AppendEvent(ctx, tx, row.ID, Event{At: now, Event: "restart_reported", Code: codeWorkerReboot, Detail: map[string]any{"lost": len(lost)}}); err != nil {
-			return obs, err
+		// the loop moves the pod; until then every booting poll repeats the report, which is logged and nudged once
+		if len(lost) > 0 || row.LastReported != "booting" {
+			obs.changed = true
+			if err := AppendEvent(ctx, tx, row.ID, Event{At: now, Event: "restart_reported", Code: codeWorkerReboot, Detail: map[string]any{"lost": len(lost)}}); err != nil {
+				return obs, err
+			}
 		}
+		closed = append(closed, lost...)
 	}
-	return obs, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return obs, err
+	}
+	for _, id := range closed {
+		p.o.Queue.ClearCancel(id)
+	}
+	return obs, nil
 }
 
 type doneResult struct{ known, fresh bool }
@@ -473,25 +488,53 @@ func (p *Poller) tryHand(ctx context.Context, row Row) (json.RawMessage, TakeRes
 			}
 			continue
 		}
-		handed, err := p.markHanded(ctx, spec.AttemptID, row.ID, now)
+		outcome, err := p.markHanded(ctx, spec.AttemptID, row.ID, now)
 		if err != nil {
 			p.o.Queue.Requeue(row.BatchID, spec)
 			return nil, res, err
 		}
-		if !handed {
+		switch outcome {
+		case handGone:
 			continue // cancelled or closed while queued
+		case handBlocked:
+			// the pod stopped, the batch ended or the pod still holds an unfinished take since the row was read: keep the take queued
+			p.o.Queue.Requeue(row.BatchID, spec)
+			return nil, TakeUnfit, nil
 		}
 		return raw, TakeOK, nil
 	}
 }
 
-// markHanded sets pod_id and handed_at once; false when the assignment is no longer an open, unhanded one.
-func (p *Poller) markHanded(ctx context.Context, attemptID, podID string, now time.Time) (bool, error) {
-	res, err := p.o.Store.W.ExecContext(ctx, `UPDATE pod_assignments SET pod_id = ?, handed_at = ? WHERE attempt_id = ? AND pod_id IS NULL AND done_at IS NULL`,
+type handOutcome int
+
+const (
+	handOK      handOutcome = iota
+	handGone                // the assignment is no longer an open, unhanded one
+	handBlocked             // the pod or its batch no longer qualifies, or the pod has an unfinished take
+)
+
+// markHanded sets pod_id and handed_at once, in one statement that re-checks what the request read earlier: the pod is a ready or busy
+// batch pod of an active batch and has no handed, not-done assignment.
+func (p *Poller) markHanded(ctx context.Context, attemptID, podID string, now time.Time) (handOutcome, error) {
+	res, err := p.o.Store.W.ExecContext(ctx, `UPDATE pod_assignments SET pod_id = ?1, handed_at = ?2 WHERE attempt_id = ?3 AND pod_id IS NULL AND done_at IS NULL
+		AND EXISTS (SELECT 1 FROM pods p JOIN batches b ON b.id = p.batch_id WHERE p.id = ?1 AND p.kind = 'batch' AND p.state IN ('ready','busy')
+			AND b.state = 'active' AND b.id = pod_assignments.batch_id)
+		AND NOT EXISTS (SELECT 1 FROM pod_assignments o WHERE o.pod_id = ?1 AND o.handed_at IS NOT NULL AND o.done_at IS NULL)`,
 		podID, store.FormatTime(now), attemptID)
 	if err != nil {
-		return false, err
+		return handGone, err
 	}
 	n, err := res.RowsAffected()
-	return n == 1, err
+	if err != nil || n == 1 {
+		return handOK, err
+	}
+	var open int
+	err = p.o.Store.W.QueryRowContext(ctx, `SELECT COUNT(*) FROM pod_assignments WHERE attempt_id = ? AND pod_id IS NULL AND done_at IS NULL`, attemptID).Scan(&open)
+	if err != nil {
+		return handGone, err
+	}
+	if open == 0 {
+		return handGone, nil
+	}
+	return handBlocked, nil
 }

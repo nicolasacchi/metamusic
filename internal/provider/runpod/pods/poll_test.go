@@ -592,3 +592,124 @@ func TestPodPoll_Signer(t *testing.T) {
 		t.Fatal("exp")
 	}
 }
+
+// TestSigner_ShortKeyVerifiesNothing: the pod key is absent in production; a signer built from an empty or short key must not accept
+// the MAC an attacker computes with that same key, and a poller without a signer refuses every link.
+func TestSigner_ShortKeyVerifiesNothing(t *testing.T) {
+	t.Parallel()
+	for _, key := range [][]byte{nil, {}, []byte("short")} {
+		s := pods.NewSigner(key)
+		u, err := url.Parse(s.URL(rigURL, rigPod, 1234))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.Verify(rigPod, 1234, u.Query().Get("sig")) {
+			t.Fatalf("a signer with a %d-byte key verified its own MAC", len(key))
+		}
+	}
+	var nilSigner *pods.Signer
+	if nilSigner.Verify(rigPod, 1234, "x") {
+		t.Fatal("nil signer verified")
+	}
+	r := newSRig(t)
+	r.pod(rigPod, "mm-0190aaaaaaaa", "ready")
+	link := r.link(rigPod)
+	h := pods.NewPoller(pods.PollOptions{Store: r.st, Queue: r.q, Clock: r.clk, Hold: -1}).Handler()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, link, bytes.NewReader(mustJSON(t, idle()))))
+	if w.Code != 403 || problemCode(t, w) != "POD_LINK_INVALID" {
+		t.Fatalf("poller without signer: %d %s", w.Code, w.Body)
+	}
+}
+
+// TestPodPoll_PodStoppedDuringHold: the pod is moved to terminating while its poll is held; a take that arrives afterwards is not
+// handed to it, stays queued and the answer is wait.
+func TestPodPoll_PodStoppedDuringHold(t *testing.T) {
+	t.Parallel()
+	r := newSRig(t)
+	r.pod(rigPod, "mm-0190aaaaaaaa", "ready")
+	r.h = r.handler(0)
+	got := make(chan pods.PollResponse, 1)
+	go func() { got <- decodeResp(t, r.poll(r.link(rigPod), idle())) }()
+	time.Sleep(50 * time.Millisecond)
+	r.setState(rigPod, "terminating")
+	att := r.queueTake(rigBatch, 200)
+	select {
+	case resp := <-got:
+		if resp.Action == "take" || !noTake(resp) {
+			t.Fatalf("take handed to a stopping pod: %+v", resp)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("hold did not end")
+	}
+	if a, _ := pods.GetAssignment(context.Background(), r.st.R, att); a.PodID != "" || a.HandedAt != nil {
+		t.Fatalf("assignment recorded as handed: %+v", a)
+	}
+	if r.q.Len(rigBatch) != 1 {
+		t.Fatalf("take not requeued: %d", r.q.Len(rigBatch))
+	}
+}
+
+// TestPodPoll_OneTakeInFlightPerPod: a repeated idle poll (the take response was lost) while the pod row is still ready gets no second
+// take while the first is handed and not done.
+func TestPodPoll_OneTakeInFlightPerPod(t *testing.T) {
+	t.Parallel()
+	r := newSRig(t)
+	r.pod(rigPod, "mm-0190aaaaaaaa", "ready")
+	first := r.queueTake(rigBatch, 200)
+	second := r.queueTake(rigBatch, 200)
+	if resp := decodeResp(t, r.poll(r.link(rigPod), idle())); resp.Action != "take" {
+		t.Fatalf("%+v", resp)
+	}
+	if resp := decodeResp(t, r.poll(r.link(rigPod), idle())); resp.Action == "take" || !noTake(resp) {
+		t.Fatalf("second take handed: %+v", resp)
+	}
+	if a, _ := pods.GetAssignment(context.Background(), r.st.R, second); a.PodID != "" {
+		t.Fatalf("second assignment handed: %+v", a)
+	}
+	if r.q.Len(rigBatch) != 1 {
+		t.Fatalf("queue %d", r.q.Len(rigBatch))
+	}
+	// once the first is done, the pod can take the next
+	r.setState(rigPod, "busy")
+	if resp := decodeResp(t, r.poll(r.link(rigPod), state("idle").with("done", done(first, "ok", 5)))); resp.Action != "take" {
+		t.Fatalf("after done: %+v", resp)
+	}
+}
+
+// TestPodPoll_RestartReportedOnce: repeated booting reports before the loop acts append one event and nudge once.
+func TestPodPoll_RestartReportedOnce(t *testing.T) {
+	t.Parallel()
+	r := newSRig(t)
+	r.pod(rigPod, "mm-0190aaaaaaaa", "busy")
+	r.poll(r.link(rigPod), state("booting"))
+	n := r.nudges.Load()
+	r.poll(r.link(rigPod), state("booting"))
+	if c := r.count(`SELECT COUNT(*) FROM pod_events WHERE pod_id = ? AND event = 'restart_reported'`, rigPod); c != 1 {
+		t.Fatalf("restart events: %d", c)
+	}
+	if r.nudges.Load() != n {
+		t.Fatal("a repeated restart report nudged again")
+	}
+}
+
+// TestQueue_ClearCancel: a cancel request is forgotten once cleared, and the poller clears it when the attempt is done.
+func TestQueue_ClearCancel(t *testing.T) {
+	t.Parallel()
+	q := pods.NewQueue()
+	q.RequestCancel("a1")
+	q.ClearCancel("a1")
+	if q.CancelRequested("a1") {
+		t.Fatal("cancel survived ClearCancel")
+	}
+	r := newSRig(t)
+	r.pod(rigPod, "mm-0190aaaaaaaa", "ready")
+	att := r.queueTake(rigBatch, 200)
+	decodeResp(t, r.poll(r.link(rigPod), idle()))
+	r.q.RequestCancel(att)
+	r.setState(rigPod, "busy")
+	decodeResp(t, r.poll(r.link(rigPod), state("idle").with("done", done(att, "error", 1))))
+	if r.q.CancelRequested(att) {
+		t.Fatal("cancel entry kept after done")
+	}
+}

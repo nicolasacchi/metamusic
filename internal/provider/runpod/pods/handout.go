@@ -16,7 +16,11 @@ import (
 // Secrets.PodPollKey() (HMAC-SHA256 of the secret key, already derived); the link is the credential, bound to one pod and one expiry.
 type Signer struct{ key []byte }
 
-// NewSigner wraps the derived pod-poll key.
+// MinKeyLen is the shortest key a Signer accepts: the derived pod key is an HMAC-SHA256 output (32 bytes).
+const MinKeyLen = 32
+
+// NewSigner wraps the derived pod-poll key. A key shorter than MinKeyLen (an absent key is empty) yields a signer that verifies nothing:
+// the poll link is the only credential on its route, so a missing key must fail closed.
 func NewSigner(pollKey []byte) *Signer { return &Signer{key: append([]byte(nil), pollKey...)} }
 
 func (s *Signer) sig(podID string, exp int64) string {
@@ -27,6 +31,9 @@ func (s *Signer) sig(podID string, exp int64) string {
 
 // Verify checks a signature in constant time.
 func (s *Signer) Verify(podID string, exp int64, sig string) bool {
+	if s == nil || len(s.key) < MinKeyLen {
+		return false
+	}
 	return hmac.Equal([]byte(s.sig(podID, exp)), []byte(sig))
 }
 
@@ -164,6 +171,13 @@ func (q *Queue) RequestCancel(attemptID string) {
 	defer q.mu.Unlock()
 	q.cancels[attemptID] = struct{}{}
 	q.notifyLocked()
+}
+
+// ClearCancel forgets a cancel request once its attempt is closed (done or lost), so the map does not grow for the process lifetime.
+func (q *Queue) ClearCancel(attemptID string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.cancels, attemptID)
 }
 
 // CancelRequested reports whether RequestCancel was called for the attempt.
