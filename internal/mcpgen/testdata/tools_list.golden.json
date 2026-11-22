@@ -2303,6 +2303,7 @@
                   "stems",
                   "cover",
                   "render_plan",
+                  "plan_seeds",
                   "analyze"
                 ],
                 "type": "string"

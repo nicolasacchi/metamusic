@@ -42,3 +42,21 @@ func TestModes_DeskRows(t *testing.T) {
 		t.Errorf("DeskModes holds render_plan %d times", n)
 	}
 }
+
+// TestModes_PlanSeedsRow: plan_seeds is a yue2-only item mode and a job operator that is not an Operator Ledger operator.
+func TestModes_PlanSeedsRow(t *testing.T) {
+	t.Parallel()
+	m, ok := Spec(ModePlanSeeds)
+	if !ok {
+		t.Fatal("plan_seeds has no row")
+	}
+	if m.Operator != OpPlanSeeds || !m.Patch || m.Seeds != SeedsNew || m.ABC != Optional || m.CFGScale != Forbidden {
+		t.Errorf("row = %+v", m)
+	}
+	if !ModeAllowed(ModePlanSeeds, EngineYuE2) || ModeAllowed(ModePlanSeeds, EngineACEStep) || IsTemplateMode(ModePlanSeeds) {
+		t.Error("plan_seeds must be yue2 only and no template mode")
+	}
+	if ValidOperator(OpPlanSeeds) || CheckOperator(OpPlanSeeds) == nil {
+		t.Error("plan_seeds must not be an Operator Ledger operator")
+	}
+}

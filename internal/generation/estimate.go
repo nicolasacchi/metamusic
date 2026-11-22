@@ -171,7 +171,9 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	var parents []string
 	for _, it := range append(slices.Clone(in.Items), planMothers...) {
-		parents = append(parents, mothers(it)...)
+		if it.Mode != lineage.ModePlanSeeds { // a plan job makes no take, so it adds nothing to a root's backlog
+			parents = append(parents, mothers(it)...)
+		}
 	}
 	if err := s.gateBacklog(ctx, s.o.Store.R, p, parents); err != nil {
 		return Estimate{}, err
