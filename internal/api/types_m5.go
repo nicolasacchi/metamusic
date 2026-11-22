@@ -14,14 +14,19 @@ import (
 
 // ---- Song PRs (C253) ----
 
-// PatchOp is one operation of a patch: replace_line (section_idx, line_idx, text) or set_style (style, at most once).
-// section_idx and line_idx index the lyrics sections and the non-empty lines of the base take.
+// PatchOp is one operation of a patch: replace_line (section_idx, line_idx, text), set_style (style, at most once) or
+// replace_bars (voice, bar_from, bar_to, abc). section_idx and line_idx index the lyrics sections and the non-empty lines of
+// the base take; bars are 0-based and inclusive, in the base take's score, which must be aligned with its lyrics.
 type PatchOp struct {
-	Op         string  `json:"op" enum:"replace_line,set_style"`
+	Op         string  `json:"op" enum:"replace_line,set_style,replace_bars"`
 	SectionIdx *int    `json:"section_idx,omitempty" minimum:"0" maximum:"99" doc:"replace_line"`
 	LineIdx    *int    `json:"line_idx,omitempty" minimum:"0" maximum:"999" doc:"replace_line"`
 	Text       *string `json:"text,omitempty" minLength:"1" maxLength:"200" doc:"replace_line: one lyric line, no tags, no newline"`
 	Style      *string `json:"style,omitempty" minLength:"1" maxLength:"1000" doc:"set_style: the complete new style string"`
+	Voice      *string `json:"voice,omitempty" minLength:"1" maxLength:"64" doc:"replace_bars: the voice id of the score (one voice per op)"`
+	BarFrom    *int    `json:"bar_from,omitempty" minimum:"0" maximum:"9999" doc:"replace_bars: first bar, 0-based"`
+	BarTo      *int    `json:"bar_to,omitempty" minimum:"0" maximum:"9999" doc:"replace_bars: last bar, inclusive; at most 16 bars per patch"`
+	ABC        *string `json:"abc,omitempty" minLength:"1" maxLength:"4000" doc:"replace_bars: the new bars, one |-separated segment per bar, no comment and no field"`
 }
 
 // PatchBase names the take a patch applies to.
@@ -64,13 +69,14 @@ type PatchCallbackTally struct {
 type PatchCompiled struct {
 	Lyrics *string `json:"lyrics,omitempty"`
 	Style  *string `json:"style,omitempty"`
+	ABC    *string `json:"abc,omitempty" doc:"The whole patched score (replace_bars)"`
 }
 
 // SongPRSummary is a Song PR without its ops, diff and compiled patch (list rows).
 type SongPRSummary struct {
 	ID        string             `json:"id"`
 	Base      PatchBase          `json:"base"`
-	Operator  string             `json:"operator" enum:"lyric_edit,style_edit,multi_edit"`
+	Operator  string             `json:"operator" enum:"lyric_edit,style_edit,multi_edit,abc_edit"`
 	Title     *string            `json:"title" nullable:"true"`
 	Rationale string             `json:"rationale"`
 	Addresses []PatchAddress     `json:"addresses" nullable:"false"`

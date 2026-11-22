@@ -328,7 +328,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
-	m5 := buildM5(m5Inputs{st: st, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
+	m5 := buildM5(m5Inputs{st: st, lib: lib, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
 	if err := late.check(); err != nil {
 		return nil, err
 	}
