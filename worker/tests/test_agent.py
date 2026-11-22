@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import threading
@@ -356,7 +357,7 @@ def test_agent_take_overrun_exits() -> None:
     rig = Rig(clock, app, MM_DEADLINE_UNIX=str(1_900_000_000), MM_DEADMAN_S="100000")
     holder["a"] = a = rig.agent(runner=runner)
     a.run(supervise=False)
-    assert rig.exits[0] == 4 and a.exit_code in (3, 4)
+    assert rig.exits[0] == 4 and a.exit_code == 4 and rig.term.runs == 0
 
 
 def test_agent_idle_pacing_and_failed_polls() -> None:
@@ -365,8 +366,8 @@ def test_agent_idle_pacing_and_failed_polls() -> None:
     rig = Rig(clock, app)
     run(rig)
     gaps = [b - a for a, b in zip(app.times, app.times[1:])]
-    assert gaps[1] == 0 and gaps[2] == 5 and gaps[3] == 5 - 5 + 0 + 0 or True
-    assert max(gaps) <= 5.0, "a fast `wait` is never slept longer than the pacing bound"
+    # booting->idle at once; failed poll 5 s; fast wait_s=20 answer capped at 5 s; wait_s=0 floored at 1 s
+    assert gaps == [0, 5, 5, 1]
     assert [r["state"] for r in app.requests].count("idle") == 4
 
 
@@ -494,3 +495,112 @@ def test_main_builds_an_agent_from_the_environment(monkeypatch: pytest.MonkeyPat
 
 
 _ = (io, Callable)
+
+
+def test_terminate_second_caller_waits_for_the_terminator() -> None:
+    clock = Clock()
+    rig = Rig(clock, App(clock, reply()))
+    started, release = threading.Event(), threading.Event()
+
+    class Slow:
+        def run(self) -> None:
+            started.set()
+            release.wait(5)
+
+    a = rig.agent(terminator=Slow())
+    t = threading.Thread(target=a.terminate, args=("deadline",))
+    t.start()
+    assert started.wait(5)
+    done: list[bool] = []
+    t2 = threading.Thread(target=lambda: (a.terminate("boot_failed"), done.append(True)))
+    t2.start()
+    t2.join(0.2)
+    assert not done, "the second caller must block while the Terminator runs"
+    release.set()
+    t.join(5)
+    t2.join(5)
+    assert done == [True] and a.reason == "deadline"
+
+
+def test_run_returns_only_after_a_supervisor_terminator_finishes() -> None:
+    clock = Clock()
+    release, order = threading.Event(), []
+
+    class Slow:
+        def run(self) -> None:
+            release.wait(5)
+            order.append("terminator-done")
+
+    rig = Rig(clock, App(clock, reply()))
+    a = rig.agent(terminator=Slow())
+    threading.Thread(target=a.terminate, args=("deadman",)).start()
+    while not a._term_started:
+        pass
+    threading.Timer(0.2, release.set).start()
+    a.run(supervise=False)
+    order.append("run-returned")
+    assert order == ["terminator-done", "run-returned"]
+
+
+@pytest.mark.parametrize("url", ["http://mm.example.com/poll?sig=x", "ftp://mm.example.com/p", "mm.example.com/p"])
+def test_agent_refuses_non_https_poll_url(url: str) -> None:
+    clock = Clock()
+    app = App(clock, reply())
+    rig = Rig(clock, app, MM_POLL_URL=url)
+    assert run(rig) == 3
+    assert app.requests == [] and rig.term.runs == 1
+    assert not any("sig=x" in line for line in rig.logs)
+
+
+def test_agent_final_done_in_the_no_take_window() -> None:
+    clock = Clock()
+    raw = make_raw("http://127.0.0.1:1", attempt_id=ATTEMPT, timeout_s=100)
+    dl = int(clock.now) + 1000
+
+    def runner(*a: Any, **k: Any) -> dict[str, Any]:
+        clock.now = dl - 100  # finishes inside the last 120 s
+        return {"status": "ok"}
+
+    app = App(clock, reply(deadline=dl), reply("take", take=raw, wait_s=0, deadline=dl), reply(deadline=dl))
+    rig = Rig(clock, app, MM_DEADLINE_UNIX=str(dl), MM_DEADMAN_S="100000")
+    a = rig.agent(runner=runner)
+    assert a.run(supervise=False) == 3 and a.reason == "deadline_near"
+    last = app.requests[-1]
+    assert last["done"] and last["done"]["attempt_id"] == ATTEMPT and last["done"]["status"] == "ok"
+    assert rig.term.runs == 1
+
+
+def test_agent_final_done_retries_then_gives_up() -> None:
+    clock = Clock()
+    raw = make_raw("http://127.0.0.1:1", attempt_id=ATTEMPT, timeout_s=100)
+    dl = int(clock.now) + 1000
+
+    def runner(*a: Any, **k: Any) -> dict[str, Any]:
+        clock.now = dl - 100
+        return {"status": "ok"}
+
+    app = App(clock, reply(deadline=dl), reply("take", take=raw, wait_s=0, deadline=dl), (500, b""))
+    rig = Rig(clock, app, MM_DEADLINE_UNIX=str(dl), MM_DEADMAN_S="100000")
+    a = rig.agent(runner=runner)
+    a.run(supervise=False)
+    assert [bool(r["done"]) for r in app.requests].count(True) == 3 and rig.term.runs == 1
+
+
+def test_agent_take_without_attempt_id_is_logged() -> None:
+    clock = Clock()
+    app = App(clock, reply(), reply("take", take={"schema": "bogus"}, wait_s=0), reply("stop"))
+    rig = Rig(clock, app)
+    run(rig)
+    assert any("without a valid attempt id" in line for line in rig.logs)
+
+
+@pytest.mark.parametrize("exc", [ValueError("garbled"), http.client.IncompleteRead(b"x"), KeyError("path")])
+def test_agent_boot_survives_any_fetch_exception(exc: Exception) -> None:
+    clock = Clock()
+    rig = Rig(clock, App(clock, reply()))
+
+    def boom(*a: Any, **k: Any) -> list[str]:
+        raise exc
+
+    assert run(rig, fetch=boom) == 3
+    assert rig.term.runs == 1 and any("weights failed" in line for line in rig.logs)

@@ -38,6 +38,10 @@ HEARTBEAT_S = 30.0
 TICK_S = 1.0
 POLL_TIMEOUT_S = 45.0  # the app holds an idle poll up to 20 s
 IDLE_PACE_S = 5.0  # an answered-at-once `wait` (pod not ready yet) is not re-asked faster than this
+MIN_PACE_S = 1.0  # no poll loop is tighter than this, whatever wait_s the app answered
+TERM_WAIT_S = 150.0  # bound on waiting for a Terminator another thread is running
+FINAL_DONE_TRIES = 3
+_LOOPBACK = ("127.0.0.1", "localhost", "::1")
 OVERRUN_GRACE_S = 60.0
 DEFAULT_DEADMAN_S = 600
 DEFAULT_3B_DIR = "/opt/mm/pod-cache/hub"
@@ -140,6 +144,8 @@ class Agent:
         self._discover = discover
         self._lock = threading.Lock()  # one poll in flight at a time
         self._term_lock = threading.Lock()
+        self._term_started = False
+        self._term_done = threading.Event()
         self.terminated = threading.Event()
         self.state = "booting"
         self.attempt: str | None = None
@@ -167,6 +173,9 @@ class Agent:
             raise InitError("ENV_INVALID", "MM_DEADMAN_S must be at least 30")
         if not hubfetch.REV_RE.match(e["MM_YUE2_3B_REVISION"]):
             raise InitError("ENV_INVALID", "MM_YUE2_3B_REVISION must be 40 lowercase hex")
+        u = urlsplit(e["MM_POLL_URL"])
+        if u.scheme != "https" and not (u.scheme == "http" and u.hostname in _LOOPBACK):
+            raise InitError("ENV_INVALID", "MM_POLL_URL must be an https URL")
         self._url = e["MM_POLL_URL"]
         self._watch = Watchdog(deadline, deadman, self._clock)
         if self._clock() >= deadline:
@@ -200,12 +209,25 @@ class Agent:
 
     def terminate(self, reason: str) -> None:
         with self._term_lock:
-            if self.terminated.is_set():
-                return
-            self.terminated.set()
-            self.reason = reason
+            if self._term_started:
+                first = False
+            elif self.terminated.is_set():
+                return  # the overrun exit already ran
+            else:
+                first = self._term_started = True
+                self.terminated.set()
+                self.reason = reason
+        if not first:
+            self._term_done.wait(TERM_WAIT_S)  # never return (and let the process exit) while it is running
+            return
         self.exit_code = EXIT_TERMINATOR
         self._log(f"agent: terminating ({reason})")
+        try:
+            self._terminate_now()
+        finally:
+            self._term_done.set()
+
+    def _terminate_now(self) -> None:
         if self._terminator is None:
             pod, key = self.env.get("RUNPOD_POD_ID"), self.env.get("RUNPOD_API_KEY")
             if not pod or not key:
@@ -261,7 +283,7 @@ class Agent:
         except WorkerError as err:
             self._log(f"agent: weights failed: {err.code}: {redact.message(err.message)}")
             return None
-        except OSError as err:
+        except Exception as err:  # noqa: BLE001 - OSError, a garbled listing (ValueError), IncompleteRead, ...
             self._log(f"agent: weights failed: WEIGHTS_FETCH {type(err).__name__}")
             return None
         if self.terminated.is_set():
@@ -292,6 +314,8 @@ class Agent:
         """Run one take; returns the `done` object to report (None when the document names no valid attempt)."""
         attempt = doc.get("attempt_id")
         attempt = attempt if isinstance(attempt, str) and _ATTEMPT_RE.match(attempt) else None
+        if attempt is None:
+            self._log("agent: take without a valid attempt id dropped; nothing to report")
         try:
             take: TakeInput = parse_job(doc)
         except WorkerError as err:
@@ -353,6 +377,7 @@ class Agent:
             if self.terminated.is_set():
                 break
             if not self._watch.may_take():
+                self._final_report(pending_done)
                 self.terminate("deadline_near")
                 break
             t0 = self._clock()
@@ -366,8 +391,22 @@ class Agent:
             elif ans.action == "take" and ans.take is not None:
                 pending_done = self._run_take(ans.take, adapter)
             else:
-                self._sleep(max(0.0, min(float(ans.wait_s), IDLE_PACE_S) - (self._clock() - t0)))
+                pace = max(min(float(ans.wait_s), IDLE_PACE_S), MIN_PACE_S)
+                self._sleep(max(0.0, pace - (self._clock() - t0)))
+        if self._term_started:
+            self._term_done.wait(TERM_WAIT_S)  # the Terminator may be running on the supervisor thread
         return self.exit_code
+
+    def _final_report(self, done: dict[str, Any] | None) -> None:
+        """A take finished inside the no-take window still reports `done`; any `take` answer is ignored.
+        Only a pending `done` is worth a poll: an idle poll could be answered with a take nobody will run."""
+        if done is None:
+            return
+        for i in range(FINAL_DONE_TRIES):
+            if self.terminated.is_set() or self._poll("idle", None, done) is not None:
+                return
+            if i + 1 < FINAL_DONE_TRIES:
+                self._sleep(IDLE_PACE_S)
 
 
 def _error_code(out: Mapping[str, Any]) -> str:
