@@ -99,6 +99,37 @@ func TestInsertApproval_States(t *testing.T) {
 	}
 }
 
+// TestInsertApproval_MandateVia (C368.5): a mandate batch is auto, decided by the mandate itself, with the fixed reason; a mandate never
+// overrides a batch that still needs a human.
+func TestInsertApproval_MandateVia(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, state, via, decidedBy, reasons string
+		need                                 ApprovalNeed
+	}{
+		{"mandate", "auto", "mandate", "system:mandate:m-1", `["mandate"]`, ApprovalNeed{Reasons: []string{}, Mandate: "m-1"}},
+		{"stray", "auto", "mandate", "system:mandate:m-1", `["mandate"]`, ApprovalNeed{Mandate: "m-1"}},
+		{"needed", "pending", "", "", `["takes_over_limit"]`, ApprovalNeed{Needed: true, Reasons: []string{"takes_over_limit"}, Mandate: "m-1"}},
+	} {
+		sd := r.seedBatch(seedSpec{name: tc.name, noApproval: true, principal: agentP.Key()})
+		r.must(func(tx *sql.Tx) error {
+			_, err := r.s.InsertApproval(ctx, tx, sd.Batch, agentP, ViaAPI, tc.need)
+			return err
+		})
+		q := func(col string) string {
+			return r.str(`SELECT COALESCE(`+col+`,'') FROM approvals WHERE batch_id=?`, sd.Batch)
+		}
+		if q("state") != tc.state || q("via") != tc.via || q("decided_by") != tc.decidedBy || q("reasons") != tc.reasons {
+			t.Errorf("%s: %s %s %s %s", tc.name, q("state"), q("via"), q("decided_by"), q("reasons"))
+		}
+		if tc.state == "auto" && q("decided_at") != q("created_at") {
+			t.Errorf("%s: decided_at %s created_at %s", tc.name, q("decided_at"), q("created_at"))
+		}
+	}
+}
+
 func (r *rig) awaiting(name string) seeded {
 	r.t.Helper()
 	sd := r.seedBatch(seedSpec{name: name, state: "awaiting_confirmation", principal: "agent:a1", jobs: 2})

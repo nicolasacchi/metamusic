@@ -63,6 +63,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/engines/trials/:id", name: "engine-trial" }, // E2c
   { pattern: "/suites/:id", name: "suite" }, // E2c (Library)
   { pattern: "/transforms", name: "transforms" }, // T1: the transform queue and history (More, beside Jobs)
+  { pattern: "/transforms/score", name: "transform-score" }, // DESK-T4: render a score (ABC) with the soundfont
   { pattern: "/batches/:id", name: "batch" },
   { pattern: "/lineage/:id", name: "lineage" },
   { pattern: "/patches/:id", name: "patch" },

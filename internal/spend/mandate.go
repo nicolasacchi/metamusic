@@ -109,3 +109,10 @@ func (s *Service) MandateUsage(ctx context.Context, q Querier, mandateID string)
 func (s *Service) Location() *time.Location { return s.loc }
 
 func (s *Service) localDay(t time.Time) string { return t.In(s.loc).Format(time.DateOnly) }
+
+// MandateTake is one planned take as a mandate sees it (M6N C368.2). It lives here, beside the usage it is counted against, so that
+// mandates can implement generation's MandateCover without importing generation (generation aliases it).
+type MandateTake struct {
+	Mode          string
+	ParentTrackID *string
+}
