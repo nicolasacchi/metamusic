@@ -179,10 +179,12 @@ func (b *Backend) Submit(ctx context.Context, t provider.TakeSpec) (provider.Ref
 func (b *Backend) supplyRefusal(ctx context.Context, batch string, t provider.TakeSpec) (string, error) {
 	var deadline sql.NullString
 	var spent, ended int
-	err := b.o.Store.R.QueryRowContext(ctx, `SELECT MIN(deadline_at),
-			COALESCE(SUM(n = 2 AND state IN ('orphaned','terminating','terminated')), 0),
+	// The supply-ended codes count over every pod of the batch, a canary's too (its verdict ends the one-take batch, BULK-P5); the deadline
+	// and the re-creation are the batch pods' alone.
+	err := b.o.Store.R.QueryRowContext(ctx, `SELECT MIN(CASE WHEN kind = 'batch' THEN deadline_at END),
+			COALESCE(SUM(kind = 'batch' AND n = 2 AND state IN ('orphaned','terminating','terminated')), 0),
 			COALESCE(SUM(error_code IN (`+placeholders(len(supplyEndedCodes))+`)), 0)
-		FROM pods WHERE batch_id = ? AND kind = 'batch'`, append(anyStrings(supplyEndedCodes), batch)...).Scan(&deadline, &spent, &ended)
+		FROM pods WHERE batch_id = ?`, append(anyStrings(supplyEndedCodes), batch)...).Scan(&deadline, &spent, &ended)
 	if err != nil {
 		return "", err
 	}

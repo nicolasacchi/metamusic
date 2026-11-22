@@ -47,6 +47,8 @@ type ProviderAdmin struct {
 	sweeps map[string]func() SweepSnapshot
 	caps   map[string]func() provider.Capabilities
 	bound  BoundInputs // UseBound (seams_e2.go)
+
+	sysAudit SystemAuditFunc // UseSystemAudit (provider_bulk.go)
 }
 
 // NewProviderAdmin builds the service.
@@ -187,6 +189,9 @@ type UpdateIn struct {
 	// AfterRestore is the explicit acknowledgment of `runpod arm --after-restore`: arming a restored
 	// database without a covering billing reconciliation (needed when billing cannot be read).
 	AfterRestore bool
+	// AcceptBroadPodKey acknowledges a pod key the probe found `too_broad` when arming runpod-pod (`--accept-broad-pod-key`,
+	// C396.6). It changes nothing for any other backend.
+	AcceptBroadPodKey bool
 }
 
 // Errors of Update.
@@ -435,6 +440,9 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 		if in.Armed != nil {
 			if *in.Armed {
 				if err := CheckArm(ctx, tx, st.Backend, in.AfterRestore); err != nil {
+					return err
+				}
+				if err := checkArmPod(ctx, tx, st.Backend, in.AcceptBroadPodKey); err != nil {
 					return err
 				}
 			}

@@ -49,10 +49,15 @@ func TestQueue_OrderFitAndDrop(t *testing.T) {
 func TestQueue_ChangedAndCancel(t *testing.T) {
 	t.Parallel()
 	q := pods.NewQueue()
-	for name, act := range map[string]func(){
-		"add": func() { q.Add("b", spec("a")) }, "requeue": func() { q.Requeue("b", spec("a")) },
-		"drop": func() { q.Drop("a") }, "purge": func() { q.Purge() }, "cancel": func() { q.RequestCancel("a") },
+	// in this order: a Drop signals only when the take is queued, so a random map order made this test fail one run in a few
+	for _, step := range []struct {
+		name string
+		act  func()
+	}{
+		{"add", func() { q.Add("b", spec("a")) }}, {"requeue", func() { q.Requeue("b", spec("a")) }},
+		{"drop", func() { q.Drop("a") }}, {"purge", func() { q.Purge() }}, {"cancel", func() { q.RequestCancel("a") }},
 	} {
+		name, act := step.name, step.act
 		ch := q.Changed()
 		select {
 		case <-ch:
