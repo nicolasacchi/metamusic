@@ -335,7 +335,7 @@ func (r *Runner) attempt(ctx context.Context, id, night string) (out outcome, st
 	}
 
 	// price and trim (C374, C375.4): Preview writes nothing
-	items, why, err := r.trim(ctx, m, planned, &doc)
+	items, why, err := r.trim(ctx, m, planned, TierBOption(s.ListeningChecks, m.Scope), &doc)
 	if err != nil {
 		var pe *problem.Error
 		if errors.As(err, &pe) {
@@ -369,7 +369,7 @@ func (r *Runner) attempt(ctx context.Context, id, night string) (out outcome, st
 			exploit++
 		}
 	}
-	in2 := generation.EstimateIn{Items: itemsOf(items), Via: spend.ViaAPI, MandateID: m.ID}
+	in2 := generation.EstimateIn{Items: itemsOf(items), Via: spend.ViaAPI, MandateID: m.ID, TierB: TierBOption(s.ListeningChecks, m.Scope)}
 	est, err := r.o.Generation.Estimate(ctx, Principal(), in2)
 	if err != nil {
 		return r.refused(err)
@@ -429,10 +429,10 @@ func refusal(pe *problem.Error) string {
 
 // trim prices the planned night with Preview and drops items from the end until the mandate covers it (C374.1, C375.4). It returns
 // the final items, or a skip reason (why) when nothing fits.
-func (r *Runner) trim(ctx context.Context, m *mandates.Mandate, planned []Planned, doc *planDoc) (items []Planned, why string, err error) {
+func (r *Runner) trim(ctx context.Context, m *mandates.Mandate, planned []Planned, tierB *bool, doc *planDoc) (items []Planned, why string, err error) {
 	items = slices.Clone(planned)
 	for len(items) > 0 {
-		pv, err := r.o.Generation.Preview(ctx, Principal(), generation.EstimateIn{Items: itemsOf(items), Via: spend.ViaAPI, MandateID: m.ID})
+		pv, err := r.o.Generation.Preview(ctx, Principal(), generation.EstimateIn{Items: itemsOf(items), Via: spend.ViaAPI, MandateID: m.ID, TierB: tierB})
 		if err != nil {
 			var pe *problem.Error
 			if !errors.As(err, &pe) {
@@ -464,6 +464,7 @@ func (r *Runner) trim(ctx context.Context, m *mandates.Mandate, planned []Planne
 			return nil, "", err
 		}
 		doc.Quote = &quoteDoc{Takes: pv.Takes, ExpectedMicroUSD: int64(pv.Cost.Expected), MaxMicroUSD: int64(pv.Cost.Max), CeilingMicroUSD: int64(pv.Cost.Ceiling)}
+		tierBDoc(doc.Quote, pv)
 		if !pv.Budget.Fits {
 			return items, SkipCaps, nil // never trimmed to squeeze under a cap
 		}
@@ -534,6 +535,10 @@ type quoteDoc struct {
 	ExpectedMicroUSD int64 `json:"expected_micro_usd"`
 	MaxMicroUSD      int64 `json:"max_micro_usd"`
 	CeilingMicroUSD  int64 `json:"ceiling_micro_usd"`
+	// TierB: some take has a listening check; TierBTakes are their take indexes; TierBWarnings the per-take reasons there is none (C376.3).
+	TierB         bool        `json:"tier_b"`
+	TierBTakes    []int       `json:"tier_b_takes,omitempty"`
+	TierBWarnings []tierBWarn `json:"tier_b_warnings,omitempty"`
 }
 
 func planItemOf(p Planned) planItem {
